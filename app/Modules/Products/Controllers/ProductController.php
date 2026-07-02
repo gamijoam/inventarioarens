@@ -5,7 +5,9 @@ namespace App\Modules\Products\Controllers;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Requests\StoreProductRequest;
 use App\Modules\Products\Requests\UpdateProductRequest;
+use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductResource;
+use App\Modules\Products\Services\ProductPriceService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -42,6 +44,13 @@ class ProductController extends Controller
         Gate::authorize('view', $product);
 
         return ProductResource::make($product);
+    }
+
+    public function price(Product $product, ProductPriceService $priceService): ProductPriceResource
+    {
+        Gate::authorize('view', $product);
+
+        return ProductPriceResource::make($priceService->quote($product));
     }
 
     public function update(UpdateProductRequest $request, Product $product): ProductResource

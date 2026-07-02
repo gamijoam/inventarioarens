@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-02 - Precios de productos con tasas
+
+### Implementado
+
+- Se agrego `base_price` a productos como precio base interno en `USD`.
+- Se agrego `sale_currency` para indicar si el producto se cotiza en `USD` o `VES`.
+- Se agrego `sale_exchange_rate_type_id` para asignar tipos de tasa como `BCV` o `PARALELO`.
+- Se agrego `ProductPriceService`.
+- Se agrego `ProductPriceResource`.
+- Se agrego `GET /api/products/{product}/price`.
+- Se valido que el tipo de tasa asignado al producto pertenezca al tenant actual.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 11 pruebas pasaron, 47 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 60 pruebas pasaron, 239 assertions.
+
+### Notas de seguridad
+
+- La cotizacion de precio no mueve inventario ni crea ventas.
+- Si un producto vende en `VES`, debe existir una tasa activa.
+- Las ventas futuras deben copiar precio, moneda, tipo de tasa y valor exacto usado.
+
 ## 2026-07-02 - Cierre de APIs de tasas
 
 ### Implementado

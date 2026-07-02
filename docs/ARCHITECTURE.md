@@ -117,6 +117,8 @@ Reglas adicionales:
 - solo una tasa queda activa por tenant, tipo de tasa, moneda base y moneda cotizada;
 - las ventas futuras deben guardar el tipo de tasa, codigo, valor exacto y fecha usados para no recalcular historia.
 
+Los productos pueden definir precio base en `USD`, moneda preferida de venta y tipo de tasa sugerido. La API de precio calculado no crea ventas; solo cotiza el producto usando la tasa activa actual. Cuando exista POS o ventas, el documento de venta debe copiar precio, moneda, tipo de tasa y valor exacto usados.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.

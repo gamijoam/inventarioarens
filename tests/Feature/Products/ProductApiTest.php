@@ -4,6 +4,8 @@ namespace Tests\Feature\Products;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Currency\Models\ExchangeRate;
+use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
@@ -46,6 +48,131 @@ class ProductApiTest extends TestCase
             'sku' => 'SAMSUNG-A06',
             'tracking_type' => Product::TRACKING_SERIALIZED,
         ]);
+    }
+
+    public function test_user_can_create_product_with_price_and_exchange_rate_type(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $parallel = $this->rateTypeFor($tenant, 'PARALELO', 'Tasa paralelo');
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Samsung A06',
+                'sku' => 'SAMSUNG-A06',
+                'base_price' => 100,
+                'sale_currency' => Product::CURRENCY_VES,
+                'sale_exchange_rate_type_id' => $parallel->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.base_price', 100)
+            ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
+            ->assertJsonPath('data.sale_exchange_rate_type_id', $parallel->id);
+    }
+
+    public function test_product_price_endpoint_uses_assigned_active_rate_type(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $bcv = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV', true);
+        $parallel = $this->rateTypeFor($tenant, 'PARALELO', 'Tasa paralelo');
+        $this->rateFor($tenant, $bcv, 500, true);
+        $this->rateFor($tenant, $parallel, 600, true);
+        $product = $this->productFor($tenant, 'Samsung A06', 'SAMSUNG-A06', [
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $parallel->id,
+        ]);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price")
+            ->assertOk()
+            ->assertJsonPath('data.product_id', $product->id)
+            ->assertJsonPath('data.base_price_usd', 100)
+            ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
+            ->assertJsonPath('data.sale_price', 60000)
+            ->assertJsonPath('data.price_usd', 100)
+            ->assertJsonPath('data.price_ves', 60000)
+            ->assertJsonPath('data.exchange_rate_type_code', 'PARALELO')
+            ->assertJsonPath('data.exchange_rate', 600);
+    }
+
+    public function test_product_price_endpoint_uses_default_rate_type_when_product_has_no_assigned_type(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $bcv = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV', true);
+        $this->rateFor($tenant, $bcv, 500, true);
+        $product = $this->productFor($tenant, 'Redmi A3', 'REDMI-A3', [
+            'base_price' => 80,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price")
+            ->assertOk()
+            ->assertJsonPath('data.sale_price', 80)
+            ->assertJsonPath('data.price_usd', 80)
+            ->assertJsonPath('data.price_ves', 40000)
+            ->assertJsonPath('data.exchange_rate_type_code', 'BCV');
+    }
+
+    public function test_product_rejects_exchange_rate_type_from_another_tenant(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+        $foreignType = $this->rateTypeFor($tenantB, 'PARALELO', 'Tasa paralelo B');
+        $user = $this->userInTenant($tenantA);
+
+        $this->grantRole($tenantA, $user, 'Catalog Manager', ['products.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/products', [
+                'name' => 'Samsung A06',
+                'sku' => 'SAMSUNG-A06',
+                'base_price' => 100,
+                'sale_currency' => Product::CURRENCY_VES,
+                'sale_exchange_rate_type_id' => $foreignType->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['sale_exchange_rate_type_id']);
+    }
+
+    public function test_product_price_requires_active_rate_when_sale_currency_is_ves(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $parallel = $this->rateTypeFor($tenant, 'PARALELO', 'Tasa paralelo');
+        $product = $this->productFor($tenant, 'Samsung A06', 'SAMSUNG-A06', [
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $parallel->id,
+        ]);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['exchange_rate']);
     }
 
     public function test_products_index_does_not_mix_multiple_companies(): void
@@ -186,13 +313,36 @@ class ProductApiTest extends TestCase
         }
     }
 
-    private function productFor(Tenant $tenant, string $name, string $sku): Product
+    private function productFor(Tenant $tenant, string $name, string $sku, array $attributes = []): Product
     {
         $this->useTenant($tenant);
 
-        return Product::create([
+        return Product::create(array_merge([
             'name' => $name,
             'sku' => $sku,
+        ], $attributes));
+    }
+
+    private function rateTypeFor(Tenant $tenant, string $code, string $name, bool $isDefault = false): ExchangeRateType
+    {
+        $this->useTenant($tenant);
+
+        return ExchangeRateType::create([
+            'code' => $code,
+            'name' => $name,
+            'is_default' => $isDefault,
+        ]);
+    }
+
+    private function rateFor(Tenant $tenant, ExchangeRateType $type, float $rate, bool $isActive): ExchangeRate
+    {
+        $this->useTenant($tenant);
+
+        return ExchangeRate::create([
+            'exchange_rate_type_id' => $type->id,
+            'rate' => $rate,
+            'effective_at' => '2026-07-02 12:00:00',
+            'is_active' => $isActive,
         ]);
     }
 

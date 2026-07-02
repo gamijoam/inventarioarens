@@ -58,6 +58,9 @@ Body:
   "name": "Samsung A06",
   "sku": "SAMSUNG-A06",
   "tracking_type": "serialized",
+  "base_price": 100,
+  "sale_currency": "VES",
+  "sale_exchange_rate_type_id": 2,
   "is_active": true
 }
 ```
@@ -69,6 +72,9 @@ Reglas:
 - si no se envia `tracking_type`, el producto queda como `quantity`;
 - los productos con `serialized` pueden tener unidades en `product_units` con IMEI o serial;
 - si un producto ya tiene unidades serializadas, no se puede cambiar su `tracking_type`.
+- `base_price` es el precio base interno en `USD`;
+- `sale_currency` puede ser `USD` o `VES`;
+- `sale_exchange_rate_type_id` permite asignar una tasa sugerida, por ejemplo `BCV` o `PARALELO`.
 
 ### Ver producto
 
@@ -81,6 +87,27 @@ Permiso requerido:
 ```txt
 products.view
 ```
+
+### Consultar precio calculado
+
+```txt
+GET /api/products/{product}/price
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Reglas:
+
+- usa `base_price` como precio interno en `USD`;
+- si el producto tiene `sale_exchange_rate_type_id`, usa ese tipo de tasa;
+- si no tiene tipo de tasa asignado, usa el tipo de tasa predeterminado de la empresa;
+- si `sale_currency = VES`, requiere una tasa activa;
+- devuelve precio en `USD`, equivalente en `VES`, tipo de tasa y valor de tasa usado;
+- esta cotizacion no mueve inventario ni crea venta.
 
 ### Actualizar producto
 

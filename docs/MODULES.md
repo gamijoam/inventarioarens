@@ -52,7 +52,8 @@ Responsabilidad:
 
 - productos tenant-scoped;
 - policy base de productos;
-- definir si un producto se controla por cantidad o por unidades serializadas.
+- definir si un producto se controla por cantidad o por unidades serializadas;
+- precio base en `USD`, moneda de venta y tipo de tasa sugerido.
 
 Archivos principales:
 
@@ -62,12 +63,17 @@ Archivos principales:
 - `app/Modules/Products/Requests/StoreProductRequest.php`
 - `app/Modules/Products/Requests/UpdateProductRequest.php`
 - `app/Modules/Products/Resources/ProductResource.php`
+- `app/Modules/Products/Resources/ProductPriceResource.php`
+- `app/Modules/Products/Services/ProductPriceService.php`
 - `app/Modules/Products/routes.php`
 
 Regla importante:
 
 - `tracking_type = quantity` se usa para productos normales por cantidad;
 - `tracking_type = serialized` se usa para productos que requieren IMEI, serial u otro identificador unico por unidad.
+- `base_price` se guarda en `USD`;
+- `sale_currency` define si la cotizacion preferida sale en `USD` o `VES`;
+- `sale_exchange_rate_type_id` permite que un producto use `BCV`, `PARALELO` u otro tipo de tasa.
 
 ### Branches
 
