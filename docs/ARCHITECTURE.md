@@ -137,6 +137,8 @@ El modulo `AccountsPayable` maneja las deudas con proveedores. La cuenta por pag
 
 El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como disponibles o danadas segun la condicion recibida.
 
+El modulo `AccountsReceivable` maneja las deudas de clientes. La cuenta por cobrar nace automaticamente cuando una venta se confirma, usando los totales historicos de la venta. Los cobros pueden registrarse en `USD` o `VES`; si se cobra en bolivares se guarda el tipo de tasa, codigo y valor usado. Las devoluciones de venta reducen el saldo pendiente sin borrar la venta original ni sus movimientos.
+
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
 
 ## Objetivo
@@ -192,6 +194,7 @@ Módulos implementados inicialmente:
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
 - `PurchaseReturns`: devoluciones de compras recibidas y movimientos `purchase_return`.
 - `AccountsPayable`: cuentas por pagar de proveedores, pagos y rebajas por devoluciones.
+- `AccountsReceivable`: cuentas por cobrar de clientes, cobros y rebajas por devoluciones.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
 - `Kardex`: lectura cronologica de movimientos con saldos corridos.
 

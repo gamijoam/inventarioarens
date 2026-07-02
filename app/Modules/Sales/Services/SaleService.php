@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -110,6 +111,8 @@ class SaleService
                 'status' => Sale::STATUS_CONFIRMED,
                 'confirmed_at' => now(),
             ]);
+
+            app(AccountsReceivableService::class)->createForSale($sale->refresh());
 
             return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse', 'items.stockMovement']);
         });

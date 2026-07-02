@@ -3,6 +3,7 @@
 namespace App\Modules\SalesReturns\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -77,6 +78,8 @@ class SalesReturnService
 
                 $this->restoreProductUnits($productUnitIds, $itemData['condition'] ?? SalesReturnItem::CONDITION_SELLABLE);
             }
+
+            app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
 
             return $salesReturn->refresh()->load(['sale.customer', 'items.product', 'items.warehouse', 'items.stockMovement']);
         });

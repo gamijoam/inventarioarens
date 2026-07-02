@@ -322,8 +322,41 @@ Regla importante:
 - crear una venta no mueve inventario;
 - si se envia cliente, debe pertenecer al tenant actual;
 - confirmar una venta descuenta inventario;
+- confirmar una venta genera una cuenta por cobrar mediante `AccountsReceivable`;
 - cada item guarda precio y tasa exacta usada;
 - ventas confirmadas no se cancelan directamente en esta fase.
+
+### AccountsReceivable
+
+Responsabilidad:
+
+- cuentas por cobrar por cliente y venta confirmada;
+- creacion automatica de deuda al confirmar ventas;
+- registro de cobros parciales o totales;
+- saldo principal en `USD` base con snapshot local en `VES` cuando aplica;
+- rebaja automatica de saldo por devoluciones de venta;
+- control de estados `pending`, `partial`, `paid` y `overdue`.
+
+Archivos principales:
+
+- `app/Modules/AccountsReceivable/Models/AccountsReceivable.php`
+- `app/Modules/AccountsReceivable/Models/AccountsReceivablePayment.php`
+- `app/Modules/AccountsReceivable/Policies/AccountsReceivablePolicy.php`
+- `app/Modules/AccountsReceivable/Controllers/AccountsReceivableController.php`
+- `app/Modules/AccountsReceivable/Requests/RegisterAccountsReceivablePaymentRequest.php`
+- `app/Modules/AccountsReceivable/Resources/AccountsReceivableResource.php`
+- `app/Modules/AccountsReceivable/Resources/AccountsReceivablePaymentResource.php`
+- `app/Modules/AccountsReceivable/Services/AccountsReceivableService.php`
+- `app/Modules/AccountsReceivable/routes.php`
+
+Regla importante:
+
+- no se crea deuda manual desde API en esta fase;
+- una venta confirmada genera una cuenta por cobrar idempotente;
+- una devolucion de venta reduce `returned_base_amount` y el saldo;
+- los cobros no pueden superar el saldo pendiente;
+- los cobros en bolivares guardan tasa exacta usada;
+- toda cuenta y cobro debe respetar tenant y permisos.
 
 ### SalesReturns
 
@@ -353,6 +386,7 @@ Regla importante:
 - solo se devuelven ventas confirmadas;
 - no se puede devolver mas de lo vendido;
 - productos serializados requieren indicar unidades especificas;
+- si existe cuenta por cobrar de la venta, la devolucion reduce el saldo pendiente;
 - toda devolucion debe respetar tenant y permisos.
 
 ### POS

@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
@@ -136,6 +138,8 @@ class DemoDataSeeder extends Seeder
         $this->paidPosOrder($tenant, $cashRegister, $cashier, $warehouse, $phone, $parallel, $paidCustomer);
         $this->pendingFinancingOrder($tenant, $cashRegister, $cashier, $warehouse, $headphones, $financingCustomer);
         $this->salesReturn($tenant, $manager, $phone);
+        $this->creditSale($tenant, $manager, $warehouse, $headphones, $paidCustomer, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
+        $this->accountsReceivablePayment($tenant, $manager, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
     }
 
     private function paidPosOrder(
@@ -383,6 +387,54 @@ class DemoDataSeeder extends Seeder
                 'quantity' => 1,
                 'product_unit_ids' => $productUnit ? [$productUnit->id] : [],
             ]],
+        ]);
+    }
+
+    private function creditSale(
+        Tenant $tenant,
+        User $user,
+        Warehouse $warehouse,
+        Product $product,
+        Customer $customer,
+        string $documentNumber,
+    ): void {
+        $this->useTenant($tenant);
+
+        if (AccountsReceivable::query()->where('document_number', $documentNumber)->exists()) {
+            return;
+        }
+
+        $sale = app(\App\Modules\Sales\Services\SaleService::class)->createDraft($user, [[
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+        ]], $customer->id);
+
+        $sale = app(\App\Modules\Sales\Services\SaleService::class)->confirm($sale, $user);
+
+        AccountsReceivable::query()
+            ->where('sale_id', $sale->id)
+            ->update(['document_number' => $documentNumber]);
+    }
+
+    private function accountsReceivablePayment(Tenant $tenant, User $user, string $documentNumber): void
+    {
+        $this->useTenant($tenant);
+
+        $account = AccountsReceivable::query()
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if (! $account || $account->payments()->exists()) {
+            return;
+        }
+
+        app(AccountsReceivableService::class)->registerPayment($account, $user, [
+            'payment_currency' => Product::CURRENCY_USD,
+            'amount' => 10,
+            'method' => 'cobro demo',
+            'reference' => "COBRO-{$documentNumber}",
+            'notes' => 'Abono demo de cliente.',
         ]);
     }
 

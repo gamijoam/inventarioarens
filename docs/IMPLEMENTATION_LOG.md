@@ -1,5 +1,38 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo AccountsReceivable
+
+### Implementado
+
+- Se agrego el modulo `AccountsReceivable`.
+- Se agregaron tablas `accounts_receivables` y `accounts_receivable_payments`.
+- Se agregaron modelos `AccountsReceivable` y `AccountsReceivablePayment`.
+- Se agrego `AccountsReceivablePolicy`.
+- Se agrego `AccountsReceivableService`.
+- Se agrego `AccountsReceivableController`.
+- Se agregaron recursos y request de cobro de cliente.
+- Se agregaron endpoints para listar, ver y cobrar cuentas por cobrar.
+- Se agregaron permisos `accounts_receivable.view` y `accounts_receivable.collect`.
+- Se integro `Sales` para crear cuenta por cobrar automaticamente al confirmar una venta.
+- Se integro `SalesReturns` para reducir el saldo pendiente cuando hay devolucion de venta.
+- Se soportan cobros en `USD` y `VES`.
+- Se guarda snapshot de tipo de tasa, codigo y valor cuando el cobro usa bolivares.
+- Se valida que un cobro no supere el saldo pendiente.
+- Se actualizo el seeder demo para crear ventas a credito, cuentas por cobrar y abonos visibles en la BD local.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/AccountsReceivable/AccountsReceivableApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 8 pruebas pasadas, 57 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 122 pruebas pasadas, 563 aserciones.
+
+### Notas de seguridad
+
+- Las cuentas por cobrar son tenant-scoped.
+- Una cuenta por cobrar nace desde una venta confirmada, no desde un endpoint manual.
+- Los cobros rechazan cuentas de otra empresa mediante policy.
+- Los cobros en bolivares guardan la tasa usada y no recalculan historia.
+- Las devoluciones de venta rebajan saldo sin borrar ventas ni movimientos historicos.
+
 ## 2026-07-02 - Modulo AccountsPayable
 
 ### Implementado

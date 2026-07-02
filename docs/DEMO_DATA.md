@@ -61,6 +61,9 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Cajas abiertas.
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.
+- Venta demo a credito para revisar cuentas por cobrar.
+- Cuentas por cobrar demo generadas desde ventas confirmadas.
+- Abonos demo de clientes que dejan cuentas por cobrar en estado parcial.
 - Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
 - Devoluciones de venta demo sobre ventas POS pagadas.
 - Movimientos de inventario, caja y auditoria generados por servicios reales.

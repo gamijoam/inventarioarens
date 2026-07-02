@@ -1027,6 +1027,87 @@ Reglas:
 - una cuenta pagada no acepta nuevos pagos;
 - todos los ids deben pertenecer a la empresa actual.
 
+## Cuentas por cobrar
+
+Archivo de rutas:
+
+```txt
+app/Modules/AccountsReceivable/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\AccountsReceivable\Controllers\AccountsReceivableController
+```
+
+### Listar cuentas por cobrar
+
+```txt
+GET /api/accounts-receivable
+```
+
+Permiso requerido:
+
+```txt
+accounts_receivable.view
+```
+
+Reglas:
+
+- las cuentas por cobrar se crean automaticamente al confirmar una venta;
+- no hay endpoint publico para crear deuda manual en esta fase;
+- cada cuenta queda asociada a la venta y opcionalmente al cliente;
+- el saldo principal se guarda en `USD` base;
+- si el cobro usa `VES`, se guarda el snapshot de tasa usado;
+- las devoluciones de venta reducen el saldo pendiente sin borrar la venta.
+
+### Ver cuenta por cobrar
+
+```txt
+GET /api/accounts-receivable/{accountsReceivable}
+```
+
+Permiso requerido:
+
+```txt
+accounts_receivable.view
+```
+
+### Registrar cobro de cliente
+
+```txt
+POST /api/accounts-receivable/{accountsReceivable}/payments
+```
+
+Permiso requerido:
+
+```txt
+accounts_receivable.collect
+```
+
+Body:
+
+```json
+{
+  "payment_currency": "VES",
+  "amount": 60000,
+  "exchange_rate_type_id": 1,
+  "method": "pago movil",
+  "reference": "PM-CLIENTE-001",
+  "notes": "Abono de cliente"
+}
+```
+
+Reglas:
+
+- `payment_currency` puede ser `USD` o `VES`;
+- los cobros en `VES` requieren una tasa activa o `exchange_rate` explicito;
+- el cobro guarda tipo de tasa, codigo y valor exacto usado;
+- no se permite cobrar mas que el saldo pendiente;
+- una cuenta pagada no acepta nuevos cobros;
+- todos los ids deben pertenecer a la empresa actual.
+
 ## Ventas
 
 Archivo de rutas:
@@ -1847,6 +1928,8 @@ Reglas:
 - Las cuentas por pagar se crean al recibir compras y se reducen con pagos o devoluciones a proveedor.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
+- Las APIs de cuentas por cobrar deben vivir en el modulo `AccountsReceivable`.
+- Las cuentas por cobrar se crean al confirmar ventas y se reducen con cobros o devoluciones de venta.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.
 - Las devoluciones de venta deben crear movimientos `sale_return`, no borrar ventas historicas.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
