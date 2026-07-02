@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-02 - POS base
+
+### Implementado
+
+- Se agrego el modulo `POS`.
+- Se agrego la tabla `pos_orders`.
+- Se agrego la tabla `pos_payments`.
+- Se agregaron modelos `PosOrder` y `PosPayment`.
+- Se agrego `PosOrderPolicy`.
+- Se agrego `PosCheckoutService`.
+- Se agrego `PosOrderController`.
+- Se agregaron endpoints para listar ordenes POS, crear checkouts y ver una orden POS.
+- El POS crea una venta usando `Sales`, registra pagos y confirma la venta solo si los pagos capturados cubren el total.
+- Los pagos pueden estar en `USD` o `VES`.
+- Los pagos en `VES` guardan tipo de tasa, codigo y valor exacto usado.
+- Los pagos con estado `pending`, como financiadoras externas futuras, no cierran la venta ni descuentan inventario.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas de POS en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`: 5 pruebas pasadas, 28 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 71 pruebas pasadas, 294 aserciones.
+
+### Notas de seguridad
+
+- POS es tenant-scoped.
+- POS no mueve inventario directamente; delega la confirmacion a `Sales`.
+- Los items solo aceptan productos y almacenes de la empresa actual.
+- Las ordenes POS solo son visibles dentro de la empresa actual.
+- Los pagos quedan modelados desde el inicio para metodos futuros como pago movil, tarjeta, transferencia, Zelle y financiadoras externas.
+
 ## 2026-07-02 - Ventas base
 
 ### Implementado

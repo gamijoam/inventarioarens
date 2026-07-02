@@ -9,6 +9,8 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Policies\ExchangeRatePolicy;
 use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
+use App\Modules\POS\Models\PosOrder;
+use App\Modules\POS\Policies\PosOrderPolicy;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Policies\ProductPolicy;
 use App\Modules\Sales\Models\Sale;
@@ -36,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
+        Gate::policy(PosOrder::class, PosOrderPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);

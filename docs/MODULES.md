@@ -175,6 +175,37 @@ Regla importante:
 - cada item guarda precio y tasa exacta usada;
 - ventas confirmadas no se cancelan directamente en esta fase.
 
+### POS
+
+Responsabilidad:
+
+- punto de venta operativo;
+- checkout rapido desde caja;
+- registro de pagos en `USD` o `VES`;
+- soporte inicial para pagos capturados y pendientes;
+- integracion con `Sales` para crear y confirmar ventas;
+- base para metodos de pago, financiadoras externas y conciliaciones futuras.
+
+Archivos principales:
+
+- `app/Modules/POS/Models/PosOrder.php`
+- `app/Modules/POS/Models/PosPayment.php`
+- `app/Modules/POS/Policies/PosOrderPolicy.php`
+- `app/Modules/POS/Controllers/PosOrderController.php`
+- `app/Modules/POS/Requests/StorePosCheckoutRequest.php`
+- `app/Modules/POS/Resources/PosOrderResource.php`
+- `app/Modules/POS/Resources/PosPaymentResource.php`
+- `app/Modules/POS/Services/PosCheckoutService.php`
+- `app/Modules/POS/routes.php`
+
+Regla importante:
+
+- POS no debe descontar inventario directamente;
+- POS debe usar `Sales` para crear y confirmar la venta;
+- solo pagos `captured` cuentan para cerrar una orden POS;
+- pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
+- cada pago en `VES` debe guardar la tasa exacta usada.
+
 ### Inventory
 
 Responsabilidad:
@@ -254,13 +285,6 @@ Archivos principales:
 - items de venta;
 - confirmacion/cancelacion de venta;
 - al confirmar, generar movimientos `sale`.
-
-### POS
-
-- flujo rapido de punto de venta;
-- caja, metodo de pago, recibo;
-- ventas en `USD` o `VES`;
-- integracion con tasas y ventas.
 
 ### Currency
 

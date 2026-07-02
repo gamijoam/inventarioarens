@@ -121,6 +121,8 @@ Los productos pueden definir precio base en `USD`, moneda preferida de venta y t
 
 El modulo `Sales` crea ventas primero como `draft`. En esa fase copia precio, moneda, tipo de tasa y valor de tasa desde el producto, pero no mueve inventario. La confirmacion de una venta valida stock disponible y genera movimientos `sale` en inventario con referencia a la venta. En esta fase, las ventas confirmadas no se cancelan directamente; una devolucion o reverso controlado se modelara mas adelante.
 
+El modulo `POS` es la capa operativa de caja. POS crea una venta mediante `Sales`, registra pagos y solo confirma la venta cuando los pagos capturados cubren el total. Los pagos pueden registrarse en `USD` o `VES`; si el pago es en bolivares se guarda el tipo de tasa, codigo y valor exacto usado. Pagos pendientes, como una financiadora externa futura, quedan registrados pero no descuentan inventario hasta que se capturen.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.

@@ -886,6 +886,137 @@ Filtros:
 - `date_from`
 - `date_to`
 
+## POS
+
+Archivo de rutas:
+
+```txt
+app/Modules/POS/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\POS\Controllers\PosOrderController
+```
+
+### Listar ordenes POS
+
+```txt
+GET /api/pos/orders
+```
+
+Permiso requerido:
+
+```txt
+pos.view
+```
+
+Respuesta:
+
+- ordenes POS de la empresa actual;
+- venta asociada;
+- pagos registrados.
+
+### Crear checkout POS
+
+```txt
+POST /api/pos/checkouts
+```
+
+Permiso requerido:
+
+```txt
+pos.checkout
+```
+
+Body:
+
+```json
+{
+  "customer_name": "Cliente mostrador",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 1,
+      "quantity": 2
+    }
+  ],
+  "payments": [
+    {
+      "method": "cash",
+      "currency": "USD",
+      "amount": 200,
+      "status": "captured"
+    }
+  ]
+}
+```
+
+Metodos de pago iniciales:
+
+- `cash`
+- `card`
+- `mobile_payment`
+- `transfer`
+- `zelle`
+- `external_financing`
+- `other`
+
+Estados de pago iniciales:
+
+- `captured`: cuenta como pago valido para cerrar la orden;
+- `pending`: queda registrado, pero no confirma la venta;
+- `failed`: queda registrado, pero no confirma la venta.
+
+Reglas:
+
+- POS crea una venta en `Sales`;
+- POS registra los pagos en `pos_payments`;
+- solo pagos `captured` suman al total pagado;
+- si los pagos capturados cubren el total base, POS confirma la venta y descuenta inventario mediante `Sales`;
+- si el pago queda pendiente, la orden POS queda `open` y la venta queda `draft`;
+- pagos en `VES` requieren una tasa activa y guardan snapshot de tipo de tasa, codigo y valor;
+- pagos con financiadoras externas pueden usar `external_provider`, `reference` y `metadata`.
+
+Ejemplo de pago en bolivares:
+
+```json
+{
+  "method": "mobile_payment",
+  "currency": "VES",
+  "amount": 60000,
+  "exchange_rate_type_id": 2,
+  "reference": "PM-001",
+  "status": "captured"
+}
+```
+
+Ejemplo de financiadora externa pendiente:
+
+```json
+{
+  "method": "external_financing",
+  "currency": "USD",
+  "amount": 100,
+  "status": "pending",
+  "external_provider": "Financiadora Demo",
+  "reference": "SOL-1001"
+}
+```
+
+### Ver orden POS
+
+```txt
+GET /api/pos/orders/{posOrder}
+```
+
+Permiso requerido:
+
+```txt
+pos.view
+```
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion
@@ -921,6 +1052,7 @@ Filtros:
 - Un almacen nunca debe apuntar a una sucursal de otra empresa.
 - Las APIs de moneda deben permitir multiples tipos de tasa por empresa, como `BCV` y `PARALELO`.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
+- Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
+- Las APIs de POS no deben descontar inventario directamente.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
-- Las APIs futuras de POS deben vivir en su propio modulo `POS`.
