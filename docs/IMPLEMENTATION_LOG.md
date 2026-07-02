@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-02 - Reportes iniciales de inventario
+
+### Implementado
+
+- Se agrego `InventoryReportController`.
+- Se agregaron requests de reportes de stock y movimientos.
+- Se agregaron resources para respuestas de stock y movimientos.
+- Se agregaron endpoints de stock actual, bajo stock y movimientos.
+- Se agregaron filtros por almacen, producto, tipo de movimiento y fechas.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Reports/InventoryReportApiTest.php`.
+- Resultado: 4 pruebas pasaron, 18 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 34 pruebas pasaron, 114 assertions.
+
+### Notas de seguridad
+
+- Los reportes requieren `reports.view`.
+- Se probaron varias empresas para confirmar que los reportes no mezclan stock ni movimientos.
+- Los filtros de producto y almacen se validan contra el tenant actual.
+- Los reportes consultan modelos tenant-scoped.
+
 ## 2026-07-02 - Auditoria de movimientos de inventario
 
 ### Implementado

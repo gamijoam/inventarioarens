@@ -1,5 +1,42 @@
 # Arquitectura de Inventory Arens
 
+## Reportes iniciales
+
+Las rutas API de reportes viven en `routes/api.php` y usan los middleware `auth` y `tenant`.
+
+Prefijo:
+
+```txt
+/api/reports
+```
+
+Endpoints iniciales:
+
+- `GET /api/reports/stock`: stock actual por almacen y producto.
+- `GET /api/reports/stock/low`: productos con bajo stock segun umbral.
+- `GET /api/reports/movements`: movimientos de inventario filtrables.
+
+Filtros iniciales:
+
+- `warehouse_id`
+- `product_id`
+- `threshold` para bajo stock
+- `type` para movimientos
+- `date_from`
+- `date_to`
+
+Reglas:
+
+- todos los reportes requieren `reports.view`;
+- los filtros `warehouse_id` y `product_id` se validan contra el tenant actual;
+- los reportes usan modelos tenant-scoped, por lo que una empresa no ve stock ni movimientos de otra;
+- los reportes de stock usan `stock_balances`;
+- los reportes de movimientos usan `stock_movements`.
+
+Prueba asociada:
+
+- `tests/Feature/Reports/InventoryReportApiTest.php`
+
 ## Auditoria
 
 Las acciones importantes de negocio deben quedar registradas en `audit_logs`.

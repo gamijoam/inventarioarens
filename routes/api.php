@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Inventory\Controllers\InventoryMovementController;
+use App\Modules\Reports\Controllers\InventoryReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'tenant'])
@@ -14,4 +15,12 @@ Route::middleware(['auth', 'tenant'])
         Route::post('releases', [InventoryMovementController::class, 'release']);
         Route::post('damages', [InventoryMovementController::class, 'damage']);
         Route::post('transfers', [InventoryMovementController::class, 'transfer']);
+    });
+
+Route::middleware(['auth', 'tenant'])
+    ->prefix('reports')
+    ->group(function (): void {
+        Route::get('stock', [InventoryReportController::class, 'stock']);
+        Route::get('stock/low', [InventoryReportController::class, 'lowStock']);
+        Route::get('movements', [InventoryReportController::class, 'movements']);
     });
