@@ -1,0 +1,30 @@
+# Implementation Log
+
+## 2026-07-02 - Phase 1 Foundation
+
+### Implemented
+
+- Created the Laravel 13 project foundation.
+- Added Docker support for the Laravel app and PostgreSQL.
+- Added the modular directory base under `app/Modules`.
+- Added the `Tenancy` module with tenant model, middleware, and provider.
+- Added `TenantManager` as the request-scoped current tenant service.
+- Added `BelongsToTenant` and `TenantScope` to automate tenant filtering and `tenant_id` assignment.
+- Added `tenants` and `tenant_user` migrations.
+- Added an initial tenant-scoped `products` table and model to validate the tenancy pattern before building the full inventory module.
+- Installed Spatie Laravel Permission.
+- Configured Spatie teams with `tenant_id` as the tenant/team key.
+- Added base roles and permissions seed data.
+- Added tenant isolation tests.
+
+### Tests
+
+- Ran `php artisan test`.
+- Result: 5 tests passed.
+
+### Safety Notes
+
+- Tenant-owned business data must use `BelongsToTenant`.
+- Tenant-owned records fail fast when created without a resolved tenant.
+- Business uniqueness must be tenant-scoped, for example `tenant_id + sku`.
+- AI must remain outside the inventory core and must not bypass permissions, validation, policies, or audit logs.
