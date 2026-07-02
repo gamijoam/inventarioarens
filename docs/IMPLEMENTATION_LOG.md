@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-02 - API de productos
+
+### Implementado
+
+- Se agrego `ProductController`.
+- Se agregaron requests para crear y actualizar productos.
+- Se agrego `ProductResource`.
+- Se agrego `app/Modules/Products/routes.php`.
+- Se expusieron endpoints para listar, crear, ver, actualizar y desactivar productos.
+- Se valido `sku` unico por tenant.
+- Se valido `tracking_type` con soporte para `quantity` y `serialized`.
+- Se bloqueo el cambio de `tracking_type` cuando el producto ya tiene unidades serializadas.
+- La eliminacion por API desactiva el producto con `is_active = false`.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 6 pruebas pasaron, 23 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 44 pruebas pasaron, 145 assertions.
+
+### Notas de seguridad
+
+- Todos los endpoints usan `auth` y `tenant`.
+- La API usa `ProductPolicy` para validar permisos y pertenencia al tenant actual.
+- El listado de productos no mezcla datos entre empresas.
+- Los productos serializados quedan preparados para asociar IMEIs o seriales en `product_units`.
+- No se permite perder trazabilidad cambiando a cantidad un producto que ya tiene IMEIs o seriales registrados.
+
 ## 2026-07-02 - Base para productos serializados e IMEI
 
 ### Implementado

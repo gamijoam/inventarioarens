@@ -3,6 +3,9 @@
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Products/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes.php'));
 
 Route::middleware(['auth', 'tenant'])

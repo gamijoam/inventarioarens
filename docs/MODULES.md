@@ -58,6 +58,11 @@ Archivos principales:
 
 - `app/Modules/Products/Models/Product.php`
 - `app/Modules/Products/Policies/ProductPolicy.php`
+- `app/Modules/Products/Controllers/ProductController.php`
+- `app/Modules/Products/Requests/StoreProductRequest.php`
+- `app/Modules/Products/Requests/UpdateProductRequest.php`
+- `app/Modules/Products/Resources/ProductResource.php`
+- `app/Modules/Products/routes.php`
 
 Regla importante:
 

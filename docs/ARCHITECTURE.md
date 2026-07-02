@@ -151,7 +151,7 @@ ModuleName/
 Módulos implementados inicialmente:
 
 - `Tenancy`: tenants, resolución de tenant y aislamiento de petición.
-- `Products`: primer modelo tenant-scoped usado para probar el patrón de aislamiento.
+- `Products`: catalogo de productos, API de productos, policy tenant-aware y tipo de control por cantidad o serializado.
 - `Branches`: sucursales tenant-scoped.
 - `Warehouses`: almacenes tenant-scoped vinculados a sucursales del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.

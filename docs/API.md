@@ -13,6 +13,104 @@ Todas las rutas actuales requieren:
 - header recomendado: `X-Tenant: <slug-del-tenant>`;
 - pertenencia activa del usuario al tenant.
 
+## Productos
+
+Archivo de rutas:
+
+```txt
+app/Modules/Products/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Products\Controllers\ProductController
+```
+
+### Listar productos
+
+```txt
+GET /api/products
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+### Crear producto
+
+```txt
+POST /api/products
+```
+
+Permiso requerido:
+
+```txt
+products.create
+```
+
+Body:
+
+```json
+{
+  "name": "Samsung A06",
+  "sku": "SAMSUNG-A06",
+  "tracking_type": "serialized",
+  "is_active": true
+}
+```
+
+Reglas:
+
+- `sku` es unico dentro de la empresa actual;
+- `tracking_type` puede ser `quantity` o `serialized`;
+- si no se envia `tracking_type`, el producto queda como `quantity`;
+- los productos con `serialized` pueden tener unidades en `product_units` con IMEI o serial;
+- si un producto ya tiene unidades serializadas, no se puede cambiar su `tracking_type`.
+
+### Ver producto
+
+```txt
+GET /api/products/{product}
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+### Actualizar producto
+
+```txt
+PATCH /api/products/{product}
+PUT /api/products/{product}
+```
+
+Permiso requerido:
+
+```txt
+products.update
+```
+
+### Desactivar producto
+
+```txt
+DELETE /api/products/{product}
+```
+
+Permiso requerido:
+
+```txt
+products.delete
+```
+
+Regla:
+
+- no borra fisicamente el producto; marca `is_active = false`.
+
 ## Inventario
 
 Archivo de rutas:
@@ -289,6 +387,7 @@ Filtros:
 
 - Ninguna API debe permitir acceder a datos de otro tenant.
 - Ninguna API debe saltarse policies, permisos o servicios autorizados.
+- Las APIs de productos deben respetar SKU unico por tenant.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
 - Las APIs futuras de POS deben vivir en su propio modulo `POS`.
