@@ -146,6 +146,35 @@ Regla importante:
 - activar una nueva tasa solo reemplaza la tasa activa del mismo tipo y par de monedas;
 - las ventas futuras deben guardar el tipo de tasa y el valor exacto usado.
 
+### Sales
+
+Responsabilidad:
+
+- ventas en borrador;
+- confirmacion de ventas;
+- cancelacion de ventas en borrador;
+- copia historica de precio, moneda, tipo de tasa y valor de tasa;
+- descuento de inventario al confirmar.
+
+Archivos principales:
+
+- `app/Modules/Sales/Models/Sale.php`
+- `app/Modules/Sales/Models/SaleItem.php`
+- `app/Modules/Sales/Policies/SalePolicy.php`
+- `app/Modules/Sales/Controllers/SaleController.php`
+- `app/Modules/Sales/Requests/StoreSaleRequest.php`
+- `app/Modules/Sales/Resources/SaleResource.php`
+- `app/Modules/Sales/Resources/SaleItemResource.php`
+- `app/Modules/Sales/Services/SaleService.php`
+- `app/Modules/Sales/routes.php`
+
+Regla importante:
+
+- crear una venta no mueve inventario;
+- confirmar una venta descuenta inventario;
+- cada item guarda precio y tasa exacta usada;
+- ventas confirmadas no se cancelan directamente en esta fase.
+
 ### Inventory
 
 Responsabilidad:

@@ -533,6 +533,113 @@ Regla:
 
 - no borra fisicamente la tasa historica; marca `is_active = false`.
 
+## Ventas
+
+Archivo de rutas:
+
+```txt
+app/Modules/Sales/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Sales\Controllers\SaleController
+```
+
+### Listar ventas
+
+```txt
+GET /api/sales
+```
+
+Permiso requerido:
+
+```txt
+sales.view
+```
+
+### Crear venta en borrador
+
+```txt
+POST /api/sales
+```
+
+Permiso requerido:
+
+```txt
+sales.create
+```
+
+Body:
+
+```json
+{
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 1,
+      "quantity": 2
+    }
+  ]
+}
+```
+
+Reglas:
+
+- crear una venta la deja en `draft`;
+- crear una venta no descuenta inventario;
+- copia el precio actual del producto;
+- copia moneda, tipo de tasa y valor exacto de tasa;
+- `warehouse_id` y `product_id` deben pertenecer a la empresa actual.
+
+### Ver venta
+
+```txt
+GET /api/sales/{sale}
+```
+
+Permiso requerido:
+
+```txt
+sales.view
+```
+
+### Confirmar venta
+
+```txt
+PATCH /api/sales/{sale}/confirm
+```
+
+Permiso requerido:
+
+```txt
+sales.create
+```
+
+Reglas:
+
+- solo confirma ventas en `draft`;
+- valida stock disponible;
+- descuenta inventario con movimiento `sale`;
+- enlaza los movimientos de inventario con la venta.
+
+### Cancelar venta
+
+```txt
+PATCH /api/sales/{sale}/cancel
+```
+
+Permiso requerido:
+
+```txt
+sales.cancel
+```
+
+Regla:
+
+- en esta fase solo se cancelan ventas en `draft`; ventas confirmadas requeriran devolucion/reverso controlado mas adelante.
+
 ## Inventario
 
 Archivo de rutas:
@@ -813,6 +920,7 @@ Filtros:
 - Las APIs de sucursales y almacenes deben respetar codigo unico por tenant.
 - Un almacen nunca debe apuntar a una sucursal de otra empresa.
 - Las APIs de moneda deben permitir multiples tipos de tasa por empresa, como `BCV` y `PARALELO`.
+- Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
 - Las APIs futuras de POS deben vivir en su propio modulo `POS`.

@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-02 - Ventas base
+
+### Implementado
+
+- Se agrego la tabla `sales`.
+- Se agrego la tabla `sale_items`.
+- Se agregaron modelos `Sale` y `SaleItem`.
+- Se agrego `SalePolicy`.
+- Se agrego `SaleService`.
+- Se agrego `SaleController`.
+- Se agregaron endpoints para listar, crear, ver, confirmar y cancelar ventas.
+- Crear una venta genera un borrador y copia precio/tasa historica.
+- Confirmar una venta descuenta inventario y enlaza movimientos.
+- Cancelar solo aplica a ventas en borrador en esta fase.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas de ventas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Sales/SalesApiTest.php`: 6 pruebas pasadas, 27 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 66 pruebas pasadas, 266 aserciones.
+
+### Notas de seguridad
+
+- Las ventas son tenant-scoped.
+- Los items solo aceptan productos y almacenes de la empresa actual.
+- La venta confirmada guarda historia de precio y tasa.
+- POS futuro debe usar ventas, no mover inventario directamente.
+
 ## 2026-07-02 - Precios de productos con tasas
 
 ### Implementado

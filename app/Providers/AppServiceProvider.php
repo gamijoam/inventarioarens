@@ -11,6 +11,8 @@ use App\Modules\Currency\Policies\ExchangeRatePolicy;
 use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Policies\ProductPolicy;
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Policies\SalePolicy;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warehouses\Policies\WarehousePolicy;
 use Illuminate\Support\Facades\Gate;
@@ -35,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(Sale::class, SalePolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::define('inventory.view-operation', [InventoryPolicy::class, 'view']);
         Gate::define('inventory.receive-operation', [InventoryPolicy::class, 'receive']);

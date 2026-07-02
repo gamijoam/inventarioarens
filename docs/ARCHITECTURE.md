@@ -119,6 +119,8 @@ Reglas adicionales:
 
 Los productos pueden definir precio base en `USD`, moneda preferida de venta y tipo de tasa sugerido. La API de precio calculado no crea ventas; solo cotiza el producto usando la tasa activa actual. Cuando exista POS o ventas, el documento de venta debe copiar precio, moneda, tipo de tasa y valor exacto usados.
 
+El modulo `Sales` crea ventas primero como `draft`. En esa fase copia precio, moneda, tipo de tasa y valor de tasa desde el producto, pero no mueve inventario. La confirmacion de una venta valida stock disponible y genera movimientos `sale` en inventario con referencia a la venta. En esta fase, las ventas confirmadas no se cancelan directamente; una devolucion o reverso controlado se modelara mas adelante.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
