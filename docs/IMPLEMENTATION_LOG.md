@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-02 - Integracion POS con AccountsReceivable
+
+### Implementado
+
+- Se integro `POS` con `AccountsReceivable`.
+- Los pagos POS con estado `captured` se registran automaticamente como cobros de la cuenta por cobrar creada al confirmar la venta.
+- Los cobros automaticos usan referencia idempotente `POS-PAYMENT-{id}`.
+- Se guarda metodo `pos_{method}` para distinguir cobros generados desde POS.
+- Los pagos POS en `VES` conservan snapshot de tipo de tasa, codigo y valor usado.
+- Los pagos POS con estado `pending` no crean cobros automaticos y mantienen la venta en borrador.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`: 7 pruebas pasadas, 59 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 126 pruebas pasadas, 591 aserciones.
+
+### Notas de seguridad
+
+- La sincronizacion ocurre dentro de la transaccion de checkout.
+- Si la venta no se confirma, no se crea cuenta por cobrar ni cobro.
+- Solo pagos capturados se reflejan como cobros.
+- La referencia idempotente evita duplicar cobros si el flujo se reintenta internamente.
+
 ## 2026-07-02 - Modulo FinanceReports
 
 ### Implementado

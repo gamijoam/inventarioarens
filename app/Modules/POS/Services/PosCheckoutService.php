@@ -3,6 +3,8 @@
 namespace App\Modules\POS\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -19,6 +21,7 @@ class PosCheckoutService
     public function __construct(
         private readonly SaleService $sales,
         private readonly CashRegisterService $cashRegister,
+        private readonly AccountsReceivableService $accountsReceivable,
     ) {
     }
 
@@ -85,7 +88,8 @@ class PosCheckoutService
             ]);
 
             if ($this->coversTotal($paidBase, (float) $sale->total_base_amount)) {
-                $this->sales->confirm($sale, $cashier);
+                $sale = $this->sales->confirm($sale, $cashier);
+                $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier);
                 $order->update([
                     'status' => PosOrder::STATUS_PAID,
                     'paid_at' => now(),
@@ -175,5 +179,28 @@ class PosCheckoutService
     private function coversTotal(float $paidBase, float $totalBase): bool
     {
         return round($paidBase, 4) + 0.0001 >= round($totalBase, 4);
+    }
+
+    private function syncCapturedPaymentsToReceivable(PosOrder $order, User $cashier): void
+    {
+        $account = AccountsReceivable::query()
+            ->where('sale_id', $order->sale_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $account) {
+            return;
+        }
+
+        $order->load('payments');
+
+        foreach ($order->payments as $payment) {
+            if ($payment->status !== PosPayment::STATUS_CAPTURED) {
+                continue;
+            }
+
+            $this->accountsReceivable->registerPosPayment($account, $cashier, $payment);
+            $account->refresh();
+        }
     }
 }

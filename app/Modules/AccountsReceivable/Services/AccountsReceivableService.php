@@ -7,6 +7,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -122,6 +123,31 @@ class AccountsReceivableService
 
             return $payment->refresh()->load('account');
         });
+    }
+
+    public function registerPosPayment(AccountsReceivable $account, User $user, PosPayment $posPayment): AccountsReceivablePayment
+    {
+        $reference = "POS-PAYMENT-{$posPayment->id}";
+
+        $existing = AccountsReceivablePayment::query()
+            ->where('accounts_receivable_id', $account->id)
+            ->where('reference', $reference)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return $this->registerPayment($account, $user, [
+            'payment_currency' => $posPayment->currency,
+            'amount' => $posPayment->amount,
+            'exchange_rate_type_id' => $posPayment->exchange_rate_type_id,
+            'exchange_rate' => $posPayment->exchange_rate ? (float) $posPayment->exchange_rate : null,
+            'method' => "pos_{$posPayment->method}",
+            'reference' => $reference,
+            'notes' => 'Cobro generado automaticamente desde POS.',
+            'paid_at' => $posPayment->created_at ?? now(),
+        ]);
     }
 
     private function paymentAmounts(string $currency, float $amount, ?int $rateTypeId, ?float $exchangeRate): array

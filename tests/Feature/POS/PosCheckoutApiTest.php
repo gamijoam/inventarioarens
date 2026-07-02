@@ -3,6 +3,7 @@
 namespace Tests\Feature\POS;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -84,6 +85,18 @@ class PosCheckoutApiTest extends TestCase
             'method' => PosPayment::METHOD_CASH,
             'amount_base' => '200.0000',
         ]);
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $response->json('data.sale_id'),
+            'status' => AccountsReceivable::STATUS_PAID,
+            'collected_base_amount' => '200.0000',
+            'balance_base_amount' => '0.0000',
+        ]);
+        $this->assertDatabaseHas('accounts_receivable_payments', [
+            'tenant_id' => $tenant->id,
+            'method' => 'pos_cash',
+            'amount_base' => '200.0000',
+        ]);
     }
 
     public function test_pos_checkout_with_ves_payment_stores_payment_rate_snapshot(): void
@@ -129,6 +142,13 @@ class PosCheckoutApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'cash_register_session_id' => $session->id,
             'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+            'amount_base' => '100.0000',
+            'amount_local' => '60000.0000',
+            'exchange_rate_type_code' => 'PARALELO',
+        ]);
+        $this->assertDatabaseHas('accounts_receivable_payments', [
+            'tenant_id' => $tenant->id,
+            'method' => 'pos_mobile_payment',
             'amount_base' => '100.0000',
             'amount_local' => '60000.0000',
             'exchange_rate_type_code' => 'PARALELO',
@@ -180,6 +200,8 @@ class PosCheckoutApiTest extends TestCase
         ]);
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseCount('cash_register_movements', 0);
+        $this->assertDatabaseCount('accounts_receivables', 0);
+        $this->assertDatabaseCount('accounts_receivable_payments', 0);
     }
 
     public function test_pos_orders_do_not_mix_companies_and_reject_foreign_resources(): void

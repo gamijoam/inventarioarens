@@ -448,7 +448,9 @@ Regla importante:
 - POS solo puede usar la caja del cajero autenticado;
 - solo pagos `captured` cuentan para cerrar una orden POS;
 - cada pago `captured` crea un movimiento `pos_payment` en `CashRegister`;
+- cada pago `captured` de una venta confirmada crea un cobro automatico en `AccountsReceivable`;
 - pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
+- pagos `pending` no generan cobros automaticos ni cuenta por cobrar porque la venta sigue en borrador;
 - cada pago en `VES` debe guardar la tasa exacta usada.
 
 ### CashRegister
