@@ -57,6 +57,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.
 - Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
+- Devoluciones de venta demo sobre ventas POS pagadas.
 - Movimientos de inventario, caja y auditoria generados por servicios reales.
 
 ## Reglas

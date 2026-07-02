@@ -260,6 +260,36 @@ Regla importante:
 - cada item guarda precio y tasa exacta usada;
 - ventas confirmadas no se cancelan directamente en esta fase.
 
+### SalesReturns
+
+Responsabilidad:
+
+- devoluciones de ventas confirmadas;
+- documento historico de devolucion;
+- validacion de cantidad devuelta contra cantidad vendida;
+- generacion de movimientos `sale_return`;
+- restauracion de unidades serializadas como disponibles o danadas.
+
+Archivos principales:
+
+- `app/Modules/SalesReturns/Models/SalesReturn.php`
+- `app/Modules/SalesReturns/Models/SalesReturnItem.php`
+- `app/Modules/SalesReturns/Policies/SalesReturnPolicy.php`
+- `app/Modules/SalesReturns/Controllers/SalesReturnController.php`
+- `app/Modules/SalesReturns/Requests/StoreSalesReturnRequest.php`
+- `app/Modules/SalesReturns/Resources/SalesReturnResource.php`
+- `app/Modules/SalesReturns/Resources/SalesReturnItemResource.php`
+- `app/Modules/SalesReturns/Services/SalesReturnService.php`
+- `app/Modules/SalesReturns/routes.php`
+
+Regla importante:
+
+- una devolucion no borra ni cancela la venta original;
+- solo se devuelven ventas confirmadas;
+- no se puede devolver mas de lo vendido;
+- productos serializados requieren indicar unidades especificas;
+- toda devolucion debe respetar tenant y permisos.
+
 ### POS
 
 Responsabilidad:

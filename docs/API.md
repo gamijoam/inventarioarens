@@ -969,6 +969,90 @@ Regla:
 
 - en esta fase solo se cancelan ventas en `draft`; ventas confirmadas requeriran devolucion/reverso controlado mas adelante.
 
+## Devoluciones de venta
+
+Archivo de rutas:
+
+```txt
+app/Modules/SalesReturns/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\SalesReturns\Controllers\SalesReturnController
+```
+
+### Listar devoluciones de venta
+
+```txt
+GET /api/sales-returns
+```
+
+Permiso requerido:
+
+```txt
+sales_returns.view
+```
+
+### Crear devolucion de venta
+
+```txt
+POST /api/sales-returns
+```
+
+Permiso requerido:
+
+```txt
+sales_returns.create
+```
+
+Body:
+
+```json
+{
+  "sale_id": 1,
+  "reason": "Cliente devolvio el producto",
+  "items": [
+    {
+      "sale_item_id": 1,
+      "quantity": 1,
+      "condition": "sellable",
+      "product_unit_ids": [1],
+      "reason": "Producto en buen estado"
+    }
+  ]
+}
+```
+
+Condiciones iniciales:
+
+- `sellable`: vuelve como disponible para venta;
+- `damaged`: vuelve marcado como danado para revision.
+
+Reglas:
+
+- solo se pueden devolver ventas confirmadas;
+- una devolucion no borra ni cancela la venta original;
+- no se puede devolver mas cantidad que la vendida menos devoluciones previas;
+- cada item genera movimiento de inventario `sale_return`;
+- si el producto es serializado, se debe enviar una unidad por cada cantidad devuelta;
+- si la unidad vuelve como `sellable`, queda disponible;
+- si la unidad vuelve como `damaged`, queda marcada como danada;
+- todos los ids deben pertenecer a la empresa actual.
+
+### Ver devolucion de venta
+
+```txt
+GET /api/sales-returns/{salesReturn}
+```
+
+Permiso requerido:
+
+```txt
+sales_returns.view
+```
+
 ## Inventario
 
 Archivo de rutas:
@@ -1541,6 +1625,8 @@ Reglas:
 - Las APIs de compras no deben mover inventario al crear borradores.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
+- Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.
+- Las devoluciones de venta deben crear movimientos `sale_return`, no borrar ventas historicas.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
 - Las APIs de POS no deben descontar inventario directamente.
 - Las APIs de POS deben asociar checkouts a una caja abierta cuando sean ventas de mostrador.

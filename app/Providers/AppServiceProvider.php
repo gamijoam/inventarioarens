@@ -21,6 +21,8 @@ use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Policies\PurchaseOrderPolicy;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Policies\SalePolicy;
+use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Modules\SalesReturns\Policies\SalesReturnPolicy;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Suppliers\Policies\SupplierPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -52,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);
+        Gate::policy(SalesReturn::class, SalesReturnPolicy::class);
         Gate::policy(Supplier::class, SupplierPolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::define('inventory.view-operation', [InventoryPolicy::class, 'view']);

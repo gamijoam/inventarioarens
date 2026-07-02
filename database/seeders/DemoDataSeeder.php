@@ -19,6 +19,8 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Services\PurchaseOrderService;
 use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Modules\SalesReturns\Services\SalesReturnService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -127,6 +129,7 @@ class DemoDataSeeder extends Seeder
         $cashRegister = $this->cashRegister($tenant, $branch, $cashier);
         $this->paidPosOrder($tenant, $cashRegister, $cashier, $warehouse, $phone, $parallel, $paidCustomer);
         $this->pendingFinancingOrder($tenant, $cashRegister, $cashier, $warehouse, $headphones, $financingCustomer);
+        $this->salesReturn($tenant, $manager, $phone);
     }
 
     private function paidPosOrder(
@@ -287,6 +290,36 @@ class DemoDataSeeder extends Seeder
         ]);
 
         app(PurchaseOrderService::class)->receive($purchase, $user);
+    }
+
+    private function salesReturn(Tenant $tenant, User $user, Product $product): void
+    {
+        $this->useTenant($tenant);
+
+        $posOrder = PosOrder::query()
+            ->with('sale.items')
+            ->where('customer_name', 'Cliente Demo POS Pagado')
+            ->first();
+
+        if (! $posOrder?->sale || SalesReturn::query()->where('sale_id', $posOrder->sale->id)->exists()) {
+            return;
+        }
+
+        $saleItem = $posOrder->sale->items->first();
+        $productUnit = ProductUnit::query()
+            ->where('product_id', $product->id)
+            ->oldest()
+            ->first();
+
+        app(SalesReturnService::class)->create($user, [
+            'sale_id' => $posOrder->sale->id,
+            'reason' => 'Devolucion demo de venta POS pagada.',
+            'items' => [[
+                'sale_item_id' => $saleItem->id,
+                'quantity' => 1,
+                'product_unit_ids' => $productUnit ? [$productUnit->id] : [],
+            ]],
+        ]);
     }
 
     private function user(string $name, string $email): User

@@ -1,5 +1,37 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo SalesReturns
+
+### Implementado
+
+- Se agrego el modulo `SalesReturns`.
+- Se agregaron tablas `sales_returns` y `sales_return_items`.
+- Se agregaron modelos `SalesReturn` y `SalesReturnItem`.
+- Se agrego `SalesReturnPolicy`.
+- Se agrego `SalesReturnService`.
+- Se agrego `SalesReturnController`.
+- Se agregaron recursos y request de devolucion.
+- Se agregaron endpoints para listar, crear y ver devoluciones de venta.
+- Se agregaron permisos `sales_returns.view` y `sales_returns.create`.
+- Se agrego movimiento de inventario `sale_return` en `InventoryMovementService`.
+- Se valida que solo se devuelvan ventas confirmadas.
+- Se valida que no se devuelva mas cantidad que la vendida menos devoluciones previas.
+- Se soportan devoluciones de productos serializados indicando unidades especificas.
+- Se actualizo el seeder demo para crear devoluciones visibles en la BD local.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/SalesReturns/SalesReturnApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 42 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 99 pruebas pasadas, 464 aserciones.
+
+### Notas de seguridad
+
+- Las devoluciones son tenant-scoped.
+- Una devolucion no borra ni cancela la venta original.
+- Las devoluciones rechazan ventas e items de otra empresa.
+- Los productos serializados requieren unidad especifica por cada cantidad devuelta.
+- El inventario se mueve mediante `InventoryMovementService`, no desde el controlador.
+
 ## 2026-07-02 - Modulos Suppliers y Purchases
 
 ### Implementado

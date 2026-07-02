@@ -10,10 +10,12 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class DemoDataSeederTest extends TestCase
@@ -45,6 +47,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_CONFIRMED)->count());
         $this->assertSame(2, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_DRAFT)->count());
         $this->assertSame(4, Sale::withoutGlobalScopes()->whereNotNull('customer_id')->count());
+        $this->assertSame(2, SalesReturn::withoutGlobalScopes()->where('status', SalesReturn::STATUS_PROCESSED)->count());
+        $this->assertSame(2, DB::table('stock_movements')->where('type', 'sale_return')->count());
         $this->assertSame(2, CashRegisterSession::withoutGlobalScopes()->where('status', CashRegisterSession::STATUS_OPEN)->count());
         $this->assertSame(2, CashRegisterMovement::withoutGlobalScopes()->where('type', CashRegisterMovement::TYPE_POS_PAYMENT)->count());
     }
