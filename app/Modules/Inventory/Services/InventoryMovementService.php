@@ -64,6 +64,27 @@ class InventoryMovementService
         );
     }
 
+    public function purchaseReturn(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
+        return $this->decreaseAvailable(
+            type: 'purchase_return',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+        );
+    }
+
     public function adjustmentIn(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
     {
         return $this->increaseAvailable('adjustment_in', $warehouse, $product, $quantity, null, $createdBy, $reason);

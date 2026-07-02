@@ -16,6 +16,8 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\Products\Models\Product;
+use App\Modules\PurchaseReturns\Models\PurchaseReturn;
+use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Services\PurchaseOrderService;
 use App\Modules\Suppliers\Models\Supplier;
@@ -121,6 +123,7 @@ class DemoDataSeeder extends Seeder
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
         $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
         $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
+        $this->purchaseReturn($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
 
         $this->customer('Consumidor final', 'V', "000000{$tenant->id}", true);
         $paidCustomer = $this->customer('Cliente Demo POS Pagado', 'V', "{$tenant->id}001", false);
@@ -290,6 +293,29 @@ class DemoDataSeeder extends Seeder
         ]);
 
         app(PurchaseOrderService::class)->receive($purchase, $user);
+    }
+
+    private function purchaseReturn(Tenant $tenant, User $user, string $documentNumber): void
+    {
+        $this->useTenant($tenant);
+
+        $purchase = PurchaseOrder::query()
+            ->with('items')
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if (! $purchase || PurchaseReturn::query()->where('purchase_order_id', $purchase->id)->exists()) {
+            return;
+        }
+
+        app(PurchaseReturnService::class)->create($user, [
+            'purchase_order_id' => $purchase->id,
+            'reason' => 'Devolucion demo a proveedor.',
+            'items' => [[
+                'purchase_item_id' => $purchase->items->first()->id,
+                'quantity' => 1,
+            ]],
+        ]);
     }
 
     private function salesReturn(Tenant $tenant, User $user, Product $product): void

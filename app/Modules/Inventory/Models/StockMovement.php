@@ -27,6 +27,7 @@ class StockMovement extends Model
 
     public const TYPES = [
         'purchase',
+        'purchase_return',
         'sale',
         'sale_return',
         'adjustment_in',

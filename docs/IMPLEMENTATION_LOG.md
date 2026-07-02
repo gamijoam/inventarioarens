@@ -1,5 +1,39 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo PurchaseReturns
+
+### Implementado
+
+- Se agrego el modulo `PurchaseReturns`.
+- Se agregaron tablas `purchase_returns` y `purchase_return_items`.
+- Se agregaron modelos `PurchaseReturn` y `PurchaseReturnItem`.
+- Se agrego `PurchaseReturnPolicy`.
+- Se agrego `PurchaseReturnService`.
+- Se agrego `PurchaseReturnController`.
+- Se agregaron recursos y request de devolucion a proveedor.
+- Se agregaron endpoints para listar, crear y ver devoluciones a proveedor.
+- Se agregaron permisos `purchase_returns.view` y `purchase_returns.create`.
+- Se agrego movimiento de inventario `purchase_return` en `InventoryMovementService`.
+- Se agrego `purchase_return` a los tipos oficiales de `StockMovement` y a Kardex como salida.
+- Se valida que solo se devuelvan compras recibidas.
+- Se valida que no se devuelva mas cantidad que la comprada menos devoluciones previas.
+- Se soportan devoluciones de productos serializados indicando unidades especificas.
+- Se actualizo el seeder demo para crear devoluciones a proveedor visibles en la BD local.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/PurchaseReturns/PurchaseReturnApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 43 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 108 pruebas pasadas, 507 aserciones.
+
+### Notas de seguridad
+
+- Las devoluciones a proveedor son tenant-scoped.
+- Una devolucion a proveedor no borra ni cancela la compra original.
+- Las devoluciones rechazan compras e items de otra empresa.
+- Los productos serializados requieren unidad especifica por cada cantidad devuelta.
+- Las unidades serializadas devueltas quedan como `removed`.
+- El inventario se mueve mediante `InventoryMovementService`, no desde el controlador.
+
 ## 2026-07-02 - Modulo Kardex
 
 ### Implementado

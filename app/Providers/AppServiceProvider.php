@@ -17,6 +17,8 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Policies\PosOrderPolicy;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Policies\ProductPolicy;
+use App\Modules\PurchaseReturns\Models\PurchaseReturn;
+use App\Modules\PurchaseReturns\Policies\PurchaseReturnPolicy;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Policies\PurchaseOrderPolicy;
 use App\Modules\Sales\Models\Sale;
@@ -52,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
         Gate::policy(PosOrder::class, PosOrderPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(PurchaseReturn::class, PurchaseReturnPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);
         Gate::policy(SalesReturn::class, SalesReturnPolicy::class);

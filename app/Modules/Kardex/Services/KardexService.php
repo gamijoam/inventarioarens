@@ -17,6 +17,7 @@ class KardexService
     ];
 
     private const OUT_TYPES = [
+        'purchase_return',
         'sale',
         'adjustment_out',
         'transfer_out',

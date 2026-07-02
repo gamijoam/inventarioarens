@@ -859,6 +859,83 @@ Regla:
 
 - en esta fase solo se cancelan compras en `draft`; compras recibidas requeriran reverso/devolucion controlada mas adelante.
 
+## Devoluciones a proveedor
+
+Archivo de rutas:
+
+```txt
+app/Modules/PurchaseReturns/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\PurchaseReturns\Controllers\PurchaseReturnController
+```
+
+### Listar devoluciones a proveedor
+
+```txt
+GET /api/purchase-returns
+```
+
+Permiso requerido:
+
+```txt
+purchase_returns.view
+```
+
+### Crear devolucion a proveedor
+
+```txt
+POST /api/purchase-returns
+```
+
+Permiso requerido:
+
+```txt
+purchase_returns.create
+```
+
+Body:
+
+```json
+{
+  "purchase_order_id": 1,
+  "reason": "Mercancia defectuosa",
+  "items": [
+    {
+      "purchase_item_id": 1,
+      "quantity": 1,
+      "product_unit_ids": [1],
+      "reason": "Equipo devuelto al proveedor"
+    }
+  ]
+}
+```
+
+Reglas:
+
+- solo se pueden devolver compras recibidas;
+- una devolucion a proveedor no borra ni cancela la compra original;
+- no se puede devolver mas cantidad que la comprada menos devoluciones previas;
+- cada item genera movimiento de inventario `purchase_return`;
+- si el producto es serializado, se debe enviar una unidad por cada cantidad devuelta;
+- las unidades serializadas devueltas quedan con estado `removed`;
+- todos los ids deben pertenecer a la empresa actual.
+
+### Ver devolucion a proveedor
+
+```txt
+GET /api/purchase-returns/{purchaseReturn}
+```
+
+Permiso requerido:
+
+```txt
+purchase_returns.view
+```
+
 ## Ventas
 
 Archivo de rutas:
@@ -1673,6 +1750,8 @@ Reglas:
 - Las APIs de proveedores deben vivir en el modulo `Suppliers` y no mezclar documentos entre empresas.
 - Las APIs de compras deben vivir en el modulo `Purchases` y usar `Inventory` para recibir stock.
 - Las APIs de compras no deben mover inventario al crear borradores.
+- Las APIs de devoluciones a proveedor deben vivir en el modulo `PurchaseReturns`.
+- Las devoluciones a proveedor deben crear movimientos `purchase_return`, no borrar compras historicas.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.

@@ -131,6 +131,8 @@ El modulo `Customers` mantiene los clientes por empresa. Cada cliente puede tene
 
 El modulo `Suppliers` mantiene los proveedores por empresa. El modulo `Purchases` crea documentos de compra primero como `draft`; en esa fase no mueve inventario. La recepcion de una compra valida que siga en borrador, genera movimientos `purchase` mediante `InventoryMovementService` y enlaza cada item con su movimiento de stock. Si el producto es serializado, cada IMEI o serial recibido se crea en `product_units` como unidad disponible y enlazada al movimiento de compra.
 
+El modulo `PurchaseReturns` maneja devoluciones de compras recibidas. La compra original no se elimina ni se cancela; se crea un documento historico de devolucion a proveedor. Cada item devuelto genera un movimiento `purchase_return` que descuenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como `removed`.
+
 El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como disponibles o danadas segun la condicion recibida.
 
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
@@ -186,6 +188,7 @@ Módulos implementados inicialmente:
 - `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
+- `PurchaseReturns`: devoluciones de compras recibidas y movimientos `purchase_return`.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
 - `Kardex`: lectura cronologica de movimientos con saldos corridos.
 

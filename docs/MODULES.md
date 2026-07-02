@@ -229,6 +229,37 @@ Regla importante:
 - productos serializados requieren un serial o IMEI por unidad comprada;
 - los seriales recibidos se crean en `product_units` como disponibles y enlazados al movimiento de compra.
 
+### PurchaseReturns
+
+Responsabilidad:
+
+- devoluciones de compras recibidas;
+- documento historico de devolucion a proveedor;
+- validacion de cantidad devuelta contra cantidad comprada;
+- generacion de movimientos `purchase_return`;
+- retiro de unidades serializadas devueltas al proveedor.
+
+Archivos principales:
+
+- `app/Modules/PurchaseReturns/Models/PurchaseReturn.php`
+- `app/Modules/PurchaseReturns/Models/PurchaseReturnItem.php`
+- `app/Modules/PurchaseReturns/Policies/PurchaseReturnPolicy.php`
+- `app/Modules/PurchaseReturns/Controllers/PurchaseReturnController.php`
+- `app/Modules/PurchaseReturns/Requests/StorePurchaseReturnRequest.php`
+- `app/Modules/PurchaseReturns/Resources/PurchaseReturnResource.php`
+- `app/Modules/PurchaseReturns/Resources/PurchaseReturnItemResource.php`
+- `app/Modules/PurchaseReturns/Services/PurchaseReturnService.php`
+- `app/Modules/PurchaseReturns/routes.php`
+
+Regla importante:
+
+- una devolucion a proveedor no borra ni cancela la compra original;
+- solo se devuelven compras recibidas;
+- no se puede devolver mas de lo comprado;
+- productos serializados requieren indicar unidades especificas;
+- las unidades serializadas devueltas quedan como `removed`;
+- toda devolucion debe respetar tenant y permisos.
+
 ### Sales
 
 Responsabilidad:
