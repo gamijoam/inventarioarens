@@ -1299,6 +1299,56 @@ Filtros:
 - `date_from`
 - `date_to`
 
+## Kardex
+
+Archivo de rutas:
+
+```txt
+app/Modules/Kardex/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Kardex\Controllers\KardexController
+```
+
+### Kardex por producto
+
+```txt
+GET /api/kardex/products/{product}
+GET /api/kardex/products/{product}?warehouse_id=1
+GET /api/kardex/products/{product}?date_from=2026-07-01&date_to=2026-07-31
+```
+
+Permiso requerido:
+
+```txt
+kardex.view
+```
+
+Respuesta:
+
+- producto consultado;
+- almacen filtrado, si aplica;
+- saldo inicial;
+- saldo final;
+- movimientos ordenados cronologicamente;
+- cantidad de entrada;
+- cantidad de salida;
+- saldo corrido por movimiento;
+- referencia al documento origen.
+
+Reglas:
+
+- Kardex no duplica datos;
+- Kardex lee `stock_movements`;
+- `warehouse_id` debe pertenecer a la empresa actual;
+- `product` debe pertenecer a la empresa actual;
+- `date_from` y `date_to` permiten calcular saldo inicial y saldo final del periodo;
+- movimientos de entrada incluyen `purchase`, `sale_return`, `adjustment_in`, `transfer_in`, `return_in` y `released`;
+- movimientos de salida incluyen `sale`, `adjustment_out`, `transfer_out`, `return_out`, `damaged` y `reserved`.
+
 ## POS
 
 Archivo de rutas:
@@ -1635,3 +1685,4 @@ Reglas:
 - Las APIs de caja deben guardar diferencias de cierre sin alterar ventas historicas.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
+- Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.

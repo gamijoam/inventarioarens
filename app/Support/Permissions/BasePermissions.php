@@ -46,6 +46,7 @@ class BasePermissions
         'cash_register.move',
         'cash_register.close',
         'reports.view',
+        'kardex.view',
         'users.view',
         'users.create',
         'users.update',
@@ -84,6 +85,7 @@ class BasePermissions
             'cash_register.move',
             'cash_register.close',
             'reports.view',
+            'kardex.view',
             'users.view',
             'ai.use',
         ],
@@ -107,6 +109,7 @@ class BasePermissions
             'cash_register.open',
             'cash_register.move',
             'cash_register.close',
+            'kardex.view',
             'ai.use',
         ],
         'Almacen' => [
@@ -122,6 +125,7 @@ class BasePermissions
             'purchases.view',
             'purchases.create',
             'purchases.approve',
+            'kardex.view',
         ],
         'Auditor' => [
             'products.view',
@@ -137,6 +141,7 @@ class BasePermissions
             'pos.view',
             'cash_register.view',
             'reports.view',
+            'kardex.view',
             'users.view',
         ],
     ];

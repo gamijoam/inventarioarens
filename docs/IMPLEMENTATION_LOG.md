@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo Kardex
+
+### Implementado
+
+- Se agrego el modulo `Kardex`.
+- Se agrego `KardexController`.
+- Se agrego `KardexProductRequest`.
+- Se agrego `KardexService`.
+- Se agrego `app/Modules/Kardex/routes.php`.
+- Se agrego el permiso `kardex.view`.
+- Se agrego `sale_return` a los tipos oficiales de `StockMovement`.
+- Se expuso `GET /api/kardex/products/{product}` con filtros por almacen y fechas.
+- Kardex calcula saldo inicial, saldo final, entradas, salidas y saldo corrido desde `stock_movements`.
+- Se actualizo la documentacion de API, modulos y arquitectura.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Kardex/KardexApiTest.php`: 4 pruebas pasadas, 25 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 103 pruebas pasadas, 489 aserciones.
+
+### Notas de seguridad
+
+- Kardex es solo lectura.
+- Kardex no duplica datos ni crea tablas paralelas.
+- Kardex respeta tenant por producto, almacen y movimientos.
+- Kardex rechaza filtros de almacenes de otra empresa.
+
 ## 2026-07-02 - Modulo SalesReturns
 
 ### Implementado

@@ -133,6 +133,8 @@ El modulo `Suppliers` mantiene los proveedores por empresa. El modulo `Purchases
 
 El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como disponibles o danadas segun la condicion recibida.
 
+El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -185,6 +187,7 @@ Módulos implementados inicialmente:
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
+- `Kardex`: lectura cronologica de movimientos con saldos corridos.
 
 ## Permisos
 

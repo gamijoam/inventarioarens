@@ -412,6 +412,31 @@ Regla importante:
 - todo reporte debe respetar `tenant_id`;
 - todo reporte sensible debe requerir permiso.
 
+### Kardex
+
+Responsabilidad:
+
+- historial cronologico de inventario por producto;
+- calculo de saldo inicial y saldo final por periodo;
+- calculo de saldo corrido por movimiento;
+- filtros por almacen y fechas;
+- lectura de `stock_movements` sin duplicar datos.
+
+Archivos principales:
+
+- `app/Modules/Kardex/Controllers/KardexController.php`
+- `app/Modules/Kardex/Requests/KardexProductRequest.php`
+- `app/Modules/Kardex/Services/KardexService.php`
+- `app/Modules/Kardex/routes.php`
+
+Regla importante:
+
+- Kardex no escribe inventario;
+- Kardex no reemplaza `InventoryMovementService`;
+- Kardex usa `stock_movements` como fuente historica;
+- todo filtro debe respetar tenant;
+- el permiso requerido es `kardex.view`.
+
 ### Audit
 
 Responsabilidad:

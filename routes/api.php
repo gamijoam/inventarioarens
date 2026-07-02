@@ -27,6 +27,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Reports/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Kardex/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Sales/routes.php'));
 
 Route::middleware(['auth', 'tenant'])

@@ -59,6 +59,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
 - Devoluciones de venta demo sobre ventas POS pagadas.
 - Movimientos de inventario, caja y auditoria generados por servicios reales.
+- Datos suficientes para consultar Kardex por producto desde `stock_movements`.
 
 ## Reglas
 
