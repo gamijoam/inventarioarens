@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-02 - Base para productos serializados e IMEI
+
+### Implementado
+
+- Se agrego `tracking_type` a productos para distinguir productos por cantidad y productos serializados.
+- Se agrego la tabla `product_units` para IMEI, seriales u otros identificadores unicos por unidad fisica.
+- Se agrego el modelo `ProductUnit`.
+- Se agrego relacion `Product::units()`.
+- Se agrego una clave unica compuesta `tenant_id + id` en `stock_movements` para permitir referencias seguras desde unidades serializadas.
+- Se documento que `Samsung A06` es el producto y cada IMEI es una unidad asociada.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Inventory/SerializedProductUnitTest.php`.
+- Resultado: 4 pruebas pasaron, 8 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 38 pruebas pasaron, 122 assertions.
+
+### Notas de seguridad
+
+- Los seriales son unicos por tenant y tipo de serial.
+- Las unidades serializadas usan `tenant_id` y no pueden apuntar a productos o almacenes de otra empresa.
+- Las unidades serializadas tampoco pueden apuntar a movimientos de stock de otra empresa.
+- Esta base aplica a telefonos con IMEI y a otros productos con serial unico.
+
 ## 2026-07-02 - Organizacion modular y catalogo de APIs
 
 ### Implementado

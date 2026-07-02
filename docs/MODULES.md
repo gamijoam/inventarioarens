@@ -51,12 +51,18 @@ Archivos principales:
 Responsabilidad:
 
 - productos tenant-scoped;
-- policy base de productos.
+- policy base de productos;
+- definir si un producto se controla por cantidad o por unidades serializadas.
 
 Archivos principales:
 
 - `app/Modules/Products/Models/Product.php`
 - `app/Modules/Products/Policies/ProductPolicy.php`
+
+Regla importante:
+
+- `tracking_type = quantity` se usa para productos normales por cantidad;
+- `tracking_type = serialized` se usa para productos que requieren IMEI, serial u otro identificador unico por unidad.
 
 ### Branches
 
@@ -84,6 +90,7 @@ Responsabilidad:
 
 - movimientos de inventario;
 - balances de stock;
+- unidades fisicas serializadas;
 - operaciones de entrada, salida, reserva, liberacion, danado y transferencia;
 - autorizacion operativa de inventario;
 - API de movimientos de inventario.
@@ -92,6 +99,7 @@ Archivos principales:
 
 - `app/Modules/Inventory/Models/StockMovement.php`
 - `app/Modules/Inventory/Models/StockBalance.php`
+- `app/Modules/Inventory/Models/ProductUnit.php`
 - `app/Modules/Inventory/Services/InventoryMovementService.php`
 - `app/Modules/Inventory/Services/AuthorizedInventoryMovementService.php`
 - `app/Modules/Inventory/Policies/InventoryPolicy.php`
@@ -103,6 +111,7 @@ Regla importante:
 - no agregar columna `stock` a productos;
 - el historico vive en `stock_movements`;
 - la lectura rapida vive en `stock_balances`.
+- los IMEIs y seriales viven en `product_units`, no en `products`.
 
 ### Reports
 

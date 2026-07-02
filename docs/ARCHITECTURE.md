@@ -220,6 +220,7 @@ Tablas base:
 - `warehouses`: almacenes por tenant y sucursal.
 - `stock_movements`: verdad histórica del inventario.
 - `stock_balances`: lectura rápida del saldo actual por tenant, almacén y producto.
+- `product_units`: unidades fisicas serializadas por tenant, producto y almacen.
 
 Reglas de integridad:
 
@@ -228,6 +229,27 @@ Reglas de integridad:
 - `stock_movements` referencia `products` usando `tenant_id + product_id`.
 - `stock_balances` referencia `warehouses` y `products` con claves compuestas por tenant.
 - `products`, `branches` y `warehouses` exponen claves únicas compuestas `tenant_id + id` para permitir esas referencias seguras.
+
+## Productos serializados, IMEI y seriales
+
+Un producto representa el modelo comercial, no cada unidad fisica. Por ejemplo, `Samsung A06` es un producto; cada telefono individual con un IMEI distinto vive como una fila en `product_units`.
+
+Tipos de control:
+
+- `quantity`: producto controlado solo por cantidad.
+- `serialized`: producto que requiere trazabilidad por unidad fisica.
+
+Reglas:
+
+- los IMEIs, seriales, VIN u otros identificadores unicos viven en `product_units`;
+- un mismo producto puede tener muchas unidades, por ejemplo 30 IMEIs para `Samsung A06`;
+- cada unidad pertenece a un tenant, producto y almacen actual;
+- `serial_type` permite distinguir `imei`, `serial` u otro tipo futuro;
+- `serial_number` es unico por tenant y tipo de serial;
+- una empresa no puede registrar unidades sobre productos o almacenes de otra empresa;
+- los estados iniciales de unidad son `available`, `reserved`, `sold`, `damaged` y `removed`.
+
+Esta base sirve para telefonos y tambien para cualquier producto que requiera seguimiento individual.
 
 ## Servicio de movimientos de inventario
 
