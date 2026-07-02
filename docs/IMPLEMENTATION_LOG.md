@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-02 - Organizacion modular y catalogo de APIs
+
+### Implementado
+
+- Se agrego `docs/MODULES.md` como mapa modular del proyecto.
+- Se agrego `docs/API.md` como catalogo de APIs actuales, clasificado por seccion.
+- Se movieron las rutas de inventario a `app/Modules/Inventory/routes.php`.
+- Se movieron las rutas de reportes a `app/Modules/Reports/routes.php`.
+- `routes/api.php` quedo como cargador de rutas modulares con middleware `auth` y `tenant`.
+- Se actualizo `docs/ARCHITECTURE.md` para apuntar a la estructura modular actual.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Inventory/InventoryApiTest.php tests/Feature/Reports/InventoryReportApiTest.php`.
+- Resultado: 8 pruebas pasaron, 33 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 34 pruebas pasaron, 114 assertions.
+
+### Notas de seguridad
+
+- Separar rutas por modulo ayuda a ubicar fallos o mejoras sin mezclar responsabilidades.
+- Los middleware `auth` y `tenant` siguen aplicandose desde `routes/api.php`.
+- Las APIs futuras, como POS, deben tener su propio archivo `app/Modules/POS/routes.php`.
+
 ## 2026-07-02 - Reportes iniciales de inventario
 
 ### Implementado

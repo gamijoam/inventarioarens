@@ -1,8 +1,19 @@
 # Arquitectura de Inventory Arens
 
+## Documentos de referencia rapida
+
+- `docs/MODULES.md`: mapa modular del proyecto, responsabilidades actuales y modulos planificados.
+- `docs/API.md`: catalogo de APIs actuales, clasificado por modulo.
+
+Regla actual de rutas:
+
+- `routes/api.php` solo carga archivos de rutas modulares.
+- Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
+- Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
+
 ## Reportes iniciales
 
-Las rutas API de reportes viven en `routes/api.php` y usan los middleware `auth` y `tenant`.
+Las rutas API de reportes viven en `app/Modules/Reports/routes.php` y son cargadas desde `routes/api.php` con los middleware `auth` y `tenant`.
 
 Prefijo:
 
@@ -283,7 +294,7 @@ Prueba asociada:
 
 ## API de inventario
 
-Las rutas API de inventario viven en `routes/api.php` y usan los middleware `auth` y `tenant`.
+Las rutas API de inventario viven en `app/Modules/Inventory/routes.php` y son cargadas desde `routes/api.php` con los middleware `auth` y `tenant`.
 
 Prefijo:
 
