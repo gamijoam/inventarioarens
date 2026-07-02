@@ -25,3 +25,6 @@ Route::middleware(['auth', 'tenant'])
 
 Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/POS/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/CashRegister/routes.php'));

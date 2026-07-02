@@ -123,6 +123,8 @@ El modulo `Sales` crea ventas primero como `draft`. En esa fase copia precio, mo
 
 El modulo `POS` es la capa operativa de caja. POS crea una venta mediante `Sales`, registra pagos y solo confirma la venta cuando los pagos capturados cubren el total. Los pagos pueden registrarse en `USD` o `VES`; si el pago es en bolivares se guarda el tipo de tasa, codigo y valor exacto usado. Pagos pendientes, como una financiadora externa futura, quedan registrados pero no descuentan inventario hasta que se capturen.
 
+El modulo `CashRegister` es la capa de apertura, movimientos, arqueo y cierre de caja. Una sesion de caja pertenece a una sucursal y a un cajero. Los movimientos pueden estar en `USD` o `VES`, guardan snapshot de tasa cuando aplica y actualizan el monto esperado. El cierre compara monto contado contra monto esperado y guarda la diferencia. POS debe integrarse con caja mas adelante asociando pagos capturados a una sesion abierta, sin convertir el cierre de caja en responsabilidad de POS.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.

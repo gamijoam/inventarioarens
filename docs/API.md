@@ -1017,6 +1017,152 @@ Permiso requerido:
 pos.view
 ```
 
+## Caja
+
+Archivo de rutas:
+
+```txt
+app/Modules/CashRegister/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\CashRegister\Controllers\CashRegisterSessionController
+```
+
+### Listar sesiones de caja
+
+```txt
+GET /api/cash-register/sessions
+```
+
+Permiso requerido:
+
+```txt
+cash_register.view
+```
+
+### Abrir caja
+
+```txt
+POST /api/cash-register/sessions
+```
+
+Permiso requerido:
+
+```txt
+cash_register.open
+```
+
+Body:
+
+```json
+{
+  "branch_id": 1,
+  "cashier_id": 1,
+  "opening_currency": "USD",
+  "opening_amount": 50,
+  "notes": "Inicio de turno"
+}
+```
+
+Reglas:
+
+- `cashier_id` es opcional; si no se envia, se usa el usuario autenticado;
+- la sucursal debe pertenecer a la empresa actual;
+- un cajero no puede tener dos cajas abiertas al mismo tiempo;
+- si el monto inicial esta en `VES`, debe existir una tasa activa.
+
+### Ver sesion de caja
+
+```txt
+GET /api/cash-register/sessions/{cashRegisterSession}
+```
+
+Permiso requerido:
+
+```txt
+cash_register.view
+```
+
+### Registrar movimiento de caja
+
+```txt
+POST /api/cash-register/sessions/{cashRegisterSession}/movements
+```
+
+Permiso requerido:
+
+```txt
+cash_register.move
+```
+
+Body:
+
+```json
+{
+  "type": "inflow",
+  "method": "cash",
+  "currency": "VES",
+  "amount": 50000,
+  "exchange_rate_type_id": 1,
+  "reference": "ING-1",
+  "notes": "Entrada manual"
+}
+```
+
+Tipos iniciales:
+
+- `inflow`
+- `outflow`
+- `adjustment`
+
+Metodos iniciales:
+
+- `cash`
+- `card`
+- `mobile_payment`
+- `transfer`
+- `zelle`
+- `external_financing`
+- `other`
+
+Reglas:
+
+- una caja cerrada no acepta movimientos;
+- `outflow` resta al monto esperado;
+- `inflow` y `adjustment` suman al monto esperado en esta fase;
+- movimientos en `VES` guardan snapshot de tipo de tasa, codigo y valor.
+
+### Cerrar caja
+
+```txt
+PATCH /api/cash-register/sessions/{cashRegisterSession}/close
+```
+
+Permiso requerido:
+
+```txt
+cash_register.close
+```
+
+Body:
+
+```json
+{
+  "counted_currency": "USD",
+  "counted_amount": 110,
+  "closing_notes": "Faltante reportado"
+}
+```
+
+Reglas:
+
+- calcula diferencia entre monto contado y monto esperado;
+- cambia la sesion a `closed`;
+- despues del cierre no se pueden registrar nuevos movimientos.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion
@@ -1054,5 +1200,7 @@ pos.view
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
 - Las APIs de POS no deben descontar inventario directamente.
+- Las APIs de caja deben vivir en el modulo `CashRegister`, separadas de POS.
+- Las APIs de caja deben guardar diferencias de cierre sin alterar ventas historicas.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.

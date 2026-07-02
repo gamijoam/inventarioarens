@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-02 - Caja base
+
+### Implementado
+
+- Se agrego el modulo `CashRegister`.
+- Se agrego la tabla `cash_register_sessions`.
+- Se agrego la tabla `cash_register_movements`.
+- Se agregaron modelos `CashRegisterSession` y `CashRegisterMovement`.
+- Se agrego `CashRegisterSessionPolicy`.
+- Se agrego `CashRegisterService`.
+- Se agrego `CashRegisterSessionController`.
+- Se agregaron endpoints para listar sesiones, abrir caja, ver una sesion, registrar movimientos y cerrar caja.
+- La caja maneja montos en `USD` o `VES` con snapshot de tasa cuando aplica.
+- El cierre guarda monto esperado, monto contado y diferencia.
+- Se evita que un cajero tenga dos cajas abiertas al mismo tiempo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas de caja en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/CashRegister/CashRegisterApiTest.php`: 6 pruebas pasadas, 31 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 77 pruebas pasadas, 325 aserciones.
+
+### Notas de seguridad
+
+- Caja es tenant-scoped.
+- Las sesiones solo aceptan sucursales de la empresa actual.
+- Los movimientos no pueden agregarse a una caja cerrada.
+- POS seguira siendo el modulo de venta; caja sera el modulo de apertura, movimientos, arqueo y cierre.
+
 ## 2026-07-02 - POS base
 
 ### Implementado

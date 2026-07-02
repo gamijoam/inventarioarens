@@ -2,13 +2,15 @@
 
 namespace App\Providers;
 
-use App\Modules\Inventory\Policies\InventoryPolicy;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Branches\Policies\BranchPolicy;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Policies\CashRegisterSessionPolicy;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Policies\ExchangeRatePolicy;
 use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
+use App\Modules\Inventory\Policies\InventoryPolicy;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Policies\PosOrderPolicy;
 use App\Modules\Products\Models\Product;
@@ -36,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Branch::class, BranchPolicy::class);
+        Gate::policy(CashRegisterSession::class, CashRegisterSessionPolicy::class);
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
         Gate::policy(PosOrder::class, PosOrderPolicy::class);

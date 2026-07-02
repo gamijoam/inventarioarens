@@ -206,6 +206,39 @@ Regla importante:
 - pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
 - cada pago en `VES` debe guardar la tasa exacta usada.
 
+### CashRegister
+
+Responsabilidad:
+
+- apertura de caja;
+- movimientos manuales de entrada y salida;
+- cierre de caja;
+- arqueo, monto esperado, monto contado y diferencias;
+- base para asociar pagos POS a sesiones de caja abiertas.
+
+Archivos principales:
+
+- `app/Modules/CashRegister/Models/CashRegisterSession.php`
+- `app/Modules/CashRegister/Models/CashRegisterMovement.php`
+- `app/Modules/CashRegister/Policies/CashRegisterSessionPolicy.php`
+- `app/Modules/CashRegister/Controllers/CashRegisterSessionController.php`
+- `app/Modules/CashRegister/Requests/OpenCashRegisterSessionRequest.php`
+- `app/Modules/CashRegister/Requests/StoreCashRegisterMovementRequest.php`
+- `app/Modules/CashRegister/Requests/CloseCashRegisterSessionRequest.php`
+- `app/Modules/CashRegister/Resources/CashRegisterSessionResource.php`
+- `app/Modules/CashRegister/Resources/CashRegisterMovementResource.php`
+- `app/Modules/CashRegister/Services/CashRegisterService.php`
+- `app/Modules/CashRegister/routes.php`
+
+Regla importante:
+
+- Caja no crea ventas;
+- POS no debe absorber el cierre de caja;
+- un cajero no puede tener dos sesiones abiertas al mismo tiempo;
+- una caja cerrada no acepta movimientos;
+- cada movimiento en `VES` debe guardar la tasa exacta usada;
+- mas adelante POS debe asociar pagos capturados a una sesion de caja abierta.
+
 ### Inventory
 
 Responsabilidad:
