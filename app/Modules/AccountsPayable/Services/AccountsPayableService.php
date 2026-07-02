@@ -7,6 +7,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +122,8 @@ class AccountsPayableService
             $account->paid_local_amount = round((float) $account->paid_local_amount + $amountLocal, 4);
             $this->recalculate($account);
             $account->save();
+
+            app(PaymentReceiptService::class)->issueForPayablePayment($payment, $user);
 
             return $payment->refresh()->load('account');
         });

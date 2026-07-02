@@ -384,6 +384,34 @@ Regla importante:
 - no mezcla datos entre empresas;
 - no reemplaza contabilidad formal, es una primera vista financiera operativa.
 
+### PaymentReceipts
+
+Responsabilidad:
+
+- comprobantes historicos de cobros de clientes y pagos a proveedores;
+- correlativo por empresa;
+- snapshot de tercero, moneda, monto, tasa, metodo y referencia;
+- consulta de comprobantes emitidos;
+- anulacion documental sin revertir la transaccion financiera original.
+
+Archivos principales:
+
+- `app/Modules/PaymentReceipts/Models/PaymentReceipt.php`
+- `app/Modules/PaymentReceipts/Policies/PaymentReceiptPolicy.php`
+- `app/Modules/PaymentReceipts/Controllers/PaymentReceiptController.php`
+- `app/Modules/PaymentReceipts/Requests/VoidPaymentReceiptRequest.php`
+- `app/Modules/PaymentReceipts/Resources/PaymentReceiptResource.php`
+- `app/Modules/PaymentReceipts/Services/PaymentReceiptService.php`
+- `app/Modules/PaymentReceipts/routes.php`
+
+Regla importante:
+
+- los comprobantes se emiten automaticamente desde `AccountsReceivable` y `AccountsPayable`;
+- los pagos POS capturados quedan cubiertos porque generan cobros en `AccountsReceivable`;
+- el comprobante no reemplaza el pago ni la cuenta, solo documenta la operacion;
+- anular un comprobante no revierte caja, inventario, cuenta ni pago;
+- todo comprobante debe respetar tenant y permisos.
+
 ### SalesReturns
 
 Responsabilidad:

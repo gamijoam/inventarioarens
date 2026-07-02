@@ -7,6 +7,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
@@ -120,6 +121,8 @@ class AccountsReceivableService
             $account->collected_local_amount = round((float) $account->collected_local_amount + $amountLocal, 4);
             $this->recalculate($account);
             $account->save();
+
+            app(PaymentReceiptService::class)->issueForReceivablePayment($payment, $user);
 
             return $payment->refresh()->load('account');
         });

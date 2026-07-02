@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo PaymentReceipts
+
+### Implementado
+
+- Se agrego el modulo `PaymentReceipts`.
+- Se agrego la tabla `payment_receipts`.
+- Se agrego modelo, policy, controller, request, resource y service del modulo.
+- Se agregaron permisos `payment_receipts.view` y `payment_receipts.void`.
+- Se expuso `GET /api/payment-receipts`.
+- Se expuso `GET /api/payment-receipts/{paymentReceipt}`.
+- Se expuso `PATCH /api/payment-receipts/{paymentReceipt}/void`.
+- Se emiten comprobantes automaticamente al registrar cobros de clientes en `AccountsReceivable`.
+- Se emiten comprobantes automaticamente al registrar pagos a proveedores en `AccountsPayable`.
+- Los pagos POS capturados quedan cubiertos porque POS sincroniza esos pagos como cobros de cliente.
+- Cada comprobante guarda snapshot de tercero, moneda, monto, metodo, referencia, tipo de tasa y tasa usada.
+- El correlativo `receipt_number` es independiente por tenant.
+- Se actualizo el seeder demo para emitir comprobantes sobre pagos y cobros existentes.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/PaymentReceipts/PaymentReceiptApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 50 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 131 pruebas pasadas, 610 aserciones.
+
+### Notas de seguridad
+
+- El modulo es tenant-scoped y requiere permisos.
+- La anulacion del comprobante no revierte el pago, la cuenta, caja ni inventario.
+- La emision es idempotente por origen para evitar comprobantes duplicados si un flujo se reintenta.
+
 ## 2026-07-02 - Integracion POS con AccountsReceivable
 
 ### Implementado

@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -19,6 +21,7 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
+use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\Products\Models\Product;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
@@ -140,6 +143,7 @@ class DemoDataSeeder extends Seeder
         $this->salesReturn($tenant, $manager, $phone);
         $this->creditSale($tenant, $manager, $warehouse, $headphones, $paidCustomer, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->accountsReceivablePayment($tenant, $manager, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
+        $this->paymentReceipts($tenant, $manager);
     }
 
     private function paidPosOrder(
@@ -436,6 +440,21 @@ class DemoDataSeeder extends Seeder
             'reference' => "COBRO-{$documentNumber}",
             'notes' => 'Abono demo de cliente.',
         ]);
+    }
+
+    private function paymentReceipts(Tenant $tenant, User $user): void
+    {
+        $this->useTenant($tenant);
+
+        $receipts = app(PaymentReceiptService::class);
+
+        AccountsReceivablePayment::query()
+            ->oldest()
+            ->each(fn (AccountsReceivablePayment $payment) => $receipts->issueForReceivablePayment($payment, $user));
+
+        AccountsPayablePayment::query()
+            ->oldest()
+            ->each(fn (AccountsPayablePayment $payment) => $receipts->issueForPayablePayment($payment, $user));
     }
 
     private function user(string $name, string $email): User

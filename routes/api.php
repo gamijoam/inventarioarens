@@ -48,6 +48,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/AccountsReceivable/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/PaymentReceipts/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/FinanceReports/routes.php'));
 
 Route::middleware(['auth', 'tenant'])

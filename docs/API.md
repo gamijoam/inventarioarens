@@ -1108,6 +1108,74 @@ Reglas:
 - una cuenta pagada no acepta nuevos cobros;
 - todos los ids deben pertenecer a la empresa actual.
 
+## Comprobantes de pago y cobro
+
+Archivo de rutas:
+
+```txt
+app/Modules/PaymentReceipts/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\PaymentReceipts\Controllers\PaymentReceiptController
+```
+
+### Listar comprobantes
+
+```txt
+GET /api/payment-receipts
+```
+
+Permiso requerido:
+
+```txt
+payment_receipts.view
+```
+
+### Ver comprobante
+
+```txt
+GET /api/payment-receipts/{paymentReceipt}
+```
+
+Permiso requerido:
+
+```txt
+payment_receipts.view
+```
+
+### Anular comprobante
+
+```txt
+PATCH /api/payment-receipts/{paymentReceipt}/void
+```
+
+Permiso requerido:
+
+```txt
+payment_receipts.void
+```
+
+Body:
+
+```json
+{
+  "reason": "Error de impresion"
+}
+```
+
+Reglas:
+
+- los comprobantes se emiten automaticamente al registrar un cobro de cliente o un pago a proveedor;
+- un pago POS `captured` tambien genera comprobante porque se refleja como cobro de cliente;
+- el comprobante guarda snapshot de cliente/proveedor, moneda, monto, metodo, referencia, tipo de tasa y tasa usada;
+- `receipt_number` es correlativo por empresa;
+- anular un comprobante solo anula el documento historico;
+- anular un comprobante no revierte el pago original, no reabre la cuenta y no mueve caja ni inventario;
+- todos los comprobantes respetan tenant y permisos.
+
 ## Reportes financieros
 
 Archivo de rutas:
@@ -2007,6 +2075,8 @@ Reglas:
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de cuentas por cobrar deben vivir en el modulo `AccountsReceivable`.
 - Las cuentas por cobrar se crean al confirmar ventas y se reducen con cobros o devoluciones de venta.
+- Las APIs de comprobantes deben vivir en el modulo `PaymentReceipts`.
+- Los comprobantes se generan desde cobros y pagos, y su anulacion no revierte la transaccion original.
 - Las APIs de reportes financieros deben vivir en el modulo `FinanceReports`.
 - Los reportes financieros son solo lectura y resumen cuentas por cobrar, cuentas por pagar, cobros y pagos.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.
