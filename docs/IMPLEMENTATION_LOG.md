@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo Currency con tasas BCV y paralelo
+
+### Implementado
+
+- Se agrego la tabla `exchange_rate_types`.
+- Se agrego la tabla `exchange_rates`.
+- Se agregaron modelos `ExchangeRateType` y `ExchangeRate`.
+- Se agregaron policies para tipos de tasa y tasas.
+- Se agregaron permisos `currency.view` y `currency.manage`.
+- Se agrego `ExchangeRateActivationService`.
+- Se agregaron APIs para tipos de tasa.
+- Se agregaron APIs para historial, tasas actuales y activacion de tasas.
+- Se documento que una empresa puede tener `BCV` y `PARALELO` activos al mismo tiempo.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Currency/CurrencyApiTest.php`.
+- Resultado: 5 pruebas pasaron, 32 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 54 pruebas pasaron, 210 assertions.
+
+### Notas de seguridad
+
+- Los tipos de tasa y tasas son tenant-scoped.
+- Una tasa no puede apuntar a un tipo de tasa de otra empresa.
+- Activar una tasa solo reemplaza tasas activas del mismo tipo y par de monedas.
+- Las ventas futuras deben guardar el valor exacto de la tasa usada.
+
 ## 2026-07-02 - API de sucursales y almacenes
 
 ### Implementado

@@ -114,6 +114,32 @@ Regla importante:
 - un almacen no puede apuntar a una sucursal de otra empresa;
 - desactivar un almacen usa `status = inactive`, no borrado fisico.
 
+### Currency
+
+Responsabilidad:
+
+- tipos de tasa por empresa, por ejemplo `BCV`, `PARALELO` o `TIENDA`;
+- historial de tasas `USD` a `VES`;
+- consulta de tasas activas actuales;
+- activacion controlada de tasas.
+
+Archivos principales:
+
+- `app/Modules/Currency/Models/ExchangeRateType.php`
+- `app/Modules/Currency/Models/ExchangeRate.php`
+- `app/Modules/Currency/Policies/ExchangeRateTypePolicy.php`
+- `app/Modules/Currency/Policies/ExchangeRatePolicy.php`
+- `app/Modules/Currency/Controllers/ExchangeRateTypeController.php`
+- `app/Modules/Currency/Controllers/ExchangeRateController.php`
+- `app/Modules/Currency/Services/ExchangeRateActivationService.php`
+- `app/Modules/Currency/routes.php`
+
+Regla importante:
+
+- una empresa puede tener `BCV` y `PARALELO` activos al mismo tiempo;
+- activar una nueva tasa solo reemplaza la tasa activa del mismo tipo y par de monedas;
+- las ventas futuras deben guardar el tipo de tasa y el valor exacto usado.
+
 ### Inventory
 
 Responsabilidad:

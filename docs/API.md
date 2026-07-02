@@ -303,6 +303,191 @@ Regla:
 
 - no borra fisicamente el almacen; marca `status = inactive`.
 
+## Moneda y tasas
+
+Archivo de rutas:
+
+```txt
+app/Modules/Currency/routes.php
+```
+
+Controllers:
+
+```txt
+App\Modules\Currency\Controllers\ExchangeRateTypeController
+App\Modules\Currency\Controllers\ExchangeRateController
+```
+
+### Listar tipos de tasa
+
+```txt
+GET /api/currency/rate-types
+```
+
+Permiso requerido:
+
+```txt
+currency.view
+```
+
+### Crear tipo de tasa
+
+```txt
+POST /api/currency/rate-types
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+Body:
+
+```json
+{
+  "code": "BCV",
+  "name": "Tasa BCV",
+  "is_default": true,
+  "is_active": true
+}
+```
+
+Reglas:
+
+- `code` es unico dentro de la empresa actual;
+- puede existir mas de un tipo de tasa para `USD` a `VES`, por ejemplo `BCV` y `PARALELO`;
+- solo un tipo de tasa queda como predeterminado por empresa.
+
+### Ver tipo de tasa
+
+```txt
+GET /api/currency/rate-types/{type}
+```
+
+Permiso requerido:
+
+```txt
+currency.view
+```
+
+### Actualizar tipo de tasa
+
+```txt
+PATCH /api/currency/rate-types/{type}
+PUT /api/currency/rate-types/{type}
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+### Desactivar tipo de tasa
+
+```txt
+DELETE /api/currency/rate-types/{type}
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+Regla:
+
+- no borra fisicamente el tipo de tasa; marca `is_active = false`.
+
+### Listar historial de tasas
+
+```txt
+GET /api/currency/rates
+```
+
+Permiso requerido:
+
+```txt
+currency.view
+```
+
+### Consultar tasas activas actuales
+
+```txt
+GET /api/currency/rates/current
+GET /api/currency/rates/current?rate_type_code=BCV
+```
+
+Permiso requerido:
+
+```txt
+currency.view
+```
+
+### Crear tasa
+
+```txt
+POST /api/currency/rates
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+Body:
+
+```json
+{
+  "exchange_rate_type_id": 1,
+  "base_currency": "USD",
+  "quote_currency": "VES",
+  "rate": 500,
+  "effective_at": "2026-07-02T08:00:00-04:00",
+  "is_active": true,
+  "source": "Manual"
+}
+```
+
+Reglas:
+
+- la moneda base inicial es `USD`;
+- la moneda cotizada inicial es `VES`;
+- `rate` debe ser mayor que cero;
+- `exchange_rate_type_id` debe pertenecer a la empresa actual;
+- si se crea con `is_active = true`, se desactivan las tasas activas anteriores del mismo tipo y par de monedas;
+- activar una tasa `BCV` no desactiva una tasa `PARALELO`.
+
+### Ver tasa
+
+```txt
+GET /api/currency/rates/{rate}
+```
+
+Permiso requerido:
+
+```txt
+currency.view
+```
+
+### Activar tasa
+
+```txt
+PATCH /api/currency/rates/{rate}/activate
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+Regla:
+
+- solo queda activa una tasa por empresa, tipo de tasa, moneda base y moneda cotizada.
+
 ## Inventario
 
 Archivo de rutas:
@@ -582,6 +767,7 @@ Filtros:
 - Las APIs de productos deben respetar SKU unico por tenant.
 - Las APIs de sucursales y almacenes deben respetar codigo unico por tenant.
 - Un almacen nunca debe apuntar a una sucursal de otra empresa.
+- Las APIs de moneda deben permitir multiples tipos de tasa por empresa, como `BCV` y `PARALELO`.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
 - Las APIs futuras de POS deben vivir en su propio modulo `POS`.

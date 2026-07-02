@@ -107,6 +107,16 @@ Campos sugeridos para compras, ventas y movimientos monetarios futuros:
 
 Cada tenant podra configurar su fuente de tasa preferida mas adelante, por ejemplo BCV, manual, paralelo o tasa propia de tienda.
 
+El modulo `Currency` permite que una empresa maneje varios tipos de tasa para el mismo par `USD` a `VES`, por ejemplo `BCV` y `PARALELO`. Esto permite que ciertos productos, listas de precio o ventas futuras usen un tipo de tasa distinto sin cambiar la moneda base del inventario.
+
+Reglas adicionales:
+
+- `exchange_rate_types` define tipos de tasa por tenant;
+- `exchange_rates` guarda el historial de valores por tipo de tasa;
+- una empresa puede tener `BCV` y `PARALELO` activos al mismo tiempo;
+- solo una tasa queda activa por tenant, tipo de tasa, moneda base y moneda cotizada;
+- las ventas futuras deben guardar el tipo de tasa, codigo, valor exacto y fecha usados para no recalcular historia.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.

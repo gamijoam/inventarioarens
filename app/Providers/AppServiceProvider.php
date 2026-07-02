@@ -5,6 +5,10 @@ namespace App\Providers;
 use App\Modules\Inventory\Policies\InventoryPolicy;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Branches\Policies\BranchPolicy;
+use App\Modules\Currency\Models\ExchangeRate;
+use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Currency\Policies\ExchangeRatePolicy;
+use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Policies\ProductPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -28,6 +32,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Branch::class, BranchPolicy::class);
+        Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
+        Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::define('inventory.view-operation', [InventoryPolicy::class, 'view']);

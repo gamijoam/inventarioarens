@@ -6,6 +6,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Branches/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Currency/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Products/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
