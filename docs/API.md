@@ -1108,6 +1108,81 @@ Reglas:
 - una cuenta pagada no acepta nuevos cobros;
 - todos los ids deben pertenecer a la empresa actual.
 
+## Reportes financieros
+
+Archivo de rutas:
+
+```txt
+app/Modules/FinanceReports/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\FinanceReports\Controllers\FinanceReportController
+```
+
+### Resumen financiero
+
+```txt
+GET /api/finance-reports/summary
+```
+
+Permiso requerido:
+
+```txt
+finance_reports.view
+```
+
+Filtros:
+
+- `date_from`
+- `date_to`
+- `status`
+- `customer_id`
+- `supplier_id`
+
+Incluye:
+
+- total por cobrar en `USD`;
+- total por pagar en `USD`;
+- cantidad de cuentas pendientes, parciales, pagadas y vencidas;
+- cobros recibidos en el periodo;
+- pagos hechos a proveedores en el periodo;
+- balance neto: por cobrar menos por pagar.
+
+### Cuentas por cobrar financieras
+
+```txt
+GET /api/finance-reports/receivables
+```
+
+Permiso requerido:
+
+```txt
+finance_reports.view
+```
+
+### Cuentas por pagar financieras
+
+```txt
+GET /api/finance-reports/payables
+```
+
+Permiso requerido:
+
+```txt
+finance_reports.view
+```
+
+Reglas:
+
+- los reportes financieros son solo lectura;
+- no crean ni modifican cuentas;
+- usan `USD` como moneda base de resumen;
+- respetan tenant y permisos;
+- no mezclan cuentas, pagos, clientes ni proveedores entre empresas.
+
 ## Ventas
 
 Archivo de rutas:
@@ -1930,6 +2005,8 @@ Reglas:
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de cuentas por cobrar deben vivir en el modulo `AccountsReceivable`.
 - Las cuentas por cobrar se crean al confirmar ventas y se reducen con cobros o devoluciones de venta.
+- Las APIs de reportes financieros deben vivir en el modulo `FinanceReports`.
+- Los reportes financieros son solo lectura y resumen cuentas por cobrar, cuentas por pagar, cobros y pagos.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.
 - Las devoluciones de venta deben crear movimientos `sale_return`, no borrar ventas historicas.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.

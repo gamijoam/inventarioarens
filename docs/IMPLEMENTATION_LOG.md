@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo FinanceReports
+
+### Implementado
+
+- Se agrego el modulo `FinanceReports`.
+- Se agrego `FinanceReportController`.
+- Se agrego `FinanceReportRequest`.
+- Se agrego `FinanceReportService`.
+- Se agrego archivo de rutas `app/Modules/FinanceReports/routes.php`.
+- Se agrego permiso `finance_reports.view`.
+- Se expuso `GET /api/finance-reports/summary`.
+- Se expuso `GET /api/finance-reports/receivables`.
+- Se expuso `GET /api/finance-reports/payables`.
+- El resumen muestra cuentas por cobrar, cuentas por pagar, cobros, pagos y balance neto en `USD`.
+- Los listados permiten filtrar por estado, cliente, proveedor y fechas.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/FinanceReports/FinanceReportApiTest.php`: 4 pruebas pasadas, 23 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 126 pruebas pasadas, 586 aserciones.
+
+### Notas de seguridad
+
+- Los reportes financieros son solo lectura.
+- Los filtros de cliente y proveedor se validan contra el tenant actual.
+- El modulo no mezcla datos entre empresas.
+- El modulo requiere permiso `finance_reports.view`.
+
 ## 2026-07-02 - Modulo AccountsReceivable
 
 ### Implementado

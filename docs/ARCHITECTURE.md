@@ -139,6 +139,8 @@ El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta ori
 
 El modulo `AccountsReceivable` maneja las deudas de clientes. La cuenta por cobrar nace automaticamente cuando una venta se confirma, usando los totales historicos de la venta. Los cobros pueden registrarse en `USD` o `VES`; si se cobra en bolivares se guarda el tipo de tasa, codigo y valor usado. Las devoluciones de venta reducen el saldo pendiente sin borrar la venta original ni sus movimientos.
 
+El modulo `FinanceReports` es una capa de lectura para gerencia. Resume cuentas por cobrar, cuentas por pagar, cobros de clientes, pagos a proveedores y balance neto en `USD` base. No crea ni modifica transacciones; solo consulta datos tenant-scoped ya generados por los modulos financieros.
+
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
 
 ## Objetivo
@@ -195,6 +197,7 @@ Módulos implementados inicialmente:
 - `PurchaseReturns`: devoluciones de compras recibidas y movimientos `purchase_return`.
 - `AccountsPayable`: cuentas por pagar de proveedores, pagos y rebajas por devoluciones.
 - `AccountsReceivable`: cuentas por cobrar de clientes, cobros y rebajas por devoluciones.
+- `FinanceReports`: resumen financiero operativo de cuentas, cobros, pagos y balance neto.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
 - `Kardex`: lectura cronologica de movimientos con saldos corridos.
 

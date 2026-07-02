@@ -358,6 +358,32 @@ Regla importante:
 - los cobros en bolivares guardan tasa exacta usada;
 - toda cuenta y cobro debe respetar tenant y permisos.
 
+### FinanceReports
+
+Responsabilidad:
+
+- reportes financieros basicos de gerencia;
+- resumen de cuentas por cobrar y cuentas por pagar;
+- totales de cobros de clientes y pagos a proveedores por periodo;
+- balance neto en `USD` base;
+- listados filtrables de cuentas por cobrar y cuentas por pagar;
+- lectura financiera sin crear ni modificar datos.
+
+Archivos principales:
+
+- `app/Modules/FinanceReports/Controllers/FinanceReportController.php`
+- `app/Modules/FinanceReports/Requests/FinanceReportRequest.php`
+- `app/Modules/FinanceReports/Services/FinanceReportService.php`
+- `app/Modules/FinanceReports/routes.php`
+
+Regla importante:
+
+- requiere permiso `finance_reports.view`;
+- usa `USD` como moneda base de resumen;
+- los filtros `customer_id` y `supplier_id` se validan contra el tenant actual;
+- no mezcla datos entre empresas;
+- no reemplaza contabilidad formal, es una primera vista financiera operativa.
+
 ### SalesReturns
 
 Responsabilidad:
