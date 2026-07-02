@@ -3,6 +3,7 @@
 namespace App\Modules\PurchaseReturns\Services;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -79,6 +80,8 @@ class PurchaseReturnService
 
                 $this->removeProductUnits($productUnitIds, $movement->id);
             }
+
+            app(AccountsPayableService::class)->applyPurchaseReturn($purchaseReturn->refresh());
 
             return $purchaseReturn->refresh()->load(['purchaseOrder.supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
         });

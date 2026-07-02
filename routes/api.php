@@ -42,6 +42,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/PurchaseReturns/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/AccountsPayable/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/POS/routes.php'));
 
 Route::middleware(['auth', 'tenant'])

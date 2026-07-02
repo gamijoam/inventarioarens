@@ -48,6 +48,8 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
   - `COMPRA-DEMO-CCS`
   - `COMPRA-DEMO-VAL`
 - Devoluciones a proveedor demo sobre compras recibidas.
+- Cuentas por pagar demo generadas desde compras recibidas.
+- Abonos demo a proveedores que dejan cuentas por pagar en estado parcial.
 - Productos:
   - `Samsung A06 128GB`, serializado por IMEI.
   - `Audifonos Bluetooth`, controlado por cantidad.
@@ -55,6 +57,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - IMEIs demo en `product_units`.
 - Compras recibidas que generan movimientos `purchase` reales.
 - Devoluciones a proveedor que generan movimientos `purchase_return` reales.
+- Cuentas por pagar y pagos a proveedor generados por servicios reales.
 - Cajas abiertas.
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.

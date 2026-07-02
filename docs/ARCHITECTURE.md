@@ -133,6 +133,8 @@ El modulo `Suppliers` mantiene los proveedores por empresa. El modulo `Purchases
 
 El modulo `PurchaseReturns` maneja devoluciones de compras recibidas. La compra original no se elimina ni se cancela; se crea un documento historico de devolucion a proveedor. Cada item devuelto genera un movimiento `purchase_return` que descuenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como `removed`.
 
+El modulo `AccountsPayable` maneja las deudas con proveedores. La cuenta por pagar nace automaticamente cuando una compra se recibe, usando los totales historicos de la compra. Los pagos pueden registrarse en `USD` o `VES`; si se paga en bolivares se guarda el tipo de tasa, codigo y valor usado. Las devoluciones a proveedor reducen el saldo pendiente sin borrar la compra original ni sus movimientos.
+
 El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como disponibles o danadas segun la condicion recibida.
 
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
@@ -189,6 +191,7 @@ Módulos implementados inicialmente:
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
 - `PurchaseReturns`: devoluciones de compras recibidas y movimientos `purchase_return`.
+- `AccountsPayable`: cuentas por pagar de proveedores, pagos y rebajas por devoluciones.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
 - `Kardex`: lectura cronologica de movimientos con saldos corridos.
 

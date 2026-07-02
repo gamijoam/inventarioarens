@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
@@ -124,6 +126,7 @@ class DemoDataSeeder extends Seeder
         $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
         $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
         $this->purchaseReturn($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
+        $this->accountsPayablePayment($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
 
         $this->customer('Consumidor final', 'V', "000000{$tenant->id}", true);
         $paidCustomer = $this->customer('Cliente Demo POS Pagado', 'V', "{$tenant->id}001", false);
@@ -276,7 +279,13 @@ class DemoDataSeeder extends Seeder
     ): void {
         $this->useTenant($tenant);
 
-        if (PurchaseOrder::query()->where('document_number', $documentNumber)->exists()) {
+        $existing = PurchaseOrder::query()->where('document_number', $documentNumber)->first();
+
+        if ($existing) {
+            if ($existing->status === PurchaseOrder::STATUS_RECEIVED) {
+                app(AccountsPayableService::class)->createForPurchase($existing);
+            }
+
             return;
         }
 
@@ -304,7 +313,15 @@ class DemoDataSeeder extends Seeder
             ->where('document_number', $documentNumber)
             ->first();
 
-        if (! $purchase || PurchaseReturn::query()->where('purchase_order_id', $purchase->id)->exists()) {
+        if (! $purchase) {
+            return;
+        }
+
+        $existingReturn = PurchaseReturn::query()->where('purchase_order_id', $purchase->id)->first();
+
+        if ($existingReturn) {
+            app(AccountsPayableService::class)->applyPurchaseReturn($existingReturn);
+
             return;
         }
 
@@ -315,6 +332,27 @@ class DemoDataSeeder extends Seeder
                 'purchase_item_id' => $purchase->items->first()->id,
                 'quantity' => 1,
             ]],
+        ]);
+    }
+
+    private function accountsPayablePayment(Tenant $tenant, User $user, string $documentNumber): void
+    {
+        $this->useTenant($tenant);
+
+        $account = AccountsPayable::query()
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if (! $account || $account->payments()->exists()) {
+            return;
+        }
+
+        app(AccountsPayableService::class)->registerPayment($account, $user, [
+            'payment_currency' => PurchaseOrder::CURRENCY_USD,
+            'amount' => 10,
+            'method' => 'transferencia demo',
+            'reference' => "PAGO-{$documentNumber}",
+            'notes' => 'Abono demo a proveedor.',
         ]);
     }
 

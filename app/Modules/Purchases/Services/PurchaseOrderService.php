@@ -3,6 +3,7 @@
 namespace App\Modules\Purchases\Services;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
@@ -113,6 +114,8 @@ class PurchaseOrderService
                 'status' => PurchaseOrder::STATUS_RECEIVED,
                 'received_at' => now(),
             ]);
+
+            app(AccountsPayableService::class)->createForPurchase($purchaseOrder->refresh());
 
             return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
         });

@@ -4,6 +4,8 @@ namespace Tests\Feature\Seeders;
 
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
@@ -40,6 +42,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, Supplier::withoutGlobalScopes()->where('name', 'like', 'Proveedor Demo%')->count());
         $this->assertSame(2, PurchaseOrder::withoutGlobalScopes()->where('status', PurchaseOrder::STATUS_RECEIVED)->count());
         $this->assertSame(2, PurchaseReturn::withoutGlobalScopes()->where('status', PurchaseReturn::STATUS_PROCESSED)->count());
+        $this->assertSame(2, AccountsPayable::withoutGlobalScopes()->where('status', AccountsPayable::STATUS_PARTIAL)->count());
+        $this->assertSame(2, AccountsPayablePayment::withoutGlobalScopes()->where('method', 'transferencia demo')->count());
         $this->assertDatabaseHas('stock_movements', ['type' => 'purchase']);
         $this->assertSame(2, DB::table('stock_movements')->where('type', 'purchase_return')->count());
         $this->assertGreaterThanOrEqual(16, ProductUnit::withoutGlobalScopes()->count());

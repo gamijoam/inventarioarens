@@ -1,5 +1,38 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo AccountsPayable
+
+### Implementado
+
+- Se agrego el modulo `AccountsPayable`.
+- Se agregaron tablas `accounts_payables` y `accounts_payable_payments`.
+- Se agregaron modelos `AccountsPayable` y `AccountsPayablePayment`.
+- Se agrego `AccountsPayablePolicy`.
+- Se agrego `AccountsPayableService`.
+- Se agrego `AccountsPayableController`.
+- Se agregaron recursos y request de pago a proveedor.
+- Se agregaron endpoints para listar, ver y pagar cuentas por pagar.
+- Se agregaron permisos `accounts_payable.view` y `accounts_payable.pay`.
+- Se integro `Purchases` para crear cuenta por pagar automaticamente al recibir una compra.
+- Se integro `PurchaseReturns` para reducir el saldo pendiente cuando hay devolucion a proveedor.
+- Se soportan pagos en `USD` y `VES`.
+- Se guarda snapshot de tipo de tasa, codigo y valor cuando el pago usa bolivares.
+- Se valida que un pago no supere el saldo pendiente.
+- Se actualizo el seeder demo para crear cuentas por pagar y abonos visibles en la BD local.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/AccountsPayable/AccountsPayableApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 8 pruebas pasadas, 55 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 115 pruebas pasadas, 535 aserciones.
+
+### Notas de seguridad
+
+- Las cuentas por pagar son tenant-scoped.
+- Una cuenta por pagar nace desde una compra recibida, no desde un endpoint manual.
+- Los pagos rechazan cuentas de otra empresa mediante policy.
+- Los pagos en bolivares guardan la tasa usada y no recalculan historia.
+- Las devoluciones a proveedor rebajan saldo sin borrar compras ni movimientos historicos.
+
 ## 2026-07-02 - Modulo PurchaseReturns
 
 ### Implementado

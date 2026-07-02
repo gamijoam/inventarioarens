@@ -936,6 +936,97 @@ Permiso requerido:
 purchase_returns.view
 ```
 
+## Cuentas por pagar
+
+Archivo de rutas:
+
+```txt
+app/Modules/AccountsPayable/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\AccountsPayable\Controllers\AccountsPayableController
+```
+
+### Listar cuentas por pagar
+
+```txt
+GET /api/accounts-payable
+```
+
+Permiso requerido:
+
+```txt
+accounts_payable.view
+```
+
+Reglas:
+
+- las cuentas por pagar se crean automaticamente al recibir una compra;
+- no hay endpoint publico para crear deuda manual en esta fase;
+- cada cuenta queda asociada a la compra y al proveedor;
+- el saldo principal se guarda en `USD` base;
+- si la compra o el pago usan `VES`, se guarda el snapshot de tasa usado;
+- las devoluciones a proveedor reducen el saldo pendiente sin borrar la compra.
+
+### Ver cuenta por pagar
+
+```txt
+GET /api/accounts-payable/{accountsPayable}
+```
+
+Permiso requerido:
+
+```txt
+accounts_payable.view
+```
+
+Incluye:
+
+- proveedor;
+- compra origen;
+- montos originales;
+- montos devueltos;
+- montos pagados;
+- saldo pendiente;
+- pagos registrados.
+
+### Registrar pago a proveedor
+
+```txt
+POST /api/accounts-payable/{accountsPayable}/payments
+```
+
+Permiso requerido:
+
+```txt
+accounts_payable.pay
+```
+
+Body:
+
+```json
+{
+  "payment_currency": "VES",
+  "amount": 60000,
+  "exchange_rate_type_id": 1,
+  "method": "pago movil",
+  "reference": "PM-001",
+  "notes": "Abono a factura proveedor"
+}
+```
+
+Reglas:
+
+- `payment_currency` puede ser `USD` o `VES`;
+- los pagos en `VES` requieren una tasa activa o `exchange_rate` explicito;
+- el pago guarda tipo de tasa, codigo y valor exacto usado;
+- no se permite pagar mas que el saldo pendiente;
+- una cuenta pagada no acepta nuevos pagos;
+- todos los ids deben pertenecer a la empresa actual.
+
 ## Ventas
 
 Archivo de rutas:
@@ -1752,6 +1843,8 @@ Reglas:
 - Las APIs de compras no deben mover inventario al crear borradores.
 - Las APIs de devoluciones a proveedor deben vivir en el modulo `PurchaseReturns`.
 - Las devoluciones a proveedor deben crear movimientos `purchase_return`, no borrar compras historicas.
+- Las APIs de cuentas por pagar deben vivir en el modulo `AccountsPayable`.
+- Las cuentas por pagar se crean al recibir compras y se reducen con pagos o devoluciones a proveedor.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.

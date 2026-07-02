@@ -225,6 +225,7 @@ Regla importante:
 
 - crear una compra no mueve inventario;
 - recibir una compra genera movimientos `purchase` usando `InventoryMovementService`;
+- recibir una compra genera una cuenta por pagar mediante `AccountsPayable`;
 - compras recibidas no se cancelan directamente en esta fase;
 - productos serializados requieren un serial o IMEI por unidad comprada;
 - los seriales recibidos se crean en `product_units` como disponibles y enlazados al movimiento de compra.
@@ -258,7 +259,40 @@ Regla importante:
 - no se puede devolver mas de lo comprado;
 - productos serializados requieren indicar unidades especificas;
 - las unidades serializadas devueltas quedan como `removed`;
+- si existe cuenta por pagar de la compra, la devolucion reduce el saldo pendiente;
 - toda devolucion debe respetar tenant y permisos.
+
+### AccountsPayable
+
+Responsabilidad:
+
+- cuentas por pagar por proveedor y compra recibida;
+- creacion automatica de deuda al recibir compras;
+- registro de pagos parciales o totales;
+- saldo principal en `USD` base con snapshot local en `VES` cuando aplica;
+- rebaja automatica de saldo por devoluciones a proveedor;
+- control de estados `pending`, `partial`, `paid` y `overdue`.
+
+Archivos principales:
+
+- `app/Modules/AccountsPayable/Models/AccountsPayable.php`
+- `app/Modules/AccountsPayable/Models/AccountsPayablePayment.php`
+- `app/Modules/AccountsPayable/Policies/AccountsPayablePolicy.php`
+- `app/Modules/AccountsPayable/Controllers/AccountsPayableController.php`
+- `app/Modules/AccountsPayable/Requests/RegisterAccountsPayablePaymentRequest.php`
+- `app/Modules/AccountsPayable/Resources/AccountsPayableResource.php`
+- `app/Modules/AccountsPayable/Resources/AccountsPayablePaymentResource.php`
+- `app/Modules/AccountsPayable/Services/AccountsPayableService.php`
+- `app/Modules/AccountsPayable/routes.php`
+
+Regla importante:
+
+- no se crea deuda manual desde API en esta fase;
+- una compra recibida genera una cuenta por pagar idempotente;
+- una devolucion a proveedor reduce `returned_base_amount` y el saldo;
+- los pagos no pueden superar el saldo pendiente;
+- los pagos en bolivares guardan tasa exacta usada;
+- toda cuenta y pago debe respetar tenant y permisos.
 
 ### Sales
 

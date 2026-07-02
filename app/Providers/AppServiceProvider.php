@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Modules\Branches\Models\Branch;
+use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Policies\AccountsPayablePolicy;
 use App\Modules\Branches\Policies\BranchPolicy;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Policies\CashRegisterSessionPolicy;
@@ -47,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(AccountsPayable::class, AccountsPayablePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(CashRegisterSession::class, CashRegisterSessionPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
