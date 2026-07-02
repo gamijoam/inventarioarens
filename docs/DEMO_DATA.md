@@ -41,11 +41,18 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
   - `Consumidor final`, cliente generico por empresa.
   - `Cliente Demo POS Pagado`, asociado a la venta POS pagada.
   - `Cliente Demo Financiamiento`, asociado a la venta POS pendiente.
+- Proveedores:
+  - `Proveedor Demo CCS`
+  - `Proveedor Demo VAL`
+- Compras recibidas:
+  - `COMPRA-DEMO-CCS`
+  - `COMPRA-DEMO-VAL`
 - Productos:
   - `Samsung A06 128GB`, serializado por IMEI.
   - `Audifonos Bluetooth`, controlado por cantidad.
 - Stock inicial.
 - IMEIs demo en `product_units`.
+- Compras recibidas que generan movimientos `purchase` reales.
 - Cajas abiertas.
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.

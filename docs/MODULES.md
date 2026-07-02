@@ -173,6 +173,62 @@ Regla importante:
 - la eliminacion API desactiva al cliente con `is_active = false`;
 - `customer_id` en ventas y POS es opcional para permitir ventas rapidas y cliente generico.
 
+### Suppliers
+
+Responsabilidad:
+
+- proveedores por tenant;
+- documentos fiscales o personales del proveedor;
+- datos de contacto, direccion fiscal y notas;
+- base para compras, cuentas por pagar y reportes por proveedor.
+
+Archivos principales:
+
+- `app/Modules/Suppliers/Models/Supplier.php`
+- `app/Modules/Suppliers/Policies/SupplierPolicy.php`
+- `app/Modules/Suppliers/Controllers/SupplierController.php`
+- `app/Modules/Suppliers/Requests/StoreSupplierRequest.php`
+- `app/Modules/Suppliers/Requests/UpdateSupplierRequest.php`
+- `app/Modules/Suppliers/Resources/SupplierResource.php`
+- `app/Modules/Suppliers/routes.php`
+
+Regla importante:
+
+- `document_type + document_number` es unico por tenant, no global;
+- un proveedor de una empresa no puede usarse en compras de otra empresa;
+- la eliminacion API desactiva al proveedor con `is_active = false`.
+
+### Purchases
+
+Responsabilidad:
+
+- compras en borrador;
+- recepcion de compras;
+- asociacion opcional con proveedores;
+- costos en `USD` o `VES` con snapshot de tasa;
+- generacion de movimientos `purchase` al recibir;
+- creacion de unidades serializadas, como IMEIs, al recibir productos serializados.
+
+Archivos principales:
+
+- `app/Modules/Purchases/Models/PurchaseOrder.php`
+- `app/Modules/Purchases/Models/PurchaseItem.php`
+- `app/Modules/Purchases/Policies/PurchaseOrderPolicy.php`
+- `app/Modules/Purchases/Controllers/PurchaseOrderController.php`
+- `app/Modules/Purchases/Requests/StorePurchaseOrderRequest.php`
+- `app/Modules/Purchases/Resources/PurchaseOrderResource.php`
+- `app/Modules/Purchases/Resources/PurchaseItemResource.php`
+- `app/Modules/Purchases/Services/PurchaseOrderService.php`
+- `app/Modules/Purchases/routes.php`
+
+Regla importante:
+
+- crear una compra no mueve inventario;
+- recibir una compra genera movimientos `purchase` usando `InventoryMovementService`;
+- compras recibidas no se cancelan directamente en esta fase;
+- productos serializados requieren un serial o IMEI por unidad comprada;
+- los seriales recibidos se crean en `product_units` como disponibles y enlazados al movimiento de compra.
+
 ### Sales
 
 Responsabilidad:
@@ -339,13 +395,6 @@ Archivos principales:
 - `app/Modules/Audit/Services/AuditLogger.php`
 
 ## Modulos planificados
-
-### Purchases
-
-- documentos de compra;
-- items de compra;
-- aprobacion de compra;
-- al aprobar, generar movimientos `purchase`.
 
 ### Sales
 

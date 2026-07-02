@@ -1,5 +1,36 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulos Suppliers y Purchases
+
+### Implementado
+
+- Se agrego el modulo `Suppliers`.
+- Se agrego el modulo `Purchases`.
+- Se agregaron tablas `suppliers`, `purchase_orders` y `purchase_items`.
+- Se agregaron modelo, policy, requests, resources, controller y rutas para proveedores.
+- Se agregaron modelo, policy, request, resources, service, controller y rutas para compras.
+- Se agregaron permisos `suppliers.view`, `suppliers.create`, `suppliers.update` y `suppliers.delete`.
+- Se mantuvieron permisos de compras `purchases.view`, `purchases.create` y `purchases.approve`.
+- Crear una compra la deja en `draft` y no mueve inventario.
+- Recibir una compra genera movimientos `purchase` mediante `InventoryMovementService`.
+- Las compras pueden registrar costos en `USD` o `VES` y guardar snapshot de tasa.
+- Las compras de productos serializados pueden recibir IMEIs o seriales y crear unidades en `product_units`.
+- Se actualizo el seeder demo para crear proveedores y compras recibidas visibles en la BD local.
+- Se actualizo la documentacion de API, modulos, arquitectura y datos demo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Suppliers/SupplierApiTest.php tests/Feature/Purchases/PurchaseOrderApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 11 pruebas pasadas, 70 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 94 pruebas pasadas, 445 aserciones.
+
+### Notas de seguridad
+
+- Los proveedores y compras son tenant-scoped.
+- El mismo documento de proveedor puede existir en empresas distintas, pero no duplicado dentro de la misma empresa.
+- Compras rechaza proveedores, almacenes, productos y tipos de tasa de otra empresa.
+- Las compras recibidas no se cancelan directamente en esta fase.
+- La entrada de stock queda centralizada en `InventoryMovementService`, no en el controlador.
+
 ## 2026-07-02 - Modulo Customers y asociacion con ventas/POS
 
 ### Implementado

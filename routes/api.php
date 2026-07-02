@@ -12,6 +12,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Customers/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Suppliers/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Products/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
@@ -25,6 +28,9 @@ Route::middleware(['auth', 'tenant'])
 
 Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Sales/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Purchases/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/POS/routes.php'));

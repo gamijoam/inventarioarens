@@ -635,6 +635,230 @@ Regla:
 
 - no borra fisicamente el cliente; marca `is_active = false`.
 
+## Proveedores
+
+Archivo de rutas:
+
+```txt
+app/Modules/Suppliers/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Suppliers\Controllers\SupplierController
+```
+
+### Listar proveedores
+
+```txt
+GET /api/suppliers
+```
+
+Permiso requerido:
+
+```txt
+suppliers.view
+```
+
+### Crear proveedor
+
+```txt
+POST /api/suppliers
+```
+
+Permiso requerido:
+
+```txt
+suppliers.create
+```
+
+Body:
+
+```json
+{
+  "name": "Distribuidora Demo",
+  "document_type": "J",
+  "document_number": "123456789",
+  "phone": "02121234567",
+  "email": "compras@example.com",
+  "fiscal_address": "Caracas",
+  "notes": "Proveedor principal",
+  "is_active": true
+}
+```
+
+Reglas:
+
+- `document_type` puede ser `V`, `E`, `J`, `G` o `P`;
+- `document_type + document_number` es unico dentro de la empresa actual;
+- dos empresas distintas pueden registrar el mismo documento sin mezclarse;
+- desactivar un proveedor no borra compras historicas.
+
+### Ver proveedor
+
+```txt
+GET /api/suppliers/{supplier}
+```
+
+Permiso requerido:
+
+```txt
+suppliers.view
+```
+
+### Actualizar proveedor
+
+```txt
+PATCH /api/suppliers/{supplier}
+PUT /api/suppliers/{supplier}
+```
+
+Permiso requerido:
+
+```txt
+suppliers.update
+```
+
+### Desactivar proveedor
+
+```txt
+DELETE /api/suppliers/{supplier}
+```
+
+Permiso requerido:
+
+```txt
+suppliers.delete
+```
+
+Regla:
+
+- no borra fisicamente el proveedor; marca `is_active = false`.
+
+## Compras
+
+Archivo de rutas:
+
+```txt
+app/Modules/Purchases/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Purchases\Controllers\PurchaseOrderController
+```
+
+### Listar compras
+
+```txt
+GET /api/purchases
+```
+
+Permiso requerido:
+
+```txt
+purchases.view
+```
+
+### Crear compra en borrador
+
+```txt
+POST /api/purchases
+```
+
+Permiso requerido:
+
+```txt
+purchases.create
+```
+
+Body:
+
+```json
+{
+  "supplier_id": 1,
+  "document_number": "FAC-001",
+  "purchase_currency": "USD",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 1,
+      "quantity": 2,
+      "unit_cost": 80,
+      "serial_units": [
+        {
+          "serial_type": "imei",
+          "serial_number": "860001000000001"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- crear una compra la deja en `draft`;
+- crear una compra no aumenta inventario;
+- `supplier_id` es opcional, pero si se envia debe pertenecer a la empresa actual;
+- `warehouse_id` y `product_id` deben pertenecer a la empresa actual;
+- `purchase_currency` puede ser `USD` o `VES`;
+- si `purchase_currency = VES`, se debe enviar `exchange_rate_type_id` o existir un tipo de tasa predeterminado activo;
+- las compras en `VES` guardan snapshot de tipo de tasa, codigo y valor;
+- `unit_cost` se guarda en la moneda de la compra y tambien se calcula como costo base en `USD`;
+- productos serializados requieren un serial o IMEI por cada unidad comprada;
+- productos por cantidad no aceptan seriales.
+
+### Ver compra
+
+```txt
+GET /api/purchases/{purchaseOrder}
+```
+
+Permiso requerido:
+
+```txt
+purchases.view
+```
+
+### Recibir compra
+
+```txt
+PATCH /api/purchases/{purchaseOrder}/receive
+```
+
+Permiso requerido:
+
+```txt
+purchases.approve
+```
+
+Reglas:
+
+- solo se reciben compras en `draft`;
+- recibir una compra genera movimientos `purchase` en inventario;
+- cada item queda enlazado a su `stock_movement_id`;
+- si el producto es serializado, se crean unidades en `product_units` como disponibles;
+- la compra recibida queda en estado `received`.
+
+### Cancelar compra en borrador
+
+```txt
+PATCH /api/purchases/{purchaseOrder}/cancel
+```
+
+Permiso requerido:
+
+```txt
+purchases.create
+```
+
+Regla:
+
+- en esta fase solo se cancelan compras en `draft`; compras recibidas requeriran reverso/devolucion controlada mas adelante.
+
 ## Ventas
 
 Archivo de rutas:
@@ -1312,6 +1536,9 @@ Reglas:
 - Un almacen nunca debe apuntar a una sucursal de otra empresa.
 - Las APIs de moneda deben permitir multiples tipos de tasa por empresa, como `BCV` y `PARALELO`.
 - Las APIs de clientes deben vivir en el modulo `Customers` y no mezclar documentos entre empresas.
+- Las APIs de proveedores deben vivir en el modulo `Suppliers` y no mezclar documentos entre empresas.
+- Las APIs de compras deben vivir en el modulo `Purchases` y usar `Inventory` para recibir stock.
+- Las APIs de compras no deben mover inventario al crear borradores.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.

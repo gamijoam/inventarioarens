@@ -16,6 +16,9 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\Products\Models\Product;
+use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Purchases\Services\PurchaseOrderService;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -114,6 +117,8 @@ class DemoDataSeeder extends Seeder
         $this->initialStock($warehouse, $phone, 8, $manager, "Carga demo inicial {$phone->sku}");
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
+        $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
+        $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
 
         $this->customer('Consumidor final', 'V', "000000{$tenant->id}", true);
         $paidCustomer = $this->customer('Cliente Demo POS Pagado', 'V', "{$tenant->id}001", false);
@@ -232,6 +237,56 @@ class DemoDataSeeder extends Seeder
             ['slug' => $slug],
             ['name' => $name, 'status' => 'active', 'plan' => 'demo']
         );
+    }
+
+    private function supplier(string $name, string $documentNumber): Supplier
+    {
+        $supplier = Supplier::query()->firstOrCreate(
+            [
+                'document_type' => Supplier::DOCUMENT_J,
+                'document_number' => $documentNumber,
+            ],
+            [
+                'name' => $name,
+                'is_active' => true,
+            ]
+        );
+
+        $supplier->update([
+            'name' => $name,
+            'is_active' => true,
+        ]);
+
+        return $supplier;
+    }
+
+    private function receivedPurchase(
+        Tenant $tenant,
+        User $user,
+        Supplier $supplier,
+        Warehouse $warehouse,
+        Product $product,
+        string $documentNumber,
+    ): void {
+        $this->useTenant($tenant);
+
+        if (PurchaseOrder::query()->where('document_number', $documentNumber)->exists()) {
+            return;
+        }
+
+        $purchase = app(PurchaseOrderService::class)->createDraft($user, [
+            'supplier_id' => $supplier->id,
+            'document_number' => $documentNumber,
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 3,
+                'unit_cost' => 18,
+            ]],
+        ]);
+
+        app(PurchaseOrderService::class)->receive($purchase, $user);
     }
 
     private function user(string $name, string $email): User

@@ -8,7 +8,9 @@ use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
+use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,6 +34,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertDatabaseHas('products', ['name' => 'Samsung A06 128GB']);
         $this->assertDatabaseHas('customers', ['name' => 'Consumidor final', 'is_generic' => true]);
         $this->assertSame(6, Customer::withoutGlobalScopes()->where('is_active', true)->count());
+        $this->assertSame(2, Supplier::withoutGlobalScopes()->where('name', 'like', 'Proveedor Demo%')->count());
+        $this->assertSame(2, PurchaseOrder::withoutGlobalScopes()->where('status', PurchaseOrder::STATUS_RECEIVED)->count());
         $this->assertDatabaseHas('stock_movements', ['type' => 'purchase']);
         $this->assertGreaterThanOrEqual(16, ProductUnit::withoutGlobalScopes()->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo POS Pagado')->count());

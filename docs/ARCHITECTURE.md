@@ -129,6 +129,8 @@ Varias cajas pueden operar al mismo tiempo. La independencia se mantiene porque 
 
 El modulo `Customers` mantiene los clientes por empresa. Cada cliente puede tener documento, telefono, correo, direccion fiscal y marca de cliente generico. Ventas y POS pueden operar sin cliente especifico, pero cuando reciben `customer_id` deben validar que pertenezca al tenant actual. Esto prepara la base para facturacion, historial de compras, creditos, financiadoras y reportes por cliente sin mezclar datos entre empresas.
 
+El modulo `Suppliers` mantiene los proveedores por empresa. El modulo `Purchases` crea documentos de compra primero como `draft`; en esa fase no mueve inventario. La recepcion de una compra valida que siga en borrador, genera movimientos `purchase` mediante `InventoryMovementService` y enlaza cada item con su movimiento de stock. Si el producto es serializado, cada IMEI o serial recibido se crea en `product_units` como unidad disponible y enlazada al movimiento de compra.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -178,6 +180,8 @@ Módulos implementados inicialmente:
 - `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.
 - `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
+- `Suppliers`: proveedores tenant-scoped para compras.
+- `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
 
 ## Permisos
 
