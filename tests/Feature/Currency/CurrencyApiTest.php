@@ -129,6 +129,32 @@ class CurrencyApiTest extends TestCase
         $this->assertDatabaseHas('exchange_rates', ['id' => $parallelRate->id, 'is_active' => true]);
     }
 
+    public function test_user_can_deactivate_individual_rate_without_deleting_history(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $bcv = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV');
+        $rate = $this->rateFor($tenant, $bcv, 500, true);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Currency Manager', ['currency.view', 'currency.manage']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/currency/rates/{$rate->id}/deactivate")
+            ->assertOk()
+            ->assertJsonPath('data.exchange_rate_type_code', 'BCV')
+            ->assertJsonPath('data.rate', 500)
+            ->assertJsonPath('data.is_active', false);
+
+        $this->assertDatabaseHas('exchange_rates', [
+            'id' => $rate->id,
+            'tenant_id' => $tenant->id,
+            'rate' => '500.000000',
+            'is_active' => false,
+        ]);
+    }
+
     public function test_currency_data_does_not_mix_between_companies_and_rejects_foreign_type(): void
     {
         [$tenantA, $tenantB] = [

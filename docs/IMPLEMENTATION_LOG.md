@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-02 - Cierre de APIs de tasas
+
+### Implementado
+
+- Se confirmo que `POST /api/currency/rates` es la API para crear una nueva tasa.
+- Se agrego `PATCH /api/currency/rates/{rate}/deactivate`.
+- Se documento la diferencia entre crear tasa, activar tasa y desactivar tasa.
+- La desactivacion de una tasa individual conserva el historial.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Currency/CurrencyApiTest.php`.
+- Resultado: 6 pruebas pasaron, 37 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 55 pruebas pasaron, 215 assertions.
+
+### Notas de seguridad
+
+- Desactivar una tasa requiere `currency.manage`.
+- La tasa no se elimina fisicamente porque las ventas futuras deben conservar historia monetaria.
+
 ## 2026-07-02 - Modulo Currency con tasas BCV y paralelo
 
 ### Implementado

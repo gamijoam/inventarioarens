@@ -460,6 +460,8 @@ Reglas:
 - si se crea con `is_active = true`, se desactivan las tasas activas anteriores del mismo tipo y par de monedas;
 - activar una tasa `BCV` no desactiva una tasa `PARALELO`.
 
+Esta es la API para cargar una nueva tasa del dia o una tasa manual. Ejemplo: crear una nueva tasa `BCV = 500` o `PARALELO = 600`.
+
 ### Ver tasa
 
 ```txt
@@ -487,6 +489,22 @@ currency.manage
 Regla:
 
 - solo queda activa una tasa por empresa, tipo de tasa, moneda base y moneda cotizada.
+
+### Desactivar tasa
+
+```txt
+PATCH /api/currency/rates/{rate}/deactivate
+```
+
+Permiso requerido:
+
+```txt
+currency.manage
+```
+
+Regla:
+
+- no borra fisicamente la tasa historica; marca `is_active = false`.
 
 ## Inventario
 

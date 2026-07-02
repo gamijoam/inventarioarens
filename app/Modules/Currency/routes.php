@@ -10,6 +10,7 @@ Route::prefix('currency')->group(function (): void {
 
     Route::get('rates/current', [ExchangeRateController::class, 'current']);
     Route::patch('rates/{rate}/activate', [ExchangeRateController::class, 'activate']);
+    Route::patch('rates/{rate}/deactivate', [ExchangeRateController::class, 'deactivate']);
     Route::apiResource('rates', ExchangeRateController::class)
         ->only(['index', 'store', 'show'])
         ->parameters(['rates' => 'rate']);

@@ -71,4 +71,13 @@ class ExchangeRateController extends Controller
 
         return ExchangeRateResource::make($activationService->activate($rate));
     }
+
+    public function deactivate(ExchangeRate $rate): ExchangeRateResource
+    {
+        Gate::authorize('update', $rate);
+
+        $rate->update(['is_active' => false]);
+
+        return ExchangeRateResource::make($rate->refresh()->load('type'));
+    }
 }
