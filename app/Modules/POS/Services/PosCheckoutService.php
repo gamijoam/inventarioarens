@@ -27,18 +27,20 @@ class PosCheckoutService
         CashRegisterSession $cashRegisterSession,
         array $items,
         array $payments,
+        ?int $customerId = null,
         ?string $customerName = null,
     ): PosOrder
     {
-        return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerName): PosOrder {
+        return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
             $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
             $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
 
-            $sale = $this->sales->createDraft($cashier, $items);
+            $sale = $this->sales->createDraft($cashier, $items, $customerId);
 
             $order = PosOrder::create([
                 'sale_id' => $sale->id,
                 'cash_register_session_id' => $cashRegisterSession->id,
+                'customer_id' => $customerId,
                 'status' => PosOrder::STATUS_OPEN,
                 'cashier_id' => $cashier->id,
                 'customer_name' => $customerName,
@@ -91,7 +93,7 @@ class PosCheckoutService
                 ]);
             }
 
-            return $order->refresh()->load(['cashRegisterSession', 'sale.items.product', 'sale.items.warehouse', 'payments']);
+            return $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']);
         });
     }
 

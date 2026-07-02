@@ -8,6 +8,7 @@ use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -39,12 +40,14 @@ class PosCheckoutApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
         $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+        $customer = $this->customer($tenant, 'Cliente POS', Customer::DOCUMENT_V, '555');
 
         $response = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/pos/checkouts', [
                 'cash_register_session_id' => $session->id,
+                'customer_id' => $customer->id,
                 'customer_name' => 'Cliente mostrador',
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
@@ -60,6 +63,9 @@ class PosCheckoutApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
             ->assertJsonPath('data.cash_register_session_id', $session->id)
+            ->assertJsonPath('data.customer_id', $customer->id)
+            ->assertJsonPath('data.customer.name', 'Cliente POS')
+            ->assertJsonPath('data.sale.customer_id', $customer->id)
             ->assertJsonPath('data.sale.status', Sale::STATUS_CONFIRMED)
             ->assertJsonPath('data.payments.0.method', PosPayment::METHOD_CASH)
             ->assertJsonPath('data.payments.0.status', PosPayment::STATUS_CAPTURED);
@@ -184,6 +190,7 @@ class PosCheckoutApiTest extends TestCase
         ];
         [$warehouseA, $productA] = $this->pricedProduct($tenantA, Product::CURRENCY_USD, 'BCV', 500);
         [, $productB] = $this->pricedProduct($tenantB, Product::CURRENCY_USD, 'BCV', 700);
+        $customerB = $this->customer($tenantB, 'Cliente B', Customer::DOCUMENT_V, '222');
         $this->useTenant($tenantA);
         StockBalance::create([
             'warehouse_id' => $warehouseA->id,
@@ -193,6 +200,26 @@ class PosCheckoutApiTest extends TestCase
         $user = $this->userInTenant($tenantA);
         $this->grantRole($tenantA, $user, 'Cajero', ['pos.checkout', 'pos.view']);
         $session = $this->cashRegisterSession($tenantA, $user, $warehouseA->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'customer_id' => $customerB->id,
+                'items' => [[
+                    'warehouse_id' => $warehouseA->id,
+                    'product_id' => $productA->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['customer_id']);
 
         $this
             ->actingAs($user)
@@ -426,6 +453,17 @@ class PosCheckoutApiTest extends TestCase
             'opened_by' => $cashier->id,
             'status' => $status,
             'opened_at' => now(),
+        ]);
+    }
+
+    private function customer(Tenant $tenant, string $name, string $documentType, string $documentNumber): Customer
+    {
+        $this->useTenant($tenant);
+
+        return Customer::create([
+            'name' => $name,
+            'document_type' => $documentType,
+            'document_number' => $documentNumber,
         ]);
     }
 

@@ -21,7 +21,7 @@ class PosOrderController extends Controller
 
         return PosOrderResource::collection(
             PosOrder::query()
-                ->with(['cashRegisterSession', 'sale.items.product', 'payments'])
+                ->with(['cashRegisterSession', 'customer', 'sale.items.product', 'payments'])
                 ->latest()
                 ->paginate(25)
         );
@@ -36,6 +36,7 @@ class PosOrderController extends Controller
             cashRegisterSession: CashRegisterSession::query()->findOrFail($request->validated('cash_register_session_id')),
             items: $request->validated('items'),
             payments: $request->validated('payments'),
+            customerId: $request->validated('customer_id'),
             customerName: $request->validated('customer_name')
         );
 
@@ -48,6 +49,6 @@ class PosOrderController extends Controller
     {
         Gate::authorize('view', $posOrder);
 
-        return PosOrderResource::make($posOrder->load(['cashRegisterSession', 'sale.items.product', 'sale.items.warehouse', 'payments']));
+        return PosOrderResource::make($posOrder->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']));
     }
 }

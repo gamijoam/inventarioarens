@@ -4,6 +4,7 @@ namespace Tests\Feature\Seeders;
 
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -29,13 +30,17 @@ class DemoDataSeederTest extends TestCase
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'BCV']);
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'PARALELO']);
         $this->assertDatabaseHas('products', ['name' => 'Samsung A06 128GB']);
+        $this->assertDatabaseHas('customers', ['name' => 'Consumidor final', 'is_generic' => true]);
+        $this->assertSame(6, Customer::withoutGlobalScopes()->where('is_active', true)->count());
         $this->assertDatabaseHas('stock_movements', ['type' => 'purchase']);
         $this->assertGreaterThanOrEqual(16, ProductUnit::withoutGlobalScopes()->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo POS Pagado')->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo Financiamiento')->count());
+        $this->assertSame(4, PosOrder::withoutGlobalScopes()->whereNotNull('customer_id')->count());
         $this->assertSame(2, PosPayment::withoutGlobalScopes()->where('status', PosPayment::STATUS_PENDING)->count());
         $this->assertSame(2, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_CONFIRMED)->count());
         $this->assertSame(2, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_DRAFT)->count());
+        $this->assertSame(4, Sale::withoutGlobalScopes()->whereNotNull('customer_id')->count());
         $this->assertSame(2, CashRegisterSession::withoutGlobalScopes()->where('status', CashRegisterSession::STATUS_OPEN)->count());
         $this->assertSame(2, CashRegisterMovement::withoutGlobalScopes()->where('type', CashRegisterMovement::TYPE_POS_PAYMENT)->count());
     }

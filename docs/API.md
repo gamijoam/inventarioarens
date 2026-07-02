@@ -533,6 +533,108 @@ Regla:
 
 - no borra fisicamente la tasa historica; marca `is_active = false`.
 
+## Clientes
+
+Archivo de rutas:
+
+```txt
+app/Modules/Customers/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Customers\Controllers\CustomerController
+```
+
+### Listar clientes
+
+```txt
+GET /api/customers
+```
+
+Permiso requerido:
+
+```txt
+customers.view
+```
+
+### Crear cliente
+
+```txt
+POST /api/customers
+```
+
+Permiso requerido:
+
+```txt
+customers.create
+```
+
+Body:
+
+```json
+{
+  "name": "Cliente Mostrador",
+  "document_type": "V",
+  "document_number": "12345678",
+  "phone": "04141234567",
+  "email": "cliente@example.com",
+  "fiscal_address": "Caracas",
+  "is_generic": false,
+  "is_active": true
+}
+```
+
+Reglas:
+
+- `document_type` puede ser `V`, `E`, `J`, `G` o `P`;
+- `document_type + document_number` es unico dentro de la empresa actual;
+- dos empresas distintas pueden registrar el mismo documento sin mezclarse;
+- `is_generic` permite crear un cliente generico como `Consumidor final`;
+- desactivar un cliente no borra ventas historicas.
+
+### Ver cliente
+
+```txt
+GET /api/customers/{customer}
+```
+
+Permiso requerido:
+
+```txt
+customers.view
+```
+
+### Actualizar cliente
+
+```txt
+PATCH /api/customers/{customer}
+PUT /api/customers/{customer}
+```
+
+Permiso requerido:
+
+```txt
+customers.update
+```
+
+### Desactivar cliente
+
+```txt
+DELETE /api/customers/{customer}
+```
+
+Permiso requerido:
+
+```txt
+customers.delete
+```
+
+Regla:
+
+- no borra fisicamente el cliente; marca `is_active = false`.
+
 ## Ventas
 
 Archivo de rutas:
@@ -575,6 +677,7 @@ Body:
 
 ```json
 {
+  "customer_id": 1,
   "items": [
     {
       "warehouse_id": 1,
@@ -591,6 +694,8 @@ Reglas:
 - crear una venta no descuenta inventario;
 - copia el precio actual del producto;
 - copia moneda, tipo de tasa y valor exacto de tasa;
+- `customer_id` es opcional;
+- si se envia `customer_id`, debe pertenecer a la empresa actual;
 - `warehouse_id` y `product_id` deben pertenecer a la empresa actual.
 
 ### Ver venta
@@ -935,6 +1040,7 @@ Body:
 ```json
 {
   "cash_register_session_id": 1,
+  "customer_id": 1,
   "customer_name": "Cliente mostrador",
   "items": [
     {
@@ -973,6 +1079,8 @@ Estados de pago iniciales:
 Reglas:
 
 - POS requiere `cash_register_session_id`;
+- `customer_id` es opcional y debe pertenecer a la empresa actual cuando se envia;
+- `customer_name` puede conservar el nombre mostrado en ticket aunque exista `customer_id`;
 - la caja debe estar abierta;
 - la caja debe pertenecer al cajero autenticado;
 - POS crea una venta en `Sales`;
@@ -1203,10 +1311,13 @@ Reglas:
 - Las APIs de sucursales y almacenes deben respetar codigo unico por tenant.
 - Un almacen nunca debe apuntar a una sucursal de otra empresa.
 - Las APIs de moneda deben permitir multiples tipos de tasa por empresa, como `BCV` y `PARALELO`.
+- Las APIs de clientes deben vivir en el modulo `Customers` y no mezclar documentos entre empresas.
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
+- Las APIs de ventas pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
 - Las APIs de POS no deben descontar inventario directamente.
 - Las APIs de POS deben asociar checkouts a una caja abierta cuando sean ventas de mostrador.
+- Las APIs de POS pueden asociar `customer_id`, pero solo del tenant actual.
 - Las APIs de caja deben vivir en el modulo `CashRegister`, separadas de POS.
 - Las APIs de caja deben guardar diferencias de cierre sin alterar ventas historicas.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.

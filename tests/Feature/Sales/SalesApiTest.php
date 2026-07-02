@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
@@ -27,6 +28,7 @@ class SalesApiTest extends TestCase
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->pricedProduct($tenant, 'PARALELO', 600);
+        $customer = $this->customer($tenant, 'Cliente Venta', Customer::DOCUMENT_V, '123');
         $user = $this->userInTenant($tenant);
 
         $this->grantRole($tenant, $user, 'Vendedor', ['sales.create']);
@@ -35,6 +37,7 @@ class SalesApiTest extends TestCase
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/sales', [
+                'customer_id' => $customer->id,
                 'items' => [
                     [
                         'warehouse_id' => $warehouse->id,
@@ -45,6 +48,8 @@ class SalesApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.status', Sale::STATUS_DRAFT)
+            ->assertJsonPath('data.customer_id', $customer->id)
+            ->assertJsonPath('data.customer.name', 'Cliente Venta')
             ->assertJsonPath('data.total_base_amount', 200)
             ->assertJsonPath('data.total_local_amount', 120000)
             ->assertJsonPath('data.items.0.sale_currency', Product::CURRENCY_VES)
@@ -173,8 +178,23 @@ class SalesApiTest extends TestCase
         ];
         [$warehouseA, $productA] = $this->pricedProduct($tenantA, 'BCV', 500);
         [, $productB] = $this->pricedProduct($tenantB, 'BCV', 700);
+        $customerB = $this->customer($tenantB, 'Cliente B', Customer::DOCUMENT_V, '222');
         $user = $this->userInTenant($tenantA);
         $this->grantRole($tenantA, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customerB->id,
+                'items' => [[
+                    'warehouse_id' => $warehouseA->id,
+                    'product_id' => $productA->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['customer_id']);
 
         $this
             ->actingAs($user)
@@ -269,6 +289,17 @@ class SalesApiTest extends TestCase
         $user->tenants()->attach($tenant, ['status' => 'active']);
 
         return $user;
+    }
+
+    private function customer(Tenant $tenant, string $name, string $documentType, string $documentNumber): Customer
+    {
+        $this->useTenant($tenant);
+
+        return Customer::create([
+            'name' => $name,
+            'document_type' => $documentType,
+            'document_number' => $documentNumber,
+        ]);
     }
 
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void

@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Models;
 
 use App\Models\User;
+use App\Modules\Customers\Models\Customer;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'status',
+    'customer_id',
     'total_base_amount',
     'total_local_amount',
     'created_by',
@@ -43,5 +45,10 @@ class Sale extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 }

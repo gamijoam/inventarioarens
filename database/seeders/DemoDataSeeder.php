@@ -8,6 +8,7 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -114,9 +115,13 @@ class DemoDataSeeder extends Seeder
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
 
+        $this->customer('Consumidor final', 'V', "000000{$tenant->id}", true);
+        $paidCustomer = $this->customer('Cliente Demo POS Pagado', 'V', "{$tenant->id}001", false);
+        $financingCustomer = $this->customer('Cliente Demo Financiamiento', 'V', "{$tenant->id}002", false);
+
         $cashRegister = $this->cashRegister($tenant, $branch, $cashier);
-        $this->paidPosOrder($tenant, $cashRegister, $cashier, $warehouse, $phone, $parallel);
-        $this->pendingFinancingOrder($tenant, $cashRegister, $cashier, $warehouse, $headphones);
+        $this->paidPosOrder($tenant, $cashRegister, $cashier, $warehouse, $phone, $parallel, $paidCustomer);
+        $this->pendingFinancingOrder($tenant, $cashRegister, $cashier, $warehouse, $headphones, $financingCustomer);
     }
 
     private function paidPosOrder(
@@ -126,10 +131,15 @@ class DemoDataSeeder extends Seeder
         Warehouse $warehouse,
         Product $product,
         ExchangeRateType $rateType,
+        Customer $customer,
     ): void {
         $this->useTenant($tenant);
 
-        if (PosOrder::query()->where('customer_name', 'Cliente Demo POS Pagado')->exists()) {
+        $existing = PosOrder::query()->where('customer_name', 'Cliente Demo POS Pagado')->first();
+
+        if ($existing) {
+            $existing->update(['customer_id' => $customer->id]);
+            $existing->sale?->update(['customer_id' => $customer->id]);
             return;
         }
 
@@ -148,15 +158,27 @@ class DemoDataSeeder extends Seeder
                 'exchange_rate_type_id' => $rateType->id,
                 'reference' => 'PM-DEMO-001',
             ]],
+            customerId: $customer->id,
             customerName: 'Cliente Demo POS Pagado',
         );
     }
 
-    private function pendingFinancingOrder(Tenant $tenant, CashRegisterSession $cashRegister, User $cashier, Warehouse $warehouse, Product $product): void
+    private function pendingFinancingOrder(
+        Tenant $tenant,
+        CashRegisterSession $cashRegister,
+        User $cashier,
+        Warehouse $warehouse,
+        Product $product,
+        Customer $customer,
+    ): void
     {
         $this->useTenant($tenant);
 
-        if (PosOrder::query()->where('customer_name', 'Cliente Demo Financiamiento')->exists()) {
+        $existing = PosOrder::query()->where('customer_name', 'Cliente Demo Financiamiento')->first();
+
+        if ($existing) {
+            $existing->update(['customer_id' => $customer->id]);
+            $existing->sale?->update(['customer_id' => $customer->id]);
             return;
         }
 
@@ -176,8 +198,32 @@ class DemoDataSeeder extends Seeder
                 'external_provider' => 'Financiadora Demo',
                 'reference' => 'FIN-DEMO-001',
             ]],
+            customerId: $customer->id,
             customerName: 'Cliente Demo Financiamiento',
         );
+    }
+
+    private function customer(string $name, string $documentType, string $documentNumber, bool $generic): Customer
+    {
+        $customer = Customer::query()->firstOrCreate(
+            [
+                'document_type' => $documentType,
+                'document_number' => $documentNumber,
+            ],
+            [
+                'name' => $name,
+                'is_generic' => $generic,
+                'is_active' => true,
+            ]
+        );
+
+        $customer->update([
+            'name' => $name,
+            'is_generic' => $generic,
+            'is_active' => true,
+        ]);
+
+        return $customer;
     }
 
     private function tenant(string $name, string $slug): Tenant

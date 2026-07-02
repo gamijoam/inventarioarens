@@ -20,7 +20,7 @@ class SaleController extends Controller
 
         return SaleResource::collection(
             Sale::query()
-                ->with(['items.product', 'items.warehouse'])
+                ->with(['customer', 'items.product', 'items.warehouse'])
                 ->latest()
                 ->paginate(25)
         );
@@ -30,7 +30,11 @@ class SaleController extends Controller
     {
         Gate::authorize('create', Sale::class);
 
-        $sale = $sales->createDraft($request->user(), $request->validated('items'));
+        $sale = $sales->createDraft(
+            user: $request->user(),
+            items: $request->validated('items'),
+            customerId: $request->validated('customer_id')
+        );
 
         return SaleResource::make($sale)
             ->response()
@@ -41,7 +45,7 @@ class SaleController extends Controller
     {
         Gate::authorize('view', $sale);
 
-        return SaleResource::make($sale->load(['items.product', 'items.warehouse', 'items.stockMovement']));
+        return SaleResource::make($sale->load(['customer', 'items.product', 'items.warehouse', 'items.stockMovement']));
     }
 
     public function confirm(Sale $sale, SaleService $sales): SaleResource

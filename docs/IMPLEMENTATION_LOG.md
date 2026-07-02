@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo Customers y asociacion con ventas/POS
+
+### Implementado
+
+- Se agrego el modulo `Customers`.
+- Se agrego la tabla `customers` con datos fiscales basicos, telefono, correo, direccion, cliente generico y estado activo.
+- Se agrego `customer_id` opcional a `sales` y `pos_orders`.
+- Se agregaron modelo, policy, requests, resource, controller y rutas para clientes.
+- Se agregaron permisos `customers.view`, `customers.create`, `customers.update` y `customers.delete`.
+- Se integro `Customers` con `Sales` para asociar una venta a un cliente del tenant actual.
+- Se integro `Customers` con `POS` para asociar una orden POS y su venta interna al mismo cliente.
+- Se actualizo el seeder demo para crear clientes por empresa y enlazarlos a las ventas POS demo.
+- Se actualizo la documentacion de API, modulos, arquitectura y datos demo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Customers/CustomerApiTest.php tests/Feature/Sales/SalesApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 18 pruebas pasadas, 126 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 84 pruebas pasadas, 396 aserciones.
+
+### Notas de seguridad
+
+- Los clientes son tenant-scoped.
+- El mismo documento puede existir en empresas distintas, pero no duplicado dentro de la misma empresa.
+- Ventas y POS rechazan `customer_id` de otra empresa.
+- Desactivar un cliente no borra ventas historicas.
+- `customer_id` es opcional para permitir ventas rapidas, cliente generico o flujo POS sin datos completos.
+
 ## 2026-07-02 - Seeder demo para datos visibles
 
 ### Implementado

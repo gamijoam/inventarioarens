@@ -2,6 +2,7 @@
 
 namespace App\Modules\POS\Resources;
 
+use App\Modules\Customers\Resources\CustomerResource;
 use App\Modules\Sales\Resources\SaleResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -14,6 +15,7 @@ class PosOrderResource extends JsonResource
             'id' => $this->id,
             'sale_id' => $this->sale_id,
             'cash_register_session_id' => $this->cash_register_session_id,
+            'customer_id' => $this->customer_id,
             'status' => $this->status,
             'cashier_id' => $this->cashier_id,
             'customer_name' => $this->customer_name,
@@ -24,6 +26,7 @@ class PosOrderResource extends JsonResource
             'opened_at' => $this->opened_at?->toISOString(),
             'paid_at' => $this->paid_at?->toISOString(),
             'closed_at' => $this->closed_at?->toISOString(),
+            'customer' => CustomerResource::make($this->whenLoaded('customer')),
             'sale' => SaleResource::make($this->whenLoaded('sale')),
             'payments' => PosPaymentResource::collection($this->whenLoaded('payments')),
         ];

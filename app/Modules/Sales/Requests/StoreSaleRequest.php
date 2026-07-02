@@ -13,6 +13,11 @@ class StoreSaleRequest extends FormRequest
         $tenantId = app(TenantManager::class)->require()->id;
 
         return [
+            'customer_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('customers', 'id')->where('tenant_id', $tenantId),
+            ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => [
                 'required',

@@ -37,6 +37,10 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
   - `gerente.valencia@demo.test`
 - Sucursales y almacenes por empresa.
 - Tasas `BCV` y `PARALELO`.
+- Clientes:
+  - `Consumidor final`, cliente generico por empresa.
+  - `Cliente Demo POS Pagado`, asociado a la venta POS pagada.
+  - `Cliente Demo Financiamiento`, asociado a la venta POS pendiente.
 - Productos:
   - `Samsung A06 128GB`, serializado por IMEI.
   - `Audifonos Bluetooth`, controlado por cantidad.
@@ -45,6 +49,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Cajas abiertas.
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.
+- Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
 - Movimientos de inventario, caja y auditoria generados por servicios reales.
 
 ## Reglas

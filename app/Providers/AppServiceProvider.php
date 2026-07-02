@@ -6,6 +6,8 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Branches\Policies\BranchPolicy;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Policies\CashRegisterSessionPolicy;
+use App\Modules\Customers\Models\Customer;
+use App\Modules\Customers\Policies\CustomerPolicy;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Policies\ExchangeRatePolicy;
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(CashRegisterSession::class, CashRegisterSessionPolicy::class);
+        Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
         Gate::policy(PosOrder::class, PosOrderPolicy::class);

@@ -21,11 +21,12 @@ class SaleService
     ) {
     }
 
-    public function createDraft(User $user, array $items): Sale
+    public function createDraft(User $user, array $items, ?int $customerId = null): Sale
     {
-        return DB::transaction(function () use ($user, $items): Sale {
+        return DB::transaction(function () use ($user, $items, $customerId): Sale {
             $sale = Sale::create([
                 'status' => Sale::STATUS_DRAFT,
+                'customer_id' => $customerId,
                 'created_by' => $user->id,
             ]);
 
@@ -72,7 +73,7 @@ class SaleService
                 'total_local_amount' => $totalLocal,
             ]);
 
-            return $sale->refresh()->load(['items.product', 'items.warehouse']);
+            return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse']);
         });
     }
 
@@ -110,7 +111,7 @@ class SaleService
                 'confirmed_at' => now(),
             ]);
 
-            return $sale->refresh()->load(['items.product', 'items.warehouse', 'items.stockMovement']);
+            return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse', 'items.stockMovement']);
         });
     }
 
@@ -125,6 +126,6 @@ class SaleService
             'cancelled_at' => now(),
         ]);
 
-        return $sale->refresh()->load(['items.product', 'items.warehouse']);
+        return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse']);
     }
 }

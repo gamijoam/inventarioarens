@@ -146,6 +146,33 @@ Regla importante:
 - activar una nueva tasa solo reemplaza la tasa activa del mismo tipo y par de monedas;
 - las ventas futuras deben guardar el tipo de tasa y el valor exacto usado.
 
+### Customers
+
+Responsabilidad:
+
+- clientes por tenant;
+- documentos fiscales o personales del cliente;
+- cliente generico para ventas de mostrador;
+- asociacion opcional de clientes con ventas y ordenes POS;
+- base para facturacion, credito, historial comercial y reportes por cliente.
+
+Archivos principales:
+
+- `app/Modules/Customers/Models/Customer.php`
+- `app/Modules/Customers/Policies/CustomerPolicy.php`
+- `app/Modules/Customers/Controllers/CustomerController.php`
+- `app/Modules/Customers/Requests/StoreCustomerRequest.php`
+- `app/Modules/Customers/Requests/UpdateCustomerRequest.php`
+- `app/Modules/Customers/Resources/CustomerResource.php`
+- `app/Modules/Customers/routes.php`
+
+Regla importante:
+
+- `document_type + document_number` es unico por tenant, no global;
+- un cliente de una empresa no puede usarse en ventas o POS de otra empresa;
+- la eliminacion API desactiva al cliente con `is_active = false`;
+- `customer_id` en ventas y POS es opcional para permitir ventas rapidas y cliente generico.
+
 ### Sales
 
 Responsabilidad:
@@ -153,6 +180,7 @@ Responsabilidad:
 - ventas en borrador;
 - confirmacion de ventas;
 - cancelacion de ventas en borrador;
+- asociacion opcional con clientes del modulo `Customers`;
 - copia historica de precio, moneda, tipo de tasa y valor de tasa;
 - descuento de inventario al confirmar.
 
@@ -171,6 +199,7 @@ Archivos principales:
 Regla importante:
 
 - crear una venta no mueve inventario;
+- si se envia cliente, debe pertenecer al tenant actual;
 - confirmar una venta descuenta inventario;
 - cada item guarda precio y tasa exacta usada;
 - ventas confirmadas no se cancelan directamente en esta fase.
@@ -184,6 +213,7 @@ Responsabilidad:
 - registro de pagos en `USD` o `VES`;
 - soporte inicial para pagos capturados y pendientes;
 - integracion con `Sales` para crear y confirmar ventas;
+- asociacion opcional con clientes del modulo `Customers`;
 - base para metodos de pago, financiadoras externas y conciliaciones futuras.
 
 Archivos principales:
@@ -202,6 +232,7 @@ Regla importante:
 
 - POS no debe descontar inventario directamente;
 - POS debe usar `Sales` para crear y confirmar la venta;
+- POS puede asociar un `customer_id`, pero solo si pertenece al tenant actual;
 - POS debe estar asociado a una sesion de caja abierta;
 - POS solo puede usar la caja del cajero autenticado;
 - solo pagos `captured` cuentan para cerrar una orden POS;

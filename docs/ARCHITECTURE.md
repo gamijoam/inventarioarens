@@ -127,6 +127,8 @@ El modulo `CashRegister` es la capa de apertura, movimientos, arqueo y cierre de
 
 Varias cajas pueden operar al mismo tiempo. La independencia se mantiene porque cada orden POS apunta a una `cash_register_session_id` especifica y cada pago capturado registra movimiento en esa misma caja. La competencia por inventario se resuelve en `Sales` e `Inventory`: si dos cajas intentan vender la ultima unidad, la primera confirmacion descuenta el stock y la segunda falla por stock insuficiente sin dejar stock negativo ni movimientos de caja permanentes.
 
+El modulo `Customers` mantiene los clientes por empresa. Cada cliente puede tener documento, telefono, correo, direccion fiscal y marca de cliente generico. Ventas y POS pueden operar sin cliente especifico, pero cuando reciben `customer_id` deben validar que pertenezca al tenant actual. Esto prepara la base para facturacion, historial de compras, creditos, financiadoras y reportes por cliente sin mezclar datos entre empresas.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -175,6 +177,7 @@ Módulos implementados inicialmente:
 - `Branches`: sucursales tenant-scoped con API, permisos y codigo unico por tenant.
 - `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.
+- `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
 
 ## Permisos
 
