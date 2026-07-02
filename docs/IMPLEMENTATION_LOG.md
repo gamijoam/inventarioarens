@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-02 - Seeder demo para datos visibles
+
+### Implementado
+
+- Se agrego `DemoDataSeeder`.
+- Se ajusto `DatabaseSeeder` para no duplicar el usuario base `test@example.com`.
+- El seeder demo crea dos empresas de ejemplo.
+- El seeder demo crea usuarios cajero y gerente por empresa.
+- El seeder demo crea sucursales, almacenes, tasas `BCV` y `PARALELO`.
+- El seeder demo crea productos por cantidad y productos serializados con IMEIs.
+- El seeder demo carga stock inicial mediante el servicio de inventario.
+- El seeder demo abre cajas y crea ventas POS pagadas y ventas POS con financiamiento pendiente.
+- Se agrego una prueba para validar que el seeder crea datos de negocio visibles y es idempotente.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas del seeder en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Seeders/DemoDataSeederTest.php`: 1 prueba pasada, 17 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 80 pruebas pasadas, 362 aserciones.
+
+### Notas de uso
+
+- Para llenar la BD local visible desde HeidiSQL se debe ejecutar `docker compose run --rm app php artisan db:seed --class=DemoDataSeeder`.
+- El seeder esta pensado para ambiente local/demo, no para datos reales de produccion.
+- Los tests siguen limpiando su propia base; este seeder sirve para datos persistentes en `inventory_arens`.
+- Se ejecutaron migraciones y el seeder demo en la BD local `inventory_arens`.
+- Verificacion local: 2 empresas, 4 productos, 16 unidades serializadas, 2 cajas, 4 ventas POS, 4 pagos POS y 6 movimientos de inventario.
+
 ## 2026-07-02 - Integracion POS con Caja
 
 ### Implementado

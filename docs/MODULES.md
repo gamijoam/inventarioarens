@@ -347,3 +347,4 @@ Archivos principales:
 - Los tests deben estar agrupados por area en `tests/Feature/<Area>`.
 - Toda documentacion debe escribirse en espanol.
 - Cada cambio importante debe quedar registrado en `docs/IMPLEMENTATION_LOG.md`.
+- Los datos demo persistentes se documentan en `docs/DEMO_DATA.md`.
