@@ -1,5 +1,49 @@
 # Registro de implementación
 
+## 2026-07-02 - Decision de moneda para Venezuela
+
+### Implementado
+
+- Se documento que el inventario usara `USD` como moneda base interna.
+- Se documento que los productos podran venderse en `USD` o `VES`.
+- Se dejo definido que las operaciones monetarias futuras deben guardar moneda original y tasa usada.
+
+### Pruebas
+
+- No aplica ejecucion de tests automatizados porque este cambio solo documenta una decision de arquitectura.
+
+### Notas de seguridad
+
+- No se deben recalcular costos historicos usando la tasa nueva del dia.
+- Cada compra, venta o movimiento monetario debe conservar la tasa usada en el momento de la operacion.
+- La tasa del dia se usara para equivalencias y reportes, no para modificar la historia.
+
+## 2026-07-02 - API inicial de inventario
+
+### Implementado
+
+- Se agrego `routes/api.php`.
+- Se registro el archivo API en `bootstrap/app.php`.
+- Se agrego `InventoryMovementController`.
+- Se agregaron requests para movimientos y transferencias de inventario.
+- Se agrego `StockMovementResource`.
+- Se expusieron endpoints para compras, ventas, ajustes, reservas, liberaciones, danados y transferencias.
+- Todos los endpoints usan `auth`, `tenant` y `AuthorizedInventoryMovementService`.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Inventory/InventoryApiTest.php`.
+- Resultado: 4 pruebas pasaron, 15 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 28 pruebas pasaron, 76 assertions.
+
+### Notas de seguridad
+
+- Los endpoints no llaman directamente a `InventoryMovementService`.
+- Los recursos enviados en la peticion se validan contra el tenant actual.
+- Si un producto o almacen pertenece a otro tenant, la validacion responde `422`.
+- Si el usuario no tiene permisos, la respuesta es `403`.
+
 ## 2026-07-02 - Autorizacion de operaciones de inventario
 
 ### Implementado

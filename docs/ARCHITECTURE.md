@@ -1,5 +1,30 @@
 # Arquitectura de Inventory Arens
 
+## Moneda y tasas para Venezuela
+
+El sistema se disena para operar en Venezuela, donde las operaciones pueden manejarse en dolares estadounidenses y bolivares.
+
+Decision inicial:
+
+- moneda base interna del inventario: `USD`;
+- moneda local operativa: `VES`;
+- los productos podran venderse en `USD` o `VES`;
+- cada venta, compra o movimiento monetario futuro debe guardar la moneda de la transaccion y la tasa usada;
+- los costos historicos no deben recalcularse con la tasa nueva del dia;
+- la tasa del dia servira para mostrar equivalencias, cotizar y reportar, pero no para alterar movimientos historicos.
+
+Campos sugeridos para compras, ventas y movimientos monetarios futuros:
+
+- `currency_code`: moneda original de la operacion, por ejemplo `USD` o `VES`;
+- `exchange_rate`: tasa usada en la operacion;
+- `base_currency_code`: moneda base interna, inicialmente `USD`;
+- `unit_amount`: monto unitario en la moneda original;
+- `base_unit_amount`: monto unitario convertido a la moneda base;
+- `total_amount`: total en la moneda original;
+- `base_total_amount`: total convertido a la moneda base.
+
+Cada tenant podra configurar su fuente de tasa preferida mas adelante, por ejemplo BCV, manual, paralelo o tasa propia de tienda.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -185,7 +210,40 @@ Prueba asociada:
 
 - `tests/Feature/Inventory/InventoryAuthorizationTest.php`
 
+## API de inventario
+
+Las rutas API de inventario viven en `routes/api.php` y usan los middleware `auth` y `tenant`.
+
+Prefijo:
+
+```txt
+/api/inventory
+```
+
+Endpoints iniciales:
+
+- `POST /api/inventory/purchases`
+- `POST /api/inventory/sales`
+- `POST /api/inventory/adjustments/in`
+- `POST /api/inventory/adjustments/out`
+- `POST /api/inventory/reservations`
+- `POST /api/inventory/releases`
+- `POST /api/inventory/damages`
+- `POST /api/inventory/transfers`
+
+Reglas:
+
+- toda peticion debe incluir tenant, por ejemplo header `X-Tenant`;
+- el usuario debe estar autenticado;
+- el usuario debe pertenecer activamente al tenant;
+- los ids de almacenes y productos se validan contra el tenant actual;
+- las operaciones usan `AuthorizedInventoryMovementService`;
+- las respuestas de movimientos usan `StockMovementResource`.
+
+Prueba asociada:
+
+- `tests/Feature/Inventory/InventoryApiTest.php`
+
 La siguiente fase debe agregar:
 
-- requests/controllers API para exponer entradas, salidas, ajustes y transferencias;
 - auditoría para acciones de negocio.
