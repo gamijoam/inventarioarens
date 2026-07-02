@@ -28,3 +28,23 @@
 - Tenant-owned records fail fast when created without a resolved tenant.
 - Business uniqueness must be tenant-scoped, for example `tenant_id + sku`.
 - AI must remain outside the inventory core and must not bypass permissions, validation, policies, or audit logs.
+
+## 2026-07-02 - Tenant-Aware Product Policies
+
+### Implemented
+
+- Added `ProductPolicy` as the first tenant-aware policy pattern.
+- Registered the product policy in `AppServiceProvider`.
+- Added `User::belongsToTenant()` to centralize active tenant membership checks.
+- Enforced that product access requires both a granular permission and current tenant ownership.
+
+### Tests
+
+- Ran `php artisan test tests/Feature/Permissions/ProductPolicyTest.php`.
+- Result: 4 tests passed, 9 assertions.
+
+### Safety Notes
+
+- A valid role or permission in one tenant must never grant access in another tenant.
+- Policies must protect against resources fetched without global scopes or already held in memory.
+- The backend remains the permission authority; future AI actions must pass through the same policies.

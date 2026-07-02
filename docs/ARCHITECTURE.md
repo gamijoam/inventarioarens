@@ -52,6 +52,15 @@ Spatie Laravel Permission is configured with teams enabled. In this project the 
 
 Base permissions and initial role maps live in `App\Support\Permissions\BasePermissions`.
 
+Policies must check both permission and tenant ownership. A permission alone is not enough to access tenant-owned data.
+
+The first policy pattern is `App\Modules\Products\Policies\ProductPolicy`:
+
+- checks that a current tenant exists;
+- checks that the user actively belongs to the current tenant;
+- checks the required granular permission;
+- checks that product resources belong to the current tenant before view, update, or delete.
+
 ## Current Safety Tests
 
 `tests/Feature/Tenancy/TenantIsolationTest.php` verifies:
@@ -59,6 +68,13 @@ Base permissions and initial role maps live in `App\Support\Permissions\BasePerm
 - tenant-scoped queries only return current tenant data;
 - tenant-owned records cannot be created without a current tenant;
 - the same SKU can exist in different tenants.
+
+`tests/Feature/Permissions/ProductPolicyTest.php` verifies:
+
+- product permissions work only inside the current tenant;
+- roles assigned in one tenant do not leak into another tenant;
+- create requires active tenant membership and permission;
+- update and delete require the resource to belong to the current tenant.
 
 ## Next Phase
 

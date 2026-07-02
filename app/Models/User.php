@@ -27,6 +27,16 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function belongsToTenant(Tenant|int $tenant): bool
+    {
+        $tenantId = $tenant instanceof Tenant ? $tenant->id : $tenant;
+
+        return $this->tenants()
+            ->whereKey($tenantId)
+            ->wherePivot('status', 'active')
+            ->exists();
+    }
+
     /**
      * Get the attributes that should be cast.
      *
