@@ -157,8 +157,35 @@ Toda documentación del proyecto debe escribirse en español. Cada cambio import
 
 ## Siguiente fase
 
+## Autorizacion de inventario
+
+`App\Modules\Inventory\Policies\InventoryPolicy` valida permisos y pertenencia al tenant para operaciones de inventario.
+
+`App\Modules\Inventory\Services\AuthorizedInventoryMovementService` es la capa que deben usar controladores, jobs e IA cuando una operacion venga de un usuario. Este servicio autoriza primero y luego delega en `InventoryMovementService`.
+
+Abilities internos:
+
+- `inventory.view-operation`
+- `inventory.receive-operation`
+- `inventory.sale-operation`
+- `inventory.adjust-operation`
+- `inventory.transfer-operation`
+
+Estos nombres no coinciden exactamente con permisos Spatie como `inventory.adjust` o `inventory.transfer` de forma intencional. Asi se evita que Spatie conceda el permiso antes de que nuestra policy valide recursos y tenant.
+
+Permisos revisados por la policy:
+
+- `inventory.view` para consultar inventario.
+- `purchases.create` para entradas por compra.
+- `sales.create` para salidas por venta.
+- `inventory.adjust` para ajustes, reservas, liberaciones y danados.
+- `inventory.transfer` para transferencias entre almacenes.
+
+Prueba asociada:
+
+- `tests/Feature/Inventory/InventoryAuthorizationTest.php`
+
 La siguiente fase debe agregar:
 
-- policies y permisos específicos para operaciones de inventario;
 - requests/controllers API para exponer entradas, salidas, ajustes y transferencias;
 - auditoría para acciones de negocio.

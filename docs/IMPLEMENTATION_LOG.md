@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-02 - Autorizacion de operaciones de inventario
+
+### Implementado
+
+- Se agrego `InventoryPolicy` para validar permisos y pertenencia al tenant en operaciones de inventario.
+- Se registraron Gates internos para operaciones de inventario.
+- Se agrego `AuthorizedInventoryMovementService` para que controladores, jobs e IA autoricen antes de mover inventario.
+- Se separaron los nombres de abilities internos de los nombres de permisos Spatie usando el sufijo `-operation`.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Inventory/InventoryAuthorizationTest.php`.
+- Resultado: 5 pruebas pasaron, 16 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 24 pruebas pasaron, 61 assertions.
+
+### Notas de seguridad
+
+- No se deben usar directamente abilities con el mismo nombre que permisos Spatie cuando tambien hay que validar modelos o tenant.
+- `inventory.adjust-operation` revisa el permiso `inventory.adjust`, pero ademas valida almacen/producto del tenant actual.
+- `inventory.transfer-operation` revisa el permiso `inventory.transfer`, pero ademas valida almacen origen, almacen destino y producto.
+- La IA y los endpoints futuros deben usar `AuthorizedInventoryMovementService`, no llamar directamente a `InventoryMovementService`.
+
 ## 2026-07-02 - Fase 1: base del sistema
 
 ### Implementado
