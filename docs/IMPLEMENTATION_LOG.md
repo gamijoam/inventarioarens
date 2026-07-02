@@ -87,3 +87,48 @@
 - Un movimiento o balance de stock no puede apuntar a productos o almacenes de otro tenant.
 - Los códigos de sucursal y almacén son únicos por tenant, no globales.
 - El stock no se guarda en productos; eso evita inconsistencias futuras cuando existan varios almacenes.
+
+## 2026-07-02 - Pruebas con PostgreSQL
+
+### Implementado
+
+- Se cambió `phpunit.xml` para que PHPUnit use PostgreSQL en lugar de SQLite.
+- Se agregó el servicio `postgres_test` en `docker-compose.yml`.
+- Se agregó el servicio `app_test` para ejecutar PHPUnit contra `postgres_test`.
+- Se configuró la base `inventory_arens_testing` para pruebas automatizadas.
+- Se agregaron healthchecks a PostgreSQL para que los servicios esperen a que la base esté lista.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test`.
+- Resultado: 13 pruebas pasaron, 27 assertions.
+
+### Notas de seguridad
+
+- SQLite no debe usarse como fuente principal de confianza para este proyecto.
+- PostgreSQL es obligatorio para validar claves foráneas compuestas, decimales e integridad multitenant como se comportarán en producción.
+
+## 2026-07-02 - Servicio de movimientos de inventario
+
+### Implementado
+
+- Se agregó `InventoryMovementService` para centralizar operaciones de inventario.
+- Se implementaron entradas por compra, ventas, ajustes positivos, ajustes negativos, reservas, liberaciones, dañados y transferencias.
+- Se agregaron excepciones específicas para cantidad inválida, stock insuficiente y referencias cruzadas entre tenants.
+- Cada operación crea registros en `stock_movements`.
+- Cada operación actualiza `stock_balances` dentro de una transacción.
+- Las transferencias crean dos movimientos: `transfer_out` y `transfer_in`.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Inventory/InventoryMovementServiceTest.php`.
+- Resultado: 6 pruebas pasaron, 18 assertions.
+- Se ejecutó la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 19 pruebas pasaron, 45 assertions.
+
+### Notas de seguridad
+
+- El servicio rechaza modelos que no pertenezcan al tenant actual antes de escribir en base de datos.
+- Las salidas no pueden dejar stock disponible negativo.
+- Las liberaciones no pueden dejar stock reservado negativo.
+- Las operaciones críticas de inventario quedan preparadas para integrarse con permisos, policies y auditoría.

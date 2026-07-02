@@ -66,6 +66,23 @@ El primer patrón de policy es `App\Modules\Products\Policies\ProductPolicy`:
 
 ## Pruebas de seguridad actuales
 
+La suite de pruebas debe ejecutarse contra PostgreSQL mediante Docker Compose. No se debe usar SQLite como base de confianza para pruebas de multitenancy, integridad referencial, decimales o claves compuestas.
+
+Configuración de testing:
+
+- servicio de app para pruebas: `app_test`;
+- servicio Docker: `postgres_test`;
+- base de datos: `inventory_arens_testing`;
+- conexión PHPUnit: `pgsql`;
+- host interno: `postgres_test`;
+- puerto interno: `5432`.
+
+Comando oficial de pruebas:
+
+```bash
+docker compose run --rm app_test php artisan test
+```
+
 `tests/Feature/Tenancy/TenantIsolationTest.php` verifica:
 
 - las consultas tenant-scoped solo devuelven datos del tenant actual;
@@ -105,6 +122,31 @@ Reglas de integridad:
 - `stock_balances` referencia `warehouses` y `products` con claves compuestas por tenant.
 - `products`, `branches` y `warehouses` exponen claves únicas compuestas `tenant_id + id` para permitir esas referencias seguras.
 
+## Servicio de movimientos de inventario
+
+`App\Modules\Inventory\Services\InventoryMovementService` centraliza las operaciones que modifican inventario.
+
+Operaciones iniciales:
+
+- `purchase`: registra entrada por compra y aumenta disponible.
+- `sale`: registra salida por venta y reduce disponible.
+- `adjustmentIn`: registra ajuste positivo.
+- `adjustmentOut`: registra ajuste negativo.
+- `reserve`: mueve cantidad de disponible a reservado.
+- `release`: mueve cantidad de reservado a disponible.
+- `markDamaged`: mueve cantidad de disponible a dañado.
+- `transfer`: genera `transfer_out` y `transfer_in` entre almacenes del mismo tenant.
+
+Reglas del servicio:
+
+- toda operación corre dentro de una transacción;
+- toda cantidad debe ser mayor que cero;
+- el almacén y producto deben pertenecer al tenant actual;
+- las salidas requieren stock disponible suficiente;
+- liberar requiere stock reservado suficiente;
+- las transferencias actualizan ambos almacenes y generan dos movimientos;
+- `stock_movements` guarda la historia y `stock_balances` se actualiza como lectura rápida.
+
 ## Regla de documentación
 
 Toda documentación del proyecto debe escribirse en español. Cada cambio importante debe quedar registrado en `docs/IMPLEMENTATION_LOG.md` con:
@@ -117,7 +159,6 @@ Toda documentación del proyecto debe escribirse en español. Cada cambio import
 
 La siguiente fase debe agregar:
 
-- servicios de inventario para entradas, salidas, ajustes y transferencias;
-- validaciones de tipos de movimiento;
-- actualización controlada de `stock_balances` desde `stock_movements`;
+- policies y permisos específicos para operaciones de inventario;
+- requests/controllers API para exponer entradas, salidas, ajustes y transferencias;
 - auditoría para acciones de negocio.
