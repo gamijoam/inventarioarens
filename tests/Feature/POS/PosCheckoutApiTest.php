@@ -4,6 +4,8 @@ namespace Tests\Feature\POS;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\StockBalance;
@@ -36,11 +38,13 @@ class PosCheckoutApiTest extends TestCase
         ]);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
         $response = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'customer_name' => 'Cliente mostrador',
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
@@ -55,6 +59,7 @@ class PosCheckoutApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.cash_register_session_id', $session->id)
             ->assertJsonPath('data.sale.status', Sale::STATUS_CONFIRMED)
             ->assertJsonPath('data.payments.0.method', PosPayment::METHOD_CASH)
             ->assertJsonPath('data.payments.0.status', PosPayment::STATUS_CAPTURED);
@@ -65,6 +70,13 @@ class PosCheckoutApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity_available' => '3.0000',
+        ]);
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+            'method' => PosPayment::METHOD_CASH,
+            'amount_base' => '200.0000',
         ]);
     }
 
@@ -79,11 +91,13 @@ class PosCheckoutApiTest extends TestCase
         ]);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
@@ -104,6 +118,15 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonPath('data.payments.0.amount_local', '60000.0000')
             ->assertJsonPath('data.payments.0.exchange_rate_type_code', 'PARALELO')
             ->assertJsonPath('data.payments.0.exchange_rate', '600.000000');
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+            'amount_base' => '100.0000',
+            'amount_local' => '60000.0000',
+            'exchange_rate_type_code' => 'PARALELO',
+        ]);
     }
 
     public function test_pending_external_financing_keeps_pos_order_open_and_sale_draft(): void
@@ -117,11 +140,13 @@ class PosCheckoutApiTest extends TestCase
         ]);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
@@ -148,6 +173,7 @@ class PosCheckoutApiTest extends TestCase
             'quantity_available' => '2.0000',
         ]);
         $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('cash_register_movements', 0);
     }
 
     public function test_pos_orders_do_not_mix_companies_and_reject_foreign_resources(): void
@@ -166,11 +192,13 @@ class PosCheckoutApiTest extends TestCase
         ]);
         $user = $this->userInTenant($tenantA);
         $this->grantRole($tenantA, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenantA, $user, $warehouseA->branch_id);
 
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenantA->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'items' => [[
                     'warehouse_id' => $warehouseA->id,
                     'product_id' => $productA->id,
@@ -195,6 +223,7 @@ class PosCheckoutApiTest extends TestCase
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenantA->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'items' => [[
                     'warehouse_id' => $warehouseA->id,
                     'product_id' => $productB->id,
@@ -215,11 +244,13 @@ class PosCheckoutApiTest extends TestCase
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
         $user = $this->userInTenant($tenant);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
@@ -232,6 +263,114 @@ class PosCheckoutApiTest extends TestCase
                 ]],
             ])
             ->assertForbidden();
+    }
+
+    public function test_pos_checkout_requires_open_cash_register_owned_by_cashier(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $cashier = $this->userInTenant($tenant);
+        $otherCashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajero', ['pos.checkout']);
+
+        $otherSession = $this->cashRegisterSession($tenant, $otherCashier, $warehouse->branch_id);
+
+        $payload = [
+            'cash_register_session_id' => $otherSession->id,
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+            ]],
+            'payments' => [[
+                'method' => PosPayment::METHOD_CASH,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 100,
+            ]],
+        ];
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
+
+        $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id, CashRegisterSession::STATUS_CLOSED);
+        $payload['cash_register_session_id'] = $session->id;
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
+    }
+
+    public function test_multiple_cash_registers_cannot_sell_the_last_unit_twice(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+
+        $cashierA = $this->userInTenant($tenant);
+        $cashierB = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashierA, 'Cajero A', ['pos.checkout']);
+        $this->grantRole($tenant, $cashierB, 'Cajero B', ['pos.checkout']);
+        $sessionA = $this->cashRegisterSession($tenant, $cashierA, $warehouse->branch_id);
+        $sessionB = $this->cashRegisterSession($tenant, $cashierB, $warehouse->branch_id);
+
+        $payload = fn (int $sessionId): array => [
+            'cash_register_session_id' => $sessionId,
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+            ]],
+            'payments' => [[
+                'method' => PosPayment::METHOD_CASH,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 100,
+            ]],
+        ];
+
+        $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload($sessionA->id))
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $this
+            ->actingAs($cashierB)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload($sessionB->id))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock']);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+        ]);
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseCount('cash_register_movements', 1);
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $sessionA->id,
+            'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+        ]);
     }
 
     protected function setUp(): void
@@ -275,6 +414,19 @@ class PosCheckoutApiTest extends TestCase
         $user->tenants()->attach($tenant, ['status' => 'active']);
 
         return $user;
+    }
+
+    private function cashRegisterSession(Tenant $tenant, User $cashier, int $branchId, string $status = CashRegisterSession::STATUS_OPEN): CashRegisterSession
+    {
+        $this->useTenant($tenant);
+
+        return CashRegisterSession::create([
+            'branch_id' => $branchId,
+            'cashier_id' => $cashier->id,
+            'opened_by' => $cashier->id,
+            'status' => $status,
+            'opened_at' => now(),
+        ]);
     }
 
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void

@@ -8,6 +8,7 @@ use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
@@ -106,6 +107,36 @@ class CashRegisterService
                 'closed_at' => now(),
                 'closing_notes' => $data['closing_notes'] ?? null,
             ]);
+
+            return $session->refresh()->load(['branch', 'movements']);
+        });
+    }
+
+    public function recordPosPayment(CashRegisterSession $session, PosPayment $payment, User $operator): CashRegisterSession
+    {
+        return DB::transaction(function () use ($session, $payment, $operator): CashRegisterSession {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+
+            CashRegisterMovement::create([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+                'method' => $payment->method,
+                'currency' => $payment->currency,
+                'amount' => $payment->amount,
+                'amount_base' => $payment->amount_base,
+                'amount_local' => $payment->amount_local,
+                'exchange_rate_type_id' => $payment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                'exchange_rate' => $payment->exchange_rate,
+                'source_type' => PosPayment::class,
+                'source_id' => $payment->id,
+                'reference' => $payment->reference,
+                'notes' => "Pago POS #{$payment->id}",
+                'created_by' => $operator->id,
+            ]);
+
+            $this->recalculateExpectedTotals($session);
 
             return $session->refresh()->load(['branch', 'movements']);
         });

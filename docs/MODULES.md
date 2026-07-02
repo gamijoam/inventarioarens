@@ -202,7 +202,10 @@ Regla importante:
 
 - POS no debe descontar inventario directamente;
 - POS debe usar `Sales` para crear y confirmar la venta;
+- POS debe estar asociado a una sesion de caja abierta;
+- POS solo puede usar la caja del cajero autenticado;
 - solo pagos `captured` cuentan para cerrar una orden POS;
+- cada pago `captured` crea un movimiento `pos_payment` en `CashRegister`;
 - pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
 - cada pago en `VES` debe guardar la tasa exacta usada.
 
@@ -237,7 +240,8 @@ Regla importante:
 - un cajero no puede tener dos sesiones abiertas al mismo tiempo;
 - una caja cerrada no acepta movimientos;
 - cada movimiento en `VES` debe guardar la tasa exacta usada;
-- mas adelante POS debe asociar pagos capturados a una sesion de caja abierta.
+- POS asocia pagos capturados a una sesion de caja abierta;
+- varias cajas pueden operar en paralelo, pero cada caja mantiene sus movimientos y cierre independiente.
 
 ### Inventory
 

@@ -3,6 +3,8 @@
 namespace App\Modules\POS\Services;
 
 use App\Models\User;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosOrder;
@@ -14,17 +16,29 @@ use Illuminate\Validation\ValidationException;
 
 class PosCheckoutService
 {
-    public function __construct(private readonly SaleService $sales)
-    {
+    public function __construct(
+        private readonly SaleService $sales,
+        private readonly CashRegisterService $cashRegister,
+    ) {
     }
 
-    public function checkout(User $cashier, array $items, array $payments, ?string $customerName = null): PosOrder
+    public function checkout(
+        User $cashier,
+        CashRegisterSession $cashRegisterSession,
+        array $items,
+        array $payments,
+        ?string $customerName = null,
+    ): PosOrder
     {
-        return DB::transaction(function () use ($cashier, $items, $payments, $customerName): PosOrder {
+        return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerName): PosOrder {
+            $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
+            $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+
             $sale = $this->sales->createDraft($cashier, $items);
 
             $order = PosOrder::create([
                 'sale_id' => $sale->id,
+                'cash_register_session_id' => $cashRegisterSession->id,
                 'status' => PosOrder::STATUS_OPEN,
                 'cashier_id' => $cashier->id,
                 'customer_name' => $customerName,
@@ -40,7 +54,7 @@ class PosCheckoutService
                 $resolved = $this->resolvePayment($payment);
                 $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
 
-                PosPayment::create([
+                $posPayment = PosPayment::create([
                     'pos_order_id' => $order->id,
                     'method' => $payment['method'],
                     'currency' => strtoupper($payment['currency']),
@@ -59,6 +73,7 @@ class PosCheckoutService
                 if ($status === PosPayment::STATUS_CAPTURED) {
                     $paidBase += $resolved['amount_base'];
                     $paidLocal += $resolved['amount_local'] ?? 0.0;
+                    $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier);
                 }
             }
 
@@ -76,8 +91,23 @@ class PosCheckoutService
                 ]);
             }
 
-            return $order->refresh()->load(['sale.items.product', 'sale.items.warehouse', 'payments']);
+            return $order->refresh()->load(['cashRegisterSession', 'sale.items.product', 'sale.items.warehouse', 'payments']);
         });
+    }
+
+    private function assertCashRegisterCanSell(CashRegisterSession $session, User $cashier): void
+    {
+        if ($session->status !== CashRegisterSession::STATUS_OPEN) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'La caja seleccionada no esta abierta.',
+            ]);
+        }
+
+        if ((int) $session->cashier_id !== (int) $cashier->id) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'La caja seleccionada pertenece a otro cajero.',
+            ]);
+        }
     }
 
     private function resolvePayment(array $payment): array

@@ -16,6 +16,11 @@ class StorePosCheckoutRequest extends FormRequest
 
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
+            'cash_register_session_id' => [
+                'required',
+                'integer',
+                Rule::exists('cash_register_sessions', 'id')->where('tenant_id', $tenantId),
+            ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => [
                 'required',

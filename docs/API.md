@@ -934,6 +934,7 @@ Body:
 
 ```json
 {
+  "cash_register_session_id": 1,
   "customer_name": "Cliente mostrador",
   "items": [
     {
@@ -971,11 +972,16 @@ Estados de pago iniciales:
 
 Reglas:
 
+- POS requiere `cash_register_session_id`;
+- la caja debe estar abierta;
+- la caja debe pertenecer al cajero autenticado;
 - POS crea una venta en `Sales`;
 - POS registra los pagos en `pos_payments`;
 - solo pagos `captured` suman al total pagado;
+- cada pago `captured` crea un movimiento `pos_payment` en la caja asociada;
 - si los pagos capturados cubren el total base, POS confirma la venta y descuenta inventario mediante `Sales`;
 - si el pago queda pendiente, la orden POS queda `open` y la venta queda `draft`;
+- si dos cajas intentan vender la ultima unidad, la segunda operacion debe fallar por stock insuficiente;
 - pagos en `VES` requieren una tasa activa y guardan snapshot de tipo de tasa, codigo y valor;
 - pagos con financiadoras externas pueden usar `external_provider`, `reference` y `metadata`.
 
@@ -1200,6 +1206,7 @@ Reglas:
 - Las APIs de ventas deben copiar precio y tasa exacta usada, no recalcular historia.
 - Las APIs de POS deben vivir en el modulo `POS` y usar `Sales` como motor de venta.
 - Las APIs de POS no deben descontar inventario directamente.
+- Las APIs de POS deben asociar checkouts a una caja abierta cuando sean ventas de mostrador.
 - Las APIs de caja deben vivir en el modulo `CashRegister`, separadas de POS.
 - Las APIs de caja deben guardar diferencias de cierre sin alterar ventas historicas.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.

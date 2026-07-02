@@ -1,5 +1,31 @@
 # Registro de implementación
 
+## 2026-07-02 - Integracion POS con Caja
+
+### Implementado
+
+- Se agrego `cash_register_session_id` a `pos_orders`.
+- Se actualizo el checkout POS para exigir una caja abierta.
+- Se valido que la caja pertenezca al cajero autenticado.
+- Se valido que no se pueda vender con una caja cerrada.
+- Cada pago POS con estado `captured` crea un movimiento de caja `pos_payment`.
+- Los pagos pendientes no crean movimiento de caja ni confirman la venta.
+- Se probaron multiples cajas abiertas vendiendo el mismo producto con stock limitado.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas de POS en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`: 7 pruebas pasadas, 48 aserciones.
+- Se ejecutaron pruebas especificas de caja en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/CashRegister/CashRegisterApiTest.php`: 6 pruebas pasadas, 31 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 79 pruebas pasadas, 345 aserciones.
+
+### Notas de seguridad
+
+- Varias cajas pueden estar abiertas al mismo tiempo, pero cada una pertenece a un cajero.
+- POS no permite vender desde una caja cerrada.
+- POS no permite vender desde una caja de otro cajero.
+- Si dos cajas intentan vender la ultima unidad, la primera confirmacion descuenta stock y la segunda falla por stock insuficiente.
+- El inventario no debe quedar negativo y los movimientos de caja del intento fallido se revierten con la transaccion.
+
 ## 2026-07-02 - Caja base
 
 ### Implementado

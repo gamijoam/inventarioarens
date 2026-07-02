@@ -2,6 +2,7 @@
 
 namespace App\Modules\POS\Controllers;
 
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Requests\StorePosCheckoutRequest;
 use App\Modules\POS\Resources\PosOrderResource;
@@ -20,7 +21,7 @@ class PosOrderController extends Controller
 
         return PosOrderResource::collection(
             PosOrder::query()
-                ->with(['sale.items.product', 'payments'])
+                ->with(['cashRegisterSession', 'sale.items.product', 'payments'])
                 ->latest()
                 ->paginate(25)
         );
@@ -32,6 +33,7 @@ class PosOrderController extends Controller
 
         $order = $checkout->checkout(
             cashier: $request->user(),
+            cashRegisterSession: CashRegisterSession::query()->findOrFail($request->validated('cash_register_session_id')),
             items: $request->validated('items'),
             payments: $request->validated('payments'),
             customerName: $request->validated('customer_name')
@@ -46,6 +48,6 @@ class PosOrderController extends Controller
     {
         Gate::authorize('view', $posOrder);
 
-        return PosOrderResource::make($posOrder->load(['sale.items.product', 'sale.items.warehouse', 'payments']));
+        return PosOrderResource::make($posOrder->load(['cashRegisterSession', 'sale.items.product', 'sale.items.warehouse', 'payments']));
     }
 }

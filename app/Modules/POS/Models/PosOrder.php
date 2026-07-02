@@ -3,6 +3,7 @@
 namespace App\Modules\POS\Models;
 
 use App\Models\User;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Sales\Models\Sale;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'sale_id',
+    'cash_register_session_id',
     'status',
     'cashier_id',
     'customer_name',
@@ -52,6 +54,11 @@ class PosOrder extends Model
     public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    public function cashRegisterSession(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterSession::class);
     }
 
     public function payments(): HasMany

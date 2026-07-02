@@ -13,6 +13,7 @@ class PosOrderResource extends JsonResource
         return [
             'id' => $this->id,
             'sale_id' => $this->sale_id,
+            'cash_register_session_id' => $this->cash_register_session_id,
             'status' => $this->status,
             'cashier_id' => $this->cashier_id,
             'customer_name' => $this->customer_name,

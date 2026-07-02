@@ -123,7 +123,9 @@ El modulo `Sales` crea ventas primero como `draft`. En esa fase copia precio, mo
 
 El modulo `POS` es la capa operativa de caja. POS crea una venta mediante `Sales`, registra pagos y solo confirma la venta cuando los pagos capturados cubren el total. Los pagos pueden registrarse en `USD` o `VES`; si el pago es en bolivares se guarda el tipo de tasa, codigo y valor exacto usado. Pagos pendientes, como una financiadora externa futura, quedan registrados pero no descuentan inventario hasta que se capturen.
 
-El modulo `CashRegister` es la capa de apertura, movimientos, arqueo y cierre de caja. Una sesion de caja pertenece a una sucursal y a un cajero. Los movimientos pueden estar en `USD` o `VES`, guardan snapshot de tasa cuando aplica y actualizan el monto esperado. El cierre compara monto contado contra monto esperado y guarda la diferencia. POS debe integrarse con caja mas adelante asociando pagos capturados a una sesion abierta, sin convertir el cierre de caja en responsabilidad de POS.
+El modulo `CashRegister` es la capa de apertura, movimientos, arqueo y cierre de caja. Una sesion de caja pertenece a una sucursal y a un cajero. Los movimientos pueden estar en `USD` o `VES`, guardan snapshot de tasa cuando aplica y actualizan el monto esperado. El cierre compara monto contado contra monto esperado y guarda la diferencia. POS se integra con caja asociando cada checkout a una sesion abierta y registrando pagos capturados como movimientos `pos_payment`, sin convertir el cierre de caja en responsabilidad de POS.
+
+Varias cajas pueden operar al mismo tiempo. La independencia se mantiene porque cada orden POS apunta a una `cash_register_session_id` especifica y cada pago capturado registra movimiento en esa misma caja. La competencia por inventario se resuelve en `Sales` e `Inventory`: si dos cajas intentan vender la ultima unidad, la primera confirmacion descuenta el stock y la segunda falla por stock insuficiente sin dejar stock negativo ni movimientos de caja permanentes.
 
 ## Objetivo
 
