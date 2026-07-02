@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-02 - Auditoria de movimientos de inventario
+
+### Implementado
+
+- Se agrego la tabla `audit_logs`.
+- Se agrego el modelo `AuditLog` con aislamiento por tenant.
+- Se agrego `AuditLogger`.
+- Se integro auditoria en `InventoryMovementService`.
+- Cada movimiento de inventario crea un audit log con accion `inventory.movement.created`.
+- Los movimientos creados por API registran usuario, IP y user agent cuando existen.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Audit/InventoryAuditTest.php`.
+- Resultado: 2 pruebas pasaron, 20 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 30 pruebas pasaron, 96 assertions.
+
+### Notas de seguridad
+
+- Los audit logs tienen `tenant_id` y usan el mismo aislamiento que el resto de datos de negocio.
+- Se probaron varias empresas para confirmar que productos, balances y logs no se mezclan.
+- La auditoria se registra desde el servicio de inventario, no desde el controlador, para cubrir API y futuros jobs/IA.
+
 ## 2026-07-02 - Decision de moneda para Venezuela
 
 ### Implementado

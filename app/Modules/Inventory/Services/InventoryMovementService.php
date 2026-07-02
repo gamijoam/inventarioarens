@@ -3,6 +3,7 @@
 namespace App\Modules\Inventory\Services;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Inventory\Exceptions\CrossTenantInventoryReferenceException;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
@@ -15,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryMovementService
 {
+    public function __construct(private readonly AuditLogger $audit)
+    {
+    }
+
     public function purchase(
         Warehouse $warehouse,
         Product $product,
@@ -197,7 +202,7 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
     ): StockMovement {
-        return StockMovement::create([
+        $movement = StockMovement::create([
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'type' => $type,
@@ -208,6 +213,24 @@ class InventoryMovementService
             'reference_id' => $referenceId,
             'created_by' => $createdBy?->id,
         ]);
+
+        $this->audit->record(
+            action: 'inventory.movement.created',
+            entity: $movement,
+            user: $createdBy,
+            newValues: [
+                'warehouse_id' => $movement->warehouse_id,
+                'product_id' => $movement->product_id,
+                'type' => $movement->type,
+                'quantity' => (float) $movement->quantity,
+                'unit_cost' => $movement->unit_cost === null ? null : (float) $movement->unit_cost,
+                'reason' => $movement->reason,
+                'reference_type' => $movement->reference_type,
+                'reference_id' => $movement->reference_id,
+            ],
+        );
+
+        return $movement;
     }
 
     private function balanceFor(Warehouse $warehouse, Product $product): StockBalance

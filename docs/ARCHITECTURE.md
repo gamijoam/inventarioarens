@@ -1,5 +1,39 @@
 # Arquitectura de Inventory Arens
 
+## Auditoria
+
+Las acciones importantes de negocio deben quedar registradas en `audit_logs`.
+
+Campos principales:
+
+- `tenant_id`: empresa a la que pertenece el evento;
+- `user_id`: usuario que ejecuto la accion, si existe;
+- `action`: nombre estable de la accion;
+- `entity_type`: clase de la entidad afectada;
+- `entity_id`: id de la entidad afectada;
+- `old_values`: valores anteriores cuando aplique;
+- `new_values`: valores nuevos o datos relevantes;
+- `ip_address`: IP de la peticion cuando exista;
+- `user_agent`: user agent de la peticion cuando exista;
+- `created_at`: fecha del evento.
+
+Los movimientos de inventario registran auditoria con la accion:
+
+```txt
+inventory.movement.created
+```
+
+Reglas:
+
+- los audit logs son tenant-scoped y usan `BelongsToTenant`;
+- los logs se filtran por tenant igual que los demas datos de negocio;
+- una empresa no debe ver logs de otra empresa;
+- los movimientos creados por API deben registrar usuario, IP y user agent.
+
+Prueba asociada:
+
+- `tests/Feature/Audit/InventoryAuditTest.php`
+
 ## Moneda y tasas para Venezuela
 
 El sistema se disena para operar en Venezuela, donde las operaciones pueden manejarse en dolares estadounidenses y bolivares.
