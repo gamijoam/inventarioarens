@@ -152,8 +152,8 @@ Módulos implementados inicialmente:
 
 - `Tenancy`: tenants, resolución de tenant y aislamiento de petición.
 - `Products`: catalogo de productos, API de productos, policy tenant-aware y tipo de control por cantidad o serializado.
-- `Branches`: sucursales tenant-scoped.
-- `Warehouses`: almacenes tenant-scoped vinculados a sucursales del mismo tenant.
+- `Branches`: sucursales tenant-scoped con API, permisos y codigo unico por tenant.
+- `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.
 
 ## Permisos

@@ -1,5 +1,36 @@
 # Registro de implementación
 
+## 2026-07-02 - API de sucursales y almacenes
+
+### Implementado
+
+- Se agrego `BranchController`.
+- Se agregaron requests y resource para sucursales.
+- Se agrego `app/Modules/Branches/routes.php`.
+- Se agrego `WarehouseController`.
+- Se agregaron requests y resource para almacenes.
+- Se agrego `app/Modules/Warehouses/routes.php`.
+- Se agregaron `BranchPolicy` y `WarehousePolicy`.
+- Se agregaron permisos `branches.*` y `warehouses.*`.
+- Se expusieron endpoints para listar, crear, ver, actualizar y desactivar sucursales y almacenes.
+- Se valido `code` unico por tenant en sucursales y almacenes.
+- Se valido que `branch_id` de almacenes pertenezca al tenant actual.
+- La eliminacion por API desactiva usando `status = inactive`.
+
+### Pruebas
+
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Locations/BranchWarehouseApiTest.php`.
+- Resultado: 5 pruebas pasaron, 33 assertions.
+- Se ejecuto la suite completa con `docker compose run --rm app_test php artisan test`.
+- Resultado final: 49 pruebas pasaron, 178 assertions.
+
+### Notas de seguridad
+
+- Todos los endpoints usan `auth` y `tenant`.
+- Las APIs usan policies para validar permisos y pertenencia al tenant actual.
+- Los listados no mezclan datos entre empresas.
+- Un almacen no puede apuntar a una sucursal de otra empresa.
+
 ## 2026-07-02 - API de productos
 
 ### Implementado

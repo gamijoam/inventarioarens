@@ -111,6 +111,198 @@ Regla:
 
 - no borra fisicamente el producto; marca `is_active = false`.
 
+## Sucursales
+
+Archivo de rutas:
+
+```txt
+app/Modules/Branches/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Branches\Controllers\BranchController
+```
+
+### Listar sucursales
+
+```txt
+GET /api/branches
+```
+
+Permiso requerido:
+
+```txt
+branches.view
+```
+
+### Crear sucursal
+
+```txt
+POST /api/branches
+```
+
+Permiso requerido:
+
+```txt
+branches.create
+```
+
+Body:
+
+```json
+{
+  "name": "Principal",
+  "code": "MAIN",
+  "status": "active"
+}
+```
+
+Reglas:
+
+- `code` es unico dentro de la empresa actual;
+- `status` puede ser `active` o `inactive`;
+- si no se envia `status`, queda como `active`.
+
+### Ver sucursal
+
+```txt
+GET /api/branches/{branch}
+```
+
+Permiso requerido:
+
+```txt
+branches.view
+```
+
+### Actualizar sucursal
+
+```txt
+PATCH /api/branches/{branch}
+PUT /api/branches/{branch}
+```
+
+Permiso requerido:
+
+```txt
+branches.update
+```
+
+### Desactivar sucursal
+
+```txt
+DELETE /api/branches/{branch}
+```
+
+Permiso requerido:
+
+```txt
+branches.delete
+```
+
+Regla:
+
+- no borra fisicamente la sucursal; marca `status = inactive`.
+
+## Almacenes
+
+Archivo de rutas:
+
+```txt
+app/Modules/Warehouses/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Warehouses\Controllers\WarehouseController
+```
+
+### Listar almacenes
+
+```txt
+GET /api/warehouses
+```
+
+Permiso requerido:
+
+```txt
+warehouses.view
+```
+
+### Crear almacen
+
+```txt
+POST /api/warehouses
+```
+
+Permiso requerido:
+
+```txt
+warehouses.create
+```
+
+Body:
+
+```json
+{
+  "branch_id": 1,
+  "name": "Almacen tienda",
+  "code": "WH-STORE",
+  "status": "active"
+}
+```
+
+Reglas:
+
+- `branch_id` debe pertenecer a la empresa actual;
+- `code` es unico dentro de la empresa actual;
+- `status` puede ser `active` o `inactive`;
+- si no se envia `status`, queda como `active`.
+
+### Ver almacen
+
+```txt
+GET /api/warehouses/{warehouse}
+```
+
+Permiso requerido:
+
+```txt
+warehouses.view
+```
+
+### Actualizar almacen
+
+```txt
+PATCH /api/warehouses/{warehouse}
+PUT /api/warehouses/{warehouse}
+```
+
+Permiso requerido:
+
+```txt
+warehouses.update
+```
+
+### Desactivar almacen
+
+```txt
+DELETE /api/warehouses/{warehouse}
+```
+
+Permiso requerido:
+
+```txt
+warehouses.delete
+```
+
+Regla:
+
+- no borra fisicamente el almacen; marca `status = inactive`.
+
 ## Inventario
 
 Archivo de rutas:
@@ -388,6 +580,8 @@ Filtros:
 - Ninguna API debe permitir acceder a datos de otro tenant.
 - Ninguna API debe saltarse policies, permisos o servicios autorizados.
 - Las APIs de productos deben respetar SKU unico por tenant.
+- Las APIs de sucursales y almacenes deben respetar codigo unico por tenant.
+- Un almacen nunca debe apuntar a una sucursal de otra empresa.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de reportes son solo lectura.
 - Las APIs futuras de POS deben vivir en su propio modulo `POS`.

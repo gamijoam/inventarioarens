@@ -73,21 +73,46 @@ Regla importante:
 
 Responsabilidad:
 
-- sucursales por tenant.
+- sucursales por tenant;
+- API de administracion de sucursales.
 
-Archivo principal:
+Archivos principales:
 
 - `app/Modules/Branches/Models/Branch.php`
+- `app/Modules/Branches/Policies/BranchPolicy.php`
+- `app/Modules/Branches/Controllers/BranchController.php`
+- `app/Modules/Branches/Requests/StoreBranchRequest.php`
+- `app/Modules/Branches/Requests/UpdateBranchRequest.php`
+- `app/Modules/Branches/Resources/BranchResource.php`
+- `app/Modules/Branches/routes.php`
+
+Regla importante:
+
+- `code` es unico por tenant;
+- desactivar una sucursal usa `status = inactive`, no borrado fisico.
 
 ### Warehouses
 
 Responsabilidad:
 
-- almacenes por tenant y sucursal.
+- almacenes por tenant y sucursal;
+- API de administracion de almacenes.
 
-Archivo principal:
+Archivos principales:
 
 - `app/Modules/Warehouses/Models/Warehouse.php`
+- `app/Modules/Warehouses/Policies/WarehousePolicy.php`
+- `app/Modules/Warehouses/Controllers/WarehouseController.php`
+- `app/Modules/Warehouses/Requests/StoreWarehouseRequest.php`
+- `app/Modules/Warehouses/Requests/UpdateWarehouseRequest.php`
+- `app/Modules/Warehouses/Resources/WarehouseResource.php`
+- `app/Modules/Warehouses/routes.php`
+
+Regla importante:
+
+- `code` es unico por tenant;
+- un almacen no puede apuntar a una sucursal de otra empresa;
+- desactivar un almacen usa `status = inactive`, no borrado fisico.
 
 ### Inventory
 
