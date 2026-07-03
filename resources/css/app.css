@@ -1525,6 +1525,117 @@ button:disabled {
     font-weight: 820;
 }
 
+.imei-console {
+    display: grid;
+    gap: 10px;
+    border: 1px solid #d7e1f1;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+    padding: 10px;
+}
+
+.imei-console.has-error {
+    border-color: #ffc0cf;
+    background: #fff8fa;
+}
+
+.imei-console.is-disabled {
+    opacity: 0.72;
+}
+
+.imei-console__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.imei-console__toolbar strong,
+.imei-console__toolbar small {
+    display: block;
+}
+
+.imei-console__toolbar strong {
+    color: #071027;
+    font-size: 0.98rem;
+    font-weight: 950;
+}
+
+.imei-console__toolbar small {
+    margin-top: 2px;
+    color: #72809a;
+    font-size: 0.78rem;
+    font-weight: 820;
+}
+
+.imei-console textarea {
+    min-height: 132px;
+    border-color: #d7e1f1;
+    background: #ffffff;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+    line-height: 1.45;
+}
+
+.imei-console__feedback {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 26px;
+}
+
+.inline-feedback,
+.imei-chip {
+    display: inline-flex;
+    min-height: 26px;
+    align-items: center;
+    border: 1px solid #dfe7f3;
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 0 9px;
+    font-size: 0.76rem;
+    font-weight: 900;
+}
+
+.inline-feedback[data-tone='success'],
+.imei-chip[data-tone='success'] {
+    border-color: #b7efd3;
+    background: #ecfff5;
+    color: #027a45;
+}
+
+.inline-feedback[data-tone='warning'],
+.imei-chip[data-tone='warning'] {
+    border-color: #ffe3a7;
+    background: #fff8e5;
+    color: #9a5b00;
+}
+
+.inline-feedback[data-tone='error'],
+.imei-chip[data-tone='error'] {
+    border-color: #ffc0cf;
+    background: #fff0f4;
+    color: #c9153e;
+}
+
+.inline-feedback[data-tone='neutral'] {
+    color: #62718c;
+}
+
+.imei-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 96px;
+    overflow-y: auto;
+}
+
+.imei-chip {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .serial-picker {
     display: grid;
     gap: 8px;
@@ -2190,6 +2301,11 @@ button:disabled {
     .operation-tabs {
         grid-template-columns: 1fr;
         position: static;
+    }
+
+    .imei-console__toolbar {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .product-detail-grid,

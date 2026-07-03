@@ -190,6 +190,12 @@ const elements = {
     entryUnitCost: document.querySelector('#entry-unit-cost'),
     entrySerials: document.querySelector('#entry-serials'),
     entrySerialsHelp: document.querySelector('#entry-serials-help'),
+    entryImeiConsole: document.querySelector('#entry-imei-console'),
+    entryImeiCount: document.querySelector('#entry-imei-count'),
+    entryImeiStatus: document.querySelector('#entry-imei-status'),
+    entryImeiFeedback: document.querySelector('#entry-imei-feedback'),
+    entryImeiPreview: document.querySelector('#entry-imei-preview'),
+    normalizeEntrySerials: document.querySelector('#normalize-entry-serials'),
     entryNotes: document.querySelector('#entry-notes'),
     productEntryMessage: document.querySelector('#product-entry-message'),
     clearEntryForm: document.querySelector('#clear-entry-form'),
@@ -1243,6 +1249,114 @@ function serialLines() {
         .filter(Boolean);
 }
 
+function entrySerialAnalysis() {
+    const rawLines = elements.entrySerials.value.split(/\r?\n/);
+    const lines = rawLines
+        .map((raw, index) => ({ line: index + 1, value: raw.trim() }))
+        .filter((item) => item.value !== '');
+    const duplicateValues = lines
+        .map((item) => item.value)
+        .filter((value, index, values) => values.indexOf(value) !== index);
+    const duplicates = lines.filter((item) => duplicateValues.includes(item.value));
+    const invalid = lines.filter((item) => {
+        const value = item.value;
+        const isNumeric = /^\d+$/.test(value);
+
+        if (/\s/.test(value)) {
+            return true;
+        }
+
+        if (!/^[A-Za-z0-9._-]+$/.test(value)) {
+            return true;
+        }
+
+        return isNumeric && (value.length < 14 || value.length > 18);
+    });
+
+    return {
+        lines,
+        validLines: lines.filter((item) => !duplicates.some((duplicate) => duplicate.line === item.line) && !invalid.some((bad) => bad.line === item.line)),
+        duplicates,
+        invalid,
+    };
+}
+
+function renderEntrySerialAssistant(isSerialized) {
+    const analysis = entrySerialAnalysis();
+    const total = analysis.lines.length;
+    const duplicateCount = analysis.duplicates.length;
+    const invalidCount = analysis.invalid.length;
+
+    elements.entryImeiConsole?.classList.toggle('is-disabled', !isSerialized);
+    elements.entryImeiConsole?.classList.toggle('has-error', isSerialized && (duplicateCount > 0 || invalidCount > 0));
+    elements.normalizeEntrySerials.disabled = !isSerialized || total === 0;
+    elements.entryImeiCount.textContent = `${total} ${total === 1 ? 'IMEI' : 'IMEIs'}`;
+
+    if (!isSerialized) {
+        elements.entryImeiStatus.textContent = 'La carga masiva se activa solo para productos serializados.';
+        elements.entryImeiFeedback.replaceChildren();
+        elements.entryImeiPreview.replaceChildren();
+        return;
+    }
+
+    elements.entryImeiStatus.textContent = total > 0
+        ? `${analysis.validLines.length} listos, ${duplicateCount} repetidos, ${invalidCount} por revisar.`
+        : 'Pega una lista de IMEIs. La cantidad se calcula automáticamente.';
+
+    const messages = [];
+
+    if (duplicateCount > 0) {
+        messages.push(feedbackBadge('error', `${duplicateCount} repetido${duplicateCount === 1 ? '' : 's'}: líneas ${analysis.duplicates.map((item) => item.line).join(', ')}`));
+    }
+
+    if (invalidCount > 0) {
+        messages.push(feedbackBadge('warning', `${invalidCount} por revisar: líneas ${analysis.invalid.map((item) => item.line).join(', ')}`));
+    }
+
+    if (total > 0 && duplicateCount === 0 && invalidCount === 0) {
+        messages.push(feedbackBadge('success', 'Lista válida para registrar.'));
+    }
+
+    elements.entryImeiFeedback.replaceChildren(...messages);
+    elements.entryImeiPreview.replaceChildren(
+        ...analysis.lines.slice(0, 36).map((item) => {
+            const chip = document.createElement('span');
+            const isDuplicate = analysis.duplicates.some((duplicate) => duplicate.line === item.line);
+            const isInvalid = analysis.invalid.some((bad) => bad.line === item.line);
+
+            chip.className = 'imei-chip';
+            chip.dataset.tone = isDuplicate ? 'error' : (isInvalid ? 'warning' : 'success');
+            chip.textContent = item.value;
+            return chip;
+        }),
+        ...(analysis.lines.length > 36 ? [feedbackBadge('neutral', `+${analysis.lines.length - 36} más`)] : []),
+    );
+}
+
+function feedbackBadge(tone, message) {
+    const badge = document.createElement('span');
+    badge.className = 'inline-feedback';
+    badge.dataset.tone = tone;
+    badge.textContent = message;
+    return badge;
+}
+
+function normalizeEntrySerialList() {
+    const unique = [];
+
+    serialLines().forEach((serial) => {
+        if (!unique.includes(serial)) {
+            unique.push(serial);
+        }
+    });
+
+    elements.entrySerials.value = unique.join('\n');
+    updateEntryFormMode();
+    setProductEntryMessage(unique.length > 0
+        ? `Lista limpiada: ${unique.length} IMEIs únicos.`
+        : 'Lista de IMEIs vacía.');
+}
+
 function updateEntryFormMode() {
     const product = selectedEntryProduct();
     const warehouse = selectedEntryWarehouse();
@@ -1262,6 +1376,7 @@ function updateEntryFormMode() {
         elements.entryQuantity.value = serialCount > 0 ? String(serialCount) : '';
     }
 
+    renderEntrySerialAssistant(isSerialized);
     elements.entryTrackingPill.textContent = isSerialized ? 'Serializado / IMEI' : 'Cantidad';
     elements.entrySummaryProduct.textContent = product ? `${product.name} · ${product.sku}` : 'Selecciona un producto';
     elements.entrySummaryWarehouse.textContent = warehouse ? `${warehouse.name} · ${warehouse.code}` : 'Selecciona un almacén';
@@ -1415,6 +1530,7 @@ function productExitPayload() {
 function validateProductEntryForm() {
     const product = selectedEntryProduct();
     const serials = serialLines();
+    const serialAnalysis = entrySerialAnalysis();
 
     if (!elements.entryWarehouse.value) {
         return 'Selecciona el almacén destino.';
@@ -1433,8 +1549,12 @@ function validateProductEntryForm() {
             return 'Escribe al menos un IMEI o serial para este producto.';
         }
 
-        if (new Set(serials).size !== serials.length) {
-            return 'Hay IMEIs o seriales repetidos en la entrada.';
+        if (serialAnalysis.duplicates.length > 0) {
+            return `Hay IMEIs o seriales repetidos en las líneas ${serialAnalysis.duplicates.map((item) => item.line).join(', ')}.`;
+        }
+
+        if (serialAnalysis.invalid.length > 0) {
+            return `Revisa el formato de los IMEIs o seriales en las líneas ${serialAnalysis.invalid.map((item) => item.line).join(', ')}.`;
         }
     } else if (Number(elements.entryQuantity.value) <= 0) {
         return 'Indica una cantidad mayor a cero.';
@@ -1529,6 +1649,7 @@ function resetProductEntryForm(clearMessage = true) {
     elements.entryProduct.value = '';
     elements.entryProductSearch.value = '';
     elements.entryReason.value = 'Recepción de mercancía';
+    elements.entrySerials.value = '';
     renderProductSearchResults('entry', state.entryProducts.slice(0, 8));
     updateEntryFormMode();
 
@@ -2290,6 +2411,7 @@ elements.entryProduct?.addEventListener('change', updateEntryFormMode);
 elements.entryWarehouse?.addEventListener('change', updateEntryFormMode);
 elements.entryQuantity?.addEventListener('input', updateEntryFormMode);
 elements.entrySerials?.addEventListener('input', updateEntryFormMode);
+elements.normalizeEntrySerials?.addEventListener('click', normalizeEntrySerialList);
 
 elements.entryProductSearch?.addEventListener('input', () => {
     elements.entryProduct.value = '';

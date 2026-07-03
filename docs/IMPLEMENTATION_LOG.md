@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-03 - Asistente visual para recepción masiva de IMEIs
+
+### Implementado
+
+- Se mejoró la carga masiva de IMEIs en el formulario de `Entrada`.
+- Se agregó contador visual de IMEIs escritos, estado de lista y vista previa en chips.
+- Se detectan duplicados dentro del pegado y se muestran las líneas afectadas antes de enviar.
+- Se marcan líneas con formato sospechoso, como espacios internos, símbolos no permitidos o IMEIs numéricos fuera de 14 a 18 dígitos.
+- Se agregó acción `Limpiar lista` para normalizar la carga y quitar repetidos manteniendo el primer valor.
+- La validación del frontend bloquea el registro si hay duplicados o líneas por revisar, mientras el backend sigue siendo la autoridad final.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php`: 5 pruebas pasadas, 27 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Pestañas visuales para entradas y salidas
 
 ### Implementado

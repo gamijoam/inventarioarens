@@ -388,7 +388,18 @@
 
                                                     <label class="field form-grid__wide">
                                                         <span>IMEIs / seriales</span>
-                                                        <textarea id="entry-serials" rows="7" placeholder="Un IMEI o serial por línea"></textarea>
+                                                        <div class="imei-console" id="entry-imei-console">
+                                                            <div class="imei-console__toolbar">
+                                                                <div>
+                                                                    <strong id="entry-imei-count">0 IMEIs</strong>
+                                                                    <small id="entry-imei-status">Selecciona un producto serializado para habilitar la carga.</small>
+                                                                </div>
+                                                                <button class="secondary-button compact-action" type="button" id="normalize-entry-serials">Limpiar lista</button>
+                                                            </div>
+                                                            <textarea id="entry-serials" rows="7" placeholder="Pega o escribe un IMEI por línea&#10;Ejemplo:&#10;860900000000001&#10;860900000000002"></textarea>
+                                                            <div class="imei-console__feedback" id="entry-imei-feedback" role="status" aria-live="polite"></div>
+                                                            <div class="imei-chip-list" id="entry-imei-preview" aria-label="IMEIs listos para recibir"></div>
+                                                        </div>
                                                         <small class="field-help" id="entry-serials-help">Disponible cuando el producto seleccionado es serializado.</small>
                                                     </label>
 
