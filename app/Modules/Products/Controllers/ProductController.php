@@ -3,6 +3,7 @@
 namespace App\Modules\Products\Controllers;
 
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Requests\StoreProductRequest;
 use App\Modules\Products\Requests\UpdateProductRequest;
 use App\Modules\Products\Resources\ProductPriceResource;
@@ -48,6 +49,7 @@ class ProductController extends Controller
         $product = Product::create($request->validated())
             ->refresh()
             ->load(['saleExchangeRateType', 'warrantyPolicy']);
+        $this->recordAudit($product, ProductAudit::ACTION_CREATED, [], $product->only($this->auditedFields()), $request->user()?->id);
 
         return ProductResource::make($product)
             ->response()
@@ -84,7 +86,14 @@ class ProductController extends Controller
             ]);
         }
 
+        $before = $product->only(array_keys($data));
         $product->update($data);
+        $after = $product->refresh()->only(array_keys($data));
+        $changes = $this->changedValues($before, $after);
+
+        if ($changes !== []) {
+            $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $changes['before'], $changes['after'], $request->user()?->id);
+        }
 
         return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
     }
@@ -93,8 +102,55 @@ class ProductController extends Controller
     {
         Gate::authorize('delete', $product);
 
+        $before = ['is_active' => $product->is_active];
         $product->update(['is_active' => false]);
+        $this->recordAudit($product, ProductAudit::ACTION_DEACTIVATED, $before, ['is_active' => false], request()->user()?->id);
 
         return response()->noContent();
+    }
+
+    private function auditedFields(): array
+    {
+        return [
+            'name',
+            'sku',
+            'tracking_type',
+            'base_price',
+            'sale_currency',
+            'sale_exchange_rate_type_id',
+            'warranty_policy_id',
+            'is_active',
+        ];
+    }
+
+    private function changedValues(array $before, array $after): array
+    {
+        $changedBefore = [];
+        $changedAfter = [];
+
+        foreach ($after as $field => $value) {
+            if (($before[$field] ?? null) != $value) {
+                $changedBefore[$field] = $before[$field] ?? null;
+                $changedAfter[$field] = $value;
+            }
+        }
+
+        return $changedAfter === [] ? [] : [
+            'before' => $changedBefore,
+            'after' => $changedAfter,
+        ];
+    }
+
+    private function recordAudit(Product $product, string $action, array $before, array $after, ?int $userId): void
+    {
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => $action,
+            'changes' => [
+                'before' => $before,
+                'after' => $after,
+            ],
+            'created_by' => $userId,
+        ]);
     }
 }

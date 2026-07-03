@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Cierre de fase del centro de inventario
+
+### Implementado
+
+- Se agregó paginación visible al historial de `Entradas y salidas`, separada para entradas y salidas.
+- Cada columna del historial muestra resumen de registros y botones `Anterior` / `Siguiente`.
+- Los filtros del historial reinician la paginación para evitar resultados vacíos al cambiar búsqueda, almacén o fechas.
+- Se creó la tabla `product_audits` para registrar auditoría de productos por empresa.
+- Se registran auditorías al crear, actualizar y desactivar productos.
+- El detalle del producto en el centro de inventario ahora incluye una pestaña `Auditoría` con cambios recientes del catálogo.
+- Se agregaron mensajes de validación en español para creación y edición de productos.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 33 pruebas pasadas, 194 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Filtros del historial de entradas y salidas
 
 ### Implementado

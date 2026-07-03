@@ -1747,6 +1747,34 @@ button:disabled {
     gap: 8px;
 }
 
+.history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: #ffffff;
+    margin-top: 10px;
+    padding: 10px;
+}
+
+.history-pagination span {
+    color: #62718c;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.history-pagination div {
+    display: flex;
+    gap: 6px;
+}
+
+.history-pagination .compact-action {
+    min-height: 34px;
+    padding: 0 10px;
+}
+
 .history-card,
 .history-empty {
     width: 100%;
@@ -2001,6 +2029,66 @@ button:disabled {
     padding: 5px 9px;
     font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
     font-size: 0.76rem;
+}
+
+.audit-list {
+    display: grid;
+    gap: 8px;
+}
+
+.audit-row {
+    display: grid;
+    grid-template-columns: minmax(190px, 0.45fr) minmax(0, 1fr);
+    gap: 12px;
+    border: 1px solid #edf1f7;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 12px;
+}
+
+.audit-row strong,
+.audit-row span,
+.audit-row em {
+    display: block;
+}
+
+.audit-row > div > strong {
+    color: #071027;
+    font-weight: 950;
+}
+
+.audit-row > div > span {
+    margin-top: 3px;
+    color: #72809a;
+    font-size: 0.8rem;
+    font-weight: 820;
+}
+
+.audit-changes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.audit-changes > span {
+    border: 1px solid #dce4ff;
+    border-radius: 8px;
+    background: #f7f9ff;
+    color: #42506a;
+    padding: 7px 9px;
+    font-size: 0.8rem;
+    font-weight: 850;
+}
+
+.audit-changes strong {
+    color: #071027;
+}
+
+.audit-changes em {
+    margin-top: 2px;
+    color: #8795ad;
+    font-style: normal;
+    font-weight: 780;
 }
 
 .modal-backdrop {
@@ -2457,6 +2545,23 @@ button:disabled {
 
     .history-filters__actions {
         flex-direction: column-reverse;
+    }
+
+    .history-pagination {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .history-pagination div {
+        width: 100%;
+    }
+
+    .history-pagination .compact-action {
+        flex: 1;
+    }
+
+    .audit-row {
+        grid-template-columns: 1fr;
     }
 
     .modal-actions {

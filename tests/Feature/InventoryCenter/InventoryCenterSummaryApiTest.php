@@ -8,6 +8,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -171,6 +172,15 @@ class InventoryCenterSummaryApiTest extends TestCase
             'reason' => 'Entrada detalle',
             'created_by' => $user->id,
         ]);
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_UPDATED,
+            'changes' => [
+                'before' => ['base_price' => 100],
+                'after' => ['base_price' => 120],
+            ],
+            'created_by' => $user->id,
+        ]);
 
         $this
             ->actingAs($user)
@@ -186,7 +196,10 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.serials.total', 2)
             ->assertJsonPath('data.serials.items.0.serial_number', '860001000000001')
             ->assertJsonPath('data.recent_movements.0.reason', 'Entrada detalle')
-            ->assertJsonPath('data.recent_movements.0.created_by_name', $user->name);
+            ->assertJsonPath('data.recent_movements.0.created_by_name', $user->name)
+            ->assertJsonPath('data.recent_audits.0.action', ProductAudit::ACTION_UPDATED)
+            ->assertJsonPath('data.recent_audits.0.created_by_name', $user->name)
+            ->assertJsonPath('data.recent_audits.0.changes.after.base_price', 120);
     }
 
     public function test_inventory_center_does_not_mix_companies(): void

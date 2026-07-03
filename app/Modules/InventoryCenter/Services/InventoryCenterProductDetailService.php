@@ -6,6 +6,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductAudit;
 
 class InventoryCenterProductDetailService
 {
@@ -21,6 +22,7 @@ class InventoryCenterProductDetailService
             ],
             'serials' => $this->serials($product),
             'recent_movements' => $this->recentMovements($product),
+            'recent_audits' => $this->recentAudits($product),
         ];
     }
 
@@ -142,6 +144,26 @@ class InventoryCenterProductDetailService
                 'created_by' => $movement->created_by,
                 'created_by_name' => $movement->creator?->name,
                 'created_at' => $movement->created_at?->toISOString(),
+            ])
+            ->all();
+    }
+
+    private function recentAudits(Product $product): array
+    {
+        return ProductAudit::query()
+            ->where('product_id', $product->id)
+            ->with('creator')
+            ->latest('id')
+            ->limit(12)
+            ->get()
+            ->map(fn (ProductAudit $audit): array => [
+                'id' => $audit->id,
+                'action' => $audit->action,
+                'changes' => $audit->changes,
+                'created_by' => $audit->created_by,
+                'created_by_name' => $audit->creator?->name,
+                'created_by_email' => $audit->creator?->email,
+                'created_at' => $audit->created_at?->toISOString(),
             ])
             ->all();
     }

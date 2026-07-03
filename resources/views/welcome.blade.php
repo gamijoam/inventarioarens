@@ -583,11 +583,25 @@
                                                 <section class="history-panel" aria-labelledby="entry-history-title">
                                                     <h3 id="entry-history-title">Entradas recientes</h3>
                                                     <div class="history-list" id="entry-history-list"></div>
+                                                    <div class="history-pagination" id="entry-history-pagination" hidden>
+                                                        <span id="entry-history-pagination-summary"></span>
+                                                        <div>
+                                                            <button class="secondary-button compact-action" type="button" id="entry-history-prev">Anterior</button>
+                                                            <button class="secondary-button compact-action" type="button" id="entry-history-next">Siguiente</button>
+                                                        </div>
+                                                    </div>
                                                 </section>
 
                                                 <section class="history-panel" aria-labelledby="exit-history-title">
                                                     <h3 id="exit-history-title">Salidas recientes</h3>
                                                     <div class="history-list" id="exit-history-list"></div>
+                                                    <div class="history-pagination" id="exit-history-pagination" hidden>
+                                                        <span id="exit-history-pagination-summary"></span>
+                                                        <div>
+                                                            <button class="secondary-button compact-action" type="button" id="exit-history-prev">Anterior</button>
+                                                            <button class="secondary-button compact-action" type="button" id="exit-history-next">Siguiente</button>
+                                                        </div>
+                                                    </div>
                                                 </section>
                                             </div>
 

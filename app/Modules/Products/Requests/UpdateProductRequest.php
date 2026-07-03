@@ -59,4 +59,25 @@ class UpdateProductRequest extends FormRequest
     {
         return true;
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'El nombre del producto es obligatorio.',
+            'name.max' => 'El nombre del producto no puede superar 255 caracteres.',
+            'sku.required' => 'El SKU del producto es obligatorio.',
+            'sku.unique' => 'Ya existe un producto con este SKU en la empresa actual.',
+            'sku.max' => 'El SKU no puede superar 255 caracteres.',
+            'tracking_type.required' => 'El tipo de control es obligatorio.',
+            'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',
+            'base_price.numeric' => 'El precio base debe ser numérico.',
+            'base_price.gte' => 'El precio base no puede ser negativo.',
+            'sale_currency.required' => 'La moneda de venta es obligatoria.',
+            'sale_currency.in' => 'La moneda de venta debe ser USD o VES.',
+            'sale_currency.size' => 'La moneda de venta debe tener 3 caracteres.',
+            'sale_exchange_rate_type_id.exists' => 'El tipo de tasa seleccionado no pertenece a la empresa actual.',
+            'warranty_policy_id.exists' => 'La política de garantía seleccionada no pertenece a la empresa actual.',
+            'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
+        ];
+    }
 }

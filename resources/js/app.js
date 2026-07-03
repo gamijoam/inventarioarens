@@ -25,6 +25,10 @@ const state = {
     exitAvailableUnits: [],
     entryHistory: [],
     exitHistory: [],
+    entryHistoryPage: 1,
+    exitHistoryPage: 1,
+    entryHistoryPagination: null,
+    exitHistoryPagination: null,
     historySearchTimer: null,
 };
 
@@ -237,6 +241,14 @@ const elements = {
     clearHistoryFilters: document.querySelector('#clear-history-filters'),
     entryHistoryList: document.querySelector('#entry-history-list'),
     exitHistoryList: document.querySelector('#exit-history-list'),
+    entryHistoryPagination: document.querySelector('#entry-history-pagination'),
+    entryHistoryPaginationSummary: document.querySelector('#entry-history-pagination-summary'),
+    entryHistoryPrev: document.querySelector('#entry-history-prev'),
+    entryHistoryNext: document.querySelector('#entry-history-next'),
+    exitHistoryPagination: document.querySelector('#exit-history-pagination'),
+    exitHistoryPaginationSummary: document.querySelector('#exit-history-pagination-summary'),
+    exitHistoryPrev: document.querySelector('#exit-history-prev'),
+    exitHistoryNext: document.querySelector('#exit-history-next'),
     operationHistoryDetail: document.querySelector('#operation-history-detail'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
@@ -248,7 +260,7 @@ function setMessage(message, tone = 'neutral') {
     elements.message.dataset.tone = tone;
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, returnPayload = false) {
     const { headers = {}, ...requestOptions } = options;
 
     const response = await fetch(path, {
@@ -264,10 +276,10 @@ async function api(path, options = {}) {
 
     if (!response.ok) {
         const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
-        throw new Error(firstError || payload.message || 'No se pudo completar la operacion.');
+        throw new Error(firstError || payload.message || 'No se pudo completar la operación.');
     }
 
-    return payload.data;
+    return returnPayload ? payload : payload.data;
 }
 
 async function authenticatedApi(path, session, options = {}) {
@@ -279,6 +291,17 @@ async function authenticatedApi(path, session, options = {}) {
             ...(options.headers ?? {}),
         },
     });
+}
+
+async function authenticatedApiPayload(path, session, options = {}) {
+    return api(path, {
+        ...options,
+        headers: {
+            Authorization: `Bearer ${session.token}`,
+            'X-Tenant': session.tenant.slug,
+            ...(options.headers ?? {}),
+        },
+    }, true);
 }
 
 function renderTenantOptions(tenants) {
@@ -934,7 +957,7 @@ function setOperationHistoryMessage(message, tone = 'neutral') {
     elements.operationHistoryMessage.dataset.tone = tone;
 }
 
-function historyFilterQuery() {
+function historyFilterQuery(page = 1) {
     const params = new URLSearchParams();
     const search = elements.historySearch?.value.trim() ?? '';
     const warehouseId = elements.historyWarehouse?.value ?? '';
@@ -957,7 +980,8 @@ function historyFilterQuery() {
         params.set('date_to', dateTo);
     }
 
-    params.set('limit', '25');
+    params.set('limit', '8');
+    params.set('page', String(page));
 
     return params.toString();
 }
@@ -1056,16 +1080,17 @@ async function loadOperationHistory(session) {
     }
 
     try {
-        const query = historyFilterQuery();
-        const [entries, exits] = await Promise.all([
-            authenticatedApi(`/api/product-entries?${query}`, session),
-            authenticatedApi(`/api/product-exits?${query}`, session),
+        const [entriesPayload, exitsPayload] = await Promise.all([
+            authenticatedApiPayload(`/api/product-entries?${historyFilterQuery(state.entryHistoryPage)}`, session),
+            authenticatedApiPayload(`/api/product-exits?${historyFilterQuery(state.exitHistoryPage)}`, session),
         ]);
 
-        state.entryHistory = entries;
-        state.exitHistory = exits;
+        state.entryHistory = entriesPayload.data;
+        state.exitHistory = exitsPayload.data;
+        state.entryHistoryPagination = entriesPayload.meta ?? null;
+        state.exitHistoryPagination = exitsPayload.meta ?? null;
         renderOperationHistory();
-        setOperationHistoryMessage(`${entries.length} entradas y ${exits.length} salidas encontradas.`);
+        setOperationHistoryMessage(`${state.entryHistory.length} entradas y ${state.exitHistory.length} salidas encontradas.`);
     } catch (error) {
         setOperationHistoryMessage(error.message, 'error');
     }
@@ -1074,17 +1099,45 @@ async function loadOperationHistory(session) {
 function renderOperationHistory() {
     elements.entryHistoryList.replaceChildren(
         ...(state.entryHistory.length > 0
-            ? state.entryHistory.slice(0, 8).map((entry) => historyCard('entry', entry))
+            ? state.entryHistory.map((entry) => historyCard('entry', entry))
             : [emptyHistoryCard('No hay entradas recientes.')]),
     );
 
     elements.exitHistoryList.replaceChildren(
         ...(state.exitHistory.length > 0
-            ? state.exitHistory.slice(0, 8).map((exit) => historyCard('exit', exit))
+            ? state.exitHistory.map((exit) => historyCard('exit', exit))
             : [emptyHistoryCard('No hay salidas recientes.')]),
     );
 
+    renderHistoryPagination('entry', state.entryHistoryPagination);
+    renderHistoryPagination('exit', state.exitHistoryPagination);
     elements.operationHistoryDetail.innerHTML = '<p>Selecciona una entrada o salida para ver sus productos y cantidades.</p>';
+}
+
+function renderHistoryPagination(type, pagination) {
+    const container = type === 'entry' ? elements.entryHistoryPagination : elements.exitHistoryPagination;
+    const summary = type === 'entry' ? elements.entryHistoryPaginationSummary : elements.exitHistoryPaginationSummary;
+    const prevButton = type === 'entry' ? elements.entryHistoryPrev : elements.exitHistoryPrev;
+    const nextButton = type === 'entry' ? elements.entryHistoryNext : elements.exitHistoryNext;
+
+    if (!container || !pagination || Number(pagination.total || 0) === 0) {
+        if (container) {
+            container.hidden = true;
+        }
+        return;
+    }
+
+    container.hidden = false;
+    summary.textContent = pagination.total === 0
+        ? 'Sin movimientos'
+        : `Mostrando ${pagination.from}-${pagination.to} de ${pagination.total}`;
+    prevButton.disabled = Number(pagination.current_page || 1) <= 1;
+    nextButton.disabled = Number(pagination.current_page || 1) >= Number(pagination.last_page || 1);
+}
+
+function resetHistoryPagination() {
+    state.entryHistoryPage = 1;
+    state.exitHistoryPage = 1;
 }
 
 function historyCard(type, record) {
@@ -1910,6 +1963,7 @@ function renderProductDetail(detail) {
             <a href="#detail-warehouses">Almacenes</a>
             <a href="#detail-serials">Seriales</a>
             <a href="#detail-movements">Movimientos</a>
+            <a href="#detail-audits">Auditoría</a>
         </nav>
 
         <section class="detail-section detail-section--summary">
@@ -1950,6 +2004,11 @@ function renderProductDetail(detail) {
         <section class="detail-section detail-section--wide" id="detail-movements">
             <h3>Movimientos recientes</h3>
             ${movementsHtml(detail.recent_movements)}
+        </section>
+
+        <section class="detail-section detail-section--wide" id="detail-audits">
+            <h3>Auditoría del catálogo</h3>
+            ${productAuditsHtml(detail.recent_audits ?? [])}
         </section>
     `;
 
@@ -2042,6 +2101,83 @@ function movementsHtml(movements) {
             </table>
         </div>
     `;
+}
+
+function productAuditsHtml(audits) {
+    if (audits.length === 0) {
+        return '<p class="detail-empty">Todavía no hay cambios registrados para este producto.</p>';
+    }
+
+    return `
+        <div class="audit-list">
+            ${audits.map((audit) => `
+                <article class="audit-row">
+                    <div>
+                        <strong>${productAuditActionLabel(audit.action)}</strong>
+                        <span>${dateLabel(audit.created_at)} · ${escapeHtml(audit.created_by_name || audit.created_by_email || 'Usuario no disponible')}</span>
+                    </div>
+                    <div class="audit-changes">
+                        ${productAuditChangesHtml(audit.changes)}
+                    </div>
+                </article>
+            `).join('')}
+        </div>
+    `;
+}
+
+function productAuditChangesHtml(changes) {
+    const before = changes?.before ?? {};
+    const after = changes?.after ?? {};
+    const fields = Object.keys(after);
+
+    if (fields.length === 0) {
+        return '<span>Sin cambios detallados.</span>';
+    }
+
+    return fields.map((field) => `
+        <span>
+            ${productFieldLabel(field)}:
+            <strong>${escapeHtml(formatProductAuditValue(after[field]))}</strong>
+            ${Object.prototype.hasOwnProperty.call(before, field) ? `<em>Antes: ${escapeHtml(formatProductAuditValue(before[field]))}</em>` : ''}
+        </span>
+    `).join('');
+}
+
+function productAuditActionLabel(action) {
+    return {
+        created: 'Producto creado',
+        updated: 'Producto actualizado',
+        deactivated: 'Producto desactivado',
+    }[action] ?? action;
+}
+
+function productFieldLabel(field) {
+    return {
+        name: 'Nombre',
+        sku: 'SKU',
+        tracking_type: 'Control',
+        base_price: 'Precio base',
+        sale_currency: 'Moneda de venta',
+        sale_exchange_rate_type_id: 'Tipo de tasa',
+        warranty_policy_id: 'Garantía',
+        is_active: 'Estado',
+    }[field] ?? field;
+}
+
+function formatProductAuditValue(value) {
+    if (value === null || value === undefined || value === '') {
+        return 'Sin valor';
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 'Activo' : 'Inactivo';
+    }
+
+    if (value === 'quantity' || value === 'serialized') {
+        return trackingLabel(value);
+    }
+
+    return String(value);
 }
 
 async function loadProductFormOptions() {
@@ -2566,6 +2702,7 @@ elements.refreshOperationHistory?.addEventListener('click', () => {
 
 elements.applyHistoryFilters?.addEventListener('click', () => {
     if (state.session) {
+        resetHistoryPagination();
         loadOperationHistory(state.session);
     }
 });
@@ -2577,6 +2714,7 @@ elements.clearHistoryFilters?.addEventListener('click', () => {
     elements.historyDateTo.value = '';
 
     if (state.session) {
+        resetHistoryPagination();
         loadOperationHistory(state.session);
     }
 });
@@ -2585,6 +2723,7 @@ elements.historySearch?.addEventListener('input', () => {
     window.clearTimeout(state.historySearchTimer);
     state.historySearchTimer = window.setTimeout(() => {
         if (state.session) {
+            resetHistoryPagination();
             loadOperationHistory(state.session);
         }
     }, 350);
@@ -2593,9 +2732,38 @@ elements.historySearch?.addEventListener('input', () => {
 [elements.historyWarehouse, elements.historyDateFrom, elements.historyDateTo].forEach((control) => {
     control?.addEventListener('change', () => {
         if (state.session) {
+            resetHistoryPagination();
             loadOperationHistory(state.session);
         }
     });
+});
+
+elements.entryHistoryPrev?.addEventListener('click', () => {
+    if (state.session && state.entryHistoryPage > 1) {
+        state.entryHistoryPage -= 1;
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.entryHistoryNext?.addEventListener('click', () => {
+    if (state.session) {
+        state.entryHistoryPage += 1;
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.exitHistoryPrev?.addEventListener('click', () => {
+    if (state.session && state.exitHistoryPage > 1) {
+        state.exitHistoryPage -= 1;
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.exitHistoryNext?.addEventListener('click', () => {
+    if (state.session) {
+        state.exitHistoryPage += 1;
+        loadOperationHistory(state.session);
+    }
 });
 
 elements.entryHistoryList?.addEventListener('click', (event) => {

@@ -8,6 +8,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -47,6 +48,11 @@ class ProductApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'sku' => 'SAMSUNG-A06',
             'tracking_type' => Product::TRACKING_SERIALIZED,
+        ]);
+        $this->assertDatabaseHas('product_audits', [
+            'tenant_id' => $tenant->id,
+            'action' => ProductAudit::ACTION_CREATED,
+            'created_by' => $user->id,
         ]);
     }
 
@@ -274,6 +280,13 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
             ->assertJsonPath('data.sale_exchange_rate_type.code', 'PARALELO');
 
+        $this->assertDatabaseHas('product_audits', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_UPDATED,
+            'created_by' => $user->id,
+        ]);
+
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -284,6 +297,12 @@ class ProductApiTest extends TestCase
             'id' => $product->id,
             'tenant_id' => $tenant->id,
             'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('product_audits', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_DEACTIVATED,
+            'created_by' => $user->id,
         ]);
     }
 
