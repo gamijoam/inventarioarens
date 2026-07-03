@@ -615,8 +615,12 @@ button:disabled {
     height: 50px;
 }
 
-.dashboard-view {
+.workspace-content {
     padding: 40px;
+}
+
+.workspace-panel {
+    min-width: 0;
 }
 
 .dashboard-hero,
@@ -876,6 +880,288 @@ button:disabled {
     min-height: 48px;
 }
 
+.module-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 24px 28px;
+    box-shadow: 0 12px 28px rgba(42, 53, 89, 0.06);
+}
+
+.module-header h1 {
+    margin: 0;
+    color: #071027;
+    font-size: clamp(1.65rem, 3vw, 2.05rem);
+    font-weight: 950;
+    letter-spacing: 0;
+}
+
+.module-header p:not(.eyebrow) {
+    margin: 8px 0 0;
+    color: #5f6f8b;
+    font-weight: 760;
+}
+
+.module-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.compact-action {
+    width: auto;
+    min-height: 48px;
+    margin-top: 0;
+    padding: 0 18px;
+    white-space: nowrap;
+}
+
+.module-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid #dfe7f3;
+    padding: 16px 0 0;
+}
+
+.module-tab,
+.filter-chip {
+    min-height: 42px;
+    border: 1px solid #dce4f2;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #52627e;
+    padding: 0 16px;
+    font-weight: 920;
+    white-space: nowrap;
+}
+
+.module-tab.is-active,
+.filter-chip.is-active {
+    border-color: transparent;
+    background: linear-gradient(135deg, #5a43ff, #3d2df2);
+    color: #ffffff;
+    box-shadow: 0 12px 22px rgba(77, 53, 255, 0.18);
+}
+
+.inventory-toolbar {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: #ffffff;
+    margin-top: 14px;
+    padding: 12px;
+}
+
+.search-box {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    border: 1px solid #d7e1f1;
+    border-radius: 8px;
+    background: #f7f9fd;
+    padding: 0 14px;
+}
+
+.search-box span {
+    color: #8ba0bf;
+    font-weight: 950;
+}
+
+.search-box input {
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #17243d;
+    font-weight: 850;
+}
+
+.filter-group {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+}
+
+.inventory-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+}
+
+.inventory-metric {
+    border: 1px solid #dfe7f3;
+    border-top: 4px solid var(--violet);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 18px;
+    box-shadow: 0 10px 22px rgba(42, 53, 89, 0.06);
+}
+
+.inventory-metric--warning {
+    border-top-color: #ff9d0a;
+}
+
+.inventory-metric span,
+.inventory-metric strong,
+.inventory-metric small {
+    display: block;
+}
+
+.inventory-metric span {
+    color: #66758e;
+    font-size: 0.76rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.inventory-metric strong {
+    margin-top: 8px;
+    color: #030817;
+    font-size: 1.8rem;
+    font-weight: 950;
+}
+
+.inventory-metric small {
+    margin-top: 6px;
+    color: #7f8da8;
+    font-weight: 800;
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(230px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.product-card,
+.empty-state {
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 12px 24px rgba(42, 53, 89, 0.07);
+}
+
+.product-card {
+    display: grid;
+    gap: 16px;
+    min-height: 210px;
+    padding: 18px;
+}
+
+.product-card--low {
+    border-color: #ffe0a5;
+    background: #fffdf8;
+}
+
+.product-card--out {
+    border-color: #ffcbd4;
+    background: #fff8fa;
+}
+
+.product-card__top {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.product-thumb {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border-radius: 8px;
+    background: #eef0ff;
+    color: var(--violet-strong);
+    font-weight: 950;
+}
+
+.product-card__top strong,
+.product-card__top span {
+    display: block;
+}
+
+.product-card__top strong {
+    overflow: hidden;
+    color: #071027;
+    font-weight: 950;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-card__top span,
+.product-card__meta,
+.stock-row span {
+    color: #7d8ba5;
+    font-size: 0.84rem;
+    font-weight: 820;
+}
+
+.product-card__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid #edf1f7;
+    padding-top: 14px;
+}
+
+.stock-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.stock-row div {
+    min-width: 0;
+    border-radius: 8px;
+    background: #f7f9fd;
+    padding: 10px;
+}
+
+.stock-row strong {
+    display: block;
+    margin-top: 4px;
+    color: #071027;
+    font-size: 1.1rem;
+    font-weight: 950;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    padding: 46px 24px;
+    text-align: center;
+}
+
+.empty-state strong,
+.empty-state span {
+    display: block;
+}
+
+.empty-state strong {
+    color: #071027;
+    font-size: 1.15rem;
+    font-weight: 950;
+}
+
+.empty-state span {
+    margin-top: 8px;
+    color: #72809a;
+    font-weight: 800;
+}
+
 @media (max-width: 640px) {
     .login-screen {
         align-items: start;
@@ -903,7 +1189,9 @@ button:disabled {
     }
 
     .metric-grid,
-    .module-shortcuts {
+    .module-shortcuts,
+    .inventory-metrics,
+    .product-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -945,7 +1233,7 @@ button:disabled {
         display: none;
     }
 
-    .dashboard-view {
+    .workspace-content {
         padding: 18px 14px 28px;
     }
 
@@ -965,7 +1253,29 @@ button:disabled {
     }
 
     .metric-grid,
-    .module-shortcuts {
+    .module-shortcuts,
+    .inventory-metrics,
+    .product-grid {
         grid-template-columns: 1fr;
+    }
+
+    .module-header,
+    .inventory-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .module-header {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 20px;
+    }
+
+    .module-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .compact-action {
+        width: 100%;
     }
 }

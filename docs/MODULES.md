@@ -70,7 +70,8 @@ Responsabilidad:
 - conservar la sesion en navegador en esta primera fase;
 - mostrar el panel principal cuando la sesion esta activa;
 - agrupar la navegacion por modulos operativos;
-- filtrar opciones visibles usando los permisos efectivos del usuario.
+- filtrar opciones visibles usando los permisos efectivos del usuario;
+- consumir datos reales del dashboard y del centro de inventario cuando existe sesion API real.
 
 Archivos principales:
 
@@ -86,6 +87,7 @@ Regla importante:
 - el panel principal se organiza por Operacion, Inventario, Finanzas y Administracion;
 - la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth;
 - `FRONTEND_DEV_BYPASS_LOGIN=true` permite revisar el frontend local sin credenciales, solo en `APP_ENV=local`.
+- el Centro de Inventario consume `GET /api/inventory-center/summary` y conserva datos demo solo para el bypass local.
 
 ### Dashboard
 
@@ -110,6 +112,31 @@ Regla importante:
 - la lista de stock bajo se limita a 5 registros y carga solo `product` y `warehouse` necesarios;
 - no debe cargar colecciones completas para la portada;
 - la autorizacion acepta permisos de lectura operativos como `finance_reports.view`, `reports.view`, `sales.view`, `pos.view`, `products.view` o `cash_register.view`.
+
+### InventoryCenter
+
+Responsabilidad:
+
+- exponer una lectura agregada para la pantalla Centro de Inventario;
+- entregar metricas de productos activos, serializados, stock disponible, reservado, danado, bajo y sin stock;
+- entregar un listado limitado de productos con stock agregado por producto;
+- permitir busqueda por nombre o SKU y filtros por tipo de control o estado de stock;
+- evitar que el frontend haga multiples consultas pequenas o caiga en problemas N+1.
+
+Archivos principales:
+
+- `app/Modules/InventoryCenter/Controllers/InventoryCenterController.php`
+- `app/Modules/InventoryCenter/Requests/InventoryCenterSummaryRequest.php`
+- `app/Modules/InventoryCenter/Services/InventoryCenterSummaryService.php`
+- `app/Modules/InventoryCenter/routes.php`
+
+Regla importante:
+
+- el modulo es solo lectura;
+- requiere `products.view` o `inventory.view`;
+- usa `stock_balances` agregado por producto en base de datos;
+- el listado se limita a 50 productos como maximo por llamada;
+- no mezcla productos ni saldos entre empresas.
 
 ### Tenancy
 

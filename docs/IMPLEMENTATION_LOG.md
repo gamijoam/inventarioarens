@@ -1,5 +1,37 @@
 # Registro de implementación
 
+## 2026-07-03 - Centro de Inventario conectado a base de datos
+
+### Implementado
+
+- Se agrego el modulo `InventoryCenter`.
+- Se expuso `GET /api/inventory-center/summary`.
+- Se agrego `InventoryCenterSummaryService` para metricas y productos con stock agregado.
+- Se conecto el frontend del Centro de Inventario al endpoint real cuando la sesion tiene token valido.
+- Se agregaron metricas de productos, serializados, disponible, reservado, danado, bajo stock y sin stock.
+- Se agregaron buscador y filtros rapidos por estado de stock.
+- El modo demo local conserva datos simulados para revisar la pantalla sin credenciales.
+- Se documento API, arquitectura, mapa modular y bitacora.
+
+### Buenas practicas de consulta
+
+- El frontend consume una API agregada en lugar de disparar muchas consultas pequenas.
+- El stock se suma en base de datos desde `stock_balances` agrupado por producto.
+- El listado queda limitado a 50 productos maximo por llamada.
+- La API no carga almacenes producto por producto, reduciendo riesgo de N+1.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se intento ejecutar prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`, pero Docker Desktop no estaba activo y no se pudo conectar al daemon `dockerDesktopLinuxEngine`.
+- Queda pendiente reintentar la prueba especifica en PostgreSQL cuando Docker este encendido.
+
+### Notas de seguridad
+
+- El endpoint requiere `api.auth` y `tenant`.
+- La autorizacion acepta `products.view` o `inventory.view`.
+- Las pruebas cubren varias empresas para confirmar que no se mezclan productos ni saldos.
+
 ## 2026-07-03 - Dashboard real con API agregada
 
 ### Implementado

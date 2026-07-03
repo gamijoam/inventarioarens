@@ -170,6 +170,97 @@ Reglas:
 - evita cargar colecciones grandes para reducir riesgo de N+1 en la portada.
 - un token emitido para una empresa no puede usarse con el `X-Tenant` de otra empresa.
 
+## Centro de Inventario
+
+Modulo: `InventoryCenter`
+
+Archivo de rutas:
+
+```txt
+app/Modules/InventoryCenter/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\InventoryCenter\Controllers\InventoryCenterController
+```
+
+### Resumen del centro de inventario
+
+```txt
+GET /api/inventory-center/summary
+```
+
+Permisos aceptados:
+
+```txt
+products.view
+inventory.view
+```
+
+Query params:
+
+```txt
+search=Samsung
+tracking_type=quantity|serialized
+stock_status=all|available|low|out
+low_stock_threshold=3
+limit=24
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "filters": {
+      "search": "Samsung",
+      "tracking_type": null,
+      "stock_status": "all",
+      "low_stock_threshold": 3,
+      "limit": 24
+    },
+    "metrics": {
+      "total_products": 3,
+      "serialized_products": 1,
+      "quantity_products": 2,
+      "available_quantity": 17,
+      "reserved_quantity": 2,
+      "damaged_quantity": 1,
+      "low_stock_count": 1,
+      "without_stock_count": 1
+    },
+    "products": [
+      {
+        "id": 1,
+        "name": "Samsung A06",
+        "sku": "A06-001",
+        "tracking_type": "quantity",
+        "base_price": 120,
+        "sale_currency": "USD",
+        "stock": {
+          "available": 5,
+          "reserved": 2,
+          "damaged": 0,
+          "status": "available"
+        }
+      }
+    ]
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth` y `tenant`;
+- no modifica datos;
+- usa `stock_balances` como lectura rapida y productos activos como catalogo;
+- agrega stock por producto en base de datos antes de responder;
+- no consulta almacenes uno por uno desde el frontend;
+- limita el listado a maximo 50 productos por llamada;
+- respeta tenant y no mezcla productos ni saldos entre empresas.
+
 ### Ver sesion actual
 
 ```txt

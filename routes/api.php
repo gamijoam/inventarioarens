@@ -8,6 +8,9 @@ Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Dashboard/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/InventoryCenter/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Branches/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])

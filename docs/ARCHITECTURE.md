@@ -11,6 +11,7 @@ Regla actual de rutas:
 - Las rutas protegidas usan `api.auth` y `tenant`.
 - Las rutas de login viven en `app/Modules/Auth/routes.php`.
 - Las rutas del dashboard viven en `app/Modules/Dashboard/routes.php`.
+- Las rutas del centro de inventario viven en `app/Modules/InventoryCenter/routes.php`.
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
 
@@ -25,6 +26,20 @@ Reglas:
 - el stock bajo se consulta con limite y relaciones especificas;
 - no se cargan colecciones completas para tarjetas de resumen;
 - el frontend usa esta API cuando la sesion es real y conserva datos demo solo para `FRONTEND_DEV_BYPASS_LOGIN`.
+
+## Centro de Inventario conectado a datos reales
+
+El Centro de Inventario usa `GET /api/inventory-center/summary` para cargar metricas y productos con una sola llamada protegida. El objetivo es que el frontend vea datos reales de la base y, al mismo tiempo, evitar consultas N+1 cuando existan muchos productos, almacenes o saldos.
+
+Reglas:
+
+- la API es solo lectura;
+- las metricas se calculan en base de datos;
+- el stock se agrega desde `stock_balances` por producto;
+- el listado de productos se limita por parametro y nunca supera 50 registros por llamada;
+- los filtros iniciales son busqueda, tipo de control y estado de stock;
+- el frontend solo usa datos demo en el bypass local;
+- tenant y permisos se validan igual que en el resto de APIs protegidas.
 
 ## Reportes iniciales
 
@@ -217,6 +232,8 @@ Módulos implementados inicialmente:
 
 - `Auth`: login, tokens por empresa, sesion actual y cierre de sesion.
 - `Tenancy`: tenants, resolución de tenant y aislamiento de petición.
+- `Dashboard`: resumen ejecutivo con datos agregados para la portada.
+- `InventoryCenter`: lectura agregada para catalogo y stock del Centro de Inventario.
 - `Products`: catalogo de productos, API de productos, policy tenant-aware y tipo de control por cantidad o serializado.
 - `Branches`: sucursales tenant-scoped con API, permisos y codigo unico por tenant.
 - `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.

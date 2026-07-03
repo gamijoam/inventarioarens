@@ -136,8 +136,9 @@
                                 <button class="user-button" type="button" id="user-initials" aria-label="Usuario"></button>
                             </header>
 
-                            <main class="dashboard-view" aria-labelledby="dashboard-title">
-                                <section class="dashboard-hero">
+                            <main class="workspace-content">
+                                <section class="workspace-panel dashboard-view" data-panel="dashboard" aria-labelledby="dashboard-title">
+                                <div class="dashboard-hero">
                                     <div>
                                         <p class="eyebrow">Operacion</p>
                                         <h1 id="dashboard-title">Resumen del negocio</h1>
@@ -148,9 +149,9 @@
                                         <button class="segmented-button" type="button">Semana</button>
                                         <button class="segmented-button" type="button">Mes</button>
                                     </div>
-                                </section>
+                                </div>
 
-                                <section class="metric-grid" aria-label="Indicadores principales">
+                                <div class="metric-grid" aria-label="Indicadores principales">
                                     <article class="metric-card metric-card--green">
                                         <span>Ingresos</span>
                                         <strong data-dashboard-value="sales_total">$0.00</strong>
@@ -171,7 +172,7 @@
                                         <strong data-dashboard-value="pending_balance">$0.00</strong>
                                         <small data-dashboard-detail="pending_counts">Cargando finanzas...</small>
                                     </article>
-                                </section>
+                                </div>
 
                                 <section class="attention-panel">
                                     <div class="section-heading">
@@ -210,6 +211,68 @@
                                         </dl>
                                         <button class="secondary-button compact-button" type="button" id="logout-button">Cerrar sesion</button>
                                     </article>
+                                </section>
+                                </section>
+
+                                <section class="workspace-panel inventory-view" data-panel="inventory" aria-labelledby="inventory-title" hidden>
+                                    <div class="module-header">
+                                        <div>
+                                            <p class="eyebrow">Inventario</p>
+                                            <h1 id="inventory-title">Centro de Inventario</h1>
+                                            <p>Catalogo vivo con stock agregado por producto, seriales y disponibilidad para venta.</p>
+                                        </div>
+                                        <div class="module-actions">
+                                            <button class="secondary-button compact-action" type="button">Exportar</button>
+                                            <button class="primary-button compact-action" type="button" data-requires-any="products.create">Nuevo producto</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="module-tabs" aria-label="Secciones de inventario">
+                                        <button class="module-tab is-active" type="button">Productos</button>
+                                        <button class="module-tab" type="button">Seriales</button>
+                                        <button class="module-tab" type="button">Kardex</button>
+                                        <button class="module-tab" type="button">Traslados</button>
+                                        <button class="module-tab" type="button">Almacenes</button>
+                                    </div>
+
+                                    <div class="inventory-toolbar">
+                                        <label class="search-box" for="inventory-search">
+                                            <span aria-hidden="true">@</span>
+                                            <input id="inventory-search" type="search" placeholder="Buscar por nombre, SKU o serial...">
+                                        </label>
+                                        <div class="filter-group" aria-label="Filtro de stock">
+                                            <button class="filter-chip is-active" type="button" data-inventory-filter="all">Todos</button>
+                                            <button class="filter-chip" type="button" data-inventory-filter="available">Disponibles</button>
+                                            <button class="filter-chip" type="button" data-inventory-filter="low">Bajo stock</button>
+                                            <button class="filter-chip" type="button" data-inventory-filter="out">Sin stock</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="inventory-metrics" aria-label="Metricas de inventario">
+                                        <article class="inventory-metric">
+                                            <span>Productos</span>
+                                            <strong data-inventory-metric="total_products">0</strong>
+                                            <small data-inventory-detail="serialized_products">0 serializados</small>
+                                        </article>
+                                        <article class="inventory-metric">
+                                            <span>Disponible</span>
+                                            <strong data-inventory-metric="available_quantity">0</strong>
+                                            <small data-inventory-detail="reserved_quantity">0 reservados</small>
+                                        </article>
+                                        <article class="inventory-metric inventory-metric--warning">
+                                            <span>Stock bajo</span>
+                                            <strong data-inventory-metric="low_stock_count">0</strong>
+                                            <small data-inventory-detail="without_stock_count">0 sin stock</small>
+                                        </article>
+                                        <article class="inventory-metric">
+                                            <span>Dañados</span>
+                                            <strong data-inventory-metric="damaged_quantity">0</strong>
+                                            <small>Unidades no disponibles</small>
+                                        </article>
+                                    </div>
+
+                                    <p class="panel-status" id="inventory-status" role="status" aria-live="polite"></p>
+                                    <div class="product-grid" id="inventory-products"></div>
                                 </section>
                             </main>
                         </div>
