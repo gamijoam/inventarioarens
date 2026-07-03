@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-03 - Ventas con IMEI exacto en sale_items
+
+### Implementado
+
+- Se agrego `product_unit_ids` a `sale_items`.
+- `POST /api/sales` acepta `items.*.product_unit_ids`.
+- `POST /api/pos/checkouts` acepta `items.*.product_unit_ids` y lo delega a `Sales`.
+- Al confirmar una venta serializada se valida un IMEI o serial disponible por cada unidad.
+- La confirmacion bloquea las unidades serializadas y las marca como `sold`.
+- La respuesta de venta muestra `product_unit_ids` y `serial_units`.
+- `SalesReturns` solo permite devolver IMEIs registrados en el `sale_item` vendido.
+- `Warranties` solo permite abrir garantia de un IMEI registrado en el `sale_item` vendido.
+- La demo asocia un IMEI a la venta POS pagada y usa ese mismo IMEI en la devolucion.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Sales/SalesApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/SalesReturns/SalesReturnApiTest.php tests/Feature/Warranties/WarrantyPolicyApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 33 pruebas pasadas, 232 aserciones.
+- Suite completa: `docker compose run --rm app_test php artisan test` (184 pruebas, 884 aserciones).
+
+### Notas de seguridad
+
+- Crear una venta no reserva el IMEI; la disponibilidad se valida al confirmar.
+- Si dos cajas intentan vender el mismo IMEI, solo la primera confirmacion puede marcarlo como vendido.
+- Las devoluciones y garantias ya no aceptan IMEIs del mismo producto si no salieron en ese item.
+
 ## 2026-07-03 - Modulo Warranties casos de garantia
 
 ### Implementado

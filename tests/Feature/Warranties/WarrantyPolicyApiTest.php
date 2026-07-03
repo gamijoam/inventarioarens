@@ -262,15 +262,15 @@ class WarrantyPolicyApiTest extends TestCase
         [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy, Product::TRACKING_SERIALIZED);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Warranty Operator', ['sales.create', 'warranties.create']);
-        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product);
         $this->useTenant($tenant);
         $unit = ProductUnit::create([
             'product_id' => $product->id,
             'warehouse_id' => $warehouse->id,
             'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
             'serial_number' => '860001999999999',
-            'status' => ProductUnit::STATUS_SOLD,
+            'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$unit->id]);
 
         $this
             ->actingAs($user)
@@ -289,6 +289,43 @@ class WarrantyPolicyApiTest extends TestCase
             'id' => $unit->id,
             'status' => ProductUnit::STATUS_WARRANTY_HOLD,
         ]);
+    }
+
+    public function test_serialized_warranty_claim_rejects_imei_not_sold_in_sale_item(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy, Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Operator', ['sales.create', 'warranties.create']);
+        $this->useTenant($tenant);
+        $soldUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001999999998',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $otherUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001999999997',
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$soldUnit->id]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/warranty-claims', [
+                'sale_item_id' => $saleItem->id,
+                'product_unit_id' => $otherUnit->id,
+                'quantity' => 1,
+                'issue_description' => 'Falla de equipo no vendido en este item.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_unit_id']);
     }
 
     public function test_user_can_review_and_deliver_warranty_claim_with_audit(): void
@@ -384,7 +421,7 @@ class WarrantyPolicyApiTest extends TestCase
         return [$warehouse, $product];
     }
 
-    private function confirmedSaleItem(Tenant $tenant, User $user, Warehouse $warehouse, Product $product): SaleItem
+    private function confirmedSaleItem(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, array $productUnitIds = []): SaleItem
     {
         $this->useTenant($tenant);
         app(InventoryMovementService::class)->purchase($warehouse, $product, 2, 80, $user, 'Stock garantia claim test '.uniqid());
@@ -393,6 +430,7 @@ class WarrantyPolicyApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity' => 1,
+            'product_unit_ids' => $productUnitIds,
         ]]);
 
         $sale = app(SaleService::class)->confirm($sale, $user);

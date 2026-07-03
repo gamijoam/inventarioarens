@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'exchange_rate_type_code',
     'exchange_rate',
     'stock_movement_id',
+    'product_unit_ids',
     'warranty_policy_id',
     'warranty_policy_name',
     'warranty_duration_days',
@@ -46,6 +47,7 @@ class SaleItem extends Model
             'base_unit_price' => 'decimal:4',
             'base_total_amount' => 'decimal:4',
             'exchange_rate' => 'decimal:6',
+            'product_unit_ids' => 'array',
             'warranty_starts_at' => 'datetime',
             'warranty_expires_at' => 'datetime',
         ];

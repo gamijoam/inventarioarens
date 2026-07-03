@@ -10,6 +10,7 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -202,6 +203,55 @@ class PosCheckoutApiTest extends TestCase
         $this->assertDatabaseCount('cash_register_movements', 0);
         $this->assertDatabaseCount('accounts_receivables', 0);
         $this->assertDatabaseCount('accounts_receivable_payments', 0);
+    }
+
+    public function test_pos_checkout_can_sell_exact_serialized_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860009999999999',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.sale.items.0.product_unit_ids.0', $unit->id)
+            ->assertJsonPath('data.sale.items.0.serial_units.0.serial_number', '860009999999999');
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
     }
 
     public function test_pos_orders_do_not_mix_companies_and_reject_foreign_resources(): void
@@ -433,7 +483,7 @@ class PosCheckoutApiTest extends TestCase
         }
     }
 
-    private function pricedProduct(Tenant $tenant, string $saleCurrency, string $rateCode, float $rate): array
+    private function pricedProduct(Tenant $tenant, string $saleCurrency, string $rateCode, float $rate, string $trackingType = Product::TRACKING_QUANTITY): array
     {
         $this->useTenant($tenant);
 
@@ -449,6 +499,7 @@ class PosCheckoutApiTest extends TestCase
         $product = Product::create([
             'name' => "Producto POS {$rateCode}",
             'sku' => "SKU-POS-{$rateCode}-{$tenant->id}",
+            'tracking_type' => $trackingType,
             'base_price' => 100,
             'sale_currency' => $saleCurrency,
             'sale_exchange_rate_type_id' => $rateType->id,

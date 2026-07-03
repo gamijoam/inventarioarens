@@ -100,11 +100,11 @@ class SalesReturnApiTest extends TestCase
             'product_id' => $product->id,
             'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
             'serial_number' => '860001111111111',
-            'status' => ProductUnit::STATUS_SOLD,
+            'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create']);
-        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [$unit->id]);
 
         $this
             ->actingAs($user)
@@ -125,6 +125,44 @@ class SalesReturnApiTest extends TestCase
             'id' => $unit->id,
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
+    }
+
+    public function test_serialized_sale_return_rejects_unit_not_sold_in_sale_item(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_SERIALIZED, 'RET-005');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        $soldUnit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001111111112',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $otherUnit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001111111113',
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [$soldUnit->id]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales-returns', [
+                'sale_id' => $sale->id,
+                'items' => [[
+                    'sale_item_id' => $sale->items->first()->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$otherUnit->id],
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_unit_ids']);
     }
 
     public function test_sales_returns_do_not_mix_companies_and_reject_foreign_sale(): void
@@ -191,7 +229,7 @@ class SalesReturnApiTest extends TestCase
         }
     }
 
-    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity): Sale
+    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity, array $productUnitIds = []): Sale
     {
         $this->useTenant($tenant);
 
@@ -199,6 +237,7 @@ class SalesReturnApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity' => $quantity,
+            'product_unit_ids' => $productUnitIds,
         ]]);
 
         return app(SaleService::class)->confirm($sale, $user);

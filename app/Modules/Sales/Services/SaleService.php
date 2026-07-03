@@ -5,6 +5,7 @@ namespace App\Modules\Sales\Services;
 use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Services\ProductPriceService;
@@ -55,6 +56,7 @@ class SaleService
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
                     'quantity' => $quantity,
+                    'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
                     'sale_currency' => $quote['sale_currency'],
                     'unit_price' => $unitPrice,
                     'total_amount' => $totalAmount,
@@ -93,6 +95,8 @@ class SaleService
             }
 
             foreach ($sale->items as $item) {
+                $productUnits = $this->validatedProductUnitsForSaleItem($item);
+
                 try {
                     $movement = $this->inventory->sale(
                         warehouse: $item->warehouse,
@@ -110,6 +114,7 @@ class SaleService
                 }
 
                 $item->update(['stock_movement_id' => $movement->id]);
+                $this->markProductUnitsAsSold($productUnits, $movement->id);
             }
 
             $confirmedAt = now();
@@ -150,5 +155,78 @@ class SaleService
         ]);
 
         return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse']);
+    }
+
+    private function validatedProductUnitsForSaleItem(SaleItem $item): array
+    {
+        $unitIds = $item->product_unit_ids ?? [];
+
+        if (! $item->product->requiresSerializedTracking()) {
+            if ($unitIds !== []) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Solo los productos serializados pueden vender IMEIs o seriales especificos.',
+                ]);
+            }
+
+            return [];
+        }
+
+        if ((float) $item->quantity !== floor((float) $item->quantity) || count($unitIds) !== (int) $item->quantity) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'Los productos serializados requieren un IMEI o serial por cada unidad vendida.',
+            ]);
+        }
+
+        if (count($unitIds) !== count(array_unique($unitIds))) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'No se puede repetir el mismo IMEI o serial en una venta.',
+            ]);
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($units->count() !== count($unitIds)) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'Uno o mas IMEIs no existen en la empresa actual.',
+            ]);
+        }
+
+        foreach ($unitIds as $unitId) {
+            $unit = $units->get($unitId);
+
+            if ((int) $unit->product_id !== (int) $item->product_id) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Uno o mas IMEIs no pertenecen al producto vendido.',
+                ]);
+            }
+
+            if ((int) $unit->warehouse_id !== (int) $item->warehouse_id) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Uno o mas IMEIs no estan en el almacen de la venta.',
+                ]);
+            }
+
+            if ($unit->status !== ProductUnit::STATUS_AVAILABLE) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Uno o mas IMEIs ya no estan disponibles para vender.',
+                ]);
+            }
+        }
+
+        return $units->values()->all();
+    }
+
+    private function markProductUnitsAsSold(array $productUnits, int $movementId): void
+    {
+        foreach ($productUnits as $unit) {
+            $unit->update([
+                'status' => ProductUnit::STATUS_SOLD,
+                'released_stock_movement_id' => $movementId,
+            ]);
+        }
     }
 }

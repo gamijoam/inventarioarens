@@ -328,6 +328,8 @@ Regla importante:
 - confirmar una venta descuenta inventario;
 - confirmar una venta genera una cuenta por cobrar mediante `AccountsReceivable`;
 - cada item guarda precio y tasa exacta usada;
+- los items de productos serializados guardan `product_unit_ids` para saber que IMEI o serial salio;
+- al confirmar una venta serializada, el IMEI debe estar disponible en el almacen y queda `sold`;
 - ventas confirmadas no se cancelan directamente en esta fase.
 
 ### AccountsReceivable
@@ -472,6 +474,7 @@ Regla importante:
 - solo se devuelven ventas confirmadas;
 - no se puede devolver mas de lo vendido;
 - productos serializados requieren indicar unidades especificas;
+- las unidades serializadas devueltas deben pertenecer a los `product_unit_ids` vendidos en ese item;
 - si existe cuenta por cobrar de la venta, la devolucion reduce el saldo pendiente;
 - toda devolucion debe respetar tenant y permisos.
 
@@ -503,6 +506,7 @@ Regla importante:
 
 - POS no debe descontar inventario directamente;
 - POS debe usar `Sales` para crear y confirmar la venta;
+- POS envia `product_unit_ids` a `Sales` cuando vende productos serializados;
 - POS puede asociar un `customer_id`, pero solo si pertenece al tenant actual;
 - POS debe estar asociado a una sesion de caja abierta;
 - POS solo puede usar la caja del cajero autenticado;
@@ -819,6 +823,7 @@ Regla importante:
 - el snapshot de venta no debe cambiar si luego se actualiza la politica;
 - la confirmacion de venta define inicio y vencimiento de garantia;
 - los casos de garantia parten del item vendido y opcionalmente del IMEI/serial vendido;
+- para productos serializados, la unidad en garantia debe estar registrada en `sale_items.product_unit_ids`;
 - un caso recibido no resuelve dinero ni inventario contable por si solo;
 - los productos serializados recibidos por garantia quedan en `warranty_hold`;
 - las acciones de recibir, revisar y entregar se auditan en `audit_logs`.

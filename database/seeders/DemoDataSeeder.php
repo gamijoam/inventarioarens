@@ -206,6 +206,13 @@ class DemoDataSeeder extends Seeder
         if ($existing) {
             $existing->update(['customer_id' => $customer->id]);
             $existing->sale?->update(['customer_id' => $customer->id]);
+            $this->backfillExistingPosSaleItemUnit($existing, $warehouse, $product);
+            return;
+        }
+
+        $unit = $this->availableProductUnit($warehouse, $product);
+
+        if (! $unit) {
             return;
         }
 
@@ -216,6 +223,7 @@ class DemoDataSeeder extends Seeder
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
                 'quantity' => 1,
+                'product_unit_ids' => [$unit->id],
             ]],
             payments: [[
                 'method' => PosPayment::METHOD_MOBILE_PAYMENT,
@@ -429,10 +437,7 @@ class DemoDataSeeder extends Seeder
         }
 
         $saleItem = $posOrder->sale->items->first();
-        $productUnit = ProductUnit::query()
-            ->where('product_id', $product->id)
-            ->oldest()
-            ->first();
+        $productUnitIds = $saleItem->product_unit_ids ?? [];
 
         app(SalesReturnService::class)->create($user, [
             'sale_id' => $posOrder->sale->id,
@@ -440,9 +445,44 @@ class DemoDataSeeder extends Seeder
             'items' => [[
                 'sale_item_id' => $saleItem->id,
                 'quantity' => 1,
-                'product_unit_ids' => $productUnit ? [$productUnit->id] : [],
+                'product_unit_ids' => $productUnitIds,
             ]],
         ]);
+    }
+
+    private function backfillExistingPosSaleItemUnit(PosOrder $order, Warehouse $warehouse, Product $product): void
+    {
+        $order->load('sale.items');
+        $saleItem = $order->sale?->items?->firstWhere('product_id', $product->id);
+
+        if (! $saleItem || ($saleItem->product_unit_ids ?? []) !== []) {
+            return;
+        }
+
+        $returnedUnitIds = SalesReturn::query()
+            ->with('items')
+            ->where('sale_id', $order->sale_id)
+            ->get()
+            ->flatMap(fn (SalesReturn $return) => $return->items->flatMap(fn ($item) => $item->product_unit_ids ?? []))
+            ->values()
+            ->all();
+
+        if ($returnedUnitIds !== []) {
+            $saleItem->update(['product_unit_ids' => array_slice($returnedUnitIds, 0, (int) $saleItem->quantity)]);
+
+            return;
+        }
+
+        $unit = ProductUnit::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->whereIn('status', [ProductUnit::STATUS_AVAILABLE, ProductUnit::STATUS_SOLD])
+            ->oldest()
+            ->first();
+
+        if ($unit) {
+            $saleItem->update(['product_unit_ids' => [$unit->id]]);
+        }
     }
 
     private function creditSale(
@@ -686,6 +726,16 @@ class DemoDataSeeder extends Seeder
             createdBy: $user,
             reason: $reason,
         );
+    }
+
+    private function availableProductUnit(Warehouse $warehouse, Product $product): ?ProductUnit
+    {
+        return ProductUnit::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->oldest()
+            ->first();
     }
 
     private function imeis(Tenant $tenant, Warehouse $warehouse, Product $product, string $prefix): void

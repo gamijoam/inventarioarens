@@ -1418,7 +1418,23 @@ Body:
     {
       "warehouse_id": 1,
       "product_id": 1,
-      "quantity": 2
+      "quantity": 2,
+      "product_unit_ids": []
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 10,
+      "quantity": 1,
+      "product_unit_ids": [55]
     }
   ]
 }
@@ -1432,7 +1448,10 @@ Reglas:
 - copia moneda, tipo de tasa y valor exacto de tasa;
 - `customer_id` es opcional;
 - si se envia `customer_id`, debe pertenecer a la empresa actual;
-- `warehouse_id` y `product_id` deben pertenecer a la empresa actual.
+- `warehouse_id` y `product_id` deben pertenecer a la empresa actual;
+- si el producto es serializado, se debe enviar un `product_unit_id` por cada unidad vendida;
+- si el producto es por cantidad, no debe enviar `product_unit_ids`;
+- `product_unit_ids` queda guardado en `sale_items` para saber que IMEI o serial salio en esa venta.
 
 ### Ver venta
 
@@ -1462,8 +1481,11 @@ Reglas:
 
 - solo confirma ventas en `draft`;
 - valida stock disponible;
+- valida que los IMEIs o seriales sigan disponibles, pertenezcan al producto y esten en el almacen de la venta;
 - descuenta inventario con movimiento `sale`;
-- enlaza los movimientos de inventario con la venta.
+- enlaza los movimientos de inventario con la venta;
+- marca los IMEIs o seriales vendidos como `sold` y los enlaza al movimiento de salida;
+- si dos ventas o cajas intentan confirmar el mismo IMEI, solo la primera puede completarse.
 
 ### Cancelar venta
 
@@ -1549,6 +1571,7 @@ Reglas:
 - no se puede devolver mas cantidad que la vendida menos devoluciones previas;
 - cada item genera movimiento de inventario `sale_return`;
 - si el producto es serializado, se debe enviar una unidad por cada cantidad devuelta;
+- los IMEIs o seriales devueltos deben estar registrados en `sale_items.product_unit_ids` de ese item vendido;
 - si la unidad vuelve como `sellable`, queda disponible;
 - si la unidad vuelve como `damaged`, queda marcada como danada;
 - todos los ids deben pertenecer a la empresa actual.
@@ -2373,7 +2396,8 @@ Body:
     {
       "warehouse_id": 1,
       "product_id": 1,
-      "quantity": 2
+      "quantity": 2,
+      "product_unit_ids": []
     }
   ],
   "payments": [
@@ -2411,6 +2435,8 @@ Reglas:
 - la caja debe estar abierta;
 - la caja debe pertenecer al cajero autenticado;
 - POS crea una venta en `Sales`;
+- para productos serializados, POS debe enviar `product_unit_ids` igual que `Sales`;
+- el IMEI o serial vendido queda guardado en `sale_items` y visible en la venta asociada a la orden POS;
 - POS registra los pagos en `pos_payments`;
 - solo pagos `captured` suman al total pagado;
 - cada pago `captured` crea un movimiento `pos_payment` en la caja asociada;
@@ -3008,6 +3034,7 @@ Reglas:
 - el item debe tener snapshot de garantia;
 - la garantia no debe estar vencida;
 - productos serializados requieren `product_unit_id`;
+- en productos serializados, `product_unit_id` debe estar registrado en `sale_items.product_unit_ids` del item vendido;
 - una unidad con caso abierto no puede abrir otro caso;
 - si se recibe una unidad serializada, queda en estado `warranty_hold`;
 - crear el caso no mueve dinero ni inventario contable en esta fase.

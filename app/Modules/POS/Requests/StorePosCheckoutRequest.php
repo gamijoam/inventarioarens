@@ -38,6 +38,8 @@ class StorePosCheckoutRequest extends FormRequest
                 Rule::exists('products', 'id')->where('tenant_id', $tenantId),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.product_unit_ids' => ['sometimes', 'array'],
+            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.method' => [
                 'required',

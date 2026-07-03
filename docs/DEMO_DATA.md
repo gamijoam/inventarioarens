@@ -66,7 +66,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Devoluciones a proveedor que generan movimientos `purchase_return` reales.
 - Cuentas por pagar y pagos a proveedor generados por servicios reales.
 - Cajas abiertas.
-- Venta POS pagada.
+- Venta POS pagada con IMEI especifico asociado al `sale_item`.
 - Venta POS con financiamiento externo pendiente.
 - Venta demo a credito para revisar cuentas por cobrar.
 - Items de venta con snapshot de garantia tomado desde la politica del producto.
@@ -77,7 +77,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Ajustes financieros demo sobre cuentas por cobrar y cuentas por pagar.
 - Datos financieros suficientes para consultar `FinanceReports`.
 - Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
-- Devoluciones de venta demo sobre ventas POS pagadas.
+- Devoluciones de venta demo sobre ventas POS pagadas usando el mismo IMEI vendido.
 - Movimientos de inventario, caja y auditoria generados por servicios reales.
 - Datos suficientes para consultar Kardex por producto desde `stock_movements`.
 

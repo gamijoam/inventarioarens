@@ -121,11 +121,11 @@ Los productos pueden definir precio base en `USD`, moneda preferida de venta y t
 
 El modulo `Sales` crea ventas primero como `draft`. En esa fase copia precio, moneda, tipo de tasa y valor de tasa desde el producto, pero no mueve inventario. La confirmacion de una venta valida stock disponible y genera movimientos `sale` en inventario con referencia a la venta. En esta fase, las ventas confirmadas no se cancelan directamente; una devolucion o reverso controlado se modelara mas adelante.
 
-El modulo `POS` es la capa operativa de caja. POS crea una venta mediante `Sales`, registra pagos y solo confirma la venta cuando los pagos capturados cubren el total. Los pagos pueden registrarse en `USD` o `VES`; si el pago es en bolivares se guarda el tipo de tasa, codigo y valor exacto usado. Pagos pendientes, como una financiadora externa futura, quedan registrados pero no descuentan inventario hasta que se capturen. Cuando POS confirma una venta, los pagos capturados tambien se reflejan como cobros automaticos en `AccountsReceivable`, evitando que una venta pagada en caja quede como deuda pendiente.
+El modulo `POS` es la capa operativa de caja. POS crea una venta mediante `Sales`, registra pagos y solo confirma la venta cuando los pagos capturados cubren el total. Los pagos pueden registrarse en `USD` o `VES`; si el pago es en bolivares se guarda el tipo de tasa, codigo y valor exacto usado. Pagos pendientes, como una financiadora externa futura, quedan registrados pero no descuentan inventario hasta que se capturen. Cuando POS confirma una venta, los pagos capturados tambien se reflejan como cobros automaticos en `AccountsReceivable`, evitando que una venta pagada en caja quede como deuda pendiente. Si el producto es serializado, POS envia a `Sales` los `product_unit_ids` seleccionados para que el `sale_item` conserve el IMEI o serial exacto vendido.
 
 El modulo `CashRegister` es la capa de apertura, movimientos, arqueo y cierre de caja. Una sesion de caja pertenece a una sucursal y a un cajero. Los movimientos pueden estar en `USD` o `VES`, guardan snapshot de tasa cuando aplica y actualizan el monto esperado. El cierre compara monto contado contra monto esperado y guarda la diferencia. POS se integra con caja asociando cada checkout a una sesion abierta y registrando pagos capturados como movimientos `pos_payment`, sin convertir el cierre de caja en responsabilidad de POS.
 
-Varias cajas pueden operar al mismo tiempo. La independencia se mantiene porque cada orden POS apunta a una `cash_register_session_id` especifica y cada pago capturado registra movimiento en esa misma caja. La competencia por inventario se resuelve en `Sales` e `Inventory`: si dos cajas intentan vender la ultima unidad, la primera confirmacion descuenta el stock y la segunda falla por stock insuficiente sin dejar stock negativo ni movimientos de caja permanentes.
+Varias cajas pueden operar al mismo tiempo. La independencia se mantiene porque cada orden POS apunta a una `cash_register_session_id` especifica y cada pago capturado registra movimiento en esa misma caja. La competencia por inventario se resuelve en `Sales` e `Inventory`: si dos cajas intentan vender la ultima unidad, la primera confirmacion descuenta el stock y la segunda falla por stock insuficiente sin dejar stock negativo ni movimientos de caja permanentes. En productos serializados, la confirmacion bloquea los IMEIs seleccionados y solo una venta puede marcar la unidad como `sold`.
 
 El modulo `Customers` mantiene los clientes por empresa. Cada cliente puede tener documento, telefono, correo, direccion fiscal y marca de cliente generico. Ventas y POS pueden operar sin cliente especifico, pero cuando reciben `customer_id` deben validar que pertenezca al tenant actual. Esto prepara la base para facturacion, historial de compras, creditos, financiadoras y reportes por cliente sin mezclar datos entre empresas.
 
@@ -135,7 +135,7 @@ El modulo `PurchaseReturns` maneja devoluciones de compras recibidas. La compra 
 
 El modulo `AccountsPayable` maneja las deudas con proveedores. La cuenta por pagar nace automaticamente cuando una compra se recibe, usando los totales historicos de la compra. Los pagos pueden registrarse en `USD` o `VES`; si se paga en bolivares se guarda el tipo de tasa, codigo y valor usado. Las devoluciones a proveedor reducen el saldo pendiente sin borrar la compra original ni sus movimientos.
 
-El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas y las marca como disponibles o danadas segun la condicion recibida.
+El modulo `SalesReturns` maneja devoluciones de ventas confirmadas. La venta original no se elimina ni se cancela; se crea un documento historico de devolucion. Cada item devuelto genera un movimiento `sale_return` que aumenta inventario. Para productos serializados, la devolucion exige unidades especificas vendidas en ese mismo `sale_item` y las marca como disponibles o danadas segun la condicion recibida.
 
 El modulo `AccountsReceivable` maneja las deudas de clientes. La cuenta por cobrar nace automaticamente cuando una venta se confirma, usando los totales historicos de la venta. Los cobros pueden registrarse en `USD` o `VES`; si se cobra en bolivares se guarda el tipo de tasa, codigo y valor usado. Las devoluciones de venta reducen el saldo pendiente sin borrar la venta original ni sus movimientos.
 
@@ -371,11 +371,12 @@ Reglas arquitectonicas:
 - las politicas son tenant-scoped;
 - productos solo pueden apuntar a politicas de su misma empresa;
 - `sale_items` guarda snapshot de garantia: politica, nombre, duracion, cobertura, condiciones, inicio y vencimiento;
+- `sale_items.product_unit_ids` guarda los IMEIs o seriales exactos vendidos cuando el producto es serializado;
 - la fecha de inicio de garantia se define al confirmar la venta, no al crear el borrador;
 - cambiar una politica no modifica ventas historicas;
 - los casos de garantia deben consultar primero la venta o el IMEI vendido para validar vigencia;
 - un caso de garantia vive en `warranty_claims` y referencia `sale_item_id`;
-- productos serializados pueden referenciar `product_unit_id`;
+- productos serializados pueden referenciar `product_unit_id`, pero solo si esa unidad esta registrada en el `sale_item` vendido;
 - recibir una unidad serializada por garantia cambia su estado a `warranty_hold`;
 - resolver reembolso o reemplazo queda separado de la recepcion/revision inicial para no mezclar dinero, POS e inventario sin decision explicita.
 

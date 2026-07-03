@@ -7,6 +7,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
@@ -140,6 +141,90 @@ class SalesApiTest extends TestCase
             ->assertUnprocessable();
     }
 
+    public function test_confirm_serialized_sale_stores_and_sells_exact_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001222222222',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create']);
+
+        $saleId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_unit_ids.0', $unit->id)
+            ->assertJsonPath('data.items.0.serial_units.0.serial_number', '860001222222222')
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/sales/{$saleId}/confirm")
+            ->assertOk()
+            ->assertJsonPath('data.status', Sale::STATUS_CONFIRMED)
+            ->assertJsonPath('data.items.0.product_unit_ids.0', $unit->id)
+            ->assertJsonPath('data.items.0.serial_units.0.status', ProductUnit::STATUS_SOLD);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+    }
+
+    public function test_serialized_sale_requires_one_available_imei_per_unit(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create']);
+
+        $saleId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/sales/{$saleId}/confirm")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_unit_ids']);
+    }
+
     public function test_user_can_cancel_draft_sale_without_moving_inventory(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -259,7 +344,7 @@ class SalesApiTest extends TestCase
         }
     }
 
-    private function pricedProduct(Tenant $tenant, string $rateCode, float $rate): array
+    private function pricedProduct(Tenant $tenant, string $rateCode, float $rate, string $trackingType = Product::TRACKING_QUANTITY): array
     {
         $this->useTenant($tenant);
 
@@ -275,6 +360,7 @@ class SalesApiTest extends TestCase
         $product = Product::create([
             'name' => "Producto {$rateCode}",
             'sku' => "SKU-{$rateCode}",
+            'tracking_type' => $trackingType,
             'base_price' => 100,
             'sale_currency' => Product::CURRENCY_VES,
             'sale_exchange_rate_type_id' => $rateType->id,

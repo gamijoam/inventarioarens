@@ -185,7 +185,7 @@ class WarrantyClaimService
             ]);
         }
 
-        $unit = ProductUnit::query()->findOrFail($productUnitId);
+        $unit = ProductUnit::query()->lockForUpdate()->findOrFail($productUnitId);
 
         if ((int) $unit->product_id !== (int) $saleItem->product_id) {
             throw ValidationException::withMessages([
@@ -196,6 +196,12 @@ class WarrantyClaimService
         if (! in_array($unit->status, [ProductUnit::STATUS_SOLD, ProductUnit::STATUS_AVAILABLE], true)) {
             throw ValidationException::withMessages([
                 'product_unit_id' => 'La unidad no esta en un estado valido para garantia.',
+            ]);
+        }
+
+        if (! in_array($unit->id, $saleItem->product_unit_ids ?? [], true)) {
+            throw ValidationException::withMessages([
+                'product_unit_id' => 'La unidad no esta registrada como vendida en este item.',
             ]);
         }
 

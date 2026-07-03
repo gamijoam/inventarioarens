@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sales\Resources;
 
+use App\Modules\Inventory\Models\ProductUnit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,8 @@ class SaleItemResource extends JsonResource
             'exchange_rate_type_code' => $this->exchange_rate_type_code,
             'exchange_rate' => $this->exchange_rate === null ? null : (float) $this->exchange_rate,
             'stock_movement_id' => $this->stock_movement_id,
+            'product_unit_ids' => $this->product_unit_ids,
+            'serial_units' => $this->serialUnits(),
             'warranty_policy_id' => $this->warranty_policy_id,
             'warranty_policy_name' => $this->warranty_policy_name,
             'warranty_duration_days' => $this->warranty_duration_days,
@@ -35,5 +38,27 @@ class SaleItemResource extends JsonResource
             'warranty_starts_at' => $this->warranty_starts_at?->toISOString(),
             'warranty_expires_at' => $this->warranty_expires_at?->toISOString(),
         ];
+    }
+
+    private function serialUnits(): array
+    {
+        $unitIds = $this->product_unit_ids ?? [];
+
+        if ($unitIds === []) {
+            return [];
+        }
+
+        return ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->get()
+            ->sortBy(fn (ProductUnit $unit): int => array_search($unit->id, $unitIds, true))
+            ->map(fn (ProductUnit $unit): array => [
+                'id' => $unit->id,
+                'serial_type' => $unit->serial_type,
+                'serial_number' => $unit->serial_number,
+                'status' => $unit->status,
+            ])
+            ->values()
+            ->all();
     }
 }

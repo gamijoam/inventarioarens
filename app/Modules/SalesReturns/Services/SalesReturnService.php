@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
-use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -52,7 +51,7 @@ class SalesReturnService
                 $this->ensureReturnableQuantity($saleItem, $quantity);
 
                 $productUnitIds = $itemData['product_unit_ids'] ?? [];
-                $this->validateProductUnits($saleItem->product, $quantity, $productUnitIds);
+                $this->validateProductUnits($saleItem, $quantity, $productUnitIds);
 
                 $movement = $this->inventory->saleReturn(
                     warehouse: $saleItem->warehouse,
@@ -100,8 +99,10 @@ class SalesReturnService
         }
     }
 
-    private function validateProductUnits(Product $product, float $quantity, array $productUnitIds): void
+    private function validateProductUnits(SaleItem $saleItem, float $quantity, array $productUnitIds): void
     {
+        $product = $saleItem->product;
+
         if (! $product->requiresSerializedTracking()) {
             if ($productUnitIds !== []) {
                 throw ValidationException::withMessages([
@@ -140,6 +141,15 @@ class SalesReturnService
                     'product_unit_ids' => 'Una o mas unidades no pertenecen al producto devuelto.',
                 ]);
             }
+        }
+
+        $soldUnitIds = $saleItem->product_unit_ids ?? [];
+        $foreignUnitIds = array_diff($productUnitIds, $soldUnitIds);
+
+        if ($foreignUnitIds !== []) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'Solo se pueden devolver IMEIs o seriales registrados en el item vendido.',
+            ]);
         }
     }
 
