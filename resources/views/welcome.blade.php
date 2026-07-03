@@ -348,14 +348,7 @@
 
                                             <form class="product-form operation-form" id="product-entry-form">
                                                 <div class="form-grid">
-                                                    <label class="field">
-                                                        <span>Almacén destino</span>
-                                                        <select id="entry-warehouse" required>
-                                                            <option value="">Cargando almacenes...</option>
-                                                        </select>
-                                                    </label>
-
-                                                    <label class="field form-grid__wide">
+                                                    <label class="field form-grid__wide operation-product-field">
                                                         <span>Producto</span>
                                                         <div class="product-search">
                                                             <input id="entry-product-search" type="search" placeholder="Buscar por nombre o SKU..." autocomplete="off">
@@ -363,6 +356,13 @@
                                                             <div class="product-search__results" id="entry-product-results"></div>
                                                         </div>
                                                         <small class="field-help" id="entry-product-help">Escribe al menos 2 caracteres para buscar productos.</small>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Almacén destino</span>
+                                                        <select id="entry-warehouse" required>
+                                                            <option value="">Cargando almacenes...</option>
+                                                        </select>
                                                     </label>
 
                                                     <label class="field">
@@ -455,14 +455,7 @@
 
                                             <form class="product-form operation-form" id="product-exit-form">
                                                 <div class="form-grid">
-                                                    <label class="field">
-                                                        <span>Almacén origen</span>
-                                                        <select id="exit-warehouse" required>
-                                                            <option value="">Cargando almacenes...</option>
-                                                        </select>
-                                                    </label>
-
-                                                    <label class="field form-grid__wide">
+                                                    <label class="field form-grid__wide operation-product-field">
                                                         <span>Producto</span>
                                                         <div class="product-search">
                                                             <input id="exit-product-search" type="search" placeholder="Buscar por nombre o SKU..." autocomplete="off">
@@ -470,6 +463,13 @@
                                                             <div class="product-search__results" id="exit-product-results"></div>
                                                         </div>
                                                         <small class="field-help" id="exit-product-help">Busca y selecciona el producto antes de descontar stock.</small>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Almacén origen</span>
+                                                        <select id="exit-warehouse" required>
+                                                            <option value="">Cargando almacenes...</option>
+                                                        </select>
                                                     </label>
 
                                                     <label class="field">

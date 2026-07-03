@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-07-03 - Rediseño visual de entradas y salidas
+
+### Implementado
+
+- Se rediseñó el módulo `Entradas y salidas` tomando como referencia las capturas de estilo revisadas.
+- Se reorganizaron los formularios para que la selección del producto sea el primer paso visible en entradas y salidas.
+- Se mejoraron las pestañas `Entrada`, `Salida` e `Historial` con un diseño segmentado, más claro y con transición visual.
+- Se agregó un panel de trabajo más compacto con tarjetas blancas, bordes suaves, énfasis violeta y sombras ligeras.
+- Se mejoró el foco visual del buscador de productos para operaciones con muchos productos.
+- Se dejó el resumen de operación como panel lateral en escritorio y como bloque apilado en pantallas medianas o pequeñas.
+- Se agregaron acciones fijas al pie del formulario para que `Limpiar` y `Registrar` estén disponibles sin depender del scroll.
+- No se instaló una librería nueva porque el rediseño se resolvió con CSS propio, evitando peso adicional y manteniendo el frontend simple.
+
+### Pruebas
+
+- Se compiló el frontend con `pnpm run build` correctamente.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 13 pruebas pasadas, 69 aserciones.
+
 ## 2026-07-03 - Cierre de fase del centro de inventario
 
 ### Implementado
