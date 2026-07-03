@@ -4,6 +4,7 @@ namespace App\Modules\Warranties\Controllers;
 
 use App\Modules\Warranties\Models\WarrantyClaim;
 use App\Modules\Warranties\Requests\DeliverWarrantyClaimRequest;
+use App\Modules\Warranties\Requests\ResolveWarrantyClaimRequest;
 use App\Modules\Warranties\Requests\ReviewWarrantyClaimRequest;
 use App\Modules\Warranties\Requests\StoreWarrantyClaimRequest;
 use App\Modules\Warranties\Resources\WarrantyClaimResource;
@@ -63,6 +64,15 @@ class WarrantyClaimController extends Controller
 
         return WarrantyClaimResource::make(
             $this->service->deliver($warrantyClaim, $request->user(), $request->validated('resolution_notes'))
+        );
+    }
+
+    public function resolve(ResolveWarrantyClaimRequest $request, WarrantyClaim $warrantyClaim): WarrantyClaimResource
+    {
+        $this->authorizePermission($request, 'warranties.resolve');
+
+        return WarrantyClaimResource::make(
+            $this->service->resolve($warrantyClaim, $request->user(), $request->validated())
         );
     }
 

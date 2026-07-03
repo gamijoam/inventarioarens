@@ -380,6 +380,210 @@ class WarrantyPolicyApiTest extends TestCase
         $this->assertSame(3, AuditLog::query()->where('entity_type', WarrantyClaim::class)->count());
     }
 
+    public function test_user_can_resolve_serialized_warranty_with_replacement_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy, Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+            'warranties.view',
+        ]);
+        $this->useTenant($tenant);
+        $originalUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $replacementUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000002',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$originalUnit->id]);
+
+        $claim = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/warranty-claims', [
+                'sale_item_id' => $saleItem->id,
+                'product_unit_id' => $originalUnit->id,
+                'quantity' => 1,
+                'issue_description' => 'Equipo no enciende.',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/review", [
+                'status' => WarrantyClaim::STATUS_APPROVED,
+                'diagnosis' => 'Falla de placa.',
+                'resolution_type' => WarrantyClaim::RESOLUTION_REPLACEMENT,
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REPLACEMENT,
+                'replacement_product_unit_id' => $replacementUnit->id,
+                'resolution_notes' => 'Se entrega equipo nuevo por garantia.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', WarrantyClaim::STATUS_CLOSED)
+            ->assertJsonPath('data.replacement_product_unit_id', $replacementUnit->id)
+            ->assertJsonPath('data.replacement_product_unit_serial', '860001000000002');
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $originalUnit->id,
+            'status' => ProductUnit::STATUS_DAMAGED,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $replacementUnit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'adjustment_out',
+            'reference_type' => WarrantyClaim::class,
+            'reference_id' => $claim['id'],
+        ]);
+    }
+
+    public function test_user_can_resolve_rejected_serialized_warranty_returning_original_imei_to_sold(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy, Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+        ]);
+        $this->useTenant($tenant);
+        $unit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000003',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$unit->id]);
+
+        $claim = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/warranty-claims', [
+                'sale_item_id' => $saleItem->id,
+                'product_unit_id' => $unit->id,
+                'quantity' => 1,
+                'issue_description' => 'Equipo mojado.',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/review", [
+                'status' => WarrantyClaim::STATUS_REJECTED,
+                'diagnosis' => 'Equipo con humedad.',
+                'resolution_type' => WarrantyClaim::RESOLUTION_REJECTED,
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REJECTED,
+                'resolution_notes' => 'No cubre garantia por humedad.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', WarrantyClaim::STATUS_CLOSED)
+            ->assertJsonPath('data.resolution_type', WarrantyClaim::RESOLUTION_REJECTED);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => WarrantyClaim::class,
+            'reference_id' => $claim['id'],
+        ]);
+    }
+
+    public function test_warranty_replacement_rejects_unavailable_replacement_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy, Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+        ]);
+        $this->useTenant($tenant);
+        $originalUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000004',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $unavailableUnit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000005',
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$originalUnit->id]);
+
+        $claim = app(\App\Modules\Warranties\Services\WarrantyClaimService::class)->create($user, [
+            'sale_item_id' => $saleItem->id,
+            'product_unit_id' => $originalUnit->id,
+            'quantity' => 1,
+            'issue_description' => 'Equipo sin imagen.',
+        ]);
+        $claim = app(\App\Modules\Warranties\Services\WarrantyClaimService::class)->review($claim, $user, [
+            'status' => WarrantyClaim::STATUS_APPROVED,
+            'diagnosis' => 'Pantalla defectuosa.',
+            'resolution_type' => WarrantyClaim::RESOLUTION_REPLACEMENT,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim->id}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REPLACEMENT,
+                'replacement_product_unit_id' => $unavailableUnit->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['replacement_product_unit_id']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

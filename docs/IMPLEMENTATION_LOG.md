@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-03 - Resoluciones de garantia por reemplazo y rechazo
+
+### Implementado
+
+- Se agregaron campos de ejecucion de resolucion en `warranty_claims`.
+- Se agrego `ResolveWarrantyClaimRequest`.
+- Se expuso `PATCH /api/warranty-claims/{warrantyClaim}/resolve`.
+- `replacement` ejecuta reemplazo de garantia sin crear venta ni cobro.
+- En reemplazos serializados, el IMEI defectuoso queda `damaged`.
+- En reemplazos serializados, el IMEI entregado queda `sold`.
+- El reemplazo genera movimiento de inventario `adjustment_out` referenciado al caso de garantia.
+- `rejected` cierra el caso y devuelve el IMEI original a `sold` si estaba en `warranty_hold`.
+- Se audita la accion `warranty.claim.resolved`.
+- Se documento la API, arquitectura, mapa modular y datos demo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Warranties/WarrantyPolicyApiTest.php`: 13 pruebas pasadas, 73 aserciones.
+- Suite completa: `docker compose run --rm app_test php artisan test` (187 pruebas, 903 aserciones).
+
+### Notas de seguridad
+
+- Solo se puede resolver una garantia una vez.
+- El reemplazo requiere que el caso este aprobado con resolucion `replacement`.
+- El IMEI de reemplazo debe estar disponible y pertenecer al mismo producto.
+- `refund` queda pendiente para una fase financiera separada.
+
 ## 2026-07-03 - Ventas con IMEI exacto en sale_items
 
 ### Implementado

@@ -3088,6 +3088,49 @@ Resoluciones iniciales:
 - `rejected`
 - `pending_review`
 
+### Resolver caso de garantia
+
+```txt
+PATCH /api/warranty-claims/{warrantyClaim}/resolve
+```
+
+Permiso requerido:
+
+```txt
+warranties.resolve
+```
+
+Body para reemplazo con IMEI:
+
+```json
+{
+  "resolution_type": "replacement",
+  "replacement_product_unit_id": 25,
+  "resolution_notes": "Se entrega equipo nuevo por garantia."
+}
+```
+
+Body para rechazo:
+
+```json
+{
+  "resolution_type": "rejected",
+  "resolution_notes": "No cubre garantia por humedad."
+}
+```
+
+Reglas:
+
+- en esta fase solo ejecuta `replacement` y `rejected`;
+- `replacement` exige que el caso este `approved` con `resolution_type = replacement`;
+- si el producto es serializado, `replacement_product_unit_id` debe estar disponible y pertenecer al mismo producto;
+- el IMEI recibido por garantia queda `damaged`;
+- el IMEI entregado como reemplazo queda `sold`;
+- el reemplazo genera movimiento de inventario `adjustment_out` con referencia al caso de garantia;
+- `rejected` cierra el caso y devuelve el IMEI original a `sold` si estaba en `warranty_hold`;
+- resolver un caso lo marca como `closed`;
+- `refund` queda pendiente para la fase financiera de garantias.
+
 ### Entregar caso de garantia
 
 ```txt

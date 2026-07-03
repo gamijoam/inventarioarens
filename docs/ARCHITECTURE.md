@@ -378,7 +378,9 @@ Reglas arquitectonicas:
 - un caso de garantia vive en `warranty_claims` y referencia `sale_item_id`;
 - productos serializados pueden referenciar `product_unit_id`, pero solo si esa unidad esta registrada en el `sale_item` vendido;
 - recibir una unidad serializada por garantia cambia su estado a `warranty_hold`;
-- resolver reembolso o reemplazo queda separado de la recepcion/revision inicial para no mezclar dinero, POS e inventario sin decision explicita.
+- resolver con reemplazo descuenta inventario con movimiento `adjustment_out`, marca el IMEI defectuoso como `damaged` y marca el IMEI entregado como `sold`;
+- resolver con rechazo cierra el caso y devuelve el IMEI original a `sold` si estaba retenido;
+- resolver reembolso queda separado para no mezclar dinero, caja, POS e inventario sin decision explicita.
 
 ## Siguiente fase
 

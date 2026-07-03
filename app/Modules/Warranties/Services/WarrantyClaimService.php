@@ -4,9 +4,12 @@ namespace App\Modules\Warranties\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyClaim;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +22,10 @@ class WarrantyClaimService
         WarrantyClaim::STATUS_APPROVED,
     ];
 
-    public function __construct(private readonly AuditLogger $audit)
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly InventoryMovementService $inventory,
+    )
     {
     }
 
@@ -133,6 +139,30 @@ class WarrantyClaimService
         return $claim;
     }
 
+    public function resolve(WarrantyClaim $claim, User $user, array $data): WarrantyClaim
+    {
+        return DB::transaction(function () use ($claim, $user, $data): WarrantyClaim {
+            $claim = WarrantyClaim::query()
+                ->with(['product', 'productUnit', 'saleItem.product'])
+                ->lockForUpdate()
+                ->findOrFail($claim->id);
+
+            if ($claim->resolved_at !== null || $claim->status === WarrantyClaim::STATUS_CLOSED) {
+                throw ValidationException::withMessages([
+                    'status' => 'La garantia ya fue resuelta.',
+                ]);
+            }
+
+            return match ($data['resolution_type']) {
+                WarrantyClaim::RESOLUTION_REPLACEMENT => $this->resolveReplacement($claim, $user, $data),
+                WarrantyClaim::RESOLUTION_REJECTED => $this->resolveRejection($claim, $user, $data['resolution_notes'] ?? null),
+                default => throw ValidationException::withMessages([
+                    'resolution_type' => 'Tipo de resolucion no soportado en esta fase.',
+                ]),
+            };
+        });
+    }
+
     public function loadClaim(WarrantyClaim $claim): WarrantyClaim
     {
         return $claim->refresh()->load([
@@ -140,10 +170,173 @@ class WarrantyClaimService
             'saleItem.product',
             'product',
             'productUnit',
+            'replacementProductUnit',
+            'replacementStockMovement',
             'receiver',
             'reviewer',
             'deliverer',
+            'resolver',
         ]);
+    }
+
+    private function resolveReplacement(WarrantyClaim $claim, User $user, array $data): WarrantyClaim
+    {
+        if ($claim->status !== WarrantyClaim::STATUS_APPROVED || $claim->resolution_type !== WarrantyClaim::RESOLUTION_REPLACEMENT) {
+            throw ValidationException::withMessages([
+                'status' => 'El caso debe estar aprobado con resolucion de reemplazo.',
+            ]);
+        }
+
+        $replacementUnit = $this->resolveReplacementProductUnit($claim, $data['replacement_product_unit_id'] ?? null);
+        $this->assertReplacementWarehouseData($claim, $data);
+        $warehouse = $replacementUnit?->warehouse
+            ?? Warehouse::query()->findOrFail($data['replacement_warehouse_id']);
+
+        try {
+            $movement = $this->inventory->adjustmentOut(
+                warehouse: $warehouse,
+                product: $claim->product,
+                quantity: (float) $claim->quantity,
+                createdBy: $user,
+                reason: "Reemplazo garantia #{$claim->id}",
+                referenceType: WarrantyClaim::class,
+                referenceId: $claim->id,
+            );
+        } catch (InsufficientStockException) {
+            throw ValidationException::withMessages([
+                'replacement_warehouse_id' => 'Stock insuficiente para entregar el reemplazo.',
+            ]);
+        }
+
+        if ($claim->productUnit) {
+            $claim->productUnit->update(['status' => ProductUnit::STATUS_DAMAGED]);
+        }
+
+        if ($replacementUnit) {
+            $replacementUnit->update([
+                'status' => ProductUnit::STATUS_SOLD,
+                'released_stock_movement_id' => $movement->id,
+            ]);
+        }
+
+        $oldValues = [
+            'status' => $claim->status,
+            'replacement_product_unit_id' => $claim->replacement_product_unit_id,
+            'replacement_stock_movement_id' => $claim->replacement_stock_movement_id,
+        ];
+
+        $claim->update([
+            'status' => WarrantyClaim::STATUS_CLOSED,
+            'replacement_product_unit_id' => $replacementUnit?->id,
+            'replacement_stock_movement_id' => $movement->id,
+            'resolution_notes' => $data['resolution_notes'] ?? $claim->resolution_notes,
+            'resolved_by' => $user->id,
+            'resolved_at' => now(),
+            'delivered_by' => $user->id,
+            'delivered_at' => now(),
+        ]);
+
+        $claim = $this->loadClaim($claim);
+
+        $this->audit->record('warranty.claim.resolved', $claim, $user, $oldValues, [
+            'status' => $claim->status,
+            'resolution_type' => $claim->resolution_type,
+            'replacement_product_unit_id' => $claim->replacement_product_unit_id,
+            'replacement_stock_movement_id' => $claim->replacement_stock_movement_id,
+        ]);
+
+        return $claim;
+    }
+
+    private function resolveRejection(WarrantyClaim $claim, User $user, ?string $notes): WarrantyClaim
+    {
+        if (! in_array($claim->status, [WarrantyClaim::STATUS_REJECTED, WarrantyClaim::STATUS_APPROVED], true)
+            || ! in_array($claim->resolution_type, [WarrantyClaim::RESOLUTION_REJECTED, null], true)) {
+            throw ValidationException::withMessages([
+                'status' => 'El caso debe estar rechazado o aprobado como rechazo.',
+            ]);
+        }
+
+        if ($claim->productUnit && $claim->productUnit->status === ProductUnit::STATUS_WARRANTY_HOLD) {
+            $claim->productUnit->update(['status' => ProductUnit::STATUS_SOLD]);
+        }
+
+        $oldStatus = $claim->status;
+
+        $claim->update([
+            'status' => WarrantyClaim::STATUS_CLOSED,
+            'resolution_type' => WarrantyClaim::RESOLUTION_REJECTED,
+            'resolution_notes' => $notes ?? $claim->resolution_notes,
+            'resolved_by' => $user->id,
+            'resolved_at' => now(),
+            'delivered_by' => $user->id,
+            'delivered_at' => now(),
+        ]);
+
+        $claim = $this->loadClaim($claim);
+
+        $this->audit->record('warranty.claim.resolved', $claim, $user, [
+            'status' => $oldStatus,
+        ], [
+            'status' => $claim->status,
+            'resolution_type' => $claim->resolution_type,
+        ]);
+
+        return $claim;
+    }
+
+    private function resolveReplacementProductUnit(WarrantyClaim $claim, ?int $replacementProductUnitId): ?ProductUnit
+    {
+        if (! $claim->product->requiresSerializedTracking()) {
+            if ($replacementProductUnitId !== null) {
+                throw ValidationException::withMessages([
+                    'replacement_product_unit_id' => 'Solo los productos serializados pueden reemplazarse con IMEI o serial especifico.',
+                ]);
+            }
+
+            return null;
+        }
+
+        if ($replacementProductUnitId === null || (float) $claim->quantity !== 1.0) {
+            throw ValidationException::withMessages([
+                'replacement_product_unit_id' => 'El reemplazo serializado requiere una unidad disponible especifica.',
+            ]);
+        }
+
+        $unit = ProductUnit::query()->with('warehouse')->lockForUpdate()->findOrFail($replacementProductUnitId);
+
+        if ((int) $unit->product_id !== (int) $claim->product_id) {
+            throw ValidationException::withMessages([
+                'replacement_product_unit_id' => 'La unidad de reemplazo no pertenece al producto del caso.',
+            ]);
+        }
+
+        if ((int) $unit->id === (int) $claim->product_unit_id) {
+            throw ValidationException::withMessages([
+                'replacement_product_unit_id' => 'La unidad recibida por garantia no puede ser su propio reemplazo.',
+            ]);
+        }
+
+        if ($unit->status !== ProductUnit::STATUS_AVAILABLE) {
+            throw ValidationException::withMessages([
+                'replacement_product_unit_id' => 'La unidad de reemplazo no esta disponible.',
+            ]);
+        }
+
+        return $unit;
+    }
+
+    private function assertReplacementWarehouseData(WarrantyClaim $claim, array $data): void
+    {
+        if ($claim->product->requiresSerializedTracking()) {
+            return;
+        }
+
+        if (! isset($data['replacement_warehouse_id'])) {
+            throw ValidationException::withMessages([
+                'replacement_warehouse_id' => 'El reemplazo por cantidad requiere almacen de salida.',
+            ]);
+        }
     }
 
     private function assertWarrantyEligible(SaleItem $saleItem): void

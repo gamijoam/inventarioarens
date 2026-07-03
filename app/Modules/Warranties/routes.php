@@ -12,4 +12,5 @@ Route::apiResource('warranty-claims', WarrantyClaimController::class)
     ->parameters(['warranty-claims' => 'warrantyClaim'])
     ->only(['index', 'store', 'show']);
 Route::patch('warranty-claims/{warrantyClaim}/review', [WarrantyClaimController::class, 'review']);
+Route::patch('warranty-claims/{warrantyClaim}/resolve', [WarrantyClaimController::class, 'resolve']);
 Route::patch('warranty-claims/{warrantyClaim}/deliver', [WarrantyClaimController::class, 'deliver']);

@@ -809,6 +809,7 @@ Archivos principales:
 - `app/Modules/Warranties/Requests/UpdateWarrantyPolicyRequest.php`
 - `app/Modules/Warranties/Requests/StoreWarrantyClaimRequest.php`
 - `app/Modules/Warranties/Requests/ReviewWarrantyClaimRequest.php`
+- `app/Modules/Warranties/Requests/ResolveWarrantyClaimRequest.php`
 - `app/Modules/Warranties/Requests/DeliverWarrantyClaimRequest.php`
 - `app/Modules/Warranties/Resources/WarrantyPolicyResource.php`
 - `app/Modules/Warranties/Resources/WarrantyClaimResource.php`
@@ -826,6 +827,9 @@ Regla importante:
 - para productos serializados, la unidad en garantia debe estar registrada en `sale_items.product_unit_ids`;
 - un caso recibido no resuelve dinero ni inventario contable por si solo;
 - los productos serializados recibidos por garantia quedan en `warranty_hold`;
+- resolver con `replacement` entrega un IMEI disponible, lo marca `sold` y genera movimiento `adjustment_out`;
+- resolver con `rejected` cierra el caso y devuelve la unidad original a `sold` si estaba retenida;
+- la devolucion de dinero por garantia queda separada para una fase financiera;
 - las acciones de recibir, revisar y entregar se auditan en `audit_logs`.
 
 ### Audit
