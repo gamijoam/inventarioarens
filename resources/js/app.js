@@ -889,7 +889,7 @@ function closeProductForm() {
 async function openProductDetail(productId) {
     elements.productDetailModal.hidden = false;
     elements.productDetailTitle.textContent = 'Producto';
-    elements.productDetailSubtitle.textContent = 'Stock, seriales y movimientos recientes.';
+    elements.productDetailSubtitle.textContent = 'Consulta stock por almacén, seriales y movimientos recientes.';
     elements.productDetailContent.replaceChildren();
     setProductDetailMessage('Cargando detalle...');
 
@@ -916,6 +916,13 @@ function renderProductDetail(detail) {
     const wrapper = document.createElement('div');
     wrapper.className = 'product-detail-grid';
     wrapper.innerHTML = `
+        <nav class="detail-tabs" aria-label="Secciones del detalle">
+            <a href="#detail-summary">Resumen</a>
+            <a href="#detail-warehouses">Almacenes</a>
+            <a href="#detail-serials">Seriales</a>
+            <a href="#detail-movements">Movimientos</a>
+        </nav>
+
         <section class="detail-section detail-section--summary">
             <div class="detail-stat">
                 <span>Disponible</span>
@@ -931,7 +938,7 @@ function renderProductDetail(detail) {
             </div>
         </section>
 
-        <section class="detail-section">
+        <section class="detail-section" id="detail-summary">
             <h3>Datos generales</h3>
             <dl class="detail-list">
                 <div><dt>Precio</dt><dd>${priceLabel(product)}</dd></div>
@@ -941,17 +948,17 @@ function renderProductDetail(detail) {
             </dl>
         </section>
 
-        <section class="detail-section">
+        <section class="detail-section" id="detail-warehouses">
             <h3>Stock por almacén</h3>
             ${warehouseStockHtml(detail.stock.by_warehouse)}
         </section>
 
-        <section class="detail-section">
+        <section class="detail-section" id="detail-serials">
             <h3>Seriales / IMEIs</h3>
             ${serialsHtml(detail.serials, product.tracking_type)}
         </section>
 
-        <section class="detail-section detail-section--wide">
+        <section class="detail-section detail-section--wide" id="detail-movements">
             <h3>Movimientos recientes</h3>
             ${movementsHtml(detail.recent_movements)}
         </section>

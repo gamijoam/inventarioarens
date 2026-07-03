@@ -393,7 +393,7 @@
                                 <div>
                                     <p class="eyebrow">Detalle de producto</p>
                                     <h2 id="product-detail-title">Producto</h2>
-                                    <p id="product-detail-subtitle">Stock, seriales y movimientos recientes.</p>
+                                    <p id="product-detail-subtitle">Consulta stock por almacén, seriales y movimientos recientes.</p>
                                 </div>
                                 <button class="icon-button" type="button" id="close-product-detail" aria-label="Cerrar detalle">×</button>
                             </div>

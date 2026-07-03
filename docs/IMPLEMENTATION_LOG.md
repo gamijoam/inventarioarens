@@ -1,5 +1,18 @@
 # Registro de implementación
 
+## 2026-07-03 - Rediseño compacto del modal de detalle de producto
+
+### Implementado
+
+- Se ajusto el modal de detalle para que tenga altura maxima y scroll interno, evitando que ocupe toda la pantalla.
+- Se agrego una navegacion superior compacta por secciones: Resumen, Almacenes, Seriales y Movimientos.
+- Se redujo el peso visual de tarjetas, tablas y estadisticas para mejorar lectura en escritorio.
+- Se mejoro el texto de cabecera para explicar que el detalle permite consultar stock por almacen, seriales y movimientos recientes.
+
+### Pruebas
+
+- Se compilo el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Detalle de producto en Centro de Inventario
 
 ### Implementado
