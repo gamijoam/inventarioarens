@@ -6,6 +6,7 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         @php($appName = config('app.name', 'Sistema de Inventario'))
+        @php($devBypassLogin = app()->environment('local') && (bool) env('FRONTEND_DEV_BYPASS_LOGIN', false))
 
         <title>{{ $appName }}</title>
 
@@ -14,7 +15,7 @@
     <body>
         <div id="app" class="app-shell">
             <main class="login-screen" aria-labelledby="login-title">
-                <section class="login-workspace" aria-label="Acceso a {{ $appName }}">
+                <section class="login-workspace" aria-label="Acceso a {{ $appName }}" data-dev-bypass-login="{{ $devBypassLogin ? 'true' : 'false' }}">
                     <div class="login-brand">
                         <div class="brand-mark">
                             <div class="brand-mark__icon" aria-hidden="true">
@@ -72,6 +73,12 @@
                                 Ingresar
                                 <span aria-hidden="true">-></span>
                             </button>
+
+                            @if ($devBypassLogin)
+                                <button class="dev-access-button" type="button" id="dev-access-button">
+                                    Entrar en modo demo local
+                                </button>
+                            @endif
                         </form>
 
                         <div class="login-card__footer">

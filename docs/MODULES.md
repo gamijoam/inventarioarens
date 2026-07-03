@@ -84,7 +84,8 @@ Regla importante:
 - toda accion real debe pasar por APIs protegidas con `api.auth` y `tenant`;
 - el diseno usa la paleta morada/azul del login de referencia, pero ahora como login central profesional sin imagen lateral;
 - el panel principal se organiza por Operacion, Inventario, Finanzas y Administracion;
-- la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth.
+- la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth;
+- `FRONTEND_DEV_BYPASS_LOGIN=true` permite revisar el frontend local sin credenciales, solo en `APP_ENV=local`.
 
 ### Tenancy
 

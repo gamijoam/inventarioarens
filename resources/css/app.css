@@ -309,8 +309,20 @@ button:disabled {
     color: var(--violet-strong);
 }
 
+.dev-access-button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 12px;
+    border: 1px dashed #b8c5e0;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #566681;
+    font-weight: 900;
+}
+
 .primary-button:hover,
-.secondary-button:hover {
+.secondary-button:hover,
+.dev-access-button:hover {
     transform: translateY(-1px);
 }
 

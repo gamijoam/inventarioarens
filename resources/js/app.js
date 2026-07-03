@@ -53,6 +53,44 @@ const shortcutDefinitions = [
     { label: 'Usuarios', detail: 'Roles y permisos', permissions: ['users.view', 'roles.view'] },
 ];
 
+const devPermissions = [
+    'products.view',
+    'products.create',
+    'branches.view',
+    'warehouses.view',
+    'customers.view',
+    'suppliers.view',
+    'currency.view',
+    'inventory.view',
+    'product_entries.view',
+    'product_entries.create',
+    'product_exits.view',
+    'inventory_transfers.view',
+    'inventory_transfer_requests.view',
+    'purchases.view',
+    'purchase_returns.view',
+    'accounts_payable.view',
+    'accounts_receivable.view',
+    'payment_receipts.view',
+    'financial_adjustments.view',
+    'finance_reports.view',
+    'sales.view',
+    'sales.create',
+    'sales_returns.view',
+    'pos.view',
+    'pos.checkout',
+    'cash_register.view',
+    'cash_register.open',
+    'reports.view',
+    'kardex.view',
+    'warranty_policies.view',
+    'warranties.view',
+    'users.view',
+    'roles.view',
+    'settings.manage',
+    'ai.use',
+];
+
 const elements = {
     form: document.querySelector('#login-form'),
     email: document.querySelector('#email'),
@@ -70,6 +108,8 @@ const elements = {
     sessionTenant: document.querySelector('#session-tenant'),
     sessionPermissions: document.querySelector('#session-permissions'),
     logout: document.querySelector('#logout-button'),
+    devAccess: document.querySelector('#dev-access-button'),
+    loginWorkspace: document.querySelector('.login-workspace'),
     mainNav: document.querySelector('#main-nav'),
     shortcuts: document.querySelector('#module-shortcuts'),
     attentionList: document.querySelector('#attention-list'),
@@ -145,6 +185,25 @@ function clearSession() {
     elements.sessionView.hidden = true;
     elements.loginView.hidden = false;
     document.body.classList.remove('has-workspace');
+}
+
+function createDevSession() {
+    return {
+        token: 'local-demo-session',
+        token_type: 'Bearer',
+        expires_at: null,
+        user: {
+            name: 'Usuario Demo',
+            email: 'demo.local@sistema.test',
+        },
+        tenant: {
+            name: 'Empresa Demo Local',
+            slug: 'demo-local',
+        },
+        roles: ['Demo local'],
+        permissions: devPermissions,
+        is_local_demo: true,
+    };
 }
 
 function initials(name) {
@@ -350,6 +409,12 @@ elements.logout?.addEventListener('click', async () => {
     }
 
     clearSession();
+});
+
+elements.devAccess?.addEventListener('click', () => {
+    if (elements.loginWorkspace?.dataset.devBypassLogin === 'true') {
+        saveSession(createDevSession());
+    }
 });
 
 elements.sidebarToggle?.addEventListener('click', () => {

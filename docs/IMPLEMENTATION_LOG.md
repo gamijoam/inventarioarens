@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-03 - Acceso demo local para revisar frontend
+
+### Implementado
+
+- Se agrego `FRONTEND_DEV_BYPASS_LOGIN` para habilitar un acceso directo solo en ambiente local.
+- Se agrego el boton `Entrar en modo demo local` cuando `APP_ENV=local` y `FRONTEND_DEV_BYPASS_LOGIN=true`.
+- El modo demo local crea una sesion frontend con empresa, usuario, rol y permisos amplios para revisar el shell visual.
+- El valor por defecto en `.env.example` queda desactivado para evitar habilitarlo por accidente.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se reinicio la app local para cargar `FRONTEND_DEV_BYPASS_LOGIN=true`.
+- Se verifico `http://localhost:8000`: el HTML incluye `Entrar en modo demo local`, `data-dev-bypass-login="true"` y `Sistema de Inventario`.
+
+### Notas de seguridad
+
+- Este bypass no llama APIs protegidas ni reemplaza seguridad real.
+- Solo debe usarse para revisar pantallas frontend locales.
+- En produccion debe permanecer desactivado.
+
 ## 2026-07-03 - Base del panel principal con navegación por permisos
 
 ### Implementado
