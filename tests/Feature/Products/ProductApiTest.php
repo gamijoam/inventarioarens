@@ -198,6 +198,30 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.0.name', 'Samsung A06');
     }
 
+    public function test_products_index_can_search_by_name_or_sku_inside_current_tenant(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+
+        $this->productFor($tenantA, 'Samsung A06 Azul', 'SAM-A06-AZUL');
+        $this->productFor($tenantA, 'Cable USB', 'CAB-USB');
+        $this->productFor($tenantB, 'Samsung Externo', 'SAM-A06-AZUL');
+
+        $user = $this->userInTenant($tenantA);
+        $this->grantRole($tenantA, $user, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson('/api/products?search=a06&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Samsung A06 Azul')
+            ->assertJsonPath('data.0.sku', 'SAM-A06-AZUL');
+    }
+
     public function test_sku_is_unique_inside_tenant_but_can_repeat_between_tenants(): void
     {
         [$tenantA, $tenantB] = [

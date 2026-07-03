@@ -339,11 +339,14 @@
                                                         </select>
                                                     </label>
 
-                                                    <label class="field">
+                                                    <label class="field form-grid__wide">
                                                         <span>Producto</span>
-                                                        <select id="entry-product" required>
-                                                            <option value="">Cargando productos...</option>
-                                                        </select>
+                                                        <div class="product-search">
+                                                            <input id="entry-product-search" type="search" placeholder="Buscar por nombre o SKU..." autocomplete="off">
+                                                            <input id="entry-product" type="hidden" required>
+                                                            <div class="product-search__results" id="entry-product-results"></div>
+                                                        </div>
+                                                        <small class="field-help" id="entry-product-help">Escribe al menos 2 caracteres para buscar productos.</small>
                                                     </label>
 
                                                     <label class="field">
@@ -430,11 +433,14 @@
                                                         </select>
                                                     </label>
 
-                                                    <label class="field">
+                                                    <label class="field form-grid__wide">
                                                         <span>Producto</span>
-                                                        <select id="exit-product" required>
-                                                            <option value="">Cargando productos...</option>
-                                                        </select>
+                                                        <div class="product-search">
+                                                            <input id="exit-product-search" type="search" placeholder="Buscar por nombre o SKU..." autocomplete="off">
+                                                            <input id="exit-product" type="hidden" required>
+                                                            <div class="product-search__results" id="exit-product-results"></div>
+                                                        </div>
+                                                        <small class="field-help" id="exit-product-help">Busca y selecciona el producto antes de descontar stock.</small>
                                                     </label>
 
                                                     <label class="field">

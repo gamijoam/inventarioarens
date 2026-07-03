@@ -10,6 +10,7 @@ use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
@@ -17,15 +18,26 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Product::class);
+
+        $search = trim((string) $request->query('search', ''));
+        $normalizedSearch = mb_strtolower($search);
+        $limit = min(max((int) $request->query('limit', 25), 1), 100);
 
         return ProductResource::collection(
             Product::query()
                 ->with(['saleExchangeRateType', 'warrantyPolicy'])
+                ->when($search !== '', function ($query) use ($normalizedSearch): void {
+                    $query->where(function ($query) use ($normalizedSearch): void {
+                        $query
+                            ->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
+                            ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"]);
+                    });
+                })
                 ->orderBy('name')
-                ->paginate(25)
+                ->paginate($limit)
         );
     }
 

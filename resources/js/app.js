@@ -18,6 +18,8 @@ const state = {
     productTrackingLocked: false,
     entryOptionsLoaded: false,
     entryOptionsPromise: null,
+    entrySearchTimer: null,
+    exitSearchTimer: null,
     entryProducts: [],
     entryWarehouses: [],
     exitAvailableUnits: [],
@@ -176,6 +178,9 @@ const elements = {
     productEntryForm: document.querySelector('#product-entry-form'),
     entryWarehouse: document.querySelector('#entry-warehouse'),
     entryProduct: document.querySelector('#entry-product'),
+    entryProductSearch: document.querySelector('#entry-product-search'),
+    entryProductResults: document.querySelector('#entry-product-results'),
+    entryProductHelp: document.querySelector('#entry-product-help'),
     entryReason: document.querySelector('#entry-reason'),
     entryReference: document.querySelector('#entry-reference'),
     entryQuantity: document.querySelector('#entry-quantity'),
@@ -195,6 +200,9 @@ const elements = {
     productExitForm: document.querySelector('#product-exit-form'),
     exitWarehouse: document.querySelector('#exit-warehouse'),
     exitProduct: document.querySelector('#exit-product'),
+    exitProductSearch: document.querySelector('#exit-product-search'),
+    exitProductResults: document.querySelector('#exit-product-results'),
+    exitProductHelp: document.querySelector('#exit-product-help'),
     exitReason: document.querySelector('#exit-reason'),
     exitReference: document.querySelector('#exit-reference'),
     exitQuantity: document.querySelector('#exit-quantity'),
@@ -949,7 +957,7 @@ async function loadEntryOptions(session, force = false) {
             state.entryWarehouses = demoEntryWarehouses();
         } else {
             const [products, warehouses] = await Promise.all([
-                authenticatedApi('/api/products', session),
+                authenticatedApi('/api/products?limit=20', session),
                 authenticatedApi('/api/warehouses', session),
             ]);
 
@@ -1099,20 +1107,13 @@ function renderEntryOptions() {
         ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
     );
 
-    elements.entryProduct.replaceChildren(
-        optionElement('', 'Selecciona un producto'),
-        ...state.entryProducts.map((product) => optionElement(product.id, `${product.name} · ${product.sku} · ${trackingLabel(product.tracking_type)}`)),
-    );
-
     elements.exitWarehouse.replaceChildren(
         optionElement('', 'Selecciona un almacén'),
         ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
     );
 
-    elements.exitProduct.replaceChildren(
-        optionElement('', 'Selecciona un producto'),
-        ...state.entryProducts.map((product) => optionElement(product.id, `${product.name} · ${product.sku} · ${trackingLabel(product.tracking_type)}`)),
-    );
+    renderProductSearchResults('entry', state.entryProducts);
+    renderProductSearchResults('exit', state.entryProducts);
 }
 
 function selectedEntryProduct() {
@@ -1129,6 +1130,93 @@ function selectedExitProduct() {
 
 function selectedExitWarehouse() {
     return state.entryWarehouses.find((warehouse) => String(warehouse.id) === String(elements.exitWarehouse.value)) ?? null;
+}
+
+async function searchProductsForOperation(kind, term) {
+    const cleanTerm = term.trim();
+
+    if (cleanTerm.length < 2) {
+        renderProductSearchResults(kind, state.entryProducts.slice(0, 8));
+        return;
+    }
+
+    const target = kind === 'entry' ? elements.entryProductHelp : elements.exitProductHelp;
+    target.textContent = 'Buscando productos...';
+
+    try {
+        const products = state.session?.is_local_demo
+            ? demoEntryProducts().filter((product) => productSearchText(product).includes(cleanTerm.toLowerCase()))
+            : await authenticatedApi(`/api/products?search=${encodeURIComponent(cleanTerm)}&limit=8`, state.session);
+
+        products.forEach((product) => {
+            if (!state.entryProducts.some((known) => String(known.id) === String(product.id))) {
+                state.entryProducts.push(product);
+            }
+        });
+
+        renderProductSearchResults(kind, products);
+        target.textContent = products.length > 0 ? `${products.length} resultado(s).` : 'Sin resultados para esa búsqueda.';
+    } catch (error) {
+        target.textContent = error.message;
+    }
+}
+
+function productSearchText(product) {
+    return `${product.name ?? ''} ${product.sku ?? ''}`.toLowerCase();
+}
+
+function renderProductSearchResults(kind, products) {
+    const results = kind === 'entry' ? elements.entryProductResults : elements.exitProductResults;
+    const selectedId = kind === 'entry' ? elements.entryProduct.value : elements.exitProduct.value;
+
+    results.replaceChildren(
+        ...(products.length > 0
+            ? products.slice(0, 8).map((product) => productSearchResultButton(kind, product, selectedId))
+            : [emptyProductSearchResult()]),
+    );
+}
+
+function productSearchResultButton(kind, product, selectedId) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'product-search__option';
+    button.dataset.productSearchKind = kind;
+    button.dataset.productId = product.id;
+    button.dataset.selected = String(product.id) === String(selectedId) ? 'true' : 'false';
+    button.innerHTML = `
+        <strong>${escapeHtml(product.name)}</strong>
+        <span>${escapeHtml(product.sku)} · ${trackingLabel(product.tracking_type)}</span>
+    `;
+
+    return button;
+}
+
+function emptyProductSearchResult() {
+    const article = document.createElement('article');
+    article.className = 'product-search__empty';
+    article.textContent = 'No hay productos para mostrar.';
+    return article;
+}
+
+async function selectProductForOperation(kind, productId) {
+    const product = state.entryProducts.find((item) => String(item.id) === String(productId));
+
+    if (!product) {
+        return;
+    }
+
+    if (kind === 'entry') {
+        elements.entryProduct.value = String(product.id);
+        elements.entryProductSearch.value = `${product.name} · ${product.sku}`;
+        renderProductSearchResults('entry', [product]);
+        updateEntryFormMode();
+        return;
+    }
+
+    elements.exitProduct.value = String(product.id);
+    elements.exitProductSearch.value = `${product.name} · ${product.sku}`;
+    renderProductSearchResults('exit', [product]);
+    await updateExitFormMode();
 }
 
 function serialLines() {
@@ -1421,7 +1509,10 @@ async function saveProductExit() {
 
 function resetProductEntryForm(clearMessage = true) {
     elements.productEntryForm.reset();
+    elements.entryProduct.value = '';
+    elements.entryProductSearch.value = '';
     elements.entryReason.value = 'Recepción de mercancía';
+    renderProductSearchResults('entry', state.entryProducts.slice(0, 8));
     updateEntryFormMode();
 
     if (clearMessage) {
@@ -1431,8 +1522,11 @@ function resetProductEntryForm(clearMessage = true) {
 
 function resetProductExitForm(clearMessage = true) {
     elements.productExitForm.reset();
+    elements.exitProduct.value = '';
+    elements.exitProductSearch.value = '';
     state.exitAvailableUnits = [];
     elements.exitSerialPicker.innerHTML = '<p>Selecciona un producto serializado y un almacén.</p>';
+    renderProductSearchResults('exit', state.entryProducts.slice(0, 8));
     updateExitSummary();
 
     if (clearMessage) {
@@ -1498,9 +1592,7 @@ async function openProductEntryForProduct(productId) {
     setProductEntryMessage('Preparando recepción del producto...');
     await loadEntryOptions(state.session);
 
-    if (elements.entryProduct.querySelector(`option[value="${productId}"]`)) {
-        elements.entryProduct.value = String(productId);
-    }
+    await selectProductForOperation('entry', productId);
 
     elements.entryReason.value = 'Recepción de mercancía';
     updateEntryFormMode();
@@ -2155,6 +2247,29 @@ elements.entryWarehouse?.addEventListener('change', updateEntryFormMode);
 elements.entryQuantity?.addEventListener('input', updateEntryFormMode);
 elements.entrySerials?.addEventListener('input', updateEntryFormMode);
 
+elements.entryProductSearch?.addEventListener('input', () => {
+    elements.entryProduct.value = '';
+    updateEntryFormMode();
+    window.clearTimeout(state.entrySearchTimer);
+    state.entrySearchTimer = window.setTimeout(() => {
+        searchProductsForOperation('entry', elements.entryProductSearch.value);
+    }, 220);
+});
+
+elements.entryProductSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+    }
+});
+
+elements.entryProductResults?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-product-search-kind]');
+
+    if (option) {
+        selectProductForOperation('entry', option.dataset.productId);
+    }
+});
+
 elements.clearEntryForm?.addEventListener('click', () => resetProductEntryForm());
 
 elements.exitProduct?.addEventListener('change', () => {
@@ -2168,6 +2283,29 @@ elements.exitQuantity?.addEventListener('input', updateExitSummary);
 elements.exitSerialPicker?.addEventListener('change', (event) => {
     if (event.target.closest('[data-exit-unit]')) {
         updateExitSummary();
+    }
+});
+
+elements.exitProductSearch?.addEventListener('input', () => {
+    elements.exitProduct.value = '';
+    updateExitSummary();
+    window.clearTimeout(state.exitSearchTimer);
+    state.exitSearchTimer = window.setTimeout(() => {
+        searchProductsForOperation('exit', elements.exitProductSearch.value);
+    }, 220);
+});
+
+elements.exitProductSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+    }
+});
+
+elements.exitProductResults?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-product-search-kind]');
+
+    if (option) {
+        selectProductForOperation('exit', option.dataset.productId);
     }
 });
 

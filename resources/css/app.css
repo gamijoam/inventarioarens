@@ -1368,7 +1368,16 @@ button:disabled {
 }
 
 .operation-form {
-    padding: 22px 24px 24px;
+    padding: 16px 18px 18px;
+}
+
+.operation-form .form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.operation-form .form-grid__wide {
+    grid-column: span 2;
 }
 
 .operation-card--summary {
@@ -1402,6 +1411,64 @@ button:disabled {
     font-weight: 920;
     line-height: 1.35;
     overflow-wrap: anywhere;
+}
+
+.product-search {
+    display: grid;
+    gap: 8px;
+}
+
+.product-search__results {
+    display: grid;
+    gap: 6px;
+    max-height: 168px;
+    overflow-y: auto;
+    border: 1px solid #d7e1f1;
+    border-radius: 8px;
+    background: #f7f9fd;
+    padding: 8px;
+}
+
+.product-search__option,
+.product-search__empty {
+    border: 1px solid #e1e8f4;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 9px 10px;
+}
+
+.product-search__option {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+}
+
+.product-search__option:hover,
+.product-search__option[data-selected='true'] {
+    border-color: #c8d4ff;
+    background: #f4f6ff;
+}
+
+.product-search__option strong,
+.product-search__option span {
+    display: block;
+}
+
+.product-search__option strong {
+    overflow: hidden;
+    color: #071027;
+    font-size: 0.9rem;
+    font-weight: 950;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-search__option span,
+.product-search__empty {
+    color: #72809a;
+    font-size: 0.8rem;
+    font-weight: 820;
 }
 
 .serial-picker {
@@ -1731,11 +1798,20 @@ button:disabled {
     padding: 0 14px;
 }
 
+.operation-form input,
+.operation-form select {
+    min-height: 44px;
+}
+
 .product-form textarea {
     min-height: 92px;
     resize: vertical;
     padding: 12px 14px;
     line-height: 1.45;
+}
+
+.operation-form textarea {
+    min-height: 74px;
 }
 
 .product-form input:focus,
@@ -2049,6 +2125,12 @@ button:disabled {
 
     .form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .operation-form .form-grid,
+    .operation-form .form-grid__wide {
+        grid-template-columns: 1fr;
+        grid-column: 1 / -1;
     }
 
     .product-detail-grid,

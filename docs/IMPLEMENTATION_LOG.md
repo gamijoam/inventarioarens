@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Formularios compactos y buscador de productos en operaciones
+
+### Implementado
+
+- Se reemplazaron los selectores largos de producto en entradas y salidas por buscadores por nombre o SKU.
+- La API `GET /api/products` ahora acepta `search` y `limit` para no depender de listas gigantes cuando existan cientos o miles de productos.
+- La búsqueda de productos es insensible a mayúsculas/minúsculas en PostgreSQL.
+- Se compactaron los formularios de entradas y salidas con campos más bajos, grillas más densas y resultados con scroll interno.
+- Se evitó que presionar Enter dentro del buscador envíe el formulario accidentalmente.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 25 pruebas pasadas, 120 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Historial operativo de entradas y salidas
 
 ### Implementado
