@@ -189,6 +189,8 @@ class ProductEntryApiTest extends TestCase
             ->getJson('/api/product-entries')
             ->assertOk()
             ->assertJsonPath('data.0.reason', 'Entrada A')
+            ->assertJsonPath('data.0.items.0.product.sku', 'ENTRY-A')
+            ->assertJsonPath('data.0.items.0.warehouse.code', 'WH-ENTRY-A')
             ->assertJsonMissing(['reason' => 'Entrada B']);
 
         $this

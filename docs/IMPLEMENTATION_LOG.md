@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Historial operativo de entradas y salidas
+
+### Implementado
+
+- Se agregó una sección de `Actividad reciente` dentro del módulo `Entradas y salidas`.
+- El historial muestra entradas recientes y salidas recientes con documento, motivo, referencia, fecha, cantidad e items.
+- Se agregó detalle rápido para revisar productos, almacenes, cantidades, costos y seriales/IMEIs asociados.
+- Después de registrar una entrada o salida, el historial se refresca automáticamente.
+- Los endpoints de entrada y salida ahora cargan items con producto y almacén para evitar consultas extra desde el frontend.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 12 pruebas pasadas, 55 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Frontend inicial para salida de productos
 
 ### Implementado

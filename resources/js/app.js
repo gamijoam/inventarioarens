@@ -21,6 +21,8 @@ const state = {
     entryProducts: [],
     entryWarehouses: [],
     exitAvailableUnits: [],
+    entryHistory: [],
+    exitHistory: [],
 };
 
 const navigationGroups = [
@@ -208,6 +210,11 @@ const elements = {
     exitSummaryWarehouse: document.querySelector('#exit-summary-warehouse'),
     exitSummaryQuantity: document.querySelector('#exit-summary-quantity'),
     exitSummaryReason: document.querySelector('#exit-summary-reason'),
+    refreshOperationHistory: document.querySelector('#refresh-operation-history'),
+    operationHistoryMessage: document.querySelector('#operation-history-message'),
+    entryHistoryList: document.querySelector('#entry-history-list'),
+    exitHistoryList: document.querySelector('#exit-history-list'),
+    operationHistoryDetail: document.querySelector('#operation-history-detail'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -542,6 +549,7 @@ function showPanel(panel) {
 
     if (panel === 'stock-operations' && state.session) {
         loadEntryOptions(state.session);
+        loadOperationHistory(state.session);
     }
 }
 
@@ -898,6 +906,11 @@ function setProductExitMessage(message, tone = 'neutral') {
     elements.productExitMessage.dataset.tone = tone;
 }
 
+function setOperationHistoryMessage(message, tone = 'neutral') {
+    elements.operationHistoryMessage.textContent = message;
+    elements.operationHistoryMessage.dataset.tone = tone;
+}
+
 function demoEntryProducts() {
     return [
         { id: 1, name: 'Samsung A06 128GB', sku: 'A06-DEMO', tracking_type: 'serialized' },
@@ -959,6 +972,125 @@ async function loadEntryOptions(session, force = false) {
         state.entryOptionsPromise = null;
         setProductEntryBusy(false);
     }
+}
+
+async function loadOperationHistory(session) {
+    if (!elements.entryHistoryList) {
+        return;
+    }
+
+    setOperationHistoryMessage(session.is_local_demo ? 'Mostrando historial demo local.' : 'Cargando historial operativo...');
+
+    if (session.is_local_demo) {
+        state.entryHistory = [];
+        state.exitHistory = [];
+        renderOperationHistory();
+        setOperationHistoryMessage('El historial real aparece al entrar con un usuario conectado a la base de datos.');
+        return;
+    }
+
+    try {
+        const [entries, exits] = await Promise.all([
+            authenticatedApi('/api/product-entries', session),
+            authenticatedApi('/api/product-exits', session),
+        ]);
+
+        state.entryHistory = entries;
+        state.exitHistory = exits;
+        renderOperationHistory();
+        setOperationHistoryMessage(`${entries.length} entradas y ${exits.length} salidas recientes cargadas.`);
+    } catch (error) {
+        setOperationHistoryMessage(error.message, 'error');
+    }
+}
+
+function renderOperationHistory() {
+    elements.entryHistoryList.replaceChildren(
+        ...(state.entryHistory.length > 0
+            ? state.entryHistory.slice(0, 8).map((entry) => historyCard('entry', entry))
+            : [emptyHistoryCard('No hay entradas recientes.')]),
+    );
+
+    elements.exitHistoryList.replaceChildren(
+        ...(state.exitHistory.length > 0
+            ? state.exitHistory.slice(0, 8).map((exit) => historyCard('exit', exit))
+            : [emptyHistoryCard('No hay salidas recientes.')]),
+    );
+}
+
+function historyCard(type, record) {
+    const button = document.createElement('button');
+    const totalQuantity = record.items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+    button.type = 'button';
+    button.className = `history-card history-card--${type}`;
+    button.dataset.historyType = type;
+    button.dataset.historyId = record.id;
+    button.innerHTML = `
+        <span>${type === 'entry' ? 'Entrada' : 'Salida'} · ${escapeHtml(record.document_number)}</span>
+        <strong>${type === 'entry' ? escapeHtml(record.reason) : exitReasonLabel(record.reason)}</strong>
+        <small>${dateLabel(record.processed_at)} · ${record.items.length} item(s) · ${stockNumber(totalQuantity)} un.</small>
+        ${record.reference ? `<em>${escapeHtml(record.reference)}</em>` : ''}
+    `;
+
+    return button;
+}
+
+function emptyHistoryCard(message) {
+    const article = document.createElement('article');
+    article.className = 'history-empty';
+    article.textContent = message;
+    return article;
+}
+
+function showOperationHistoryDetail(type, recordId) {
+    const records = type === 'entry' ? state.entryHistory : state.exitHistory;
+    const record = records.find((item) => String(item.id) === String(recordId));
+
+    if (!record) {
+        return;
+    }
+
+    const title = type === 'entry' ? 'Entrada' : 'Salida';
+    elements.operationHistoryDetail.innerHTML = `
+        <div class="history-detail__header">
+            <div>
+                <span>${title}</span>
+                <strong>${escapeHtml(record.document_number)}</strong>
+            </div>
+            <small>${dateLabel(record.processed_at)}</small>
+        </div>
+        <dl class="history-detail__facts">
+            <div><dt>Motivo</dt><dd>${type === 'entry' ? escapeHtml(record.reason) : exitReasonLabel(record.reason)}</dd></div>
+            <div><dt>Referencia</dt><dd>${escapeHtml(record.reference || 'Sin referencia')}</dd></div>
+            <div><dt>Notas</dt><dd>${escapeHtml(record.notes || 'Sin notas')}</dd></div>
+        </dl>
+        <div class="history-items">
+            ${record.items.map((item) => historyItemHtml(type, item)).join('')}
+        </div>
+    `;
+}
+
+function historyItemHtml(type, item) {
+    const product = item.product?.name ?? `Producto #${item.product_id}`;
+    const sku = item.product?.sku ?? '';
+    const warehouse = item.warehouse?.name ?? `Almacén #${item.warehouse_id}`;
+    const serials = type === 'entry'
+        ? (item.serial_units ?? []).map((unit) => unit.serial_number)
+        : (item.product_unit_ids ?? []).map((id) => `Unidad #${id}`);
+
+    return `
+        <article class="history-item">
+            <div>
+                <strong>${escapeHtml(product)}</strong>
+                <span>${escapeHtml(sku)} · ${escapeHtml(warehouse)}</span>
+            </div>
+            <div>
+                <strong>${stockNumber(item.quantity)}</strong>
+                <span>${type === 'entry' && item.unit_cost !== null ? `Costo ${money(item.unit_cost)}` : 'unidades'}</span>
+            </div>
+            ${serials.length > 0 ? `<p>${serials.map(escapeHtml).join(', ')}</p>` : ''}
+        </article>
+    `;
 }
 
 function renderEntryOptions() {
@@ -1249,6 +1381,7 @@ async function saveProductEntry() {
         resetProductEntryForm(false);
         state.inventoryPage = 1;
         await loadInventoryCenter(state.session);
+        await loadOperationHistory(state.session);
         setProductEntryMessage(`Entrada ${entry.document_number} registrada correctamente.`, 'success');
     } catch (error) {
         setProductEntryMessage(error.message, 'error');
@@ -1277,6 +1410,7 @@ async function saveProductExit() {
         resetProductExitForm(false);
         state.inventoryPage = 1;
         await loadInventoryCenter(state.session);
+        await loadOperationHistory(state.session);
         setProductExitMessage(`Salida ${exit.document_number} registrada correctamente.`, 'success');
     } catch (error) {
         setProductExitMessage(error.message, 'error');
@@ -2038,6 +2172,28 @@ elements.exitSerialPicker?.addEventListener('change', (event) => {
 });
 
 elements.clearExitForm?.addEventListener('click', () => resetProductExitForm());
+
+elements.refreshOperationHistory?.addEventListener('click', () => {
+    if (state.session) {
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.entryHistoryList?.addEventListener('click', (event) => {
+    const card = event.target.closest('[data-history-type]');
+
+    if (card) {
+        showOperationHistoryDetail(card.dataset.historyType, card.dataset.historyId);
+    }
+});
+
+elements.exitHistoryList?.addEventListener('click', (event) => {
+    const card = event.target.closest('[data-history-type]');
+
+    if (card) {
+        showOperationHistoryDetail(card.dataset.historyType, card.dataset.historyId);
+    }
+});
 
 elements.productEntryForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

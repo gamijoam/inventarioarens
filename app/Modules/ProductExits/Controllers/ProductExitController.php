@@ -20,7 +20,7 @@ class ProductExitController extends Controller
 
         return ProductExitResource::collection(
             ProductExit::query()
-                ->with('items')
+                ->with(['items.product', 'items.warehouse'])
                 ->latest('processed_at')
                 ->paginate(25)
         );

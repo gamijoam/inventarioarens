@@ -20,7 +20,7 @@ class ProductEntryController extends Controller
 
         return ProductEntryResource::collection(
             ProductEntry::query()
-                ->with('items')
+                ->with(['items.product', 'items.warehouse'])
                 ->latest('processed_at')
                 ->paginate(25)
         );

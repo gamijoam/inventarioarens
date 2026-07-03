@@ -234,6 +234,8 @@ class ProductExitApiTest extends TestCase
             ->getJson('/api/product-exits')
             ->assertOk()
             ->assertJsonPath('data.0.reason', ProductExit::REASON_INTERNAL_USE)
+            ->assertJsonPath('data.0.items.0.product.sku', 'PEX-A')
+            ->assertJsonPath('data.0.items.0.warehouse.code', 'WH-PEX-A')
             ->assertJsonMissing(['reason' => ProductExit::REASON_LOST]);
 
         $this

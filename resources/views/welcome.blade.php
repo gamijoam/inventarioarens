@@ -505,6 +505,34 @@
                                             </dl>
                                         </aside>
                                     </div>
+
+                                    <section class="operation-card operation-history" aria-labelledby="operation-history-title">
+                                        <div class="operation-card__header">
+                                            <div>
+                                                <p class="eyebrow">Historial</p>
+                                                <h2 id="operation-history-title">Actividad reciente</h2>
+                                            </div>
+                                            <button class="secondary-button compact-action" type="button" id="refresh-operation-history">Refrescar historial</button>
+                                        </div>
+
+                                        <p class="form-message operation-history__message" id="operation-history-message" role="status" aria-live="polite"></p>
+
+                                        <div class="history-grid">
+                                            <section class="history-panel" aria-labelledby="entry-history-title">
+                                                <h3 id="entry-history-title">Entradas recientes</h3>
+                                                <div class="history-list" id="entry-history-list"></div>
+                                            </section>
+
+                                            <section class="history-panel" aria-labelledby="exit-history-title">
+                                                <h3 id="exit-history-title">Salidas recientes</h3>
+                                                <div class="history-list" id="exit-history-list"></div>
+                                            </section>
+                                        </div>
+
+                                        <div class="history-detail" id="operation-history-detail">
+                                            <p>Selecciona una entrada o salida para ver sus productos y cantidades.</p>
+                                        </div>
+                                    </section>
                                 </section>
                             </main>
                         </div>
