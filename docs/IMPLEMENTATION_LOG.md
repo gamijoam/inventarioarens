@@ -1,5 +1,17 @@
 # Registro de implementación
 
+## 2026-07-03 - Cierre de sesion visible en el panel principal
+
+### Implementado
+
+- Se agrego un boton global `Cerrar sesion` en la barra superior del panel principal.
+- Se reutilizo la misma accion de cierre de sesion para el boton del Resumen y para la barra superior.
+- Al cerrar sesion se limpia la seleccion previa de empresa para permitir entrar con un usuario real despues de usar el modo demo local.
+
+### Pruebas
+
+- Se compilo el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Creacion y edicion de productos desde Centro de Inventario
 
 ### Implementado

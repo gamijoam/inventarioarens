@@ -145,6 +145,10 @@
                                 </button>
 
                                 <button class="user-button" type="button" id="user-initials" aria-label="Usuario"></button>
+
+                                <button class="topbar-action topbar-action--logout" type="button" data-logout-action>
+                                    Cerrar sesión
+                                </button>
                             </header>
 
                             <main class="workspace-content">
@@ -220,7 +224,7 @@
                                                 <dd id="session-permissions"></dd>
                                             </div>
                                         </dl>
-                                        <button class="secondary-button compact-button" type="button" id="logout-button">Cerrar sesión</button>
+                                        <button class="secondary-button compact-button" type="button" data-logout-action>Cerrar sesión</button>
                                     </article>
                                 </section>
                                 </section>

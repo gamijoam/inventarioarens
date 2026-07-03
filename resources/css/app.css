@@ -615,6 +615,10 @@ button:disabled {
     color: #ffffff;
 }
 
+.topbar-action--logout {
+    color: #d9365c;
+}
+
 .icon-button {
     width: 50px;
     padding: 0;
@@ -1526,8 +1530,14 @@ button:disabled {
     }
 
     .topbar-chip,
-    .topbar-action:not(.topbar-action--primary) {
+    .topbar-action:not(.topbar-action--primary):not(.topbar-action--logout) {
         display: none;
+    }
+
+    .topbar-action--logout {
+        min-width: 0;
+        padding: 0 12px;
+        font-size: 0.82rem;
     }
 
     .workspace-content {

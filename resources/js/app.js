@@ -120,7 +120,7 @@ const elements = {
     sessionRoles: document.querySelector('#session-roles'),
     sessionTenant: document.querySelector('#session-tenant'),
     sessionPermissions: document.querySelector('#session-permissions'),
-    logout: document.querySelector('#logout-button'),
+    logoutButtons: document.querySelectorAll('[data-logout-action]'),
     devAccess: document.querySelector('#dev-access-button'),
     loginWorkspace: document.querySelector('.login-workspace'),
     mainNav: document.querySelector('#main-nav'),
@@ -1095,7 +1095,7 @@ elements.togglePassword?.addEventListener('click', () => {
     elements.togglePassword.textContent = isPassword ? 'Ocultar' : 'Mostrar';
 });
 
-elements.logout?.addEventListener('click', async () => {
+async function logoutCurrentSession() {
     const session = JSON.parse(localStorage.getItem(storageKey) || 'null');
 
     if (session?.token) {
@@ -1109,6 +1109,12 @@ elements.logout?.addEventListener('click', async () => {
     }
 
     clearSession();
+    resetTenantSelection();
+    setMessage('Sesión cerrada. Entra con un usuario real para guardar cambios.', 'success');
+}
+
+elements.logoutButtons.forEach((button) => {
+    button.addEventListener('click', logoutCurrentSession);
 });
 
 elements.devAccess?.addEventListener('click', () => {
