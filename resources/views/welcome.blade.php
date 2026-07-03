@@ -554,6 +554,31 @@
 
                                             <p class="form-message operation-history__message" id="operation-history-message" role="status" aria-live="polite"></p>
 
+                                            <div class="history-filters" aria-label="Filtros del historial">
+                                                <label class="field">
+                                                    <span>Buscar</span>
+                                                    <input id="history-search" type="search" placeholder="Documento, producto, SKU o IMEI">
+                                                </label>
+                                                <label class="field">
+                                                    <span>Almacén</span>
+                                                    <select id="history-warehouse">
+                                                        <option value="">Todos los almacenes</option>
+                                                    </select>
+                                                </label>
+                                                <label class="field">
+                                                    <span>Desde</span>
+                                                    <input id="history-date-from" type="date">
+                                                </label>
+                                                <label class="field">
+                                                    <span>Hasta</span>
+                                                    <input id="history-date-to" type="date">
+                                                </label>
+                                                <div class="history-filters__actions">
+                                                    <button class="secondary-button compact-action" type="button" id="clear-history-filters">Limpiar</button>
+                                                    <button class="primary-button compact-action" type="button" id="apply-history-filters">Aplicar</button>
+                                                </div>
+                                            </div>
+
                                             <div class="history-grid">
                                                 <section class="history-panel" aria-labelledby="entry-history-title">
                                                     <h3 id="entry-history-title">Entradas recientes</h3>

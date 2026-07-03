@@ -1700,6 +1700,30 @@ button:disabled {
     margin: 14px 24px 0;
 }
 
+.history-filters {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.3fr) minmax(190px, 1fr) repeat(2, minmax(140px, 0.7fr)) auto;
+    gap: 10px;
+    align-items: end;
+    border-bottom: 1px solid #edf1f7;
+    margin: 14px 24px 0;
+    padding: 0 0 16px;
+}
+
+.history-filters .field {
+    gap: 6px;
+}
+
+.history-filters input,
+.history-filters select {
+    min-height: 42px;
+}
+
+.history-filters__actions {
+    display: flex;
+    gap: 8px;
+}
+
 .history-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2426,6 +2450,15 @@ button:disabled {
         grid-template-columns: 1fr;
     }
 
+    .history-filters {
+        grid-template-columns: 1fr;
+        margin-inline: 20px;
+    }
+
+    .history-filters__actions {
+        flex-direction: column-reverse;
+    }
+
     .modal-actions {
         flex-direction: column-reverse;
     }
@@ -2518,6 +2551,7 @@ button:disabled {
     .inventory-metrics,
     .product-grid,
     .operation-layout,
+    .history-filters,
     .history-grid,
     .history-detail__facts,
     .history-item {

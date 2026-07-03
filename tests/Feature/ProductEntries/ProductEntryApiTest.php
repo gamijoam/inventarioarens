@@ -154,6 +154,52 @@ class ProductEntryApiTest extends TestCase
             ->assertJsonValidationErrors(['items.0.serial_units.1.serial_number']);
     }
 
+    public function test_product_entries_can_be_filtered_by_search_warehouse_and_date(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseA, $productA] = $this->warehouseAndProduct($tenant, 'FILTER-A06', Product::TRACKING_QUANTITY);
+        [$warehouseB, $productB] = $this->warehouseAndProduct($tenant, 'FILTER-CABLE', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', ['product_entries.create', 'product_entries.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/product-entries', [
+                'reason' => 'Entrada Samsung',
+                'reference' => 'FACT-A06',
+                'items' => [[
+                    'warehouse_id' => $warehouseA->id,
+                    'product_id' => $productA->id,
+                    'quantity' => 4,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/product-entries', [
+                'reason' => 'Entrada cable',
+                'reference' => 'FACT-CABLE',
+                'items' => [[
+                    'warehouse_id' => $warehouseB->id,
+                    'product_id' => $productB->id,
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/product-entries?search=a06&warehouse_id='.$warehouseA->id.'&date_from='.now()->toDateString().'&date_to='.now()->toDateString())
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.items.0.product.sku', 'FILTER-A06')
+            ->assertJsonMissing(['reference' => 'FACT-CABLE']);
+    }
+
     public function test_product_entries_do_not_mix_companies_and_reject_foreign_resources(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

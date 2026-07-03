@@ -25,6 +25,7 @@ const state = {
     exitAvailableUnits: [],
     entryHistory: [],
     exitHistory: [],
+    historySearchTimer: null,
 };
 
 const navigationGroups = [
@@ -228,6 +229,12 @@ const elements = {
     exitSummaryReason: document.querySelector('#exit-summary-reason'),
     refreshOperationHistory: document.querySelector('#refresh-operation-history'),
     operationHistoryMessage: document.querySelector('#operation-history-message'),
+    historySearch: document.querySelector('#history-search'),
+    historyWarehouse: document.querySelector('#history-warehouse'),
+    historyDateFrom: document.querySelector('#history-date-from'),
+    historyDateTo: document.querySelector('#history-date-to'),
+    applyHistoryFilters: document.querySelector('#apply-history-filters'),
+    clearHistoryFilters: document.querySelector('#clear-history-filters'),
     entryHistoryList: document.querySelector('#entry-history-list'),
     exitHistoryList: document.querySelector('#exit-history-list'),
     operationHistoryDetail: document.querySelector('#operation-history-detail'),
@@ -927,6 +934,34 @@ function setOperationHistoryMessage(message, tone = 'neutral') {
     elements.operationHistoryMessage.dataset.tone = tone;
 }
 
+function historyFilterQuery() {
+    const params = new URLSearchParams();
+    const search = elements.historySearch?.value.trim() ?? '';
+    const warehouseId = elements.historyWarehouse?.value ?? '';
+    const dateFrom = elements.historyDateFrom?.value ?? '';
+    const dateTo = elements.historyDateTo?.value ?? '';
+
+    if (search !== '') {
+        params.set('search', search);
+    }
+
+    if (warehouseId !== '') {
+        params.set('warehouse_id', warehouseId);
+    }
+
+    if (dateFrom !== '') {
+        params.set('date_from', dateFrom);
+    }
+
+    if (dateTo !== '') {
+        params.set('date_to', dateTo);
+    }
+
+    params.set('limit', '25');
+
+    return params.toString();
+}
+
 function activateOperationTab(targetTab) {
     elements.operationTabs.forEach((tab) => {
         const isActive = tab.dataset.operationTab === targetTab;
@@ -1021,15 +1056,16 @@ async function loadOperationHistory(session) {
     }
 
     try {
+        const query = historyFilterQuery();
         const [entries, exits] = await Promise.all([
-            authenticatedApi('/api/product-entries', session),
-            authenticatedApi('/api/product-exits', session),
+            authenticatedApi(`/api/product-entries?${query}`, session),
+            authenticatedApi(`/api/product-exits?${query}`, session),
         ]);
 
         state.entryHistory = entries;
         state.exitHistory = exits;
         renderOperationHistory();
-        setOperationHistoryMessage(`${entries.length} entradas y ${exits.length} salidas recientes cargadas.`);
+        setOperationHistoryMessage(`${entries.length} entradas y ${exits.length} salidas encontradas.`);
     } catch (error) {
         setOperationHistoryMessage(error.message, 'error');
     }
@@ -1047,6 +1083,8 @@ function renderOperationHistory() {
             ? state.exitHistory.slice(0, 8).map((exit) => historyCard('exit', exit))
             : [emptyHistoryCard('No hay salidas recientes.')]),
     );
+
+    elements.operationHistoryDetail.innerHTML = '<p>Selecciona una entrada o salida para ver sus productos y cantidades.</p>';
 }
 
 function historyCard(type, record) {
@@ -1170,6 +1208,11 @@ function renderEntryOptions() {
 
     elements.exitWarehouse.replaceChildren(
         optionElement('', 'Selecciona un almacén'),
+        ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
+    );
+
+    elements.historyWarehouse?.replaceChildren(
+        optionElement('', 'Todos los almacenes'),
         ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
     );
 
@@ -2519,6 +2562,40 @@ elements.refreshOperationHistory?.addEventListener('click', () => {
     if (state.session) {
         loadOperationHistory(state.session);
     }
+});
+
+elements.applyHistoryFilters?.addEventListener('click', () => {
+    if (state.session) {
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.clearHistoryFilters?.addEventListener('click', () => {
+    elements.historySearch.value = '';
+    elements.historyWarehouse.value = '';
+    elements.historyDateFrom.value = '';
+    elements.historyDateTo.value = '';
+
+    if (state.session) {
+        loadOperationHistory(state.session);
+    }
+});
+
+elements.historySearch?.addEventListener('input', () => {
+    window.clearTimeout(state.historySearchTimer);
+    state.historySearchTimer = window.setTimeout(() => {
+        if (state.session) {
+            loadOperationHistory(state.session);
+        }
+    }, 350);
+});
+
+[elements.historyWarehouse, elements.historyDateFrom, elements.historyDateTo].forEach((control) => {
+    control?.addEventListener('change', () => {
+        if (state.session) {
+            loadOperationHistory(state.session);
+        }
+    });
 });
 
 elements.entryHistoryList?.addEventListener('click', (event) => {

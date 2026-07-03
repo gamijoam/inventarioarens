@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Filtros del historial de entradas y salidas
+
+### Implementado
+
+- Se agregaron filtros al historial del módulo `Entradas y salidas`.
+- La API `GET /api/product-entries` ahora acepta `search`, `warehouse_id`, `date_from`, `date_to` y `limit`.
+- La API `GET /api/product-exits` ahora acepta `search`, `warehouse_id`, `date_from`, `date_to` y `limit`.
+- La búsqueda cubre documento, motivo, referencia, notas, producto, SKU e IMEI/serial.
+- En salidas serializadas se puede buscar por IMEI real resolviendo las unidades relacionadas.
+- El frontend ahora muestra filtros compactos por búsqueda, almacén y rango de fechas, con acciones para aplicar o limpiar.
+- El historial se recarga desde la API con filtros activos para evitar depender de listas grandes en el navegador.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 13 pruebas pasadas, 69 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Detalle completo de movimientos de inventario
 
 ### Implementado
