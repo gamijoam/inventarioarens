@@ -18,6 +18,13 @@ class ProductResource extends JsonResource
             'base_price' => $this->base_price === null ? null : (float) $this->base_price,
             'sale_currency' => $this->sale_currency,
             'sale_exchange_rate_type_id' => $this->sale_exchange_rate_type_id,
+            'warranty_policy_id' => $this->warranty_policy_id,
+            'warranty_policy' => $this->whenLoaded('warrantyPolicy', fn () => [
+                'id' => $this->warrantyPolicy?->id,
+                'name' => $this->warrantyPolicy?->name,
+                'duration_days' => $this->warrantyPolicy?->duration_days,
+                'coverage_type' => $this->warrantyPolicy?->coverage_type,
+            ]),
             'is_active' => (bool) $this->is_active,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

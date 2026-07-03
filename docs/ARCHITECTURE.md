@@ -362,6 +362,19 @@ Reglas arquitectonicas:
 - las acciones sensibles de accesos escriben auditoria en `audit_logs`;
 - una empresa debe conservar al menos un usuario activo con rol `Owner` o `Administrador`.
 
+## Garantias
+
+El modulo `Warranties` maneja politicas de garantia por empresa. La politica vive en `warranty_policies` y los productos guardan `warranty_policy_id`.
+
+Reglas arquitectonicas:
+
+- las politicas son tenant-scoped;
+- productos solo pueden apuntar a politicas de su misma empresa;
+- `sale_items` guarda snapshot de garantia: politica, nombre, duracion, cobertura, condiciones, inicio y vencimiento;
+- la fecha de inicio de garantia se define al confirmar la venta, no al crear el borrador;
+- cambiar una politica no modifica ventas historicas;
+- los casos de garantia futuros deben consultar primero la venta o el IMEI vendido para validar vigencia.
+
 ## Siguiente fase
 
 ## Autorizacion de inventario

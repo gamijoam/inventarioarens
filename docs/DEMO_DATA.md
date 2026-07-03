@@ -37,6 +37,9 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
   - `gerente.valencia@demo.test`
 - Sucursales y almacenes por empresa.
 - Tasas `BCV` y `PARALELO`.
+- Politicas de garantia por empresa:
+  - `Android 30 dias`.
+  - `Accesorios 7 dias`.
 - Clientes:
   - `Consumidor final`, cliente generico por empresa.
   - `Cliente Demo POS Pagado`, asociado a la venta POS pagada.
@@ -51,8 +54,8 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Cuentas por pagar demo generadas desde compras recibidas.
 - Abonos demo a proveedores que dejan cuentas por pagar en estado parcial.
 - Productos:
-  - `Samsung A06 128GB`, serializado por IMEI.
-  - `Audifonos Bluetooth`, controlado por cantidad.
+  - `Samsung A06 128GB`, serializado por IMEI, con garantia `Android 30 dias`.
+  - `Audifonos Bluetooth`, controlado por cantidad, con garantia `Accesorios 7 dias`.
 - Stock inicial.
 - IMEIs demo en `product_units`.
 - Entradas demo de 30 IMEIs por empresa usando el modulo `ProductEntries`.
@@ -66,6 +69,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Venta POS pagada.
 - Venta POS con financiamiento externo pendiente.
 - Venta demo a credito para revisar cuentas por cobrar.
+- Items de venta con snapshot de garantia tomado desde la politica del producto.
 - Cuentas por cobrar demo generadas desde ventas confirmadas.
 - Abonos demo de clientes que dejan cuentas por cobrar en estado parcial.
 - Comprobantes demo emitidos automaticamente para cobros de clientes y pagos a proveedores.

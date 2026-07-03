@@ -38,10 +38,12 @@ use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Services\PurchaseOrderService;
 use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Services\SalesReturnService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -119,6 +121,19 @@ class DemoDataSeeder extends Seeder
         $this->rate($bcv, 500, 'Demo BCV');
         $this->rate($parallel, 600, 'Demo paralelo');
 
+        $androidWarranty = $this->warrantyPolicy(
+            'Android 30 dias',
+            30,
+            WarrantyPolicy::COVERAGE_STORE,
+            'Cubre defectos de fabrica reportados dentro del periodo de garantia.'
+        );
+        $accessoryWarranty = $this->warrantyPolicy(
+            'Accesorios 7 dias',
+            7,
+            WarrantyPolicy::COVERAGE_STORE,
+            'Cubre fallas iniciales de accesorios, sin danos por uso indebido.'
+        );
+
         $phone = Product::query()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'sku' => "SAM-A06-{$data['branch_code']}"],
             [
@@ -127,9 +142,11 @@ class DemoDataSeeder extends Seeder
                 'base_price' => 100,
                 'sale_currency' => Product::CURRENCY_VES,
                 'sale_exchange_rate_type_id' => $parallel->id,
+                'warranty_policy_id' => $androidWarranty->id,
                 'is_active' => true,
             ]
         );
+        $phone->update(['warranty_policy_id' => $androidWarranty->id]);
 
         $headphones = Product::query()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'sku' => "AUD-BT-{$data['branch_code']}"],
@@ -138,9 +155,11 @@ class DemoDataSeeder extends Seeder
                 'tracking_type' => Product::TRACKING_QUANTITY,
                 'base_price' => 25,
                 'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
                 'is_active' => true,
             ]
         );
+        $headphones->update(['warranty_policy_id' => $accessoryWarranty->id]);
 
         $this->initialStock($warehouse, $phone, 8, $manager, "Carga demo inicial {$phone->sku}");
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
@@ -165,6 +184,7 @@ class DemoDataSeeder extends Seeder
         $this->accountsReceivablePayment($tenant, $manager, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->financialAdjustments($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}", "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->paymentReceipts($tenant, $manager);
+        $this->backfillWarrantySnapshots($tenant);
     }
 
     private function paidPosOrder(
@@ -485,6 +505,35 @@ class DemoDataSeeder extends Seeder
             ->each(fn (AccountsPayablePayment $payment) => $receipts->issueForPayablePayment($payment, $user));
     }
 
+    private function backfillWarrantySnapshots(Tenant $tenant): void
+    {
+        $this->useTenant($tenant);
+
+        SaleItem::query()
+            ->with(['sale', 'product.warrantyPolicy'])
+            ->whereNull('warranty_policy_id')
+            ->get()
+            ->each(function (SaleItem $item): void {
+                $policy = $item->product?->warrantyPolicy;
+
+                if (! $policy) {
+                    return;
+                }
+
+                $startsAt = $item->sale?->confirmed_at;
+
+                $item->update([
+                    'warranty_policy_id' => $policy->id,
+                    'warranty_policy_name' => $policy->name,
+                    'warranty_duration_days' => $policy->duration_days,
+                    'warranty_coverage_type' => $policy->coverage_type,
+                    'warranty_conditions' => $policy->conditions,
+                    'warranty_starts_at' => $startsAt,
+                    'warranty_expires_at' => $startsAt ? $startsAt->copy()->addDays($policy->duration_days) : null,
+                ]);
+            });
+    }
+
     private function financialAdjustments(Tenant $tenant, User $user, string $purchaseDocument, string $saleDocument): void
     {
         $this->useTenant($tenant);
@@ -568,6 +617,28 @@ class DemoDataSeeder extends Seeder
                 'source' => $source,
             ]
         );
+    }
+
+    private function warrantyPolicy(string $name, int $durationDays, string $coverageType, string $conditions): WarrantyPolicy
+    {
+        $policy = WarrantyPolicy::query()->firstOrCreate(
+            ['name' => $name],
+            [
+                'duration_days' => $durationDays,
+                'coverage_type' => $coverageType,
+                'conditions' => $conditions,
+                'is_active' => true,
+            ]
+        );
+
+        $policy->update([
+            'duration_days' => $durationDays,
+            'coverage_type' => $coverageType,
+            'conditions' => $conditions,
+            'is_active' => true,
+        ]);
+
+        return $policy;
     }
 
     private function initialStock(Warehouse $warehouse, Product $product, float $quantity, User $user, string $reason): void

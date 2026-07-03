@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-03 - Modulo Warranties politicas y snapshot
+
+### Implementado
+
+- Se agrego el modulo `Warranties`.
+- Se agrego la tabla `warranty_policies`.
+- Se agrego `warranty_policy_id` en `products`.
+- Se agrego snapshot de garantia en `sale_items`.
+- Se agregaron permisos `warranty_policies.view`, `warranty_policies.manage`, `warranties.view`, `warranties.create`, `warranties.review`, `warranties.resolve` y `warranties.deliver`.
+- Se expuso `GET /api/warranty-policies`.
+- Se expuso `POST /api/warranty-policies`.
+- Se expuso `GET /api/warranty-policies/{warrantyPolicy}`.
+- Se expuso `PATCH /api/warranty-policies/{warrantyPolicy}`.
+- Se expuso `DELETE /api/warranty-policies/{warrantyPolicy}` como desactivacion.
+- Productos ahora aceptan `warranty_policy_id`.
+- Las ventas copian la garantia del producto en cada item.
+- Al confirmar venta se asigna inicio y vencimiento de garantia.
+- La demo crea politicas `Android 30 dias` y `Accesorios 7 dias`.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Warranties/WarrantyPolicyApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 81 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 175 pruebas pasadas, 841 aserciones.
+
+### Notas de seguridad
+
+- Una empresa no puede usar politicas de garantia de otra empresa.
+- Las ventas guardan snapshot para no depender de cambios futuros en la politica del producto.
+- Esta fase deja lista la base para casos de garantia, revision, reemplazo y reembolso.
+
 ## 2026-07-03 - Modulo AccessControl fase 2 auditoria y proteccion
 
 ### Implementado

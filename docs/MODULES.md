@@ -786,6 +786,33 @@ Regla importante:
 - los cambios sensibles se auditan con `AuditLogger` en `audit_logs`;
 - toda pantalla futura de usuarios, roles y permisos debe consumir este modulo.
 
+### Warranties
+
+Responsabilidad:
+
+- politicas de garantia por empresa;
+- asignacion de politicas a productos;
+- snapshot de garantia en items de venta;
+- base para futuros casos de garantia, reemplazos, revisiones y reembolsos.
+
+Archivos principales:
+
+- `app/Modules/Warranties/Models/WarrantyPolicy.php`
+- `app/Modules/Warranties/Controllers/WarrantyPolicyController.php`
+- `app/Modules/Warranties/Requests/StoreWarrantyPolicyRequest.php`
+- `app/Modules/Warranties/Requests/UpdateWarrantyPolicyRequest.php`
+- `app/Modules/Warranties/Resources/WarrantyPolicyResource.php`
+- `app/Modules/Warranties/routes.php`
+
+Regla importante:
+
+- una politica de garantia pertenece a un tenant;
+- un producto puede tener `warranty_policy_id`;
+- una venta copia la garantia del producto en `sale_items`;
+- el snapshot de venta no debe cambiar si luego se actualiza la politica;
+- la confirmacion de venta define inicio y vencimiento de garantia;
+- los casos de garantia futuros deben partir del item vendido o del IMEI/serial vendido.
+
 ### Audit
 
 Responsabilidad:

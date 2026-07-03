@@ -44,6 +44,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'cajero.caracas@demo.test']);
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'BCV']);
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'PARALELO']);
+        $this->assertDatabaseHas('warranty_policies', ['name' => 'Android 30 dias', 'duration_days' => 30]);
+        $this->assertDatabaseHas('warranty_policies', ['name' => 'Accesorios 7 dias', 'duration_days' => 7]);
         $this->assertDatabaseHas('products', ['name' => 'Samsung A06 128GB']);
         $this->assertDatabaseHas('customers', ['name' => 'Consumidor final', 'is_generic' => true]);
         $this->assertSame(6, Customer::withoutGlobalScopes()->where('is_active', true)->count());
@@ -69,6 +71,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(4, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_CONFIRMED)->count());
         $this->assertSame(2, Sale::withoutGlobalScopes()->where('status', Sale::STATUS_DRAFT)->count());
         $this->assertSame(6, Sale::withoutGlobalScopes()->whereNotNull('customer_id')->count());
+        $this->assertGreaterThanOrEqual(4, DB::table('sale_items')->whereNotNull('warranty_policy_name')->count());
+        $this->assertGreaterThanOrEqual(4, DB::table('sale_items')->whereNotNull('warranty_expires_at')->count());
         $this->assertSame(2, AccountsReceivable::withoutGlobalScopes()->where('status', AccountsReceivable::STATUS_PARTIAL)->count());
         $this->assertSame(2, AccountsReceivablePayment::withoutGlobalScopes()->where('method', 'cobro demo')->count());
         $this->assertSame(4, FinancialAdjustment::withoutGlobalScopes()->where('status', FinancialAdjustment::STATUS_APPLIED)->count());

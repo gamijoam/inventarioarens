@@ -36,7 +36,7 @@ class SaleService
 
             foreach ($items as $item) {
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
-                $product = Product::query()->findOrFail($item['product_id']);
+                $product = Product::query()->with('warrantyPolicy')->findOrFail($item['product_id']);
                 $quantity = (float) $item['quantity'];
 
                 if ($quantity <= 0) {
@@ -63,6 +63,11 @@ class SaleService
                     'exchange_rate_type_id' => $quote['exchange_rate_type_id'],
                     'exchange_rate_type_code' => $quote['exchange_rate_type_code'],
                     'exchange_rate' => $quote['exchange_rate'],
+                    'warranty_policy_id' => $product->warrantyPolicy?->id,
+                    'warranty_policy_name' => $product->warrantyPolicy?->name,
+                    'warranty_duration_days' => $product->warrantyPolicy?->duration_days,
+                    'warranty_coverage_type' => $product->warrantyPolicy?->coverage_type,
+                    'warranty_conditions' => $product->warrantyPolicy?->conditions,
                 ]);
 
                 $totalBase += $baseTotal;
@@ -107,10 +112,25 @@ class SaleService
                 $item->update(['stock_movement_id' => $movement->id]);
             }
 
+            $confirmedAt = now();
+
             $sale->update([
                 'status' => Sale::STATUS_CONFIRMED,
-                'confirmed_at' => now(),
+                'confirmed_at' => $confirmedAt,
             ]);
+
+            foreach ($sale->items as $item) {
+                if ($item->warranty_policy_id === null) {
+                    continue;
+                }
+
+                $item->update([
+                    'warranty_starts_at' => $confirmedAt,
+                    'warranty_expires_at' => $item->warranty_duration_days === null
+                        ? null
+                        : $confirmedAt->copy()->addDays((int) $item->warranty_duration_days),
+                ]);
+            }
 
             app(AccountsReceivableService::class)->createForSale($sale->refresh());
 

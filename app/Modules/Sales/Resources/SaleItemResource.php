@@ -27,6 +27,13 @@ class SaleItemResource extends JsonResource
             'exchange_rate_type_code' => $this->exchange_rate_type_code,
             'exchange_rate' => $this->exchange_rate === null ? null : (float) $this->exchange_rate,
             'stock_movement_id' => $this->stock_movement_id,
+            'warranty_policy_id' => $this->warranty_policy_id,
+            'warranty_policy_name' => $this->warranty_policy_name,
+            'warranty_duration_days' => $this->warranty_duration_days,
+            'warranty_coverage_type' => $this->warranty_coverage_type,
+            'warranty_conditions' => $this->warranty_conditions,
+            'warranty_starts_at' => $this->warranty_starts_at?->toISOString(),
+            'warranty_expires_at' => $this->warranty_expires_at?->toISOString(),
         ];
     }
 }

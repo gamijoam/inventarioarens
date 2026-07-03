@@ -76,3 +76,6 @@ Route::middleware(['auth', 'tenant'])
 
 Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/AccessControl/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/Warranties/routes.php'));

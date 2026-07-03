@@ -1,0 +1,263 @@
+<?php
+
+namespace Tests\Feature\Warranties;
+
+use App\Models\User;
+use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\Products\Models\Product;
+use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warranties\Models\WarrantyPolicy;
+use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+class WarrantyPolicyApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_user_can_create_update_and_deactivate_warranty_policy(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'warranty_policies.view',
+            'warranty_policies.manage',
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/warranty-policies', [
+                'name' => 'Android 30 dias',
+                'duration_days' => 30,
+                'coverage_type' => WarrantyPolicy::COVERAGE_STORE,
+                'conditions' => 'Cubre defectos de fabrica.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Android 30 dias')
+            ->assertJsonPath('data.duration_days', 30)
+            ->json('data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-policies/{$response['id']}", [
+                'name' => 'Android 45 dias',
+                'duration_days' => 45,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Android 45 dias')
+            ->assertJsonPath('data.duration_days', 45);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->deleteJson("/api/warranty-policies/{$response['id']}")
+            ->assertNoContent();
+
+        $this->assertDatabaseHas('warranty_policies', [
+            'tenant_id' => $tenant->id,
+            'id' => $response['id'],
+            'is_active' => false,
+        ]);
+    }
+
+    public function test_warranty_policies_do_not_mix_companies(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+        $policyA = $this->policy($tenantA, 'Android 30 dias', 30);
+        $this->policy($tenantB, 'iPhone 15 dias', 15);
+        $user = $this->userInTenant($tenantA);
+        $this->grantRole($tenantA, $user, 'Warranty Viewer', ['warranty_policies.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson('/api/warranty-policies')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Android 30 dias');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/warranty-policies/{$policyA->id}")
+            ->assertOk();
+    }
+
+    public function test_product_can_be_assigned_warranty_policy_from_current_company(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+        $policyA = $this->policy($tenantA, 'Android 30 dias', 30);
+        $policyB = $this->policy($tenantB, 'iPhone 15 dias', 15);
+        $user = $this->userInTenant($tenantA);
+        $this->grantRole($tenantA, $user, 'Catalog Manager', ['products.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/products', [
+                'name' => 'Samsung A06',
+                'sku' => 'SAMSUNG-A06',
+                'warranty_policy_id' => $policyA->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.warranty_policy_id', $policyA->id)
+            ->assertJsonPath('data.warranty_policy.name', 'Android 30 dias');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/products', [
+                'name' => 'iPhone 13',
+                'sku' => 'IPHONE-13',
+                'warranty_policy_id' => $policyB->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['warranty_policy_id']);
+    }
+
+    public function test_sale_item_copies_warranty_snapshot_and_dates_on_confirmation(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30, 'Cubre defectos.');
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Sales Manager', ['sales.create', 'sales.view']);
+        $this->useTenant($tenant);
+
+        app(InventoryMovementService::class)->purchase($warehouse, $product, 2, 80, $user, 'Stock garantia test');
+
+        $sale = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.warranty_policy_id', $policy->id)
+            ->assertJsonPath('data.items.0.warranty_policy_name', 'Android 30 dias')
+            ->assertJsonPath('data.items.0.warranty_duration_days', 30)
+            ->assertJsonPath('data.items.0.warranty_conditions', 'Cubre defectos.')
+            ->assertJsonPath('data.items.0.warranty_starts_at', null)
+            ->json('data');
+
+        $confirmed = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/sales/{$sale['id']}/confirm")
+            ->assertOk()
+            ->json('data');
+
+        $item = $confirmed['items'][0];
+
+        $this->assertSame('Android 30 dias', $item['warranty_policy_name']);
+        $this->assertNotNull($item['warranty_starts_at']);
+        $this->assertNotNull($item['warranty_expires_at']);
+        $this->assertEquals(30, now()->parse($item['warranty_starts_at'])->diffInDays(now()->parse($item['warranty_expires_at'])));
+
+        $policy->update(['duration_days' => 15, 'name' => 'Android 15 dias']);
+
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $sale['id'],
+            'warranty_policy_name' => 'Android 30 dias',
+            'warranty_duration_days' => 30,
+        ]);
+    }
+
+    public function test_warranty_policy_api_rejects_user_without_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'No Warranty Access', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/warranty-policies')
+            ->assertForbidden();
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach (BasePermissions::PERMISSIONS as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+    }
+
+    private function policy(Tenant $tenant, string $name, int $days, ?string $conditions = null): WarrantyPolicy
+    {
+        $this->useTenant($tenant);
+
+        return WarrantyPolicy::create([
+            'name' => $name,
+            'duration_days' => $days,
+            'coverage_type' => WarrantyPolicy::COVERAGE_STORE,
+            'conditions' => $conditions,
+        ]);
+    }
+
+    private function warehouseAndProduct(Tenant $tenant, WarrantyPolicy $policy): array
+    {
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Principal', 'code' => 'MAIN-01']);
+        $product = Product::create([
+            'name' => 'Samsung A06',
+            'sku' => 'SAMSUNG-A06',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+            'warranty_policy_id' => $policy->id,
+        ]);
+
+        return [$warehouse, $product];
+    }
+
+    private function userInTenant(Tenant $tenant): User
+    {
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        return $user;
+    }
+
+    private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): Role
+    {
+        $this->useTenant($tenant);
+
+        $role = Role::findOrCreate($roleName, 'web');
+        $role->syncPermissions($permissions);
+        $user->assignRole($role);
+
+        return $role;
+    }
+
+    private function useTenant(Tenant $tenant): void
+    {
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+    }
+}

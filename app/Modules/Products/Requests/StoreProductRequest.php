@@ -38,6 +38,11 @@ class StoreProductRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
             ],
+            'warranty_policy_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('warranty_policies', 'id')->where('tenant_id', $tenantId),
+            ],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

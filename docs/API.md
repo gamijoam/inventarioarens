@@ -2870,6 +2870,99 @@ roles.view o users.view
 
 Devuelve los permisos agrupados por modulo para construir pantallas de configuracion de roles.
 
+## Garantias
+
+Modulo: `Warranties`
+
+Esta primera fase cubre politicas de garantia reutilizables, asignacion al producto y snapshot historico al vender.
+
+### Listar politicas de garantia
+
+```txt
+GET /api/warranty-policies
+```
+
+Permiso requerido:
+
+```txt
+warranty_policies.view
+```
+
+### Crear politica de garantia
+
+```txt
+POST /api/warranty-policies
+```
+
+Permiso requerido:
+
+```txt
+warranty_policies.manage
+```
+
+Body:
+
+```json
+{
+  "name": "Android 30 dias",
+  "duration_days": 30,
+  "coverage_type": "store",
+  "conditions": "Cubre defectos de fabrica."
+}
+```
+
+Tipos iniciales de cobertura:
+
+- `store`
+- `manufacturer`
+- `none`
+
+### Ver politica de garantia
+
+```txt
+GET /api/warranty-policies/{warrantyPolicy}
+```
+
+Permiso requerido:
+
+```txt
+warranty_policies.view
+```
+
+### Actualizar politica de garantia
+
+```txt
+PATCH /api/warranty-policies/{warrantyPolicy}
+```
+
+Permiso requerido:
+
+```txt
+warranty_policies.manage
+```
+
+### Desactivar politica de garantia
+
+```txt
+DELETE /api/warranty-policies/{warrantyPolicy}
+```
+
+Permiso requerido:
+
+```txt
+warranty_policies.manage
+```
+
+Reglas:
+
+- la politica no se borra fisicamente; queda `is_active = false`;
+- el nombre es unico por empresa;
+- una politica de una empresa no puede asignarse a productos de otra empresa;
+- los productos pueden recibir `warranty_policy_id` en `POST /api/products` y `PATCH /api/products/{product}`;
+- al crear una venta, cada item copia nombre, duracion, tipo y condiciones de la politica del producto;
+- al confirmar una venta, cada item con politica guarda `warranty_starts_at` y `warranty_expires_at`;
+- si la politica cambia despues, la venta conserva su snapshot historico.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion
@@ -2947,3 +3040,5 @@ Devuelve los permisos agrupados por modulo para construir pantallas de configura
 - Un usuario puede pertenecer a varias empresas, pero sus roles, permisos y estado deben evaluarse por empresa.
 - Las APIs de acceso deben auditar creacion/vinculacion de usuarios, cambios de estado, cambios de roles y cambios de permisos.
 - Una empresa no puede quedarse sin usuario activo con rol `Owner` o `Administrador`.
+- Las politicas de garantia deben vivir en el modulo `Warranties`.
+- Las ventas deben copiar snapshot de garantia para no recalcular historia si cambia la politica del producto.
