@@ -8,6 +8,8 @@
 Regla actual de rutas:
 
 - `routes/api.php` solo carga archivos de rutas modulares.
+- Las rutas protegidas usan `api.auth` y `tenant`.
+- Las rutas de login viven en `app/Modules/Auth/routes.php`.
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
 
@@ -170,11 +172,13 @@ Inventory Arens es un monolito Laravel diseñado como un sistema de inventario S
 
 ## Flujo de una petición
 
-1. `ResolveTenant` lee el tenant desde `X-Tenant`, ruta/query `tenant`, o dominio.
-2. `TenantManager` guarda el tenant actual durante la petición.
-3. Spatie Permission recibe el mismo tenant id como team id.
-4. Los modelos que pertenecen a tenant se filtran automáticamente con `TenantScope`.
-5. Las policies y permisos validan la intención del usuario antes de ejecutar acciones críticas.
+1. En rutas protegidas, `AuthenticateApiToken` valida el token `Bearer` y asigna el usuario autenticado.
+2. `ResolveTenant` lee el tenant desde `X-Tenant`, ruta/query `tenant`, o dominio.
+3. Si la peticion usa token, `ResolveTenant` valida que el token pertenezca al mismo tenant.
+4. `TenantManager` guarda el tenant actual durante la petición.
+5. Spatie Permission recibe el mismo tenant id como team id.
+6. Los modelos que pertenecen a tenant se filtran automáticamente con `TenantScope`.
+7. Las policies y permisos validan la intención del usuario antes de ejecutar acciones críticas.
 
 ## Módulos
 
@@ -198,6 +202,7 @@ ModuleName/
 
 Módulos implementados inicialmente:
 
+- `Auth`: login, tokens por empresa, sesion actual y cierre de sesion.
 - `Tenancy`: tenants, resolución de tenant y aislamiento de petición.
 - `Products`: catalogo de productos, API de productos, policy tenant-aware y tipo de control por cantidad o serializado.
 - `Branches`: sucursales tenant-scoped con API, permisos y codigo unico por tenant.
@@ -233,6 +238,21 @@ El primer patrón de policy es `App\Modules\Products\Policies\ProductPolicy`:
 - comprueba que el usuario pertenezca activamente al tenant actual;
 - comprueba el permiso granular requerido;
 - comprueba que los productos pertenezcan al tenant actual antes de ver, actualizar o eliminar.
+
+## Autenticacion
+
+El modulo `Auth` emite tokens de API propios para el frontend web. No se guarda el token plano en base de datos: se persiste `token_hash` en `auth_tokens` y el valor visible solo se devuelve en el login.
+
+Reglas arquitectonicas:
+
+- `POST /api/auth/tenants` permite validar credenciales y listar empresas activas del usuario;
+- `POST /api/auth/login` requiere `X-Tenant` y emite un token asociado a esa empresa;
+- `GET /api/auth/me` devuelve usuario, empresa, roles y permisos efectivos;
+- `POST /api/auth/logout` revoca el token actual;
+- `POST /api/auth/logout-all` revoca todos los tokens del usuario en la empresa actual;
+- un token de una empresa no puede usarse con otra empresa aunque el usuario pertenezca a ambas;
+- el frontend debe consumir estas APIs y mostrar opciones segun permisos, pero la autoridad real siempre queda en backend;
+- las rutas protegidas usan `api.auth` y `tenant` para que policies, permisos y tenant se resuelvan juntos.
 
 ## Pruebas de seguridad actuales
 

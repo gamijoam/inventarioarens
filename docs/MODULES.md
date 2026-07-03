@@ -31,6 +31,35 @@ No todas las carpetas son obligatorias. Se crean cuando el modulo las necesita.
 
 ## Modulos actuales
 
+### Auth
+
+Responsabilidad:
+
+- autenticar usuarios contra correo y clave;
+- listar empresas activas disponibles para el usuario antes del login;
+- emitir tokens `Bearer` ligados a una empresa;
+- devolver usuario, empresa, roles y permisos efectivos para inicializar el frontend;
+- cerrar sesion actual o todas las sesiones del usuario en la empresa actual.
+
+Archivos principales:
+
+- `app/Modules/Auth/Models/AuthToken.php`
+- `app/Modules/Auth/Middleware/AuthenticateApiToken.php`
+- `app/Modules/Auth/Controllers/AuthController.php`
+- `app/Modules/Auth/Requests/LoginRequest.php`
+- `app/Modules/Auth/Requests/TenantLookupRequest.php`
+- `app/Modules/Auth/Resources/AuthSessionResource.php`
+- `app/Modules/Auth/Services/AuthService.php`
+- `app/Modules/Auth/routes.php`
+
+Regla importante:
+
+- el token se guarda hasheado en `auth_tokens`;
+- el token queda asociado a `tenant_id` y `user_id`;
+- un token emitido para una empresa no puede usarse con otra empresa;
+- las APIs protegidas usan el middleware `api.auth` antes de resolver permisos de negocio;
+- el frontend debe tratarse como cliente de APIs, sin autoridad para saltarse permisos.
+
 ### Tenancy
 
 Responsabilidad:
@@ -874,6 +903,7 @@ Archivos principales:
 - Si una funcionalidad tiene logica propia, debe vivir en su modulo.
 - Si una API pertenece a un modulo, sus rutas deben estar en `app/Modules/<Modulo>/routes.php`.
 - `routes/api.php` solo carga rutas modulares.
+- Las rutas protegidas deben usar `api.auth` y `tenant`.
 - Las migraciones siguen en `database/migrations` por convencion Laravel, pero deben nombrarse claramente.
 - Los tests deben estar agrupados por area en `tests/Feature/<Area>`.
 - Toda documentacion debe escribirse en espanol.

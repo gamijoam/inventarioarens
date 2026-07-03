@@ -3,6 +3,7 @@
 namespace App\Modules\Tenancy\Middleware;
 
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Auth\Models\AuthToken;
 use App\Support\Tenancy\TenantManager;
 use Closure;
 use Illuminate\Http\Request;
@@ -19,6 +20,12 @@ class ResolveTenant
         $tenant = $this->resolveTenant($request);
 
         abort_unless($tenant, 404, 'Tenant not found.');
+
+        $token = $request->attributes->get('auth_token');
+
+        if ($token instanceof AuthToken) {
+            abort_unless($token->tenant_id === $tenant->id, 403, 'Token does not belong to this tenant.');
+        }
 
         if ($request->user()) {
             abort_unless(

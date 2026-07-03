@@ -6,12 +6,119 @@ Todas las rutas actuales usan el prefijo global de Laravel:
 /api
 ```
 
-Todas las rutas actuales requieren:
+Las rutas de autenticacion publicas se indican en su seccion. El resto de rutas actuales requiere:
 
 - usuario autenticado;
+- token `Bearer` valido o usuario autenticado en pruebas;
 - tenant resuelto;
 - header recomendado: `X-Tenant: <slug-del-tenant>`;
 - pertenencia activa del usuario al tenant.
+
+## Autenticacion
+
+Modulo: `Auth`
+
+Archivo de rutas:
+
+```txt
+app/Modules/Auth/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Auth\Controllers\AuthController
+```
+
+### Consultar empresas disponibles para login
+
+```txt
+POST /api/auth/tenants
+```
+
+Body:
+
+```json
+{
+  "email": "usuario@example.test",
+  "password": "password-seguro"
+}
+```
+
+Reglas:
+
+- no requiere `X-Tenant`;
+- valida credenciales;
+- devuelve solo empresas donde el usuario esta activo;
+- sirve para que el frontend permita escoger empresa cuando el usuario pertenece a varias.
+
+### Iniciar sesion
+
+```txt
+POST /api/auth/login
+```
+
+Requiere:
+
+```txt
+X-Tenant: <slug-del-tenant>
+```
+
+Body:
+
+```json
+{
+  "email": "usuario@example.test",
+  "password": "password-seguro",
+  "device_name": "navegador"
+}
+```
+
+Reglas:
+
+- valida correo y clave;
+- valida que el usuario pertenezca activamente al tenant enviado;
+- crea un token de API asociado a ese tenant;
+- el token se guarda hasheado en `auth_tokens`, no en texto plano;
+- el token vence inicialmente a los 30 dias;
+- el frontend debe enviar `Authorization: Bearer <token>` en llamadas protegidas;
+- un token emitido para una empresa no puede usarse con el `X-Tenant` de otra empresa.
+
+### Ver sesion actual
+
+```txt
+GET /api/auth/me
+```
+
+Requiere token `Bearer` y `X-Tenant`.
+
+Respuesta:
+
+- usuario actual;
+- empresa actual;
+- roles en la empresa actual;
+- permisos efectivos en la empresa actual.
+
+### Cerrar sesion actual
+
+```txt
+POST /api/auth/logout
+```
+
+Regla:
+
+- revoca solo el token usado en la peticion.
+
+### Cerrar todas las sesiones de la empresa actual
+
+```txt
+POST /api/auth/logout-all
+```
+
+Regla:
+
+- revoca todos los tokens activos del usuario dentro de la empresa actual;
+- no revoca tokens del mismo usuario en otras empresas.
 
 ## Productos
 
@@ -3217,6 +3324,8 @@ Regla:
 ## Reglas importantes
 
 - Ninguna API debe permitir acceder a datos de otro tenant.
+- Las APIs protegidas deben usar token `Bearer` valido o usuario autenticado en pruebas.
+- Los tokens de autenticacion deben estar ligados al tenant para evitar uso cruzado entre empresas.
 - Ninguna API debe saltarse policies, permisos o servicios autorizados.
 - Las APIs de productos deben respetar SKU unico por tenant.
 - Las APIs de sucursales y almacenes deben respetar codigo unico por tenant.

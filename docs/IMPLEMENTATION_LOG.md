@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-03 - Modulo Auth login y tokens por empresa
+
+### Implementado
+
+- Se agrego el modulo `Auth`.
+- Se agrego la tabla `auth_tokens`.
+- Se agrego el modelo `AuthToken`.
+- Se agrego `AuthenticateApiToken` como middleware `api.auth`.
+- Se expuso `POST /api/auth/tenants` para listar empresas activas disponibles antes de iniciar sesion.
+- Se expuso `POST /api/auth/login` para iniciar sesion con `X-Tenant`.
+- Se expuso `GET /api/auth/me` para consultar usuario, empresa, roles y permisos efectivos.
+- Se expuso `POST /api/auth/logout` para revocar el token actual.
+- Se expuso `POST /api/auth/logout-all` para revocar sesiones del usuario en la empresa actual.
+- Las rutas protegidas cambiaron de `auth + tenant` a `api.auth + tenant`.
+- Los tokens se guardan hasheados y se asocian a `tenant_id` y `user_id`.
+- `ResolveTenant` valida que el token usado pertenezca al tenant solicitado.
+- Se documento la API, arquitectura y mapa modular.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+- Suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 198 pruebas pasadas, 959 aserciones.
+
+### Notas de seguridad
+
+- Un token emitido para una empresa no puede usarse con otra empresa.
+- El token plano solo se entrega una vez al hacer login.
+- El frontend sera cliente de las APIs; la seguridad real queda en backend con token, tenant, roles, permisos y policies.
+
 ## 2026-07-03 - Reembolso financiero de garantias
 
 ### Implementado
