@@ -35,6 +35,9 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
   - `gerente.caracas@demo.test`
   - `cajero.valencia@demo.test`
   - `gerente.valencia@demo.test`
+- Clave demo para todos esos usuarios:
+  - `password`
+- Si existen tenants demo antiguos con nombre de una marca anterior, el seeder los renombra como legado y desactiva su acceso para que no aparezcan en el selector de empresas.
 - Sucursales y almacenes por empresa.
 - Tasas `BCV` y `PARALELO`.
 - Politicas de garantia por empresa:

@@ -59,6 +59,8 @@ class DemoDataSeeder extends Seeder
         $this->call(RolesAndPermissionsSeeder::class);
 
         DB::transaction(function (): void {
+            $this->disableLegacyBrandedDemoTenants();
+
             $tenantA = $this->tenant('Demo Caracas', 'demo-caracas');
             $tenantB = $this->tenant('Demo Valencia', 'demo-valencia');
 
@@ -90,6 +92,28 @@ class DemoDataSeeder extends Seeder
         });
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    private function disableLegacyBrandedDemoTenants(): void
+    {
+        $legacyNames = [
+            'arens-demo-caracas' => ['name' => 'Demo Legado Caracas', 'slug' => 'demo-legado-caracas'],
+            'arens-demo-valencia' => ['name' => 'Demo Legado Valencia', 'slug' => 'demo-legado-valencia'],
+        ];
+
+        foreach ($legacyNames as $legacySlug => $replacement) {
+            $tenant = Tenant::query()->where('slug', $legacySlug)->first();
+
+            if (! $tenant) {
+                continue;
+            }
+
+            DB::table('tenant_user')
+                ->where('tenant_id', $tenant->id)
+                ->update(['status' => 'inactive']);
+
+            $tenant->update($replacement);
+        }
     }
 
     private function seedCompany(Tenant $tenant, array $data): void

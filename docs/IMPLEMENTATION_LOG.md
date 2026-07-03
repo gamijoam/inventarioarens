@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Limpieza de tenants demo antiguos para login
+
+### Implementado
+
+- Se ajusto `DemoDataSeeder` para detectar tenants demo antiguos con slug `arens-demo-caracas` y `arens-demo-valencia`.
+- Esos tenants se renombran como `Demo Legado ...` y sus usuarios se marcan como `inactive` en `tenant_user`.
+- Esto evita que aparezcan empresas antiguas en el selector de login y elimina referencias visibles a la marca anterior.
+- Se documento la clave demo `password` en `docs/DEMO_DATA.md`.
+
+### Pruebas
+
+- Se verifico en la base local que `gerente.caracas@demo.test` valida con clave `password`.
+- Se verifico que el login demo ahora devuelve solo `Demo Caracas`.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Seeders/DemoDataSeederTest.php tests/Feature/Auth/AuthApiTest.php`: 9 pruebas pasadas, 95 aserciones.
+
 ## 2026-07-03 - Cierre de sesion visible en el panel principal
 
 ### Implementado
