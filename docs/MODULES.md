@@ -748,6 +748,42 @@ Regla importante:
 - todo filtro debe respetar tenant;
 - el permiso requerido es `kardex.view`.
 
+### AccessControl
+
+Responsabilidad:
+
+- usuarios vinculados a una empresa;
+- estado del usuario dentro de cada empresa;
+- roles por empresa;
+- permisos agrupados por modulo;
+- asignacion de roles sin mezclar tenants.
+
+Archivos principales:
+
+- `app/Modules/AccessControl/Controllers/TenantUserController.php`
+- `app/Modules/AccessControl/Controllers/RoleController.php`
+- `app/Modules/AccessControl/Controllers/PermissionCatalogController.php`
+- `app/Modules/AccessControl/Requests/StoreTenantUserRequest.php`
+- `app/Modules/AccessControl/Requests/UpdateTenantUserRequest.php`
+- `app/Modules/AccessControl/Requests/UpdateTenantUserStatusRequest.php`
+- `app/Modules/AccessControl/Requests/UpdateTenantUserRolesRequest.php`
+- `app/Modules/AccessControl/Requests/StoreRoleRequest.php`
+- `app/Modules/AccessControl/Requests/UpdateRoleRequest.php`
+- `app/Modules/AccessControl/Requests/UpdateRolePermissionsRequest.php`
+- `app/Modules/AccessControl/Resources/TenantUserResource.php`
+- `app/Modules/AccessControl/Resources/RoleResource.php`
+- `app/Modules/AccessControl/Services/AccessControlService.php`
+- `app/Modules/AccessControl/routes.php`
+
+Regla importante:
+
+- un mismo usuario puede pertenecer a varias empresas;
+- el estado `active` o `inactive` vive en `tenant_user` y aplica solo a esa empresa;
+- los roles usan Spatie Permission con `tenant_id`;
+- los permisos disponibles salen de `App\Support\Permissions\BasePermissions`;
+- no se pueden eliminar roles base del sistema;
+- toda pantalla futura de usuarios, roles y permisos debe consumir este modulo.
+
 ### Audit
 
 Responsabilidad:

@@ -1,5 +1,40 @@
 # Registro de implementación
 
+## 2026-07-03 - Modulo AccessControl fase 1
+
+### Implementado
+
+- Se agrego el modulo `AccessControl`.
+- Se agregaron permisos `roles.view`, `roles.create`, `roles.update` y `roles.delete`.
+- Se expuso `GET /api/users`.
+- Se expuso `POST /api/users`.
+- Se expuso `GET /api/users/{user}`.
+- Se expuso `PATCH /api/users/{user}`.
+- Se expuso `PATCH /api/users/{user}/status`.
+- Se expuso `PATCH /api/users/{user}/roles`.
+- Se expuso `GET /api/users/{user}/permissions`.
+- Se expuso `GET /api/roles`.
+- Se expuso `POST /api/roles`.
+- Se expuso `GET /api/roles/{role}`.
+- Se expuso `PATCH /api/roles/{role}`.
+- Se expuso `PATCH /api/roles/{role}/permissions`.
+- Se expuso `DELETE /api/roles/{role}`.
+- Se expuso `GET /api/permissions`.
+- El mismo usuario puede pertenecer a varias empresas con roles y estado independientes.
+- Los roles base quedan protegidos contra eliminacion.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/AccessControl/AccessControlApiTest.php`: 7 pruebas pasadas, 30 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 167 pruebas pasadas, 786 aserciones.
+
+### Notas de seguridad
+
+- Los usuarios listados siempre pertenecen al tenant actual.
+- Los roles consultados y asignados pertenecen al tenant actual.
+- Un cambio de estado en una empresa no afecta el acceso del mismo usuario en otra empresa.
+- El catalogo de permisos queda centralizado para evitar permisos inventados fuera de `BasePermissions`.
+
 ## 2026-07-02 - Mejoras Purchases recepcion parcial
 
 ### Implementado

@@ -2606,6 +2606,256 @@ Reglas:
 - cambia la sesion a `closed`;
 - despues del cierre no se pueden registrar nuevos movimientos.
 
+## Control de accesos
+
+Modulo: `AccessControl`
+
+Todas las rutas requieren usuario autenticado, tenant resuelto con `X-Tenant` y permisos del tenant actual.
+
+### Listar usuarios de la empresa
+
+```txt
+GET /api/users
+```
+
+Permiso requerido:
+
+```txt
+users.view
+```
+
+Devuelve usuarios vinculados a la empresa actual, su estado en esa empresa y sus roles de esa empresa.
+
+### Crear o vincular usuario
+
+```txt
+POST /api/users
+```
+
+Permiso requerido:
+
+```txt
+users.create
+```
+
+Body:
+
+```json
+{
+  "name": "Cajero Principal",
+  "email": "cajero@example.test",
+  "password": "password-seguro",
+  "roles": ["Vendedor"]
+}
+```
+
+Reglas:
+
+- si el correo no existe, crea el usuario;
+- si el correo ya existe, lo vincula o reactiva en la empresa actual;
+- los roles deben existir dentro de la empresa actual;
+- un mismo correo puede pertenecer a varias empresas con roles distintos.
+
+### Ver usuario de la empresa
+
+```txt
+GET /api/users/{user}
+```
+
+Permiso requerido:
+
+```txt
+users.view
+```
+
+### Actualizar nombre de usuario
+
+```txt
+PATCH /api/users/{user}
+```
+
+Permiso requerido:
+
+```txt
+users.update
+```
+
+### Activar o inactivar usuario en la empresa
+
+```txt
+PATCH /api/users/{user}/status
+```
+
+Permiso requerido:
+
+```txt
+users.update
+```
+
+Body:
+
+```json
+{
+  "status": "inactive"
+}
+```
+
+Regla:
+
+- el estado aplica solo al vinculo con la empresa actual; no afecta otras empresas donde el usuario tambien exista.
+
+### Asignar roles a usuario
+
+```txt
+PATCH /api/users/{user}/roles
+```
+
+Permiso requerido:
+
+```txt
+users.update
+```
+
+Body:
+
+```json
+{
+  "roles": ["Vendedor", "Supervisor POS"]
+}
+```
+
+### Ver permisos efectivos del usuario
+
+```txt
+GET /api/users/{user}/permissions
+```
+
+Permiso requerido:
+
+```txt
+users.view
+```
+
+### Listar roles de la empresa
+
+```txt
+GET /api/roles
+```
+
+Permiso requerido:
+
+```txt
+roles.view
+```
+
+### Crear rol
+
+```txt
+POST /api/roles
+```
+
+Permiso requerido:
+
+```txt
+roles.create
+```
+
+Body:
+
+```json
+{
+  "name": "Supervisor POS",
+  "permissions": ["pos.view", "pos.checkout", "cash_register.view"]
+}
+```
+
+### Ver rol
+
+```txt
+GET /api/roles/{role}
+```
+
+Permiso requerido:
+
+```txt
+roles.view
+```
+
+### Actualizar rol
+
+```txt
+PATCH /api/roles/{role}
+```
+
+Permiso requerido:
+
+```txt
+roles.update
+```
+
+Body:
+
+```json
+{
+  "name": "Supervisor de caja",
+  "permissions": ["cash_register.view", "cash_register.move"]
+}
+```
+
+Regla:
+
+- los roles base no pueden cambiar de nombre.
+
+### Actualizar permisos de un rol
+
+```txt
+PATCH /api/roles/{role}/permissions
+```
+
+Permiso requerido:
+
+```txt
+roles.update
+```
+
+Body:
+
+```json
+{
+  "permissions": ["pos.view", "cash_register.view"]
+}
+```
+
+### Eliminar rol
+
+```txt
+DELETE /api/roles/{role}
+```
+
+Permiso requerido:
+
+```txt
+roles.delete
+```
+
+Regla:
+
+- no se pueden eliminar roles base del sistema: `Owner`, `Administrador`, `Gerente`, `Vendedor`, `Almacen`, `Auditor`.
+
+### Catalogo de permisos
+
+```txt
+GET /api/permissions
+```
+
+Permisos requeridos:
+
+```txt
+roles.view o users.view
+```
+
+Devuelve los permisos agrupados por modulo para construir pantallas de configuracion de roles.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion
@@ -2678,3 +2928,6 @@ Reglas:
 - Las solicitudes interempresa deben vivir en `InventoryTransferRequests` y no deben mover stock al crearse.
 - Las APIs de reportes son solo lectura.
 - Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.
+- Las APIs de usuarios, roles y permisos deben vivir en el modulo `AccessControl`.
+- Los roles y permisos deben resolverse por tenant usando el `tenant_id` de Spatie Permission.
+- Un usuario puede pertenecer a varias empresas, pero sus roles, permisos y estado deben evaluarse por empresa.

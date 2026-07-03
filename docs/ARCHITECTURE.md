@@ -347,6 +347,19 @@ Toda documentación del proyecto debe escribirse en español. Cada cambio import
 - qué pruebas se ejecutaron;
 - qué riesgo o error evita.
 
+## Control de accesos
+
+El modulo `AccessControl` concentra usuarios, roles y permisos operativos del sistema.
+
+Reglas arquitectonicas:
+
+- un `User` puede estar vinculado a una o varias empresas mediante `tenant_user`;
+- el estado del usuario se guarda por empresa, no globalmente;
+- Spatie Permission usa equipos con la columna `tenant_id`, por lo que los roles se crean y asignan por empresa;
+- los permisos base viven en `App\Support\Permissions\BasePermissions`;
+- los endpoints de usuarios no deben devolver roles de otra empresa aunque el usuario sea multiempresa;
+- el catalogo `GET /api/permissions` devuelve permisos agrupados por modulo para construir una pantalla de permisos mas adelante.
+
 ## Siguiente fase
 
 ## Autorizacion de inventario
