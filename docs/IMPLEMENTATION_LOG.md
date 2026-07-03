@@ -1,5 +1,18 @@
 # Registro de implementación
 
+## 2026-07-03 - Correccion de envio JSON en login con tenant
+
+### Implementado
+
+- Se corrigio el helper `api()` del frontend para mezclar headers personalizados sin perder `Accept` ni `Content-Type: application/json`.
+- El fallo aparecia al segundo paso del login, cuando se agregaba `X-Tenant`; el backend recibia la solicitud sin cuerpo JSON parseable y devolvia `The email field is required`.
+
+### Verificacion
+
+- Se compilo el frontend con `pnpm run build` correctamente.
+- Se verifico `POST /api/auth/login` en `http://localhost:8000` con `X-Tenant: demo-caracas`, devolviendo token real.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+
 ## 2026-07-03 - Login local apuntando a PostgreSQL y permisos de catalogo
 
 ### Implementado

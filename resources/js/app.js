@@ -167,13 +167,15 @@ function setMessage(message, tone = 'neutral') {
 }
 
 async function api(path, options = {}) {
+    const { headers = {}, ...requestOptions } = options;
+
     const response = await fetch(path, {
+        ...requestOptions,
         headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            ...(options.headers ?? {}),
+            ...headers,
         },
-        ...options,
     });
 
     const payload = await response.json().catch(() => ({}));
