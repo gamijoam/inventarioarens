@@ -271,6 +271,7 @@ Reglas arquitectonicas:
 - el login usa `POST /api/auth/tenants` para resolver empresas disponibles;
 - el login usa `POST /api/auth/login` con `X-Tenant` para obtener token;
 - la sesion se guarda en el navegador para la primera fase;
+- la pantalla de acceso se mantiene como un login central profesional, sin panel visual lateral;
 - el backend sigue validando token, tenant, roles, permisos y policies en cada peticion protegida.
 
 ## Pruebas de seguridad actuales

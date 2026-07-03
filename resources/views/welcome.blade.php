@@ -12,11 +12,8 @@
     <body>
         <div id="app" class="app-shell">
             <main class="login-screen" aria-labelledby="login-title">
-                <section class="brand-panel" aria-label="Inventory Arens">
-                    <div class="brand-panel__shade"></div>
-                    <div class="brand-panel__grid" aria-hidden="true"></div>
-
-                    <div class="brand-panel__content">
+                <section class="login-workspace" aria-label="Acceso a Inventory Arens">
+                    <div class="login-brand">
                         <div class="brand-mark">
                             <div class="brand-mark__icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" role="img">
@@ -30,48 +27,16 @@
                                 <span>Sistema empresarial</span>
                             </div>
                         </div>
-
-                        <div class="status-pill">
-                            <span class="status-pill__dot"></span>
-                            Inventario, POS y multiempresa
-                        </div>
-
-                        <div class="brand-copy">
-                            <h1>Control claro para vender, mover y proteger tu inventario.</h1>
-                            <p>Acceso seguro al panel operativo con empresas, cajas, reportes, garantias y trazabilidad por IMEI.</p>
-                        </div>
-
-                        <div class="signal-grid" aria-label="Resumen operativo">
-                            <div class="signal-card">
-                                <span>Seguro</span>
-                                <strong>Token por empresa</strong>
-                            </div>
-                            <div class="signal-card">
-                                <span>En vivo</span>
-                                <strong>Stock y cajas</strong>
-                            </div>
-                            <div class="signal-card">
-                                <span>Preciso</span>
-                                <strong>IMEI y Kardex</strong>
-                            </div>
-                        </div>
-
-                        <div class="brand-panel__footer">
-                            <span>Inventory Arens</span>
-                            <span>2026</span>
-                        </div>
                     </div>
-                </section>
 
-                <section class="access-panel">
                     <div class="login-card" data-view="login">
                         <div class="login-card__header">
                             <span class="secure-badge">
                                 <span aria-hidden="true">+</span>
                                 Acceso protegido
                             </span>
-                            <h2 id="login-title">Bienvenido de nuevo</h2>
-                            <p>Ingresa a <strong>Inventory Arens</strong> para continuar tu operacion.</p>
+                            <h1 id="login-title">Iniciar sesion</h1>
+                            <p>Entra al panel para gestionar inventario, caja, ventas y operaciones por empresa.</p>
                         </div>
 
                         <form class="login-form" id="login-form">
@@ -108,8 +73,8 @@
                         </form>
 
                         <div class="login-card__footer">
-                            <span>Soporte operativo</span>
-                            <strong>Listo para empresas demo</strong>
+                            <span>Token por empresa</span>
+                            <span>Permisos validados por backend</span>
                         </div>
                     </div>
 
@@ -118,7 +83,7 @@
                             <span aria-hidden="true">+</span>
                             Sesion activa
                         </span>
-                        <h2>Panel preparado</h2>
+                        <h1>Panel preparado</h1>
                         <p id="session-summary"></p>
                         <div class="session-grid">
                             <div>
@@ -132,6 +97,8 @@
                         </div>
                         <button class="secondary-button" type="button" id="logout-button">Cerrar sesion</button>
                     </div>
+
+                    <p class="login-footnote">2026 Inventory Arens</p>
                 </section>
             </main>
         </div>

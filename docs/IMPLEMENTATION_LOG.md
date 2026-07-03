@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-03 - Rediseño profesional del login
+
+### Implementado
+
+- Se elimino el panel visual izquierdo del login inicial.
+- Se dejo una pantalla unica de acceso centrada.
+- Se mantuvo la identidad morada/azul en una composicion mas sobria y empresarial.
+- Se conservaron correo, contrasena, selector de empresa y sesion activa.
+- Se mantuvo el consumo de `POST /api/auth/tenants`, `POST /api/auth/login` y `POST /api/auth/logout`.
+- Se actualizo la documentacion de arquitectura, modulos y bitacora.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se verifico la pantalla en `http://localhost:8000`: login central visible, marca visible y panel lateral anterior removido.
+- Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+- Suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 198 pruebas pasadas, 959 aserciones.
+
+### Notas de seguridad
+
+- El rediseño no cambia el modelo de autenticacion.
+- El backend sigue validando token, tenant, roles, permisos y policies.
+
 ## 2026-07-03 - Frontend inicial de login
 
 ### Implementado

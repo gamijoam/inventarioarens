@@ -80,7 +80,7 @@ Regla importante:
 
 - el frontend no reemplaza permisos ni validaciones del backend;
 - toda accion real debe pasar por APIs protegidas con `api.auth` y `tenant`;
-- el diseno usa la paleta morada/azul del login de referencia, pero con composicion propia para Inventory Arens.
+- el diseno usa la paleta morada/azul del login de referencia, pero ahora como login central profesional sin imagen lateral.
 
 ### Tenancy
 
