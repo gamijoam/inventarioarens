@@ -113,6 +113,7 @@ const elements = {
     mainNav: document.querySelector('#main-nav'),
     shortcuts: document.querySelector('#module-shortcuts'),
     attentionList: document.querySelector('#attention-list'),
+    dashboardStatus: document.querySelector('#dashboard-status'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -141,6 +142,17 @@ async function api(path, options = {}) {
     }
 
     return payload.data;
+}
+
+async function authenticatedApi(path, session, options = {}) {
+    return api(path, {
+        ...options,
+        headers: {
+            Authorization: `Bearer ${session.token}`,
+            'X-Tenant': session.tenant.slug,
+            ...(options.headers ?? {}),
+        },
+    });
 }
 
 function renderTenantOptions(tenants) {
@@ -177,6 +189,7 @@ function renderSession(session) {
     renderShortcuts(session.permissions);
     renderAttention(session.permissions);
     applyPermissionVisibility(session.permissions);
+    loadDashboardSummary(session);
 }
 
 function clearSession() {
@@ -203,6 +216,34 @@ function createDevSession() {
         roles: ['Demo local'],
         permissions: devPermissions,
         is_local_demo: true,
+    };
+}
+
+function demoDashboardSummary() {
+    return {
+        currency: 'USD',
+        period: { from: new Date().toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) },
+        sales: { confirmed_count: 0, total_base_amount: 0 },
+        pos: { paid_orders_count: 0, paid_base_amount: 0 },
+        cash_register: { open_sessions_count: 0 },
+        inventory: {
+            low_stock_count: 1,
+            low_stock_threshold: 3,
+            low_stock_items: [
+                {
+                    product_name: 'Producto demo bajo stock',
+                    sku: 'DEMO-001',
+                    warehouse_name: 'Almacen demo',
+                    quantity_available: 2,
+                },
+            ],
+        },
+        finance: {
+            accounts_receivable_balance_base_amount: 0,
+            accounts_payable_balance_base_amount: 0,
+            accounts_receivable_count: 0,
+            accounts_payable_count: 0,
+        },
     };
 }
 
@@ -302,6 +343,112 @@ function renderAttention(userPermissions) {
             return article;
         }),
     );
+}
+
+async function loadDashboardSummary(session) {
+    setDashboardStatus(session.is_local_demo ? 'Mostrando datos demo locales.' : 'Cargando resumen del negocio...');
+
+    if (session.is_local_demo) {
+        renderDashboardSummary(demoDashboardSummary(), session.permissions);
+        return;
+    }
+
+    try {
+        const summary = await authenticatedApi('/api/dashboard/summary?period=today&low_stock_threshold=3', session);
+        renderDashboardSummary(summary, session.permissions);
+        setDashboardStatus(`Periodo ${summary.period.from} a ${summary.period.to}.`);
+    } catch (error) {
+        setDashboardStatus(error.message, 'error');
+    }
+}
+
+function renderDashboardSummary(summary, userPermissions) {
+    setDashboardValue('sales_total', money(summary.sales.total_base_amount));
+    setDashboardDetail('sales_count', `${summary.sales.confirmed_count} ventas confirmadas`);
+    setDashboardValue('pos_paid', money(summary.pos.paid_base_amount));
+    setDashboardDetail('pos_count', `${summary.pos.paid_orders_count} ordenes POS pagadas`);
+    setDashboardValue('transactions', summary.sales.confirmed_count + summary.pos.paid_orders_count);
+    setDashboardDetail('cash_register', `${summary.cash_register.open_sessions_count} cajas abiertas`);
+
+    const pendingBalance = summary.finance.accounts_receivable_balance_base_amount + summary.finance.accounts_payable_balance_base_amount;
+    setDashboardValue('pending_balance', money(pendingBalance));
+    setDashboardDetail(
+        'pending_counts',
+        `${summary.finance.accounts_receivable_count} CxC / ${summary.finance.accounts_payable_count} CxP`,
+    );
+
+    renderDashboardAttention(summary, userPermissions);
+}
+
+function renderDashboardAttention(summary, userPermissions) {
+    const items = [
+        {
+            label: 'Stock bajo',
+            detail: `${summary.inventory.low_stock_count} productos en o por debajo de ${summary.inventory.low_stock_threshold}`,
+            permissions: ['products.view', 'inventory.view'],
+            tone: summary.inventory.low_stock_count > 0 ? 'danger' : 'neutral',
+        },
+        {
+            label: summary.cash_register.open_sessions_count > 0 ? 'Caja abierta' : 'Caja cerrada',
+            detail: `${summary.cash_register.open_sessions_count} cajas abiertas actualmente`,
+            permissions: ['cash_register.view', 'cash_register.open', 'pos.checkout'],
+            tone: summary.cash_register.open_sessions_count > 0 ? 'neutral' : 'warning',
+        },
+        {
+            label: 'Pendientes financieros',
+            detail: `${summary.finance.accounts_receivable_count} por cobrar y ${summary.finance.accounts_payable_count} por pagar`,
+            permissions: ['finance_reports.view', 'accounts_receivable.view', 'accounts_payable.view'],
+            tone: summary.finance.accounts_receivable_count + summary.finance.accounts_payable_count > 0 ? 'warning' : 'neutral',
+        },
+    ].filter((item) => canAccess(userPermissions, item.permissions));
+
+    const lowStockDetails = summary.inventory.low_stock_items.map((item) => ({
+        label: item.product_name,
+        detail: `${item.quantity_available} disponibles en ${item.warehouse_name}${item.sku ? ` · ${item.sku}` : ''}`,
+        permissions: ['products.view', 'inventory.view'],
+        tone: 'danger',
+    }));
+
+    renderAttentionCards([...items, ...lowStockDetails].filter((item) => canAccess(userPermissions, item.permissions)));
+}
+
+function renderAttentionCards(items) {
+    elements.attentionList.replaceChildren(
+        ...items.map((item) => {
+            const article = document.createElement('article');
+            article.className = `attention-card attention-card--${item.tone}`;
+            article.innerHTML = `<strong>${item.label}</strong><span>${item.detail}</span>`;
+            return article;
+        }),
+    );
+}
+
+function setDashboardValue(key, value) {
+    const element = document.querySelector(`[data-dashboard-value="${key}"]`);
+
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+function setDashboardDetail(key, value) {
+    const element = document.querySelector(`[data-dashboard-detail="${key}"]`);
+
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+function setDashboardStatus(message, tone = 'neutral') {
+    elements.dashboardStatus.textContent = message;
+    elements.dashboardStatus.dataset.tone = tone;
+}
+
+function money(value) {
+    return `$${Number(value || 0).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 }
 
 function applyPermissionVisibility(userPermissions) {

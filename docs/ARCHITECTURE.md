@@ -10,8 +10,21 @@ Regla actual de rutas:
 - `routes/api.php` solo carga archivos de rutas modulares.
 - Las rutas protegidas usan `api.auth` y `tenant`.
 - Las rutas de login viven en `app/Modules/Auth/routes.php`.
+- Las rutas del dashboard viven en `app/Modules/Dashboard/routes.php`.
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
+
+## Dashboard ejecutivo
+
+El dashboard inicial usa `GET /api/dashboard/summary` para cargar la portada del sistema con una sola llamada protegida. El objetivo es evitar que el frontend dispare varias consultas independientes al iniciar sesion.
+
+Reglas:
+
+- la API es solo lectura;
+- las sumas y conteos se calculan en base de datos;
+- el stock bajo se consulta con limite y relaciones especificas;
+- no se cargan colecciones completas para tarjetas de resumen;
+- el frontend usa esta API cuando la sesion es real y conserva datos demo solo para `FRONTEND_DEV_BYPASS_LOGIN`.
 
 ## Reportes iniciales
 

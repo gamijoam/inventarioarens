@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 require base_path('app/Modules/Auth/routes.php');
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Dashboard/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Branches/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])

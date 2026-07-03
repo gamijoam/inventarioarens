@@ -153,23 +153,23 @@
                                 <section class="metric-grid" aria-label="Indicadores principales">
                                     <article class="metric-card metric-card--green">
                                         <span>Ingresos</span>
-                                        <strong>$0.00</strong>
-                                        <small>Sin ventas registradas hoy</small>
+                                        <strong data-dashboard-value="sales_total">$0.00</strong>
+                                        <small data-dashboard-detail="sales_count">Cargando ventas...</small>
                                     </article>
                                     <article class="metric-card metric-card--violet">
-                                        <span>Ganancia real</span>
-                                        <strong>$0.00</strong>
-                                        <small>Calculada desde ventas confirmadas</small>
+                                        <span>POS cobrado</span>
+                                        <strong data-dashboard-value="pos_paid">$0.00</strong>
+                                        <small data-dashboard-detail="pos_count">Cargando POS...</small>
                                     </article>
                                     <article class="metric-card metric-card--blue">
                                         <span>Transacciones</span>
-                                        <strong>0</strong>
-                                        <small>POS y ventas manuales</small>
+                                        <strong data-dashboard-value="transactions">0</strong>
+                                        <small data-dashboard-detail="cash_register">Cargando caja...</small>
                                     </article>
                                     <article class="metric-card metric-card--orange">
                                         <span>Cuentas pendientes</span>
-                                        <strong>$0.00</strong>
-                                        <small>CxC y CxP disponibles por permiso</small>
+                                        <strong data-dashboard-value="pending_balance">$0.00</strong>
+                                        <small data-dashboard-detail="pending_counts">Cargando finanzas...</small>
                                     </article>
                                 </section>
 
@@ -178,6 +178,7 @@
                                         <span aria-hidden="true">!</span>
                                         <strong>Requieren atencion</strong>
                                     </div>
+                                    <p class="panel-status" id="dashboard-status" role="status" aria-live="polite"></p>
                                     <div class="attention-list" id="attention-list"></div>
                                 </section>
 

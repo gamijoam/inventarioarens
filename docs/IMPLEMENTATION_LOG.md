@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-03 - Dashboard real con API agregada
+
+### Implementado
+
+- Se agrego el modulo `Dashboard`.
+- Se expuso `GET /api/dashboard/summary`.
+- Se agrego `DashboardSummaryService` con consultas agregadas para ventas, POS, caja, stock bajo y finanzas.
+- Se conecto el frontend del panel principal a la API real cuando la sesion tiene token valido.
+- El modo demo local conserva datos simulados para revisar el frontend sin credenciales.
+- Se agrego estado de carga/error en el panel de atencion.
+- Se documento API, arquitectura, mapa modular y bitacora.
+
+### Buenas practicas de consulta
+
+- La portada usa una API agregada para evitar multiples llamadas pequeñas desde frontend.
+- Las metricas usan `sum` y `count` en base de datos.
+- La lista de stock bajo usa `limit(5)` y carga solo relaciones necesarias.
+- No se cargan colecciones completas para calcular tarjetas.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Dashboard/DashboardSummaryApiTest.php`: 3 pruebas pasadas, 16 aserciones.
+
+### Notas de seguridad
+
+- El dashboard requiere `api.auth` y `tenant`.
+- La autorizacion acepta permisos de lectura operativos existentes.
+- El frontend sigue siendo cliente; las APIs protegidas siguen validando permisos reales.
+
 ## 2026-07-03 - Acceso demo local para revisar frontend
 
 ### Implementado

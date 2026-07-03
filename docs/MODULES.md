@@ -87,6 +87,30 @@ Regla importante:
 - la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth;
 - `FRONTEND_DEV_BYPASS_LOGIN=true` permite revisar el frontend local sin credenciales, solo en `APP_ENV=local`.
 
+### Dashboard
+
+Responsabilidad:
+
+- exponer el resumen ejecutivo del negocio;
+- entregar datos agregados para la portada del frontend;
+- resumir ventas confirmadas, POS cobrado, cajas abiertas, stock bajo y pendientes financieros;
+- servir como API unica para evitar que el frontend haga multiples consultas pequenas al cargar la portada.
+
+Archivos principales:
+
+- `app/Modules/Dashboard/Controllers/DashboardController.php`
+- `app/Modules/Dashboard/Requests/DashboardSummaryRequest.php`
+- `app/Modules/Dashboard/Services/DashboardSummaryService.php`
+- `app/Modules/Dashboard/routes.php`
+
+Regla importante:
+
+- el modulo es solo lectura;
+- usa sumas y conteos agregados en base de datos;
+- la lista de stock bajo se limita a 5 registros y carga solo `product` y `warehouse` necesarios;
+- no debe cargar colecciones completas para la portada;
+- la autorizacion acepta permisos de lectura operativos como `finance_reports.view`, `reports.view`, `sales.view`, `pos.view`, `products.view` o `cash_register.view`.
+
 ### Tenancy
 
 Responsabilidad:

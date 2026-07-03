@@ -755,6 +755,18 @@ button:disabled {
     text-transform: uppercase;
 }
 
+.panel-status {
+    min-height: 22px;
+    margin: 10px 0 0;
+    color: #7b89a3;
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.panel-status[data-tone='error'] {
+    color: var(--danger);
+}
+
 .attention-list {
     display: flex;
     flex-wrap: wrap;

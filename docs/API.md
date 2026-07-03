@@ -82,6 +82,92 @@ Reglas:
 - el token se guarda hasheado en `auth_tokens`, no en texto plano;
 - el token vence inicialmente a los 30 dias;
 - el frontend debe enviar `Authorization: Bearer <token>` en llamadas protegidas;
+
+## Dashboard
+
+Modulo: `Dashboard`
+
+Archivo de rutas:
+
+```txt
+app/Modules/Dashboard/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Dashboard\Controllers\DashboardController
+```
+
+### Resumen del negocio
+
+```txt
+GET /api/dashboard/summary
+```
+
+Permisos aceptados:
+
+```txt
+finance_reports.view
+reports.view
+sales.view
+pos.view
+products.view
+cash_register.view
+```
+
+Query params:
+
+```txt
+period=today|week|month
+date_from=YYYY-MM-DD
+date_to=YYYY-MM-DD
+low_stock_threshold=3
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "currency": "USD",
+    "period": {
+      "from": "2026-07-03",
+      "to": "2026-07-03"
+    },
+    "sales": {
+      "confirmed_count": 3,
+      "total_base_amount": 270
+    },
+    "pos": {
+      "paid_orders_count": 1,
+      "paid_base_amount": 95
+    },
+    "cash_register": {
+      "open_sessions_count": 1
+    },
+    "inventory": {
+      "low_stock_count": 1,
+      "low_stock_threshold": 3,
+      "low_stock_items": []
+    },
+    "finance": {
+      "accounts_receivable_balance_base_amount": 120,
+      "accounts_payable_balance_base_amount": 45,
+      "accounts_receivable_count": 1,
+      "accounts_payable_count": 1
+    }
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth` y `tenant`;
+- no modifica datos;
+- usa consultas agregadas para sumas y conteos;
+- la lista de bajo stock se limita a 5 items;
+- evita cargar colecciones grandes para reducir riesgo de N+1 en la portada.
 - un token emitido para una empresa no puede usarse con el `X-Tenant` de otra empresa.
 
 ### Ver sesion actual
