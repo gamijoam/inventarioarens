@@ -1410,6 +1410,20 @@ button:disabled {
     box-shadow: 0 0 0 4px rgba(77, 53, 255, 0.1);
 }
 
+.field-help {
+    color: #6c7a95;
+    font-size: 0.78rem;
+    font-weight: 760;
+    line-height: 1.35;
+}
+
+.product-form select:disabled {
+    cursor: not-allowed;
+    border-color: #e0e6f0;
+    background: #eef3fa;
+    color: #70809a;
+}
+
 .switch-field {
     display: inline-flex;
     align-items: center;

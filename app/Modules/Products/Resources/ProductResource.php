@@ -32,6 +32,8 @@ class ProductResource extends JsonResource
                 'duration_days' => $this->warrantyPolicy?->duration_days,
                 'coverage_type' => $this->warrantyPolicy?->coverage_type,
             ]),
+            'can_change_tracking_type' => $this->whenCounted('units', fn (): bool => (int) $this->units_count === 0),
+            'units_count' => $this->whenCounted('units', fn (): int => (int) $this->units_count),
             'is_active' => (bool) $this->is_active,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

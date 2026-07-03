@@ -342,6 +342,7 @@
                                             <option value="quantity">Por cantidad</option>
                                             <option value="serialized">Serializado / IMEI</option>
                                         </select>
+                                        <small class="field-help" id="product-tracking-help"></small>
                                     </label>
 
                                     <label class="field">

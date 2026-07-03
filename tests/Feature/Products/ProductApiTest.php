@@ -283,7 +283,15 @@ class ProductApiTest extends TestCase
         ]);
 
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.update']);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.can_change_tracking_type', false)
+            ->assertJsonPath('data.units_count', 1);
 
         $this
             ->actingAs($user)
@@ -293,6 +301,47 @@ class ProductApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['tracking_type']);
+    }
+
+    public function test_user_can_update_sku_without_mixing_tenants(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+
+        $productA = $this->productFor($tenantA, 'Samsung A06', 'SAMSUNG-A06');
+        $this->productFor($tenantA, 'Redmi A3', 'REDMI-A3');
+        $this->productFor($tenantB, 'Producto externo', 'SKU-EXTERNO');
+        $user = $this->userInTenant($tenantA);
+
+        $this->grantRole($tenantA, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->patchJson("/api/products/{$productA->id}", [
+                'sku' => 'REDMI-A3',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['sku']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->patchJson("/api/products/{$productA->id}", [
+                'sku' => 'SKU-EXTERNO',
+                'name' => 'Samsung A06 editado',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.sku', 'SKU-EXTERNO')
+            ->assertJsonPath('data.name', 'Samsung A06 editado');
+
+        $this->assertDatabaseHas('products', [
+            'id' => $productA->id,
+            'tenant_id' => $tenantA->id,
+            'sku' => 'SKU-EXTERNO',
+        ]);
     }
 
     public function test_product_api_rejects_user_without_permission(): void

@@ -46,7 +46,7 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        return ProductResource::make($product->load(['saleExchangeRateType', 'warrantyPolicy']));
+        return ProductResource::make($product->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
     }
 
     public function price(Product $product, ProductPriceService $priceService): ProductPriceResource
@@ -74,7 +74,7 @@ class ProductController extends Controller
 
         $product->update($data);
 
-        return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy']));
+        return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
     }
 
     public function destroy(Product $product): Response

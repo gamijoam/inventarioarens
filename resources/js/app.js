@@ -15,6 +15,7 @@ const state = {
     productFormOptionsLoaded: false,
     productRateTypes: [],
     productWarrantyPolicies: [],
+    productTrackingLocked: false,
 };
 
 const navigationGroups = [
@@ -150,6 +151,7 @@ const elements = {
     productName: document.querySelector('#product-name'),
     productSku: document.querySelector('#product-sku'),
     productTrackingType: document.querySelector('#product-tracking-type'),
+    productTrackingHelp: document.querySelector('#product-tracking-help'),
     productBasePrice: document.querySelector('#product-base-price'),
     productSaleCurrency: document.querySelector('#product-sale-currency'),
     productRateType: document.querySelector('#product-rate-type'),
@@ -850,6 +852,9 @@ async function openProductForm(productId = null) {
     elements.productForm.reset();
     elements.productId.value = productId ?? '';
     elements.productIsActive.checked = true;
+    state.productTrackingLocked = false;
+    elements.productTrackingType.disabled = false;
+    elements.productTrackingHelp.textContent = '';
     setProductFormMessage('Cargando opciones...');
     setProductFormBusy(true);
 
@@ -870,7 +875,9 @@ async function openProductForm(productId = null) {
             elements.productFormTitle.textContent = 'Nuevo producto';
             elements.productFormSubtitle.textContent = 'Crea un producto para venderlo, moverlo y medirlo desde inventario.';
             elements.saveProductButton.textContent = 'Guardar producto';
+            state.productTrackingLocked = false;
             elements.productTrackingType.disabled = false;
+            elements.productTrackingHelp.textContent = 'Puedes elegir si el producto se maneja por cantidad o por serial/IMEI.';
             setProductFormMessage('Listo para crear.');
         }
     } catch (error) {
@@ -1099,7 +1106,11 @@ function fillProductForm(product) {
     elements.productName.value = product.name ?? '';
     elements.productSku.value = product.sku ?? '';
     elements.productTrackingType.value = product.tracking_type ?? 'quantity';
-    elements.productTrackingType.disabled = false;
+    state.productTrackingLocked = product.can_change_tracking_type === false;
+    elements.productTrackingType.disabled = state.productTrackingLocked;
+    elements.productTrackingHelp.textContent = state.productTrackingLocked
+        ? `Este control no se puede cambiar porque el producto ya tiene ${product.units_count ?? 0} unidad(es) asociada(s).`
+        : 'Puedes elegir si el producto se maneja por cantidad o por serial/IMEI.';
     elements.productBasePrice.value = product.base_price ?? '';
     elements.productSaleCurrency.value = product.sale_currency ?? 'USD';
     elements.productRateType.value = product.sale_exchange_rate_type_id ?? '';
@@ -1138,7 +1149,7 @@ async function saveProductForm() {
         focusInventoryOnSavedProduct(savedProduct, Boolean(productId));
         await loadInventoryCenter(state.session);
         setInventoryStatus(
-            productId ? 'Producto actualizado correctamente.' : 'Producto creado correctamente. Mostrando el producto creado.',
+            productId ? 'Producto actualizado correctamente. Mostrando el producto editado.' : 'Producto creado correctamente. Mostrando el producto creado.',
             'success',
         );
     } catch (error) {
@@ -1149,13 +1160,12 @@ async function saveProductForm() {
 }
 
 function focusInventoryOnSavedProduct(product, isEditing) {
-    if (isEditing) {
-        return;
-    }
-
     state.inventoryPage = 1;
-    state.inventoryFilter = 'all';
-    state.inventoryTrackingType = 'all';
+
+    if (!isEditing) {
+        state.inventoryFilter = 'all';
+        state.inventoryTrackingType = 'all';
+    }
 
     if (elements.inventorySearch) {
         elements.inventorySearch.value = product.sku ?? product.name ?? '';
@@ -1178,7 +1188,7 @@ function setProductFormBusy(isBusy) {
     elements.saveProductButton.disabled = isBusy;
     elements.productForm.querySelectorAll('input, select, button').forEach((control) => {
         if (control.id !== 'close-product-form' && control.id !== 'cancel-product-form') {
-            control.disabled = isBusy;
+            control.disabled = isBusy || (control === elements.productTrackingType && state.productTrackingLocked);
         }
     });
 }

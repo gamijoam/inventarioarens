@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Edición robusta de producto en Centro de Inventario
+
+### Implementado
+
+- Se reforzó la edición de productos desde el Centro de Inventario usando la API real `PATCH /api/products/{product}`.
+- El backend ahora devuelve `can_change_tracking_type` y `units_count` al consultar o actualizar un producto.
+- El formulario desactiva el selector de tipo de control cuando el producto ya tiene unidades/IMEIs asociados.
+- Se agregó ayuda visual para explicar cuándo un producto no puede cambiar entre control por cantidad y serializado.
+- Al guardar una edición, el frontend enfoca el producto editado en el listado para comprobar el cambio de inmediato.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`: 12 pruebas pasadas, 61 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Rediseño compacto del modal de detalle de producto
 
 ### Implementado
