@@ -123,6 +123,15 @@ class ProductExitApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.items.0.product_unit_ids.1', $units[1]->id);
 
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/product-exits')
+            ->assertOk()
+            ->assertJsonPath('data.0.created_by_user.email', $user->email)
+            ->assertJsonPath('data.0.items.0.serial_units.0.serial_number', '860777000000001')
+            ->assertJsonPath('data.0.items.0.serial_units.1.serial_number', '860777000000002');
+
         $this->assertDatabaseHas('product_units', [
             'tenant_id' => $tenant->id,
             'id' => $units[0]->id,

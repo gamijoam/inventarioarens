@@ -18,6 +18,11 @@ class ProductEntryResource extends JsonResource
             'notes' => $this->notes,
             'status' => $this->status,
             'created_by' => $this->created_by,
+            'created_by_user' => $this->whenLoaded('creator', fn (): array => [
+                'id' => $this->creator->id,
+                'name' => $this->creator->name,
+                'email' => $this->creator->email,
+            ]),
             'processed_at' => $this->processed_at?->toISOString(),
             'items' => ProductEntryItemResource::collection($this->whenLoaded('items')),
             'created_at' => $this->created_at?->toISOString(),

@@ -46,6 +46,14 @@ class ProductEntryApiTest extends TestCase
             ->assertJsonPath('data.document_number', 'ENT-000001')
             ->assertJsonPath('data.items.0.quantity', '20.0000');
 
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/product-entries')
+            ->assertOk()
+            ->assertJsonPath('data.0.created_by_user.email', $user->email)
+            ->assertJsonPath('data.0.items.0.product.sku', 'AUD-ENTRY');
+
         $this->assertDatabaseHas('stock_balances', [
             'tenant_id' => $tenant->id,
             'warehouse_id' => $warehouse->id,

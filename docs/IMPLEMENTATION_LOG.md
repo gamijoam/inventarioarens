@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Detalle completo de movimientos de inventario
+
+### Implementado
+
+- Se mejoró el detalle del historial dentro del módulo `Entradas y salidas`.
+- El detalle ahora muestra documento, fecha, estado, motivo, referencia, responsable, cantidad total, cantidad de items, cantidad de IMEIs/seriales y notas internas.
+- Cada producto del movimiento muestra SKU, tipo de control, almacén, cantidad, costo unitario cuando aplica, subtotal estimado e IMEIs asociados.
+- La API de entradas y salidas ahora incluye el usuario creador cargado como `created_by_user`.
+- La API de salidas serializadas ahora devuelve los IMEIs reales en `items.*.serial_units` y evita consultas repetidas cargándolos en lote.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 12 pruebas pasadas, 62 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Asistente visual para recepción masiva de IMEIs
 
 ### Implementado

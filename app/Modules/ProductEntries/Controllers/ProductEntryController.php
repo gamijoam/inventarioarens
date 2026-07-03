@@ -20,7 +20,7 @@ class ProductEntryController extends Controller
 
         return ProductEntryResource::collection(
             ProductEntry::query()
-                ->with(['items.product', 'items.warehouse'])
+                ->with(['creator', 'items.product', 'items.warehouse'])
                 ->latest('processed_at')
                 ->paginate(25)
         );
@@ -39,6 +39,6 @@ class ProductEntryController extends Controller
     {
         Gate::authorize('view', $productEntry);
 
-        return ProductEntryResource::make($productEntry->load(['items.product', 'items.warehouse']));
+        return ProductEntryResource::make($productEntry->load(['creator', 'items.product', 'items.warehouse']));
     }
 }

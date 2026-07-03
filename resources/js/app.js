@@ -1082,44 +1082,82 @@ function showOperationHistoryDetail(type, recordId) {
     }
 
     const title = type === 'entry' ? 'Entrada' : 'Salida';
+    const totalQuantity = record.items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+    const totalCost = type === 'entry'
+        ? record.items.reduce((total, item) => total + (Number(item.quantity || 0) * Number(item.unit_cost || 0)), 0)
+        : null;
+    const serialCount = record.items.reduce((total, item) => total + operationItemSerials(type, item).length, 0);
+    const createdBy = record.created_by_user?.name || record.created_by_user?.email || `Usuario #${record.created_by}`;
+
     elements.operationHistoryDetail.innerHTML = `
-        <div class="history-detail__header">
+        <div class="history-detail__hero history-detail__hero--${type}">
             <div>
-                <span>${title}</span>
+                <span>${title} procesada</span>
                 <strong>${escapeHtml(record.document_number)}</strong>
+                <small>${dateLabel(record.processed_at)} · ${escapeHtml(record.status || 'processed')}</small>
             </div>
-            <small>${dateLabel(record.processed_at)}</small>
+            <span class="history-detail__badge">${stockNumber(totalQuantity)} un.</span>
         </div>
-        <dl class="history-detail__facts">
+        <dl class="history-detail__facts history-detail__facts--audit">
             <div><dt>Motivo</dt><dd>${type === 'entry' ? escapeHtml(record.reason) : exitReasonLabel(record.reason)}</dd></div>
             <div><dt>Referencia</dt><dd>${escapeHtml(record.reference || 'Sin referencia')}</dd></div>
-            <div><dt>Notas</dt><dd>${escapeHtml(record.notes || 'Sin notas')}</dd></div>
+            <div><dt>Responsable</dt><dd>${escapeHtml(createdBy)}</dd></div>
+            <div><dt>Items</dt><dd>${record.items.length}</dd></div>
+            <div><dt>IMEIs / seriales</dt><dd>${serialCount}</dd></div>
+            <div><dt>${type === 'entry' ? 'Costo estimado' : 'Tipo de salida'}</dt><dd>${type === 'entry' ? money(totalCost) : title}</dd></div>
         </dl>
+        <section class="history-note">
+            <span>Notas internas</span>
+            <p>${escapeHtml(record.notes || 'Sin notas registradas para este movimiento.')}</p>
+        </section>
         <div class="history-items">
             ${record.items.map((item) => historyItemHtml(type, item)).join('')}
         </div>
     `;
 }
 
+function operationItemSerials(type, item) {
+    if (type === 'entry') {
+        return (item.serial_units ?? []).map((unit) => unit.serial_number);
+    }
+
+    const serials = (item.serial_units ?? []).map((unit) => unit.serial_number);
+
+    return serials.length > 0
+        ? serials
+        : (item.product_unit_ids ?? []).map((id) => `Unidad #${id}`);
+}
+
 function historyItemHtml(type, item) {
     const product = item.product?.name ?? `Producto #${item.product_id}`;
     const sku = item.product?.sku ?? '';
-    const warehouse = item.warehouse?.name ?? `Almacén #${item.warehouse_id}`;
-    const serials = type === 'entry'
-        ? (item.serial_units ?? []).map((unit) => unit.serial_number)
-        : (item.product_unit_ids ?? []).map((id) => `Unidad #${id}`);
+    const tracking = item.product?.tracking_type ? trackingLabel(item.product.tracking_type) : 'Sin tipo';
+    const warehouse = item.warehouse
+        ? `${item.warehouse.name} · ${item.warehouse.code}`
+        : `Almacén #${item.warehouse_id}`;
+    const serials = operationItemSerials(type, item);
+    const unitCost = item.unit_cost === null || item.unit_cost === undefined ? null : Number(item.unit_cost);
+    const subtotal = unitCost === null ? null : unitCost * Number(item.quantity || 0);
 
     return `
-        <article class="history-item">
-            <div>
-                <strong>${escapeHtml(product)}</strong>
-                <span>${escapeHtml(sku)} · ${escapeHtml(warehouse)}</span>
+        <article class="history-item history-item--audit">
+            <div class="history-item__main">
+                <div>
+                    <strong>${escapeHtml(product)}</strong>
+                    <span>${escapeHtml(sku || 'Sin SKU')} · ${escapeHtml(tracking)}</span>
+                </div>
+                <span class="history-item__warehouse">${escapeHtml(warehouse)}</span>
             </div>
-            <div>
+            <div class="history-item__quantity">
                 <strong>${stockNumber(item.quantity)}</strong>
-                <span>${type === 'entry' && item.unit_cost !== null ? `Costo ${money(item.unit_cost)}` : 'unidades'}</span>
+                <span>${unitCost !== null ? `${money(unitCost)} c/u` : 'unidades'}</span>
             </div>
-            ${serials.length > 0 ? `<p>${serials.map(escapeHtml).join(', ')}</p>` : ''}
+            ${subtotal !== null ? `<p class="history-item__subtotal">Subtotal estimado ${money(subtotal)}</p>` : ''}
+            ${serials.length > 0 ? `
+                <div class="history-serials">
+                    ${serials.map((serial) => `<span>${escapeHtml(serial)}</span>`).join('')}
+                </div>
+            ` : '<p class="history-item__empty">Sin IMEIs asociados.</p>'}
         </article>
     `;
 }

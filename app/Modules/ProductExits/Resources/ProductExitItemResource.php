@@ -20,6 +20,21 @@ class ProductExitItemResource extends JsonResource
             'quantity' => $this->quantity,
             'stock_movement_id' => $this->stock_movement_id,
             'product_unit_ids' => $this->product_unit_ids,
+            'serial_units' => $this->serialUnits(),
         ];
+    }
+
+    private function serialUnits(): array
+    {
+        return collect($this->getAttribute('serial_units') ?? [])
+            ->map(fn ($unit): array => [
+                'id' => $unit->id,
+                'serial_type' => $unit->serial_type,
+                'serial_number' => $unit->serial_number,
+                'status' => $unit->status,
+                'warehouse_id' => $unit->warehouse_id,
+            ])
+            ->values()
+            ->all();
     }
 }
