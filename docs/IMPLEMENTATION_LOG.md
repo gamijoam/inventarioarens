@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-03 - Limpieza visual del frontend y textos en español
+
+### Implementado
+
+- Se cambio la tipografia principal del frontend a `Plus Jakarta Sans` con fallbacks seguros.
+- Se corrigieron textos visibles con tildes y `ñ` en login, shell principal y Centro de Inventario.
+- Se reemplazaron simbolos dañados de la barra superior por SVGs inline.
+- Se reemplazo la navegacion lateral para usar claves de icono y SVGs internos, evitando caracteres corruptos.
+- Se corrigieron textos dinamicos del frontend: ordenes POS, busqueda, danado, almacen demo y accesos rapidos.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta y sin warnings.
+- Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 4 pruebas pasadas, 23 aserciones.
+
+### Notas de seguridad
+
+- El cambio no modifica reglas de permisos ni endpoints.
+- Los textos de productos renderizados desde API siguen escapandose antes de insertarse en HTML.
+
 ## 2026-07-03 - Centro de Inventario conectado a base de datos
 
 ### Implementado

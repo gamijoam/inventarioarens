@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
@@ -38,7 +38,7 @@
                                 <span aria-hidden="true">+</span>
                                 Acceso protegido
                             </span>
-                            <h1 id="login-title">Iniciar sesion</h1>
+                            <h1 id="login-title">Iniciar sesión</h1>
                             <p>Entra al panel para gestionar inventario, caja, ventas y operaciones por empresa.</p>
                         </div>
 
@@ -53,7 +53,7 @@
 
                             <div class="field">
                                 <div class="field__row">
-                                    <label for="password">Contrasena</label>
+                                    <label for="password">Contraseña</label>
                                     <button class="link-button" type="button" id="toggle-password">Mostrar</button>
                                 </div>
                                 <div class="input-wrap">
@@ -88,7 +88,7 @@
                     </div>
 
                     <div class="workspace-shell" data-view="session" data-app-name="{{ $appName }}" hidden>
-                        <aside class="workspace-sidebar" aria-label="Navegacion principal">
+                        <aside class="workspace-sidebar" aria-label="Navegación principal">
                             <div class="workspace-brand">
                                 <div class="workspace-brand__mark" aria-hidden="true">{{ mb_substr($appName, 0, 1) }}</div>
                                 <div>
@@ -102,8 +102,10 @@
 
                         <div class="workspace-main">
                             <header class="workspace-topbar">
-                                <button class="icon-button mobile-menu-button" type="button" id="toggle-sidebar" aria-label="Mostrar menu">
-                                    <span aria-hidden="true">☰</span>
+                                <button class="icon-button mobile-menu-button" type="button" id="toggle-sidebar" aria-label="Mostrar menú">
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M4 7h16M4 12h16M4 17h16"></path>
+                                    </svg>
                                 </button>
 
                                 <div class="topbar-spacer"></div>
@@ -120,12 +122,21 @@
                                 </div>
 
                                 <button class="topbar-action topbar-action--primary" type="button" data-requires-any="pos.checkout">
-                                    <span aria-hidden="true">▣</span>
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M6 6h15l-2 8H8L6 6Z"></path>
+                                        <path d="M6 6 5 3H2"></path>
+                                        <path d="M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+                                    </svg>
                                     Vender
                                 </button>
 
                                 <button class="topbar-action" type="button" data-requires-any="reports.view finance_reports.view">
-                                    <span aria-hidden="true">▥</span>
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M4 19V5"></path>
+                                        <path d="M9 19v-7"></path>
+                                        <path d="M14 19V8"></path>
+                                        <path d="M19 19v-4"></path>
+                                    </svg>
                                     Reportes
                                 </button>
 
@@ -140,7 +151,7 @@
                                 <section class="workspace-panel dashboard-view" data-panel="dashboard" aria-labelledby="dashboard-title">
                                 <div class="dashboard-hero">
                                     <div>
-                                        <p class="eyebrow">Operacion</p>
+                                        <p class="eyebrow">Operación</p>
                                         <h1 id="dashboard-title">Resumen del negocio</h1>
                                         <p id="session-summary"></p>
                                     </div>
@@ -193,7 +204,7 @@
 
                                     <article class="work-card">
                                         <div class="section-heading">
-                                            <strong>Sesion y permisos</strong>
+                                            <strong>Sesión y permisos</strong>
                                         </div>
                                         <dl class="session-facts">
                                             <div>
@@ -209,7 +220,7 @@
                                                 <dd id="session-permissions"></dd>
                                             </div>
                                         </dl>
-                                        <button class="secondary-button compact-button" type="button" id="logout-button">Cerrar sesion</button>
+                                        <button class="secondary-button compact-button" type="button" id="logout-button">Cerrar sesión</button>
                                     </article>
                                 </section>
                                 </section>
@@ -219,7 +230,7 @@
                                         <div>
                                             <p class="eyebrow">Inventario</p>
                                             <h1 id="inventory-title">Centro de Inventario</h1>
-                                            <p>Catalogo vivo con stock agregado por producto, seriales y disponibilidad para venta.</p>
+                                            <p>Catálogo vivo con stock agregado por producto, seriales y disponibilidad para venta.</p>
                                         </div>
                                         <div class="module-actions">
                                             <button class="secondary-button compact-action" type="button">Exportar</button>

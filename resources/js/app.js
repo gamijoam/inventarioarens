@@ -1,4 +1,4 @@
-const storageKey = 'inventory_system_session';
+﻿const storageKey = 'inventory_system_session';
 
 const state = {
     selectedTenant: null,
@@ -11,48 +11,49 @@ const state = {
 
 const navigationGroups = [
     {
-        label: 'Operacion',
+        label: 'Operación',
         items: [
-            { label: 'Resumen', icon: '▦', permissions: ['pos.view', 'sales.view', 'products.view'] },
-            { label: 'Centro de Ventas', icon: '▱', permissions: ['sales.view', 'customers.view', 'accounts_receivable.view', 'warranties.view'] },
-            { label: 'POS', icon: '▣', permissions: ['pos.view', 'pos.checkout'] },
-            { label: 'Caja', icon: '◫', permissions: ['cash_register.view', 'cash_register.open', 'cash_register.close'] },
+            { label: 'Resumen', icon: 'dashboard', permissions: ['pos.view', 'sales.view', 'products.view'] },
+            { label: 'Centro de Ventas', icon: 'sales', permissions: ['sales.view', 'customers.view', 'accounts_receivable.view', 'warranties.view'] },
+            { label: 'POS', icon: 'cart', permissions: ['pos.view', 'pos.checkout'] },
+            { label: 'Caja', icon: 'cash', permissions: ['cash_register.view', 'cash_register.open', 'cash_register.close'] },
         ],
     },
     {
         label: 'Inventario',
         items: [
-            { label: 'Centro de Inventario', icon: '◈', permissions: ['products.view', 'inventory.view'] },
-            { label: 'Entradas y salidas', icon: '⇅', permissions: ['product_entries.view', 'product_exits.view'] },
-            { label: 'Traslados', icon: '⇄', permissions: ['inventory_transfers.view', 'inventory_transfer_requests.view'] },
-            { label: 'Kardex', icon: '▤', permissions: ['kardex.view'] },
+            { label: 'Centro de Inventario', icon: 'inventory', permissions: ['products.view', 'inventory.view'] },
+            { label: 'Entradas y salidas', icon: 'arrows', permissions: ['product_entries.view', 'product_exits.view'] },
+            { label: 'Traslados', icon: 'transfer', permissions: ['inventory_transfers.view', 'inventory_transfer_requests.view'] },
+            { label: 'Kardex', icon: 'kardex', permissions: ['kardex.view'] },
         ],
     },
     {
         label: 'Finanzas',
         items: [
-            { label: 'Finanzas', icon: '$', permissions: ['finance_reports.view', 'accounts_receivable.view', 'accounts_payable.view'] },
-            { label: 'Compras', icon: '▧', permissions: ['purchases.view', 'purchase_returns.view'] },
-            { label: 'Proveedores', icon: '◇', permissions: ['suppliers.view'] },
-            { label: 'Comprobantes', icon: '▩', permissions: ['payment_receipts.view'] },
+            { label: 'Finanzas', icon: 'dollar', permissions: ['finance_reports.view', 'accounts_receivable.view', 'accounts_payable.view'] },
+            { label: 'Compras', icon: 'purchase', permissions: ['purchases.view', 'purchase_returns.view'] },
+            { label: 'Proveedores', icon: 'supplier', permissions: ['suppliers.view'] },
+            { label: 'Comprobantes', icon: 'receipt', permissions: ['payment_receipts.view'] },
         ],
     },
     {
-        label: 'Administracion',
+        label: 'Administración',
         items: [
-            { label: 'Configuracion', icon: '⚙', permissions: ['settings.manage', 'currency.view', 'warranty_policies.view'] },
-            { label: 'Usuarios y roles', icon: '◉', permissions: ['users.view', 'roles.view'] },
-            { label: 'Panel empresarial', icon: '▥', permissions: ['settings.manage', 'ai.configure'] },
+            { label: 'Configuración', icon: 'settings', permissions: ['settings.manage', 'currency.view', 'warranty_policies.view'] },
+            { label: 'Usuarios y roles', icon: 'users', permissions: ['users.view', 'roles.view'] },
+            { label: 'Panel empresarial', icon: 'business', permissions: ['settings.manage', 'ai.configure'] },
         ],
     },
 ];
 
+
 const shortcutDefinitions = [
-    { label: 'Abrir POS', detail: 'Venta rapida y pagos', permissions: ['pos.checkout'] },
-    { label: 'Productos', detail: 'Catalogo, precios y seriales', permissions: ['products.view'] },
-    { label: 'Recepcion IMEI', detail: 'Entradas serializadas', permissions: ['product_entries.create'] },
+    { label: 'Abrir POS', detail: 'Venta rápida y pagos', permissions: ['pos.checkout'] },
+    { label: 'Productos', detail: 'Catálogo, precios y seriales', permissions: ['products.view'] },
+    { label: 'Recepción IMEI', detail: 'Entradas serializadas', permissions: ['product_entries.create'] },
     { label: 'Kardex', detail: 'Historial de movimientos', permissions: ['kardex.view'] },
-    { label: 'Garantias', detail: 'Casos y politicas', permissions: ['warranties.view', 'warranty_policies.view'] },
+    { label: 'Garantías', detail: 'Casos y políticas', permissions: ['warranties.view', 'warranty_policies.view'] },
     { label: 'Usuarios', detail: 'Roles y permisos', permissions: ['users.view', 'roles.view'] },
 ];
 
@@ -242,7 +243,7 @@ function demoDashboardSummary() {
                 {
                     product_name: 'Producto demo bajo stock',
                     sku: 'DEMO-001',
-                    warehouse_name: 'Almacen demo',
+                    warehouse_name: 'Almacén demo',
                     quantity_available: 2,
                 },
             ],
@@ -336,6 +337,28 @@ function canAccess(userPermissions, requiredPermissions = []) {
     return requiredPermissions.length === 0 || requiredPermissions.some((permission) => userPermissions.includes(permission));
 }
 
+function iconSvg(name) {
+    const icons = {
+        dashboard: '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4z"></path><path d="M13 4h7v7h-7z"></path><path d="M4 13h7v7H4z"></path><path d="M13 13h7v7h-7z"></path></svg>',
+        sales: '<svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M8 17l4-4 3 3 5-6"></path><path d="M16 10h4v4"></path></svg>',
+        cart: '<svg viewBox="0 0 24 24"><path d="M6 6h15l-2 8H8L6 6Z"></path><path d="M6 6 5 3H2"></path><path d="M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path></svg>',
+        cash: '<svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"></path><path d="M8 12h8"></path><path d="M12 9v6"></path></svg>',
+        inventory: '<svg viewBox="0 0 24 24"><path d="M12 3 4 7l8 4 8-4-8-4Z"></path><path d="M4 7v10l8 4 8-4V7"></path><path d="M12 11v10"></path></svg>',
+        arrows: '<svg viewBox="0 0 24 24"><path d="M7 7h13"></path><path d="m17 4 3 3-3 3"></path><path d="M17 17H4"></path><path d="m7 14-3 3 3 3"></path></svg>',
+        transfer: '<svg viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M21 3 14 10"></path><path d="M8 21H3v-5"></path><path d="M3 21l7-7"></path></svg>',
+        kardex: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z"></path><path d="M9 8h6"></path><path d="M9 12h6"></path><path d="M9 16h4"></path></svg>',
+        dollar: '<svg viewBox="0 0 24 24"><path d="M12 3v18"></path><path d="M17 7.5c-1-1-2.5-1.5-4.5-1.5-2.5 0-4 1.1-4 2.8 0 4.1 9 1.6 9 6.4 0 1.7-1.6 2.8-4.5 2.8-2 0-3.8-.6-5-1.7"></path></svg>',
+        purchase: '<svg viewBox="0 0 24 24"><path d="M7 7h14l-2 7H8L7 7Z"></path><path d="M7 7 6 4H3"></path><path d="M9 20h8"></path></svg>',
+        supplier: '<svg viewBox="0 0 24 24"><path d="M4 18V7l8-4 8 4v11"></path><path d="M8 21v-7h8v7"></path><path d="M9 9h6"></path></svg>',
+        receipt: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"></path><path d="M9 8h6"></path><path d="M9 12h6"></path></svg>',
+        settings: '<svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"></path><path d="M4 12h2M18 12h2M12 4v2M12 18v2M6.6 6.6 8 8M16 16l1.4 1.4M17.4 6.6 16 8M8 16l-1.4 1.4"></path></svg>',
+        users: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M22 21v-2a4 4 0 0 0-3-3.9"></path><path d="M16 3.1a4 4 0 0 1 0 7.8"></path></svg>',
+        business: '<svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8v18"></path><path d="M14 9h4a2 2 0 0 1 2 2v10"></path><path d="M8 7h2M8 11h2M8 15h2"></path></svg>',
+    };
+
+    return icons[name] ?? icons.dashboard;
+}
+
 function renderNavigation(userPermissions) {
     const groups = navigationGroups
         .map((group) => ({
@@ -356,7 +379,7 @@ function renderNavigation(userPermissions) {
                 button.type = 'button';
                 button.className = 'nav-item';
                 button.dataset.active = groupIndex === 0 && itemIndex === 0 ? 'true' : 'false';
-                button.innerHTML = `<span aria-hidden="true">${item.icon}</span><strong>${item.label}</strong>`;
+                button.innerHTML = `<span aria-hidden="true">${iconSvg(item.icon)}</span><strong>${item.label}</strong>`;
                 button.addEventListener('click', () => setActiveNav(button, item.label));
                 section.append(button);
             });
@@ -459,7 +482,7 @@ function renderDashboardSummary(summary, userPermissions) {
     setDashboardValue('sales_total', money(summary.sales.total_base_amount));
     setDashboardDetail('sales_count', `${summary.sales.confirmed_count} ventas confirmadas`);
     setDashboardValue('pos_paid', money(summary.pos.paid_base_amount));
-    setDashboardDetail('pos_count', `${summary.pos.paid_orders_count} ordenes POS pagadas`);
+    setDashboardDetail('pos_count', `${summary.pos.paid_orders_count} órdenes POS pagadas`);
     setDashboardValue('transactions', summary.sales.confirmed_count + summary.pos.paid_orders_count);
     setDashboardDetail('cash_register', `${summary.cash_register.open_sessions_count} cajas abiertas`);
 
@@ -609,7 +632,7 @@ function renderInventoryCenter(summary) {
                         <strong>${stockNumber(product.stock.reserved)}</strong>
                     </div>
                     <div>
-                        <span>Danado</span>
+                        <span>Dañado</span>
                         <strong>${stockNumber(product.stock.damaged)}</strong>
                     </div>
                 </div>
@@ -623,7 +646,7 @@ function renderInventoryCenter(summary) {
 function emptyInventoryState() {
     const article = document.createElement('article');
     article.className = 'empty-state';
-    article.innerHTML = '<strong>No hay productos para este filtro</strong><span>Prueba otra busqueda o revisa los productos activos.</span>';
+    article.innerHTML = '<strong>No hay productos para este filtro</strong><span>Prueba otra búsqueda o revisa los productos activos.</span>';
 
     return article;
 }
