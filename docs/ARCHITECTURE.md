@@ -254,6 +254,25 @@ Reglas arquitectonicas:
 - el frontend debe consumir estas APIs y mostrar opciones segun permisos, pero la autoridad real siempre queda en backend;
 - las rutas protegidas usan `api.auth` y `tenant` para que policies, permisos y tenant se resuelvan juntos.
 
+## Frontend inicial
+
+El frontend inicial vive dentro del mismo proyecto Laravel usando Vite, Blade, CSS y JavaScript ligero.
+
+Archivos principales:
+
+- `resources/views/welcome.blade.php`
+- `resources/css/app.css`
+- `resources/js/app.js`
+
+Reglas arquitectonicas:
+
+- el frontend consume las APIs del backend;
+- no decide permisos criticos, solo muestra u oculta interfaz segun la sesion recibida;
+- el login usa `POST /api/auth/tenants` para resolver empresas disponibles;
+- el login usa `POST /api/auth/login` con `X-Tenant` para obtener token;
+- la sesion se guarda en el navegador para la primera fase;
+- el backend sigue validando token, tenant, roles, permisos y policies en cada peticion protegida.
+
 ## Pruebas de seguridad actuales
 
 La suite de pruebas debe ejecutarse contra PostgreSQL mediante Docker Compose. No se debe usar SQLite como base de confianza para pruebas de multitenancy, integridad referencial, decimales o claves compuestas.

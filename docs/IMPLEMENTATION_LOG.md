@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-03 - Frontend inicial de login
+
+### Implementado
+
+- Se reemplazo la pantalla inicial de Laravel por un login visual de Inventory Arens.
+- Se mantuvo una paleta morada/azul similar a la referencia del usuario, con un diseno propio.
+- Se agrego un panel oscuro operativo con marca, mensajes y tarjetas de capacidades.
+- Se agrego una tarjeta de acceso clara con correo, contrasena y selector de empresa.
+- El frontend consume `POST /api/auth/tenants` para resolver empresas activas del usuario.
+- El frontend consume `POST /api/auth/login` con `X-Tenant` para iniciar sesion.
+- Si el usuario pertenece a varias empresas, se muestra selector antes de entrar.
+- Si la sesion queda guardada, se muestra un panel base de sesion activa.
+- Se agrego cierre de sesion contra `POST /api/auth/logout`.
+- Se documento arquitectura y mapa modular del frontend inicial.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+- Suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 198 pruebas pasadas, 959 aserciones.
+
+### Notas de seguridad
+
+- El frontend solo consume APIs; no decide permisos criticos.
+- El backend sigue validando token, tenant, roles, permisos y policies.
+- El token se conserva en navegador solo como primera fase para avanzar el panel; se podra endurecer mas adelante.
+
 ## 2026-07-03 - Modulo Auth login y tokens por empresa
 
 ### Implementado

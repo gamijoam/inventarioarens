@@ -60,6 +60,28 @@ Regla importante:
 - las APIs protegidas usan el middleware `api.auth` antes de resolver permisos de negocio;
 - el frontend debe tratarse como cliente de APIs, sin autoridad para saltarse permisos.
 
+### Frontend
+
+Responsabilidad:
+
+- mostrar la pantalla inicial de login;
+- consultar empresas disponibles para el usuario;
+- iniciar sesion contra las APIs del modulo `Auth`;
+- conservar la sesion en navegador en esta primera fase;
+- mostrar un panel base cuando la sesion esta activa.
+
+Archivos principales:
+
+- `resources/views/welcome.blade.php`
+- `resources/css/app.css`
+- `resources/js/app.js`
+
+Regla importante:
+
+- el frontend no reemplaza permisos ni validaciones del backend;
+- toda accion real debe pasar por APIs protegidas con `api.auth` y `tenant`;
+- el diseno usa la paleta morada/azul del login de referencia, pero con composicion propia para Inventory Arens.
+
 ### Tenancy
 
 Responsabilidad:
