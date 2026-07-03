@@ -275,6 +275,87 @@ Reglas:
 - permite filtrar productos por `tracking_type`, para separar serializados de productos por cantidad;
 - respeta tenant y no mezcla productos ni saldos entre empresas.
 
+### Detalle de producto en Centro de Inventario
+
+```txt
+GET /api/inventory-center/products/{product}
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "product": {
+      "id": 1,
+      "name": "Samsung A06",
+      "sku": "A06-001",
+      "tracking_type": "serialized",
+      "base_price": 120,
+      "sale_currency": "USD",
+      "sale_exchange_rate_type": null,
+      "warranty_policy": null,
+      "is_active": true
+    },
+    "stock": {
+      "totals": {
+        "available": 3,
+        "reserved": 1,
+        "damaged": 1
+      },
+      "by_warehouse": [
+        {
+          "warehouse_id": 1,
+          "warehouse_name": "Tienda",
+          "warehouse_code": "STORE",
+          "branch_name": "Principal",
+          "available": 2,
+          "reserved": 1,
+          "damaged": 0
+        }
+      ]
+    },
+    "serials": {
+      "total": 2,
+      "items": [
+        {
+          "id": 1,
+          "serial_type": "imei",
+          "serial_number": "860001000000001",
+          "status": "available",
+          "warehouse_name": "Tienda"
+        }
+      ]
+    },
+    "recent_movements": [
+      {
+        "id": 1,
+        "type": "purchase",
+        "quantity": 3,
+        "reason": "Entrada inicial",
+        "warehouse_name": "Tienda",
+        "created_by_name": "Gerente"
+      }
+    ]
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y permiso `products.view`;
+- respeta la policy de productos para no permitir productos de otra empresa;
+- agrega stock por almacen desde `stock_balances`;
+- limita seriales/IMEIs a 50 registros para no cargar listas masivas;
+- limita movimientos recientes a 10 registros;
+- sirve para inspeccionar un producto sin modificar inventario.
+
 ### Ver sesion actual
 
 ```txt

@@ -124,6 +124,7 @@ Responsabilidad:
 - exponer una lectura agregada para la pantalla Centro de Inventario;
 - entregar metricas de productos activos, serializados, stock disponible, reservado, danado, bajo y sin stock;
 - entregar un listado limitado de productos con stock agregado por producto;
+- entregar el detalle operativo de un producto con stock por almacen, seriales/IMEIs y movimientos recientes;
 - permitir busqueda por nombre o SKU y filtros por tipo de control o estado de stock;
 - devolver paginacion real para catalogos grandes;
 - evitar que el frontend haga multiples consultas pequenas o caiga en problemas N+1.
@@ -133,6 +134,7 @@ Archivos principales:
 
 - `app/Modules/InventoryCenter/Controllers/InventoryCenterController.php`
 - `app/Modules/InventoryCenter/Requests/InventoryCenterSummaryRequest.php`
+- `app/Modules/InventoryCenter/Services/InventoryCenterProductDetailService.php`
 - `app/Modules/InventoryCenter/Services/InventoryCenterSummaryService.php`
 - `app/Modules/InventoryCenter/routes.php`
 
@@ -145,6 +147,7 @@ Regla importante:
 - la pantalla frontend permite alternar entre tarjetas y lista sin cambiar el contrato de permisos;
 - no mezcla productos ni saldos entre empresas.
 - no escribe productos directamente; las altas y modificaciones se hacen por `Products`.
+- el detalle de producto limita seriales a 50 y movimientos a 10 para evitar cargas grandes en inventarios reales.
 
 ### Tenancy
 

@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-03 - Detalle de producto en Centro de Inventario
+
+### Implementado
+
+- Se agrego `GET /api/inventory-center/products/{product}` para consultar el detalle operativo de un producto.
+- El detalle devuelve datos generales, tasa, garantia, stock total, stock por almacen, seriales/IMEIs y movimientos recientes.
+- Se creo `InventoryCenterProductDetailService` para mantener separada la lectura agregada del Centro de Inventario.
+- Se agrego un modal de detalle en el frontend con botones `Detalle` en tarjetas y lista.
+- El modal muestra resumen de stock, datos generales, stock por almacen, seriales/IMEIs y movimientos recientes.
+
+### Pruebas
+
+- Se agregaron pruebas para validar stock por almacen, seriales y movimientos recientes en el detalle del producto.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php tests/Feature/Products/ProductApiTest.php`: 18 pruebas pasadas, 105 aserciones.
+- Se compilo el frontend con `pnpm run build` correctamente.
+
+### Notas tecnicas
+
+- El detalle limita seriales a 50 registros y movimientos a 10 para evitar cargas grandes.
+- La ruta usa la policy de `Product`, por lo que respeta tenant y permiso `products.view`.
+
 ## 2026-07-03 - Auditoria de producto creado no visible en Centro de Inventario
 
 ### Diagnostico

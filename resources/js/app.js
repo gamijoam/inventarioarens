@@ -156,6 +156,12 @@ const elements = {
     productWarrantyPolicy: document.querySelector('#product-warranty-policy'),
     productIsActive: document.querySelector('#product-is-active'),
     saveProductButton: document.querySelector('#save-product-button'),
+    productDetailModal: document.querySelector('#product-detail-modal'),
+    closeProductDetail: document.querySelector('#close-product-detail'),
+    productDetailTitle: document.querySelector('#product-detail-title'),
+    productDetailSubtitle: document.querySelector('#product-detail-subtitle'),
+    productDetailMessage: document.querySelector('#product-detail-message'),
+    productDetailContent: document.querySelector('#product-detail-content'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -707,7 +713,10 @@ function productCards(products) {
                     <strong>${stockNumber(product.stock.damaged)}</strong>
                 </div>
             </div>
-            ${canEditProducts() ? `<button class="secondary-button compact-action product-edit-button" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
+            <div class="product-card__actions">
+                <button class="secondary-button compact-action product-edit-button" type="button" data-product-detail="${product.id}">Detalle</button>
+                ${canEditProducts() ? `<button class="secondary-button compact-action product-edit-button" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
+            </div>
         `;
         fragment.append(article);
     });
@@ -730,7 +739,7 @@ function productList(products) {
                     <th>Reservado</th>
                     <th>Dañado</th>
                     <th>Estado</th>
-                    ${canEditProducts() ? '<th>Acciones</th>' : ''}
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -750,7 +759,12 @@ function productList(products) {
                 <td>${stockNumber(product.stock.reserved)}</td>
                 <td>${stockNumber(product.stock.damaged)}</td>
                 <td><span class="stock-badge stock-badge--${product.stock.status}">${stockStatusLabel(product.stock.status)}</span></td>
-                ${canEditProducts() ? `<td><button class="secondary-button compact-action table-action" type="button" data-product-edit="${product.id}">Editar</button></td>` : ''}
+                <td>
+                    <div class="table-actions">
+                        <button class="secondary-button compact-action table-action" type="button" data-product-detail="${product.id}">Detalle</button>
+                        ${canEditProducts() ? `<button class="secondary-button compact-action table-action" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
+                    </div>
+                </td>
             `;
 
             return row;
@@ -806,6 +820,11 @@ function setInventoryStatus(message, tone = 'neutral') {
 function setProductFormMessage(message, tone = 'neutral') {
     elements.productFormMessage.textContent = message;
     elements.productFormMessage.dataset.tone = tone;
+}
+
+function setProductDetailMessage(message, tone = 'neutral') {
+    elements.productDetailMessage.textContent = message;
+    elements.productDetailMessage.dataset.tone = tone;
 }
 
 function canEditProducts() {
@@ -865,6 +884,168 @@ async function openProductForm(productId = null) {
 function closeProductForm() {
     elements.productModal.hidden = true;
     setProductFormMessage('');
+}
+
+async function openProductDetail(productId) {
+    elements.productDetailModal.hidden = false;
+    elements.productDetailTitle.textContent = 'Producto';
+    elements.productDetailSubtitle.textContent = 'Stock, seriales y movimientos recientes.';
+    elements.productDetailContent.replaceChildren();
+    setProductDetailMessage('Cargando detalle...');
+
+    try {
+        const detail = await authenticatedApi(`/api/inventory-center/products/${productId}`, state.session);
+        renderProductDetail(detail);
+        setProductDetailMessage('');
+    } catch (error) {
+        setProductDetailMessage(error.message, 'error');
+    }
+}
+
+function closeProductDetail() {
+    elements.productDetailModal.hidden = true;
+    elements.productDetailContent.replaceChildren();
+    setProductDetailMessage('');
+}
+
+function renderProductDetail(detail) {
+    const product = detail.product;
+    elements.productDetailTitle.textContent = product.name;
+    elements.productDetailSubtitle.textContent = `${product.sku} · ${trackingLabel(product.tracking_type)} · ${product.is_active ? 'Activo' : 'Inactivo'}`;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'product-detail-grid';
+    wrapper.innerHTML = `
+        <section class="detail-section detail-section--summary">
+            <div class="detail-stat">
+                <span>Disponible</span>
+                <strong>${stockNumber(detail.stock.totals.available)}</strong>
+            </div>
+            <div class="detail-stat">
+                <span>Reservado</span>
+                <strong>${stockNumber(detail.stock.totals.reserved)}</strong>
+            </div>
+            <div class="detail-stat">
+                <span>Dañado</span>
+                <strong>${stockNumber(detail.stock.totals.damaged)}</strong>
+            </div>
+        </section>
+
+        <section class="detail-section">
+            <h3>Datos generales</h3>
+            <dl class="detail-list">
+                <div><dt>Precio</dt><dd>${priceLabel(product)}</dd></div>
+                <div><dt>Tasa</dt><dd>${product.sale_exchange_rate_type ? `${escapeHtml(product.sale_exchange_rate_type.code)} · ${escapeHtml(product.sale_exchange_rate_type.name)}` : 'Predeterminada'}</dd></div>
+                <div><dt>Garantía</dt><dd>${product.warranty_policy ? `${escapeHtml(product.warranty_policy.name)} · ${product.warranty_policy.duration_days} días` : 'Sin garantía'}</dd></div>
+                <div><dt>Actualizado</dt><dd>${dateLabel(product.updated_at)}</dd></div>
+            </dl>
+        </section>
+
+        <section class="detail-section">
+            <h3>Stock por almacén</h3>
+            ${warehouseStockHtml(detail.stock.by_warehouse)}
+        </section>
+
+        <section class="detail-section">
+            <h3>Seriales / IMEIs</h3>
+            ${serialsHtml(detail.serials, product.tracking_type)}
+        </section>
+
+        <section class="detail-section detail-section--wide">
+            <h3>Movimientos recientes</h3>
+            ${movementsHtml(detail.recent_movements)}
+        </section>
+    `;
+
+    elements.productDetailContent.replaceChildren(wrapper);
+}
+
+function warehouseStockHtml(rows) {
+    if (rows.length === 0) {
+        return '<p class="detail-empty">Este producto todavía no tiene stock por almacén.</p>';
+    }
+
+    return `
+        <div class="detail-table-wrap">
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th>Almacén</th>
+                        <th>Sucursal</th>
+                        <th>Disp.</th>
+                        <th>Res.</th>
+                        <th>Dañ.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map((row) => `
+                        <tr>
+                            <td><strong>${escapeHtml(row.warehouse_name ?? 'Sin almacén')}</strong><span>${escapeHtml(row.warehouse_code ?? '')}</span></td>
+                            <td>${escapeHtml(row.branch_name ?? 'Sin sucursal')}</td>
+                            <td>${stockNumber(row.available)}</td>
+                            <td>${stockNumber(row.reserved)}</td>
+                            <td>${stockNumber(row.damaged)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function serialsHtml(serials, trackingType) {
+    if (trackingType !== 'serialized') {
+        return '<p class="detail-empty">Este producto se controla por cantidad.</p>';
+    }
+
+    if (serials.items.length === 0) {
+        return '<p class="detail-empty">No hay seriales registrados para este producto.</p>';
+    }
+
+    return `
+        <p class="detail-caption">${serials.total} seriales registrados. Mostrando hasta 50.</p>
+        <div class="serial-list">
+            ${serials.items.map((unit) => `
+                <div class="serial-row">
+                    <strong>${escapeHtml(unit.serial_number)}</strong>
+                    <span>${serialStatusLabel(unit.status)} · ${escapeHtml(unit.warehouse_name ?? 'Sin almacén')}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function movementsHtml(movements) {
+    if (movements.length === 0) {
+        return '<p class="detail-empty">Todavía no hay movimientos para este producto.</p>';
+    }
+
+    return `
+        <div class="detail-table-wrap">
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Cant.</th>
+                        <th>Almacén</th>
+                        <th>Motivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${movements.map((movement) => `
+                        <tr>
+                            <td>${dateLabel(movement.created_at)}</td>
+                            <td>${movementTypeLabel(movement.type)}</td>
+                            <td>${stockNumber(movement.quantity)}</td>
+                            <td>${escapeHtml(movement.warehouse_name ?? 'Sin almacén')}</td>
+                            <td>${escapeHtml(movement.reason ?? '')}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
 async function loadProductFormOptions() {
@@ -1023,6 +1204,46 @@ function stockStatusLabel(status) {
         low: 'Bajo stock',
         out: 'Sin stock',
     }[status] ?? 'Disponible';
+}
+
+function serialStatusLabel(status) {
+    return {
+        available: 'Disponible',
+        reserved: 'Reservado',
+        sold: 'Vendido',
+        damaged: 'Dañado',
+        removed: 'Removido',
+        warranty_hold: 'En garantía',
+    }[status] ?? status;
+}
+
+function movementTypeLabel(type) {
+    return {
+        purchase: 'Entrada',
+        purchase_return: 'Dev. proveedor',
+        sale: 'Venta',
+        sale_return: 'Dev. venta',
+        adjustment_in: 'Ajuste entrada',
+        adjustment_out: 'Ajuste salida',
+        transfer_in: 'Traslado entrada',
+        transfer_out: 'Traslado salida',
+        return_in: 'Retorno entrada',
+        return_out: 'Retorno salida',
+        damaged: 'Dañado',
+        reserved: 'Reservado',
+        released: 'Liberado',
+    }[type] ?? type;
+}
+
+function dateLabel(value) {
+    if (!value) {
+        return 'Sin fecha';
+    }
+
+    return new Date(value).toLocaleString('es-VE', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    });
 }
 
 function escapeHtml(value) {
@@ -1236,8 +1457,22 @@ elements.productModal?.addEventListener('click', (event) => {
     }
 });
 
+elements.closeProductDetail?.addEventListener('click', closeProductDetail);
+
+elements.productDetailModal?.addEventListener('click', (event) => {
+    if (event.target === elements.productDetailModal) {
+        closeProductDetail();
+    }
+});
+
 elements.inventoryProducts?.addEventListener('click', (event) => {
+    const detailButton = event.target.closest('[data-product-detail]');
     const editButton = event.target.closest('[data-product-edit]');
+
+    if (detailButton) {
+        openProductDetail(detailButton.dataset.productDetail);
+        return;
+    }
 
     if (editButton) {
         openProductForm(editButton.dataset.productEdit);

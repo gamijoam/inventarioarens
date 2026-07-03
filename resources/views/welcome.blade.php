@@ -387,6 +387,24 @@
                         </section>
                     </div>
 
+                    <div class="modal-backdrop" id="product-detail-modal" hidden>
+                        <section class="product-modal product-detail-modal" role="dialog" aria-modal="true" aria-labelledby="product-detail-title">
+                            <div class="product-modal__header">
+                                <div>
+                                    <p class="eyebrow">Detalle de producto</p>
+                                    <h2 id="product-detail-title">Producto</h2>
+                                    <p id="product-detail-subtitle">Stock, seriales y movimientos recientes.</p>
+                                </div>
+                                <button class="icon-button" type="button" id="close-product-detail" aria-label="Cerrar detalle">×</button>
+                            </div>
+
+                            <div class="product-detail-body">
+                                <p class="form-message" id="product-detail-message" role="status" aria-live="polite"></p>
+                                <div id="product-detail-content"></div>
+                            </div>
+                        </section>
+                    </div>
+
                     <p class="login-footnote">2026 {{ $appName }}</p>
                 </section>
             </main>

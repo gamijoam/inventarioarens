@@ -4,7 +4,9 @@ namespace Tests\Feature\InventoryCenter;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -114,6 +116,77 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.products.0.sku', 'NUEVO-001')
             ->assertJsonPath('data.products.0.stock.available', 0)
             ->assertJsonPath('data.products.0.stock.status', 'out');
+    }
+
+    public function test_inventory_center_product_detail_returns_stock_serials_and_recent_movements(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouseA = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Tienda', 'code' => 'STORE']);
+        $warehouseB = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Deposito', 'code' => 'DEPOT']);
+        $product = Product::create([
+            'name' => 'Samsung A06',
+            'sku' => 'A06-DET',
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+            'base_price' => 120,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        StockBalance::create([
+            'warehouse_id' => $warehouseA->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+            'quantity_reserved' => 1,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouseB->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+            'quantity_damaged' => 1,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouseA->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouseB->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001000000002',
+            'status' => ProductUnit::STATUS_DAMAGED,
+        ]);
+
+        StockMovement::create([
+            'warehouse_id' => $warehouseA->id,
+            'product_id' => $product->id,
+            'type' => 'purchase',
+            'quantity' => 3,
+            'reason' => 'Entrada detalle',
+            'created_by' => $user->id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.name', 'Samsung A06')
+            ->assertJsonPath('data.stock.totals.available', 3)
+            ->assertJsonPath('data.stock.totals.reserved', 1)
+            ->assertJsonPath('data.stock.totals.damaged', 1)
+            ->assertJsonPath('data.stock.by_warehouse.0.warehouse_name', 'Tienda')
+            ->assertJsonPath('data.stock.by_warehouse.1.warehouse_name', 'Deposito')
+            ->assertJsonPath('data.serials.total', 2)
+            ->assertJsonPath('data.serials.items.0.serial_number', '860001000000001')
+            ->assertJsonPath('data.recent_movements.0.reason', 'Entrada detalle')
+            ->assertJsonPath('data.recent_movements.0.created_by_name', $user->name);
     }
 
     public function test_inventory_center_does_not_mix_companies(): void
