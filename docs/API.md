@@ -207,6 +207,7 @@ tracking_type=quantity|serialized
 stock_status=all|available|low|out
 low_stock_threshold=3
 limit=24
+page=1
 ```
 
 Respuesta:
@@ -219,7 +220,8 @@ Respuesta:
       "tracking_type": null,
       "stock_status": "all",
       "low_stock_threshold": 3,
-      "limit": 24
+      "limit": 24,
+      "page": 1
     },
     "metrics": {
       "total_products": 3,
@@ -246,7 +248,17 @@ Respuesta:
           "status": "available"
         }
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 24,
+      "total": 120,
+      "last_page": 5,
+      "from": 1,
+      "to": 24,
+      "has_previous": false,
+      "has_next": true
+    }
   }
 }
 ```
@@ -259,6 +271,8 @@ Reglas:
 - agrega stock por producto en base de datos antes de responder;
 - no consulta almacenes uno por uno desde el frontend;
 - limita el listado a maximo 50 productos por llamada;
+- devuelve metadatos de paginacion para navegar inventarios grandes;
+- permite filtrar productos por `tracking_type`, para separar serializados de productos por cantidad;
 - respeta tenant y no mezcla productos ni saldos entre empresas.
 
 ### Ver sesion actual

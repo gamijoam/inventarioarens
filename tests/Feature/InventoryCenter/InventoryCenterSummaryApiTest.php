@@ -39,6 +39,9 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.metrics.damaged_quantity', 1)
             ->assertJsonPath('data.metrics.low_stock_count', 1)
             ->assertJsonPath('data.metrics.without_stock_count', 1)
+            ->assertJsonPath('data.pagination.page', 1)
+            ->assertJsonPath('data.pagination.total', 3)
+            ->assertJsonPath('data.pagination.last_page', 1)
             ->assertJsonPath('data.products.0.name', 'Audifonos Tipo C')
             ->assertJsonPath('data.products.0.stock.available', 12)
             ->assertJsonPath('data.products.0.stock.status', 'available')
@@ -61,6 +64,28 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.products.0.name', 'Xiaomi Serial')
             ->assertJsonCount(1, 'data.products');
+    }
+
+    public function test_inventory_center_paginates_and_filters_by_tracking_type(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?limit=1&page=2&tracking_type=quantity')
+            ->assertOk()
+            ->assertJsonPath('data.filters.tracking_type', Product::TRACKING_QUANTITY)
+            ->assertJsonPath('data.pagination.page', 2)
+            ->assertJsonPath('data.pagination.limit', 1)
+            ->assertJsonPath('data.pagination.total', 2)
+            ->assertJsonPath('data.pagination.last_page', 2)
+            ->assertJsonPath('data.pagination.has_previous', true)
+            ->assertJsonPath('data.pagination.has_next', false)
+            ->assertJsonCount(1, 'data.products')
+            ->assertJsonPath('data.products.0.name', 'Samsung A06');
     }
 
     public function test_inventory_center_does_not_mix_companies(): void

@@ -17,6 +17,8 @@ class InventoryCenterSummaryService
     {
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
         $limit = min(max((int) ($filters['limit'] ?? 24), 1), 50);
+        $page = max((int) ($filters['page'] ?? 1), 1);
+        $products = $this->products($filters, $threshold, $limit, $page);
 
         return [
             'filters' => [
@@ -25,9 +27,11 @@ class InventoryCenterSummaryService
                 'stock_status' => $filters['stock_status'] ?? 'all',
                 'low_stock_threshold' => $threshold,
                 'limit' => $limit,
+                'page' => $page,
             ],
             'metrics' => $this->metrics($threshold),
-            'products' => $this->products($filters, $threshold, $limit),
+            'products' => $products['data'],
+            'pagination' => $products['pagination'],
         ];
     }
 
@@ -66,7 +70,7 @@ class InventoryCenterSummaryService
         ];
     }
 
-    private function products(array $filters, float $threshold, int $limit): array
+    private function products(array $filters, float $threshold, int $limit, int $page): array
     {
         $query = $this->productStockQuery($this->stockTotals())
             ->select([
@@ -103,8 +107,13 @@ class InventoryCenterSummaryService
             default => null,
         };
 
-        return $query
+        $total = (clone $query)->count('products.id');
+        $lastPage = max((int) ceil($total / $limit), 1);
+        $page = min($page, $lastPage);
+
+        $products = $query
             ->orderBy('products.name')
+            ->forPage($page, $limit)
             ->limit($limit)
             ->get()
             ->map(fn (Product $product): array => [
@@ -122,6 +131,20 @@ class InventoryCenterSummaryService
                 ],
             ])
             ->all();
+
+        return [
+            'data' => $products,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'from' => $total === 0 ? 0 : (($page - 1) * $limit) + 1,
+                'to' => min($page * $limit, $total),
+                'has_previous' => $page > 1,
+                'has_next' => $page < $lastPage,
+            ],
+        ];
     }
 
     private function productStockQuery(QueryBuilder $stockTotals): \Illuminate\Database\Eloquent\Builder

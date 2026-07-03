@@ -251,11 +251,22 @@
                                             <span aria-hidden="true">@</span>
                                             <input id="inventory-search" type="search" placeholder="Buscar por nombre, SKU o serial...">
                                         </label>
-                                        <div class="filter-group" aria-label="Filtro de stock">
-                                            <button class="filter-chip is-active" type="button" data-inventory-filter="all">Todos</button>
-                                            <button class="filter-chip" type="button" data-inventory-filter="available">Disponibles</button>
-                                            <button class="filter-chip" type="button" data-inventory-filter="low">Bajo stock</button>
-                                            <button class="filter-chip" type="button" data-inventory-filter="out">Sin stock</button>
+                                        <div class="inventory-controls">
+                                            <div class="filter-group" aria-label="Filtro de stock">
+                                                <button class="filter-chip is-active" type="button" data-inventory-filter="all">Todos</button>
+                                                <button class="filter-chip" type="button" data-inventory-filter="available">Disponibles</button>
+                                                <button class="filter-chip" type="button" data-inventory-filter="low">Bajo stock</button>
+                                                <button class="filter-chip" type="button" data-inventory-filter="out">Sin stock</button>
+                                            </div>
+                                            <div class="filter-group" aria-label="Tipo de control">
+                                                <button class="filter-chip is-active" type="button" data-inventory-tracking="all">Todos</button>
+                                                <button class="filter-chip" type="button" data-inventory-tracking="quantity">Cantidad</button>
+                                                <button class="filter-chip" type="button" data-inventory-tracking="serialized">Serializados</button>
+                                            </div>
+                                            <div class="view-toggle" aria-label="Modo de visualización">
+                                                <button class="view-toggle__button is-active" type="button" data-inventory-view="cards">Tarjetas</button>
+                                                <button class="view-toggle__button" type="button" data-inventory-view="list">Lista</button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -284,6 +295,13 @@
 
                                     <p class="panel-status" id="inventory-status" role="status" aria-live="polite"></p>
                                     <div class="product-grid" id="inventory-products"></div>
+                                    <div class="inventory-pagination" id="inventory-pagination" hidden>
+                                        <span id="inventory-pagination-summary"></span>
+                                        <div>
+                                            <button class="secondary-button compact-action" type="button" id="inventory-prev-page">Anterior</button>
+                                            <button class="secondary-button compact-action" type="button" id="inventory-next-page">Siguiente</button>
+                                        </div>
+                                    </div>
                                 </section>
                             </main>
                         </div>

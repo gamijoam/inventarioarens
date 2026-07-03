@@ -22,6 +22,7 @@ class InventoryCenterSummaryRequest extends FormRequest
             'stock_status' => ['nullable', Rule::in(['all', 'available', 'low', 'out'])],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0', 'max:999999'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ];
     }
 }

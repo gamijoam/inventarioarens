@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-03 - Centro de Inventario con lista, paginacion y filtros
+
+### Implementado
+
+- Se agrego paginacion real a `GET /api/inventory-center/summary` con `page`, `limit` y bloque `pagination`.
+- Se mantuvo el stock agregado por producto en base de datos.
+- Se agrego filtro frontend/backend por tipo de control: todos, por cantidad y serializados.
+- Se agrego alternancia visual entre tarjetas y lista.
+- Se agrego tabla de productos con columnas de SKU, tipo, precio, disponible, reservado, danado y estado.
+- Se agregaron controles de pagina anterior/siguiente en el Centro de Inventario.
+
+### Buenas practicas de consulta
+
+- La API cuenta resultados filtrados en base de datos antes de paginar.
+- La paginacion evita cargar catalogos completos cuando existan muchos productos.
+- La vista lista usa el mismo endpoint agregado y no dispara consultas extra por producto.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 5 pruebas pasadas, 36 aserciones.
+
+### Notas de seguridad
+
+- El endpoint mantiene `api.auth`, `tenant` y permisos `products.view` o `inventory.view`.
+- Las pruebas siguen validando aislamiento entre empresas.
+
 ## 2026-07-03 - Limpieza visual del frontend y textos en español
 
 ### Implementado

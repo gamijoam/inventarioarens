@@ -6,6 +6,10 @@ const state = {
     session: null,
     activePanel: 'dashboard',
     inventoryFilter: 'all',
+    inventoryTrackingType: 'all',
+    inventoryView: 'cards',
+    inventoryPage: 1,
+    inventoryLimit: 12,
     inventorySearchTimer: null,
 };
 
@@ -123,6 +127,12 @@ const elements = {
     inventoryStatus: document.querySelector('#inventory-status'),
     inventoryProducts: document.querySelector('#inventory-products'),
     inventoryFilters: document.querySelectorAll('[data-inventory-filter]'),
+    inventoryTrackingFilters: document.querySelectorAll('[data-inventory-tracking]'),
+    inventoryViewButtons: document.querySelectorAll('[data-inventory-view]'),
+    inventoryPagination: document.querySelector('#inventory-pagination'),
+    inventoryPaginationSummary: document.querySelector('#inventory-pagination-summary'),
+    inventoryPrevPage: document.querySelector('#inventory-prev-page'),
+    inventoryNextPage: document.querySelector('#inventory-next-page'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -295,19 +305,29 @@ function demoInventoryCenter() {
             sale_currency: 'USD',
             stock: { available: 0, reserved: 0, damaged: 0, status: 'out' },
         },
-    ].filter((product) => {
+    ];
+
+    const filteredProducts = products.filter((product) => {
         const search = elements.inventorySearch?.value.trim().toLowerCase();
         const matchesSearch = !search || `${product.name} ${product.sku}`.toLowerCase().includes(search);
         const matchesStatus = state.inventoryFilter === 'all' || product.stock.status === state.inventoryFilter;
+        const matchesTracking = state.inventoryTrackingType === 'all' || product.tracking_type === state.inventoryTrackingType;
 
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesStatus && matchesTracking;
     });
+
+    const total = filteredProducts.length;
+    const lastPage = Math.max(Math.ceil(total / state.inventoryLimit), 1);
+    state.inventoryPage = Math.min(state.inventoryPage, lastPage);
+    const start = (state.inventoryPage - 1) * state.inventoryLimit;
 
     return {
         filters: {
             stock_status: state.inventoryFilter,
+            tracking_type: state.inventoryTrackingType === 'all' ? null : state.inventoryTrackingType,
             low_stock_threshold: 3,
-            limit: 24,
+            limit: state.inventoryLimit,
+            page: state.inventoryPage,
         },
         metrics: {
             total_products: 5,
@@ -319,7 +339,17 @@ function demoInventoryCenter() {
             low_stock_count: 1,
             without_stock_count: 1,
         },
-        products,
+        products: filteredProducts.slice(start, start + state.inventoryLimit),
+        pagination: {
+            page: state.inventoryPage,
+            limit: state.inventoryLimit,
+            total,
+            last_page: lastPage,
+            from: total === 0 ? 0 : start + 1,
+            to: Math.min(start + state.inventoryLimit, total),
+            has_previous: state.inventoryPage > 1,
+            has_next: state.inventoryPage < lastPage,
+        },
     };
 }
 
@@ -569,7 +599,8 @@ async function loadInventoryCenter(session) {
     }
 
     const params = new URLSearchParams({
-        limit: '24',
+        limit: String(state.inventoryLimit),
+        page: String(state.inventoryPage),
         low_stock_threshold: '3',
         stock_status: state.inventoryFilter,
     });
@@ -580,8 +611,13 @@ async function loadInventoryCenter(session) {
         params.set('search', search);
     }
 
+    if (state.inventoryTrackingType !== 'all') {
+        params.set('tracking_type', state.inventoryTrackingType);
+    }
+
     try {
         const summary = await authenticatedApi(`/api/inventory-center/summary?${params.toString()}`, session);
+        state.inventoryPage = summary.pagination.page;
         renderInventoryCenter(summary);
         setInventoryStatus(`${summary.products.length} productos cargados desde la base de datos.`);
     } catch (error) {
@@ -597,50 +633,117 @@ function renderInventoryCenter(summary) {
     setInventoryDetail('serialized_products', `${summary.metrics.serialized_products} serializados`);
     setInventoryDetail('reserved_quantity', `${stockNumber(summary.metrics.reserved_quantity)} reservados`);
     setInventoryDetail('without_stock_count', `${summary.metrics.without_stock_count} sin stock`);
+    renderInventoryPagination(summary.pagination);
 
     if (summary.products.length === 0) {
+        elements.inventoryProducts.className = 'product-grid';
         elements.inventoryProducts.replaceChildren(emptyInventoryState());
         return;
     }
 
+    elements.inventoryProducts.className = state.inventoryView === 'list' ? 'product-list' : 'product-grid';
     elements.inventoryProducts.replaceChildren(
-        ...summary.products.map((product) => {
-            const article = document.createElement('article');
-            const productName = escapeHtml(product.name);
-            const productSku = escapeHtml(product.sku);
-            const productInitials = escapeHtml(initials(product.name));
-            article.className = `product-card product-card--${product.stock.status}`;
-            article.innerHTML = `
-                <div class="product-card__top">
-                    <div class="product-thumb" aria-hidden="true">${productInitials}</div>
-                    <div>
-                        <strong>${productName}</strong>
-                        <span>${productSku}</span>
-                    </div>
+        state.inventoryView === 'list' ? productList(summary.products) : productCards(summary.products),
+    );
+}
+
+function productCards(products) {
+    const fragment = document.createDocumentFragment();
+
+    products.forEach((product) => {
+        const article = document.createElement('article');
+        const productName = escapeHtml(product.name);
+        const productSku = escapeHtml(product.sku);
+        const productInitials = escapeHtml(initials(product.name));
+        article.className = `product-card product-card--${product.stock.status}`;
+        article.innerHTML = `
+            <div class="product-card__top">
+                <div class="product-thumb" aria-hidden="true">${productInitials}</div>
+                <div>
+                    <strong>${productName}</strong>
+                    <span>${productSku}</span>
                 </div>
-                <div class="product-card__meta">
-                    <span>${product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}</span>
-                    <span>${product.sale_currency ?? 'USD'} ${Number(product.base_price || 0).toFixed(2)}</span>
+            </div>
+            <div class="product-card__meta">
+                <span>${trackingLabel(product.tracking_type)}</span>
+                <span>${priceLabel(product)}</span>
+            </div>
+            <div class="stock-row">
+                <div>
+                    <span>Disponible</span>
+                    <strong>${stockNumber(product.stock.available)}</strong>
                 </div>
-                <div class="stock-row">
-                    <div>
-                        <span>Disponible</span>
-                        <strong>${stockNumber(product.stock.available)}</strong>
-                    </div>
-                    <div>
-                        <span>Reservado</span>
-                        <strong>${stockNumber(product.stock.reserved)}</strong>
-                    </div>
-                    <div>
-                        <span>Dañado</span>
-                        <strong>${stockNumber(product.stock.damaged)}</strong>
-                    </div>
+                <div>
+                    <span>Reservado</span>
+                    <strong>${stockNumber(product.stock.reserved)}</strong>
                 </div>
+                <div>
+                    <span>Dañado</span>
+                    <strong>${stockNumber(product.stock.damaged)}</strong>
+                </div>
+            </div>
+        `;
+        fragment.append(article);
+    });
+
+    return fragment;
+}
+
+function productList(products) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'product-table-wrap';
+    wrapper.innerHTML = `
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>SKU</th>
+                    <th>Tipo</th>
+                    <th>Precio</th>
+                    <th>Disponible</th>
+                    <th>Reservado</th>
+                    <th>Dañado</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    `;
+
+    const tbody = wrapper.querySelector('tbody');
+    tbody.replaceChildren(
+        ...products.map((product) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(product.name)}</strong></td>
+                <td>${escapeHtml(product.sku)}</td>
+                <td>${trackingLabel(product.tracking_type)}</td>
+                <td>${priceLabel(product)}</td>
+                <td>${stockNumber(product.stock.available)}</td>
+                <td>${stockNumber(product.stock.reserved)}</td>
+                <td>${stockNumber(product.stock.damaged)}</td>
+                <td><span class="stock-badge stock-badge--${product.stock.status}">${stockStatusLabel(product.stock.status)}</span></td>
             `;
 
-            return article;
+            return row;
         }),
     );
+
+    return wrapper;
+}
+
+function renderInventoryPagination(pagination) {
+    if (!pagination) {
+        elements.inventoryPagination.hidden = true;
+        return;
+    }
+
+    elements.inventoryPagination.hidden = false;
+    elements.inventoryPaginationSummary.textContent = pagination.total === 0
+        ? 'Sin productos para mostrar'
+        : `Mostrando ${pagination.from}-${pagination.to} de ${pagination.total} productos`;
+    elements.inventoryPrevPage.disabled = !pagination.has_previous;
+    elements.inventoryNextPage.disabled = !pagination.has_next;
 }
 
 function emptyInventoryState() {
@@ -684,6 +787,22 @@ function stockNumber(value) {
         minimumFractionDigits: 0,
         maximumFractionDigits: 4,
     });
+}
+
+function trackingLabel(type) {
+    return type === 'serialized' ? 'Serializado' : 'Por cantidad';
+}
+
+function priceLabel(product) {
+    return `${product.sale_currency ?? 'USD'} ${Number(product.base_price || 0).toFixed(2)}`;
+}
+
+function stockStatusLabel(status) {
+    return {
+        available: 'Disponible',
+        low: 'Bajo stock',
+        out: 'Sin stock',
+    }[status] ?? 'Disponible';
 }
 
 function escapeHtml(value) {
@@ -815,6 +934,7 @@ elements.sidebarToggle?.addEventListener('click', () => {
 
 elements.inventorySearch?.addEventListener('input', () => {
     window.clearTimeout(state.inventorySearchTimer);
+    state.inventoryPage = 1;
     state.inventorySearchTimer = window.setTimeout(() => {
         if (state.session && state.activePanel === 'inventory') {
             loadInventoryCenter(state.session);
@@ -825,6 +945,7 @@ elements.inventorySearch?.addEventListener('input', () => {
 elements.inventoryFilters.forEach((button) => {
     button.addEventListener('click', () => {
         state.inventoryFilter = button.dataset.inventoryFilter;
+        state.inventoryPage = 1;
         elements.inventoryFilters.forEach((filter) => {
             filter.classList.toggle('is-active', filter === button);
         });
@@ -833,6 +954,47 @@ elements.inventoryFilters.forEach((button) => {
             loadInventoryCenter(state.session);
         }
     });
+});
+
+elements.inventoryTrackingFilters.forEach((button) => {
+    button.addEventListener('click', () => {
+        state.inventoryTrackingType = button.dataset.inventoryTracking;
+        state.inventoryPage = 1;
+        elements.inventoryTrackingFilters.forEach((filter) => {
+            filter.classList.toggle('is-active', filter === button);
+        });
+
+        if (state.session && state.activePanel === 'inventory') {
+            loadInventoryCenter(state.session);
+        }
+    });
+});
+
+elements.inventoryViewButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+        state.inventoryView = button.dataset.inventoryView;
+        elements.inventoryViewButtons.forEach((viewButton) => {
+            viewButton.classList.toggle('is-active', viewButton === button);
+        });
+
+        if (state.session && state.activePanel === 'inventory') {
+            loadInventoryCenter(state.session);
+        }
+    });
+});
+
+elements.inventoryPrevPage?.addEventListener('click', () => {
+    if (state.session && state.inventoryPage > 1) {
+        state.inventoryPage -= 1;
+        loadInventoryCenter(state.session);
+    }
+});
+
+elements.inventoryNextPage?.addEventListener('click', () => {
+    if (state.session) {
+        state.inventoryPage += 1;
+        loadInventoryCenter(state.session);
+    }
 });
 
 const existingSession = JSON.parse(localStorage.getItem(storageKey) || 'null');

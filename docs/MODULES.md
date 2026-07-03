@@ -121,6 +121,7 @@ Responsabilidad:
 - entregar metricas de productos activos, serializados, stock disponible, reservado, danado, bajo y sin stock;
 - entregar un listado limitado de productos con stock agregado por producto;
 - permitir busqueda por nombre o SKU y filtros por tipo de control o estado de stock;
+- devolver paginacion real para catalogos grandes;
 - evitar que el frontend haga multiples consultas pequenas o caiga en problemas N+1.
 
 Archivos principales:
@@ -136,6 +137,7 @@ Regla importante:
 - requiere `products.view` o `inventory.view`;
 - usa `stock_balances` agregado por producto en base de datos;
 - el listado se limita a 50 productos como maximo por llamada;
+- la pantalla frontend permite alternar entre tarjetas y lista sin cambiar el contrato de permisos;
 - no mezcla productos ni saldos entre empresas.
 
 ### Tenancy
