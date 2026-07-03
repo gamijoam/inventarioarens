@@ -28,8 +28,8 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 ## Que crea
 
 - Empresas demo:
-  - `arens-demo-caracas`
-  - `arens-demo-valencia`
+  - `demo-caracas`
+  - `demo-valencia`
 - Usuarios demo:
   - `cajero.caracas@demo.test`
   - `gerente.caracas@demo.test`

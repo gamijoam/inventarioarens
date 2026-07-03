@@ -59,8 +59,8 @@ class DemoDataSeeder extends Seeder
         $this->call(RolesAndPermissionsSeeder::class);
 
         DB::transaction(function (): void {
-            $tenantA = $this->tenant('Arens Demo Caracas', 'arens-demo-caracas');
-            $tenantB = $this->tenant('Arens Demo Valencia', 'arens-demo-valencia');
+            $tenantA = $this->tenant('Demo Caracas', 'demo-caracas');
+            $tenantB = $this->tenant('Demo Valencia', 'demo-valencia');
 
             $this->seedCompany($tenantA, [
                 'branch_name' => 'Principal Caracas',

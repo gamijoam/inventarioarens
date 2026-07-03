@@ -5,14 +5,16 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>Inventory Arens</title>
+        @php($appName = config('app.name', 'Sistema de Inventario'))
+
+        <title>{{ $appName }}</title>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body>
         <div id="app" class="app-shell">
             <main class="login-screen" aria-labelledby="login-title">
-                <section class="login-workspace" aria-label="Acceso a Inventory Arens">
+                <section class="login-workspace" aria-label="Acceso a {{ $appName }}">
                     <div class="login-brand">
                         <div class="brand-mark">
                             <div class="brand-mark__icon" aria-hidden="true">
@@ -23,7 +25,7 @@
                                 </svg>
                             </div>
                             <div>
-                                <strong>Inventory Arens</strong>
+                                <strong>{{ $appName }}</strong>
                                 <span>Sistema empresarial</span>
                             </div>
                         </div>
@@ -98,7 +100,7 @@
                         <button class="secondary-button" type="button" id="logout-button">Cerrar sesion</button>
                     </div>
 
-                    <p class="login-footnote">2026 Inventory Arens</p>
+                    <p class="login-footnote">2026 {{ $appName }}</p>
                 </section>
             </main>
         </div>

@@ -4,6 +4,9 @@
 
 ### Implementado
 
+- Se cambio la marca visible para usar `APP_NAME` desde `.env`, con valor por defecto `Sistema de Inventario`.
+- Se removieron referencias visibles a nombres propios anteriores en el login y datos demo.
+- Se cambio la llave de sesion del navegador a `inventory_system_session`.
 - Se elimino el panel visual izquierdo del login inicial.
 - Se dejo una pantalla unica de acceso centrada.
 - Se mantuvo la identidad morada/azul en una composicion mas sobria y empresarial.
@@ -15,6 +18,7 @@
 
 - Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
 - Se verifico la pantalla en `http://localhost:8000`: login central visible, marca visible y panel lateral anterior removido.
+- Se ejecuto prueba especifica del seeder demo en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Seeders/DemoDataSeederTest.php`: 1 prueba pasada, 50 aserciones.
 - Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
 - Suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 198 pruebas pasadas, 959 aserciones.
 
@@ -27,7 +31,7 @@
 
 ### Implementado
 
-- Se reemplazo la pantalla inicial de Laravel por un login visual de Inventory Arens.
+- Se reemplazo la pantalla inicial de Laravel por un login visual de Sistema de Inventario.
 - Se mantuvo una paleta morada/azul similar a la referencia del usuario, con un diseno propio.
 - Se agrego un panel oscuro operativo con marca, mensajes y tarjetas de capacidades.
 - Se agrego una tarjeta de acceso clara con correo, contrasena y selector de empresa.

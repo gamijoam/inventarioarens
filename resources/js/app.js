@@ -1,4 +1,4 @@
-const storageKey = 'inventory_arens_session';
+const storageKey = 'inventory_system_session';
 
 const state = {
     selectedTenant: null,

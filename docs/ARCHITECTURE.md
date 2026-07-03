@@ -1,4 +1,4 @@
-# Arquitectura de Inventory Arens
+# Arquitectura de Sistema de Inventario
 
 ## Documentos de referencia rapida
 
@@ -159,7 +159,7 @@ El modulo `InventoryTransferRequests` cubre las solicitudes interempresa. La sol
 
 ## Objetivo
 
-Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
+Sistema de Inventario es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
 
 ## Reglas de multitenancy
 

@@ -19,7 +19,7 @@ class SerializedProductUnitTest extends TestCase
 
     public function test_serialized_product_can_have_many_unique_imeis_inside_current_tenant(): void
     {
-        $tenant = Tenant::create(['name' => 'Telefonos Arens', 'slug' => 'telefonos-arens']);
+        $tenant = Tenant::create(['name' => 'Telefonos Demo', 'slug' => 'telefonos-demo']);
         [$warehouse, $product] = $this->warehouseAndSerializedProduct($tenant, 'A06');
 
         for ($index = 1; $index <= 30; $index++) {

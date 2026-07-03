@@ -24,7 +24,7 @@ class ProductApiTest extends TestCase
 
     public function test_user_can_create_serialized_product_inside_current_tenant(): void
     {
-        $tenant = Tenant::create(['name' => 'Telefonos Arens', 'slug' => 'telefonos-arens']);
+        $tenant = Tenant::create(['name' => 'Telefonos Demo', 'slug' => 'telefonos-demo']);
         $user = $this->userInTenant($tenant);
 
         $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);

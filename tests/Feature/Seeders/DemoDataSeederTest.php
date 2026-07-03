@@ -39,9 +39,9 @@ class DemoDataSeederTest extends TestCase
         $this->seed(DemoDataSeeder::class);
         $this->seed(DemoDataSeeder::class);
 
-        $this->assertDatabaseHas('tenants', ['slug' => 'arens-demo-caracas']);
-        $this->assertDatabaseHas('tenants', ['slug' => 'arens-demo-valencia']);
-        $this->assertSame(2, Tenant::query()->where('slug', 'like', 'arens-demo-%')->count());
+        $this->assertDatabaseHas('tenants', ['slug' => 'demo-caracas']);
+        $this->assertDatabaseHas('tenants', ['slug' => 'demo-valencia']);
+        $this->assertSame(2, Tenant::query()->where('slug', 'like', 'demo-%')->count());
         $this->assertDatabaseHas('users', ['email' => 'cajero.caracas@demo.test']);
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'BCV']);
         $this->assertDatabaseHas('exchange_rate_types', ['code' => 'PARALELO']);
