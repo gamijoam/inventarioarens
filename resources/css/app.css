@@ -1551,12 +1551,18 @@ button:disabled {
 .product-card__actions,
 .table-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
 .product-card__actions .compact-action {
-    flex: 1;
+    flex: 1 1 112px;
     padding: 0 12px;
+}
+
+.product-stock-button {
+    border-color: #dce4ff;
+    background: #f4f6ff;
 }
 
 .table-action {

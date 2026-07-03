@@ -17,6 +17,7 @@ const state = {
     productWarrantyPolicies: [],
     productTrackingLocked: false,
     entryOptionsLoaded: false,
+    entryOptionsPromise: null,
     entryProducts: [],
     entryWarehouses: [],
 };
@@ -480,6 +481,10 @@ function setActiveNav(activeButton, label) {
         button.dataset.active = button === activeButton ? 'true' : 'false';
     });
 
+    showPanelForLabel(label);
+}
+
+function showPanelForLabel(label) {
     const panel = {
         'Centro de Inventario': 'inventory',
         'Entradas y salidas': 'stock-operations',
@@ -490,6 +495,18 @@ function setActiveNav(activeButton, label) {
     if (panel === 'dashboard') {
         document.querySelector('#dashboard-title').textContent = label === 'Resumen' ? 'Resumen del negocio' : label;
     }
+}
+
+function activateNavigationLabel(label) {
+    const navItems = Array.from(document.querySelectorAll('.nav-item'));
+    const activeButton = navItems.find((button) => button.textContent.trim() === label);
+
+    if (activeButton) {
+        setActiveNav(activeButton, label);
+        return;
+    }
+
+    showPanelForLabel(label);
 }
 
 function showPanel(panel) {
@@ -747,6 +764,7 @@ function productCards(products) {
             </div>
             <div class="product-card__actions">
                 <button class="secondary-button compact-action product-edit-button" type="button" data-product-detail="${product.id}">Detalle</button>
+                ${canCreateProductEntries() ? `<button class="secondary-button compact-action product-edit-button product-stock-button" type="button" data-product-receive="${product.id}">Recibir stock</button>` : ''}
                 ${canEditProducts() ? `<button class="secondary-button compact-action product-edit-button" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
             </div>
         `;
@@ -794,6 +812,7 @@ function productList(products) {
                 <td>
                     <div class="table-actions">
                         <button class="secondary-button compact-action table-action" type="button" data-product-detail="${product.id}">Detalle</button>
+                        ${canCreateProductEntries() ? `<button class="secondary-button compact-action table-action product-stock-button" type="button" data-product-receive="${product.id}">Recibir</button>` : ''}
                         ${canEditProducts() ? `<button class="secondary-button compact-action table-action" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
                     </div>
                 </td>
@@ -872,6 +891,11 @@ async function loadEntryOptions(session, force = false) {
         return;
     }
 
+    if (state.entryOptionsPromise && !force) {
+        await state.entryOptionsPromise;
+        return;
+    }
+
     if (state.entryOptionsLoaded && !force) {
         renderEntryOptions();
         updateEntryFormMode();
@@ -881,7 +905,7 @@ async function loadEntryOptions(session, force = false) {
     setProductEntryMessage(session.is_local_demo ? 'Mostrando opciones demo locales.' : 'Cargando productos y almacenes...');
     setProductEntryBusy(true);
 
-    try {
+    state.entryOptionsPromise = (async () => {
         if (session.is_local_demo) {
             state.entryProducts = demoEntryProducts();
             state.entryWarehouses = demoEntryWarehouses();
@@ -899,9 +923,14 @@ async function loadEntryOptions(session, force = false) {
         renderEntryOptions();
         updateEntryFormMode();
         setProductEntryMessage('Listo para registrar una entrada.');
+    })();
+
+    try {
+        await state.entryOptionsPromise;
     } catch (error) {
         setProductEntryMessage(error.message, 'error');
     } finally {
+        state.entryOptionsPromise = null;
         setProductEntryBusy(false);
     }
 }
@@ -1084,6 +1113,30 @@ function canEditProducts() {
 
 function canCreateProducts() {
     return state.session?.permissions?.includes('products.create') ?? false;
+}
+
+function canCreateProductEntries() {
+    return state.session?.permissions?.includes('product_entries.create') ?? false;
+}
+
+async function openProductEntryForProduct(productId) {
+    if (!canCreateProductEntries()) {
+        setInventoryStatus('No tienes permiso para registrar entradas de producto.', 'error');
+        return;
+    }
+
+    activateNavigationLabel('Entradas y salidas');
+    setProductEntryMessage('Preparando recepción del producto...');
+    await loadEntryOptions(state.session);
+
+    if (elements.entryProduct.querySelector(`option[value="${productId}"]`)) {
+        elements.entryProduct.value = String(productId);
+    }
+
+    elements.entryReason.value = 'Recepción de mercancía';
+    updateEntryFormMode();
+    elements.entryWarehouse.focus();
+    setProductEntryMessage('Producto seleccionado. Completa almacén, cantidad o IMEIs para registrar la entrada.', 'success');
 }
 
 async function openProductForm(productId = null) {
@@ -1759,9 +1812,15 @@ elements.productDetailModal?.addEventListener('click', (event) => {
 elements.inventoryProducts?.addEventListener('click', (event) => {
     const detailButton = event.target.closest('[data-product-detail]');
     const editButton = event.target.closest('[data-product-edit]');
+    const receiveButton = event.target.closest('[data-product-receive]');
 
     if (detailButton) {
         openProductDetail(detailButton.dataset.productDetail);
+        return;
+    }
+
+    if (receiveButton) {
+        openProductEntryForProduct(receiveButton.dataset.productReceive);
         return;
     }
 

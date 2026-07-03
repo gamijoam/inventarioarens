@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-07-03 - Acceso trazable para recibir stock desde Centro de Inventario
+
+### Implementado
+
+- Se agregó el botón `Recibir stock` en tarjetas y lista del Centro de Inventario.
+- El botón no modifica cantidades directamente; abre el módulo `Entradas y salidas` con el producto seleccionado.
+- Se mantiene la regla operativa: el catálogo permite consultar y editar datos del producto, pero el stock se mueve mediante entradas/salidas trazables.
+- Se optimizó la carga de opciones del formulario de entrada para evitar llamadas duplicadas al cambiar de módulo.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php`: 5 pruebas pasadas, 25 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Frontend inicial para entrada de productos
 
 ### Implementado
