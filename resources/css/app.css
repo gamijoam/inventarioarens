@@ -1312,15 +1312,69 @@ button:disabled {
     gap: 8px;
 }
 
+.operation-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 26px rgba(42, 53, 89, 0.06);
+    padding: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.operation-tab {
+    display: grid;
+    gap: 3px;
+    min-height: 58px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #60708c;
+    padding: 10px 14px;
+    text-align: left;
+}
+
+.operation-tab:hover {
+    border-color: #dce4ff;
+    background: #f7f9ff;
+}
+
+.operation-tab.is-active {
+    border-color: #c8d4ff;
+    background: linear-gradient(135deg, #f2f4ff, #ffffff);
+    box-shadow: inset 4px 0 0 var(--violet);
+    color: #071027;
+}
+
+.operation-tab span {
+    font-size: 0.74rem;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.operation-tab strong {
+    overflow: hidden;
+    font-size: 0.95rem;
+    font-weight: 950;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.operation-tab-panel {
+    margin-top: 14px;
+}
+
 .operation-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
     gap: 18px;
-    margin-top: 18px;
-}
-
-.operation-layout--exit {
-    margin-top: 24px;
+    margin-top: 0;
 }
 
 .operation-card {
@@ -1528,7 +1582,7 @@ button:disabled {
 }
 
 .operation-history {
-    margin-top: 24px;
+    margin-top: 0;
 }
 
 .operation-history__message {
@@ -2133,6 +2187,11 @@ button:disabled {
         grid-column: 1 / -1;
     }
 
+    .operation-tabs {
+        grid-template-columns: 1fr;
+        position: static;
+    }
+
     .product-detail-grid,
     .detail-section--summary {
         grid-template-columns: 1fr;
@@ -2267,6 +2326,16 @@ button:disabled {
 
     .inventory-pagination .compact-action {
         flex: 1;
+    }
+
+    .operation-tabs {
+        overflow-x: auto;
+        grid-template-columns: repeat(3, minmax(160px, 1fr));
+    }
+
+    .operation-tab {
+        min-height: 52px;
+        padding: 9px 12px;
     }
 
     .module-header {

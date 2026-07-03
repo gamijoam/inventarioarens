@@ -313,15 +313,31 @@
                                         <div>
                                             <p class="eyebrow">Inventario</p>
                                             <h1 id="stock-operations-title">Entradas y salidas</h1>
-                                            <p>Registra recepciones de stock por almacén. Los productos serializados aceptan carga múltiple de IMEIs.</p>
+                                            <p>Gestiona movimientos de stock por flujo, sin perder trazabilidad por almacén, producto o IMEI.</p>
                                         </div>
                                         <div class="module-actions">
                                             <button class="secondary-button compact-action" type="button" id="refresh-entry-options">Actualizar datos</button>
                                         </div>
                                     </div>
 
-                                    <div class="operation-layout">
-                                        <section class="operation-card">
+                                    <div class="operation-tabs" role="tablist" aria-label="Flujos de entradas y salidas">
+                                        <button class="operation-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="operation-entry-panel" id="operation-entry-tab" data-operation-tab="entry">
+                                            <span>Entrada</span>
+                                            <strong>Recibir stock</strong>
+                                        </button>
+                                        <button class="operation-tab" type="button" role="tab" aria-selected="false" aria-controls="operation-exit-panel" id="operation-exit-tab" data-operation-tab="exit">
+                                            <span>Salida</span>
+                                            <strong>Descontar stock</strong>
+                                        </button>
+                                        <button class="operation-tab" type="button" role="tab" aria-selected="false" aria-controls="operation-history-panel" id="operation-history-tab" data-operation-tab="history">
+                                            <span>Historial</span>
+                                            <strong>Actividad reciente</strong>
+                                        </button>
+                                    </div>
+
+                                    <section class="operation-tab-panel is-active" id="operation-entry-panel" role="tabpanel" aria-labelledby="operation-entry-tab" data-operation-panel="entry">
+                                        <div class="operation-layout">
+                                            <section class="operation-card">
                                             <div class="operation-card__header">
                                                 <div>
                                                     <p class="eyebrow">Entrada</p>
@@ -412,10 +428,12 @@
                                                 </div>
                                             </dl>
                                         </aside>
-                                    </div>
+                                        </div>
+                                    </section>
 
-                                    <div class="operation-layout operation-layout--exit">
-                                        <section class="operation-card">
+                                    <section class="operation-tab-panel" id="operation-exit-panel" role="tabpanel" aria-labelledby="operation-exit-tab" data-operation-panel="exit" hidden>
+                                        <div class="operation-layout">
+                                            <section class="operation-card">
                                             <div class="operation-card__header">
                                                 <div>
                                                     <p class="eyebrow">Salida</p>
@@ -510,34 +528,37 @@
                                                 </div>
                                             </dl>
                                         </aside>
-                                    </div>
+                                        </div>
+                                    </section>
 
-                                    <section class="operation-card operation-history" aria-labelledby="operation-history-title">
-                                        <div class="operation-card__header">
-                                            <div>
-                                                <p class="eyebrow">Historial</p>
-                                                <h2 id="operation-history-title">Actividad reciente</h2>
+                                    <section class="operation-tab-panel" id="operation-history-panel" role="tabpanel" aria-labelledby="operation-history-tab" data-operation-panel="history" hidden>
+                                        <section class="operation-card operation-history" aria-labelledby="operation-history-title">
+                                            <div class="operation-card__header">
+                                                <div>
+                                                    <p class="eyebrow">Historial</p>
+                                                    <h2 id="operation-history-title">Actividad reciente</h2>
+                                                </div>
+                                                <button class="secondary-button compact-action" type="button" id="refresh-operation-history">Refrescar historial</button>
                                             </div>
-                                            <button class="secondary-button compact-action" type="button" id="refresh-operation-history">Refrescar historial</button>
-                                        </div>
 
-                                        <p class="form-message operation-history__message" id="operation-history-message" role="status" aria-live="polite"></p>
+                                            <p class="form-message operation-history__message" id="operation-history-message" role="status" aria-live="polite"></p>
 
-                                        <div class="history-grid">
-                                            <section class="history-panel" aria-labelledby="entry-history-title">
-                                                <h3 id="entry-history-title">Entradas recientes</h3>
-                                                <div class="history-list" id="entry-history-list"></div>
-                                            </section>
+                                            <div class="history-grid">
+                                                <section class="history-panel" aria-labelledby="entry-history-title">
+                                                    <h3 id="entry-history-title">Entradas recientes</h3>
+                                                    <div class="history-list" id="entry-history-list"></div>
+                                                </section>
 
-                                            <section class="history-panel" aria-labelledby="exit-history-title">
-                                                <h3 id="exit-history-title">Salidas recientes</h3>
-                                                <div class="history-list" id="exit-history-list"></div>
-                                            </section>
-                                        </div>
+                                                <section class="history-panel" aria-labelledby="exit-history-title">
+                                                    <h3 id="exit-history-title">Salidas recientes</h3>
+                                                    <div class="history-list" id="exit-history-list"></div>
+                                                </section>
+                                            </div>
 
-                                        <div class="history-detail" id="operation-history-detail">
-                                            <p>Selecciona una entrada o salida para ver sus productos y cantidades.</p>
-                                        </div>
+                                            <div class="history-detail" id="operation-history-detail">
+                                                <p>Selecciona una entrada o salida para ver sus productos y cantidades.</p>
+                                            </div>
+                                        </section>
                                     </section>
                                 </section>
                             </main>

@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-07-03 - Pestañas visuales para entradas y salidas
+
+### Implementado
+
+- Se reorganizó el módulo `Entradas y salidas` en pestañas: `Entrada`, `Salida` e `Historial`.
+- Cada flujo muestra solo su formulario y resumen, evitando una pantalla larga que obligaba a bajar para encontrar opciones.
+- Las pestañas mantienen estado visual activo, accesibilidad básica con `role="tab"` y navegación por teclado con flechas, inicio y fin.
+- Se ajustó el diseño responsive para que las pestañas funcionen en escritorio y móvil sin romper el formulario.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 12 pruebas pasadas, 55 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Formularios compactos y buscador de productos en operaciones
 
 ### Implementado

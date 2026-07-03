@@ -174,6 +174,8 @@ const elements = {
     productDetailSubtitle: document.querySelector('#product-detail-subtitle'),
     productDetailMessage: document.querySelector('#product-detail-message'),
     productDetailContent: document.querySelector('#product-detail-content'),
+    operationTabs: document.querySelectorAll('[data-operation-tab]'),
+    operationPanels: document.querySelectorAll('[data-operation-panel]'),
     refreshEntryOptions: document.querySelector('#refresh-entry-options'),
     productEntryForm: document.querySelector('#product-entry-form'),
     entryWarehouse: document.querySelector('#entry-warehouse'),
@@ -917,6 +919,21 @@ function setProductExitMessage(message, tone = 'neutral') {
 function setOperationHistoryMessage(message, tone = 'neutral') {
     elements.operationHistoryMessage.textContent = message;
     elements.operationHistoryMessage.dataset.tone = tone;
+}
+
+function activateOperationTab(targetTab) {
+    elements.operationTabs.forEach((tab) => {
+        const isActive = tab.dataset.operationTab === targetTab;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+    });
+
+    elements.operationPanels.forEach((panel) => {
+        const isActive = panel.dataset.operationPanel === targetTab;
+        panel.classList.toggle('is-active', isActive);
+        panel.hidden = !isActive;
+    });
 }
 
 function demoEntryProducts() {
@@ -2240,6 +2257,33 @@ elements.refreshEntryOptions?.addEventListener('click', () => {
         state.entryOptionsLoaded = false;
         loadEntryOptions(state.session, true);
     }
+});
+
+elements.operationTabs?.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateOperationTab(tab.dataset.operationTab));
+    tab.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            return;
+        }
+
+        event.preventDefault();
+        const tabs = Array.from(elements.operationTabs);
+        const lastIndex = tabs.length - 1;
+        let nextIndex = index;
+
+        if (event.key === 'ArrowRight') {
+            nextIndex = index === lastIndex ? 0 : index + 1;
+        } else if (event.key === 'ArrowLeft') {
+            nextIndex = index === 0 ? lastIndex : index - 1;
+        } else if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex = lastIndex;
+        }
+
+        activateOperationTab(tabs[nextIndex].dataset.operationTab);
+        tabs[nextIndex].focus();
+    });
 });
 
 elements.entryProduct?.addEventListener('change', updateEntryFormMode);
