@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'warehouse_id',
     'product_id',
     'quantity',
+    'received_quantity',
     'unit_cost',
     'total_cost',
     'base_unit_cost',
@@ -30,6 +31,7 @@ class PurchaseItem extends Model
     {
         return [
             'quantity' => 'decimal:4',
+            'received_quantity' => 'decimal:4',
             'unit_cost' => 'decimal:4',
             'total_cost' => 'decimal:4',
             'base_unit_cost' => 'decimal:4',

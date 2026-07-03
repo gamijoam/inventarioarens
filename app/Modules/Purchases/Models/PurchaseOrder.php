@@ -15,12 +15,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'supplier_id',
     'status',
     'document_number',
+    'issued_at',
+    'due_date',
     'purchase_currency',
     'exchange_rate_type_id',
     'exchange_rate_type_code',
     'exchange_rate',
     'total_base_amount',
     'total_local_amount',
+    'received_base_amount',
+    'received_local_amount',
     'created_by',
     'received_at',
     'cancelled_at',
@@ -30,6 +34,7 @@ class PurchaseOrder extends Model
     use BelongsToTenant;
 
     public const STATUS_DRAFT = 'draft';
+    public const STATUS_PARTIALLY_RECEIVED = 'partially_received';
     public const STATUS_RECEIVED = 'received';
     public const STATUS_CANCELLED = 'cancelled';
 
@@ -42,6 +47,10 @@ class PurchaseOrder extends Model
             'exchange_rate' => 'decimal:6',
             'total_base_amount' => 'decimal:4',
             'total_local_amount' => 'decimal:4',
+            'received_base_amount' => 'decimal:4',
+            'received_local_amount' => 'decimal:4',
+            'issued_at' => 'date',
+            'due_date' => 'date',
             'received_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];

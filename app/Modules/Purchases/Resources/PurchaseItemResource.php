@@ -17,6 +17,7 @@ class PurchaseItemResource extends JsonResource
             'warehouse_id' => $this->warehouse_id,
             'product_id' => $this->product_id,
             'quantity' => $this->quantity,
+            'received_quantity' => $this->received_quantity,
             'unit_cost' => $this->unit_cost,
             'total_cost' => $this->total_cost,
             'base_unit_cost' => $this->base_unit_cost,

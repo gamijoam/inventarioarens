@@ -203,8 +203,9 @@ Regla importante:
 Responsabilidad:
 
 - compras en borrador;
-- recepcion de compras;
+- recepcion parcial o total de compras;
 - asociacion opcional con proveedores;
+- factura/documento de proveedor con fecha de emision y vencimiento;
 - costos en `USD` o `VES` con snapshot de tasa;
 - generacion de movimientos `purchase` al recibir;
 - creacion de unidades serializadas, como IMEIs, al recibir productos serializados.
@@ -216,6 +217,7 @@ Archivos principales:
 - `app/Modules/Purchases/Policies/PurchaseOrderPolicy.php`
 - `app/Modules/Purchases/Controllers/PurchaseOrderController.php`
 - `app/Modules/Purchases/Requests/StorePurchaseOrderRequest.php`
+- `app/Modules/Purchases/Requests/ReceivePurchaseOrderRequest.php`
 - `app/Modules/Purchases/Resources/PurchaseOrderResource.php`
 - `app/Modules/Purchases/Resources/PurchaseItemResource.php`
 - `app/Modules/Purchases/Services/PurchaseOrderService.php`
@@ -225,7 +227,9 @@ Regla importante:
 
 - crear una compra no mueve inventario;
 - recibir una compra genera movimientos `purchase` usando `InventoryMovementService`;
-- recibir una compra genera una cuenta por pagar mediante `AccountsPayable`;
+- una compra parcialmente recibida queda en `partially_received`;
+- una compra totalmente recibida queda en `received`;
+- recibir una compra crea o actualiza una cuenta por pagar mediante `AccountsPayable` solo por el monto recibido;
 - compras recibidas no se cancelan directamente en esta fase;
 - productos serializados requieren un serial o IMEI por unidad comprada;
 - los seriales recibidos se crean en `product_units` como disponibles y enlazados al movimiento de compra.

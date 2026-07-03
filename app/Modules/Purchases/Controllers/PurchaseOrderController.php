@@ -3,6 +3,7 @@
 namespace App\Modules\Purchases\Controllers;
 
 use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Purchases\Requests\ReceivePurchaseOrderRequest;
 use App\Modules\Purchases\Requests\StorePurchaseOrderRequest;
 use App\Modules\Purchases\Resources\PurchaseOrderResource;
 use App\Modules\Purchases\Services\PurchaseOrderService;
@@ -46,11 +47,15 @@ class PurchaseOrderController extends Controller
         );
     }
 
-    public function receive(PurchaseOrder $purchaseOrder, PurchaseOrderService $purchases): PurchaseOrderResource
+    public function receive(
+        ReceivePurchaseOrderRequest $request,
+        PurchaseOrder $purchaseOrder,
+        PurchaseOrderService $purchases,
+    ): PurchaseOrderResource
     {
         Gate::authorize('receive', $purchaseOrder);
 
-        return PurchaseOrderResource::make($purchases->receive($purchaseOrder, request()->user()));
+        return PurchaseOrderResource::make($purchases->receive($purchaseOrder, $request->user(), $request->validated()));
     }
 
     public function cancel(PurchaseOrder $purchaseOrder, PurchaseOrderService $purchases): PurchaseOrderResource

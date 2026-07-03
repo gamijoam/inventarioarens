@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-02 - Mejoras Purchases recepcion parcial
+
+### Implementado
+
+- Se agregaron campos `issued_at`, `due_date`, `received_base_amount` y `received_local_amount` en `purchase_orders`.
+- Se agrego `received_quantity` en `purchase_items`.
+- Se agrego `ReceivePurchaseOrderRequest`.
+- `PATCH /api/purchases/{purchaseOrder}/receive` ahora puede recibir todo lo pendiente o cantidades parciales por item.
+- Se agrego estado `partially_received`.
+- Las cuentas por pagar se crean o actualizan con el monto recibido real.
+- La demo de compras ahora guarda fecha de emision y vencimiento.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Purchases/PurchaseOrderApiTest.php tests/Feature/AccountsPayable/AccountsPayableApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 15 pruebas pasadas, 113 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 160 pruebas pasadas, 756 aserciones.
+
+### Notas de seguridad
+
+- No se puede recibir mas cantidad que la pendiente.
+- La recepcion parcial no mueve inventario por lo no recibido.
+- La cuenta por pagar no aumenta por mercancia pendiente sin recibir.
+
 ## 2026-07-02 - Modulo InventoryTransferRequests
 
 ### Implementado

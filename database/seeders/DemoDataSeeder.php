@@ -311,6 +311,11 @@ class DemoDataSeeder extends Seeder
         $existing = PurchaseOrder::query()->where('document_number', $documentNumber)->first();
 
         if ($existing) {
+            $existing->update([
+                'issued_at' => $existing->issued_at ?? now()->toDateString(),
+                'due_date' => $existing->due_date ?? now()->addDays(15)->toDateString(),
+            ]);
+
             if ($existing->status === PurchaseOrder::STATUS_RECEIVED) {
                 app(AccountsPayableService::class)->createForPurchase($existing);
             }
@@ -321,6 +326,8 @@ class DemoDataSeeder extends Seeder
         $purchase = app(PurchaseOrderService::class)->createDraft($user, [
             'supplier_id' => $supplier->id,
             'document_number' => $documentNumber,
+            'issued_at' => now()->toDateString(),
+            'due_date' => now()->addDays(15)->toDateString(),
             'purchase_currency' => PurchaseOrder::CURRENCY_USD,
             'items' => [[
                 'warehouse_id' => $warehouse->id,

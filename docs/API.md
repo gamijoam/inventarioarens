@@ -780,6 +780,8 @@ Body:
 {
   "supplier_id": 1,
   "document_number": "FAC-001",
+  "issued_at": "2026-07-02",
+  "due_date": "2026-07-16",
   "purchase_currency": "USD",
   "items": [
     {
@@ -803,6 +805,8 @@ Reglas:
 - crear una compra la deja en `draft`;
 - crear una compra no aumenta inventario;
 - `supplier_id` es opcional, pero si se envia debe pertenecer a la empresa actual;
+- `document_number` representa la factura o documento del proveedor y es unico por empresa;
+- `issued_at` y `due_date` documentan emision y vencimiento de la factura;
 - `warehouse_id` y `product_id` deben pertenecer a la empresa actual;
 - `purchase_currency` puede ser `USD` o `VES`;
 - si `purchase_currency = VES`, se debe enviar `exchange_rate_type_id` o existir un tipo de tasa predeterminado activo;
@@ -837,11 +841,48 @@ purchases.approve
 
 Reglas:
 
-- solo se reciben compras en `draft`;
-- recibir una compra genera movimientos `purchase` en inventario;
-- cada item queda enlazado a su `stock_movement_id`;
+- si se envia sin body, recibe todo lo pendiente;
+- si se envia `items`, recibe solo las cantidades indicadas;
+- solo se reciben compras en `draft` o `partially_received`;
+- recibir una compra genera movimientos `purchase` en inventario por cada item recibido;
+- cada item guarda `received_quantity` acumulado;
+- cada item queda enlazado al ultimo `stock_movement_id` generado;
 - si el producto es serializado, se crean unidades en `product_units` como disponibles;
-- la compra recibida queda en estado `received`.
+- una compra con recepcion parcial queda en estado `partially_received`;
+- una compra completamente recibida queda en estado `received`;
+- la cuenta por pagar se crea o actualiza segun el monto recibido, no segun lo pendiente sin recibir.
+
+Body para recepcion parcial:
+
+```json
+{
+  "items": [
+    {
+      "purchase_item_id": 1,
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Body para recepcion parcial serializada:
+
+```json
+{
+  "items": [
+    {
+      "purchase_item_id": 1,
+      "quantity": 1,
+      "serial_units": [
+        {
+          "serial_type": "imei",
+          "serial_number": "860001000000001"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ### Cancelar compra en borrador
 

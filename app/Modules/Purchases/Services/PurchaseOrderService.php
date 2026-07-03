@@ -31,6 +31,8 @@ class PurchaseOrderService
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'status' => PurchaseOrder::STATUS_DRAFT,
                 'document_number' => $data['document_number'] ?? null,
+                'issued_at' => $data['issued_at'] ?? null,
+                'due_date' => $data['due_date'] ?? null,
                 'purchase_currency' => $currency,
                 'exchange_rate_type_id' => $rateType?->id,
                 'exchange_rate_type_code' => $rateType?->code,
@@ -79,25 +81,35 @@ class PurchaseOrderService
         });
     }
 
-    public function receive(PurchaseOrder $purchaseOrder, User $user): PurchaseOrder
+    public function receive(PurchaseOrder $purchaseOrder, User $user, array $data = []): PurchaseOrder
     {
-        return DB::transaction(function () use ($purchaseOrder, $user): PurchaseOrder {
+        return DB::transaction(function () use ($purchaseOrder, $user, $data): PurchaseOrder {
             $purchaseOrder = PurchaseOrder::query()
                 ->with(['items.product', 'items.warehouse'])
                 ->lockForUpdate()
                 ->findOrFail($purchaseOrder->id);
 
-            if ($purchaseOrder->status !== PurchaseOrder::STATUS_DRAFT) {
+            if (! in_array($purchaseOrder->status, [PurchaseOrder::STATUS_DRAFT, PurchaseOrder::STATUS_PARTIALLY_RECEIVED], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Solo se pueden recibir compras en borrador.',
+                    'status' => 'Solo se pueden recibir compras en borrador o parcialmente recibidas.',
                 ]);
             }
 
-            foreach ($purchaseOrder->items as $item) {
+            $receipts = $this->receiptItems($purchaseOrder, $data['items'] ?? null);
+
+            foreach ($receipts as $receipt) {
+                /** @var PurchaseItem $item */
+                $item = $receipt['item'];
+                $quantity = (float) $receipt['quantity'];
+                $serialUnits = $receipt['serial_units'];
+
+                $this->validateReceiptQuantity($item, $quantity);
+                $this->validateSerialUnits($item->product, $quantity, $serialUnits);
+
                 $movement = $this->inventory->purchase(
                     warehouse: $item->warehouse,
                     product: $item->product,
-                    quantity: (float) $item->quantity,
+                    quantity: $quantity,
                     unitCost: (float) $item->base_unit_cost,
                     createdBy: $user,
                     reason: "Compra #{$purchaseOrder->id}",
@@ -106,13 +118,22 @@ class PurchaseOrderService
                 );
 
                 $item->update(['stock_movement_id' => $movement->id]);
+                $item->received_quantity = round((float) $item->received_quantity + $quantity, 4);
+                $item->save();
 
-                $this->createProductUnits($item, $movement->id);
+                $this->createProductUnits($item, $movement->id, $serialUnits);
             }
 
+            [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));
+            $allReceived = $purchaseOrder->items->every(
+                fn (PurchaseItem $item): bool => (float) $item->received_quantity >= (float) $item->quantity
+            );
+
             $purchaseOrder->update([
-                'status' => PurchaseOrder::STATUS_RECEIVED,
-                'received_at' => now(),
+                'status' => $allReceived ? PurchaseOrder::STATUS_RECEIVED : PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                'received_base_amount' => $receivedBase,
+                'received_local_amount' => $receivedLocal,
+                'received_at' => $allReceived ? ($data['received_at'] ?? now()) : null,
             ]);
 
             app(AccountsPayableService::class)->createForPurchase($purchaseOrder->refresh());
@@ -193,6 +214,76 @@ class PurchaseOrderService
         return round($unitCost / $exchangeRate, 4);
     }
 
+    private function receiptItems(PurchaseOrder $purchaseOrder, ?array $requestedItems): array
+    {
+        if ($requestedItems === null) {
+            return $purchaseOrder->items
+                ->map(function (PurchaseItem $item): ?array {
+                    $pending = round((float) $item->quantity - (float) $item->received_quantity, 4);
+
+                    if ($pending <= 0) {
+                        return null;
+                    }
+
+                    return [
+                        'item' => $item,
+                        'quantity' => $pending,
+                        'serial_units' => $item->serial_units ?? [],
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        $itemsById = $purchaseOrder->items->keyBy('id');
+
+        return collect($requestedItems)
+            ->map(function (array $receipt) use ($itemsById): array {
+                $item = $itemsById->get($receipt['purchase_item_id']);
+
+                if (! $item) {
+                    throw ValidationException::withMessages([
+                        'items' => 'El item indicado no pertenece a esta compra.',
+                    ]);
+                }
+
+                return [
+                    'item' => $item,
+                    'quantity' => (float) $receipt['quantity'],
+                    'serial_units' => $receipt['serial_units'] ?? [],
+                ];
+            })
+            ->all();
+    }
+
+    private function validateReceiptQuantity(PurchaseItem $item, float $quantity): void
+    {
+        $pending = round((float) $item->quantity - (float) $item->received_quantity, 4);
+
+        if ($quantity <= 0 || $quantity > $pending) {
+            throw ValidationException::withMessages([
+                'items' => 'La cantidad recibida no puede superar la cantidad pendiente del item.',
+            ]);
+        }
+    }
+
+    private function receivedTotals(PurchaseOrder $purchaseOrder): array
+    {
+        $receivedBase = 0.0;
+        $receivedLocal = 0.0;
+
+        foreach ($purchaseOrder->items as $item) {
+            $quantity = (float) $item->received_quantity;
+            $receivedBase += round((float) $item->base_unit_cost * $quantity, 4);
+            $receivedLocal += $purchaseOrder->purchase_currency === PurchaseOrder::CURRENCY_VES
+                ? round((float) $item->unit_cost * $quantity, 4)
+                : ($purchaseOrder->exchange_rate === null ? 0.0 : round((float) $item->unit_cost * $quantity * (float) $purchaseOrder->exchange_rate, 4));
+        }
+
+        return [round($receivedBase, 4), round($receivedLocal, 4)];
+    }
+
     private function validateSerialUnits(Product $product, float $quantity, array $serialUnits): void
     {
         if (! $product->requiresSerializedTracking()) {
@@ -235,9 +326,9 @@ class PurchaseOrderService
         }
     }
 
-    private function createProductUnits(PurchaseItem $item, int $movementId): void
+    private function createProductUnits(PurchaseItem $item, int $movementId, ?array $serialUnits = null): void
     {
-        foreach ($item->serial_units ?? [] as $serialUnit) {
+        foreach ($serialUnits ?? $item->serial_units ?? [] as $serialUnit) {
             ProductUnit::create([
                 'product_id' => $item->product_id,
                 'warehouse_id' => $item->warehouse_id,

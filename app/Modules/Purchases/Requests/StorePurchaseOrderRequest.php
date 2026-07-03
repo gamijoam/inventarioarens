@@ -21,6 +21,8 @@ class StorePurchaseOrderRequest extends FormRequest
                 'max:100',
                 Rule::unique('purchase_orders', 'document_number')->where('tenant_id', $tenantId),
             ],
+            'issued_at' => ['nullable', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:issued_at'],
             'purchase_currency' => ['required', 'string', Rule::in([
                 PurchaseOrder::CURRENCY_USD,
                 PurchaseOrder::CURRENCY_VES,

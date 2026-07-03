@@ -50,13 +50,14 @@ class PurchaseOrderApiTest extends TestCase
             ->assertJsonPath('data.status', PurchaseOrder::STATUS_DRAFT)
             ->assertJsonPath('data.supplier.name', 'Proveedor Demo')
             ->assertJsonPath('data.total_base_amount', '100.0000')
+            ->assertJsonPath('data.received_base_amount', '0.0000')
             ->assertJsonPath('data.items.0.stock_movement_id', null);
 
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseCount('stock_balances', 0);
     }
 
-    public function test_receive_purchase_increases_inventory_and_links_stock_movements(): void
+    public function test_receive_purchase_partially_then_fully_updates_inventory_and_payable(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'AUD-002');
@@ -69,6 +70,9 @@ class PurchaseOrderApiTest extends TestCase
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/purchases', [
                 'supplier_id' => $supplier->id,
+                'document_number' => 'FAC-PARCIAL-001',
+                'issued_at' => '2026-07-02',
+                'due_date' => '2026-07-16',
                 'purchase_currency' => PurchaseOrder::CURRENCY_USD,
                 'items' => [[
                     'warehouse_id' => $warehouse->id,
@@ -80,12 +84,22 @@ class PurchaseOrderApiTest extends TestCase
             ->assertCreated()
             ->json('data.id');
 
+        $purchaseItemId = PurchaseOrder::find($purchaseId)->items()->first()->id;
+
         $response = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->patchJson("/api/purchases/{$purchaseId}/receive", [
+                'items' => [[
+                    'purchase_item_id' => $purchaseItemId,
+                    'quantity' => 1,
+                ]],
+            ])
             ->assertOk()
-            ->assertJsonPath('data.status', PurchaseOrder::STATUS_RECEIVED);
+            ->assertJsonPath('data.status', PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
+            ->assertJsonPath('data.issued_at', '2026-07-02')
+            ->assertJsonPath('data.due_date', '2026-07-16')
+            ->assertJsonPath('data.received_base_amount', '15.0000');
 
         $this->assertNotNull($response->json('data.items.0.stock_movement_id'));
 
@@ -93,7 +107,35 @@ class PurchaseOrderApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+        ]);
+        $this->assertDatabaseHas('accounts_payables', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'FAC-PARCIAL-001',
+            'original_base_amount' => '15.0000',
+            'balance_base_amount' => '15.0000',
+            'due_date' => '2026-07-16',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk()
+            ->assertJsonPath('data.status', PurchaseOrder::STATUS_RECEIVED)
+            ->assertJsonPath('data.received_base_amount', '45.0000');
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
             'quantity_available' => '3.0000',
+        ]);
+        $this->assertDatabaseHas('accounts_payables', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'FAC-PARCIAL-001',
+            'original_base_amount' => '45.0000',
+            'balance_base_amount' => '45.0000',
         ]);
         $this->assertDatabaseHas('stock_movements', [
             'tenant_id' => $tenant->id,
@@ -103,6 +145,45 @@ class PurchaseOrderApiTest extends TestCase
             'reference_type' => PurchaseOrder::class,
             'reference_id' => $purchaseId,
         ]);
+    }
+
+    public function test_receive_purchase_rejects_more_than_pending_quantity(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'AUD-OVER');
+        $supplier = $this->supplier($tenant, 'Proveedor Demo', '104');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 15,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $purchaseItemId = PurchaseOrder::find($purchaseId)->items()->first()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive", [
+                'items' => [[
+                    'purchase_item_id' => $purchaseItemId,
+                    'quantity' => 3,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items']);
     }
 
     public function test_receive_serialized_purchase_creates_product_units(): void

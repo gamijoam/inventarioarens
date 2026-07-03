@@ -59,7 +59,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Salidas demo de un IMEI por empresa usando el modulo `ProductExits`.
 - Transferencias demo de audifonos entre almacenes internos por empresa usando el modulo `InventoryTransfers`.
 - Solicitud interempresa demo completada desde Caracas hacia Valencia usando `InventoryTransferRequests`.
-- Compras recibidas que generan movimientos `purchase` reales.
+- Compras recibidas con fecha de emision y vencimiento que generan movimientos `purchase` reales.
 - Devoluciones a proveedor que generan movimientos `purchase_return` reales.
 - Cuentas por pagar y pagos a proveedor generados por servicios reales.
 - Cajas abiertas.

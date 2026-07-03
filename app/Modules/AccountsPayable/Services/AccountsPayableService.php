@@ -22,13 +22,13 @@ class AccountsPayableService
                 ->lockForUpdate()
                 ->findOrFail($purchaseOrder->id);
 
-            if ($purchaseOrder->status !== PurchaseOrder::STATUS_RECEIVED) {
+            if (! in_array($purchaseOrder->status, [PurchaseOrder::STATUS_PARTIALLY_RECEIVED, PurchaseOrder::STATUS_RECEIVED], true)) {
                 throw ValidationException::withMessages([
-                    'purchase_order_id' => 'La cuenta por pagar solo se crea para compras recibidas.',
+                    'purchase_order_id' => 'La cuenta por pagar solo se crea para compras recibidas parcial o totalmente.',
                 ]);
             }
 
-            return AccountsPayable::query()->firstOrCreate(
+            $account = AccountsPayable::query()->firstOrCreate(
                 ['purchase_order_id' => $purchaseOrder->id],
                 [
                     'supplier_id' => $purchaseOrder->supplier_id,
@@ -38,13 +38,30 @@ class AccountsPayableService
                     'exchange_rate_type_id' => $purchaseOrder->exchange_rate_type_id,
                     'exchange_rate_type_code' => $purchaseOrder->exchange_rate_type_code,
                     'exchange_rate' => $purchaseOrder->exchange_rate,
-                    'original_base_amount' => $purchaseOrder->total_base_amount,
-                    'original_local_amount' => $purchaseOrder->total_local_amount,
-                    'balance_base_amount' => $purchaseOrder->total_base_amount,
-                    'balance_local_amount' => $purchaseOrder->total_local_amount,
+                    'original_base_amount' => $purchaseOrder->received_base_amount,
+                    'original_local_amount' => $purchaseOrder->received_local_amount,
+                    'balance_base_amount' => $purchaseOrder->received_base_amount,
+                    'balance_local_amount' => $purchaseOrder->received_local_amount,
+                    'due_date' => $purchaseOrder->due_date,
                     'opened_at' => now(),
                 ]
-            )->refresh();
+            );
+
+            $account->fill([
+                'supplier_id' => $purchaseOrder->supplier_id,
+                'document_number' => $purchaseOrder->document_number,
+                'currency' => $purchaseOrder->purchase_currency,
+                'exchange_rate_type_id' => $purchaseOrder->exchange_rate_type_id,
+                'exchange_rate_type_code' => $purchaseOrder->exchange_rate_type_code,
+                'exchange_rate' => $purchaseOrder->exchange_rate,
+                'original_base_amount' => $purchaseOrder->received_base_amount,
+                'original_local_amount' => $purchaseOrder->received_local_amount,
+                'due_date' => $purchaseOrder->due_date,
+            ]);
+            $this->recalculate($account);
+            $account->save();
+
+            return $account->refresh();
         });
     }
 
