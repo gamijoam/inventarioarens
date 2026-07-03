@@ -20,6 +20,8 @@ use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Services\InventoryTransferService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
@@ -103,6 +105,11 @@ class DemoDataSeeder extends Seeder
             ['branch_id' => $branch->id, 'name' => $data['warehouse_name'], 'status' => 'active']
         );
 
+        $secondaryWarehouse = Warehouse::query()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => "{$data['branch_code']}-02"],
+            ['branch_id' => $branch->id, 'name' => "Almacen Secundario {$data['branch_code']}", 'status' => 'active']
+        );
+
         $bcv = $this->rateType('BCV', 'Banco Central de Venezuela', true);
         $parallel = $this->rateType('PARALELO', 'Tasa paralela demo', false);
         $this->rate($bcv, 500, 'Demo BCV');
@@ -136,6 +143,7 @@ class DemoDataSeeder extends Seeder
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
         $this->productEntryWithImeis($tenant, $warehouse, $phone, $manager, $data['imei_prefix'], $data['branch_code']);
         $this->productExitWithImei($tenant, $warehouse, $phone, $manager, $data['imei_prefix'], $data['branch_code']);
+        $this->inventoryTransfer($tenant, $warehouse, $secondaryWarehouse, $headphones, $manager, $data['branch_code']);
         $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
         $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
         $this->purchaseReturn($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
@@ -668,6 +676,35 @@ class DemoDataSeeder extends Seeder
                 'product_id' => $product->id,
                 'quantity' => 1,
                 'product_unit_ids' => [$unit->id],
+            ]],
+        ]);
+    }
+
+    private function inventoryTransfer(
+        Tenant $tenant,
+        Warehouse $fromWarehouse,
+        Warehouse $toWarehouse,
+        Product $product,
+        User $user,
+        string $branchCode,
+    ): void {
+        $this->useTenant($tenant);
+
+        $reference = "TRF-DEMO-ALMACEN-{$branchCode}";
+
+        if (InventoryTransfer::query()->where('reference', $reference)->exists()) {
+            return;
+        }
+
+        app(InventoryTransferService::class)->create($user, [
+            'from_warehouse_id' => $fromWarehouse->id,
+            'to_warehouse_id' => $toWarehouse->id,
+            'reason' => 'Transferencia demo entre almacenes internos.',
+            'reference' => $reference,
+            'notes' => 'Traslado demo para validar stock por almacen sin mezclar empresas.',
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 4,
             ]],
         ]);
     }

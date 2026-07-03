@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo InventoryTransfers
+
+### Implementado
+
+- Se agrego el modulo `InventoryTransfers`.
+- Se agregaron tablas `inventory_transfers` y `inventory_transfer_items`.
+- Se agrego modelo, policy, controller, request, resources y service del modulo.
+- Se agregaron permisos `inventory_transfers.view` y `inventory_transfers.create`.
+- Se expuso `GET /api/inventory-transfers`.
+- Se expuso `POST /api/inventory-transfers`.
+- Se expuso `GET /api/inventory-transfers/{inventoryTransfer}`.
+- Las transferencias pueden contener uno o varios productos.
+- Cada item genera movimiento `transfer_out` en origen y `transfer_in` en destino.
+- Los productos serializados requieren unidades disponibles especificas del almacen origen.
+- Los IMEIs trasladados quedan disponibles y cambian de almacen.
+- Se actualizo el seeder demo para crear una transferencia interna por empresa.
+- Se documento que los traslados entre empresas se implementaran como solicitudes interempresa con aceptacion o rechazo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryTransfers/InventoryTransferApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 7 pruebas pasadas, 70 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 154 pruebas pasadas, 715 aserciones.
+
+### Notas de seguridad
+
+- El modulo requiere permisos y respeta tenant.
+- No permite trasladar a almacenes de otra empresa.
+- Usa los bloqueos existentes de `InventoryMovementService` para evitar stock negativo en competencia.
+- Las transferencias interempresa no moveran inventario directo sin aceptacion de la empresa destino.
+
 ## 2026-07-02 - Modulo ProductExits
 
 ### Implementado

@@ -632,6 +632,36 @@ Regla importante:
 - un IMEI vendido, removido, danado o de otro almacen no puede salir por este modulo;
 - el motivo `damaged` mueve cantidad a danado; los demas motivos retiran disponible.
 
+### InventoryTransfers
+
+Responsabilidad:
+
+- transferencias internas de inventario entre almacenes de una misma empresa;
+- transferencia multi-producto en un mismo documento;
+- seleccion de IMEIs o seriales especificos cuando el producto es serializado;
+- generacion de movimientos `transfer_out` y `transfer_in` mediante `InventoryMovementService`;
+- trazabilidad del documento origen para Kardex y auditoria.
+
+Archivos principales:
+
+- `app/Modules/InventoryTransfers/Models/InventoryTransfer.php`
+- `app/Modules/InventoryTransfers/Models/InventoryTransferItem.php`
+- `app/Modules/InventoryTransfers/Policies/InventoryTransferPolicy.php`
+- `app/Modules/InventoryTransfers/Controllers/InventoryTransferController.php`
+- `app/Modules/InventoryTransfers/Requests/StoreInventoryTransferRequest.php`
+- `app/Modules/InventoryTransfers/Resources/InventoryTransferResource.php`
+- `app/Modules/InventoryTransfers/Resources/InventoryTransferItemResource.php`
+- `app/Modules/InventoryTransfers/Services/InventoryTransferService.php`
+- `app/Modules/InventoryTransfers/routes.php`
+
+Regla importante:
+
+- en esta fase solo existe `internal`;
+- origen y destino deben pertenecer al mismo tenant;
+- un traslado interno no vende ni retira mercancia, solo cambia su almacen;
+- los IMEIs trasladados deben estar disponibles en el almacen origen;
+- las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.
+
 ### Reports
 
 Responsabilidad:

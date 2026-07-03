@@ -1730,6 +1730,104 @@ Permiso requerido:
 product_exits.view
 ```
 
+## Transferencias de inventario
+
+Archivo de rutas:
+
+```txt
+app/Modules/InventoryTransfers/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\InventoryTransfers\Controllers\InventoryTransferController
+```
+
+### Listar transferencias
+
+```txt
+GET /api/inventory-transfers
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.view
+```
+
+### Crear transferencia interna
+
+```txt
+POST /api/inventory-transfers
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.create
+```
+
+Body para producto por cantidad:
+
+```json
+{
+  "type": "internal",
+  "from_warehouse_id": 1,
+  "to_warehouse_id": 2,
+  "reason": "Reposicion de sucursal",
+  "reference": "TRAS-001",
+  "items": [
+    {
+      "product_id": 2,
+      "quantity": 4
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "from_warehouse_id": 1,
+  "to_warehouse_id": 2,
+  "reason": "Traslado de IMEIs",
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2,
+      "product_unit_ids": [10, 11]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- una transferencia puede tener uno o varios productos;
+- en esta fase solo se permite `type = internal`;
+- origen y destino deben ser almacenes distintos de la misma empresa;
+- cada item genera dos movimientos de kardex: `transfer_out` en origen y `transfer_in` en destino;
+- si el producto es `quantity`, no acepta `product_unit_ids`;
+- si el producto es `serialized`, debe recibir una unidad disponible por cada cantidad;
+- los IMEIs seleccionados deben estar disponibles en el almacen origen;
+- al completar la transferencia, los IMEIs siguen disponibles pero cambian de almacen;
+- la transferencia usa bloqueo de balances para evitar stock negativo cuando hay operaciones simultaneas;
+- los traslados entre empresas se modelaran como solicitud interempresa con aceptacion/rechazo, no como movimiento directo.
+
+### Ver transferencia
+
+```txt
+GET /api/inventory-transfers/{inventoryTransfer}
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.view
+```
+
 Archivo de rutas:
 
 ```txt
@@ -2379,5 +2477,7 @@ Reglas:
 - Las entradas operativas pueden cargar IMEIs/seriales, pero no reemplazan una compra formal con proveedor.
 - Las APIs de salidas de productos deben vivir en el modulo `ProductExits`.
 - Las salidas operativas no reemplazan ventas, POS ni devoluciones a proveedor.
+- Las APIs de transferencias documentadas deben vivir en el modulo `InventoryTransfers`.
+- Las transferencias internas mueven stock entre almacenes de una misma empresa; las interempresa requieren solicitud y aceptacion antes de mover inventario.
 - Las APIs de reportes son solo lectura.
 - Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.

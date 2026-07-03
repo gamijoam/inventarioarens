@@ -181,9 +181,18 @@ class InventoryMovementService
         });
     }
 
-    public function transfer(Warehouse $fromWarehouse, Warehouse $toWarehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): array
+    public function transfer(
+        Warehouse $fromWarehouse,
+        Warehouse $toWarehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): array
     {
-        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason): array {
+        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): array {
             $this->validateOperation($fromWarehouse, $product, $quantity);
             $this->assertSameTenant($toWarehouse);
 
@@ -199,8 +208,8 @@ class InventoryMovementService
             $toBalance->save();
 
             return [
-                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason),
-                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason),
+                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
+                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
             ];
         });
     }
