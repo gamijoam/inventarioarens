@@ -210,14 +210,16 @@ class AccountsPayableService
         $account->balance_base_amount = max(0.0, round(
             (float) $account->original_base_amount
             - (float) $account->returned_base_amount
-            - (float) $account->paid_base_amount,
+            - (float) $account->paid_base_amount
+            - (float) $account->adjusted_base_amount,
             4
         ));
 
         $account->balance_local_amount = max(0.0, round(
             (float) $account->original_local_amount
             - (float) $account->returned_local_amount
-            - (float) $account->paid_local_amount,
+            - (float) $account->paid_local_amount
+            - (float) $account->adjusted_local_amount,
             4
         ));
 
@@ -236,7 +238,7 @@ class AccountsPayableService
             return;
         }
 
-        $account->status = (float) $account->paid_base_amount > 0.0
+        $account->status = ((float) $account->paid_base_amount > 0.0 || (float) $account->adjusted_base_amount > 0.0)
             ? AccountsPayable::STATUS_PARTIAL
             : AccountsPayable::STATUS_PENDING;
     }

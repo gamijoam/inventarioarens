@@ -232,14 +232,16 @@ class AccountsReceivableService
         $account->balance_base_amount = max(0.0, round(
             (float) $account->original_base_amount
             - (float) $account->returned_base_amount
-            - (float) $account->collected_base_amount,
+            - (float) $account->collected_base_amount
+            - (float) $account->adjusted_base_amount,
             4
         ));
 
         $account->balance_local_amount = max(0.0, round(
             (float) $account->original_local_amount
             - (float) $account->returned_local_amount
-            - (float) $account->collected_local_amount,
+            - (float) $account->collected_local_amount
+            - (float) $account->adjusted_local_amount,
             4
         ));
 
@@ -258,7 +260,7 @@ class AccountsReceivableService
             return;
         }
 
-        $account->status = (float) $account->collected_base_amount > 0.0
+        $account->status = ((float) $account->collected_base_amount > 0.0 || (float) $account->adjusted_base_amount > 0.0)
             ? AccountsReceivable::STATUS_PARTIAL
             : AccountsReceivable::STATUS_PENDING;
     }

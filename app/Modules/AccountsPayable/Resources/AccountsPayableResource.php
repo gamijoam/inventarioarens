@@ -29,6 +29,8 @@ class AccountsPayableResource extends JsonResource
             'returned_local_amount' => $this->returned_local_amount,
             'paid_base_amount' => $this->paid_base_amount,
             'paid_local_amount' => $this->paid_local_amount,
+            'adjusted_base_amount' => $this->adjusted_base_amount,
+            'adjusted_local_amount' => $this->adjusted_local_amount,
             'balance_base_amount' => $this->balance_base_amount,
             'balance_local_amount' => $this->balance_local_amount,
             'due_date' => $this->due_date?->toDateString(),

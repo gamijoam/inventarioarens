@@ -9,6 +9,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -59,6 +60,7 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(6, Sale::withoutGlobalScopes()->whereNotNull('customer_id')->count());
         $this->assertSame(2, AccountsReceivable::withoutGlobalScopes()->where('status', AccountsReceivable::STATUS_PARTIAL)->count());
         $this->assertSame(2, AccountsReceivablePayment::withoutGlobalScopes()->where('method', 'cobro demo')->count());
+        $this->assertSame(4, FinancialAdjustment::withoutGlobalScopes()->where('status', FinancialAdjustment::STATUS_APPLIED)->count());
         $this->assertSame(6, PaymentReceipt::withoutGlobalScopes()->where('status', PaymentReceipt::STATUS_ISSUED)->count());
         $this->assertSame(4, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_CUSTOMER_COLLECTION)->count());
         $this->assertSame(2, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_SUPPLIER_PAYMENT)->count());

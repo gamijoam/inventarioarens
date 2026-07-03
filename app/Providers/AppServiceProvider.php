@@ -16,6 +16,8 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Policies\ExchangeRatePolicy;
 use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
+use App\Modules\FinancialAdjustments\Policies\FinancialAdjustmentPolicy;
 use App\Modules\Inventory\Policies\InventoryPolicy;
 use App\Modules\PaymentReceipts\Models\PaymentReceipt;
 use App\Modules\PaymentReceipts\Policies\PaymentReceiptPolicy;
@@ -60,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
         Gate::policy(ExchangeRateType::class, ExchangeRateTypePolicy::class);
+        Gate::policy(FinancialAdjustment::class, FinancialAdjustmentPolicy::class);
         Gate::policy(PaymentReceipt::class, PaymentReceiptPolicy::class);
         Gate::policy(PosOrder::class, PosOrderPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);

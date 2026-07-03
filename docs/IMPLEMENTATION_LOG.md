@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo FinancialAdjustments
+
+### Implementado
+
+- Se agrego el modulo `FinancialAdjustments`.
+- Se agrego la tabla `financial_adjustments`.
+- Se agregaron columnas `adjusted_base_amount` y `adjusted_local_amount` a cuentas por cobrar y cuentas por pagar.
+- Se agrego modelo, policy, controller, request, resource y service del modulo.
+- Se agregaron permisos `financial_adjustments.view` y `financial_adjustments.create`.
+- Se expuso `GET /api/financial-adjustments`.
+- Se expuso `POST /api/financial-adjustments`.
+- Se expuso `GET /api/financial-adjustments/{financialAdjustment}`.
+- Los ajustes pueden aplicarse a cuentas por cobrar o cuentas por pagar.
+- Los ajustes reducen saldo pendiente sin mover inventario.
+- Los ajustes en `VES` guardan snapshot de tipo de tasa, codigo y valor usado.
+- Se actualizo el seeder demo para crear ajustes financieros visibles.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/FinancialAdjustments/FinancialAdjustmentApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 53 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 136 pruebas pasadas, 629 aserciones.
+
+### Notas de seguridad
+
+- El modulo requiere permisos y respeta tenant.
+- El ajuste no puede superar el saldo pendiente.
+- El ajuste no crea comprobante de pago porque no representa dinero recibido o entregado.
+- Las devoluciones fisicas siguen perteneciendo a `SalesReturns` y `PurchaseReturns`.
+
 ## 2026-07-02 - Modulo PaymentReceipts
 
 ### Implementado

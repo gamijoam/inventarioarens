@@ -1108,6 +1108,85 @@ Reglas:
 - una cuenta pagada no acepta nuevos cobros;
 - todos los ids deben pertenecer a la empresa actual.
 
+## Ajustes financieros
+
+Archivo de rutas:
+
+```txt
+app/Modules/FinancialAdjustments/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\FinancialAdjustments\Controllers\FinancialAdjustmentController
+```
+
+### Listar ajustes financieros
+
+```txt
+GET /api/financial-adjustments
+```
+
+Permiso requerido:
+
+```txt
+financial_adjustments.view
+```
+
+### Crear ajuste financiero
+
+```txt
+POST /api/financial-adjustments
+```
+
+Permiso requerido:
+
+```txt
+financial_adjustments.create
+```
+
+Body:
+
+```json
+{
+  "account_type": "receivable",
+  "account_id": 1,
+  "currency": "USD",
+  "amount": 10,
+  "reason": "Descuento posterior a la venta",
+  "notes": "Ajuste autorizado por gerencia"
+}
+```
+
+Valores de `account_type`:
+
+- `receivable`: aplica a una cuenta por cobrar;
+- `payable`: aplica a una cuenta por pagar.
+
+Reglas:
+
+- un ajuste financiero reduce el saldo pendiente de la cuenta indicada;
+- no mueve inventario;
+- no crea comprobante de pago porque no representa dinero recibido o entregado;
+- no puede superar el saldo pendiente de la cuenta;
+- puede registrarse en `USD` o `VES`;
+- si se registra en `VES`, guarda snapshot de tipo de tasa, codigo y valor usado;
+- se usa para descuentos posteriores, notas de credito financieras, redondeos o ajustes autorizados;
+- si hay mercancia devuelta, debe usarse `SalesReturns` o `PurchaseReturns`, no este modulo.
+
+### Ver ajuste financiero
+
+```txt
+GET /api/financial-adjustments/{financialAdjustment}
+```
+
+Permiso requerido:
+
+```txt
+financial_adjustments.view
+```
+
 ## Comprobantes de pago y cobro
 
 Archivo de rutas:
@@ -2077,6 +2156,8 @@ Reglas:
 - Las cuentas por cobrar se crean al confirmar ventas y se reducen con cobros o devoluciones de venta.
 - Las APIs de comprobantes deben vivir en el modulo `PaymentReceipts`.
 - Los comprobantes se generan desde cobros y pagos, y su anulacion no revierte la transaccion original.
+- Las APIs de ajustes financieros deben vivir en el modulo `FinancialAdjustments`.
+- Los ajustes financieros reducen saldos sin mover inventario ni representar pagos reales.
 - Las APIs de reportes financieros deben vivir en el modulo `FinanceReports`.
 - Los reportes financieros son solo lectura y resumen cuentas por cobrar, cuentas por pagar, cobros y pagos.
 - Las APIs de devoluciones de venta deben vivir en el modulo `SalesReturns`.

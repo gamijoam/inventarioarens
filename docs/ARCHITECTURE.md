@@ -143,6 +143,8 @@ El modulo `FinanceReports` es una capa de lectura para gerencia. Resume cuentas 
 
 El modulo `PaymentReceipts` documenta los cobros de clientes y pagos a proveedores con un comprobante historico por empresa. El comprobante guarda snapshot del tercero, moneda, monto, metodo, referencia y tasa usada. Se emite automaticamente desde `AccountsReceivable` y `AccountsPayable`; por eso los pagos POS capturados tambien quedan documentados cuando se sincronizan como cobros. La anulacion del comprobante es solo documental: no revierte el pago, la cuenta, caja ni inventario.
 
+El modulo `FinancialAdjustments` cubre notas y ajustes financieros que reducen saldos sin representar una devolucion fisica ni un pago real. Si el ajuste nace de mercancia devuelta, se debe usar `SalesReturns` o `PurchaseReturns`; si nace de descuento posterior, redondeo o nota financiera, se aplica sobre `AccountsReceivable` o `AccountsPayable`. El ajuste guarda moneda, monto y tasa usada, pero no mueve inventario ni crea comprobante de pago.
+
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
 
 ## Objetivo
@@ -200,6 +202,7 @@ Módulos implementados inicialmente:
 - `AccountsPayable`: cuentas por pagar de proveedores, pagos y rebajas por devoluciones.
 - `AccountsReceivable`: cuentas por cobrar de clientes, cobros y rebajas por devoluciones.
 - `PaymentReceipts`: comprobantes historicos de cobros y pagos.
+- `FinancialAdjustments`: notas y ajustes financieros sobre cuentas por cobrar o pagar.
 - `FinanceReports`: resumen financiero operativo de cuentas, cobros, pagos y balance neto.
 - `SalesReturns`: devoluciones de ventas confirmadas y movimientos `sale_return`.
 - `Kardex`: lectura cronologica de movimientos con saldos corridos.

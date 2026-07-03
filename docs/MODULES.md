@@ -384,6 +384,34 @@ Regla importante:
 - no mezcla datos entre empresas;
 - no reemplaza contabilidad formal, es una primera vista financiera operativa.
 
+### FinancialAdjustments
+
+Responsabilidad:
+
+- notas o ajustes financieros sobre cuentas por cobrar y por pagar;
+- descuentos posteriores a documentos;
+- diferencias por redondeo;
+- ajustes autorizados de saldo;
+- reduccion de saldo sin movimiento fisico de inventario.
+
+Archivos principales:
+
+- `app/Modules/FinancialAdjustments/Models/FinancialAdjustment.php`
+- `app/Modules/FinancialAdjustments/Policies/FinancialAdjustmentPolicy.php`
+- `app/Modules/FinancialAdjustments/Controllers/FinancialAdjustmentController.php`
+- `app/Modules/FinancialAdjustments/Requests/StoreFinancialAdjustmentRequest.php`
+- `app/Modules/FinancialAdjustments/Resources/FinancialAdjustmentResource.php`
+- `app/Modules/FinancialAdjustments/Services/FinancialAdjustmentService.php`
+- `app/Modules/FinancialAdjustments/routes.php`
+
+Regla importante:
+
+- si hay devolucion fisica de mercancia, se usa `SalesReturns` o `PurchaseReturns`;
+- si solo hay ajuste de dinero o saldo, se usa `FinancialAdjustments`;
+- el ajuste no crea comprobante de pago porque no hay cobro ni pago real;
+- el ajuste no puede superar el saldo pendiente;
+- todo ajuste debe respetar tenant y permisos.
+
 ### PaymentReceipts
 
 Responsabilidad:

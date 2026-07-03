@@ -15,6 +15,8 @@ use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
+use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -143,6 +145,7 @@ class DemoDataSeeder extends Seeder
         $this->salesReturn($tenant, $manager, $phone);
         $this->creditSale($tenant, $manager, $warehouse, $headphones, $paidCustomer, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->accountsReceivablePayment($tenant, $manager, "VENTA-CREDITO-DEMO-{$data['branch_code']}");
+        $this->financialAdjustments($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}", "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->paymentReceipts($tenant, $manager);
     }
 
@@ -455,6 +458,39 @@ class DemoDataSeeder extends Seeder
         AccountsPayablePayment::query()
             ->oldest()
             ->each(fn (AccountsPayablePayment $payment) => $receipts->issueForPayablePayment($payment, $user));
+    }
+
+    private function financialAdjustments(Tenant $tenant, User $user, string $purchaseDocument, string $saleDocument): void
+    {
+        $this->useTenant($tenant);
+
+        $service = app(FinancialAdjustmentService::class);
+
+        $payable = AccountsPayable::query()->where('document_number', $purchaseDocument)->first();
+
+        if ($payable && ! FinancialAdjustment::query()->where('reason', "Ajuste demo proveedor {$purchaseDocument}")->exists()) {
+            $service->create($user, [
+                'account_type' => FinancialAdjustment::ACCOUNT_PAYABLE,
+                'account_id' => $payable->id,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 1,
+                'reason' => "Ajuste demo proveedor {$purchaseDocument}",
+                'notes' => 'Nota financiera demo sin movimiento de inventario.',
+            ]);
+        }
+
+        $receivable = AccountsReceivable::query()->where('document_number', $saleDocument)->first();
+
+        if ($receivable && ! FinancialAdjustment::query()->where('reason', "Ajuste demo cliente {$saleDocument}")->exists()) {
+            $service->create($user, [
+                'account_type' => FinancialAdjustment::ACCOUNT_RECEIVABLE,
+                'account_id' => $receivable->id,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 1,
+                'reason' => "Ajuste demo cliente {$saleDocument}",
+                'notes' => 'Descuento financiero demo sin devolucion fisica.',
+            ]);
+        }
     }
 
     private function user(string $name, string $email): User

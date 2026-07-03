@@ -65,6 +65,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Cuentas por cobrar demo generadas desde ventas confirmadas.
 - Abonos demo de clientes que dejan cuentas por cobrar en estado parcial.
 - Comprobantes demo emitidos automaticamente para cobros de clientes y pagos a proveedores.
+- Ajustes financieros demo sobre cuentas por cobrar y cuentas por pagar.
 - Datos financieros suficientes para consultar `FinanceReports`.
 - Ventas y ordenes POS asociadas a clientes reales del modulo `Customers`.
 - Devoluciones de venta demo sobre ventas POS pagadas.
