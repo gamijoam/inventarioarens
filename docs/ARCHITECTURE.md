@@ -149,6 +149,8 @@ El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una
 
 El modulo `ProductEntries` cubre entradas operativas de inventario que no necesitan el flujo formal de compras. Permite cargar uno o varios productos y, cuando el producto es serializado, exige un IMEI o serial por cada unidad. Cada item genera un movimiento `purchase` mediante `InventoryMovementService` y las unidades serializadas quedan registradas en `product_units` como disponibles. Para compras con proveedor, recepcion formal y cuenta por pagar, se debe seguir usando `Purchases`.
 
+El modulo `ProductExits` cubre salidas operativas de inventario que no son ventas ni devoluciones a proveedor. Permite retirar productos por perdida, garantia, uso interno, salida administrativa, danado u otro motivo autorizado. En productos serializados exige seleccionar los IMEIs especificos disponibles en el almacen. El motivo `damaged` mueve disponible a danado; los demas motivos retiran disponible y marcan las unidades serializadas como removidas.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -198,6 +200,7 @@ Módulos implementados inicialmente:
 - `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.
 - `ProductEntries`: entradas operativas de productos e IMEIs sin cuenta por pagar.
+- `ProductExits`: salidas operativas de productos e IMEIs sin venta ni devolucion a proveedor.
 - `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.

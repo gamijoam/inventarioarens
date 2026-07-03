@@ -56,6 +56,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Stock inicial.
 - IMEIs demo en `product_units`.
 - Entradas demo de 30 IMEIs por empresa usando el modulo `ProductEntries`.
+- Salidas demo de un IMEI por empresa usando el modulo `ProductExits`.
 - Compras recibidas que generan movimientos `purchase` reales.
 - Devoluciones a proveedor que generan movimientos `purchase_return` reales.
 - Cuentas por pagar y pagos a proveedor generados por servicios reales.

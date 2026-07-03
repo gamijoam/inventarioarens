@@ -25,6 +25,8 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Policies\PosOrderPolicy;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Policies\ProductEntryPolicy;
+use App\Modules\ProductExits\Models\ProductExit;
+use App\Modules\ProductExits\Policies\ProductExitPolicy;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Policies\ProductPolicy;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
@@ -68,6 +70,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PaymentReceipt::class, PaymentReceiptPolicy::class);
         Gate::policy(PosOrder::class, PosOrderPolicy::class);
         Gate::policy(ProductEntry::class, ProductEntryPolicy::class);
+        Gate::policy(ProductExit::class, ProductExitPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(PurchaseReturn::class, PurchaseReturnPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);

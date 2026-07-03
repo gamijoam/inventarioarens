@@ -112,9 +112,17 @@ class InventoryMovementService
         );
     }
 
-    public function adjustmentOut(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
+    public function adjustmentOut(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
     {
-        return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason);
+        return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId);
     }
 
     public function reserve(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
@@ -149,9 +157,17 @@ class InventoryMovementService
         });
     }
 
-    public function markDamaged(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
+    public function markDamaged(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
     {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product);
@@ -161,7 +177,7 @@ class InventoryMovementService
             $balance->quantity_damaged = (float) $balance->quantity_damaged + $quantity;
             $balance->save();
 
-            return $this->recordMovement('damaged', $warehouse, $product, $quantity, null, $createdBy, $reason);
+            return $this->recordMovement('damaged', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 

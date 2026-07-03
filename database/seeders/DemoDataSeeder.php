@@ -26,6 +26,8 @@ use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Services\ProductEntryService;
+use App\Modules\ProductExits\Models\ProductExit;
+use App\Modules\ProductExits\Services\ProductExitService;
 use App\Modules\Products\Models\Product;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
@@ -133,6 +135,7 @@ class DemoDataSeeder extends Seeder
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
         $this->productEntryWithImeis($tenant, $warehouse, $phone, $manager, $data['imei_prefix'], $data['branch_code']);
+        $this->productExitWithImei($tenant, $warehouse, $phone, $manager, $data['imei_prefix'], $data['branch_code']);
         $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
         $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
         $this->purchaseReturn($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
@@ -624,6 +627,47 @@ class DemoDataSeeder extends Seeder
                 'quantity' => 30,
                 'unit_cost' => 80,
                 'serial_units' => $serialUnits,
+            ]],
+        ]);
+    }
+
+    private function productExitWithImei(
+        Tenant $tenant,
+        Warehouse $warehouse,
+        Product $product,
+        User $user,
+        string $prefix,
+        string $branchCode,
+    ): void {
+        $this->useTenant($tenant);
+
+        $reference = "SAL-DEMO-GARANTIA-{$branchCode}";
+
+        if (ProductExit::query()->where('reference', $reference)->exists()) {
+            return;
+        }
+
+        $unit = ProductUnit::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('serial_type', ProductUnit::SERIAL_TYPE_IMEI)
+            ->where('serial_number', "{$prefix}0000130")
+            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->first();
+
+        if (! $unit) {
+            return;
+        }
+
+        app(ProductExitService::class)->create($user, [
+            'reason' => ProductExit::REASON_WARRANTY,
+            'reference' => $reference,
+            'notes' => 'Salida demo de un IMEI por garantia.',
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'product_unit_ids' => [$unit->id],
             ]],
         ]);
     }

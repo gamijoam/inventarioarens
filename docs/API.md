@@ -1626,6 +1626,110 @@ Permiso requerido:
 product_entries.view
 ```
 
+## Salidas de productos
+
+Archivo de rutas:
+
+```txt
+app/Modules/ProductExits/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\ProductExits\Controllers\ProductExitController
+```
+
+### Listar salidas
+
+```txt
+GET /api/product-exits
+```
+
+Permiso requerido:
+
+```txt
+product_exits.view
+```
+
+### Crear salida
+
+```txt
+POST /api/product-exits
+```
+
+Permiso requerido:
+
+```txt
+product_exits.create
+```
+
+Motivos iniciales:
+
+- `damaged`
+- `lost`
+- `internal_use`
+- `warranty`
+- `administrative`
+- `other`
+
+Body para producto por cantidad:
+
+```json
+{
+  "reason": "internal_use",
+  "reference": "USO-001",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 2,
+      "quantity": 3
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "reason": "warranty",
+  "reference": "GAR-001",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 1,
+      "quantity": 2,
+      "product_unit_ids": [10, 11]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- una salida puede tener uno o varios productos;
+- si el motivo es `damaged`, mueve cantidad de disponible a danado;
+- si el motivo es distinto de `damaged`, descuenta disponible con movimiento `adjustment_out`;
+- si el producto es `quantity`, no acepta `product_unit_ids`;
+- si el producto es `serialized`, debe recibir una unidad disponible por cada cantidad;
+- los IMEIs seleccionados deben pertenecer al producto, almacen y empresa actual;
+- no se puede sacar un IMEI vendido, removido, danado o de otro almacen;
+- si la salida es una venta debe usarse `Sales` o `POS`;
+- si la salida es devolucion a proveedor debe usarse `PurchaseReturns`.
+
+### Ver salida
+
+```txt
+GET /api/product-exits/{productExit}
+```
+
+Permiso requerido:
+
+```txt
+product_exits.view
+```
+
 Archivo de rutas:
 
 ```txt
@@ -2273,5 +2377,7 @@ Reglas:
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
 - Las APIs de entradas de productos deben vivir en el modulo `ProductEntries`.
 - Las entradas operativas pueden cargar IMEIs/seriales, pero no reemplazan una compra formal con proveedor.
+- Las APIs de salidas de productos deben vivir en el modulo `ProductExits`.
+- Las salidas operativas no reemplazan ventas, POS ni devoluciones a proveedor.
 - Las APIs de reportes son solo lectura.
 - Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.

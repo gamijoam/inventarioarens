@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo ProductExits
+
+### Implementado
+
+- Se agrego el modulo `ProductExits`.
+- Se agregaron tablas `product_exits` y `product_exit_items`.
+- Se agrego modelo, policy, controller, request, resources y service del modulo.
+- Se agregaron permisos `product_exits.view` y `product_exits.create`.
+- Se expuso `GET /api/product-exits`.
+- Se expuso `POST /api/product-exits`.
+- Se expuso `GET /api/product-exits/{productExit}`.
+- Las salidas pueden contener uno o varios productos.
+- El motivo `damaged` genera movimiento `damaged` y mueve stock a danado.
+- Los demas motivos generan movimiento `adjustment_out` y reducen disponible.
+- Los productos serializados requieren unidades disponibles especificas del mismo producto y almacen.
+- Se actualizo el seeder demo para crear una salida por garantia de un IMEI por empresa.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/ProductExits/ProductExitApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 8 pruebas pasadas, 65 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 148 pruebas pasadas, 684 aserciones.
+
+### Notas de seguridad
+
+- El modulo requiere permisos y respeta tenant.
+- No permite sacar IMEIs vendidos, removidos, danados o de otro almacen.
+- No reemplaza ventas, POS ni devoluciones a proveedor.
+
 ## 2026-07-02 - Modulo ProductEntries
 
 ### Implementado

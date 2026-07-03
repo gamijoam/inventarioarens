@@ -602,6 +602,36 @@ Regla importante:
 - la entrada no crea cuenta por pagar ni proveedor;
 - para compra formal con proveedor se usa `Purchases`.
 
+### ProductExits
+
+Responsabilidad:
+
+- salidas operativas o manuales de productos;
+- merma, perdida, consumo interno, garantia, salida administrativa u otros retiros autorizados;
+- salida multi-producto en un mismo documento;
+- seleccion de IMEIs o seriales especificos para productos serializados;
+- generacion de movimientos `adjustment_out` o `damaged` mediante `InventoryMovementService`.
+
+Archivos principales:
+
+- `app/Modules/ProductExits/Models/ProductExit.php`
+- `app/Modules/ProductExits/Models/ProductExitItem.php`
+- `app/Modules/ProductExits/Policies/ProductExitPolicy.php`
+- `app/Modules/ProductExits/Controllers/ProductExitController.php`
+- `app/Modules/ProductExits/Requests/StoreProductExitRequest.php`
+- `app/Modules/ProductExits/Resources/ProductExitResource.php`
+- `app/Modules/ProductExits/Resources/ProductExitItemResource.php`
+- `app/Modules/ProductExits/Services/ProductExitService.php`
+- `app/Modules/ProductExits/routes.php`
+
+Regla importante:
+
+- si la salida es venta, se usa `Sales` o `POS`;
+- si la salida es devolucion a proveedor, se usa `PurchaseReturns`;
+- si el producto es serializado, se deben indicar unidades disponibles especificas;
+- un IMEI vendido, removido, danado o de otro almacen no puede salir por este modulo;
+- el motivo `damaged` mueve cantidad a danado; los demas motivos retiran disponible.
+
 ### Reports
 
 Responsabilidad:
