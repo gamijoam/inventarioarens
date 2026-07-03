@@ -662,6 +662,40 @@ Regla importante:
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.
 
+### InventoryTransferRequests
+
+Responsabilidad:
+
+- solicitudes de transferencia entre empresas independientes;
+- busqueda de empresa destino por slug o correo de usuario activo;
+- aceptacion, rechazo o cancelacion de solicitudes pendientes;
+- salida de inventario en la empresa origen solo al aceptar;
+- entrada de inventario en la empresa destino solo al aceptar;
+- snapshot de IMEIs para crear unidades disponibles en la empresa destino.
+
+Archivos principales:
+
+- `app/Modules/InventoryTransferRequests/Models/InventoryTransferRequest.php`
+- `app/Modules/InventoryTransferRequests/Models/InventoryTransferRequestItem.php`
+- `app/Modules/InventoryTransferRequests/Policies/InventoryTransferRequestPolicy.php`
+- `app/Modules/InventoryTransferRequests/Controllers/InventoryTransferRequestController.php`
+- `app/Modules/InventoryTransferRequests/Requests/StoreInventoryTransferRequestRequest.php`
+- `app/Modules/InventoryTransferRequests/Requests/AcceptInventoryTransferRequestRequest.php`
+- `app/Modules/InventoryTransferRequests/Requests/RejectInventoryTransferRequestRequest.php`
+- `app/Modules/InventoryTransferRequests/Resources/InventoryTransferRequestResource.php`
+- `app/Modules/InventoryTransferRequests/Resources/InventoryTransferRequestItemResource.php`
+- `app/Modules/InventoryTransferRequests/Services/InventoryTransferRequestService.php`
+- `app/Modules/InventoryTransferRequests/routes.php`
+
+Regla importante:
+
+- crear solicitud no mueve stock;
+- solo la empresa destino puede aceptar o rechazar;
+- solo la empresa origen puede cancelar;
+- la aceptacion exige producto destino compatible;
+- si el stock origen ya no esta disponible al aceptar, la solicitud no se completa;
+- una tercera empresa no puede ver ni responder solicitudes ajenas.
+
 ### Reports
 
 Responsabilidad:

@@ -20,6 +20,8 @@ use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
+use App\Modules\InventoryTransferRequests\Services\InventoryTransferRequestService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
 use App\Modules\POS\Models\PosOrder;
@@ -79,6 +81,8 @@ class DemoDataSeeder extends Seeder
                 'manager_name' => 'Gerente Valencia',
                 'imei_prefix' => '860002',
             ]);
+
+            $this->intercompanyTransferRequest($tenantA, $tenantB);
         });
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -705,6 +709,56 @@ class DemoDataSeeder extends Seeder
             'items' => [[
                 'product_id' => $product->id,
                 'quantity' => 4,
+            ]],
+        ]);
+    }
+
+    private function intercompanyTransferRequest(Tenant $originTenant, Tenant $destinationTenant): void
+    {
+        $reference = 'TREQ-DEMO-CCS-VAL';
+
+        if (InventoryTransferRequest::query()->where('reference', $reference)->exists()) {
+            return;
+        }
+
+        $this->useTenant($originTenant);
+
+        $originUser = User::query()->where('email', 'gerente.caracas@demo.test')->first();
+        $originWarehouse = Warehouse::query()->where('code', 'CCS-01')->first();
+        $originProduct = Product::query()->where('sku', 'AUD-BT-CCS')->first();
+
+        $this->useTenant($destinationTenant);
+
+        $destinationUser = User::query()->where('email', 'gerente.valencia@demo.test')->first();
+        $destinationWarehouse = Warehouse::query()->where('code', 'VAL-01')->first();
+        $destinationProduct = Product::query()->where('sku', 'AUD-BT-VAL')->first();
+
+        if (! $originUser || ! $originWarehouse || ! $originProduct || ! $destinationUser || ! $destinationWarehouse || ! $destinationProduct) {
+            return;
+        }
+
+        $this->useTenant($originTenant);
+
+        $request = app(InventoryTransferRequestService::class)->create($originUser, [
+            'destination_tenant_slug' => $destinationTenant->slug,
+            'from_warehouse_id' => $originWarehouse->id,
+            'reason' => 'Solicitud demo interempresa Caracas a Valencia.',
+            'reference' => $reference,
+            'notes' => 'Solicitud demo para validar aprobacion entre empresas independientes.',
+            'items' => [[
+                'product_id' => $originProduct->id,
+                'quantity' => 1,
+            ]],
+        ]);
+
+        $this->useTenant($destinationTenant);
+
+        app(InventoryTransferRequestService::class)->accept($request, $destinationUser, [
+            'destination_warehouse_id' => $destinationWarehouse->id,
+            'response_notes' => 'Aceptada automaticamente por demo.',
+            'items' => [[
+                'request_item_id' => $request->items->first()->id,
+                'destination_product_id' => $destinationProduct->id,
             ]],
         ]);
     }

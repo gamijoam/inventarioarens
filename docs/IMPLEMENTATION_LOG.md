@@ -1,5 +1,38 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo InventoryTransferRequests
+
+### Implementado
+
+- Se agrego el modulo `InventoryTransferRequests`.
+- Se agregaron tablas `inventory_transfer_requests` y `inventory_transfer_request_items`.
+- Se agrego modelo, policy, controller, requests, resources y service del modulo.
+- Se agregaron permisos `inventory_transfer_requests.view`, `inventory_transfer_requests.create`, `inventory_transfer_requests.respond` y `inventory_transfer_requests.cancel`.
+- Se expuso `GET /api/inventory-transfer-requests`.
+- Se expuso `POST /api/inventory-transfer-requests`.
+- Se expuso `GET /api/inventory-transfer-requests/{inventoryTransferRequest}`.
+- Se expuso `POST /api/inventory-transfer-requests/{inventoryTransferRequest}/accept`.
+- Se expuso `POST /api/inventory-transfer-requests/{inventoryTransferRequest}/reject`.
+- Se expuso `POST /api/inventory-transfer-requests/{inventoryTransferRequest}/cancel`.
+- La empresa destino puede buscarse por slug o por correo de usuario activo.
+- Crear solicitud no mueve inventario.
+- Aceptar descuenta inventario de origen y crea entrada en destino.
+- En serializados, el IMEI queda removido en origen y disponible en destino.
+- Se actualizo el seeder demo para crear una solicitud interempresa completada.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryTransferRequests/InventoryTransferRequestApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 69 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 159 pruebas pasadas, 742 aserciones.
+
+### Notas de seguridad
+
+- Una tercera empresa no puede ver ni responder solicitudes ajenas.
+- Solo la empresa destino puede aceptar o rechazar.
+- Solo la empresa origen puede cancelar.
+- La aceptacion falla si ya no hay stock o IMEIs disponibles en origen.
+- El producto destino debe tener el mismo tipo de control que el producto origen.
+
 ## 2026-07-02 - Modulo InventoryTransfers
 
 ### Implementado

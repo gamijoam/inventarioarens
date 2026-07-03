@@ -153,6 +153,8 @@ El modulo `ProductExits` cubre salidas operativas de inventario que no son venta
 
 El modulo `InventoryTransfers` cubre traslados internos entre almacenes de una misma empresa. Cada item genera un movimiento `transfer_out` en el almacen origen y un movimiento `transfer_in` en el almacen destino, ambos enlazados al documento de transferencia. Para productos serializados, los IMEIs siguen en estado disponible y cambian de almacen. Las transferencias entre companias no se ejecutaran directo: se modelaran como solicitud interempresa con empresa destino, aceptacion/rechazo y trazabilidad separada para cada tenant.
 
+El modulo `InventoryTransferRequests` cubre las solicitudes interempresa. La solicitud vive fuera del scope automatico de un solo tenant porque referencia una empresa origen y una empresa destino. Crear la solicitud no mueve stock. Al aceptar, el servicio cambia de contexto de tenant de forma controlada: primero descuenta en origen con `adjustment_out`, luego incrementa en destino con `purchase`. Si hay IMEIs, el origen queda `removed` y el destino recibe nuevas unidades disponibles con los mismos seriales.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -204,6 +206,7 @@ Módulos implementados inicialmente:
 - `ProductEntries`: entradas operativas de productos e IMEIs sin cuenta por pagar.
 - `ProductExits`: salidas operativas de productos e IMEIs sin venta ni devolucion a proveedor.
 - `InventoryTransfers`: transferencias internas de productos e IMEIs entre almacenes.
+- `InventoryTransferRequests`: solicitudes interempresa con aprobacion antes de mover inventario.
 - `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.

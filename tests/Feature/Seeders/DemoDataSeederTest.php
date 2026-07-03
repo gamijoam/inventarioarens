@@ -11,6 +11,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -58,6 +59,7 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, InventoryTransfer::withoutGlobalScopes()->where('type', InventoryTransfer::TYPE_INTERNAL)->count());
         $this->assertSame(2, DB::table('stock_movements')->where('type', 'transfer_out')->count());
         $this->assertSame(2, DB::table('stock_movements')->where('type', 'transfer_in')->count());
+        $this->assertSame(1, InventoryTransferRequest::query()->where('status', InventoryTransferRequest::STATUS_COMPLETED)->count());
         $this->assertGreaterThanOrEqual(76, ProductUnit::withoutGlobalScopes()->count());
         $this->assertGreaterThanOrEqual(2, ProductUnit::withoutGlobalScopes()->where('status', ProductUnit::STATUS_REMOVED)->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo POS Pagado')->count());

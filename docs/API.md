@@ -1828,6 +1828,161 @@ Permiso requerido:
 inventory_transfers.view
 ```
 
+## Solicitudes de transferencia interempresa
+
+Archivo de rutas:
+
+```txt
+app/Modules/InventoryTransferRequests/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\InventoryTransferRequests\Controllers\InventoryTransferRequestController
+```
+
+### Listar solicitudes visibles
+
+```txt
+GET /api/inventory-transfer-requests
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.view
+```
+
+La empresa actual ve solicitudes donde es origen o destino.
+
+### Crear solicitud
+
+```txt
+POST /api/inventory-transfer-requests
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.create
+```
+
+Body usando slug de empresa destino:
+
+```json
+{
+  "destination_tenant_slug": "empresa-destino",
+  "from_warehouse_id": 1,
+  "reason": "Envio entre empresas",
+  "reference": "TREQ-001",
+  "items": [
+    {
+      "product_id": 2,
+      "quantity": 4
+    }
+  ]
+}
+```
+
+Body usando correo de un usuario de la empresa destino:
+
+```json
+{
+  "destination_user_email": "gerente.destino@demo.test",
+  "from_warehouse_id": 1,
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2,
+      "product_unit_ids": [10, 11]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- la solicitud no mueve inventario al crearse;
+- la empresa destino debe ser distinta a la empresa origen;
+- si se usa correo, debe pertenecer a una unica empresa activa;
+- los productos e IMEIs solicitados pertenecen a la empresa origen;
+- los IMEIs quedan guardados como snapshot para recrearlos en la empresa destino si la solicitud se acepta;
+- la empresa destino debe aceptar o rechazar.
+
+### Aceptar solicitud
+
+```txt
+POST /api/inventory-transfer-requests/{inventoryTransferRequest}/accept
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.respond
+```
+
+Body:
+
+```json
+{
+  "destination_warehouse_id": 5,
+  "response_notes": "Aceptado por sucursal destino",
+  "items": [
+    {
+      "request_item_id": 1,
+      "destination_product_id": 8
+    }
+  ]
+}
+```
+
+Reglas:
+
+- solo la empresa destino puede aceptar;
+- debe indicar almacen destino y producto destino por cada item;
+- el producto destino debe tener el mismo tipo de control: cantidad o serializado;
+- al aceptar, la empresa origen genera salida `adjustment_out`;
+- al aceptar, la empresa destino genera entrada `purchase`;
+- en serializados, el IMEI original queda `removed` en origen y se crea disponible en destino;
+- si ya no hay stock suficiente en origen, la aceptacion falla y no se mueve nada.
+
+### Rechazar solicitud
+
+```txt
+POST /api/inventory-transfer-requests/{inventoryTransferRequest}/reject
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.respond
+```
+
+### Cancelar solicitud
+
+```txt
+POST /api/inventory-transfer-requests/{inventoryTransferRequest}/cancel
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.cancel
+```
+
+### Ver solicitud
+
+```txt
+GET /api/inventory-transfer-requests/{inventoryTransferRequest}
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfer_requests.view
+```
+
 Archivo de rutas:
 
 ```txt
@@ -2479,5 +2634,6 @@ Reglas:
 - Las salidas operativas no reemplazan ventas, POS ni devoluciones a proveedor.
 - Las APIs de transferencias documentadas deben vivir en el modulo `InventoryTransfers`.
 - Las transferencias internas mueven stock entre almacenes de una misma empresa; las interempresa requieren solicitud y aceptacion antes de mover inventario.
+- Las solicitudes interempresa deben vivir en `InventoryTransferRequests` y no deben mover stock al crearse.
 - Las APIs de reportes son solo lectura.
 - Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.

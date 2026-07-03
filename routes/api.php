@@ -33,6 +33,9 @@ Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/InventoryTransfers/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
+    ->group(base_path('app/Modules/InventoryTransferRequests/routes.php'));
+
+Route::middleware(['auth', 'tenant'])
     ->group(base_path('app/Modules/Reports/routes.php'));
 
 Route::middleware(['auth', 'tenant'])
