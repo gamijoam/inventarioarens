@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Frontend inicial para entrada de productos
+
+### Implementado
+
+- Se agregó el panel `Entradas y salidas` como módulo independiente dentro del frontend.
+- Se implementó el formulario de recepción de productos conectado a `POST /api/product-entries`.
+- El formulario carga productos y almacenes reales de la empresa activa.
+- Para productos por cantidad permite indicar cantidad y costo unitario.
+- Para productos serializados/IMEI habilita una caja de carga múltiple, un serial por línea, y calcula la cantidad automáticamente.
+- Se agregó un resumen lateral con producto, almacén, unidades a recibir y tipo de control.
+- Al registrar una entrada se actualiza el Centro de Inventario para reflejar el nuevo stock.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php`: 5 pruebas pasadas, 25 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Edición robusta de producto en Centro de Inventario
 
 ### Implementado

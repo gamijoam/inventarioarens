@@ -47,7 +47,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
     font: inherit;
 }
 
@@ -1311,6 +1312,88 @@ button:disabled {
     gap: 8px;
 }
 
+.operation-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 18px;
+    margin-top: 18px;
+}
+
+.operation-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(42, 53, 89, 0.06);
+}
+
+.operation-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid #edf1f7;
+    padding: 22px 24px;
+}
+
+.operation-card__header h2 {
+    margin: 0;
+    color: #071027;
+    font-size: 1.35rem;
+    font-weight: 950;
+    letter-spacing: 0;
+}
+
+.operation-pill {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    border: 1px solid #dce4ff;
+    border-radius: 999px;
+    background: #eef0ff;
+    color: var(--violet-strong);
+    padding: 0 12px;
+    font-size: 0.78rem;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.operation-form {
+    padding: 22px 24px 24px;
+}
+
+.operation-card--summary {
+    align-self: start;
+    padding: 22px;
+}
+
+.entry-summary {
+    display: grid;
+    gap: 12px;
+    margin: 14px 0 0;
+}
+
+.entry-summary div {
+    border: 1px solid #edf1f7;
+    border-radius: 8px;
+    background: #f9fbff;
+    padding: 14px;
+}
+
+.entry-summary dt {
+    color: #8795ad;
+    font-size: 0.74rem;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.entry-summary dd {
+    margin: 6px 0 0;
+    color: #17243d;
+    font-weight: 920;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
 .modal-backdrop {
     position: fixed;
     z-index: 30;
@@ -1391,20 +1474,33 @@ button:disabled {
 }
 
 .product-form input,
-.product-form select {
+.product-form select,
+.product-form textarea {
     width: 100%;
-    min-height: 50px;
     border: 1px solid #d7e1f1;
     border-radius: 8px;
     outline: 0;
     background: #f7f9fd;
     color: #10172f;
-    padding: 0 14px;
     font-weight: 850;
 }
 
+.product-form input,
+.product-form select {
+    min-height: 50px;
+    padding: 0 14px;
+}
+
+.product-form textarea {
+    min-height: 92px;
+    resize: vertical;
+    padding: 12px 14px;
+    line-height: 1.45;
+}
+
 .product-form input:focus,
-.product-form select:focus {
+.product-form select:focus,
+.product-form textarea:focus {
     border-color: rgba(77, 53, 255, 0.62);
     background: #ffffff;
     box-shadow: 0 0 0 4px rgba(77, 53, 255, 0.1);
@@ -1417,7 +1513,9 @@ button:disabled {
     line-height: 1.35;
 }
 
-.product-form select:disabled {
+.product-form select:disabled,
+.product-form textarea:disabled,
+.product-form input:read-only {
     cursor: not-allowed;
     border-color: #e0e6f0;
     background: #eef3fa;
@@ -1729,7 +1827,8 @@ button:disabled {
     .metric-grid,
     .module-shortcuts,
     .inventory-metrics,
-    .product-grid {
+    .product-grid,
+    .operation-layout {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -1799,7 +1898,8 @@ button:disabled {
     .metric-grid,
     .module-shortcuts,
     .inventory-metrics,
-    .product-grid {
+    .product-grid,
+    .operation-layout {
         grid-template-columns: 1fr;
     }
 

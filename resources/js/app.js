@@ -16,6 +16,9 @@ const state = {
     productRateTypes: [],
     productWarrantyPolicies: [],
     productTrackingLocked: false,
+    entryOptionsLoaded: false,
+    entryProducts: [],
+    entryWarehouses: [],
 };
 
 const navigationGroups = [
@@ -164,6 +167,26 @@ const elements = {
     productDetailSubtitle: document.querySelector('#product-detail-subtitle'),
     productDetailMessage: document.querySelector('#product-detail-message'),
     productDetailContent: document.querySelector('#product-detail-content'),
+    refreshEntryOptions: document.querySelector('#refresh-entry-options'),
+    productEntryForm: document.querySelector('#product-entry-form'),
+    entryWarehouse: document.querySelector('#entry-warehouse'),
+    entryProduct: document.querySelector('#entry-product'),
+    entryReason: document.querySelector('#entry-reason'),
+    entryReference: document.querySelector('#entry-reference'),
+    entryQuantity: document.querySelector('#entry-quantity'),
+    entryQuantityHelp: document.querySelector('#entry-quantity-help'),
+    entryUnitCost: document.querySelector('#entry-unit-cost'),
+    entrySerials: document.querySelector('#entry-serials'),
+    entrySerialsHelp: document.querySelector('#entry-serials-help'),
+    entryNotes: document.querySelector('#entry-notes'),
+    productEntryMessage: document.querySelector('#product-entry-message'),
+    clearEntryForm: document.querySelector('#clear-entry-form'),
+    saveEntryButton: document.querySelector('#save-entry-button'),
+    entryTrackingPill: document.querySelector('#entry-tracking-pill'),
+    entrySummaryProduct: document.querySelector('#entry-summary-product'),
+    entrySummaryWarehouse: document.querySelector('#entry-summary-warehouse'),
+    entrySummaryQuantity: document.querySelector('#entry-summary-quantity'),
+    entrySummaryTracking: document.querySelector('#entry-summary-tracking'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -457,7 +480,10 @@ function setActiveNav(activeButton, label) {
         button.dataset.active = button === activeButton ? 'true' : 'false';
     });
 
-    const panel = label === 'Centro de Inventario' ? 'inventory' : 'dashboard';
+    const panel = {
+        'Centro de Inventario': 'inventory',
+        'Entradas y salidas': 'stock-operations',
+    }[label] ?? 'dashboard';
 
     showPanel(panel);
 
@@ -475,6 +501,10 @@ function showPanel(panel) {
 
     if (panel === 'inventory' && state.session) {
         loadInventoryCenter(state.session);
+    }
+
+    if (panel === 'stock-operations' && state.session) {
+        loadEntryOptions(state.session);
     }
 }
 
@@ -817,6 +847,225 @@ function setInventoryDetail(key, value) {
 function setInventoryStatus(message, tone = 'neutral') {
     elements.inventoryStatus.textContent = message;
     elements.inventoryStatus.dataset.tone = tone;
+}
+
+function setProductEntryMessage(message, tone = 'neutral') {
+    elements.productEntryMessage.textContent = message;
+    elements.productEntryMessage.dataset.tone = tone;
+}
+
+function demoEntryProducts() {
+    return [
+        { id: 1, name: 'Samsung A06 128GB', sku: 'A06-DEMO', tracking_type: 'serialized' },
+        { id: 2, name: 'Adaptador Tipo C', sku: 'ACC-001', tracking_type: 'quantity' },
+    ];
+}
+
+function demoEntryWarehouses() {
+    return [
+        { id: 1, name: 'Almacén Principal Demo', code: 'WH-DEMO', branch_name: 'Sucursal Demo', status: 'active' },
+    ];
+}
+
+async function loadEntryOptions(session, force = false) {
+    if (!elements.productEntryForm) {
+        return;
+    }
+
+    if (state.entryOptionsLoaded && !force) {
+        renderEntryOptions();
+        updateEntryFormMode();
+        return;
+    }
+
+    setProductEntryMessage(session.is_local_demo ? 'Mostrando opciones demo locales.' : 'Cargando productos y almacenes...');
+    setProductEntryBusy(true);
+
+    try {
+        if (session.is_local_demo) {
+            state.entryProducts = demoEntryProducts();
+            state.entryWarehouses = demoEntryWarehouses();
+        } else {
+            const [products, warehouses] = await Promise.all([
+                authenticatedApi('/api/products', session),
+                authenticatedApi('/api/warehouses', session),
+            ]);
+
+            state.entryProducts = products.filter((product) => product.is_active !== false);
+            state.entryWarehouses = warehouses.filter((warehouse) => warehouse.status !== 'inactive');
+        }
+
+        state.entryOptionsLoaded = true;
+        renderEntryOptions();
+        updateEntryFormMode();
+        setProductEntryMessage('Listo para registrar una entrada.');
+    } catch (error) {
+        setProductEntryMessage(error.message, 'error');
+    } finally {
+        setProductEntryBusy(false);
+    }
+}
+
+function renderEntryOptions() {
+    elements.entryWarehouse.replaceChildren(
+        optionElement('', 'Selecciona un almacén'),
+        ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
+    );
+
+    elements.entryProduct.replaceChildren(
+        optionElement('', 'Selecciona un producto'),
+        ...state.entryProducts.map((product) => optionElement(product.id, `${product.name} · ${product.sku} · ${trackingLabel(product.tracking_type)}`)),
+    );
+}
+
+function selectedEntryProduct() {
+    return state.entryProducts.find((product) => String(product.id) === String(elements.entryProduct.value)) ?? null;
+}
+
+function selectedEntryWarehouse() {
+    return state.entryWarehouses.find((warehouse) => String(warehouse.id) === String(elements.entryWarehouse.value)) ?? null;
+}
+
+function serialLines() {
+    return elements.entrySerials.value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
+function updateEntryFormMode() {
+    const product = selectedEntryProduct();
+    const warehouse = selectedEntryWarehouse();
+    const isSerialized = product?.tracking_type === 'serialized';
+    const serialCount = serialLines().length;
+
+    elements.entrySerials.disabled = !isSerialized;
+    elements.entrySerialsHelp.textContent = isSerialized
+        ? 'Escribe un IMEI o serial por línea. La cantidad se ajusta automáticamente.'
+        : 'Solo se habilita para productos serializados/IMEI.';
+    elements.entryQuantity.readOnly = isSerialized;
+    elements.entryQuantityHelp.textContent = isSerialized
+        ? 'Cantidad calculada por la cantidad de IMEIs escritos.'
+        : 'Indica la cantidad recibida en el almacén.';
+
+    if (isSerialized) {
+        elements.entryQuantity.value = serialCount > 0 ? String(serialCount) : '';
+    }
+
+    elements.entryTrackingPill.textContent = isSerialized ? 'Serializado / IMEI' : 'Cantidad';
+    elements.entrySummaryProduct.textContent = product ? `${product.name} · ${product.sku}` : 'Selecciona un producto';
+    elements.entrySummaryWarehouse.textContent = warehouse ? `${warehouse.name} · ${warehouse.code}` : 'Selecciona un almacén';
+    elements.entrySummaryQuantity.textContent = stockNumber(Number(elements.entryQuantity.value || 0));
+    elements.entrySummaryTracking.textContent = product ? trackingLabel(product.tracking_type) : 'Por cantidad';
+}
+
+function productEntryPayload() {
+    const product = selectedEntryProduct();
+    const isSerialized = product?.tracking_type === 'serialized';
+    const serials = serialLines();
+
+    return {
+        reason: elements.entryReason.value.trim(),
+        reference: elements.entryReference.value.trim() || null,
+        notes: elements.entryNotes.value.trim() || null,
+        items: [
+            {
+                warehouse_id: Number(elements.entryWarehouse.value),
+                product_id: Number(elements.entryProduct.value),
+                quantity: isSerialized ? serials.length : Number(elements.entryQuantity.value),
+                unit_cost: elements.entryUnitCost.value === '' ? null : Number(elements.entryUnitCost.value),
+                ...(isSerialized ? {
+                    serial_units: serials.map((serial) => ({
+                        serial_type: 'imei',
+                        serial_number: serial,
+                    })),
+                } : {}),
+            },
+        ],
+    };
+}
+
+function validateProductEntryForm() {
+    const product = selectedEntryProduct();
+    const serials = serialLines();
+
+    if (!elements.entryWarehouse.value) {
+        return 'Selecciona el almacén destino.';
+    }
+
+    if (!product) {
+        return 'Selecciona el producto recibido.';
+    }
+
+    if (!elements.entryReason.value.trim()) {
+        return 'Indica el motivo de la entrada.';
+    }
+
+    if (product.tracking_type === 'serialized') {
+        if (serials.length === 0) {
+            return 'Escribe al menos un IMEI o serial para este producto.';
+        }
+
+        if (new Set(serials).size !== serials.length) {
+            return 'Hay IMEIs o seriales repetidos en la entrada.';
+        }
+    } else if (Number(elements.entryQuantity.value) <= 0) {
+        return 'Indica una cantidad mayor a cero.';
+    }
+
+    return null;
+}
+
+async function saveProductEntry() {
+    const validationMessage = validateProductEntryForm();
+
+    if (validationMessage) {
+        setProductEntryMessage(validationMessage, 'error');
+        return;
+    }
+
+    setProductEntryBusy(true);
+    setProductEntryMessage('Registrando entrada...');
+
+    try {
+        const entry = await authenticatedApi('/api/product-entries', state.session, {
+            method: 'POST',
+            body: JSON.stringify(productEntryPayload()),
+        });
+
+        resetProductEntryForm(false);
+        state.inventoryPage = 1;
+        await loadInventoryCenter(state.session);
+        setProductEntryMessage(`Entrada ${entry.document_number} registrada correctamente.`, 'success');
+    } catch (error) {
+        setProductEntryMessage(error.message, 'error');
+    } finally {
+        setProductEntryBusy(false);
+    }
+}
+
+function resetProductEntryForm(clearMessage = true) {
+    elements.productEntryForm.reset();
+    elements.entryReason.value = 'Recepción de mercancía';
+    updateEntryFormMode();
+
+    if (clearMessage) {
+        setProductEntryMessage('Formulario limpio.');
+    }
+}
+
+function setProductEntryBusy(isBusy) {
+    elements.productEntryForm.querySelectorAll('input, select, textarea, button').forEach((control) => {
+        if (control.id !== 'refresh-entry-options') {
+            control.disabled = isBusy;
+        }
+    });
+
+    elements.saveEntryButton.disabled = isBusy;
+
+    if (!isBusy) {
+        updateEntryFormMode();
+    }
 }
 
 function setProductFormMessage(message, tone = 'neutral') {
@@ -1459,6 +1708,31 @@ elements.inventoryNextPage?.addEventListener('click', () => {
         state.inventoryPage += 1;
         loadInventoryCenter(state.session);
     }
+});
+
+elements.refreshEntryOptions?.addEventListener('click', () => {
+    if (state.session) {
+        state.entryOptionsLoaded = false;
+        loadEntryOptions(state.session, true);
+    }
+});
+
+elements.entryProduct?.addEventListener('change', updateEntryFormMode);
+elements.entryWarehouse?.addEventListener('change', updateEntryFormMode);
+elements.entryQuantity?.addEventListener('input', updateEntryFormMode);
+elements.entrySerials?.addEventListener('input', updateEntryFormMode);
+
+elements.clearEntryForm?.addEventListener('click', () => resetProductEntryForm());
+
+elements.productEntryForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (state.session?.is_local_demo) {
+        setProductEntryMessage('El modo demo local no guarda entradas. Entra con un usuario real para registrar stock.', 'error');
+        return;
+    }
+
+    await saveProductEntry();
 });
 
 elements.openProductForm?.addEventListener('click', () => {

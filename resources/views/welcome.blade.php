@@ -307,6 +307,110 @@
                                         </div>
                                     </div>
                                 </section>
+
+                                <section class="workspace-panel stock-operations-view" data-panel="stock-operations" aria-labelledby="stock-operations-title" hidden>
+                                    <div class="module-header">
+                                        <div>
+                                            <p class="eyebrow">Inventario</p>
+                                            <h1 id="stock-operations-title">Entradas y salidas</h1>
+                                            <p>Registra recepciones de stock por almacén. Los productos serializados aceptan carga múltiple de IMEIs.</p>
+                                        </div>
+                                        <div class="module-actions">
+                                            <button class="secondary-button compact-action" type="button" id="refresh-entry-options">Actualizar datos</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="operation-layout">
+                                        <section class="operation-card">
+                                            <div class="operation-card__header">
+                                                <div>
+                                                    <p class="eyebrow">Entrada</p>
+                                                    <h2>Recepción de productos</h2>
+                                                </div>
+                                                <span class="operation-pill" id="entry-tracking-pill">Cantidad</span>
+                                            </div>
+
+                                            <form class="product-form operation-form" id="product-entry-form">
+                                                <div class="form-grid">
+                                                    <label class="field">
+                                                        <span>Almacén destino</span>
+                                                        <select id="entry-warehouse" required>
+                                                            <option value="">Cargando almacenes...</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Producto</span>
+                                                        <select id="entry-product" required>
+                                                            <option value="">Cargando productos...</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Motivo</span>
+                                                        <input id="entry-reason" type="text" maxlength="150" value="Recepción de mercancía" required>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Referencia</span>
+                                                        <input id="entry-reference" type="text" maxlength="150" placeholder="Factura, guía o nota">
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Cantidad</span>
+                                                        <input id="entry-quantity" type="number" min="0.0001" step="0.0001" value="1" required>
+                                                        <small class="field-help" id="entry-quantity-help">Para productos serializados se calcula por los IMEIs escritos.</small>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Costo unitario</span>
+                                                        <input id="entry-unit-cost" type="number" min="0" step="0.01" placeholder="0.00">
+                                                    </label>
+
+                                                    <label class="field form-grid__wide">
+                                                        <span>IMEIs / seriales</span>
+                                                        <textarea id="entry-serials" rows="7" placeholder="Un IMEI o serial por línea"></textarea>
+                                                        <small class="field-help" id="entry-serials-help">Disponible cuando el producto seleccionado es serializado.</small>
+                                                    </label>
+
+                                                    <label class="field form-grid__wide">
+                                                        <span>Notas</span>
+                                                        <textarea id="entry-notes" rows="3" maxlength="1000" placeholder="Observaciones internas de la recepción"></textarea>
+                                                    </label>
+                                                </div>
+
+                                                <p class="form-message" id="product-entry-message" role="status" aria-live="polite"></p>
+
+                                                <div class="modal-actions">
+                                                    <button class="secondary-button compact-action" type="button" id="clear-entry-form">Limpiar</button>
+                                                    <button class="primary-button compact-action" type="submit" id="save-entry-button" data-requires-any="product_entries.create">Registrar entrada</button>
+                                                </div>
+                                            </form>
+                                        </section>
+
+                                        <aside class="operation-card operation-card--summary">
+                                            <p class="eyebrow">Resumen</p>
+                                            <dl class="entry-summary">
+                                                <div>
+                                                    <dt>Producto</dt>
+                                                    <dd id="entry-summary-product">Selecciona un producto</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Almacén</dt>
+                                                    <dd id="entry-summary-warehouse">Selecciona un almacén</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Unidades a recibir</dt>
+                                                    <dd id="entry-summary-quantity">0</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Tipo</dt>
+                                                    <dd id="entry-summary-tracking">Por cantidad</dd>
+                                                </div>
+                                            </dl>
+                                        </aside>
+                                    </div>
+                                </section>
                             </main>
                         </div>
                     </div>
