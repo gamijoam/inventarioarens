@@ -44,6 +44,8 @@ use App\Modules\SalesReturns\Services\SalesReturnService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
+use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Modules\Warranties\Services\WarrantyClaimService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -185,6 +187,7 @@ class DemoDataSeeder extends Seeder
         $this->financialAdjustments($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}", "VENTA-CREDITO-DEMO-{$data['branch_code']}");
         $this->paymentReceipts($tenant, $manager);
         $this->backfillWarrantySnapshots($tenant);
+        $this->warrantyClaim($tenant, $manager);
     }
 
     private function paidPosOrder(
@@ -532,6 +535,34 @@ class DemoDataSeeder extends Seeder
                     'warranty_expires_at' => $startsAt ? $startsAt->copy()->addDays($policy->duration_days) : null,
                 ]);
             });
+    }
+
+    private function warrantyClaim(Tenant $tenant, User $user): void
+    {
+        $this->useTenant($tenant);
+
+        if (WarrantyClaim::query()->where('issue_description', 'Caso demo de garantia en revision.')->exists()) {
+            return;
+        }
+
+        $saleItem = SaleItem::query()
+            ->whereNotNull('warranty_policy_id')
+            ->whereNotNull('warranty_expires_at')
+            ->latest('id')
+            ->first();
+
+        if (! $saleItem) {
+            return;
+        }
+
+        app(WarrantyClaimService::class)->create($user, [
+            'sale_item_id' => $saleItem->id,
+            'quantity' => 1,
+            'customer_name' => 'Cliente Demo Garantia',
+            'customer_phone' => '04120000000',
+            'issue_description' => 'Caso demo de garantia en revision.',
+            'received_notes' => 'Producto recibido para diagnostico demo.',
+        ]);
     }
 
     private function financialAdjustments(Tenant $tenant, User $user, string $purchaseDocument, string $saleDocument): void

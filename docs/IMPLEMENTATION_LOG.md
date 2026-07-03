@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-03 - Modulo Warranties casos de garantia
+
+### Implementado
+
+- Se agrego la tabla `warranty_claims`.
+- Se agrego el modelo `WarrantyClaim`.
+- Se agrego `WarrantyClaimService`.
+- Se expuso `GET /api/warranty-claims`.
+- Se expuso `POST /api/warranty-claims`.
+- Se expuso `GET /api/warranty-claims/{warrantyClaim}`.
+- Se expuso `PATCH /api/warranty-claims/{warrantyClaim}/review`.
+- Se expuso `PATCH /api/warranty-claims/{warrantyClaim}/deliver`.
+- Crear caso valida venta confirmada, snapshot de garantia y vigencia.
+- Los productos serializados pueden asociar IMEI/serial mediante `product_unit_id`.
+- Las unidades serializadas recibidas por garantia quedan en estado `warranty_hold`.
+- Se auditan recepcion, revision y entrega de casos.
+- La demo crea un caso de garantia recibido por empresa.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Warranties/WarrantyPolicyApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 10 pruebas pasadas, 101 aserciones.
+- Suite completa: `docker compose run --rm app_test php artisan test` (179 pruebas, 861 aserciones).
+
+### Notas de seguridad
+
+- No se puede crear garantia si la venta no esta confirmada.
+- No se puede crear garantia si el item no tiene garantia o ya vencio.
+- No se permite abrir dos casos activos para la misma unidad serializada.
+- Esta fase no mueve dinero ni hace reemplazos; solo registra recepcion, revision y entrega.
+
 ## 2026-07-03 - Modulo Warranties politicas y snapshot
 
 ### Implementado

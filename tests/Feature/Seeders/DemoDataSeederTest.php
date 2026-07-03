@@ -24,6 +24,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warranties\Models\WarrantyClaim;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +74,7 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(6, Sale::withoutGlobalScopes()->whereNotNull('customer_id')->count());
         $this->assertGreaterThanOrEqual(4, DB::table('sale_items')->whereNotNull('warranty_policy_name')->count());
         $this->assertGreaterThanOrEqual(4, DB::table('sale_items')->whereNotNull('warranty_expires_at')->count());
+        $this->assertSame(2, WarrantyClaim::withoutGlobalScopes()->where('issue_description', 'Caso demo de garantia en revision.')->count());
         $this->assertSame(2, AccountsReceivable::withoutGlobalScopes()->where('status', AccountsReceivable::STATUS_PARTIAL)->count());
         $this->assertSame(2, AccountsReceivablePayment::withoutGlobalScopes()->where('method', 'cobro demo')->count());
         $this->assertSame(4, FinancialAdjustment::withoutGlobalScopes()->where('status', FinancialAdjustment::STATUS_APPLIED)->count());

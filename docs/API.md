@@ -2963,6 +2963,128 @@ Reglas:
 - al confirmar una venta, cada item con politica guarda `warranty_starts_at` y `warranty_expires_at`;
 - si la politica cambia despues, la venta conserva su snapshot historico.
 
+### Listar casos de garantia
+
+```txt
+GET /api/warranty-claims
+```
+
+Permiso requerido:
+
+```txt
+warranties.view
+```
+
+### Crear caso de garantia
+
+```txt
+POST /api/warranty-claims
+```
+
+Permiso requerido:
+
+```txt
+warranties.create
+```
+
+Body:
+
+```json
+{
+  "sale_item_id": 1,
+  "product_unit_id": 10,
+  "quantity": 1,
+  "customer_name": "Cliente garantia",
+  "customer_phone": "04120000000",
+  "issue_description": "Equipo no enciende.",
+  "received_notes": "Sin golpes visibles."
+}
+```
+
+Reglas:
+
+- el item vendido debe pertenecer al tenant actual;
+- la venta debe estar confirmada;
+- el item debe tener snapshot de garantia;
+- la garantia no debe estar vencida;
+- productos serializados requieren `product_unit_id`;
+- una unidad con caso abierto no puede abrir otro caso;
+- si se recibe una unidad serializada, queda en estado `warranty_hold`;
+- crear el caso no mueve dinero ni inventario contable en esta fase.
+
+### Ver caso de garantia
+
+```txt
+GET /api/warranty-claims/{warrantyClaim}
+```
+
+Permiso requerido:
+
+```txt
+warranties.view
+```
+
+### Revisar caso de garantia
+
+```txt
+PATCH /api/warranty-claims/{warrantyClaim}/review
+```
+
+Permiso requerido:
+
+```txt
+warranties.review
+```
+
+Body:
+
+```json
+{
+  "status": "approved",
+  "diagnosis": "Puerto de carga defectuoso.",
+  "resolution_type": "repair",
+  "resolution_notes": "Se aprueba reparacion."
+}
+```
+
+Estados permitidos en revision:
+
+- `under_review`
+- `approved`
+- `rejected`
+
+Resoluciones iniciales:
+
+- `repair`
+- `replacement`
+- `refund`
+- `rejected`
+- `pending_review`
+
+### Entregar caso de garantia
+
+```txt
+PATCH /api/warranty-claims/{warrantyClaim}/deliver
+```
+
+Permiso requerido:
+
+```txt
+warranties.deliver
+```
+
+Body:
+
+```json
+{
+  "resolution_notes": "Equipo entregado al cliente."
+}
+```
+
+Regla:
+
+- solo se pueden entregar casos `approved` o `rejected`.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion

@@ -798,10 +798,17 @@ Responsabilidad:
 Archivos principales:
 
 - `app/Modules/Warranties/Models/WarrantyPolicy.php`
+- `app/Modules/Warranties/Models/WarrantyClaim.php`
 - `app/Modules/Warranties/Controllers/WarrantyPolicyController.php`
+- `app/Modules/Warranties/Controllers/WarrantyClaimController.php`
 - `app/Modules/Warranties/Requests/StoreWarrantyPolicyRequest.php`
 - `app/Modules/Warranties/Requests/UpdateWarrantyPolicyRequest.php`
+- `app/Modules/Warranties/Requests/StoreWarrantyClaimRequest.php`
+- `app/Modules/Warranties/Requests/ReviewWarrantyClaimRequest.php`
+- `app/Modules/Warranties/Requests/DeliverWarrantyClaimRequest.php`
 - `app/Modules/Warranties/Resources/WarrantyPolicyResource.php`
+- `app/Modules/Warranties/Resources/WarrantyClaimResource.php`
+- `app/Modules/Warranties/Services/WarrantyClaimService.php`
 - `app/Modules/Warranties/routes.php`
 
 Regla importante:
@@ -811,7 +818,10 @@ Regla importante:
 - una venta copia la garantia del producto en `sale_items`;
 - el snapshot de venta no debe cambiar si luego se actualiza la politica;
 - la confirmacion de venta define inicio y vencimiento de garantia;
-- los casos de garantia futuros deben partir del item vendido o del IMEI/serial vendido.
+- los casos de garantia parten del item vendido y opcionalmente del IMEI/serial vendido;
+- un caso recibido no resuelve dinero ni inventario contable por si solo;
+- los productos serializados recibidos por garantia quedan en `warranty_hold`;
+- las acciones de recibir, revisar y entregar se auditan en `audit_logs`.
 
 ### Audit
 

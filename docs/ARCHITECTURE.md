@@ -373,7 +373,11 @@ Reglas arquitectonicas:
 - `sale_items` guarda snapshot de garantia: politica, nombre, duracion, cobertura, condiciones, inicio y vencimiento;
 - la fecha de inicio de garantia se define al confirmar la venta, no al crear el borrador;
 - cambiar una politica no modifica ventas historicas;
-- los casos de garantia futuros deben consultar primero la venta o el IMEI vendido para validar vigencia.
+- los casos de garantia deben consultar primero la venta o el IMEI vendido para validar vigencia;
+- un caso de garantia vive en `warranty_claims` y referencia `sale_item_id`;
+- productos serializados pueden referenciar `product_unit_id`;
+- recibir una unidad serializada por garantia cambia su estado a `warranty_hold`;
+- resolver reembolso o reemplazo queda separado de la recepcion/revision inicial para no mezclar dinero, POS e inventario sin decision explicita.
 
 ## Siguiente fase
 

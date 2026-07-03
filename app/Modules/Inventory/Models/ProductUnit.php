@@ -30,6 +30,7 @@ class ProductUnit extends Model
     public const STATUS_SOLD = 'sold';
     public const STATUS_DAMAGED = 'damaged';
     public const STATUS_REMOVED = 'removed';
+    public const STATUS_WARRANTY_HOLD = 'warranty_hold';
 
     public function product(): BelongsTo
     {
