@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-03 - Creacion y edicion de productos desde Centro de Inventario
+
+### Implementado
+
+- Se agrego un formulario modal en el frontend para crear y editar productos desde el Centro de Inventario.
+- El formulario permite gestionar nombre, SKU, tipo de control, precio base, moneda de venta, tipo de tasa, politica de garantia y estado activo.
+- Se agregaron acciones de edicion en vista de tarjetas y vista de lista, visibles solo con permiso `products.update`.
+- Se conecto el formulario con `POST /api/products` y `PATCH /api/products/{product}` usando el token y tenant de la sesion actual.
+- Se ampliaron las respuestas de productos para incluir `sale_exchange_rate_type` cargado junto con `warranty_policy`, evitando consultas extra despues de guardar o abrir un producto.
+- El frontend carga tipos de tasa y politicas de garantia para completar los selectores cuando el usuario tiene permisos de lectura sobre esos modulos.
+
+### Pruebas
+
+- Se actualizaron pruebas de productos para validar que la API devuelve la tasa asociada al crear y editar productos.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 16 pruebas pasadas, 87 aserciones.
+- Se compilo el frontend con `pnpm run build` correctamente.
+
+### Notas de uso
+
+- El Centro de Inventario mantiene su API agregada solo para lectura; las escrituras del catalogo se hacen por el modulo `Products`.
+- Si un producto ya tiene IMEIs/unidades serializadas, el backend sigue bloqueando cambios peligrosos de `tracking_type`.
+
 ## 2026-07-03 - Catalogo demo ampliado para Centro de Inventario
 
 ### Implementado

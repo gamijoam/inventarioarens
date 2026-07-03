@@ -18,6 +18,13 @@ class ProductResource extends JsonResource
             'base_price' => $this->base_price === null ? null : (float) $this->base_price,
             'sale_currency' => $this->sale_currency,
             'sale_exchange_rate_type_id' => $this->sale_exchange_rate_type_id,
+            'sale_exchange_rate_type' => $this->whenLoaded('saleExchangeRateType', fn () => [
+                'id' => $this->saleExchangeRateType?->id,
+                'code' => $this->saleExchangeRateType?->code,
+                'name' => $this->saleExchangeRateType?->name,
+                'is_default' => (bool) $this->saleExchangeRateType?->is_default,
+                'is_active' => (bool) $this->saleExchangeRateType?->is_active,
+            ]),
             'warranty_policy_id' => $this->warranty_policy_id,
             'warranty_policy' => $this->whenLoaded('warrantyPolicy', fn () => [
                 'id' => $this->warrantyPolicy?->id,

@@ -359,6 +359,7 @@ Body:
   "base_price": 100,
   "sale_currency": "VES",
   "sale_exchange_rate_type_id": 2,
+  "warranty_policy_id": 1,
   "is_active": true
 }
 ```
@@ -373,6 +374,8 @@ Reglas:
 - `base_price` es el precio base interno en `USD`;
 - `sale_currency` puede ser `USD` o `VES`;
 - `sale_exchange_rate_type_id` permite asignar una tasa sugerida, por ejemplo `BCV` o `PARALELO`.
+- `warranty_policy_id` permite asignar una politica de garantia de la empresa actual.
+- la respuesta puede incluir `sale_exchange_rate_type` y `warranty_policy` para que el frontend pueda editar sin hacer consultas adicionales.
 
 ### Ver producto
 

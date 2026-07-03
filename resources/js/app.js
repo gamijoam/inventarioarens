@@ -11,6 +11,10 @@ const state = {
     inventoryPage: 1,
     inventoryLimit: 12,
     inventorySearchTimer: null,
+    productFormMode: 'create',
+    productFormOptionsLoaded: false,
+    productRateTypes: [],
+    productWarrantyPolicies: [],
 };
 
 const navigationGroups = [
@@ -64,6 +68,7 @@ const shortcutDefinitions = [
 const devPermissions = [
     'products.view',
     'products.create',
+    'products.update',
     'branches.view',
     'warehouses.view',
     'customers.view',
@@ -133,6 +138,24 @@ const elements = {
     inventoryPaginationSummary: document.querySelector('#inventory-pagination-summary'),
     inventoryPrevPage: document.querySelector('#inventory-prev-page'),
     inventoryNextPage: document.querySelector('#inventory-next-page'),
+    openProductForm: document.querySelector('#open-product-form'),
+    productModal: document.querySelector('#product-modal'),
+    closeProductForm: document.querySelector('#close-product-form'),
+    cancelProductForm: document.querySelector('#cancel-product-form'),
+    productForm: document.querySelector('#product-form'),
+    productFormTitle: document.querySelector('#product-modal-title'),
+    productFormSubtitle: document.querySelector('#product-modal-subtitle'),
+    productFormMessage: document.querySelector('#product-form-message'),
+    productId: document.querySelector('#product-id'),
+    productName: document.querySelector('#product-name'),
+    productSku: document.querySelector('#product-sku'),
+    productTrackingType: document.querySelector('#product-tracking-type'),
+    productBasePrice: document.querySelector('#product-base-price'),
+    productSaleCurrency: document.querySelector('#product-sale-currency'),
+    productRateType: document.querySelector('#product-rate-type'),
+    productWarrantyPolicy: document.querySelector('#product-warranty-policy'),
+    productIsActive: document.querySelector('#product-is-active'),
+    saveProductButton: document.querySelector('#save-product-button'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -682,6 +705,7 @@ function productCards(products) {
                     <strong>${stockNumber(product.stock.damaged)}</strong>
                 </div>
             </div>
+            ${canEditProducts() ? `<button class="secondary-button compact-action product-edit-button" type="button" data-product-edit="${product.id}">Editar</button>` : ''}
         `;
         fragment.append(article);
     });
@@ -704,6 +728,7 @@ function productList(products) {
                     <th>Reservado</th>
                     <th>Dañado</th>
                     <th>Estado</th>
+                    ${canEditProducts() ? '<th>Acciones</th>' : ''}
                 </tr>
             </thead>
             <tbody></tbody>
@@ -723,6 +748,7 @@ function productList(products) {
                 <td>${stockNumber(product.stock.reserved)}</td>
                 <td>${stockNumber(product.stock.damaged)}</td>
                 <td><span class="stock-badge stock-badge--${product.stock.status}">${stockStatusLabel(product.stock.status)}</span></td>
+                ${canEditProducts() ? `<td><button class="secondary-button compact-action table-action" type="button" data-product-edit="${product.id}">Editar</button></td>` : ''}
             `;
 
             return row;
@@ -773,6 +799,169 @@ function setInventoryDetail(key, value) {
 function setInventoryStatus(message, tone = 'neutral') {
     elements.inventoryStatus.textContent = message;
     elements.inventoryStatus.dataset.tone = tone;
+}
+
+function setProductFormMessage(message, tone = 'neutral') {
+    elements.productFormMessage.textContent = message;
+    elements.productFormMessage.dataset.tone = tone;
+}
+
+function canEditProducts() {
+    return state.session?.permissions?.includes('products.update') ?? false;
+}
+
+function canCreateProducts() {
+    return state.session?.permissions?.includes('products.create') ?? false;
+}
+
+async function openProductForm(productId = null) {
+    if (productId && !canEditProducts()) {
+        setInventoryStatus('No tienes permiso para editar productos.', 'error');
+        return;
+    }
+
+    if (!productId && !canCreateProducts()) {
+        setInventoryStatus('No tienes permiso para crear productos.', 'error');
+        return;
+    }
+
+    elements.productModal.hidden = false;
+    elements.productForm.reset();
+    elements.productId.value = productId ?? '';
+    elements.productIsActive.checked = true;
+    setProductFormMessage('Cargando opciones...');
+    setProductFormBusy(true);
+
+    try {
+        await loadProductFormOptions();
+
+        if (productId) {
+            state.productFormMode = 'edit';
+            elements.productFormTitle.textContent = 'Editar producto';
+            elements.productFormSubtitle.textContent = 'Actualiza datos comerciales sin mezclar inventario ni empresas.';
+            elements.saveProductButton.textContent = 'Guardar cambios';
+
+            const product = await authenticatedApi(`/api/products/${productId}`, state.session);
+            fillProductForm(product);
+            setProductFormMessage('Editando producto existente.');
+        } else {
+            state.productFormMode = 'create';
+            elements.productFormTitle.textContent = 'Nuevo producto';
+            elements.productFormSubtitle.textContent = 'Crea un producto para venderlo, moverlo y medirlo desde inventario.';
+            elements.saveProductButton.textContent = 'Guardar producto';
+            elements.productTrackingType.disabled = false;
+            setProductFormMessage('Listo para crear.');
+        }
+    } catch (error) {
+        setProductFormMessage(error.message, 'error');
+    } finally {
+        setProductFormBusy(false);
+        elements.productName.focus();
+    }
+}
+
+function closeProductForm() {
+    elements.productModal.hidden = true;
+    setProductFormMessage('');
+}
+
+async function loadProductFormOptions() {
+    if (state.productFormOptionsLoaded || state.session?.is_local_demo) {
+        renderProductFormOptions();
+        return;
+    }
+
+    const [rateTypes, warrantyPolicies] = await Promise.all([
+        authenticatedApi('/api/currency/rate-types', state.session)
+            .then((payload) => payload.data ?? payload)
+            .catch(() => []),
+        authenticatedApi('/api/warranty-policies', state.session)
+            .then((payload) => payload.data ?? payload)
+            .catch(() => []),
+    ]);
+
+    state.productRateTypes = rateTypes.filter((type) => type.is_active);
+    state.productWarrantyPolicies = warrantyPolicies.filter((policy) => policy.is_active);
+    state.productFormOptionsLoaded = true;
+    renderProductFormOptions();
+}
+
+function renderProductFormOptions() {
+    elements.productRateType.replaceChildren(
+        optionElement('', 'Usar tasa predeterminada'),
+        ...state.productRateTypes.map((type) => optionElement(type.id, `${type.code} - ${type.name}${type.is_default ? ' (predeterminada)' : ''}`)),
+    );
+
+    elements.productWarrantyPolicy.replaceChildren(
+        optionElement('', 'Sin garantía asignada'),
+        ...state.productWarrantyPolicies.map((policy) => optionElement(policy.id, `${policy.name} (${policy.duration_days} días)`)),
+    );
+}
+
+function optionElement(value, label) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    return option;
+}
+
+function fillProductForm(product) {
+    elements.productName.value = product.name ?? '';
+    elements.productSku.value = product.sku ?? '';
+    elements.productTrackingType.value = product.tracking_type ?? 'quantity';
+    elements.productTrackingType.disabled = false;
+    elements.productBasePrice.value = product.base_price ?? '';
+    elements.productSaleCurrency.value = product.sale_currency ?? 'USD';
+    elements.productRateType.value = product.sale_exchange_rate_type_id ?? '';
+    elements.productWarrantyPolicy.value = product.warranty_policy_id ?? '';
+    elements.productIsActive.checked = Boolean(product.is_active);
+}
+
+function productFormPayload() {
+    return {
+        name: elements.productName.value.trim(),
+        sku: elements.productSku.value.trim(),
+        tracking_type: elements.productTrackingType.value,
+        base_price: elements.productBasePrice.value === '' ? null : Number(elements.productBasePrice.value),
+        sale_currency: elements.productSaleCurrency.value,
+        sale_exchange_rate_type_id: elements.productRateType.value === '' ? null : Number(elements.productRateType.value),
+        warranty_policy_id: elements.productWarrantyPolicy.value === '' ? null : Number(elements.productWarrantyPolicy.value),
+        is_active: elements.productIsActive.checked,
+    };
+}
+
+async function saveProductForm() {
+    const productId = elements.productId.value;
+    const method = productId ? 'PATCH' : 'POST';
+    const path = productId ? `/api/products/${productId}` : '/api/products';
+
+    setProductFormBusy(true);
+    setProductFormMessage(productId ? 'Guardando cambios...' : 'Creando producto...');
+
+    try {
+        await authenticatedApi(path, state.session, {
+            method,
+            body: JSON.stringify(productFormPayload()),
+        });
+
+        closeProductForm();
+        state.inventoryPage = productId ? state.inventoryPage : 1;
+        await loadInventoryCenter(state.session);
+        setInventoryStatus(productId ? 'Producto actualizado correctamente.' : 'Producto creado correctamente.', 'success');
+    } catch (error) {
+        setProductFormMessage(error.message, 'error');
+    } finally {
+        setProductFormBusy(false);
+    }
+}
+
+function setProductFormBusy(isBusy) {
+    elements.saveProductButton.disabled = isBusy;
+    elements.productForm.querySelectorAll('input, select, button').forEach((control) => {
+        if (control.id !== 'close-product-form' && control.id !== 'cancel-product-form') {
+            control.disabled = isBusy;
+        }
+    });
 }
 
 function money(value) {
@@ -995,6 +1184,38 @@ elements.inventoryNextPage?.addEventListener('click', () => {
         state.inventoryPage += 1;
         loadInventoryCenter(state.session);
     }
+});
+
+elements.openProductForm?.addEventListener('click', () => {
+    openProductForm();
+});
+
+elements.closeProductForm?.addEventListener('click', closeProductForm);
+elements.cancelProductForm?.addEventListener('click', closeProductForm);
+
+elements.productModal?.addEventListener('click', (event) => {
+    if (event.target === elements.productModal) {
+        closeProductForm();
+    }
+});
+
+elements.inventoryProducts?.addEventListener('click', (event) => {
+    const editButton = event.target.closest('[data-product-edit]');
+
+    if (editButton) {
+        openProductForm(editButton.dataset.productEdit);
+    }
+});
+
+elements.productForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (state.session?.is_local_demo) {
+        setProductFormMessage('El modo demo local no guarda productos. Entra con un usuario real para crear o editar.', 'error');
+        return;
+    }
+
+    await saveProductForm();
 });
 
 const existingSession = JSON.parse(localStorage.getItem(storageKey) || 'null');

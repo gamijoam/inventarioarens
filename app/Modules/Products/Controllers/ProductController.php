@@ -23,7 +23,7 @@ class ProductController extends Controller
 
         return ProductResource::collection(
             Product::query()
-                ->with('warrantyPolicy')
+                ->with(['saleExchangeRateType', 'warrantyPolicy'])
                 ->orderBy('name')
                 ->paginate(25)
         );
@@ -33,7 +33,9 @@ class ProductController extends Controller
     {
         Gate::authorize('create', Product::class);
 
-        $product = Product::create($request->validated())->refresh()->load('warrantyPolicy');
+        $product = Product::create($request->validated())
+            ->refresh()
+            ->load(['saleExchangeRateType', 'warrantyPolicy']);
 
         return ProductResource::make($product)
             ->response()
@@ -44,7 +46,7 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        return ProductResource::make($product->load('warrantyPolicy'));
+        return ProductResource::make($product->load(['saleExchangeRateType', 'warrantyPolicy']));
     }
 
     public function price(Product $product, ProductPriceService $priceService): ProductPriceResource
@@ -72,7 +74,7 @@ class ProductController extends Controller
 
         $product->update($data);
 
-        return ProductResource::make($product->refresh()->load('warrantyPolicy'));
+        return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy']));
     }
 
     public function destroy(Product $product): Response

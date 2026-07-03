@@ -234,7 +234,7 @@
                                         </div>
                                         <div class="module-actions">
                                             <button class="secondary-button compact-action" type="button">Exportar</button>
-                                            <button class="primary-button compact-action" type="button" data-requires-any="products.create">Nuevo producto</button>
+                                            <button class="primary-button compact-action" type="button" id="open-product-form" data-requires-any="products.create">Nuevo producto</button>
                                         </div>
                                     </div>
 
@@ -305,6 +305,82 @@
                                 </section>
                             </main>
                         </div>
+                    </div>
+
+                    <div class="modal-backdrop" id="product-modal" hidden>
+                        <section class="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+                            <div class="product-modal__header">
+                                <div>
+                                    <p class="eyebrow">Catálogo</p>
+                                    <h2 id="product-modal-title">Nuevo producto</h2>
+                                    <p id="product-modal-subtitle">Crea un producto para venderlo, moverlo y medirlo desde inventario.</p>
+                                </div>
+                                <button class="icon-button" type="button" id="close-product-form" aria-label="Cerrar formulario">×</button>
+                            </div>
+
+                            <form class="product-form" id="product-form">
+                                <input type="hidden" id="product-id">
+
+                                <div class="form-grid">
+                                    <label class="field">
+                                        <span>Nombre del producto</span>
+                                        <input id="product-name" name="name" type="text" placeholder="Samsung A06 128GB" required>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>SKU</span>
+                                        <input id="product-sku" name="sku" type="text" placeholder="SAMSUNG-A06" required>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Tipo de control</span>
+                                        <select id="product-tracking-type" name="tracking_type">
+                                            <option value="quantity">Por cantidad</option>
+                                            <option value="serialized">Serializado / IMEI</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Precio base USD</span>
+                                        <input id="product-base-price" name="base_price" type="number" min="0" step="0.01" placeholder="0.00">
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Moneda de venta</span>
+                                        <select id="product-sale-currency" name="sale_currency">
+                                            <option value="USD">Dólares</option>
+                                            <option value="VES">Bolívares</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Tipo de tasa</span>
+                                        <select id="product-rate-type" name="sale_exchange_rate_type_id">
+                                            <option value="">Usar tasa predeterminada</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field form-grid__wide">
+                                        <span>Política de garantía</span>
+                                        <select id="product-warranty-policy" name="warranty_policy_id">
+                                            <option value="">Sin garantía asignada</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="switch-field form-grid__wide">
+                                        <input id="product-is-active" name="is_active" type="checkbox" checked>
+                                        <span>Producto activo</span>
+                                    </label>
+                                </div>
+
+                                <p class="form-message" id="product-form-message" role="status" aria-live="polite"></p>
+
+                                <div class="modal-actions">
+                                    <button class="secondary-button compact-action" type="button" id="cancel-product-form">Cancelar</button>
+                                    <button class="primary-button compact-action" type="submit" id="save-product-button">Guardar producto</button>
+                                </div>
+                            </form>
+                        </section>
                     </div>
 
                     <p class="login-footnote">2026 {{ $appName }}</p>

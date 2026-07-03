@@ -72,6 +72,7 @@ Responsabilidad:
 - agrupar la navegacion por modulos operativos;
 - filtrar opciones visibles usando los permisos efectivos del usuario;
 - consumir datos reales del dashboard y del centro de inventario cuando existe sesion API real.
+- permitir crear y editar productos desde el Centro de Inventario usando las APIs del modulo `Products`.
 
 Archivos principales:
 
@@ -88,6 +89,9 @@ Regla importante:
 - la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth;
 - `FRONTEND_DEV_BYPASS_LOGIN=true` permite revisar el frontend local sin credenciales, solo en `APP_ENV=local`.
 - el Centro de Inventario consume `GET /api/inventory-center/summary` y conserva datos demo solo para el bypass local.
+- el formulario de productos usa `POST /api/products`, `GET /api/products/{product}` y `PATCH /api/products/{product}`;
+- las opciones de tasa y garantia se leen desde `Currency` y `Warranties` cuando el usuario tiene permiso para verlas;
+- el frontend solo oculta o muestra acciones por permisos, pero la autoridad real sigue en policies y validaciones del backend.
 
 ### Dashboard
 
@@ -123,6 +127,7 @@ Responsabilidad:
 - permitir busqueda por nombre o SKU y filtros por tipo de control o estado de stock;
 - devolver paginacion real para catalogos grandes;
 - evitar que el frontend haga multiples consultas pequenas o caiga en problemas N+1.
+- actuar como pantalla operativa del catalogo, delegando creacion y edicion al modulo `Products`.
 
 Archivos principales:
 
@@ -139,6 +144,7 @@ Regla importante:
 - el listado se limita a 50 productos como maximo por llamada;
 - la pantalla frontend permite alternar entre tarjetas y lista sin cambiar el contrato de permisos;
 - no mezcla productos ni saldos entre empresas.
+- no escribe productos directamente; las altas y modificaciones se hacen por `Products`.
 
 ### Tenancy
 
@@ -183,6 +189,7 @@ Regla importante:
 - `base_price` se guarda en `USD`;
 - `sale_currency` define si la cotizacion preferida sale en `USD` o `VES`;
 - `sale_exchange_rate_type_id` permite que un producto use `BCV`, `PARALELO` u otro tipo de tasa.
+- la respuesta del producto puede incluir `sale_exchange_rate_type` y `warranty_policy` cuando el controller los carga para formularios o detalle.
 
 ### Branches
 

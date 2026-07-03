@@ -71,7 +71,8 @@ class ProductApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.base_price', 100)
             ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
-            ->assertJsonPath('data.sale_exchange_rate_type_id', $parallel->id);
+            ->assertJsonPath('data.sale_exchange_rate_type_id', $parallel->id)
+            ->assertJsonPath('data.sale_exchange_rate_type.code', 'PARALELO');
     }
 
     public function test_product_price_endpoint_uses_assigned_active_rate_type(): void
@@ -226,6 +227,7 @@ class ProductApiTest extends TestCase
     public function test_user_can_update_and_deactivate_product_inside_current_tenant(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $parallel = $this->rateTypeFor($tenant, 'PARALELO', 'Tasa paralelo');
         $product = $this->productFor($tenant, 'Samsung A06', 'SAMSUNG-A06');
         $user = $this->userInTenant($tenant);
 
@@ -237,10 +239,16 @@ class ProductApiTest extends TestCase
             ->patchJson("/api/products/{$product->id}", [
                 'name' => 'Samsung A06 128GB',
                 'tracking_type' => Product::TRACKING_SERIALIZED,
+                'base_price' => 125,
+                'sale_currency' => Product::CURRENCY_VES,
+                'sale_exchange_rate_type_id' => $parallel->id,
             ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Samsung A06 128GB')
-            ->assertJsonPath('data.tracking_type', Product::TRACKING_SERIALIZED);
+            ->assertJsonPath('data.tracking_type', Product::TRACKING_SERIALIZED)
+            ->assertJsonPath('data.base_price', 125)
+            ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
+            ->assertJsonPath('data.sale_exchange_rate_type.code', 'PARALELO');
 
         $this
             ->actingAs($user)
