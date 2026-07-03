@@ -32,7 +32,7 @@ class TenantUserController extends Controller
         $this->authorizePermission($request, 'users.create');
 
         return TenantUserResource::make(
-            $this->service->createOrAttachUser($request->validated())
+            $this->service->createOrAttachUser($request->validated(), $request->user())
         )->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -48,7 +48,7 @@ class TenantUserController extends Controller
         $this->authorizePermission($request, 'users.update');
 
         return TenantUserResource::make(
-            $this->service->updateUser($this->service->tenantUser($tenantUser), $request->validated())
+            $this->service->updateUser($this->service->tenantUser($tenantUser), $request->validated(), $request->user())
         );
     }
 
@@ -70,7 +70,7 @@ class TenantUserController extends Controller
         $this->authorizePermission($request, 'users.update');
 
         return TenantUserResource::make(
-            $this->service->updateUserRoles($this->service->tenantUser($tenantUser), $request->validated('roles'))
+            $this->service->updateUserRoles($this->service->tenantUser($tenantUser), $request->validated('roles'), $request->user())
         );
     }
 

@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-03 - Modulo AccessControl fase 2 auditoria y proteccion
+
+### Implementado
+
+- Se conecto `AccessControlService` con `AuditLogger`.
+- Se audita creacion o vinculacion de usuarios a empresas.
+- Se audita actualizacion de nombre de usuario.
+- Se audita cambio de estado del usuario dentro de la empresa.
+- Se audita cambio de roles del usuario dentro de la empresa.
+- Se audita creacion, actualizacion, cambio de permisos y eliminacion de roles.
+- Se agrego proteccion para no inactivar el ultimo `Owner` o `Administrador` activo de la empresa.
+- Se agrego proteccion para no quitar el ultimo rol `Owner` o `Administrador` activo de la empresa.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/AccessControl/AccessControlApiTest.php`: 10 pruebas pasadas, 47 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 170 pruebas pasadas, 803 aserciones.
+
+### Notas de seguridad
+
+- Toda accion sensible de accesos queda trazada con usuario actor, tenant, IP y user agent.
+- Una empresa no puede quedar sin administrador activo por error operativo.
+- La proteccion respeta tenants: solo cuenta administradores activos de la empresa actual.
+
 ## 2026-07-03 - Modulo AccessControl fase 1
 
 ### Implementado

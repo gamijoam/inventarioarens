@@ -31,7 +31,7 @@ class RoleController extends Controller
         $this->authorizePermission($request, 'roles.create');
 
         return RoleResource::make(
-            $this->service->createRole($request->validated())
+            $this->service->createRole($request->validated(), $request->user())
         )->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -47,7 +47,7 @@ class RoleController extends Controller
         $this->authorizePermission($request, 'roles.update');
 
         return RoleResource::make(
-            $this->service->updateRole($this->service->role($role), $request->validated())
+            $this->service->updateRole($this->service->role($role), $request->validated(), $request->user())
         );
     }
 
@@ -56,14 +56,14 @@ class RoleController extends Controller
         $this->authorizePermission($request, 'roles.update');
 
         return RoleResource::make(
-            $this->service->updateRolePermissions($this->service->role($role), $request->validated('permissions'))
+            $this->service->updateRolePermissions($this->service->role($role), $request->validated('permissions'), $request->user())
         );
     }
 
     public function destroy(Request $request, int $role): Response
     {
         $this->authorizePermission($request, 'roles.delete');
-        $this->service->deleteRole($this->service->role($role));
+        $this->service->deleteRole($this->service->role($role), $request->user());
 
         return response()->noContent();
     }

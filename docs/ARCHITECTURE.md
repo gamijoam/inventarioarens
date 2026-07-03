@@ -358,7 +358,9 @@ Reglas arquitectonicas:
 - Spatie Permission usa equipos con la columna `tenant_id`, por lo que los roles se crean y asignan por empresa;
 - los permisos base viven en `App\Support\Permissions\BasePermissions`;
 - los endpoints de usuarios no deben devolver roles de otra empresa aunque el usuario sea multiempresa;
-- el catalogo `GET /api/permissions` devuelve permisos agrupados por modulo para construir una pantalla de permisos mas adelante.
+- el catalogo `GET /api/permissions` devuelve permisos agrupados por modulo para construir una pantalla de permisos mas adelante;
+- las acciones sensibles de accesos escriben auditoria en `audit_logs`;
+- una empresa debe conservar al menos un usuario activo con rol `Owner` o `Administrador`.
 
 ## Siguiente fase
 

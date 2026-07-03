@@ -782,6 +782,8 @@ Regla importante:
 - los roles usan Spatie Permission con `tenant_id`;
 - los permisos disponibles salen de `App\Support\Permissions\BasePermissions`;
 - no se pueden eliminar roles base del sistema;
+- no se puede inactivar ni degradar el ultimo `Owner` o `Administrador` activo de una empresa;
+- los cambios sensibles se auditan con `AuditLogger` en `audit_logs`;
 - toda pantalla futura de usuarios, roles y permisos debe consumir este modulo.
 
 ### Audit

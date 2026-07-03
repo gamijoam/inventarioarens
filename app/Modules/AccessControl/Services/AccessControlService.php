@@ -3,6 +3,7 @@
 namespace App\Modules\AccessControl\Services;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,11 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AccessControlService
 {
+    public const CRITICAL_ADMIN_ROLES = [
+        'Owner',
+        'Administrador',
+    ];
+
     public const PROTECTED_ROLES = [
         'Owner',
         'Administrador',
@@ -23,6 +29,10 @@ class AccessControlService
         'Almacen',
         'Auditor',
     ];
+
+    public function __construct(private readonly AuditLogger $audit)
+    {
+    }
 
     public function tenantUsers(): mixed
     {
@@ -45,16 +55,17 @@ class AccessControlService
         return $user;
     }
 
-    public function createOrAttachUser(array $data): User
+    public function createOrAttachUser(array $data, User $actor): User
     {
         $tenant = app(TenantManager::class)->require();
         $roles = $data['roles'] ?? [];
 
         $this->ensureRolesExist($roles);
 
-        return DB::transaction(function () use ($tenant, $data, $roles): User {
+        return DB::transaction(function () use ($tenant, $data, $roles, $actor): User {
             $email = Str::lower($data['email']);
             $user = User::query()->firstOrNew(['email' => $email]);
+            $wasExistingUser = $user->exists;
 
             if (! $user->exists) {
                 $user->name = $data['name'];
@@ -66,6 +77,11 @@ class AccessControlService
             }
 
             $pivot = $user->tenants()->whereKey($tenant->id)->first();
+            $oldValues = [
+                'existed' => $wasExistingUser,
+                'status' => $pivot?->pivot?->status,
+                'roles' => $pivot ? $this->userRoleNames($user) : [],
+            ];
 
             if ($pivot) {
                 $user->tenants()->updateExistingPivot($tenant->id, ['status' => 'active']);
@@ -78,16 +94,32 @@ class AccessControlService
                 $user->syncRoles($roles);
             }
 
-            return $this->tenantUser($user->id);
+            $user = $this->tenantUser($user->id);
+
+            $this->audit->record('access.user.attached', $user, $actor, $oldValues, [
+                'email' => $user->email,
+                'status' => $user->pivot?->status,
+                'roles' => $this->userRoleNames($user),
+            ]);
+
+            return $user;
         });
     }
 
-    public function updateUser(User $user, array $data): User
+    public function updateUser(User $user, array $data, User $actor): User
     {
+        $oldValues = ['name' => $user->name];
+
         $user->fill($data);
         $user->save();
 
-        return $this->tenantUser($user->id);
+        $user = $this->tenantUser($user->id);
+
+        $this->audit->record('access.user.updated', $user, $actor, $oldValues, [
+            'name' => $user->name,
+        ]);
+
+        return $user;
     }
 
     public function updateStatus(User $user, string $status, User $actor): User
@@ -98,22 +130,57 @@ class AccessControlService
             ]);
         }
 
-        app(TenantManager::class)
-            ->require()
-            ->users()
+        $tenant = app(TenantManager::class)->require();
+        $oldStatus = $user->pivot?->status;
+
+        if ($status !== 'active' && $this->userHasCriticalAdminRole($user) && $this->activeCriticalAdministratorCount() <= 1) {
+            throw ValidationException::withMessages([
+                'status' => 'No puedes inactivar el ultimo administrador activo de la empresa.',
+            ]);
+        }
+
+        $tenant->users()
             ->updateExistingPivot($user->id, ['status' => $status]);
 
-        return $this->tenantUser($user->id);
+        $user = $this->tenantUser($user->id);
+
+        $this->audit->record('access.user.status_updated', $user, $actor, [
+            'status' => $oldStatus,
+        ], [
+            'status' => $status,
+        ]);
+
+        return $user;
     }
 
-    public function updateUserRoles(User $user, array $roles): User
+    public function updateUserRoles(User $user, array $roles, User $actor): User
     {
         $this->ensureRolesExist($roles);
 
         setPermissionsTeamId(app(TenantManager::class)->require()->id);
+        $oldRoles = $this->userRoleNames($user);
+
+        if (
+            array_intersect($oldRoles, self::CRITICAL_ADMIN_ROLES) !== []
+            && array_intersect($roles, self::CRITICAL_ADMIN_ROLES) === []
+            && $this->activeCriticalAdministratorCount() <= 1
+        ) {
+            throw ValidationException::withMessages([
+                'roles' => 'No puedes quitar el ultimo rol administrador activo de la empresa.',
+            ]);
+        }
+
         $user->syncRoles($roles);
 
-        return $this->tenantUser($user->id);
+        $user = $this->tenantUser($user->id);
+
+        $this->audit->record('access.user.roles_updated', $user, $actor, [
+            'roles' => $oldRoles,
+        ], [
+            'roles' => $this->userRoleNames($user),
+        ]);
+
+        return $user;
     }
 
     public function roles(): mixed
@@ -129,26 +196,35 @@ class AccessControlService
         return $this->roles()->whereKey($roleId)->firstOrFail();
     }
 
-    public function createRole(array $data): Role
+    public function createRole(array $data, User $actor): Role
     {
         $tenant = app(TenantManager::class)->require();
         $permissions = $data['permissions'] ?? [];
         $this->ensurePermissionsExist($permissions);
 
-        $role = Role::create([
-            'name' => $data['name'],
-            'guard_name' => 'web',
-            $this->teamColumn() => $tenant->id,
-        ]);
+        return DB::transaction(function () use ($tenant, $data, $permissions, $actor): Role {
+            $role = Role::create([
+                'name' => $data['name'],
+                'guard_name' => 'web',
+                $this->teamColumn() => $tenant->id,
+            ]);
 
-        $role->syncPermissions($permissions);
+            $role->syncPermissions($permissions);
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return $this->role($role->id);
+            $role = $this->role($role->id);
+
+            $this->audit->record('access.role.created', $role, $actor, null, [
+                'name' => $role->name,
+                'permissions' => $this->rolePermissions($role),
+            ]);
+
+            return $role;
+        });
     }
 
-    public function updateRole(Role $role, array $data): Role
+    public function updateRole(Role $role, array $data, User $actor): Role
     {
         if (in_array($role->name, self::PROTECTED_ROLES, true) && isset($data['name']) && $data['name'] !== $role->name) {
             throw ValidationException::withMessages([
@@ -160,29 +236,54 @@ class AccessControlService
             $this->ensurePermissionsExist($data['permissions']);
         }
 
-        $role->fill(collect($data)->only(['name'])->all());
-        $role->save();
+        return DB::transaction(function () use ($role, $data, $actor): Role {
+            $oldValues = [
+                'name' => $role->name,
+                'permissions' => $this->rolePermissions($role),
+            ];
 
-        if (isset($data['permissions'])) {
-            $role->syncPermissions($data['permissions']);
-        }
+            $role->fill(collect($data)->only(['name'])->all());
+            $role->save();
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+            if (isset($data['permissions'])) {
+                $role->syncPermissions($data['permissions']);
+            }
 
-        return $this->role($role->id);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+            $role = $this->role($role->id);
+
+            $this->audit->record('access.role.updated', $role, $actor, $oldValues, [
+                'name' => $role->name,
+                'permissions' => $this->rolePermissions($role),
+            ]);
+
+            return $role;
+        });
     }
 
-    public function updateRolePermissions(Role $role, array $permissions): Role
+    public function updateRolePermissions(Role $role, array $permissions, User $actor): Role
     {
         $this->ensurePermissionsExist($permissions);
-        $role->syncPermissions($permissions);
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        return DB::transaction(function () use ($role, $permissions, $actor): Role {
+            $oldValues = ['permissions' => $this->rolePermissions($role)];
 
-        return $this->role($role->id);
+            $role->syncPermissions($permissions);
+
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+            $role = $this->role($role->id);
+
+            $this->audit->record('access.role.permissions_updated', $role, $actor, $oldValues, [
+                'permissions' => $this->rolePermissions($role),
+            ]);
+
+            return $role;
+        });
     }
 
-    public function deleteRole(Role $role): void
+    public function deleteRole(Role $role, User $actor): void
     {
         if (in_array($role->name, self::PROTECTED_ROLES, true)) {
             throw ValidationException::withMessages([
@@ -190,8 +291,15 @@ class AccessControlService
             ]);
         }
 
-        $role->delete();
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        DB::transaction(function () use ($role, $actor): void {
+            $this->audit->record('access.role.deleted', $role, $actor, [
+                'name' => $role->name,
+                'permissions' => $this->rolePermissions($role),
+            ], null);
+
+            $role->delete();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        });
     }
 
     public function groupedPermissions(): array
@@ -261,5 +369,52 @@ class AccessControlService
     private function teamColumn(): string
     {
         return config('permission.column_names.team_foreign_key', 'team_id');
+    }
+
+    private function userRoleNames(User $user): array
+    {
+        setPermissionsTeamId(app(TenantManager::class)->require()->id);
+
+        return $user->roles()
+            ->pluck('name')
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function userHasCriticalAdminRole(User $user): bool
+    {
+        return array_intersect($this->userRoleNames($user), self::CRITICAL_ADMIN_ROLES) !== [];
+    }
+
+    private function activeCriticalAdministratorCount(): int
+    {
+        $tenantId = app(TenantManager::class)->require()->id;
+        $teamColumn = $this->teamColumn();
+
+        return DB::table('tenant_user')
+            ->join('model_has_roles', function ($join) use ($tenantId, $teamColumn): void {
+                $join->on('tenant_user.user_id', '=', 'model_has_roles.model_id')
+                    ->where('model_has_roles.model_type', User::class)
+                    ->where("model_has_roles.{$teamColumn}", $tenantId);
+            })
+            ->join('roles', function ($join) use ($tenantId, $teamColumn): void {
+                $join->on('model_has_roles.role_id', '=', 'roles.id')
+                    ->where("roles.{$teamColumn}", $tenantId)
+                    ->whereIn('roles.name', self::CRITICAL_ADMIN_ROLES);
+            })
+            ->where('tenant_user.tenant_id', $tenantId)
+            ->where('tenant_user.status', 'active')
+            ->distinct('tenant_user.user_id')
+            ->count('tenant_user.user_id');
+    }
+
+    private function rolePermissions(Role $role): array
+    {
+        return $role->permissions()
+            ->pluck('name')
+            ->sort()
+            ->values()
+            ->all();
     }
 }

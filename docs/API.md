@@ -2654,7 +2654,8 @@ Reglas:
 - si el correo no existe, crea el usuario;
 - si el correo ya existe, lo vincula o reactiva en la empresa actual;
 - los roles deben existir dentro de la empresa actual;
-- un mismo correo puede pertenecer a varias empresas con roles distintos.
+- un mismo correo puede pertenecer a varias empresas con roles distintos;
+- la accion queda registrada en `audit_logs`.
 
 ### Ver usuario de la empresa
 
@@ -2702,7 +2703,9 @@ Body:
 
 Regla:
 
-- el estado aplica solo al vinculo con la empresa actual; no afecta otras empresas donde el usuario tambien exista.
+- el estado aplica solo al vinculo con la empresa actual; no afecta otras empresas donde el usuario tambien exista;
+- no se puede inactivar el ultimo usuario activo con rol `Owner` o `Administrador`;
+- la accion queda registrada en `audit_logs`.
 
 ### Asignar roles a usuario
 
@@ -2723,6 +2726,11 @@ Body:
   "roles": ["Vendedor", "Supervisor POS"]
 }
 ```
+
+Reglas:
+
+- no se puede quitar el ultimo rol `Owner` o `Administrador` activo de la empresa;
+- la accion queda registrada en `audit_logs`.
 
 ### Ver permisos efectivos del usuario
 
@@ -2804,7 +2812,8 @@ Body:
 
 Regla:
 
-- los roles base no pueden cambiar de nombre.
+- los roles base no pueden cambiar de nombre;
+- la accion queda registrada en `audit_logs`.
 
 ### Actualizar permisos de un rol
 
@@ -2826,6 +2835,10 @@ Body:
 }
 ```
 
+Regla:
+
+- la accion queda registrada en `audit_logs`.
+
 ### Eliminar rol
 
 ```txt
@@ -2840,7 +2853,8 @@ roles.delete
 
 Regla:
 
-- no se pueden eliminar roles base del sistema: `Owner`, `Administrador`, `Gerente`, `Vendedor`, `Almacen`, `Auditor`.
+- no se pueden eliminar roles base del sistema: `Owner`, `Administrador`, `Gerente`, `Vendedor`, `Almacen`, `Auditor`;
+- la accion queda registrada en `audit_logs` antes de eliminar el rol.
 
 ### Catalogo de permisos
 
@@ -2931,3 +2945,5 @@ Devuelve los permisos agrupados por modulo para construir pantallas de configura
 - Las APIs de usuarios, roles y permisos deben vivir en el modulo `AccessControl`.
 - Los roles y permisos deben resolverse por tenant usando el `tenant_id` de Spatie Permission.
 - Un usuario puede pertenecer a varias empresas, pero sus roles, permisos y estado deben evaluarse por empresa.
+- Las APIs de acceso deben auditar creacion/vinculacion de usuarios, cambios de estado, cambios de roles y cambios de permisos.
+- Una empresa no puede quedarse sin usuario activo con rol `Owner` o `Administrador`.

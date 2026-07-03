@@ -3,6 +3,7 @@
 namespace Tests\Feature\AccessControl;
 
 use App\Models\User;
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -196,6 +197,86 @@ class AccessControlApiTest extends TestCase
         ]);
     }
 
+    public function test_access_changes_are_audited_with_actor_and_tenant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $admin = $this->userInTenant($tenant);
+        $target = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $admin, 'Access Admin', ['users.update', 'users.view', 'roles.view']);
+        $this->grantRole($tenant, $target, 'Vendedor', ['products.view']);
+        $this->grantRole($tenant, $target, 'Supervisor POS', ['pos.view']);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('User-Agent', 'AccessControlAuditTest/1.0')
+            ->withServerVariables(['REMOTE_ADDR' => '10.20.30.40'])
+            ->patchJson("/api/users/{$target->id}/roles", [
+                'roles' => ['Supervisor POS'],
+            ])
+            ->assertOk();
+
+        $this->useTenant($tenant);
+
+        $audit = AuditLog::query()->firstOrFail();
+
+        $this->assertSame('access.user.roles_updated', $audit->action);
+        $this->assertSame(User::class, $audit->entity_type);
+        $this->assertSame($target->id, $audit->entity_id);
+        $this->assertSame($admin->id, $audit->user_id);
+        $this->assertSame(['Supervisor POS', 'Vendedor'], $audit->old_values['roles']);
+        $this->assertSame(['Supervisor POS'], $audit->new_values['roles']);
+        $this->assertSame('10.20.30.40', $audit->ip_address);
+        $this->assertSame('AccessControlAuditTest/1.0', $audit->user_agent);
+    }
+
+    public function test_cannot_inactivate_last_active_administrator(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $operator = $this->userInTenant($tenant);
+        $admin = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $operator, 'Access Operator', ['users.update', 'users.view']);
+        $this->grantRole($tenant, $admin, 'Administrador', BasePermissions::PERMISSIONS);
+
+        $this
+            ->actingAs($operator)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/users/{$admin->id}/status", ['status' => 'inactive'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+
+        $this->assertDatabaseHas('tenant_user', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $admin->id,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_cannot_remove_last_active_administrator_role(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $operator = $this->userInTenant($tenant);
+        $admin = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $operator, 'Access Operator', ['users.update', 'users.view']);
+        $this->grantRole($tenant, $admin, 'Administrador', BasePermissions::PERMISSIONS);
+        $this->grantRole($tenant, $admin, 'Auditor', ['users.view']);
+
+        $this
+            ->actingAs($operator)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/users/{$admin->id}/roles", [
+                'roles' => ['Auditor'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['roles']);
+
+        $this->useTenant($tenant);
+        $this->assertTrue($admin->hasRole('Administrador'));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -225,5 +306,11 @@ class AccessControlApiTest extends TestCase
         $user->assignRole($role);
 
         return $role;
+    }
+
+    private function useTenant(Tenant $tenant): void
+    {
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
     }
 }
