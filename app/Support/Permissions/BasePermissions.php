@@ -93,6 +93,8 @@ class BasePermissions
         'Administrador' => self::PERMISSIONS,
         'Gerente' => [
             'products.view',
+            'products.create',
+            'products.update',
             'branches.view',
             'warehouses.view',
             'customers.view',

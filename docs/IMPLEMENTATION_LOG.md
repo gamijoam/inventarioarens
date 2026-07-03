@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-03 - Login local apuntando a PostgreSQL y permisos de catalogo
+
+### Implementado
+
+- Se corrigio `.env` local para usar PostgreSQL (`pgsql`) en lugar de SQLite durante el desarrollo.
+- Se reinicio el servicio web para que `localhost:8000` use la misma base PostgreSQL que las pruebas y seeders.
+- Se agregaron permisos `products.create` y `products.update` al rol base `Gerente`.
+- Se reejecuto el seeder local para aplicar permisos y datos demo.
+
+### Verificacion
+
+- `POST /api/auth/tenants` en `http://localhost:8000` responde correctamente para `gerente.caracas@demo.test` con clave `password`.
+- `POST /api/auth/login` devuelve token real para `Demo Caracas`.
+- El token del gerente devuelve `products.view`, `products.create` y `products.update`.
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/Products/ProductApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 20 pruebas pasadas, 146 aserciones.
+
 ## 2026-07-03 - Limpieza de tenants demo antiguos para login
 
 ### Implementado
