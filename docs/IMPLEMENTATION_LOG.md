@@ -23,8 +23,7 @@
 ### Pruebas
 
 - Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
-- Se intento ejecutar prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`, pero Docker Desktop no estaba activo y no se pudo conectar al daemon `dockerDesktopLinuxEngine`.
-- Queda pendiente reintentar la prueba especifica en PostgreSQL cuando Docker este encendido.
+- Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 4 pruebas pasadas, 23 aserciones.
 
 ### Notas de seguridad
 
