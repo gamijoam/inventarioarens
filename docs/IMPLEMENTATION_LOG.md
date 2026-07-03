@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-03 - Migración del rediseño de entradas y salidas a Tailwind CSS
+
+### Implementado
+
+- Se confirmó que Tailwind CSS 4 ya estaba instalado y conectado con Vite mediante `@tailwindcss/vite`.
+- Se migró el bloque visual del módulo `Entradas y salidas` a componentes Tailwind usando `@apply`.
+- Se agregaron utilidades Tailwind explícitas en la vista Blade para los contenedores principales del módulo.
+- Se conservaron las clases funcionales usadas por JavaScript, como `operation-tab`, `operation-form`, `operation-card` y `operation-layout`.
+- Se mantuvo el buscador de producto como primer paso visible en entradas y salidas.
+- Se dejó el CSS manual solo para detalles puntuales que Tailwind no cubre directamente en este flujo, como el icono visual del buscador y la animación de panel.
+
+### Pruebas
+
+- Se compiló el frontend con `pnpm run build` correctamente.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`: 13 pruebas pasadas, 69 aserciones.
+
 ## 2026-07-03 - Rediseño visual de entradas y salidas
 
 ### Implementado

@@ -308,8 +308,8 @@
                                     </div>
                                 </section>
 
-                                <section class="workspace-panel stock-operations-view" data-panel="stock-operations" aria-labelledby="stock-operations-title" hidden>
-                                    <div class="module-header">
+                                <section class="workspace-panel stock-operations-view space-y-5" data-panel="stock-operations" aria-labelledby="stock-operations-title" hidden>
+                                    <div class="module-header border-violet-100 bg-white/95 shadow-lg">
                                         <div>
                                             <p class="eyebrow">Inventario</p>
                                             <h1 id="stock-operations-title">Entradas y salidas</h1>
@@ -320,7 +320,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="operation-tabs" role="tablist" aria-label="Flujos de entradas y salidas">
+                                    <div class="operation-tabs grid grid-cols-3 gap-1 rounded-lg border border-violet-200 bg-white p-1 shadow-lg" role="tablist" aria-label="Flujos de entradas y salidas">
                                         <button class="operation-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="operation-entry-panel" id="operation-entry-tab" data-operation-tab="entry">
                                             <span>Entrada</span>
                                             <strong>Recibir stock</strong>
@@ -335,9 +335,9 @@
                                         </button>
                                     </div>
 
-                                    <section class="operation-tab-panel is-active" id="operation-entry-panel" role="tabpanel" aria-labelledby="operation-entry-tab" data-operation-panel="entry">
-                                        <div class="operation-layout">
-                                            <section class="operation-card">
+                                    <section class="operation-tab-panel is-active mt-5" id="operation-entry-panel" role="tabpanel" aria-labelledby="operation-entry-tab" data-operation-panel="entry">
+                                        <div class="operation-layout grid gap-5">
+                                            <section class="operation-card rounded-lg border border-violet-100 bg-white/95 shadow-xl">
                                             <div class="operation-card__header">
                                                 <div>
                                                     <p class="eyebrow">Entrada</p>
@@ -346,7 +346,7 @@
                                                 <span class="operation-pill" id="entry-tracking-pill">Cantidad</span>
                                             </div>
 
-                                            <form class="product-form operation-form" id="product-entry-form">
+                                            <form class="product-form operation-form px-8 pt-2" id="product-entry-form">
                                                 <div class="form-grid">
                                                     <label class="field form-grid__wide operation-product-field">
                                                         <span>Producto</span>
@@ -418,7 +418,7 @@
                                             </form>
                                         </section>
 
-                                        <aside class="operation-card operation-card--summary">
+                                        <aside class="operation-card operation-card--summary sticky top-24 border-0 bg-transparent p-0 shadow-none">
                                             <p class="eyebrow">Resumen</p>
                                             <dl class="entry-summary">
                                                 <div>
@@ -442,9 +442,9 @@
                                         </div>
                                     </section>
 
-                                    <section class="operation-tab-panel" id="operation-exit-panel" role="tabpanel" aria-labelledby="operation-exit-tab" data-operation-panel="exit" hidden>
-                                        <div class="operation-layout">
-                                            <section class="operation-card">
+                                    <section class="operation-tab-panel mt-5" id="operation-exit-panel" role="tabpanel" aria-labelledby="operation-exit-tab" data-operation-panel="exit" hidden>
+                                        <div class="operation-layout grid gap-5">
+                                            <section class="operation-card rounded-lg border border-violet-100 bg-white/95 shadow-xl">
                                             <div class="operation-card__header">
                                                 <div>
                                                     <p class="eyebrow">Salida</p>
@@ -453,7 +453,7 @@
                                                 <span class="operation-pill operation-pill--danger" id="exit-tracking-pill">Cantidad</span>
                                             </div>
 
-                                            <form class="product-form operation-form" id="product-exit-form">
+                                            <form class="product-form operation-form px-8 pt-2" id="product-exit-form">
                                                 <div class="form-grid">
                                                     <label class="field form-grid__wide operation-product-field">
                                                         <span>Producto</span>
@@ -518,7 +518,7 @@
                                             </form>
                                         </section>
 
-                                        <aside class="operation-card operation-card--summary">
+                                        <aside class="operation-card operation-card--summary sticky top-24 border-0 bg-transparent p-0 shadow-none">
                                             <p class="eyebrow">Resumen</p>
                                             <dl class="entry-summary">
                                                 <div>
@@ -542,8 +542,8 @@
                                         </div>
                                     </section>
 
-                                    <section class="operation-tab-panel" id="operation-history-panel" role="tabpanel" aria-labelledby="operation-history-tab" data-operation-panel="history" hidden>
-                                        <section class="operation-card operation-history" aria-labelledby="operation-history-title">
+                                    <section class="operation-tab-panel mt-5" id="operation-history-panel" role="tabpanel" aria-labelledby="operation-history-tab" data-operation-panel="history" hidden>
+                                        <section class="operation-card operation-history rounded-lg border border-violet-100 bg-white/95 shadow-xl" aria-labelledby="operation-history-title">
                                             <div class="operation-card__header">
                                                 <div>
                                                     <p class="eyebrow">Historial</p>
