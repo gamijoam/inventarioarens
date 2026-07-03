@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-07-03 - Catalogo demo ampliado para Centro de Inventario
+
+### Implementado
+
+- Se amplio `DemoDataSeeder` con 10 productos adicionales por empresa.
+- Se agregaron productos por cantidad, productos serializados, productos sin stock, productos con stock bajo, stock reservado y stock danado.
+- Se agregaron IMEIs adicionales para telefonos serializados del catalogo demo.
+- Se mantuvo el seeder idempotente para poder ejecutarlo varias veces sin duplicar datos principales.
+- Se actualizo `docs/DEMO_DATA.md`.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Seeders/DemoDataSeederTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 6 pruebas pasadas, 94 aserciones.
+
+### Notas de uso
+
+- Estos datos sirven para probar paginacion, filtros, vista lista, tarjetas y futuros flujos de creacion/edicion de productos.
+
 ## 2026-07-03 - Centro de Inventario con lista, paginacion y filtros
 
 ### Implementado

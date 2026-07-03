@@ -56,8 +56,20 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Productos:
   - `Samsung A06 128GB`, serializado por IMEI, con garantia `Android 30 dias`.
   - `Audifonos Bluetooth`, controlado por cantidad, con garantia `Accesorios 7 dias`.
+  - Catalogo ampliado para probar el Centro de Inventario:
+    - `Cargador Rapido 25W`
+    - `Cable USB-C 1M`
+    - `Adaptador Bluetooth`
+    - `Protector Pantalla Samsung A06`, producto activo sin stock.
+    - `Forro Samsung A06 Transparente`, con unidades reservadas.
+    - `Power Bank 10000mAh`, con unidades danadas.
+    - `Memoria MicroSD 64GB`
+    - `iPhone 11 64GB`, serializado por IMEI.
+    - `Xiaomi Redmi 13C`, serializado por IMEI.
+    - `Tecno Spark Go`, serializado activo sin stock.
 - Stock inicial.
 - IMEIs demo en `product_units`.
+- IMEIs adicionales para telefonos serializados del catalogo ampliado.
 - Entradas demo de 30 IMEIs por empresa usando el modulo `ProductEntries`.
 - Salidas demo de un IMEI por empresa usando el modulo `ProductExits`.
 - Transferencias demo de audifonos entre almacenes internos por empresa usando el modulo `InventoryTransfers`.

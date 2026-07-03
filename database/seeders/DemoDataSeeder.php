@@ -163,6 +163,19 @@ class DemoDataSeeder extends Seeder
         );
         $headphones->update(['warranty_policy_id' => $accessoryWarranty->id]);
 
+        $this->expandedInventoryCatalog(
+            tenant: $tenant,
+            warehouse: $warehouse,
+            secondaryWarehouse: $secondaryWarehouse,
+            user: $manager,
+            androidWarranty: $androidWarranty,
+            accessoryWarranty: $accessoryWarranty,
+            bcv: $bcv,
+            parallel: $parallel,
+            branchCode: $data['branch_code'],
+            imeiPrefix: $data['imei_prefix'],
+        );
+
         $this->initialStock($warehouse, $phone, 8, $manager, "Carga demo inicial {$phone->sku}");
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
@@ -726,6 +739,212 @@ class DemoDataSeeder extends Seeder
             createdBy: $user,
             reason: $reason,
         );
+    }
+
+    private function expandedInventoryCatalog(
+        Tenant $tenant,
+        Warehouse $warehouse,
+        Warehouse $secondaryWarehouse,
+        User $user,
+        WarrantyPolicy $androidWarranty,
+        WarrantyPolicy $accessoryWarranty,
+        ExchangeRateType $bcv,
+        ExchangeRateType $parallel,
+        string $branchCode,
+        string $imeiPrefix,
+    ): void {
+        $this->useTenant($tenant);
+
+        $catalog = [
+            [
+                'sku' => "CARG-25W-{$branchCode}",
+                'name' => 'Cargador Rapido 25W',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 12,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 35,
+            ],
+            [
+                'sku' => "CBL-USBC-{$branchCode}",
+                'name' => 'Cable USB-C 1M',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 4,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 60,
+            ],
+            [
+                'sku' => "ADP-BT-{$branchCode}",
+                'name' => 'Adaptador Bluetooth',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 5,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 2,
+            ],
+            [
+                'sku' => "PROT-A06-{$branchCode}",
+                'name' => 'Protector Pantalla Samsung A06',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 3,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 0,
+            ],
+            [
+                'sku' => "FORRO-A06-{$branchCode}",
+                'name' => 'Forro Samsung A06 Transparente',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 6,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $secondaryWarehouse,
+                'quantity' => 15,
+                'reserved' => 3,
+            ],
+            [
+                'sku' => "PB-10000-{$branchCode}",
+                'name' => 'Power Bank 10000mAh',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 18,
+                'sale_currency' => Product::CURRENCY_VES,
+                'sale_exchange_rate_type_id' => $bcv->id,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 8,
+                'damaged' => 2,
+            ],
+            [
+                'sku' => "MSD-64-{$branchCode}",
+                'name' => 'Memoria MicroSD 64GB',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 9,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 18,
+            ],
+            [
+                'sku' => "IPH11-64-{$branchCode}",
+                'name' => 'iPhone 11 64GB',
+                'tracking_type' => Product::TRACKING_SERIALIZED,
+                'base_price' => 280,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $androidWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 5,
+                'serial_start' => 201,
+            ],
+            [
+                'sku' => "REDMI13C-{$branchCode}",
+                'name' => 'Xiaomi Redmi 13C',
+                'tracking_type' => Product::TRACKING_SERIALIZED,
+                'base_price' => 95,
+                'sale_currency' => Product::CURRENCY_VES,
+                'sale_exchange_rate_type_id' => $parallel->id,
+                'warranty_policy_id' => $androidWarranty->id,
+                'warehouse' => $warehouse,
+                'quantity' => 3,
+                'serial_start' => 301,
+            ],
+            [
+                'sku' => "TECNO-SPARK-{$branchCode}",
+                'name' => 'Tecno Spark Go',
+                'tracking_type' => Product::TRACKING_SERIALIZED,
+                'base_price' => 75,
+                'sale_currency' => Product::CURRENCY_USD,
+                'warranty_policy_id' => $androidWarranty->id,
+                'warehouse' => $secondaryWarehouse,
+                'quantity' => 0,
+                'serial_start' => 401,
+            ],
+        ];
+
+        foreach ($catalog as $item) {
+            $product = $this->demoProduct($item);
+
+            if ((float) $item['quantity'] > 0) {
+                $reason = "Carga demo catalogo {$product->sku}";
+                $this->initialStock($item['warehouse'], $product, (float) $item['quantity'], $user, $reason);
+            }
+
+            if ($product->requiresSerializedTracking() && (float) $item['quantity'] > 0) {
+                $this->catalogImeis($tenant, $item['warehouse'], $product, $imeiPrefix, (int) $item['serial_start'], (int) $item['quantity']);
+            }
+
+            if (($item['reserved'] ?? 0) > 0) {
+                $reason = "Reserva demo catalogo {$product->sku}";
+
+                if (! StockMovement::query()->where('reason', $reason)->exists()) {
+                    app(InventoryMovementService::class)->reserve($item['warehouse'], $product, (float) $item['reserved'], $user, $reason);
+                }
+            }
+
+            if (($item['damaged'] ?? 0) > 0) {
+                $reason = "Danado demo catalogo {$product->sku}";
+
+                if (! StockMovement::query()->where('reason', $reason)->exists()) {
+                    app(InventoryMovementService::class)->markDamaged($item['warehouse'], $product, (float) $item['damaged'], $user, $reason);
+                }
+            }
+        }
+    }
+
+    private function demoProduct(array $data): Product
+    {
+        $product = Product::query()->firstOrCreate(
+            ['sku' => $data['sku']],
+            [
+                'name' => $data['name'],
+                'tracking_type' => $data['tracking_type'],
+                'base_price' => $data['base_price'],
+                'sale_currency' => $data['sale_currency'],
+                'sale_exchange_rate_type_id' => $data['sale_exchange_rate_type_id'] ?? null,
+                'warranty_policy_id' => $data['warranty_policy_id'],
+                'is_active' => true,
+            ]
+        );
+
+        $product->update([
+            'name' => $data['name'],
+            'base_price' => $data['base_price'],
+            'sale_currency' => $data['sale_currency'],
+            'sale_exchange_rate_type_id' => $data['sale_exchange_rate_type_id'] ?? null,
+            'warranty_policy_id' => $data['warranty_policy_id'],
+            'is_active' => true,
+        ]);
+
+        return $product;
+    }
+
+    private function catalogImeis(Tenant $tenant, Warehouse $warehouse, Product $product, string $prefix, int $start, int $quantity): void
+    {
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', 'purchase')
+            ->where('reason', "Carga demo catalogo {$product->sku}")
+            ->first();
+
+        foreach (range($start, $start + $quantity - 1) as $index) {
+            ProductUnit::query()->firstOrCreate(
+                [
+                    'tenant_id' => $tenant->id,
+                    'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+                    'serial_number' => "{$prefix}CAT{$index}",
+                ],
+                [
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'acquired_stock_movement_id' => $movement?->id,
+                ]
+            );
+        }
     }
 
     private function availableProductUnit(Warehouse $warehouse, Product $product): ?ProductUnit
