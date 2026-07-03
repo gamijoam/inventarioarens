@@ -20,6 +20,7 @@ const state = {
     entryOptionsPromise: null,
     entryProducts: [],
     entryWarehouses: [],
+    exitAvailableUnits: [],
 };
 
 const navigationGroups = [
@@ -83,6 +84,7 @@ const devPermissions = [
     'product_entries.view',
     'product_entries.create',
     'product_exits.view',
+    'product_exits.create',
     'inventory_transfers.view',
     'inventory_transfer_requests.view',
     'purchases.view',
@@ -188,6 +190,24 @@ const elements = {
     entrySummaryWarehouse: document.querySelector('#entry-summary-warehouse'),
     entrySummaryQuantity: document.querySelector('#entry-summary-quantity'),
     entrySummaryTracking: document.querySelector('#entry-summary-tracking'),
+    productExitForm: document.querySelector('#product-exit-form'),
+    exitWarehouse: document.querySelector('#exit-warehouse'),
+    exitProduct: document.querySelector('#exit-product'),
+    exitReason: document.querySelector('#exit-reason'),
+    exitReference: document.querySelector('#exit-reference'),
+    exitQuantity: document.querySelector('#exit-quantity'),
+    exitQuantityHelp: document.querySelector('#exit-quantity-help'),
+    exitSerialPicker: document.querySelector('#exit-serial-picker'),
+    exitSerialsHelp: document.querySelector('#exit-serials-help'),
+    exitNotes: document.querySelector('#exit-notes'),
+    productExitMessage: document.querySelector('#product-exit-message'),
+    clearExitForm: document.querySelector('#clear-exit-form'),
+    saveExitButton: document.querySelector('#save-exit-button'),
+    exitTrackingPill: document.querySelector('#exit-tracking-pill'),
+    exitSummaryProduct: document.querySelector('#exit-summary-product'),
+    exitSummaryWarehouse: document.querySelector('#exit-summary-warehouse'),
+    exitSummaryQuantity: document.querySelector('#exit-summary-quantity'),
+    exitSummaryReason: document.querySelector('#exit-summary-reason'),
     userInitials: document.querySelector('#user-initials'),
     sidebarToggle: document.querySelector('#toggle-sidebar'),
     workspace: document.querySelector('.workspace-shell'),
@@ -873,6 +893,11 @@ function setProductEntryMessage(message, tone = 'neutral') {
     elements.productEntryMessage.dataset.tone = tone;
 }
 
+function setProductExitMessage(message, tone = 'neutral') {
+    elements.productExitMessage.textContent = message;
+    elements.productExitMessage.dataset.tone = tone;
+}
+
 function demoEntryProducts() {
     return [
         { id: 1, name: 'Samsung A06 128GB', sku: 'A06-DEMO', tracking_type: 'serialized' },
@@ -922,6 +947,7 @@ async function loadEntryOptions(session, force = false) {
         state.entryOptionsLoaded = true;
         renderEntryOptions();
         updateEntryFormMode();
+        await updateExitFormMode();
         setProductEntryMessage('Listo para registrar una entrada.');
     })();
 
@@ -945,6 +971,16 @@ function renderEntryOptions() {
         optionElement('', 'Selecciona un producto'),
         ...state.entryProducts.map((product) => optionElement(product.id, `${product.name} · ${product.sku} · ${trackingLabel(product.tracking_type)}`)),
     );
+
+    elements.exitWarehouse.replaceChildren(
+        optionElement('', 'Selecciona un almacén'),
+        ...state.entryWarehouses.map((warehouse) => optionElement(warehouse.id, `${warehouse.name} · ${warehouse.code}${warehouse.branch_name ? ` · ${warehouse.branch_name}` : ''}`)),
+    );
+
+    elements.exitProduct.replaceChildren(
+        optionElement('', 'Selecciona un producto'),
+        ...state.entryProducts.map((product) => optionElement(product.id, `${product.name} · ${product.sku} · ${trackingLabel(product.tracking_type)}`)),
+    );
 }
 
 function selectedEntryProduct() {
@@ -953,6 +989,14 @@ function selectedEntryProduct() {
 
 function selectedEntryWarehouse() {
     return state.entryWarehouses.find((warehouse) => String(warehouse.id) === String(elements.entryWarehouse.value)) ?? null;
+}
+
+function selectedExitProduct() {
+    return state.entryProducts.find((product) => String(product.id) === String(elements.exitProduct.value)) ?? null;
+}
+
+function selectedExitWarehouse() {
+    return state.entryWarehouses.find((warehouse) => String(warehouse.id) === String(elements.exitWarehouse.value)) ?? null;
 }
 
 function serialLines() {
@@ -988,6 +1032,103 @@ function updateEntryFormMode() {
     elements.entrySummaryTracking.textContent = product ? trackingLabel(product.tracking_type) : 'Por cantidad';
 }
 
+async function updateExitFormMode() {
+    const product = selectedExitProduct();
+    const warehouse = selectedExitWarehouse();
+    const isSerialized = product?.tracking_type === 'serialized';
+
+    elements.exitQuantity.readOnly = isSerialized;
+    elements.exitQuantityHelp.textContent = isSerialized
+        ? 'Cantidad calculada por los IMEIs seleccionados.'
+        : 'Indica la cantidad que saldrá del almacén.';
+    elements.exitSerialsHelp.textContent = isSerialized
+        ? 'Selecciona las unidades disponibles que salen del almacén.'
+        : 'Solo se habilita para productos serializados/IMEI.';
+    elements.exitTrackingPill.textContent = isSerialized ? 'Serializado / IMEI' : 'Cantidad';
+
+    if (!isSerialized) {
+        state.exitAvailableUnits = [];
+        elements.exitSerialPicker.innerHTML = '<p>Este producto se descuenta por cantidad.</p>';
+    } else if (product && warehouse) {
+        await loadExitSerialUnits(product.id, warehouse.id);
+    } else {
+        state.exitAvailableUnits = [];
+        elements.exitSerialPicker.innerHTML = '<p>Selecciona producto y almacén para ver IMEIs disponibles.</p>';
+    }
+
+    updateExitSummary();
+}
+
+async function loadExitSerialUnits(productId, warehouseId) {
+    setProductExitMessage('Cargando IMEIs disponibles...');
+
+    try {
+        const detail = state.session?.is_local_demo
+            ? { serials: { items: [] } }
+            : await authenticatedApi(`/api/inventory-center/products/${productId}`, state.session);
+
+        state.exitAvailableUnits = detail.serials.items.filter((unit) => (
+            unit.status === 'available'
+            && String(unit.warehouse_id) === String(warehouseId)
+        ));
+
+        renderExitSerialPicker();
+        setProductExitMessage(state.exitAvailableUnits.length > 0
+            ? `${state.exitAvailableUnits.length} IMEIs disponibles para salida.`
+            : 'No hay IMEIs disponibles para este producto en el almacén seleccionado.');
+    } catch (error) {
+        state.exitAvailableUnits = [];
+        elements.exitSerialPicker.innerHTML = '<p>No se pudieron cargar los IMEIs.</p>';
+        setProductExitMessage(error.message, 'error');
+    }
+}
+
+function renderExitSerialPicker() {
+    if (state.exitAvailableUnits.length === 0) {
+        elements.exitSerialPicker.innerHTML = '<p>No hay IMEIs disponibles para este producto en el almacén seleccionado.</p>';
+        elements.exitQuantity.value = '';
+        return;
+    }
+
+    elements.exitSerialPicker.replaceChildren(
+        ...state.exitAvailableUnits.map((unit) => {
+            const label = document.createElement('label');
+            label.className = 'serial-choice';
+            label.innerHTML = `
+                <input type="checkbox" value="${unit.id}" data-exit-unit>
+                <span>
+                    <strong>${escapeHtml(unit.serial_number)}</strong>
+                    <small>${serialStatusLabel(unit.status)} · ${escapeHtml(unit.warehouse_name ?? 'Sin almacén')}</small>
+                </span>
+            `;
+            return label;
+        }),
+    );
+
+    updateExitSummary();
+}
+
+function selectedExitUnitIds() {
+    return Array.from(elements.exitSerialPicker.querySelectorAll('[data-exit-unit]:checked'))
+        .map((checkbox) => Number(checkbox.value));
+}
+
+function updateExitSummary() {
+    const product = selectedExitProduct();
+    const warehouse = selectedExitWarehouse();
+    const isSerialized = product?.tracking_type === 'serialized';
+    const quantity = isSerialized ? selectedExitUnitIds().length : Number(elements.exitQuantity.value || 0);
+
+    if (isSerialized) {
+        elements.exitQuantity.value = quantity > 0 ? String(quantity) : '';
+    }
+
+    elements.exitSummaryProduct.textContent = product ? `${product.name} · ${product.sku}` : 'Selecciona un producto';
+    elements.exitSummaryWarehouse.textContent = warehouse ? `${warehouse.name} · ${warehouse.code}` : 'Selecciona un almacén';
+    elements.exitSummaryQuantity.textContent = stockNumber(quantity);
+    elements.exitSummaryReason.textContent = exitReasonLabel(elements.exitReason.value);
+}
+
 function productEntryPayload() {
     const product = selectedEntryProduct();
     const isSerialized = product?.tracking_type === 'serialized';
@@ -1009,6 +1150,26 @@ function productEntryPayload() {
                         serial_number: serial,
                     })),
                 } : {}),
+            },
+        ],
+    };
+}
+
+function productExitPayload() {
+    const product = selectedExitProduct();
+    const unitIds = selectedExitUnitIds();
+    const isSerialized = product?.tracking_type === 'serialized';
+
+    return {
+        reason: elements.exitReason.value,
+        reference: elements.exitReference.value.trim() || null,
+        notes: elements.exitNotes.value.trim() || null,
+        items: [
+            {
+                warehouse_id: Number(elements.exitWarehouse.value),
+                product_id: Number(elements.exitProduct.value),
+                quantity: isSerialized ? unitIds.length : Number(elements.exitQuantity.value),
+                ...(isSerialized ? { product_unit_ids: unitIds } : {}),
             },
         ],
     };
@@ -1045,6 +1206,29 @@ function validateProductEntryForm() {
     return null;
 }
 
+function validateProductExitForm() {
+    const product = selectedExitProduct();
+    const unitIds = selectedExitUnitIds();
+
+    if (!elements.exitWarehouse.value) {
+        return 'Selecciona el almacén origen.';
+    }
+
+    if (!product) {
+        return 'Selecciona el producto que saldrá.';
+    }
+
+    if (product.tracking_type === 'serialized') {
+        if (unitIds.length === 0) {
+            return 'Selecciona al menos un IMEI disponible para esta salida.';
+        }
+    } else if (Number(elements.exitQuantity.value) <= 0) {
+        return 'Indica una cantidad mayor a cero.';
+    }
+
+    return null;
+}
+
 async function saveProductEntry() {
     const validationMessage = validateProductEntryForm();
 
@@ -1073,6 +1257,34 @@ async function saveProductEntry() {
     }
 }
 
+async function saveProductExit() {
+    const validationMessage = validateProductExitForm();
+
+    if (validationMessage) {
+        setProductExitMessage(validationMessage, 'error');
+        return;
+    }
+
+    setProductExitBusy(true);
+    setProductExitMessage('Registrando salida...');
+
+    try {
+        const exit = await authenticatedApi('/api/product-exits', state.session, {
+            method: 'POST',
+            body: JSON.stringify(productExitPayload()),
+        });
+
+        resetProductExitForm(false);
+        state.inventoryPage = 1;
+        await loadInventoryCenter(state.session);
+        setProductExitMessage(`Salida ${exit.document_number} registrada correctamente.`, 'success');
+    } catch (error) {
+        setProductExitMessage(error.message, 'error');
+    } finally {
+        setProductExitBusy(false);
+    }
+}
+
 function resetProductEntryForm(clearMessage = true) {
     elements.productEntryForm.reset();
     elements.entryReason.value = 'Recepción de mercancía';
@@ -1080,6 +1292,17 @@ function resetProductEntryForm(clearMessage = true) {
 
     if (clearMessage) {
         setProductEntryMessage('Formulario limpio.');
+    }
+}
+
+function resetProductExitForm(clearMessage = true) {
+    elements.productExitForm.reset();
+    state.exitAvailableUnits = [];
+    elements.exitSerialPicker.innerHTML = '<p>Selecciona un producto serializado y un almacén.</p>';
+    updateExitSummary();
+
+    if (clearMessage) {
+        setProductExitMessage('Formulario de salida limpio.');
     }
 }
 
@@ -1094,6 +1317,18 @@ function setProductEntryBusy(isBusy) {
 
     if (!isBusy) {
         updateEntryFormMode();
+    }
+}
+
+function setProductExitBusy(isBusy) {
+    elements.productExitForm.querySelectorAll('input, select, textarea, button').forEach((control) => {
+        control.disabled = isBusy;
+    });
+
+    elements.saveExitButton.disabled = isBusy;
+
+    if (!isBusy) {
+        updateExitSummary();
     }
 }
 
@@ -1554,6 +1789,17 @@ function movementTypeLabel(type) {
     }[type] ?? type;
 }
 
+function exitReasonLabel(reason) {
+    return {
+        damaged: 'Dañado',
+        lost: 'Pérdida',
+        internal_use: 'Uso interno',
+        warranty: 'Garantía',
+        administrative: 'Administrativo',
+        other: 'Otro',
+    }[reason] ?? reason;
+}
+
 function dateLabel(value) {
     if (!value) {
         return 'Sin fecha';
@@ -1777,6 +2023,22 @@ elements.entrySerials?.addEventListener('input', updateEntryFormMode);
 
 elements.clearEntryForm?.addEventListener('click', () => resetProductEntryForm());
 
+elements.exitProduct?.addEventListener('change', () => {
+    updateExitFormMode();
+});
+elements.exitWarehouse?.addEventListener('change', () => {
+    updateExitFormMode();
+});
+elements.exitReason?.addEventListener('change', updateExitSummary);
+elements.exitQuantity?.addEventListener('input', updateExitSummary);
+elements.exitSerialPicker?.addEventListener('change', (event) => {
+    if (event.target.closest('[data-exit-unit]')) {
+        updateExitSummary();
+    }
+});
+
+elements.clearExitForm?.addEventListener('click', () => resetProductExitForm());
+
 elements.productEntryForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
 
@@ -1838,6 +2100,17 @@ elements.productForm?.addEventListener('submit', async (event) => {
     }
 
     await saveProductForm();
+});
+
+elements.productExitForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (state.session?.is_local_demo) {
+        setProductExitMessage('El modo demo local no guarda salidas. Entra con un usuario real para descontar stock.', 'error');
+        return;
+    }
+
+    await saveProductExit();
 });
 
 const existingSession = JSON.parse(localStorage.getItem(storageKey) || 'null');

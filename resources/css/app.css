@@ -1319,6 +1319,10 @@ button:disabled {
     margin-top: 18px;
 }
 
+.operation-layout--exit {
+    margin-top: 24px;
+}
+
 .operation-card {
     border: 1px solid #dfe7f3;
     border-radius: 8px;
@@ -1357,6 +1361,12 @@ button:disabled {
     white-space: nowrap;
 }
 
+.operation-pill--danger {
+    border-color: #ffd2db;
+    background: #fff0f3;
+    color: #c9153e;
+}
+
 .operation-form {
     padding: 22px 24px 24px;
 }
@@ -1392,6 +1402,62 @@ button:disabled {
     font-weight: 920;
     line-height: 1.35;
     overflow-wrap: anywhere;
+}
+
+.serial-picker {
+    display: grid;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #d7e1f1;
+    border-radius: 8px;
+    background: #f7f9fd;
+    padding: 10px;
+}
+
+.serial-picker p {
+    margin: 0;
+    color: #72809a;
+    font-size: 0.88rem;
+    font-weight: 820;
+}
+
+.serial-choice {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    border: 1px solid #e1e8f4;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 10px;
+}
+
+.serial-choice input {
+    width: 16px;
+    min-height: 16px;
+}
+
+.serial-choice strong,
+.serial-choice small {
+    display: block;
+}
+
+.serial-choice strong {
+    overflow-wrap: anywhere;
+    color: #071027;
+    font-weight: 950;
+}
+
+.serial-choice small {
+    margin-top: 2px;
+    color: #72809a;
+    font-weight: 780;
+}
+
+.danger-action {
+    background: linear-gradient(135deg, #e84268, #c9153e);
+    box-shadow: 0 18px 30px rgba(217, 54, 92, 0.2);
 }
 
 .modal-backdrop {

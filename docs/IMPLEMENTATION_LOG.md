@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-03 - Frontend inicial para salida de productos
+
+### Implementado
+
+- Se agregó el formulario de `Salida` dentro del módulo `Entradas y salidas`.
+- La salida permite seleccionar almacén origen, producto, motivo, referencia, cantidad y notas.
+- Para productos serializados se cargan los IMEIs disponibles del producto en el almacén seleccionado.
+- La cantidad de salida serializada se calcula según los IMEIs seleccionados.
+- Se conecta con `POST /api/product-exits` para registrar salidas trazables.
+- Al registrar una salida se actualiza el Centro de Inventario para reflejar el nuevo stock.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductExits/ProductExitApiTest.php`: 7 pruebas pasadas, 26 aserciones.
+- Se compiló el frontend con `pnpm run build` correctamente.
+
 ## 2026-07-03 - Acceso trazable para recibir stock desde Centro de Inventario
 
 ### Implementado

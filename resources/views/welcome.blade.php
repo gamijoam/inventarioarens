@@ -410,6 +410,101 @@
                                             </dl>
                                         </aside>
                                     </div>
+
+                                    <div class="operation-layout operation-layout--exit">
+                                        <section class="operation-card">
+                                            <div class="operation-card__header">
+                                                <div>
+                                                    <p class="eyebrow">Salida</p>
+                                                    <h2>Descuento de productos</h2>
+                                                </div>
+                                                <span class="operation-pill operation-pill--danger" id="exit-tracking-pill">Cantidad</span>
+                                            </div>
+
+                                            <form class="product-form operation-form" id="product-exit-form">
+                                                <div class="form-grid">
+                                                    <label class="field">
+                                                        <span>Almacén origen</span>
+                                                        <select id="exit-warehouse" required>
+                                                            <option value="">Cargando almacenes...</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Producto</span>
+                                                        <select id="exit-product" required>
+                                                            <option value="">Cargando productos...</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Motivo</span>
+                                                        <select id="exit-reason" required>
+                                                            <option value="internal_use">Uso interno</option>
+                                                            <option value="damaged">Dañado</option>
+                                                            <option value="lost">Pérdida</option>
+                                                            <option value="warranty">Garantía</option>
+                                                            <option value="administrative">Administrativo</option>
+                                                            <option value="other">Otro</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Referencia</span>
+                                                        <input id="exit-reference" type="text" maxlength="150" placeholder="Orden, nota o caso">
+                                                    </label>
+
+                                                    <label class="field">
+                                                        <span>Cantidad</span>
+                                                        <input id="exit-quantity" type="number" min="0.0001" step="0.0001" value="1" required>
+                                                        <small class="field-help" id="exit-quantity-help">Para productos serializados se calcula por los IMEIs seleccionados.</small>
+                                                    </label>
+
+                                                    <label class="field form-grid__wide">
+                                                        <span>IMEIs / seriales disponibles</span>
+                                                        <div class="serial-picker" id="exit-serial-picker">
+                                                            <p>Selecciona un producto serializado y un almacén.</p>
+                                                        </div>
+                                                        <small class="field-help" id="exit-serials-help">Disponible cuando el producto seleccionado es serializado.</small>
+                                                    </label>
+
+                                                    <label class="field form-grid__wide">
+                                                        <span>Notas</span>
+                                                        <textarea id="exit-notes" rows="3" maxlength="1000" placeholder="Observaciones internas de la salida"></textarea>
+                                                    </label>
+                                                </div>
+
+                                                <p class="form-message" id="product-exit-message" role="status" aria-live="polite"></p>
+
+                                                <div class="modal-actions">
+                                                    <button class="secondary-button compact-action" type="button" id="clear-exit-form">Limpiar</button>
+                                                    <button class="primary-button compact-action danger-action" type="submit" id="save-exit-button" data-requires-any="product_exits.create">Registrar salida</button>
+                                                </div>
+                                            </form>
+                                        </section>
+
+                                        <aside class="operation-card operation-card--summary">
+                                            <p class="eyebrow">Resumen</p>
+                                            <dl class="entry-summary">
+                                                <div>
+                                                    <dt>Producto</dt>
+                                                    <dd id="exit-summary-product">Selecciona un producto</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Almacén</dt>
+                                                    <dd id="exit-summary-warehouse">Selecciona un almacén</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Unidades a descontar</dt>
+                                                    <dd id="exit-summary-quantity">0</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Motivo</dt>
+                                                    <dd id="exit-summary-reason">Uso interno</dd>
+                                                </div>
+                                            </dl>
+                                        </aside>
+                                    </div>
                                 </section>
                             </main>
                         </div>
