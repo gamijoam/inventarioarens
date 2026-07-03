@@ -3,7 +3,55 @@ const storageKey = 'inventory_system_session';
 const state = {
     selectedTenant: null,
     tenants: [],
+    session: null,
 };
+
+const navigationGroups = [
+    {
+        label: 'Operacion',
+        items: [
+            { label: 'Resumen', icon: '▦', permissions: ['pos.view', 'sales.view', 'products.view'] },
+            { label: 'Centro de Ventas', icon: '▱', permissions: ['sales.view', 'customers.view', 'accounts_receivable.view', 'warranties.view'] },
+            { label: 'POS', icon: '▣', permissions: ['pos.view', 'pos.checkout'] },
+            { label: 'Caja', icon: '◫', permissions: ['cash_register.view', 'cash_register.open', 'cash_register.close'] },
+        ],
+    },
+    {
+        label: 'Inventario',
+        items: [
+            { label: 'Centro de Inventario', icon: '◈', permissions: ['products.view', 'inventory.view'] },
+            { label: 'Entradas y salidas', icon: '⇅', permissions: ['product_entries.view', 'product_exits.view'] },
+            { label: 'Traslados', icon: '⇄', permissions: ['inventory_transfers.view', 'inventory_transfer_requests.view'] },
+            { label: 'Kardex', icon: '▤', permissions: ['kardex.view'] },
+        ],
+    },
+    {
+        label: 'Finanzas',
+        items: [
+            { label: 'Finanzas', icon: '$', permissions: ['finance_reports.view', 'accounts_receivable.view', 'accounts_payable.view'] },
+            { label: 'Compras', icon: '▧', permissions: ['purchases.view', 'purchase_returns.view'] },
+            { label: 'Proveedores', icon: '◇', permissions: ['suppliers.view'] },
+            { label: 'Comprobantes', icon: '▩', permissions: ['payment_receipts.view'] },
+        ],
+    },
+    {
+        label: 'Administracion',
+        items: [
+            { label: 'Configuracion', icon: '⚙', permissions: ['settings.manage', 'currency.view', 'warranty_policies.view'] },
+            { label: 'Usuarios y roles', icon: '◉', permissions: ['users.view', 'roles.view'] },
+            { label: 'Panel empresarial', icon: '▥', permissions: ['settings.manage', 'ai.configure'] },
+        ],
+    },
+];
+
+const shortcutDefinitions = [
+    { label: 'Abrir POS', detail: 'Venta rapida y pagos', permissions: ['pos.checkout'] },
+    { label: 'Productos', detail: 'Catalogo, precios y seriales', permissions: ['products.view'] },
+    { label: 'Recepcion IMEI', detail: 'Entradas serializadas', permissions: ['product_entries.create'] },
+    { label: 'Kardex', detail: 'Historial de movimientos', permissions: ['kardex.view'] },
+    { label: 'Garantias', detail: 'Casos y politicas', permissions: ['warranties.view', 'warranty_policies.view'] },
+    { label: 'Usuarios', detail: 'Roles y permisos', permissions: ['users.view', 'roles.view'] },
+];
 
 const elements = {
     form: document.querySelector('#login-form'),
@@ -17,9 +65,17 @@ const elements = {
     loginView: document.querySelector('[data-view="login"]'),
     sessionView: document.querySelector('[data-view="session"]'),
     sessionSummary: document.querySelector('#session-summary'),
+    sessionUser: document.querySelector('#session-user'),
+    sessionRoles: document.querySelector('#session-roles'),
     sessionTenant: document.querySelector('#session-tenant'),
     sessionPermissions: document.querySelector('#session-permissions'),
     logout: document.querySelector('#logout-button'),
+    mainNav: document.querySelector('#main-nav'),
+    shortcuts: document.querySelector('#module-shortcuts'),
+    attentionList: document.querySelector('#attention-list'),
+    userInitials: document.querySelector('#user-initials'),
+    sidebarToggle: document.querySelector('#toggle-sidebar'),
+    workspace: document.querySelector('.workspace-shell'),
 };
 
 function setMessage(message, tone = 'neutral') {
@@ -67,17 +123,133 @@ function saveSession(session) {
 }
 
 function renderSession(session) {
+    state.session = session;
     elements.loginView.hidden = true;
     elements.sessionView.hidden = false;
-    elements.sessionSummary.textContent = `${session.user.name} ingreso como ${session.roles.join(', ') || 'usuario operativo'}.`;
+    document.body.classList.add('has-workspace');
+    elements.sessionSummary.textContent = `${session.user.name} trabaja en ${session.tenant.name}.`;
+    elements.sessionUser.textContent = session.user.email;
+    elements.sessionRoles.textContent = session.roles.join(', ') || 'Usuario operativo';
     elements.sessionTenant.textContent = session.tenant.name;
     elements.sessionPermissions.textContent = `${session.permissions.length} activos`;
+    elements.userInitials.textContent = initials(session.user.name);
+    renderNavigation(session.permissions);
+    renderShortcuts(session.permissions);
+    renderAttention(session.permissions);
+    applyPermissionVisibility(session.permissions);
 }
 
 function clearSession() {
     localStorage.removeItem(storageKey);
+    state.session = null;
     elements.sessionView.hidden = true;
     elements.loginView.hidden = false;
+    document.body.classList.remove('has-workspace');
+}
+
+function initials(name) {
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase();
+}
+
+function canAccess(userPermissions, requiredPermissions = []) {
+    return requiredPermissions.length === 0 || requiredPermissions.some((permission) => userPermissions.includes(permission));
+}
+
+function renderNavigation(userPermissions) {
+    const groups = navigationGroups
+        .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => canAccess(userPermissions, item.permissions)),
+        }))
+        .filter((group) => group.items.length > 0);
+
+    elements.mainNav.replaceChildren(
+        ...groups.map((group, groupIndex) => {
+            const section = document.createElement('section');
+            const title = document.createElement('h2');
+            title.textContent = group.label;
+            section.append(title);
+
+            group.items.forEach((item, itemIndex) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'nav-item';
+                button.dataset.active = groupIndex === 0 && itemIndex === 0 ? 'true' : 'false';
+                button.innerHTML = `<span aria-hidden="true">${item.icon}</span><strong>${item.label}</strong>`;
+                button.addEventListener('click', () => setActiveNav(button, item.label));
+                section.append(button);
+            });
+
+            return section;
+        }),
+    );
+}
+
+function setActiveNav(activeButton, label) {
+    document.querySelectorAll('.nav-item').forEach((button) => {
+        button.dataset.active = button === activeButton ? 'true' : 'false';
+    });
+
+    document.querySelector('#dashboard-title').textContent = label === 'Resumen' ? 'Resumen del negocio' : label;
+}
+
+function renderShortcuts(userPermissions) {
+    const shortcuts = shortcutDefinitions.filter((shortcut) => canAccess(userPermissions, shortcut.permissions));
+
+    elements.shortcuts.replaceChildren(
+        ...shortcuts.map((shortcut) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'shortcut-card';
+            button.innerHTML = `<strong>${shortcut.label}</strong><span>${shortcut.detail}</span>`;
+            return button;
+        }),
+    );
+}
+
+function renderAttention(userPermissions) {
+    const items = [
+        {
+            label: 'Stock bajo',
+            detail: 'Productos por debajo del minimo',
+            permissions: ['products.view', 'inventory.view'],
+            tone: 'danger',
+        },
+        {
+            label: 'Caja cerrada',
+            detail: 'Abre una caja antes de vender',
+            permissions: ['cash_register.open', 'pos.checkout'],
+            tone: 'warning',
+        },
+        {
+            label: 'Permisos activos',
+            detail: 'Menu generado desde roles del usuario',
+            permissions: [],
+            tone: 'neutral',
+        },
+    ].filter((item) => canAccess(userPermissions, item.permissions));
+
+    elements.attentionList.replaceChildren(
+        ...items.map((item) => {
+            const article = document.createElement('article');
+            article.className = `attention-card attention-card--${item.tone}`;
+            article.innerHTML = `<strong>${item.label}</strong><span>${item.detail}</span>`;
+            return article;
+        }),
+    );
+}
+
+function applyPermissionVisibility(userPermissions) {
+    document.querySelectorAll('[data-requires-any]').forEach((element) => {
+        const required = element.dataset.requiresAny.split(' ').filter(Boolean);
+        element.hidden = !canAccess(userPermissions, required);
+    });
 }
 
 async function resolveTenants(email, password) {
@@ -178,6 +350,10 @@ elements.logout?.addEventListener('click', async () => {
     }
 
     clearSession();
+});
+
+elements.sidebarToggle?.addEventListener('click', () => {
+    elements.workspace.classList.toggle('is-sidebar-open');
 });
 
 const existingSession = JSON.parse(localStorage.getItem(storageKey) || 'null');

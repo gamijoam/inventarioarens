@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-03 - Base del panel principal con navegación por permisos
+
+### Implementado
+
+- Se agrego el shell principal del sistema despues del login.
+- Se agrego barra lateral con modulos agrupados por Operacion, Inventario, Finanzas y Administracion.
+- Se agrego barra superior con tasa referencial, estado de caja, acceso POS, reportes, ayuda y usuario.
+- Se agrego resumen inicial del negocio con metricas base, alertas y accesos rapidos.
+- La navegacion y los accesos visibles se calculan desde los permisos devueltos por `POST /api/auth/login`.
+- Se mantiene el login existente y, al iniciar sesion, se cambia a la experiencia de panel completo.
+- Se agrego soporte responsive para mostrar/ocultar menu lateral en pantallas pequenas.
+
+### Pruebas
+
+- Se ejecuto build frontend con `pnpm run build`: compilacion correcta.
+- Se ejecuto prueba especifica en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+- Se verifico en navegador local `http://localhost:8000` que el login carga con `APP_NAME`, el shell existe oculto antes de iniciar sesion y no hay errores de consola.
+
+### Notas de seguridad
+
+- El frontend solo oculta opciones por permisos para mejorar la experiencia.
+- Las APIs siguen siendo la autoridad real y deben validar `api.auth`, tenant, roles, permisos y policies en cada accion.
+
 ## 2026-07-03 - Rediseño profesional del login
 
 ### Implementado

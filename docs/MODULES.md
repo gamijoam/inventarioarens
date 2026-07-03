@@ -68,7 +68,9 @@ Responsabilidad:
 - consultar empresas disponibles para el usuario;
 - iniciar sesion contra las APIs del modulo `Auth`;
 - conservar la sesion en navegador en esta primera fase;
-- mostrar un panel base cuando la sesion esta activa.
+- mostrar el panel principal cuando la sesion esta activa;
+- agrupar la navegacion por modulos operativos;
+- filtrar opciones visibles usando los permisos efectivos del usuario.
 
 Archivos principales:
 
@@ -80,7 +82,9 @@ Regla importante:
 
 - el frontend no reemplaza permisos ni validaciones del backend;
 - toda accion real debe pasar por APIs protegidas con `api.auth` y `tenant`;
-- el diseno usa la paleta morada/azul del login de referencia, pero ahora como login central profesional sin imagen lateral.
+- el diseno usa la paleta morada/azul del login de referencia, pero ahora como login central profesional sin imagen lateral;
+- el panel principal se organiza por Operacion, Inventario, Finanzas y Administracion;
+- la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth.
 
 ### Tenancy
 

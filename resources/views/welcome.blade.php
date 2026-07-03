@@ -80,24 +80,131 @@
                         </div>
                     </div>
 
-                    <div class="session-card" data-view="session" hidden>
-                        <span class="secure-badge">
-                            <span aria-hidden="true">+</span>
-                            Sesion activa
-                        </span>
-                        <h1>Panel preparado</h1>
-                        <p id="session-summary"></p>
-                        <div class="session-grid">
-                            <div>
-                                <span>Empresa</span>
-                                <strong id="session-tenant"></strong>
+                    <div class="workspace-shell" data-view="session" data-app-name="{{ $appName }}" hidden>
+                        <aside class="workspace-sidebar" aria-label="Navegacion principal">
+                            <div class="workspace-brand">
+                                <div class="workspace-brand__mark" aria-hidden="true">{{ mb_substr($appName, 0, 1) }}</div>
+                                <div>
+                                    <strong>{{ $appName }}</strong>
+                                    <span id="session-tenant"></span>
+                                </div>
                             </div>
-                            <div>
-                                <span>Permisos</span>
-                                <strong id="session-permissions"></strong>
-                            </div>
+
+                            <nav class="workspace-nav" id="main-nav"></nav>
+                        </aside>
+
+                        <div class="workspace-main">
+                            <header class="workspace-topbar">
+                                <button class="icon-button mobile-menu-button" type="button" id="toggle-sidebar" aria-label="Mostrar menu">
+                                    <span aria-hidden="true">☰</span>
+                                </button>
+
+                                <div class="topbar-spacer"></div>
+
+                                <div class="topbar-chip">
+                                    <span class="topbar-chip__dot" aria-hidden="true"></span>
+                                    <span>BS</span>
+                                    <strong>652.97</strong>
+                                </div>
+
+                                <div class="topbar-chip topbar-chip--danger">
+                                    <span class="topbar-chip__dot" aria-hidden="true"></span>
+                                    <strong>Caja cerrada</strong>
+                                </div>
+
+                                <button class="topbar-action topbar-action--primary" type="button" data-requires-any="pos.checkout">
+                                    <span aria-hidden="true">▣</span>
+                                    Vender
+                                </button>
+
+                                <button class="topbar-action" type="button" data-requires-any="reports.view finance_reports.view">
+                                    <span aria-hidden="true">▥</span>
+                                    Reportes
+                                </button>
+
+                                <button class="icon-button" type="button" aria-label="Ayuda">
+                                    <span aria-hidden="true">?</span>
+                                </button>
+
+                                <button class="user-button" type="button" id="user-initials" aria-label="Usuario"></button>
+                            </header>
+
+                            <main class="dashboard-view" aria-labelledby="dashboard-title">
+                                <section class="dashboard-hero">
+                                    <div>
+                                        <p class="eyebrow">Operacion</p>
+                                        <h1 id="dashboard-title">Resumen del negocio</h1>
+                                        <p id="session-summary"></p>
+                                    </div>
+                                    <div class="hero-actions">
+                                        <button class="segmented-button is-active" type="button">Hoy</button>
+                                        <button class="segmented-button" type="button">Semana</button>
+                                        <button class="segmented-button" type="button">Mes</button>
+                                    </div>
+                                </section>
+
+                                <section class="metric-grid" aria-label="Indicadores principales">
+                                    <article class="metric-card metric-card--green">
+                                        <span>Ingresos</span>
+                                        <strong>$0.00</strong>
+                                        <small>Sin ventas registradas hoy</small>
+                                    </article>
+                                    <article class="metric-card metric-card--violet">
+                                        <span>Ganancia real</span>
+                                        <strong>$0.00</strong>
+                                        <small>Calculada desde ventas confirmadas</small>
+                                    </article>
+                                    <article class="metric-card metric-card--blue">
+                                        <span>Transacciones</span>
+                                        <strong>0</strong>
+                                        <small>POS y ventas manuales</small>
+                                    </article>
+                                    <article class="metric-card metric-card--orange">
+                                        <span>Cuentas pendientes</span>
+                                        <strong>$0.00</strong>
+                                        <small>CxC y CxP disponibles por permiso</small>
+                                    </article>
+                                </section>
+
+                                <section class="attention-panel">
+                                    <div class="section-heading">
+                                        <span aria-hidden="true">!</span>
+                                        <strong>Requieren atencion</strong>
+                                    </div>
+                                    <div class="attention-list" id="attention-list"></div>
+                                </section>
+
+                                <section class="dashboard-grid">
+                                    <article class="work-card">
+                                        <div class="section-heading">
+                                            <strong>Accesos por modulo</strong>
+                                        </div>
+                                        <div class="module-shortcuts" id="module-shortcuts"></div>
+                                    </article>
+
+                                    <article class="work-card">
+                                        <div class="section-heading">
+                                            <strong>Sesion y permisos</strong>
+                                        </div>
+                                        <dl class="session-facts">
+                                            <div>
+                                                <dt>Usuario</dt>
+                                                <dd id="session-user"></dd>
+                                            </div>
+                                            <div>
+                                                <dt>Roles</dt>
+                                                <dd id="session-roles"></dd>
+                                            </div>
+                                            <div>
+                                                <dt>Permisos</dt>
+                                                <dd id="session-permissions"></dd>
+                                            </div>
+                                        </dl>
+                                        <button class="secondary-button compact-button" type="button" id="logout-button">Cerrar sesion</button>
+                                    </article>
+                                </section>
+                            </main>
                         </div>
-                        <button class="secondary-button" type="button" id="logout-button">Cerrar sesion</button>
                     </div>
 
                     <p class="login-footnote">2026 {{ $appName }}</p>
