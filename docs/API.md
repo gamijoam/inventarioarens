@@ -1526,6 +1526,106 @@ sales_returns.view
 
 ## Inventario
 
+## Entradas de productos
+
+Archivo de rutas:
+
+```txt
+app/Modules/ProductEntries/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\ProductEntries\Controllers\ProductEntryController
+```
+
+### Listar entradas
+
+```txt
+GET /api/product-entries
+```
+
+Permiso requerido:
+
+```txt
+product_entries.view
+```
+
+### Crear entrada
+
+```txt
+POST /api/product-entries
+```
+
+Permiso requerido:
+
+```txt
+product_entries.create
+```
+
+Body para producto por cantidad:
+
+```json
+{
+  "reason": "Carga inicial",
+  "reference": "GUIA-001",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 2,
+      "quantity": 20,
+      "unit_cost": 10
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "reason": "Compra Samsung A06",
+  "reference": "FACT-IMEI-001",
+  "items": [
+    {
+      "warehouse_id": 1,
+      "product_id": 1,
+      "quantity": 30,
+      "unit_cost": 80,
+      "serial_units": [
+        { "serial_type": "imei", "serial_number": "860900000000001" },
+        { "serial_type": "imei", "serial_number": "860900000000002" }
+      ]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- una entrada puede tener uno o varios productos;
+- cada item genera movimiento `purchase` en inventario;
+- si el producto es `quantity`, no acepta `serial_units`;
+- si el producto es `serialized`, debe recibir un IMEI o serial por cada unidad;
+- los IMEIs o seriales no pueden repetirse dentro de la entrada;
+- los IMEIs o seriales no pueden existir previamente en la empresa actual;
+- las unidades serializadas quedan en `product_units` con estado `available`;
+- la entrada es operativa/manual y no crea cuenta por pagar;
+- si se necesita compra formal con proveedor y deuda, se debe usar `Purchases`.
+
+### Ver entrada
+
+```txt
+GET /api/product-entries/{productEntry}
+```
+
+Permiso requerido:
+
+```txt
+product_entries.view
+```
+
 Archivo de rutas:
 
 ```txt
@@ -2171,5 +2271,7 @@ Reglas:
 - Las APIs de caja deben vivir en el modulo `CashRegister`, separadas de POS.
 - Las APIs de caja deben guardar diferencias de cierre sin alterar ventas historicas.
 - Las APIs de inventario modifican stock solo mediante servicios del modulo `Inventory`.
+- Las APIs de entradas de productos deben vivir en el modulo `ProductEntries`.
+- Las entradas operativas pueden cargar IMEIs/seriales, pero no reemplazan una compra formal con proveedor.
 - Las APIs de reportes son solo lectura.
 - Las APIs de Kardex son solo lectura y deben calcular saldos desde `stock_movements`.

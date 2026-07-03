@@ -24,6 +24,8 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
+use App\Modules\ProductEntries\Models\ProductEntry;
+use App\Modules\ProductEntries\Services\ProductEntryService;
 use App\Modules\Products\Models\Product;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
@@ -130,6 +132,7 @@ class DemoDataSeeder extends Seeder
         $this->initialStock($warehouse, $phone, 8, $manager, "Carga demo inicial {$phone->sku}");
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
         $this->imeis($tenant, $warehouse, $phone, $data['imei_prefix']);
+        $this->productEntryWithImeis($tenant, $warehouse, $phone, $manager, $data['imei_prefix'], $data['branch_code']);
         $supplier = $this->supplier("Proveedor Demo {$data['branch_code']}", "{$tenant->id}900");
         $this->receivedPurchase($tenant, $manager, $supplier, $warehouse, $headphones, "COMPRA-DEMO-{$data['branch_code']}");
         $this->purchaseReturn($tenant, $manager, "COMPRA-DEMO-{$data['branch_code']}");
@@ -584,6 +587,45 @@ class DemoDataSeeder extends Seeder
                 ]
             );
         }
+    }
+
+    private function productEntryWithImeis(
+        Tenant $tenant,
+        Warehouse $warehouse,
+        Product $product,
+        User $user,
+        string $prefix,
+        string $branchCode,
+    ): void {
+        $this->useTenant($tenant);
+
+        $reference = "ENT-DEMO-30-IMEIS-{$branchCode}";
+
+        if (ProductEntry::query()->where('reference', $reference)->exists()) {
+            return;
+        }
+
+        $serialUnits = [];
+
+        foreach (range(101, 130) as $index) {
+            $serialUnits[] = [
+                'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+                'serial_number' => "{$prefix}0000{$index}",
+            ];
+        }
+
+        app(ProductEntryService::class)->create($user, [
+            'reason' => 'Entrada demo de 30 IMEIs Samsung A06',
+            'reference' => $reference,
+            'notes' => 'Entrada operativa demo para revisar carga masiva de IMEIs.',
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 30,
+                'unit_cost' => 80,
+                'serial_units' => $serialUnits,
+            ]],
+        ]);
     }
 
     private function cashRegister(Tenant $tenant, Branch $branch, User $cashier): CashRegisterSession

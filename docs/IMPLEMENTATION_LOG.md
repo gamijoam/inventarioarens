@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-02 - Modulo ProductEntries
+
+### Implementado
+
+- Se agrego el modulo `ProductEntries`.
+- Se agregaron tablas `product_entries` y `product_entry_items`.
+- Se agrego modelo, policy, controller, request, resources y service del modulo.
+- Se agregaron permisos `product_entries.view` y `product_entries.create`.
+- Se expuso `GET /api/product-entries`.
+- Se expuso `POST /api/product-entries`.
+- Se expuso `GET /api/product-entries/{productEntry}`.
+- Las entradas pueden contener uno o varios productos.
+- Cada item genera movimiento `purchase` usando `InventoryMovementService`.
+- Los productos serializados requieren un IMEI o serial por cada unidad.
+- Los seriales se validan contra duplicados dentro de la entrada y contra seriales existentes del tenant.
+- Se actualizo el seeder demo para crear entradas de 30 IMEIs por empresa.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`: 6 pruebas pasadas, 61 aserciones.
+- Se ejecuto la suite completa en PostgreSQL con `docker compose run --rm app_test php artisan test`: 141 pruebas pasadas, 655 aserciones.
+
+### Notas de seguridad
+
+- El modulo requiere permisos y respeta tenant.
+- Las entradas operativas no crean cuenta por pagar ni proveedor.
+- Para compra formal con proveedor se debe usar `Purchases`.
+
 ## 2026-07-02 - Modulo FinancialAdjustments
 
 ### Implementado

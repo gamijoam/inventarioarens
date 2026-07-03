@@ -15,6 +15,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\PaymentReceipts\Models\PaymentReceipt;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
+use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -50,7 +51,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, AccountsPayablePayment::withoutGlobalScopes()->where('method', 'transferencia demo')->count());
         $this->assertDatabaseHas('stock_movements', ['type' => 'purchase']);
         $this->assertSame(2, DB::table('stock_movements')->where('type', 'purchase_return')->count());
-        $this->assertGreaterThanOrEqual(16, ProductUnit::withoutGlobalScopes()->count());
+        $this->assertSame(2, ProductEntry::withoutGlobalScopes()->where('reason', 'Entrada demo de 30 IMEIs Samsung A06')->count());
+        $this->assertGreaterThanOrEqual(76, ProductUnit::withoutGlobalScopes()->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo POS Pagado')->count());
         $this->assertSame(2, PosOrder::withoutGlobalScopes()->where('customer_name', 'Cliente Demo Financiamiento')->count());
         $this->assertSame(4, PosOrder::withoutGlobalScopes()->whereNotNull('customer_id')->count());

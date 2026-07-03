@@ -572,6 +572,36 @@ Regla importante:
 - la lectura rapida vive en `stock_balances`.
 - los IMEIs y seriales viven en `product_units`, no en `products`.
 
+### ProductEntries
+
+Responsabilidad:
+
+- entradas operativas o manuales de productos;
+- carga inicial o reposicion de inventario sin flujo formal de compra;
+- entrada multi-producto en un mismo documento;
+- carga masiva de IMEIs o seriales para productos serializados;
+- generacion de movimientos `purchase` mediante `InventoryMovementService`.
+
+Archivos principales:
+
+- `app/Modules/ProductEntries/Models/ProductEntry.php`
+- `app/Modules/ProductEntries/Models/ProductEntryItem.php`
+- `app/Modules/ProductEntries/Policies/ProductEntryPolicy.php`
+- `app/Modules/ProductEntries/Controllers/ProductEntryController.php`
+- `app/Modules/ProductEntries/Requests/StoreProductEntryRequest.php`
+- `app/Modules/ProductEntries/Resources/ProductEntryResource.php`
+- `app/Modules/ProductEntries/Resources/ProductEntryItemResource.php`
+- `app/Modules/ProductEntries/Services/ProductEntryService.php`
+- `app/Modules/ProductEntries/routes.php`
+
+Regla importante:
+
+- si el producto es serializado, la cantidad debe ser entera y debe existir un IMEI o serial por cada unidad;
+- si el producto es por cantidad, no acepta seriales;
+- los seriales no se pueden repetir dentro de la entrada ni existir previamente en la empresa;
+- la entrada no crea cuenta por pagar ni proveedor;
+- para compra formal con proveedor se usa `Purchases`.
+
 ### Reports
 
 Responsabilidad:

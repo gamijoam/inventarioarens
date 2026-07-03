@@ -147,6 +147,8 @@ El modulo `FinancialAdjustments` cubre notas y ajustes financieros que reducen s
 
 El modulo `Kardex` es una capa de lectura sobre `stock_movements`. No guarda una tabla paralela ni duplica saldos; calcula saldo inicial, entradas, salidas y saldo corrido por producto, almacen y periodo. Esto permite auditar como se llego al saldo actual sin modificar inventario.
 
+El modulo `ProductEntries` cubre entradas operativas de inventario que no necesitan el flujo formal de compras. Permite cargar uno o varios productos y, cuando el producto es serializado, exige un IMEI o serial por cada unidad. Cada item genera un movimiento `purchase` mediante `InventoryMovementService` y las unidades serializadas quedan registradas en `product_units` como disponibles. Para compras con proveedor, recepcion formal y cuenta por pagar, se debe seguir usando `Purchases`.
+
 ## Objetivo
 
 Inventory Arens es un monolito Laravel diseñado como un sistema de inventario SaaS modular. Todo registro de negocio debe pertenecer a un tenant mediante `tenant_id`.
@@ -195,6 +197,7 @@ Módulos implementados inicialmente:
 - `Branches`: sucursales tenant-scoped con API, permisos y codigo unico por tenant.
 - `Warehouses`: almacenes tenant-scoped con API, permisos y validacion de sucursal del mismo tenant.
 - `Inventory`: movimientos y balances de stock tenant-scoped.
+- `ProductEntries`: entradas operativas de productos e IMEIs sin cuenta por pagar.
 - `Customers`: clientes tenant-scoped y asociacion opcional con ventas/POS.
 - `Suppliers`: proveedores tenant-scoped para compras.
 - `Purchases`: documentos de compra, recepcion de inventario y seriales de entrada.
