@@ -3119,17 +3119,50 @@ Body para rechazo:
 }
 ```
 
+Body para reembolso desde caja:
+
+```json
+{
+  "resolution_type": "refund",
+  "refund_currency": "USD",
+  "refund_amount": 100,
+  "refund_method": "cash",
+  "refund_cash_register_session_id": 1,
+  "refund_reference": "REF-GAR-001",
+  "resolution_notes": "Reembolso en efectivo por garantia."
+}
+```
+
+Body para reembolso contra saldo pendiente:
+
+```json
+{
+  "resolution_type": "refund",
+  "refund_currency": "USD",
+  "refund_amount": 100,
+  "apply_to_receivable_balance": true,
+  "resolution_notes": "Reembolso aplicado al saldo pendiente."
+}
+```
+
 Reglas:
 
-- en esta fase solo ejecuta `replacement` y `rejected`;
+- en esta fase ejecuta `replacement`, `rejected` y `refund`;
 - `replacement` exige que el caso este `approved` con `resolution_type = replacement`;
 - si el producto es serializado, `replacement_product_unit_id` debe estar disponible y pertenecer al mismo producto;
 - el IMEI recibido por garantia queda `damaged`;
 - el IMEI entregado como reemplazo queda `sold`;
 - el reemplazo genera movimiento de inventario `adjustment_out` con referencia al caso de garantia;
 - `rejected` cierra el caso y devuelve el IMEI original a `sold` si estaba en `warranty_hold`;
+- `refund` exige que el caso este `approved` con `resolution_type = refund`;
+- `refund` puede salir de una caja abierta con `refund_cash_register_session_id`;
+- `refund` puede aplicarse contra saldo pendiente con `apply_to_receivable_balance = true`;
+- no se puede usar caja y rebaja de saldo en el mismo reembolso;
+- el monto base del reembolso no puede superar el monto vendido para ese item;
+- si el producto serializado se reembolsa, el IMEI recibido por garantia queda `damaged`;
 - resolver un caso lo marca como `closed`;
-- `refund` queda pendiente para la fase financiera de garantias.
+- en reembolso por caja se crea movimiento `outflow` en `cash_register_movements`;
+- en reembolso contra saldo se crea ajuste en `financial_adjustments`.
 
 ### Entregar caso de garantia
 

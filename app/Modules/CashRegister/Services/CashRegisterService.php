@@ -142,6 +142,32 @@ class CashRegisterService
         });
     }
 
+    public function recordWarrantyRefund(CashRegisterSession $session, array $data, User $operator): CashRegisterMovement
+    {
+        return DB::transaction(function () use ($session, $data, $operator): CashRegisterMovement {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+
+            $movement = $this->createMovement($session, CashRegisterMovement::TYPE_OUTFLOW, $data['method'], [
+                'currency' => $data['currency'],
+                'amount' => $data['amount'],
+                'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
+                'source_type' => $data['source_type'] ?? null,
+                'source_id' => $data['source_id'] ?? null,
+                'reference' => $data['reference'] ?? null,
+                'notes' => $data['notes'] ?? null,
+            ], $operator);
+            $this->recalculateExpectedTotals($session);
+
+            return $movement->refresh();
+        });
+    }
+
+    public function previewAmount(array $data): array
+    {
+        return $this->resolveAmount($data);
+    }
+
     private function createMovement(CashRegisterSession $session, string $type, ?string $method, array $data, ?User $operator): CashRegisterMovement
     {
         $resolved = $this->resolveAmount($data);

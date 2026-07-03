@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-03 - Reembolso financiero de garantias
+
+### Implementado
+
+- Se agregaron campos de reembolso en `warranty_claims`.
+- `PATCH /api/warranty-claims/{warrantyClaim}/resolve` ahora soporta `resolution_type = refund`.
+- El reembolso puede salir por caja abierta con movimiento `cash_register_movements.type = outflow`.
+- El reembolso puede aplicarse contra saldo pendiente creando un `FinancialAdjustment` sobre `AccountsReceivable`.
+- Se evita doble efecto financiero: no se permite caja y rebaja de saldo en la misma resolucion.
+- Se guarda snapshot de moneda, monto, tasa, metodo, referencia y monto base/local del reembolso.
+- Si el producto serializado se reembolsa, el IMEI recibido por garantia queda `damaged`.
+- Se documento la API, arquitectura, mapa modular y datos demo.
+
+### Pruebas
+
+- Se ejecutaron pruebas especificas en PostgreSQL con `docker compose run --rm app_test php artisan test tests/Feature/Warranties/WarrantyPolicyApiTest.php`: 16 pruebas pasadas, 92 aserciones.
+- Suite completa: `docker compose run --rm app_test php artisan test` (190 pruebas, 922 aserciones).
+
+### Notas de seguridad
+
+- El caso debe estar aprobado con `resolution_type = refund`.
+- El monto base del reembolso no puede superar el monto vendido para el item.
+- Una garantia solo puede resolverse una vez.
+
 ## 2026-07-03 - Resoluciones de garantia por reemplazo y rechazo
 
 ### Implementado

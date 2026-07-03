@@ -3,7 +3,10 @@
 namespace App\Modules\Warranties\Models;
 
 use App\Models\User;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
@@ -30,6 +33,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'diagnosis',
     'resolution_type',
     'resolution_notes',
+    'refund_currency',
+    'refund_amount',
+    'refund_exchange_rate_type_id',
+    'refund_exchange_rate_type_code',
+    'refund_exchange_rate',
+    'refund_amount_base',
+    'refund_amount_local',
+    'refund_method',
+    'refund_reference',
+    'refund_cash_register_movement_id',
+    'refund_financial_adjustment_id',
     'replacement_stock_movement_id',
     'received_by',
     'reviewed_by',
@@ -61,6 +75,10 @@ class WarrantyClaim extends Model
     {
         return [
             'quantity' => 'decimal:4',
+            'refund_amount' => 'decimal:4',
+            'refund_exchange_rate' => 'decimal:6',
+            'refund_amount_base' => 'decimal:4',
+            'refund_amount_local' => 'decimal:4',
             'received_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'delivered_at' => 'datetime',
@@ -101,6 +119,21 @@ class WarrantyClaim extends Model
     public function replacementStockMovement(): BelongsTo
     {
         return $this->belongsTo(StockMovement::class, 'replacement_stock_movement_id');
+    }
+
+    public function refundExchangeRateType(): BelongsTo
+    {
+        return $this->belongsTo(ExchangeRateType::class, 'refund_exchange_rate_type_id');
+    }
+
+    public function refundCashRegisterMovement(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterMovement::class, 'refund_cash_register_movement_id');
+    }
+
+    public function refundFinancialAdjustment(): BelongsTo
+    {
+        return $this->belongsTo(FinancialAdjustment::class, 'refund_financial_adjustment_id');
     }
 
     public function receiver(): BelongsTo

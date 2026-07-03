@@ -3,10 +3,16 @@
 namespace App\Modules\Warranties\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
+use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -25,6 +31,8 @@ class WarrantyClaimService
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly InventoryMovementService $inventory,
+        private readonly CashRegisterService $cashRegister,
+        private readonly FinancialAdjustmentService $financialAdjustments,
     )
     {
     }
@@ -155,6 +163,7 @@ class WarrantyClaimService
 
             return match ($data['resolution_type']) {
                 WarrantyClaim::RESOLUTION_REPLACEMENT => $this->resolveReplacement($claim, $user, $data),
+                WarrantyClaim::RESOLUTION_REFUND => $this->resolveRefund($claim, $user, $data),
                 WarrantyClaim::RESOLUTION_REJECTED => $this->resolveRejection($claim, $user, $data['resolution_notes'] ?? null),
                 default => throw ValidationException::withMessages([
                     'resolution_type' => 'Tipo de resolucion no soportado en esta fase.',
@@ -172,6 +181,8 @@ class WarrantyClaimService
             'productUnit',
             'replacementProductUnit',
             'replacementStockMovement',
+            'refundCashRegisterMovement',
+            'refundFinancialAdjustment',
             'receiver',
             'reviewer',
             'deliverer',
@@ -243,6 +254,115 @@ class WarrantyClaimService
             'resolution_type' => $claim->resolution_type,
             'replacement_product_unit_id' => $claim->replacement_product_unit_id,
             'replacement_stock_movement_id' => $claim->replacement_stock_movement_id,
+        ]);
+
+        return $claim;
+    }
+
+    private function resolveRefund(WarrantyClaim $claim, User $user, array $data): WarrantyClaim
+    {
+        if ($claim->status !== WarrantyClaim::STATUS_APPROVED || $claim->resolution_type !== WarrantyClaim::RESOLUTION_REFUND) {
+            throw ValidationException::withMessages([
+                'status' => 'El caso debe estar aprobado con resolucion de reembolso.',
+            ]);
+        }
+
+        $this->assertRefundData($data);
+
+        $movement = null;
+        $adjustment = null;
+        $amounts = null;
+
+        if (! empty($data['refund_cash_register_session_id'])) {
+            $session = CashRegisterSession::query()->findOrFail($data['refund_cash_register_session_id']);
+            $movement = $this->cashRegister->recordWarrantyRefund($session, [
+                'currency' => $data['refund_currency'],
+                'amount' => $data['refund_amount'],
+                'method' => $data['refund_method'],
+                'exchange_rate_type_id' => $data['refund_exchange_rate_type_id'] ?? null,
+                'source_type' => WarrantyClaim::class,
+                'source_id' => $claim->id,
+                'reference' => $data['refund_reference'] ?? "GARANTIA-{$claim->id}",
+                'notes' => $data['resolution_notes'] ?? "Reembolso garantia #{$claim->id}",
+            ], $user);
+            $amounts = [
+                'exchange_rate_type_id' => $movement->exchange_rate_type_id,
+                'exchange_rate_type_code' => $movement->exchange_rate_type_code,
+                'exchange_rate' => $movement->exchange_rate === null ? null : (float) $movement->exchange_rate,
+                'amount_base' => (float) $movement->amount_base,
+                'amount_local' => $movement->amount_local === null ? 0.0 : (float) $movement->amount_local,
+            ];
+        } else {
+            $account = AccountsReceivable::query()
+                ->where('sale_id', $claim->sale_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $account) {
+                throw ValidationException::withMessages([
+                    'apply_to_receivable_balance' => 'La venta no tiene cuenta por cobrar para ajustar.',
+                ]);
+            }
+
+            $adjustment = $this->financialAdjustments->create($user, [
+                'account_type' => FinancialAdjustment::ACCOUNT_RECEIVABLE,
+                'account_id' => $account->id,
+                'currency' => $data['refund_currency'],
+                'amount' => $data['refund_amount'],
+                'exchange_rate_type_id' => $data['refund_exchange_rate_type_id'] ?? null,
+                'exchange_rate' => isset($data['refund_exchange_rate']) ? (float) $data['refund_exchange_rate'] : null,
+                'reason' => "Reembolso garantia #{$claim->id}",
+                'notes' => $data['resolution_notes'] ?? 'Reembolso aplicado al saldo pendiente por garantia.',
+            ]);
+            $amounts = [
+                'exchange_rate_type_id' => $adjustment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $adjustment->exchange_rate_type_code,
+                'exchange_rate' => $adjustment->exchange_rate === null ? null : (float) $adjustment->exchange_rate,
+                'amount_base' => (float) $adjustment->amount_base,
+                'amount_local' => (float) $adjustment->amount_local,
+            ];
+        }
+
+        $this->assertRefundAmountWithinSaleItem($claim, $amounts['amount_base']);
+
+        if ($claim->productUnit) {
+            $claim->productUnit->update(['status' => ProductUnit::STATUS_DAMAGED]);
+        }
+
+        $oldValues = [
+            'status' => $claim->status,
+            'refund_cash_register_movement_id' => $claim->refund_cash_register_movement_id,
+            'refund_financial_adjustment_id' => $claim->refund_financial_adjustment_id,
+        ];
+
+        $claim->update([
+            'status' => WarrantyClaim::STATUS_CLOSED,
+            'refund_currency' => $data['refund_currency'],
+            'refund_amount' => $data['refund_amount'],
+            'refund_exchange_rate_type_id' => $amounts['exchange_rate_type_id'],
+            'refund_exchange_rate_type_code' => $amounts['exchange_rate_type_code'],
+            'refund_exchange_rate' => $amounts['exchange_rate'],
+            'refund_amount_base' => $amounts['amount_base'],
+            'refund_amount_local' => $amounts['amount_local'],
+            'refund_method' => $data['refund_method'] ?? null,
+            'refund_reference' => $data['refund_reference'] ?? null,
+            'refund_cash_register_movement_id' => $movement?->id,
+            'refund_financial_adjustment_id' => $adjustment?->id,
+            'resolution_notes' => $data['resolution_notes'] ?? $claim->resolution_notes,
+            'resolved_by' => $user->id,
+            'resolved_at' => now(),
+            'delivered_by' => $user->id,
+            'delivered_at' => now(),
+        ]);
+
+        $claim = $this->loadClaim($claim);
+
+        $this->audit->record('warranty.claim.resolved', $claim, $user, $oldValues, [
+            'status' => $claim->status,
+            'resolution_type' => $claim->resolution_type,
+            'refund_amount_base' => $claim->refund_amount_base === null ? null : (float) $claim->refund_amount_base,
+            'refund_cash_register_movement_id' => $claim->refund_cash_register_movement_id,
+            'refund_financial_adjustment_id' => $claim->refund_financial_adjustment_id,
         ]);
 
         return $claim;
@@ -335,6 +455,49 @@ class WarrantyClaimService
         if (! isset($data['replacement_warehouse_id'])) {
             throw ValidationException::withMessages([
                 'replacement_warehouse_id' => 'El reemplazo por cantidad requiere almacen de salida.',
+            ]);
+        }
+    }
+
+    private function assertRefundData(array $data): void
+    {
+        foreach (['refund_currency', 'refund_amount'] as $field) {
+            if (! isset($data[$field])) {
+                throw ValidationException::withMessages([
+                    $field => 'El reembolso requiere moneda y monto.',
+                ]);
+            }
+        }
+
+        $cashRegisterSessionId = $data['refund_cash_register_session_id'] ?? null;
+        $applyToReceivable = (bool) ($data['apply_to_receivable_balance'] ?? false);
+
+        if ($cashRegisterSessionId && $applyToReceivable) {
+            throw ValidationException::withMessages([
+                'refund_cash_register_session_id' => 'El reembolso no puede salir de caja y rebajar saldo al mismo tiempo.',
+            ]);
+        }
+
+        if (! $cashRegisterSessionId && ! $applyToReceivable) {
+            throw ValidationException::withMessages([
+                'refund_cash_register_session_id' => 'Indique una caja abierta o aplique el reembolso al saldo pendiente.',
+            ]);
+        }
+
+        if ($cashRegisterSessionId && ! isset($data['refund_method'])) {
+            throw ValidationException::withMessages([
+                'refund_method' => 'El reembolso por caja requiere metodo de pago.',
+            ]);
+        }
+    }
+
+    private function assertRefundAmountWithinSaleItem(WarrantyClaim $claim, float $amountBase): void
+    {
+        $maxRefundBase = round((float) $claim->saleItem->base_unit_price * (float) $claim->quantity, 4);
+
+        if ($amountBase > $maxRefundBase) {
+            throw ValidationException::withMessages([
+                'refund_amount' => 'El reembolso supera el monto vendido para este item.',
             ]);
         }
     }

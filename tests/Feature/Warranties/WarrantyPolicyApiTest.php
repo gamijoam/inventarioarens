@@ -3,8 +3,12 @@
 namespace Tests\Feature\Warranties;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -584,6 +588,126 @@ class WarrantyPolicyApiTest extends TestCase
             ->assertJsonValidationErrors(['replacement_product_unit_id']);
     }
 
+    public function test_user_can_resolve_warranty_refund_with_cash_register_outflow(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $claim = $this->approvedRefundClaim($tenant, $user, $saleItem);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REFUND,
+                'refund_currency' => Product::CURRENCY_USD,
+                'refund_amount' => 100,
+                'refund_method' => CashRegisterMovement::METHOD_CASH,
+                'refund_cash_register_session_id' => $session->id,
+                'refund_reference' => 'REF-GAR-001',
+                'resolution_notes' => 'Reembolso en efectivo por garantia.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', WarrantyClaim::STATUS_CLOSED)
+            ->assertJsonPath('data.refund_amount_base', 100)
+            ->assertJsonPath('data.refund_method', CashRegisterMovement::METHOD_CASH);
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_OUTFLOW,
+            'method' => CashRegisterMovement::METHOD_CASH,
+            'source_type' => WarrantyClaim::class,
+            'source_id' => $claim['id'],
+            'amount_base' => '100.0000',
+        ]);
+    }
+
+    public function test_user_can_resolve_warranty_refund_against_pending_receivable_balance(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product);
+        $claim = $this->approvedRefundClaim($tenant, $user, $saleItem);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REFUND,
+                'refund_currency' => Product::CURRENCY_USD,
+                'refund_amount' => 100,
+                'apply_to_receivable_balance' => true,
+                'resolution_notes' => 'Reembolso aplicado al saldo pendiente.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', WarrantyClaim::STATUS_CLOSED)
+            ->assertJsonPath('data.refund_amount_base', 100);
+
+        $this->assertDatabaseHas('financial_adjustments', [
+            'tenant_id' => $tenant->id,
+            'account_type' => FinancialAdjustment::ACCOUNT_RECEIVABLE,
+            'amount_base' => '100.0000',
+            'reason' => "Reembolso garantia #{$claim['id']}",
+        ]);
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $saleItem->sale_id,
+            'status' => AccountsReceivable::STATUS_PAID,
+            'adjusted_base_amount' => '100.0000',
+            'balance_base_amount' => '0.0000',
+        ]);
+    }
+
+    public function test_warranty_refund_rejects_double_financial_effect(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $policy = $this->policy($tenant, 'Android 30 dias', 30);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, $policy);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Warranty Manager', [
+            'sales.create',
+            'warranties.create',
+            'warranties.review',
+            'warranties.resolve',
+        ]);
+        $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+        $claim = $this->approvedRefundClaim($tenant, $user, $saleItem);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/resolve", [
+                'resolution_type' => WarrantyClaim::RESOLUTION_REFUND,
+                'refund_currency' => Product::CURRENCY_USD,
+                'refund_amount' => 100,
+                'refund_method' => CashRegisterMovement::METHOD_CASH,
+                'refund_cash_register_session_id' => $session->id,
+                'apply_to_receivable_balance' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['refund_cash_register_session_id']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -640,6 +764,45 @@ class WarrantyPolicyApiTest extends TestCase
         $sale = app(SaleService::class)->confirm($sale, $user);
 
         return $sale->items()->firstOrFail();
+    }
+
+    private function approvedRefundClaim(Tenant $tenant, User $user, SaleItem $saleItem): array
+    {
+        $claim = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/warranty-claims', [
+                'sale_item_id' => $saleItem->id,
+                'quantity' => 1,
+                'issue_description' => 'Falla cubierta por garantia.',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/warranty-claims/{$claim['id']}/review", [
+                'status' => WarrantyClaim::STATUS_APPROVED,
+                'diagnosis' => 'Falla validada.',
+                'resolution_type' => WarrantyClaim::RESOLUTION_REFUND,
+            ])
+            ->assertOk();
+
+        return $claim;
+    }
+
+    private function cashRegisterSession(Tenant $tenant, User $cashier, int $branchId): CashRegisterSession
+    {
+        $this->useTenant($tenant);
+
+        return CashRegisterSession::create([
+            'branch_id' => $branchId,
+            'cashier_id' => $cashier->id,
+            'opened_by' => $cashier->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opened_at' => now(),
+        ]);
     }
 
     private function userInTenant(Tenant $tenant): User

@@ -829,7 +829,8 @@ Regla importante:
 - los productos serializados recibidos por garantia quedan en `warranty_hold`;
 - resolver con `replacement` entrega un IMEI disponible, lo marca `sold` y genera movimiento `adjustment_out`;
 - resolver con `rejected` cierra el caso y devuelve la unidad original a `sold` si estaba retenida;
-- la devolucion de dinero por garantia queda separada para una fase financiera;
+- resolver con `refund` puede crear salida de caja o ajuste contra saldo pendiente;
+- un reembolso por garantia no puede aplicar caja y rebaja de saldo en la misma accion;
 - las acciones de recibir, revisar y entregar se auditan en `audit_logs`.
 
 ### Audit

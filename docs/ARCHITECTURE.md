@@ -380,7 +380,10 @@ Reglas arquitectonicas:
 - recibir una unidad serializada por garantia cambia su estado a `warranty_hold`;
 - resolver con reemplazo descuenta inventario con movimiento `adjustment_out`, marca el IMEI defectuoso como `damaged` y marca el IMEI entregado como `sold`;
 - resolver con rechazo cierra el caso y devuelve el IMEI original a `sold` si estaba retenido;
-- resolver reembolso queda separado para no mezclar dinero, caja, POS e inventario sin decision explicita.
+- resolver con reembolso guarda snapshot de monto, moneda, tasa y referencia en `warranty_claims`;
+- si el reembolso sale por caja, crea un movimiento `outflow` en `CashRegister`;
+- si el reembolso aplica contra saldo pendiente, crea un `FinancialAdjustment` sobre `AccountsReceivable`;
+- una resolucion de reembolso no puede aplicar caja y ajuste de saldo en la misma accion para evitar doble efecto financiero.
 
 ## Siguiente fase
 

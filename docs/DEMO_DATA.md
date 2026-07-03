@@ -70,7 +70,7 @@ docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 - Venta POS con financiamiento externo pendiente.
 - Venta demo a credito para revisar cuentas por cobrar.
 - Items de venta con snapshot de garantia tomado desde la politica del producto.
-- Casos demo de garantia recibidos, uno por empresa, para revisar `warranty_claims` y probar manualmente revision/resolucion.
+- Casos demo de garantia recibidos, uno por empresa, para revisar `warranty_claims` y probar manualmente revision, reemplazo, rechazo o reembolso.
 - Cuentas por cobrar demo generadas desde ventas confirmadas.
 - Abonos demo de clientes que dejan cuentas por cobrar en estado parcial.
 - Comprobantes demo emitidos automaticamente para cobros de clientes y pagos a proveedores.
