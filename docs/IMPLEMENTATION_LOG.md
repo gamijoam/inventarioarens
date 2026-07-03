@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-03 - Auditoria de producto creado no visible en Centro de Inventario
+
+### Diagnostico
+
+- Se verifico en PostgreSQL que el producto creado desde frontend (`PRUEBA`, SKU `pru`) existe, esta activo y pertenece a `Demo Caracas`.
+- Se verifico por API real que `GET /api/inventory-center/summary?search=pru&stock_status=all` devuelve el producto con stock `0` y estado `out`.
+- El problema no era de persistencia ni de tenant; el producto quedaba oculto cuando la pantalla conservaba filtros previos como `Disponibles`, tipo de control o busqueda/paginacion.
+
+### Implementado
+
+- Al crear un producto desde el Centro de Inventario, el frontend ahora limpia filtros de stock y tipo, vuelve a la pagina 1 y coloca el SKU creado en el buscador.
+- Esto fuerza a que el listado muestre inmediatamente el producto recien creado, aunque no tenga stock inicial.
+- Al editar productos existentes se conservan filtros y pagina actual.
+
+### Pruebas
+
+- Se agrego prueba para confirmar que el Centro de Inventario muestra productos activos nuevos sin stock con estado `out`.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php tests/Feature/Products/ProductApiTest.php`: 17 pruebas pasadas, 94 aserciones.
+- Se compilo el frontend con `pnpm run build` correctamente.
+- Se verifico la API real local buscando `pru`, devolviendo el producto `PRUEBA`.
+
 ## 2026-07-03 - Correccion de envio JSON en login con tenant
 
 ### Implementado

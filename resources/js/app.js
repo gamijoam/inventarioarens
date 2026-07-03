@@ -941,20 +941,49 @@ async function saveProductForm() {
     setProductFormMessage(productId ? 'Guardando cambios...' : 'Creando producto...');
 
     try {
-        await authenticatedApi(path, state.session, {
+        const savedProduct = await authenticatedApi(path, state.session, {
             method,
             body: JSON.stringify(productFormPayload()),
         });
 
         closeProductForm();
-        state.inventoryPage = productId ? state.inventoryPage : 1;
+        focusInventoryOnSavedProduct(savedProduct, Boolean(productId));
         await loadInventoryCenter(state.session);
-        setInventoryStatus(productId ? 'Producto actualizado correctamente.' : 'Producto creado correctamente.', 'success');
+        setInventoryStatus(
+            productId ? 'Producto actualizado correctamente.' : 'Producto creado correctamente. Mostrando el producto creado.',
+            'success',
+        );
     } catch (error) {
         setProductFormMessage(error.message, 'error');
     } finally {
         setProductFormBusy(false);
     }
+}
+
+function focusInventoryOnSavedProduct(product, isEditing) {
+    if (isEditing) {
+        return;
+    }
+
+    state.inventoryPage = 1;
+    state.inventoryFilter = 'all';
+    state.inventoryTrackingType = 'all';
+
+    if (elements.inventorySearch) {
+        elements.inventorySearch.value = product.sku ?? product.name ?? '';
+    }
+
+    syncInventoryFilterControls();
+}
+
+function syncInventoryFilterControls() {
+    elements.inventoryFilters.forEach((filter) => {
+        filter.classList.toggle('is-active', filter.dataset.inventoryFilter === state.inventoryFilter);
+    });
+
+    elements.inventoryTrackingFilters.forEach((filter) => {
+        filter.classList.toggle('is-active', filter.dataset.inventoryTracking === state.inventoryTrackingType);
+    });
 }
 
 function setProductFormBusy(isBusy) {

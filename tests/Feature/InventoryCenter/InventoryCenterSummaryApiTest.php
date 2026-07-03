@@ -88,6 +88,34 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.products.0.name', 'Samsung A06');
     }
 
+    public function test_inventory_center_shows_new_active_product_without_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        Product::create([
+            'name' => 'Producto Recien Creado',
+            'sku' => 'NUEVO-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?search=NUEVO-001&stock_status=all')
+            ->assertOk()
+            ->assertJsonPath('data.metrics.total_products', 1)
+            ->assertJsonPath('data.metrics.without_stock_count', 1)
+            ->assertJsonPath('data.products.0.name', 'Producto Recien Creado')
+            ->assertJsonPath('data.products.0.sku', 'NUEVO-001')
+            ->assertJsonPath('data.products.0.stock.available', 0)
+            ->assertJsonPath('data.products.0.stock.status', 'out');
+    }
+
     public function test_inventory_center_does_not_mix_companies(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
