@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-03 - Auditoria del flujo login WPF a shell
+
+### Implementado
+
+- Se elimino el boton secundario `Buscar empresas` para dejar un solo flujo de ingreso.
+- El boton `Ingresar` queda encargado de buscar empresas cuando sea necesario y de iniciar sesion cuando ya exista empresa seleccionada.
+- Se dejo de cerrar la ventana de login inmediatamente despues de autenticar; ahora se oculta y permanece viva mientras se abre el panel principal.
+- Se agrego manejo de error visible si `ShellWindow` no puede abrirse, evitando cierres silenciosos.
+- Se mantiene el apagado explicito de la aplicacion solo al cerrar el panel principal.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Cierre explicito de la aplicacion WPF
 
 ### Implementado
