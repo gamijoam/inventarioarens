@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Ajustes UX de cliente y cobro POS
+
+### Implementado
+
+- Se reorganizó el bloque `Orden actual` para separar el resumen del carrito, el cliente de la venta y las acciones disponibles.
+- Se cambió `Limpiar` por `Limpiar carrito` para dejar claro que borra la orden completa.
+- Se cambió `Cliente` por `Buscar cliente` y `Mostrador` por `Venta mostrador`.
+- Se cambió `Usar faltante` por `Completar saldo` en la ventana de cobro.
+- Se cambió `Limpiar` por `Borrar monto` dentro del formulario de nuevo pago.
+- Se cambió `Quitar seleccionado` por `Eliminar pago`.
+- Se agregó vista previa automática al escribir el monto recibido: pagado estimado, faltante estimado y vuelto estimado.
+- La vista previa distingue pagos capturados de pagos pendientes para evitar confusión antes de confirmar.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas
+
+- No se cambió lógica de negocio del backend.
+- El servidor seguirá validando caja, stock, seriales, moneda, método de pago y referencia al confirmar la venta.
+
 ## 2026-07-04 - Cliente en POS de escritorio
 
 ### Implementado

@@ -90,6 +90,12 @@ public partial class PosPaymentWindow : Window
     private void CurrencyBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateFormHelp();
+        UpdatePaymentPreview();
+    }
+
+    private void PaymentStatusBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdatePaymentPreview();
     }
 
     private void RefreshCurrencyOptions()
@@ -115,6 +121,7 @@ public partial class PosPaymentWindow : Window
         ReferenceLabel.Text = method.RequiresReference ? "Referencia (obligatoria)" : "Referencia";
         ReferenceBox.Text = string.Empty;
         UpdateFormHelp();
+        UpdatePaymentPreview();
     }
 
     private void UpdateFormHelp()
@@ -155,6 +162,7 @@ public partial class PosPaymentWindow : Window
         AmountBox.Text = suggested.ToString("0.00", CultureInfo.InvariantCulture);
         AmountBox.Focus();
         AmountBox.SelectAll();
+        UpdatePaymentPreview();
     }
 
     private void ClearPaymentForm_Click(object sender, RoutedEventArgs e)
@@ -163,6 +171,7 @@ public partial class PosPaymentWindow : Window
         ReferenceBox.Text = string.Empty;
         ClearError();
         AmountBox.Focus();
+        UpdatePaymentPreview();
     }
 
     private void AddPayment()
@@ -212,6 +221,7 @@ public partial class PosPaymentWindow : Window
         ReferenceBox.Text = string.Empty;
         PaymentStatusBox.SelectedIndex = 0;
         UpdateTotals();
+        UpdatePaymentPreview();
         AmountBox.Focus();
     }
 
@@ -221,6 +231,7 @@ public partial class PosPaymentWindow : Window
         {
             payments.Remove(line);
             UpdateTotals();
+            UpdatePaymentPreview();
         }
     }
 
@@ -309,6 +320,11 @@ public partial class PosPaymentWindow : Window
         }
     }
 
+    private void AmountBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdatePaymentPreview();
+    }
+
     private void ReferenceBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
@@ -366,6 +382,42 @@ public partial class PosPaymentWindow : Window
         return Math.Max(0, viewModel.TotalUsd - CapturedBaseUsd());
     }
 
+    private void UpdatePaymentPreview()
+    {
+        if (PaymentPreviewText is null)
+        {
+            return;
+        }
+
+        if (!TryReadAmount(out decimal amount))
+        {
+            PaymentPreviewText.Text = "Escribe el monto recibido o usa Completar saldo.";
+            return;
+        }
+
+        string currency = CurrencyBox.SelectedItem as string ?? "USD";
+        bool isCaptured = PaymentStatusBox.SelectedItem is not PaymentStatusChoice status
+            || status.Code.Equals("captured", StringComparison.OrdinalIgnoreCase);
+
+        if (!isCaptured)
+        {
+            PaymentPreviewText.Text = "Al agregarlo como pendiente, quedará registrado pero no cerrará la venta.";
+            return;
+        }
+
+        decimal? baseUsd = EstimateBaseUsd(currency, amount);
+        if (baseUsd is null)
+        {
+            PaymentPreviewText.Text = "Al agregarlo, el servidor validará la conversión porque no hay tasa local suficiente.";
+            return;
+        }
+
+        decimal projectedPaid = CapturedBaseUsd() + baseUsd.Value;
+        decimal projectedRemaining = Math.Max(0, viewModel.TotalUsd - projectedPaid);
+        decimal projectedChange = Math.Max(0, projectedPaid - viewModel.TotalUsd);
+        PaymentPreviewText.Text = $"Al agregar: pagado USD {projectedPaid:0.00} - faltante USD {projectedRemaining:0.00} - vuelto USD {projectedChange:0.00}.";
+    }
+
     private void UpdateTotals()
     {
         decimal knownPaid = CapturedBaseUsd();
@@ -388,6 +440,7 @@ public partial class PosPaymentWindow : Window
         ChangeText.Text = hasUnknownBaseAmount
             ? "Por validar"
             : $"USD {change:0.00}";
+        UpdatePaymentPreview();
     }
 
     private void SetError(string message)

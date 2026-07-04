@@ -57,7 +57,10 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Un método `flexible` permite escoger USD o bolívares.
 - Si el método exige referencia, la ventana bloquea el pago sin referencia.
 - La ventana permite agregar varios pagos antes de confirmar.
-- El botón `Usar faltante` completa el monto pendiente según la moneda seleccionada.
+- El botón `Completar saldo` coloca el monto faltante según la moneda seleccionada.
+- Al escribir el monto recibido, la ventana muestra una vista previa inmediata de pagado, faltante y vuelto estimado.
+- El botón `Borrar monto` limpia solo el monto y la referencia del pago que se está preparando.
+- El botón `Eliminar pago` elimina el pago seleccionado en la tabla de pagos agregados.
 - Cada pago puede marcarse como capturado o pendiente.
 - Los pagos capturados cuentan para cerrar la venta.
 - Los pagos pendientes permiten registrar una orden abierta sin cerrar la venta.
@@ -69,12 +72,12 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 ## Cliente en POS
 
 - El POS usa `Cliente mostrador` por defecto para ventas rápidas.
-- El botón `Cliente` abre una ventana de búsqueda.
+- El botón `Buscar cliente` abre una ventana de búsqueda.
 - La búsqueda consulta `GET /api/customers?search={texto}&active_only=1&limit=20`.
 - Se puede buscar por nombre, cédula/RIF, teléfono o correo.
 - Al seleccionar un cliente, el POS muestra nombre y documento en la orden actual.
 - Al confirmar checkout, WPF envía `customer_id` y `customer_name`.
-- El botón `Mostrador` limpia el cliente seleccionado y vuelve a venta rápida.
+- El botón `Venta mostrador` limpia el cliente seleccionado y vuelve a venta rápida sin cliente registrado.
 
 ## Productos serializados / IMEI
 

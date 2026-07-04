@@ -105,20 +105,28 @@
                                  Margin="0,6,0,0"
                                  FontSize="15"
                                  PreviewTextInput="DecimalInput_PreviewTextInput"
+                                 TextChanged="AmountBox_TextChanged"
                                  KeyDown="AmountBox_KeyDown" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Usar faltante"
-                                    Width="120"
+                            <Button Content="Completar saldo"
+                                    Width="132"
                                     Height="30"
                                     FontWeight="Black"
                                     Click="UseRemaining_Click" />
-                            <Button Content="Limpiar"
-                                    Width="86"
+                            <Button Content="Borrar monto"
+                                    Width="98"
                                     Height="30"
                                     Margin="8,0,0,0"
                                     FontWeight="Black"
                                     Click="ClearPaymentForm_Click" />
                         </StackPanel>
+                        <TextBlock x:Name="PaymentPreviewText"
+                                   Text="Escribe el monto recibido o usa Completar saldo."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="4" Margin="0,14,0,0">
@@ -135,7 +143,8 @@
                         <ComboBox x:Name="PaymentStatusBox"
                                   Height="40"
                                   Margin="0,6,0,0"
-                                  DisplayMemberPath="Label" />
+                                  DisplayMemberPath="Label"
+                                  SelectionChanged="PaymentStatusBox_SelectionChanged" />
                     </StackPanel>
 
                     <Button Grid.Row="6"
@@ -175,8 +184,8 @@
                                        FontWeight="SemiBold"
                                        Margin="0,4,0,0" />
                         </StackPanel>
-                        <Button Content="Quitar seleccionado"
-                                Width="150"
+                        <Button Content="Eliminar pago"
+                                Width="128"
                                 Height="34"
                                 HorizontalAlignment="Right"
                                 FontWeight="Black"
