@@ -46,6 +46,26 @@
 
 - La pantalla no escribe directo en base de datos; delega las reglas de negocio, permisos y tenant al backend Laravel.
 
+## 2026-07-04 - Corrección de recurso visual en navegación WPF
+
+### Implementado
+
+- Se corrigió la navegación entre `Centro de Inventario` y `Entradas y salidas`.
+- Se eliminó el uso del recurso inexistente `AccentSoftBrush`.
+- Se reemplazó el cambio de estado visual de los botones por colores explícitos y seguros.
+- Se evita la excepción `ResourceReferenceKeyNotFoundException` y el cast inválido al alternar secciones.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 8 pruebas pasaron, 60 aserciones.
+
+### Notas de seguridad
+
+- El cambio es visual y de navegación; no modifica reglas de inventario ni endpoints backend.
+
 ## 2026-07-04 - Kardex por producto en WPF
 
 ### Implementado

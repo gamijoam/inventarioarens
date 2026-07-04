@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using System.Windows.Media;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.InventoryCenter;
 
@@ -39,10 +40,8 @@ public partial class ShellView : UserControl
         SectionSubtitle.Text = "Datos reales desde el servidor";
         InventoryCenterContent.Visibility = System.Windows.Visibility.Visible;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
-        InventoryCenterButton.Background = (System.Windows.Media.Brush)FindResource("AccentSoftBrush");
-        InventoryCenterButton.Foreground = (System.Windows.Media.Brush)FindResource("AccentStrongBrush");
-        InventoryMovementsButton.ClearValue(BackgroundProperty);
-        InventoryMovementsButton.ClearValue(ForegroundProperty);
+        SetActiveButton(InventoryCenterButton);
+        SetInactiveButton(InventoryMovementsButton);
     }
 
     private void ShowInventoryMovements()
@@ -51,9 +50,23 @@ public partial class ShellView : UserControl
         SectionSubtitle.Text = "Registra movimientos reales de stock por producto";
         InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Visible;
-        InventoryMovementsButton.Background = (System.Windows.Media.Brush)FindResource("AccentSoftBrush");
-        InventoryMovementsButton.Foreground = (System.Windows.Media.Brush)FindResource("AccentStrongBrush");
-        InventoryCenterButton.ClearValue(BackgroundProperty);
-        InventoryCenterButton.ClearValue(ForegroundProperty);
+        SetActiveButton(InventoryMovementsButton);
+        SetInactiveButton(InventoryCenterButton);
+    }
+
+    private static void SetActiveButton(Button button)
+    {
+        button.Background = new SolidColorBrush(Color.FromRgb(238, 240, 255));
+        button.Foreground = new SolidColorBrush(Color.FromRgb(53, 36, 223));
+        button.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 228, 255));
+        button.FontWeight = System.Windows.FontWeights.Black;
+    }
+
+    private static void SetInactiveButton(Button button)
+    {
+        button.Background = new SolidColorBrush(Colors.Transparent);
+        button.Foreground = new SolidColorBrush(Color.FromRgb(16, 23, 47));
+        button.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 228, 242));
+        button.FontWeight = System.Windows.FontWeights.Bold;
     }
 }
