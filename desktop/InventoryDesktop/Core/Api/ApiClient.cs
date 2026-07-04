@@ -76,6 +76,21 @@ public sealed class ApiClient
         return await ReadResponseAsync<TResponse>(response, cancellationToken);
     }
 
+    public async Task<byte[]> GetBytesAsync(string path, CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, path);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
+            string message = TryReadApiMessage(content) ?? $"Solicitud rechazada por el servidor: {(int)response.StatusCode}.";
+            throw new ApiException(message, response.StatusCode, content);
+        }
+
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
         HttpRequestMessage request = new(method, BuildUri(path));

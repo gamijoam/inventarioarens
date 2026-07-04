@@ -10,6 +10,7 @@ use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\Products\Models\Product;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 
@@ -19,6 +20,16 @@ class InventoryCenterController extends Controller
     {
         return response()->json([
             'data' => $service->summary($request->validated()),
+        ]);
+    }
+
+    public function export(InventoryCenterSummaryRequest $request, InventoryCenterSummaryService $service): Response
+    {
+        $filename = 'inventario_'.now()->format('Ymd_His').'.csv';
+
+        return response($service->exportCsv($request->validated()), 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 

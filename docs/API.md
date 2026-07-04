@@ -195,7 +195,7 @@ GET /api/inventory-center/summary
 Permiso requerido:
 
 ```txt
-products.view
+products.view o inventory.view
 ```
 
 Query params:
@@ -286,6 +286,48 @@ Reglas:
 - devuelve metadatos de paginacion para navegar inventarios grandes;
 - permite filtrar productos por `tracking_type`, para separar serializados de productos por cantidad;
 - respeta tenant y no mezcla productos ni saldos entre empresas.
+
+### Exportación del centro de inventario
+
+```txt
+GET /api/inventory-center/export
+```
+
+Permiso requerido:
+
+```txt
+products.view o inventory.view
+```
+
+Query params:
+
+```txt
+search=Samsung
+tracking_type=quantity|serialized
+stock_status=all|available|low|out
+low_stock_threshold=3
+```
+
+Respuesta:
+
+```txt
+text/csv; charset=UTF-8
+```
+
+Columnas del CSV:
+
+```txt
+Producto;SKU;Tipo de control;Moneda;Precio base;Disponible;Reservado;Dañado;Estado de stock
+```
+
+Reglas:
+
+- requiere `api.auth` y `tenant`;
+- usa los mismos filtros del resumen del Centro de Inventario;
+- exporta productos activos del tenant actual;
+- no pagina el resultado porque genera un archivo de trabajo;
+- usa separador `;` para facilitar apertura en hojas de cálculo en español;
+- no modifica datos ni genera movimientos de inventario.
 
 ### Detalle de producto en Centro de Inventario
 

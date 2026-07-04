@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Exportación CSV del Centro de Inventario
+
+### Implementado
+
+- Se agregó `GET /api/inventory-center/export` para exportar inventario filtrado en CSV.
+- La exportación reutiliza los filtros del resumen: búsqueda, tipo de control, estado de stock y umbral de stock bajo.
+- El CSV incluye producto, SKU, tipo de control, moneda, precio base, disponible, reservado, dañado y estado de stock.
+- Se agregó el botón `Exportar CSV` en la cabecera WPF del Centro de Inventario.
+- La app de escritorio permite elegir ubicación local y muestra errores de API o guardado en español.
+- Se actualizó la documentación de API y el README del módulo.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=exports_filtered_inventory_as_csv`.
+- Resultado: 1 prueba pasó, 6 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 15 pruebas pasaron, 117 assertions.
+
+### Notas de seguridad
+
+- La exportación requiere token, tenant y permiso `products.view` o `inventory.view`.
+- No modifica datos ni genera movimientos de inventario.
+
 ## 2026-07-04 - Alertas operativas en ventana WPF
 
 ### Implementado

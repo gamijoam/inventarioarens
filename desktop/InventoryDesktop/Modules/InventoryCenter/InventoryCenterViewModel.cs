@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Net.Http;
 using System.Windows.Media;
 using InventoryDesktop.Core.Api;
@@ -301,6 +302,47 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         await LoadAsync();
     }
 
+    public async Task ExportCsvAsync(string filePath)
+    {
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Exportando inventario...";
+
+            byte[] csv = await apiClient.GetBytesAsync($"inventory-center/export{BuildExportQuery()}");
+            await File.WriteAllBytesAsync(filePath, csv);
+
+            StatusMessage = $"Inventario exportado en {filePath}.";
+            IsStatusError = false;
+        }
+        catch (ApiException exception)
+        {
+            StatusMessage = exception.Message;
+            IsStatusError = true;
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "No se pudo conectar con la API para exportar el inventario.";
+            IsStatusError = true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            StatusMessage = "No tienes permiso para guardar el archivo en esa ubicación.";
+            IsStatusError = true;
+        }
+        catch (IOException exception)
+        {
+            StatusMessage = $"No se pudo guardar el archivo: {exception.Message}";
+            IsStatusError = true;
+        }
+        finally
+        {
+            IsBusy = false;
+            RaiseEmptyStateChanged();
+        }
+    }
+
     public async Task<InventoryProductDetailData?> LoadProductDetailAsync(InventoryProductItem product)
     {
         SelectedProduct = product;
@@ -384,6 +426,28 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         }
 
         return "?" + string.Join("&", parts);
+    }
+
+    private string BuildExportQuery()
+    {
+        List<string> parts = [];
+
+        if (!string.IsNullOrWhiteSpace(Search))
+        {
+            parts.Add($"search={Uri.EscapeDataString(Search.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(TrackingType))
+        {
+            parts.Add($"tracking_type={Uri.EscapeDataString(TrackingType)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(StockStatus) && StockStatus != "all")
+        {
+            parts.Add($"stock_status={Uri.EscapeDataString(StockStatus)}");
+        }
+
+        return parts.Count == 0 ? "" : "?" + string.Join("&", parts);
     }
 
     private async Task RunAsync(Func<Task> action)

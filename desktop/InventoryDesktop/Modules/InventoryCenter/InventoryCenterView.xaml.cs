@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Microsoft.Win32;
 
 namespace InventoryDesktop.Modules.InventoryCenter;
 
@@ -92,6 +93,30 @@ public partial class InventoryCenterView : UserControl
         window.Show();
         await window.InitializeAsync();
         window.Activate();
+    }
+
+    private async void ExportCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        SaveFileDialog dialog = new()
+        {
+            Title = "Exportar inventario",
+            Filter = "Archivo CSV (*.csv)|*.csv",
+            FileName = $"inventario_{DateTime.Now:yyyyMMdd_HHmm}.csv",
+            AddExtension = true,
+            DefaultExt = ".csv",
+        };
+
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            return;
+        }
+
+        await ViewModel.ExportCsvAsync(dialog.FileName);
     }
 
     private void OpenAlerts_Click(object sender, RoutedEventArgs e)

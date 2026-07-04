@@ -37,6 +37,50 @@ class InventoryCenterSummaryService
         ];
     }
 
+    public function exportCsv(array $filters): string
+    {
+        $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
+        $handle = fopen('php://temp', 'r+');
+
+        fputs($handle, "\xEF\xBB\xBF");
+        fputcsv($handle, [
+            'Producto',
+            'SKU',
+            'Tipo de control',
+            'Moneda',
+            'Precio base',
+            'Disponible',
+            'Reservado',
+            'Dañado',
+            'Estado de stock',
+        ], ';');
+
+        foreach ($this->productRows($filters, $threshold) as $product) {
+            fputcsv($handle, [
+                $product['name'],
+                $product['sku'],
+                $product['tracking_type'] === Product::TRACKING_SERIALIZED ? 'Serializado / IMEI' : 'Por cantidad',
+                $product['sale_currency'],
+                $product['base_price'] ?? '',
+                $product['stock']['available'],
+                $product['stock']['reserved'],
+                $product['stock']['damaged'],
+                match ($product['stock']['status']) {
+                    'available' => 'Disponible',
+                    'low' => 'Stock bajo',
+                    'out' => 'Sin stock',
+                    default => $product['stock']['status'],
+                },
+            ], ';');
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        return $csv === false ? '' : $csv;
+    }
+
     private function metrics(float $threshold): array
     {
         $stock = $this->stockTotals();
@@ -74,6 +118,46 @@ class InventoryCenterSummaryService
 
     private function products(array $filters, float $threshold, int $limit, int $page): array
     {
+        $query = $this->filteredProductsQuery($filters, $threshold);
+
+        $total = (clone $query)->count('products.id');
+        $lastPage = max((int) ceil($total / $limit), 1);
+        $page = min($page, $lastPage);
+
+        $products = $query
+            ->orderBy('products.name')
+            ->forPage($page, $limit)
+            ->limit($limit)
+            ->get()
+            ->map(fn (Product $product): array => $this->productRow($product, $threshold))
+            ->all();
+
+        return [
+            'data' => $products,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'from' => $total === 0 ? 0 : (($page - 1) * $limit) + 1,
+                'to' => min($page * $limit, $total),
+                'has_previous' => $page > 1,
+                'has_next' => $page < $lastPage,
+            ],
+        ];
+    }
+
+    private function productRows(array $filters, float $threshold): array
+    {
+        return $this->filteredProductsQuery($filters, $threshold)
+            ->orderBy('products.name')
+            ->get()
+            ->map(fn (Product $product): array => $this->productRow($product, $threshold))
+            ->all();
+    }
+
+    private function filteredProductsQuery(array $filters, float $threshold): \Illuminate\Database\Eloquent\Builder
+    {
         $query = $this->productStockQuery($this->stockTotals())
             ->select([
                 'products.id',
@@ -109,42 +193,23 @@ class InventoryCenterSummaryService
             default => null,
         };
 
-        $total = (clone $query)->count('products.id');
-        $lastPage = max((int) ceil($total / $limit), 1);
-        $page = min($page, $lastPage);
+        return $query;
+    }
 
-        $products = $query
-            ->orderBy('products.name')
-            ->forPage($page, $limit)
-            ->limit($limit)
-            ->get()
-            ->map(fn (Product $product): array => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'sku' => $product->sku,
-                'tracking_type' => $product->tracking_type,
-                'base_price' => $product->base_price === null ? null : (float) $product->base_price,
-                'sale_currency' => $product->sale_currency,
-                'stock' => [
-                    'available' => $this->roundStock((float) $product->quantity_available),
-                    'reserved' => $this->roundStock((float) $product->quantity_reserved),
-                    'damaged' => $this->roundStock((float) $product->quantity_damaged),
-                    'status' => $this->stockStatus((float) $product->quantity_available, $threshold),
-                ],
-            ])
-            ->all();
-
+    private function productRow(Product $product, float $threshold): array
+    {
         return [
-            'data' => $products,
-            'pagination' => [
-                'page' => $page,
-                'limit' => $limit,
-                'total' => $total,
-                'last_page' => $lastPage,
-                'from' => $total === 0 ? 0 : (($page - 1) * $limit) + 1,
-                'to' => min($page * $limit, $total),
-                'has_previous' => $page > 1,
-                'has_next' => $page < $lastPage,
+            'id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'tracking_type' => $product->tracking_type,
+            'base_price' => $product->base_price === null ? null : (float) $product->base_price,
+            'sale_currency' => $product->sale_currency,
+            'stock' => [
+                'available' => $this->roundStock((float) $product->quantity_available),
+                'reserved' => $this->roundStock((float) $product->quantity_reserved),
+                'damaged' => $this->roundStock((float) $product->quantity_damaged),
+                'status' => $this->stockStatus((float) $product->quantity_available, $threshold),
             ],
         ];
     }

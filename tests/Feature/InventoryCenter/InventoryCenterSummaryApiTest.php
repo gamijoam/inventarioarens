@@ -72,6 +72,28 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonCount(1, 'data.products');
     }
 
+    public function test_inventory_center_exports_filtered_inventory_as_csv(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/inventory-center/export?tracking_type=serialized&stock_status=out');
+
+        $response
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $content = $response->getContent();
+
+        $this->assertStringContainsString('Producto;SKU;"Tipo de control";Moneda;"Precio base";Disponible;Reservado;Dañado;"Estado de stock"', $content);
+        $this->assertStringContainsString('"Xiaomi Serial";IMEI-0;"Serializado / IMEI";USD;90;0;0;0;"Sin stock"', $content);
+        $this->assertStringNotContainsString('Samsung A06', $content);
+    }
+
     public function test_inventory_center_paginates_and_filters_by_tracking_type(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

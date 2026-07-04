@@ -141,6 +141,7 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Content="{Binding AlertsButtonLabel}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" IsEnabled="{Binding HasAlerts}" ToolTip="Abrir alertas operativas en una ventana aparte" Click="OpenAlerts_Click" />
+                    <Button Content="Exportar CSV" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" ToolTip="Exportar inventario con los filtros actuales" Click="ExportCsv_Click" />
                     <Button Content="Actualizar" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" ToolTip="Volver a cargar datos desde el servidor" Click="Refresh_Click" />
                     <Button Content="+ Nuevo producto" Style="{StaticResource PrimaryButtonStyle}" ToolTip="Crear producto" Click="CreateProduct_Click" />
                 </StackPanel>

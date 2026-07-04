@@ -27,11 +27,20 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - La app WPF mantiene las alertas fuera del flujo principal para no quitar espacio al listado.
 - El Centro de Inventario muestra un botón compacto con el conteo de alertas y abre una ventana independiente para revisarlas.
 
+## Exportación de inventario
+
+- El Centro de Inventario permite exportar un CSV desde el backend con los filtros actuales.
+- La exportación usa `GET /api/inventory-center/export`.
+- El archivo incluye producto, SKU, tipo de control, moneda, precio base, disponible, reservado, dañado y estado de stock.
+- La app WPF muestra un selector de ubicación para guardar el archivo localmente.
+- La exportación no modifica datos; solo consulta productos activos del tenant actual.
+
 ## Implementado
 
 - Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.
 - Botón WPF de alertas operativas conectado al campo `alerts` del resumen.
 - Ventana independiente de alertas operativas con conteo, productos afectados y acción recomendada.
+- Botón `Exportar CSV` conectado a `GET /api/inventory-center/export` con los filtros actuales.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.
