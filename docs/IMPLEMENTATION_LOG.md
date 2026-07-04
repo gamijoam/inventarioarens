@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-04 - Centro de módulos después del login
+
+### Implementado
+
+- Se cambió la primera vista del panel de escritorio para mostrar un `Centro de módulos` después del login.
+- Se agregaron tarjetas grandes para abrir POS, Centro de Inventario, Entradas y salidas y Listas de precio.
+- Se dejaron tarjetas preparadas para Caja, Reportes y Configuración como módulos próximos.
+- El menú lateral queda como acceso rápido, pero la entrada inicial ahora es el selector de módulos.
+- El POS vuelve al `Centro de módulos` cuando el usuario usa `Volver al panel`.
+- Se agregó base de permisos en `DesktopSession` con `HasPermission` y `HasAnyPermission`.
+- Las tarjetas y botones principales ya pueden habilitarse o deshabilitarse según permisos.
+- Los módulos no implementados quedan visibles como próximos módulos, pero deshabilitados para evitar confusión operativa.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- La pantalla de módulos solo controla navegación visual.
+- Los permisos reales siguen validándose en backend.
+- Esta base permitirá ocultar o bloquear módulos por rol sin reordenar todo el menú lateral.
+
 ## 2026-07-04 - Ventana de cobro POS en escritorio
 
 ### Implementado

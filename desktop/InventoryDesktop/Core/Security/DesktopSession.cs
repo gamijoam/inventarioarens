@@ -13,4 +13,14 @@ public sealed record DesktopSession(
     public string TenantName => Login.Tenant.Name;
 
     public string TenantSlug => Login.Tenant.Slug;
+
+    public bool HasPermission(string permission)
+    {
+        return Login.Permissions.Contains(permission, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public bool HasAnyPermission(params string[] permissions)
+    {
+        return permissions.Any(HasPermission);
+    }
 }

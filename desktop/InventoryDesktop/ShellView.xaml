@@ -3,6 +3,29 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter"
              xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS">
+    <UserControl.Resources>
+        <Style x:Key="SideMenuButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#DCE4F2" />
+        </Style>
+
+        <Style x:Key="ModuleCardButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="250" />
+            <Setter Property="Height" Value="168" />
+            <Setter Property="Margin" Value="0,0,16,16" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid Background="#F4F7FB">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="280" />
@@ -29,19 +52,22 @@
                               HorizontalScrollBarVisibility="Disabled"
                               Padding="16,0,12,18">
                     <StackPanel>
-                        <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
-                        <Button Content="Resumen" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                        <Button Content="Centro de Ventas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                        <Button x:Name="PosButton" Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="Pos_Click" />
+                        <TextBlock Text="INICIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
+                        <Button x:Name="HomeButton" Content="Centro de módulos" Style="{StaticResource SideMenuButtonStyle}" Click="Home_Click" />
+
+                        <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
+                        <Button Content="Resumen" Style="{StaticResource SideMenuButtonStyle}" IsEnabled="False" />
+                        <Button Content="Centro de Ventas" Style="{StaticResource SideMenuButtonStyle}" IsEnabled="False" />
+                        <Button x:Name="PosButton" Content="POS" Style="{StaticResource SideMenuButtonStyle}" Click="Pos_Click" />
 
                         <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                        <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
-                        <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="InventoryMovements_Click" />
-                        <Button x:Name="PriceListsButton" Content="Listas de precio" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="PriceLists_Click" />
-                        <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Style="{StaticResource SideMenuButtonStyle}" Click="InventoryCenter_Click" />
+                        <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Style="{StaticResource SideMenuButtonStyle}" Click="InventoryMovements_Click" />
+                        <Button x:Name="PriceListsButton" Content="Listas de precio" Style="{StaticResource SideMenuButtonStyle}" Click="PriceLists_Click" />
+                        <Button Content="Kardex" Style="{StaticResource SideMenuButtonStyle}" IsEnabled="False" />
 
                         <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                        <Button Content="Configuración" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <Button Content="Configuración" Style="{StaticResource SideMenuButtonStyle}" IsEnabled="False" />
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
@@ -56,8 +82,8 @@
             <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
                 <Grid Margin="28,0">
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="SectionTitle" Text="Centro de Inventario" FontSize="24" FontWeight="Black" />
-                        <TextBlock x:Name="SectionSubtitle" Text="Datos reales desde el servidor" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,4,0,0" />
+                        <TextBlock x:Name="SectionTitle" Text="Centro de módulos" FontSize="24" FontWeight="Black" />
+                        <TextBlock x:Name="SectionSubtitle" Text="Selecciona el área de trabajo" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,4,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Border Padding="14,9" CornerRadius="10" Background="#F7F9FD" BorderBrush="#E1E7F3" BorderThickness="1">
@@ -68,7 +94,164 @@
             </Border>
 
             <Grid Grid.Row="1">
-                <inventory:InventoryCenterView x:Name="InventoryCenterContent" />
+                <ScrollViewer x:Name="HomeContent" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="28,26,28,28">
+                        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="22">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8">
+                                            <TextBlock Text="INICIO" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                                        </Border>
+                                        <Border Padding="10,5" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding TenantName}" Foreground="#51617F" FontSize="11" FontWeight="Black" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="Centro de módulos" FontSize="30" FontWeight="Black" Margin="0,12,0,0" />
+                                    <TextBlock Text="Elige el módulo que vas a usar. Más adelante estas opciones se mostrarán según los permisos del usuario."
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Content="Actualizar"
+                                        Width="120"
+                                        Height="42"
+                                        VerticalAlignment="Center"
+                                        FontWeight="Black"
+                                        Click="RefreshHome_Click" />
+                            </Grid>
+                        </Border>
+
+                        <WrapPanel Margin="0,22,0,0">
+                            <Button x:Name="HomePosCard" Style="{StaticResource ModuleCardButtonStyle}" Click="Pos_Click">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="{StaticResource AccentBrush}">
+                                            <TextBlock Text="POS" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                                            <TextBlock Text="POS" FontSize="21" FontWeight="Black" />
+                                            <TextBlock Text="Venta rápida, carrito, caja y métodos de pago." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="2" Text="Abrir módulo" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" />
+                                    </Grid>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomeInventoryCard" Style="{StaticResource ModuleCardButtonStyle}" Click="InventoryCenter_Click">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#0EA5A4">
+                                            <TextBlock Text="INV" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                                            <TextBlock Text="Centro de Inventario" FontSize="21" FontWeight="Black" />
+                                            <TextBlock Text="Productos, stock, seriales, precios y detalle." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="2" Text="Abrir módulo" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" />
+                                    </Grid>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomeMovementsCard" Style="{StaticResource ModuleCardButtonStyle}" Click="InventoryMovements_Click">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#2563EB">
+                                            <TextBlock Text="ES" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                                            <TextBlock Text="Entradas y salidas" FontSize="21" FontWeight="Black" />
+                                            <TextBlock Text="Movimientos operativos de productos y seriales." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="2" Text="Abrir módulo" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" />
+                                    </Grid>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomePriceListsCard" Style="{StaticResource ModuleCardButtonStyle}" Click="PriceLists_Click">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#7C3AED">
+                                            <TextBlock Text="$" Foreground="White" FontWeight="Black" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                                            <TextBlock Text="Listas de precio" FontSize="21" FontWeight="Black" />
+                                            <TextBlock Text="Detal, mayor, técnico y reglas de cobro." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="2" Text="Abrir módulo" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" />
+                                    </Grid>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomeCashCard" Style="{StaticResource ModuleCardButtonStyle}" IsEnabled="False">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18" Opacity="0.72">
+                                    <StackPanel>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#F59E0B">
+                                            <TextBlock Text="CJ" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="Caja" FontSize="21" FontWeight="Black" Margin="0,14,0,0" />
+                                        <TextBlock Text="Aperturas, movimientos y cierre de caja." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="Próximamente" Foreground="#B45309" FontWeight="Black" Margin="0,16,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomeReportsCard" Style="{StaticResource ModuleCardButtonStyle}" IsEnabled="False">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18" Opacity="0.72">
+                                    <StackPanel>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#DC2626">
+                                            <TextBlock Text="RP" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="Reportes" FontSize="21" FontWeight="Black" Margin="0,14,0,0" />
+                                        <TextBlock Text="Indicadores, ventas, inventario y finanzas." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="Próximamente" Foreground="#B45309" FontWeight="Black" Margin="0,16,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Button>
+
+                            <Button x:Name="HomeSettingsCard" Style="{StaticResource ModuleCardButtonStyle}" IsEnabled="False">
+                                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18" Opacity="0.72">
+                                    <StackPanel>
+                                        <Border Width="46" Height="46" CornerRadius="14" HorizontalAlignment="Left" Background="#475569">
+                                            <TextBlock Text="CFG" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="Configuración" FontSize="21" FontWeight="Black" Margin="0,14,0,0" />
+                                        <TextBlock Text="Usuarios, permisos, empresa y parámetros." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="Próximamente" Foreground="#B45309" FontWeight="Black" Margin="0,16,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Button>
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <inventory:InventoryCenterView x:Name="InventoryCenterContent" Visibility="Collapsed" />
                 <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
                 <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
             </Grid>

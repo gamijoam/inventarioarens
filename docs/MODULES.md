@@ -101,6 +101,8 @@ Responsabilidad:
 - conectarse al backend Laravel mediante HTTP/JSON;
 - manejar login, seleccion de empresa y token Bearer;
 - organizar pantallas por modulos operativos igual que el backend;
+- mostrar un centro de modulos despues del login para elegir el area de trabajo;
+- habilitar o bloquear tarjetas de modulo segun permisos efectivos del usuario;
 - consumir APIs existentes sin conectarse directo a PostgreSQL.
 
 Archivos principales:
@@ -118,6 +120,8 @@ Regla importante:
 - todas las operaciones reales deben pasar por Laravel con `Authorization: Bearer <token>` y `X-Tenant`;
 - el modulo `Auth` del escritorio debe respetar el contrato real de Laravel, donde las respuestas vienen envueltas en `data`;
 - las siguientes pantallas de escritorio se implementaran por modulo: Centro de Inventario, Entradas y Salidas, POS, Caja y Reportes.
+- el flujo recomendado es `Login -> Centro de modulos -> Modulo seleccionado`.
+- el menu lateral funciona como acceso rapido, pero no debe ser el unico organizador cuando crezcan los modulos.
 
 ### Dashboard
 
