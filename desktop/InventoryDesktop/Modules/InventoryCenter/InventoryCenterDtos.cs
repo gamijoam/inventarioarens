@@ -152,6 +152,7 @@ public sealed record InventoryProductSerial(
         "sold" => "Vendido",
         "damaged" => "Dañado",
         "removed" => "Removido",
+        "warranty_hold" => "Garantía",
         _ => Status,
     };
 
@@ -186,6 +187,21 @@ public sealed record InventoryProductMovement(
     public string ReasonLabel => string.IsNullOrWhiteSpace(Reason) ? "Sin motivo" : Reason;
 
     public string WarehouseLabel => string.IsNullOrWhiteSpace(WarehouseName) ? "Sin almacén" : WarehouseName;
+
+    public string CreatedByLabel => string.IsNullOrWhiteSpace(CreatedByName) ? "Sistema" : CreatedByName;
+
+    public string DateLabel
+    {
+        get
+        {
+            if (DateTimeOffset.TryParse(CreatedAt, out DateTimeOffset parsed))
+            {
+                return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
+            }
+
+            return "Sin fecha";
+        }
+    }
 }
 
 public sealed record InventoryProductAudit(
@@ -204,6 +220,38 @@ public sealed record InventoryProductAudit(
 
     public string CreatedByLabel => string.IsNullOrWhiteSpace(CreatedByName) ? "Sistema" : CreatedByName;
 }
+
+public sealed record InventoryProductSerialsPageResponse(
+    [property: JsonPropertyName("data")] InventoryProductSerialsPageData Data);
+
+public sealed record InventoryProductSerialsPageData(
+    [property: JsonPropertyName("filters")] InventoryProductSerialsPageFilters Filters,
+    [property: JsonPropertyName("data")] IReadOnlyList<InventoryProductSerial> Data,
+    [property: JsonPropertyName("pagination")] InventoryPagination Pagination);
+
+public sealed record InventoryProductSerialsPageFilters(
+    [property: JsonPropertyName("search")] string? Search,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
+    [property: JsonPropertyName("limit")] int Limit,
+    [property: JsonPropertyName("page")] int Page);
+
+public sealed record InventoryProductMovementsPageResponse(
+    [property: JsonPropertyName("data")] InventoryProductMovementsPageData Data);
+
+public sealed record InventoryProductMovementsPageData(
+    [property: JsonPropertyName("filters")] InventoryProductMovementsPageFilters Filters,
+    [property: JsonPropertyName("data")] IReadOnlyList<InventoryProductMovement> Data,
+    [property: JsonPropertyName("pagination")] InventoryPagination Pagination);
+
+public sealed record InventoryProductMovementsPageFilters(
+    [property: JsonPropertyName("search")] string? Search,
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
+    [property: JsonPropertyName("date_from")] string? DateFrom,
+    [property: JsonPropertyName("date_to")] string? DateTo,
+    [property: JsonPropertyName("limit")] int Limit,
+    [property: JsonPropertyName("page")] int Page);
 
 public sealed record InventoryProductKardexResponse(
     [property: JsonPropertyName("data")] InventoryProductKardexData Data);

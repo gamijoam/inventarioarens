@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-04 - Detalle de producto WPF por pestañas
+
+### Implementado
+
+- Se rediseñó la ventana WPF de detalle de producto para separar la información por pestañas.
+- Se agregaron pestañas `Resumen`, `Stock`, `Seriales / IMEI`, `Movimientos` y `Auditoría`.
+- La pestaña `Seriales / IMEI` ahora consume `GET /api/inventory-center/products/{product}/serials` con búsqueda, filtro de estado y paginación.
+- La pestaña `Movimientos` ahora consume `GET /api/inventory-center/products/{product}/movements` con búsqueda, filtro de tipo, rango de fechas y paginación.
+- Se agregaron mensajes de carga y error en español por pestaña.
+- Se mantienen visibles las acciones `Registrar entrada`, `Registrar salida` y `Ver Kardex`.
+- Al registrar una entrada o salida, el detalle sigue recargando el producto y reinicia las pestañas paginadas para evitar datos viejos.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 11 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- La ventana WPF solo consume APIs protegidas del backend; no accede directo a PostgreSQL.
+- Las pestañas paginadas respetan autenticación, tenant y permisos definidos en Laravel.
+
 ## 2026-07-04 - Endpoints paginados para detalle del Centro de Inventario
 
 ### Implementado
