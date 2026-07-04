@@ -7,6 +7,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
 class InventoryCenterProductDetailService
@@ -24,6 +25,114 @@ class InventoryCenterProductDetailService
             'serials' => $this->serials($product),
             'recent_movements' => $this->recentMovements($product),
             'recent_audits' => $this->recentAudits($product),
+        ];
+    }
+
+    public function serialsPage(Product $product, array $filters): array
+    {
+        if (! $product->requiresSerializedTracking()) {
+            return [
+                'filters' => $this->pageFilters($filters),
+                'data' => [],
+                'pagination' => $this->pagination(1, $this->limit($filters), 0),
+            ];
+        }
+
+        $limit = $this->limit($filters);
+        $page = $this->page($filters);
+        $query = ProductUnit::query()
+            ->where('product_id', $product->id)
+            ->with('warehouse');
+
+        if ($search = $filters['search'] ?? null) {
+            $query->where('serial_number', 'like', "%{$search}%");
+        }
+
+        if (($filters['status'] ?? null) && $filters['status'] !== 'all') {
+            $query->where('status', $filters['status']);
+        }
+
+        if ($warehouseId = $filters['warehouse_id'] ?? null) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        $total = (clone $query)->count();
+        $lastPage = max((int) ceil($total / $limit), 1);
+        $page = min($page, $lastPage);
+
+        return [
+            'filters' => $this->pageFilters($filters, [
+                'status' => $filters['status'] ?? 'all',
+                'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
+            ], $limit, $page),
+            'data' => $query
+                ->orderBy('status')
+                ->orderBy('serial_number')
+                ->forPage($page, $limit)
+                ->get()
+                ->map(fn (ProductUnit $unit): array => $this->serialUnit($unit))
+                ->all(),
+            'pagination' => $this->pagination($page, $limit, $total),
+        ];
+    }
+
+    public function movementsPage(Product $product, array $filters): array
+    {
+        $limit = $this->limit($filters);
+        $page = $this->page($filters);
+        $query = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->with(['warehouse', 'creator']);
+
+        if ($search = $filters['search'] ?? null) {
+            $query->where(function (Builder $query) use ($search): void {
+                $query
+                    ->where('reason', 'like', "%{$search}%")
+                    ->orWhere('reference_type', 'like', "%{$search}%");
+            });
+        }
+
+        if (($filters['type'] ?? null) && $filters['type'] !== 'all') {
+            $query->where('type', $filters['type']);
+        }
+
+        if ($warehouseId = $filters['warehouse_id'] ?? null) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        if ($dateFrom = $filters['date_from'] ?? null) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo = $filters['date_to'] ?? null) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $total = (clone $query)->count();
+        $lastPage = max((int) ceil($total / $limit), 1);
+        $page = min($page, $lastPage);
+
+        return [
+            'filters' => $this->pageFilters($filters, [
+                'type' => $filters['type'] ?? 'all',
+                'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
+                'date_from' => $filters['date_from'] ?? null,
+                'date_to' => $filters['date_to'] ?? null,
+            ], $limit, $page),
+            'data' => $query
+                ->latest('id')
+                ->forPage($page, $limit)
+                ->get()
+                ->map(fn (StockMovement $movement): array => $this->movement($movement))
+                ->all(),
+            'pagination' => $this->pagination($page, $limit, $total),
+        ];
+    }
+
+    public function stockByWarehousePage(Product $product): array
+    {
+        return [
+            'data' => $this->stockByWarehouse($product),
         ];
     }
 
@@ -114,14 +223,7 @@ class InventoryCenterProductDetailService
                 ->orderBy('serial_number')
                 ->limit(50)
                 ->get()
-                ->map(fn (ProductUnit $unit): array => [
-                    'id' => $unit->id,
-                    'serial_type' => $unit->serial_type,
-                    'serial_number' => $unit->serial_number,
-                    'status' => $unit->status,
-                    'warehouse_id' => $unit->warehouse_id,
-                    'warehouse_name' => $unit->warehouse?->name,
-                ])
+                ->map(fn (ProductUnit $unit): array => $this->serialUnit($unit))
                 ->all(),
         ];
     }
@@ -134,18 +236,7 @@ class InventoryCenterProductDetailService
             ->latest('id')
             ->limit(10)
             ->get()
-            ->map(fn (StockMovement $movement): array => [
-                'id' => $movement->id,
-                'type' => $movement->type,
-                'quantity' => $this->roundStock((float) $movement->quantity),
-                'unit_cost' => $movement->unit_cost === null ? null : (float) $movement->unit_cost,
-                'reason' => $movement->reason,
-                'warehouse_id' => $movement->warehouse_id,
-                'warehouse_name' => $movement->warehouse?->name,
-                'created_by' => $movement->created_by,
-                'created_by_name' => $movement->creator?->name,
-                'created_at' => $movement->created_at?->toISOString(),
-            ])
+            ->map(fn (StockMovement $movement): array => $this->movement($movement))
             ->all();
     }
 
@@ -176,5 +267,70 @@ class InventoryCenterProductDetailService
     private function roundStock(float $value): float
     {
         return round($value, 4);
+    }
+
+    private function serialUnit(ProductUnit $unit): array
+    {
+        return [
+            'id' => $unit->id,
+            'serial_type' => $unit->serial_type,
+            'serial_number' => $unit->serial_number,
+            'status' => $unit->status,
+            'warehouse_id' => $unit->warehouse_id,
+            'warehouse_name' => $unit->warehouse?->name,
+        ];
+    }
+
+    private function movement(StockMovement $movement): array
+    {
+        return [
+            'id' => $movement->id,
+            'type' => $movement->type,
+            'quantity' => $this->roundStock((float) $movement->quantity),
+            'unit_cost' => $movement->unit_cost === null ? null : (float) $movement->unit_cost,
+            'reason' => $movement->reason,
+            'reference_type' => $movement->reference_type,
+            'reference_id' => $movement->reference_id,
+            'warehouse_id' => $movement->warehouse_id,
+            'warehouse_name' => $movement->warehouse?->name,
+            'created_by' => $movement->created_by,
+            'created_by_name' => $movement->creator?->name,
+            'created_at' => $movement->created_at?->toISOString(),
+        ];
+    }
+
+    private function limit(array $filters): int
+    {
+        return min(max((int) ($filters['limit'] ?? 24), 1), 100);
+    }
+
+    private function page(array $filters): int
+    {
+        return max((int) ($filters['page'] ?? 1), 1);
+    }
+
+    private function pageFilters(array $filters, array $extra = [], ?int $limit = null, ?int $page = null): array
+    {
+        return array_merge([
+            'search' => $filters['search'] ?? null,
+            'limit' => $limit ?? $this->limit($filters),
+            'page' => $page ?? $this->page($filters),
+        ], $extra);
+    }
+
+    private function pagination(int $page, int $limit, int $total): array
+    {
+        $lastPage = max((int) ceil($total / $limit), 1);
+
+        return [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'from' => $total === 0 ? 0 : (($page - 1) * $limit) + 1,
+            'to' => min($page * $limit, $total),
+            'has_previous' => $page > 1,
+            'has_next' => $page < $lastPage,
+        ];
     }
 }

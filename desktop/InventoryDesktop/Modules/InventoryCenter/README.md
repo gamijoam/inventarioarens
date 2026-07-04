@@ -20,6 +20,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Ventana independiente de detalle de producto conectada a `GET /api/inventory-center/products/{product}`.
 - Acceso al detalle por boton `Ver` o doble clic sobre una fila.
 - El detalle muestra información general, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
+- El backend ya expone endpoints dedicados para detalle escalable: `GET /api/inventory-center/products/{product}/serials`, `GET /api/inventory-center/products/{product}/movements` y `GET /api/inventory-center/products/{product}/stock-by-warehouse`.
 - Si la base real aún no tiene `product_audits`, el detalle abre igual y muestra auditoría vacía.
 - Acción `Ver Kardex` desde la ventana de detalle del producto.
 - Ventana independiente de Kardex por producto conectada a `GET /api/kardex/products/{product}`.

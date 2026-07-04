@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Endpoints paginados para detalle del Centro de Inventario
+
+### Implementado
+
+- Se agregaron endpoints backend dedicados para detalle escalable de producto en `InventoryCenter`.
+- Se agregó `GET /api/inventory-center/products/{product}/serials` con búsqueda, filtro por estado, filtro por almacén y paginación.
+- Se agregó `GET /api/inventory-center/products/{product}/movements` con búsqueda, filtro por tipo, filtro por almacén, rango de fechas y paginación.
+- Se agregó `GET /api/inventory-center/products/{product}/stock-by-warehouse` para consultar saldos por almacén desde `stock_balances`.
+- Se crearon requests de validación específicos para seriales y movimientos.
+- Se reutilizó `InventoryCenterProductDetailService` para mantener la lectura del módulo centralizada y evitar lógica duplicada.
+- Se actualizó el catálogo `docs/API.md` con las APIs nuevas y sus reglas.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 11 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- Las nuevas APIs requieren autenticación, tenant activo y permiso `products.view`.
+- Cada endpoint autoriza la policy del producto antes de responder.
+- Las consultas siguen usando modelos tenant-scoped para impedir mezcla de seriales, movimientos o saldos entre empresas.
+
 ## 2026-07-04 - Refresco automático del Centro de Inventario WPF
 
 ### Implementado

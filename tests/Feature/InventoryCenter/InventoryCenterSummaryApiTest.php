@@ -228,6 +228,186 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.recent_audits', []);
     }
 
+    public function test_inventory_center_product_serials_endpoint_filters_and_paginates(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Tienda', 'code' => 'STORE']);
+        $product = Product::create([
+            'name' => 'Samsung Serial',
+            'sku' => 'SER-PAGE',
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+            'base_price' => 120,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-0001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-0002',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-DAÑADO',
+            'status' => ProductUnit::STATUS_DAMAGED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/serials?status=available&limit=1&page=2")
+            ->assertOk()
+            ->assertJsonPath('data.filters.status', ProductUnit::STATUS_AVAILABLE)
+            ->assertJsonPath('data.pagination.page', 2)
+            ->assertJsonPath('data.pagination.total', 2)
+            ->assertJsonPath('data.pagination.has_previous', true)
+            ->assertJsonPath('data.pagination.has_next', false)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.serial_number', 'IMEI-0002');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/serials?search=DAÑADO")
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.data.0.status', ProductUnit::STATUS_DAMAGED);
+    }
+
+    public function test_inventory_center_product_movements_endpoint_filters_and_paginates(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Tienda', 'code' => 'STORE']);
+        $product = Product::create([
+            'name' => 'Cable USB',
+            'sku' => 'MOV-PAGE',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 5,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'purchase',
+            'quantity' => 10,
+            'reason' => 'Entrada inicial',
+            'created_by' => $user->id,
+        ]);
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'adjustment_out',
+            'quantity' => 2,
+            'reason' => 'Ajuste por conteo',
+            'created_by' => $user->id,
+        ]);
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'sale',
+            'quantity' => 1,
+            'reason' => 'Venta mostrador',
+            'created_by' => $user->id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/movements?type=adjustment_out")
+            ->assertOk()
+            ->assertJsonPath('data.filters.type', 'adjustment_out')
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.data.0.reason', 'Ajuste por conteo')
+            ->assertJsonPath('data.data.0.created_by_name', $user->name);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/movements?limit=2&page=1")
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 3)
+            ->assertJsonPath('data.pagination.has_next', true)
+            ->assertJsonCount(2, 'data.data');
+    }
+
+    public function test_inventory_center_product_stock_by_warehouse_endpoint_returns_only_current_company(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->inventoryUser($tenantA);
+        $this->useTenant($tenantA);
+
+        $branchA = Branch::create(['name' => 'Principal A', 'code' => 'A']);
+        $warehouseA = Warehouse::create(['branch_id' => $branchA->id, 'name' => 'Tienda A', 'code' => 'A-STORE']);
+        $productA = Product::create([
+            'name' => 'Producto A',
+            'sku' => 'STOCK-A',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouseA->id,
+            'product_id' => $productA->id,
+            'quantity_available' => 7,
+            'quantity_reserved' => 1,
+            'quantity_damaged' => 0,
+        ]);
+
+        $this->useTenant($tenantB);
+        $branchB = Branch::create(['name' => 'Principal B', 'code' => 'B']);
+        $warehouseB = Warehouse::create(['branch_id' => $branchB->id, 'name' => 'Tienda B', 'code' => 'B-STORE']);
+        $productB = Product::create([
+            'name' => 'Producto B',
+            'sku' => 'STOCK-B',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouseB->id,
+            'product_id' => $productB->id,
+            'quantity_available' => 99,
+        ]);
+
+        $this->useTenant($tenantA);
+
+        $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/inventory-center/products/{$productA->id}/stock-by-warehouse")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.warehouse_name', 'Tienda A')
+            ->assertJsonPath('data.data.0.available', 7)
+            ->assertJsonMissing(['warehouse_name' => 'Tienda B']);
+
+        $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/inventory-center/products/{$productB->id}/stock-by-warehouse")
+            ->assertForbidden();
+    }
+
     public function test_inventory_center_does_not_mix_companies(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

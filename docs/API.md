@@ -192,11 +192,10 @@ App\Modules\InventoryCenter\Controllers\InventoryCenterController
 GET /api/inventory-center/summary
 ```
 
-Permisos aceptados:
+Permiso requerido:
 
 ```txt
 products.view
-inventory.view
 ```
 
 Query params:
@@ -355,6 +354,190 @@ Reglas:
 - limita seriales/IMEIs a 50 registros para no cargar listas masivas;
 - limita movimientos recientes a 10 registros;
 - sirve para inspeccionar un producto sin modificar inventario.
+
+### Seriales/IMEI paginados de producto
+
+```txt
+GET /api/inventory-center/products/{product}/serials
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Query params:
+
+```txt
+search=860001
+status=all|available|reserved|sold|damaged|removed|warranty_hold
+warehouse_id=1
+limit=24
+page=1
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "filters": {
+      "search": "860001",
+      "status": "available",
+      "warehouse_id": 1,
+      "limit": 24,
+      "page": 1
+    },
+    "data": [
+      {
+        "id": 10,
+        "serial_type": "imei",
+        "serial_number": "860001000000001",
+        "status": "available",
+        "warehouse_id": 1,
+        "warehouse_name": "Tienda"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 24,
+      "total": 80,
+      "last_page": 4,
+      "from": 1,
+      "to": 24,
+      "has_previous": false,
+      "has_next": true
+    }
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y policy de producto;
+- no modifica datos;
+- evita cargar todos los IMEI de un producto masivo en una sola respuesta;
+- permite buscar por serial e IMEI;
+- permite filtrar por estado y almacen;
+- no devuelve seriales de otra empresa.
+
+### Movimientos paginados de producto
+
+```txt
+GET /api/inventory-center/products/{product}/movements
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Query params:
+
+```txt
+search=Entrada
+type=all|purchase|purchase_return|sale|sale_return|adjustment_in|adjustment_out|transfer_in|transfer_out|return_in|return_out|damaged|reserved|released
+warehouse_id=1
+date_from=2026-07-01
+date_to=2026-07-04
+limit=24
+page=1
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "filters": {
+      "search": "Entrada",
+      "type": "purchase",
+      "warehouse_id": 1,
+      "date_from": "2026-07-01",
+      "date_to": "2026-07-04",
+      "limit": 24,
+      "page": 1
+    },
+    "data": [
+      {
+        "id": 20,
+        "type": "purchase",
+        "quantity": 3,
+        "unit_cost": 80,
+        "reason": "Entrada inicial",
+        "reference_type": null,
+        "reference_id": null,
+        "warehouse_id": 1,
+        "warehouse_name": "Tienda",
+        "created_by": 5,
+        "created_by_name": "Gerente",
+        "created_at": "2026-07-04T12:00:00.000000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 24,
+      "total": 120,
+      "last_page": 5,
+      "from": 1,
+      "to": 24,
+      "has_previous": false,
+      "has_next": true
+    }
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y policy de producto;
+- no modifica datos;
+- permite filtrar historial grande sin cargar todo el Kardex en memoria;
+- busca por motivo o tipo de referencia;
+- no devuelve movimientos de otra empresa.
+
+### Stock de producto por almacen
+
+```txt
+GET /api/inventory-center/products/{product}/stock-by-warehouse
+```
+
+Permisos aceptados:
+
+```txt
+products.view
+inventory.view
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "data": [
+      {
+        "warehouse_id": 1,
+        "warehouse_name": "Tienda",
+        "warehouse_code": "STORE",
+        "branch_id": 1,
+        "branch_name": "Principal",
+        "available": 2,
+        "reserved": 1,
+        "damaged": 0
+      }
+    ]
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y policy de producto;
+- no modifica datos;
+- lee desde `stock_balances`;
+- no devuelve saldos de almacenes o productos de otra empresa.
 
 ### Ver sesion actual
 
