@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - POS compacto con mayor espacio para catálogo
+
+### Implementado
+
+- Se retiró la barra lateral interna del POS para que el catálogo gane ancho real.
+- Se movieron la salida, el estado y los atajos rápidos a una barra inferior.
+- Se redujo el ancho del carrito derecho para equilibrar orden actual y catálogo.
+- Se compactaron las tarjetas de productos para permitir más columnas visibles.
+- Se reubicó la búsqueda junto a la lista de precio en la barra superior.
+- Se corrigieron textos del POS para mostrar acentos correctamente en español.
+- Se actualizó el README del módulo POS en español.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se modificó backend.
+- No se habilitó checkout ni pagos.
+- No se descuenta inventario.
+
 ## 2026-07-04 - POS en pantalla completa
 
 ### Implementado
