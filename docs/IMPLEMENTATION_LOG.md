@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-07-04 - Correccion de binding en ventana de detalle WPF
+
+### Implementado
+
+- Se corrigieron bindings `Run.Text` en `InventoryProductDetailWindow` para usar `Mode=OneWay`.
+- Se evita el error WPF: `A TwoWay or OneWayToSource binding cannot work on the read-only property 'TypeLabel'`.
+- Se reforzaron columnas calculadas del listado con `Mode=OneWay`.
+- La ventana de detalle puede leer propiedades calculadas como `TypeLabel`, `Quantity`, `Available`, `Reserved` y `Damaged` sin intentar escribir sobre ellas.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 8 pruebas pasadas, 60 aserciones.
+
 ## 2026-07-04 - Tolerancia a auditoria faltante en detalle de inventario
 
 ### Implementado

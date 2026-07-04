@@ -138,15 +138,15 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock FontWeight="Black" Foreground="#047857" Margin="0,0,12,0">
-                                            <Run Text="{Binding Available}" />
+                                            <Run Text="{Binding Available, Mode=OneWay}" />
                                             <Run Text=" disp." />
                                         </TextBlock>
                                         <TextBlock FontWeight="Black" Foreground="#3157C8" Margin="0,0,12,0">
-                                            <Run Text="{Binding Reserved}" />
+                                            <Run Text="{Binding Reserved, Mode=OneWay}" />
                                             <Run Text=" res." />
                                         </TextBlock>
                                         <TextBlock FontWeight="Black" Foreground="#B45309">
-                                            <Run Text="{Binding Damaged}" />
+                                            <Run Text="{Binding Damaged, Mode=OneWay}" />
                                             <Run Text=" dañ." />
                                         </TextBlock>
                                     </StackPanel>
@@ -187,9 +187,9 @@
                             <Border Padding="12" Margin="0,0,0,8" Background="#FFFFFF" BorderBrush="#E9EEF7" BorderThickness="1" CornerRadius="9">
                                 <StackPanel>
                                     <TextBlock FontWeight="Black">
-                                        <Run Text="{Binding TypeLabel}" />
+                                        <Run Text="{Binding TypeLabel, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding Quantity}" />
+                                        <Run Text="{Binding Quantity, Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="{Binding ReasonLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding WarehouseLabel}" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" />

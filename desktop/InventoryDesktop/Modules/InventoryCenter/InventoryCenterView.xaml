@@ -220,11 +220,11 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="1.1*" />
-                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel}" Width="0.85*" />
-                        <DataGridTextColumn Header="DISP." Binding="{Binding Stock.Available}" Width="0.65*" />
-                        <DataGridTextColumn Header="RES." Binding="{Binding Stock.Reserved}" Width="0.6*" />
-                        <DataGridTextColumn Header="DAÑ." Binding="{Binding Stock.Damaged}" Width="0.6*" />
+                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel, Mode=OneWay}" Width="1.1*" />
+                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel, Mode=OneWay}" Width="0.85*" />
+                        <DataGridTextColumn Header="DISP." Binding="{Binding Stock.Available, Mode=OneWay}" Width="0.65*" />
+                        <DataGridTextColumn Header="RES." Binding="{Binding Stock.Reserved, Mode=OneWay}" Width="0.6*" />
+                        <DataGridTextColumn Header="DAÑ." Binding="{Binding Stock.Damaged, Mode=OneWay}" Width="0.6*" />
                         <DataGridTemplateColumn Header="ESTADO" Width="0.9*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
