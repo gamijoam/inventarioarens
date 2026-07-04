@@ -4,6 +4,10 @@
 
 ### Implementado
 
+- Se corrigió el botón principal del formulario de listas para que no quede recortado como una franja morada.
+- El botón `Crear lista` / `Guardar cambios` ahora aparece antes de `Opciones avanzadas`, con mayor altura, texto centrado y contraste visible.
+- Se redujo la altura del campo `Descripción` para mejorar el espacio vertical del formulario.
+- Se corrigieron textos visibles con tildes en la vista XAML de listas de precio.
 - Se eliminó el botón confuso `+ Preparar nueva` de la cabecera de listas de precio.
 - La cabecera ahora solo permite `Actualizar` y `Limpiar formulario`.
 - La acción real de guardado queda dentro del formulario con un botón principal visible: `Crear lista` o `Guardar cambios`.
