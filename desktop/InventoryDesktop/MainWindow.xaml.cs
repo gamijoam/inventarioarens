@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private void LoginSucceeded(object? sender, DesktopSession session)
     {
         ShellWindow shell = new(session);
+        Application.Current.MainWindow = shell;
         shell.Show();
         Close();
     }

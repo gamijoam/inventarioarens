@@ -1,5 +1,17 @@
 # Registro de implementación
 
+## 2026-07-03 - Correccion de apertura del panel WPF despues del login
+
+### Implementado
+
+- Se corrigio el flujo posterior al login WPF para registrar `ShellWindow` como ventana principal antes de cerrar el login.
+- Esto evita que la aplicacion se cierre al autenticar cuando `MainWindow` deja de existir.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Ajuste profesional del login WPF
 
 ### Implementado
