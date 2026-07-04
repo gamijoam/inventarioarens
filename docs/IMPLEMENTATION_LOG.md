@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Mejoras de cobro en POS de escritorio
+
+### Implementado
+
+- Se agregó botón `Usar faltante` en la ventana de cobro para completar rápidamente el monto pendiente.
+- Se agregó botón `Limpiar` para reiniciar el formulario de pago sin tocar los pagos ya agregados.
+- Se agregó selector de estado del pago: capturado o pendiente.
+- Los pagos capturados cuentan para cerrar la venta.
+- Los pagos pendientes quedan visibles en la lista, pero no cubren el total capturado.
+- Si se confirma con pagos pendientes y el total capturado no cubre la venta, la app advierte que la orden quedará pendiente.
+- Se agregó cálculo de vuelto estimado cuando los pagos capturados superan el total.
+- El resumen de pagos muestra cuántos pagos están pendientes.
+- El mensaje final diferencia entre venta cerrada y orden pendiente.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/PaymentMethods/PaymentMethodApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 13 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- El cálculo de vuelto es estimado y se basa en pagos capturados conocidos.
+- Backend sigue siendo quien valida si la venta se cierra o queda pendiente.
+- Los pagos pendientes están pensados para financiadoras, transferencias por validar u otros cobros que no cierran caja inmediatamente.
+
 ## 2026-07-04 - Centro de módulos después del login
 
 ### Implementado

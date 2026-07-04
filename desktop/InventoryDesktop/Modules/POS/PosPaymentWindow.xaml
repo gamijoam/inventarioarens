@@ -68,6 +68,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -105,6 +106,19 @@
                                  FontSize="15"
                                  PreviewTextInput="DecimalInput_PreviewTextInput"
                                  KeyDown="AmountBox_KeyDown" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Usar faltante"
+                                    Width="120"
+                                    Height="30"
+                                    FontWeight="Black"
+                                    Click="UseRemaining_Click" />
+                            <Button Content="Limpiar"
+                                    Width="86"
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    FontWeight="Black"
+                                    Click="ClearPaymentForm_Click" />
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel Grid.Row="4" Margin="0,14,0,0">
@@ -116,7 +130,15 @@
                                  KeyDown="ReferenceBox_KeyDown" />
                     </StackPanel>
 
-                    <Button Grid.Row="5"
+                    <StackPanel Grid.Row="5" Margin="0,14,0,0">
+                        <TextBlock Text="Estado del pago" FontWeight="Black" />
+                        <ComboBox x:Name="PaymentStatusBox"
+                                  Height="40"
+                                  Margin="0,6,0,0"
+                                  DisplayMemberPath="Label" />
+                    </StackPanel>
+
+                    <Button Grid.Row="6"
                             Content="Agregar pago"
                             Height="44"
                             Margin="0,18,0,0"
@@ -126,7 +148,7 @@
                             Click="AddPayment_Click" />
 
                     <TextBlock x:Name="FormHelpText"
-                               Grid.Row="6"
+                               Grid.Row="7"
                                Text="Los pagos en bolívares se estiman con la tasa de la cotización. Backend recalcula y valida al confirmar."
                                Foreground="{StaticResource MutedBrush}"
                                FontSize="12"
@@ -176,6 +198,7 @@
                             <DataGridTextColumn Header="MONEDA" Binding="{Binding Currency}" Width="90" />
                             <DataGridTextColumn Header="MONTO" Binding="{Binding AmountLabel}" Width="120" />
                             <DataGridTextColumn Header="BASE USD" Binding="{Binding BaseUsdLabel}" Width="120" />
+                            <DataGridTextColumn Header="ESTADO" Binding="{Binding StatusLabel}" Width="110" />
                             <DataGridTextColumn Header="REFERENCIA" Binding="{Binding Reference}" Width="150" />
                         </DataGrid.Columns>
                     </DataGrid>
@@ -189,6 +212,10 @@
                             <Grid Margin="0,8,0,0">
                                 <TextBlock Text="Faltante estimado" FontWeight="Black" Foreground="#D9365C" />
                                 <TextBlock x:Name="RemainingText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="22" FontWeight="Black" Foreground="#D9365C" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <TextBlock Text="Vuelto estimado" FontWeight="Black" Foreground="#058561" />
+                                <TextBlock x:Name="ChangeText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="18" FontWeight="Black" Foreground="#058561" />
                             </Grid>
                             <TextBlock x:Name="StatusText"
                                        Foreground="#D9365C"

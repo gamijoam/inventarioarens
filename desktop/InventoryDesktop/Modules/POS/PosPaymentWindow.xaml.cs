@@ -25,6 +25,7 @@ public partial class PosPaymentWindow : Window
 
         PaymentsGrid.ItemsSource = payments;
         LoadHeader();
+        LoadPaymentStatuses();
         LoadPaymentMethods();
         UpdateTotals();
     }
@@ -69,6 +70,16 @@ public partial class PosPaymentWindow : Window
         {
             SetError("No hay métodos de pago activos para esta lista. Configura métodos de pago antes de cobrar.");
         }
+    }
+
+    private void LoadPaymentStatuses()
+    {
+        PaymentStatusBox.ItemsSource = new List<PaymentStatusChoice>
+        {
+            new("captured", "Capturado - cuenta para cerrar"),
+            new("pending", "Pendiente - no cierra venta"),
+        };
+        PaymentStatusBox.SelectedIndex = 0;
     }
 
     private void PaymentMethodBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -119,6 +130,41 @@ public partial class PosPaymentWindow : Window
         AddPayment();
     }
 
+    private void UseRemaining_Click(object sender, RoutedEventArgs e)
+    {
+        ClearError();
+        string currency = CurrencyBox.SelectedItem as string ?? "USD";
+        decimal remainingUsd = RemainingUsd();
+
+        if (remainingUsd <= 0)
+        {
+            SetError("La venta ya está cubierta con pagos capturados.");
+            return;
+        }
+
+        decimal suggested = currency.Equals("VES", StringComparison.OrdinalIgnoreCase)
+            ? impliedVesRate is > 0 ? remainingUsd * impliedVesRate.Value : 0m
+            : remainingUsd;
+
+        if (suggested <= 0)
+        {
+            SetError("No se puede calcular el faltante en bolívares porque la cotización no tiene tasa.");
+            return;
+        }
+
+        AmountBox.Text = suggested.ToString("0.00", CultureInfo.InvariantCulture);
+        AmountBox.Focus();
+        AmountBox.SelectAll();
+    }
+
+    private void ClearPaymentForm_Click(object sender, RoutedEventArgs e)
+    {
+        AmountBox.Text = string.Empty;
+        ReferenceBox.Text = string.Empty;
+        ClearError();
+        AmountBox.Focus();
+    }
+
     private void AddPayment()
     {
         ClearError();
@@ -154,10 +200,17 @@ public partial class PosPaymentWindow : Window
             return;
         }
 
+        if (PaymentStatusBox.SelectedItem is not PaymentStatusChoice status)
+        {
+            SetError("Selecciona el estado del pago.");
+            return;
+        }
+
         decimal? baseUsd = EstimateBaseUsd(currency, amount);
-        payments.Add(new PaymentLine(method, currency, amount, baseUsd, reference));
+        payments.Add(new PaymentLine(method, currency, amount, baseUsd, reference, status.Code, status.Label));
         AmountBox.Text = string.Empty;
         ReferenceBox.Text = string.Empty;
+        PaymentStatusBox.SelectedIndex = 0;
         UpdateTotals();
         AmountBox.Focus();
     }
@@ -180,12 +233,30 @@ public partial class PosPaymentWindow : Window
             return;
         }
 
-        decimal knownPaid = payments.Sum(payment => payment.BaseAmountUsd ?? 0m);
-        hasUnknownBaseAmount = payments.Any(payment => payment.BaseAmountUsd is null);
+        decimal knownPaid = CapturedBaseUsd();
+        hasUnknownBaseAmount = payments.Any(payment => payment.IsCaptured && payment.BaseAmountUsd is null);
         if (!hasUnknownBaseAmount && knownPaid + 0.01m < viewModel.TotalUsd)
         {
-            SetError("El pago todavía no cubre el total de la venta.");
-            return;
+            if (payments.Any(payment => !payment.IsCaptured))
+            {
+                MessageBoxResult result = MessageBox.Show(
+                    this,
+                    "Los pagos capturados no cubren el total. La orden quedará pendiente y la venta no se cerrará hasta completar el cobro.\n\n¿Deseas continuar?",
+                    "Orden pendiente",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    SetError("Agrega un pago capturado o confirma la orden pendiente.");
+                    return;
+                }
+            }
+            else
+            {
+                SetError("Los pagos capturados todavía no cubren el total.");
+                return;
+            }
         }
 
         try
@@ -197,7 +268,7 @@ public partial class PosPaymentWindow : Window
                     payment.Method,
                     payment.Currency,
                     payment.Amount,
-                    "captured",
+                    payment.Status,
                     payment.Reference))
                 .ToList();
 
@@ -205,10 +276,10 @@ public partial class PosPaymentWindow : Window
             WasConfirmed = true;
             MessageBox.Show(
                 this,
-                $"Venta confirmada correctamente.\nOrden POS #{order.Id}",
-                "Venta confirmada",
+                BuildSuccessMessage(order),
+                order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase) ? "Venta confirmada" : "Orden pendiente",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase) ? MessageBoxImage.Information : MessageBoxImage.Warning);
             DialogResult = true;
             Close();
         }
@@ -273,21 +344,50 @@ public partial class PosPaymentWindow : Window
         return null;
     }
 
+    private static string BuildSuccessMessage(PosOrderResult order)
+    {
+        if (order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Venta confirmada correctamente.\nOrden POS #{order.Id}";
+        }
+
+        return $"Orden POS #{order.Id} registrada como pendiente.\nCompleta el cobro para cerrar la venta.";
+    }
+
+    private decimal CapturedBaseUsd()
+    {
+        return payments
+            .Where(payment => payment.IsCaptured)
+            .Sum(payment => payment.BaseAmountUsd ?? 0m);
+    }
+
+    private decimal RemainingUsd()
+    {
+        return Math.Max(0, viewModel.TotalUsd - CapturedBaseUsd());
+    }
+
     private void UpdateTotals()
     {
-        decimal knownPaid = payments.Sum(payment => payment.BaseAmountUsd ?? 0m);
-        hasUnknownBaseAmount = payments.Any(payment => payment.BaseAmountUsd is null);
+        decimal knownPaid = CapturedBaseUsd();
+        hasUnknownBaseAmount = payments.Any(payment => payment.IsCaptured && payment.BaseAmountUsd is null);
         decimal remaining = Math.Max(0, viewModel.TotalUsd - knownPaid);
+        decimal change = Math.Max(0, knownPaid - viewModel.TotalUsd);
+        int pendingCount = payments.Count(payment => !payment.IsCaptured);
 
         PaymentsSummaryText.Text = payments.Count == 0
             ? "Sin pagos registrados."
-            : $"{payments.Count} pago(s) registrados.";
+            : pendingCount == 0
+                ? $"{payments.Count} pago(s) registrados."
+                : $"{payments.Count} pago(s) registrados, {pendingCount} pendiente(s).";
         PaidText.Text = hasUnknownBaseAmount
             ? $"USD {knownPaid:0.00} + pago por validar"
             : $"USD {knownPaid:0.00}";
         RemainingText.Text = hasUnknownBaseAmount
             ? "Validará servidor"
             : $"USD {remaining:0.00}";
+        ChangeText.Text = hasUnknownBaseAmount
+            ? "Por validar"
+            : $"USD {change:0.00}";
     }
 
     private void SetError(string message)
@@ -335,12 +435,16 @@ public sealed record PaymentMethodChoice(
     }
 }
 
+public sealed record PaymentStatusChoice(string Code, string Label);
+
 public sealed record PaymentLine(
     PaymentMethodChoice MethodChoice,
     string Currency,
     decimal Amount,
     decimal? BaseAmountUsd,
-    string? Reference)
+    string? Reference,
+    string Status,
+    string StatusLabel)
 {
     public long? PaymentMethodId => MethodChoice.Id;
 
@@ -351,4 +455,6 @@ public sealed record PaymentLine(
     public string AmountLabel => $"{Currency} {Amount:0.00}";
 
     public string BaseUsdLabel => BaseAmountUsd is null ? "Por validar" : $"USD {BaseAmountUsd:0.00}";
+
+    public bool IsCaptured => Status.Equals("captured", StringComparison.OrdinalIgnoreCase);
 }

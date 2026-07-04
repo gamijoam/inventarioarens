@@ -56,6 +56,11 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Un método `flexible` permite escoger USD o bolívares.
 - Si el método exige referencia, la ventana bloquea el pago sin referencia.
 - La ventana permite agregar varios pagos antes de confirmar.
+- El botón `Usar faltante` completa el monto pendiente según la moneda seleccionada.
+- Cada pago puede marcarse como capturado o pendiente.
+- Los pagos capturados cuentan para cerrar la venta.
+- Los pagos pendientes permiten registrar una orden abierta sin cerrar la venta.
+- La ventana muestra vuelto estimado cuando el pago capturado supera el total.
 - El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
