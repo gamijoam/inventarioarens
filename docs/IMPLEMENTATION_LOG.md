@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-04 - Registro rápido de cliente y cobro visible en POS
+
+### Implementado
+
+- Se agregó botón `+ Nuevo cliente` en la ventana de selección de cliente del POS.
+- Se agregó ventana WPF `Nuevo cliente` para registrar nombre, tipo de documento, documento, teléfono, correo y dirección fiscal.
+- El registro rápido consume `POST /api/customers`.
+- Al crear el cliente desde POS, queda seleccionado automáticamente para la venta actual.
+- Se reorganizó la ventana de cobro para que `Agregar pago` esté visible junto al monto recibido.
+- Se eliminó el botón duplicado de agregar pago que quedaba oculto debajo del formulario.
+- Se amplió ligeramente la ventana de cobro para que referencia y estado del pago tengan mejor espacio.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Customers/CustomerApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 16 pruebas pasaron, 101 assertions.
+
+### Notas
+
+- No se cambió la lógica de negocio del backend; se usa la API existente de clientes.
+- `Agregar pago` solo agrega el pago a la tabla; `Confirmar venta` sigue siendo la acción final validada por Laravel.
+
 ## 2026-07-04 - Ajustes UX de cliente y cobro POS
 
 ### Implementado

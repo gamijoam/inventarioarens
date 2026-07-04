@@ -60,6 +60,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El botón `Completar saldo` coloca el monto faltante según la moneda seleccionada.
 - Al escribir el monto recibido, la ventana muestra una vista previa inmediata de pagado, faltante y vuelto estimado.
 - El botón `Borrar monto` limpia solo el monto y la referencia del pago que se está preparando.
+- El botón `Agregar pago` acepta el pago recibido y lo pasa a la tabla de pagos agregados.
 - El botón `Eliminar pago` elimina el pago seleccionado en la tabla de pagos agregados.
 - Cada pago puede marcarse como capturado o pendiente.
 - Los pagos capturados cuentan para cerrar la venta.
@@ -75,6 +76,9 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El botón `Buscar cliente` abre una ventana de búsqueda.
 - La búsqueda consulta `GET /api/customers?search={texto}&active_only=1&limit=20`.
 - Se puede buscar por nombre, cédula/RIF, teléfono o correo.
+- Si el cliente no existe, el botón `+ Nuevo cliente` abre el registro rápido desde el POS.
+- El registro rápido envía `POST /api/customers` con nombre, tipo de documento, documento, teléfono, correo y dirección fiscal opcional.
+- Al crear un cliente desde el POS, queda seleccionado automáticamente para la venta actual.
 - Al seleccionar un cliente, el POS muestra nombre y documento en la orden actual.
 - Al confirmar checkout, WPF envía `customer_id` y `customer_name`.
 - El botón `Venta mostrador` limpia el cliente seleccionado y vuelve a venta rápida sin cliente registrado.

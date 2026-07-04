@@ -79,6 +79,19 @@ public sealed record PosOrderResult(
 public sealed record PosCustomerListResponse(
     [property: JsonPropertyName("data")] IReadOnlyList<PosCustomerOption> Data);
 
+public sealed record PosCustomerResponse(
+    [property: JsonPropertyName("data")] PosCustomerOption Data);
+
+public sealed record PosCustomerCreateRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("document_type")] string DocumentType,
+    [property: JsonPropertyName("document_number")] string DocumentNumber,
+    [property: JsonPropertyName("phone")] string? Phone,
+    [property: JsonPropertyName("email")] string? Email,
+    [property: JsonPropertyName("fiscal_address")] string? FiscalAddress,
+    [property: JsonPropertyName("is_generic")] bool IsGeneric,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
 public sealed record PosCustomerOption(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("name")] string Name,

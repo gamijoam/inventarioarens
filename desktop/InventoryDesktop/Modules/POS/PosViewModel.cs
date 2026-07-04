@@ -314,6 +314,30 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
+    public async Task<PosCustomerOption> CreateCustomerAsync(PosCustomerCreateRequest request)
+    {
+        try
+        {
+            PosCustomerResponse response = await apiClient.PostAsync<PosCustomerCreateRequest, PosCustomerResponse>("customers", request);
+            PosCustomerOption customer = response.Data;
+            CustomerSearchResults.Insert(0, customer);
+            StatusMessage = $"Cliente {customer.Name} registrado y seleccionado.";
+            IsStatusError = false;
+            return customer;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            throw new InvalidOperationException(exception.Message, exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            const string message = "No se pudo conectar con la API para registrar el cliente.";
+            SetError(message);
+            throw new InvalidOperationException(message, exception);
+        }
+    }
+
     public void ClearCustomer()
     {
         SelectedCustomer = null;

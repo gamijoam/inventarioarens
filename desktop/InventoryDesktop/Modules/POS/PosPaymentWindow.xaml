@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Cobrar venta"
         Width="980"
-        Height="720"
+        Height="760"
         MinWidth="900"
-        MinHeight="640"
+        MinHeight="700"
         WindowStartupLocation="CenterOwner"
         Background="#F6F8FC">
     <Grid Margin="22">
@@ -55,7 +55,7 @@
 
         <Grid Grid.Row="1" Margin="0,18,0,18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="390" />
+                <ColumnDefinition Width="430" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -109,16 +109,24 @@
                                  KeyDown="AmountBox_KeyDown" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Completar saldo"
-                                    Width="132"
+                                    Width="118"
                                     Height="30"
                                     FontWeight="Black"
                                     Click="UseRemaining_Click" />
                             <Button Content="Borrar monto"
-                                    Width="98"
+                                    Width="86"
                                     Height="30"
                                     Margin="8,0,0,0"
                                     FontWeight="Black"
                                     Click="ClearPaymentForm_Click" />
+                            <Button Content="Agregar pago"
+                                    Width="124"
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    FontWeight="Black"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="White"
+                                    Click="AddPayment_Click" />
                         </StackPanel>
                         <TextBlock x:Name="PaymentPreviewText"
                                    Text="Escribe el monto recibido o usa Completar saldo."
@@ -147,17 +155,8 @@
                                   SelectionChanged="PaymentStatusBox_SelectionChanged" />
                     </StackPanel>
 
-                    <Button Grid.Row="6"
-                            Content="Agregar pago"
-                            Height="44"
-                            Margin="0,18,0,0"
-                            FontWeight="Black"
-                            Background="{StaticResource AccentBrush}"
-                            Foreground="White"
-                            Click="AddPayment_Click" />
-
                     <TextBlock x:Name="FormHelpText"
-                               Grid.Row="7"
+                               Grid.Row="6"
                                Text="Los pagos en bolívares se estiman con la tasa de la cotización. Backend recalcula y valida al confirmar."
                                Foreground="{StaticResource MutedBrush}"
                                FontSize="12"

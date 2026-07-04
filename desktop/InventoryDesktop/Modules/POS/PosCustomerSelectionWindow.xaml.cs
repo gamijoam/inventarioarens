@@ -40,6 +40,22 @@ public partial class PosCustomerSelectionWindow : Window
         CustomersGrid.SelectedIndex = results.Count > 0 ? 0 : -1;
     }
 
+    private void CreateCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        PosCustomerCreateWindow dialog = new(viewModel)
+        {
+            Owner = this,
+        };
+
+        bool? result = dialog.ShowDialog();
+        if (result == true && dialog.CreatedCustomer is not null)
+        {
+            SelectedCustomer = dialog.CreatedCustomer;
+            DialogResult = true;
+            Close();
+        }
+    }
+
     private void CustomersGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         SelectCurrentCustomer();
