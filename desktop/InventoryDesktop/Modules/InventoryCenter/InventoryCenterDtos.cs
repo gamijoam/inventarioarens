@@ -531,11 +531,43 @@ public sealed record PriceListOption(
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("is_default")] bool IsDefault,
     [property: JsonPropertyName("is_active")] bool IsActive,
-    [property: JsonPropertyName("sort_order")] int SortOrder)
+    [property: JsonPropertyName("sort_order")] int SortOrder,
+    [property: JsonPropertyName("payment_methods")] IReadOnlyList<PaymentMethodOption>? PaymentMethods = null,
+    [property: JsonPropertyName("payment_method_ids")] IReadOnlyList<long>? PaymentMethodIds = null)
 {
     public string StatusLabel => IsActive ? "Activa" : "Inactiva";
 
     public string DefaultLabel => IsDefault ? "Sí" : "No";
+
+    public bool HasPaymentRestrictions => PaymentMethodIds?.Count > 0 || PaymentMethods?.Count > 0;
+}
+
+public sealed record PaymentMethodListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<PaymentMethodOption> Data);
+
+public sealed record PaymentMethodOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("currency_mode")] string CurrencyMode,
+    [property: JsonPropertyName("requires_reference")] bool RequiresReference,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("sort_order")] int SortOrder)
+{
+    public string DisplayLabel => RequiresReference
+        ? $"{Name} ({CurrencyLabel}) - ref."
+        : $"{Name} ({CurrencyLabel})";
+
+    public string CurrencyLabel => CurrencyMode.Equals("flexible", StringComparison.OrdinalIgnoreCase)
+        ? "USD/Bs"
+        : CurrencyMode.ToUpperInvariant();
+
+    public bool AllowsCurrency(string currency)
+    {
+        return CurrencyMode.Equals("flexible", StringComparison.OrdinalIgnoreCase)
+            || CurrencyMode.Equals(currency, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 public sealed record PriceListSaveRequest(

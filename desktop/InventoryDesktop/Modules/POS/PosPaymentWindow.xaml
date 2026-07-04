@@ -1,0 +1,235 @@
+<Window x:Class="InventoryDesktop.Modules.POS.PosPaymentWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cobrar venta"
+        Width="980"
+        Height="720"
+        MinWidth="900"
+        MinHeight="640"
+        WindowStartupLocation="CenterOwner"
+        Background="#F6F8FC">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8">
+                            <TextBlock Text="POS" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                        </Border>
+                        <Border x:Name="RestrictionBadge" Padding="10,5" Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
+                            <TextBlock x:Name="RestrictionText" Text="Lista abierta" Foreground="#B45309" FontSize="11" FontWeight="Black" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Cobrar venta" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock x:Name="ContextText"
+                               Text="Agrega uno o varios pagos. El servidor validará caja, lista de precio, moneda y referencia."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="260">
+                    <Grid>
+                        <TextBlock Text="Total USD" FontWeight="Black" />
+                        <TextBlock x:Name="TotalUsdText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="22" FontWeight="Black" Foreground="{StaticResource AccentStrongBrush}" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <TextBlock Text="Equivalente Bs" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
+                        <TextBlock x:Name="TotalVesText" Text="Bs por calcular" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" FontWeight="Black" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="390" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Nuevo pago" FontSize="20" FontWeight="Black" />
+                        <TextBlock Text="Selecciona el método y registra el monto recibido."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Margin="0,18,0,0">
+                        <TextBlock Text="Método de pago" FontWeight="Black" />
+                        <ComboBox x:Name="PaymentMethodBox"
+                                  Height="40"
+                                  Margin="0,6,0,0"
+                                  DisplayMemberPath="DisplayLabel"
+                                  SelectionChanged="PaymentMethodBox_SelectionChanged" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                        <TextBlock Text="Moneda" FontWeight="Black" />
+                        <ComboBox x:Name="CurrencyBox"
+                                  Height="40"
+                                  Margin="0,6,0,0"
+                                  SelectionChanged="CurrencyBox_SelectionChanged" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Margin="0,14,0,0">
+                        <TextBlock Text="Monto recibido" FontWeight="Black" />
+                        <TextBox x:Name="AmountBox"
+                                 Height="40"
+                                 Margin="0,6,0,0"
+                                 FontSize="15"
+                                 PreviewTextInput="DecimalInput_PreviewTextInput"
+                                 KeyDown="AmountBox_KeyDown" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4" Margin="0,14,0,0">
+                        <TextBlock x:Name="ReferenceLabel" Text="Referencia" FontWeight="Black" />
+                        <TextBox x:Name="ReferenceBox"
+                                 Height="40"
+                                 Margin="0,6,0,0"
+                                 FontSize="15"
+                                 KeyDown="ReferenceBox_KeyDown" />
+                    </StackPanel>
+
+                    <Button Grid.Row="5"
+                            Content="Agregar pago"
+                            Height="44"
+                            Margin="0,18,0,0"
+                            FontWeight="Black"
+                            Background="{StaticResource AccentBrush}"
+                            Foreground="White"
+                            Click="AddPayment_Click" />
+
+                    <TextBlock x:Name="FormHelpText"
+                               Grid.Row="6"
+                               Text="Los pagos en bolívares se estiman con la tasa de la cotización. Backend recalcula y valida al confirmar."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Bottom" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18" Margin="16,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="Pagos agregados" FontSize="20" FontWeight="Black" />
+                            <TextBlock x:Name="PaymentsSummaryText"
+                                       Text="Sin pagos registrados."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Button Content="Quitar seleccionado"
+                                Width="150"
+                                Height="34"
+                                HorizontalAlignment="Right"
+                                FontWeight="Black"
+                                Click="RemovePayment_Click" />
+                    </Grid>
+
+                    <DataGrid x:Name="PaymentsGrid"
+                              Grid.Row="1"
+                              Margin="0,16,0,16"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              BorderBrush="#E1E7F3"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MÉTODO" Binding="{Binding MethodName}" Width="*" />
+                            <DataGridTextColumn Header="MONEDA" Binding="{Binding Currency}" Width="90" />
+                            <DataGridTextColumn Header="MONTO" Binding="{Binding AmountLabel}" Width="120" />
+                            <DataGridTextColumn Header="BASE USD" Binding="{Binding BaseUsdLabel}" Width="120" />
+                            <DataGridTextColumn Header="REFERENCIA" Binding="{Binding Reference}" Width="150" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="2" BorderBrush="#E6ECF5" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock Text="Pagado estimado" FontWeight="Black" />
+                                <TextBlock x:Name="PaidText" Text="USD 0.00" HorizontalAlignment="Right" FontWeight="Black" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <TextBlock Text="Faltante estimado" FontWeight="Black" Foreground="#D9365C" />
+                                <TextBlock x:Name="RemainingText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="22" FontWeight="Black" Foreground="#D9365C" />
+                            </Grid>
+                            <TextBlock x:Name="StatusText"
+                                       Foreground="#D9365C"
+                                       FontWeight="Bold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Al confirmar, Laravel vuelve a validar stock, caja, seriales, método de pago y moneda."
+                       Foreground="{StaticResource MutedBrush}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="1"
+                    Content="Cancelar"
+                    Width="120"
+                    Height="42"
+                    Margin="14,0,0,0"
+                    FontWeight="Black"
+                    Click="Cancel_Click" />
+            <Button Grid.Column="2"
+                    Content="Confirmar venta"
+                    Width="156"
+                    Height="42"
+                    Margin="10,0,0,0"
+                    FontWeight="Black"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="White"
+                    Click="Confirm_Click" />
+        </Grid>
+    </Grid>
+</Window>

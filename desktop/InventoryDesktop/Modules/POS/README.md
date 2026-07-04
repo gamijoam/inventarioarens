@@ -14,7 +14,9 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cotizar el producto con `GET /api/products/{product}/price`.
 - Agregar productos por cantidad a un carrito local.
 - Mostrar total en `USD` y equivalente en `VES` cuando la API devuelve tasa.
-- Mantener el botón de pago deshabilitado hasta implementar checkout, caja y métodos de pago.
+- Abrir ventana de cobro con métodos de pago activos.
+- Permitir pagos en `USD`, `VES` o mixtos cuando la lista de precio lo permite.
+- Confirmar checkout real contra Laravel usando `POST /api/pos/checkouts`.
 
 ## Diseño actual
 
@@ -25,6 +27,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Las tarjetas son compactas para permitir más columnas visibles.
 - El carrito queda a la derecha con ancho reducido.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
+- El botón `Pagar` abre una ventana separada para no quitar espacio al catálogo ni al carrito.
 
 ## Rendimiento del carrito
 
@@ -40,7 +43,22 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El POS carga cajas abiertas desde `GET /api/cash-register/sessions`.
 - Cada línea agregada al carrito conserva el almacén seleccionado.
 - Si no hay almacén seleccionado, no se permite agregar productos.
-- La caja abierta se muestra desde esta fase para preparar el futuro checkout, aunque el botón de pago sigue deshabilitado.
+- La caja abierta es obligatoria para confirmar una venta.
+
+## Cobro y checkout
+
+- El POS carga métodos de pago activos desde `GET /api/payment-methods?active_only=1`.
+- Si la lista de precio tiene métodos restringidos, la ventana de cobro solo muestra esos métodos.
+- Si la lista de precio está abierta, se muestran todos los métodos activos.
+- Si no hay métodos configurados y la lista está abierta, la ventana ofrece métodos básicos compatibles con el backend: efectivo USD, pago móvil Bs y transferencia Bs.
+- Un método `USD` solo permite pago en dólares.
+- Un método `VES` solo permite pago en bolívares.
+- Un método `flexible` permite escoger USD o bolívares.
+- Si el método exige referencia, la ventana bloquea el pago sin referencia.
+- La ventana permite agregar varios pagos antes de confirmar.
+- El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
+- Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
+- Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
 
 ## Productos serializados / IMEI
 
@@ -59,6 +77,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - `GET /api/warehouses`: almacenes disponibles.
 - `GET /api/cash-register/sessions`: sesiones de caja abiertas.
 - `GET /api/inventory-center/products/{product}/serials`: seriales/IMEI disponibles por producto y almacén.
+- `GET /api/payment-methods?active_only=1`: métodos de pago disponibles.
+- `POST /api/pos/checkouts`: confirmación real de venta POS.
 
 ## Reglas actuales
 
@@ -66,13 +86,13 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si un producto no tiene stock disponible, no se agrega al carrito.
 - Si el producto es serializado/IMEI, se exige seleccionar un serial disponible del almacén activo.
 - Si se elige una lista de precio y el producto no tiene precio activo para esa lista, la API rechaza la cotización y la app muestra el error.
-- Esta fase no crea ventas, no descuenta inventario, no registra pagos y no toca caja.
+- El checkout real crea la orden POS, registra pagos, usa caja y confirma venta cuando el backend valida que el pago cubre el total.
 - El botón `Volver al panel` regresa al panel administrativo sin cerrar sesión.
 
 ## Siguiente fase natural
 
-- Selector o lectura de IMEI/serial para productos serializados.
-- Validación de almacén/caja activa.
-- Checkout contra `POST /api/pos/checkouts`.
-- Métodos de pago en `USD`, `VES` y pagos mixtos.
-- Integración con caja y cierre.
+- Mejorar selector visual de métodos de pago con botones rápidos.
+- Agregar cálculo de vuelto/cambio.
+- Agregar cliente en POS.
+- Agregar impresión o vista previa de ticket.
+- Integración visual con cierre de caja.

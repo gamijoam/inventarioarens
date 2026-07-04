@@ -99,4 +99,24 @@ public partial class PosView : UserControl
     {
         ViewModel?.ClearCart();
     }
+
+    private async void Pay_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        if (ViewModel.PaymentMethods.Count == 0)
+        {
+            await ViewModel.LoadPaymentMethodsAsync();
+        }
+
+        PosPaymentWindow dialog = new(ViewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        dialog.ShowDialog();
+    }
 }

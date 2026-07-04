@@ -38,6 +38,8 @@ public sealed class PosViewModel : ViewModelBase
 
     public ObservableCollection<PosCashRegisterSession> CashRegisterSessions { get; } = new();
 
+    public ObservableCollection<PaymentMethodOption> PaymentMethods { get; } = new();
+
     public string SearchText
     {
         get => searchText;
@@ -82,6 +84,7 @@ public sealed class PosViewModel : ViewModelBase
             if (SetProperty(ref selectedCashRegisterSession, value))
             {
                 RaisePropertyChanged(nameof(OperationalContextLabel));
+                RaisePropertyChanged(nameof(CanPay));
             }
         }
     }
@@ -117,7 +120,13 @@ public sealed class PosViewModel : ViewModelBase
     public bool IsBusy
     {
         get => isBusy;
-        set => SetProperty(ref isBusy, value);
+        set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                RaisePropertyChanged(nameof(CanPay));
+            }
+        }
     }
 
     public Brush StatusBrush => IsStatusError
@@ -138,9 +147,12 @@ public sealed class PosViewModel : ViewModelBase
         ? "Sin productos"
         : $"{CartItems.Sum(item => item.Quantity):0.##} unidades";
 
+    public bool CanPay => CartItems.Count > 0 && SelectedCashRegisterSession is not null && !IsBusy;
+
     public async Task InitializeAsync()
     {
         await LoadPriceListsAsync();
+        await LoadPaymentMethodsAsync();
         await LoadOperationalContextAsync();
         await SearchAsync();
     }
@@ -228,6 +240,27 @@ public sealed class PosViewModel : ViewModelBase
         catch (HttpRequestException)
         {
             SetError("No se pudo conectar con la API para cargar cajas abiertas.");
+        }
+    }
+
+    public async Task LoadPaymentMethodsAsync()
+    {
+        try
+        {
+            PaymentMethodListResponse response = await apiClient.GetAsync<PaymentMethodListResponse>("payment-methods?active_only=1");
+            PaymentMethods.Clear();
+            foreach (PaymentMethodOption method in response.Data.Where(method => method.IsActive).OrderBy(method => method.SortOrder).ThenBy(method => method.Name))
+            {
+                PaymentMethods.Add(method);
+            }
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar métodos de pago.");
         }
     }
 
@@ -383,6 +416,94 @@ public sealed class PosViewModel : ViewModelBase
         IsStatusError = false;
     }
 
+    public IReadOnlyList<PaymentMethodOption> GetAllowedPaymentMethods()
+    {
+        PriceListOption? selectedList = SelectedPriceList;
+        if (selectedList?.PaymentMethods is { Count: > 0 } restrictedMethods)
+        {
+            return restrictedMethods
+                .Where(method => method.IsActive)
+                .OrderBy(method => method.SortOrder)
+                .ThenBy(method => method.Name)
+                .ToList();
+        }
+
+        if (selectedList?.PaymentMethodIds is { Count: > 0 } restrictedIds)
+        {
+            HashSet<long> allowedIds = restrictedIds.ToHashSet();
+            return PaymentMethods
+                .Where(method => method.IsActive && allowedIds.Contains(method.Id))
+                .OrderBy(method => method.SortOrder)
+                .ThenBy(method => method.Name)
+                .ToList();
+        }
+
+        return PaymentMethods
+            .Where(method => method.IsActive)
+            .OrderBy(method => method.SortOrder)
+            .ThenBy(method => method.Name)
+            .ToList();
+    }
+
+    public async Task<PosOrderResult> SubmitCheckoutAsync(IReadOnlyList<PosCheckoutPaymentRequest> payments)
+    {
+        if (SelectedCashRegisterSession is null)
+        {
+            throw new InvalidOperationException("Selecciona una caja abierta antes de cobrar.");
+        }
+
+        if (CartItems.Count == 0)
+        {
+            throw new InvalidOperationException("Agrega productos al carrito antes de cobrar.");
+        }
+
+        if (payments.Count == 0)
+        {
+            throw new InvalidOperationException("Agrega al menos un pago antes de confirmar.");
+        }
+
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Confirmando venta en el servidor...";
+
+            PosCheckoutRequest request = new(
+                SelectedCashRegisterSession.Id,
+                "Cliente mostrador",
+                CartItems.Select(item => new PosCheckoutItemRequest(
+                    item.WarehouseId,
+                    item.ProductId,
+                    item.PriceListId,
+                    item.Quantity,
+                    item.ProductUnitIds)).ToList(),
+                payments);
+
+            PosOrderResponse response = await apiClient.PostAsync<PosCheckoutRequest, PosOrderResponse>("pos/checkouts", request);
+            CartItems.Clear();
+            RaiseTotalsChanged();
+            StatusMessage = $"Venta confirmada. Orden POS #{response.Data.Id}.";
+            IsStatusError = false;
+            await SearchAsync();
+            return response.Data;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            SetError("No se pudo conectar con la API para confirmar la venta.");
+            throw new InvalidOperationException("No se pudo conectar con la API para confirmar la venta.", exception);
+        }
+        finally
+        {
+            IsBusy = false;
+            RaisePropertyChanged(nameof(CanPay));
+        }
+    }
+
     public void Increase(PosCartItem item)
     {
         if (item.ProductUnitIds.Count > 0)
@@ -414,12 +535,14 @@ public sealed class PosViewModel : ViewModelBase
         RaisePropertyChanged(nameof(TotalUsdLabel));
         RaisePropertyChanged(nameof(TotalVesLabel));
         RaisePropertyChanged(nameof(CartCountLabel));
+        RaisePropertyChanged(nameof(CanPay));
     }
 
-    private void SetError(string message)
+    public void SetError(string message)
     {
         IsStatusError = true;
         StatusMessage = message;
+        RaisePropertyChanged(nameof(CanPay));
     }
 
     private bool HasCachedQuote(long productId, long? priceListId)

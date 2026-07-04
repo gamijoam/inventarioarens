@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-04 - Ventana de cobro POS en escritorio
+
+### Implementado
+
+- Se habilitó el botón `Pagar` en el POS de escritorio cuando existe carrito y caja abierta.
+- Se creó la ventana `Cobrar venta` como pantalla separada para no reducir el espacio del catálogo ni del carrito.
+- La ventana carga métodos de pago activos desde backend.
+- Si la lista de precio tiene métodos restringidos, solo muestra esos métodos.
+- Si la lista está abierta y no hay métodos configurados, ofrece métodos básicos compatibles con backend.
+- Se permite agregar varios pagos antes de confirmar la venta.
+- Se valida en escritorio que los métodos `USD`, `VES` y `flexible` usen monedas compatibles.
+- Se exige referencia en escritorio cuando el método de pago la requiere.
+- Se calcula pagado y faltante estimado en USD cuando la cotización tiene tasa.
+- Se conecta el checkout real contra `POST /api/pos/checkouts`.
+- Al confirmar correctamente, se limpia el carrito y se refresca el catálogo.
+- Se documentó el nuevo flujo en el README del módulo POS.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/PaymentMethods/PaymentMethodApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 13 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- WPF solo guía la experiencia; Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
+- El cálculo de faltante en bolívares es estimado; backend recalcula con la tasa activa al confirmar.
+- La impresión de ticket, vuelto/cambio y cliente en POS quedan para una siguiente fase.
+
 ## 2026-07-04 - Métodos de pago configurables y reglas por lista de precio
 
 ### Implementado

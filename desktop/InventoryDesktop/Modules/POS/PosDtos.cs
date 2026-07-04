@@ -42,3 +42,35 @@ public sealed record PosPriceQuote(
         ? "Sin tasa"
         : $"{ExchangeRateTypeCode ?? "Tasa"} {ExchangeRate:0.##}";
 }
+
+public sealed record PosCheckoutRequest(
+    [property: JsonPropertyName("cash_register_session_id")] long CashRegisterSessionId,
+    [property: JsonPropertyName("customer_name")] string CustomerName,
+    [property: JsonPropertyName("items")] IReadOnlyList<PosCheckoutItemRequest> Items,
+    [property: JsonPropertyName("payments")] IReadOnlyList<PosCheckoutPaymentRequest> Payments);
+
+public sealed record PosCheckoutItemRequest(
+    [property: JsonPropertyName("warehouse_id")] long WarehouseId,
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("price_list_id")] long? PriceListId,
+    [property: JsonPropertyName("quantity")] decimal Quantity,
+    [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long> ProductUnitIds);
+
+public sealed record PosCheckoutPaymentRequest(
+    [property: JsonPropertyName("payment_method_id")] long? PaymentMethodId,
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("reference")] string? Reference);
+
+public sealed record PosOrderResponse(
+    [property: JsonPropertyName("data")] PosOrderResult Data);
+
+public sealed record PosOrderResult(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("code")] string? Code,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("payment_status")] string? PaymentStatus,
+    [property: JsonPropertyName("total_base")] decimal? TotalBase,
+    [property: JsonPropertyName("paid_base")] decimal? PaidBase);

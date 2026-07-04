@@ -261,14 +261,15 @@
                             <TextBlock Text="Equivalente Bs" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding TotalVesLabel}" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" FontWeight="Black" />
                         </Grid>
-                        <Button Content="Pagar (siguiente fase)"
+                        <Button Content="Pagar"
                                 Height="48"
                                 Margin="0,16,0,0"
-                                IsEnabled="False"
+                                IsEnabled="{Binding CanPay}"
                                 FontWeight="Black"
                                 Background="{StaticResource AccentBrush}"
-                                Foreground="White" />
-                        <TextBlock Text="El checkout real se conectará con caja, pagos y ventas en la siguiente fase."
+                                Foreground="White"
+                                Click="Pay_Click" />
+                        <TextBlock Text="Abre la ventana de cobro para pagos en USD, Bs o mixtos."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontSize="11"
                                    FontWeight="SemiBold"
@@ -303,7 +304,7 @@
                            Margin="14,0" />
 
                 <TextBlock Grid.Column="2"
-                           Text="F2 Buscar · Click agrega producto · Checkout pendiente"
+                           Text="F2 Buscar · Click agrega producto · Pagar confirma contra backend"
                            Foreground="{StaticResource MutedBrush}"
                            FontSize="12"
                            FontWeight="SemiBold"
