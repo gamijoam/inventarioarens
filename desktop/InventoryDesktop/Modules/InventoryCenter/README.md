@@ -33,6 +33,9 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Ventana de salida conectada a `POST /api/product-exits`.
 - La salida permite elegir almacén, cantidad, motivo, referencia, notas y seleccionar IMEI/seriales disponibles en productos serializados.
 - Las entradas y salidas validan mensajes en español antes de llamar a la API.
+- Botón lateral `Entradas y salidas` habilitado en el shell principal.
+- Pantalla operativa `Entradas y salidas` con búsqueda de productos y acciones rápidas `Entrada` / `Salida`.
+- Si una ventana de movimiento no puede abrirse, la app muestra un mensaje visible en español.
 
 ## Regla de conexión
 

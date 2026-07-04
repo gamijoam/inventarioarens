@@ -25,6 +25,27 @@
 - La app de escritorio solo envía solicitudes al backend Laravel; PostgreSQL no se consulta directamente.
 - Los permisos, tenant, stock insuficiente y seriales inválidos siguen siendo validados por Laravel.
 
+## 2026-07-04 - Activación del botón lateral Entradas y salidas
+
+### Implementado
+
+- Se habilitó el botón lateral `Entradas y salidas`, que estaba desactivado en el shell principal.
+- Se agregó una pantalla operativa WPF para buscar productos y abrir acciones rápidas de entrada o salida.
+- La pantalla reutiliza el cliente API autenticado y carga datos reales desde `GET /api/inventory-center/summary`.
+- Las acciones rápidas cargan el detalle del producto y abren las ventanas ya conectadas a `POST /api/product-entries` y `POST /api/product-exits`.
+- Se agregaron mensajes visibles si alguna ventana no puede abrirse, para evitar fallos silenciosos.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`.
+- Resultado: 21 pruebas pasaron, 129 aserciones.
+
+### Notas de seguridad
+
+- La pantalla no escribe directo en base de datos; delega las reglas de negocio, permisos y tenant al backend Laravel.
+
 ## 2026-07-04 - Kardex por producto en WPF
 
 ### Implementado

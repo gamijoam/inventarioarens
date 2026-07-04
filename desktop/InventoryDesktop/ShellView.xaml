@@ -25,8 +25,8 @@
                     <Button Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
                     <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                    <Button Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" />
-                    <Button Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                    <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
+                    <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="InventoryMovements_Click" />
                     <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
                     <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
@@ -44,8 +44,8 @@
             <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
                 <Grid Margin="28,0">
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Centro de Inventario" FontSize="24" FontWeight="Black" />
-                        <TextBlock Text="Datos reales desde el servidor" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,4,0,0" />
+                        <TextBlock x:Name="SectionTitle" Text="Centro de Inventario" FontSize="24" FontWeight="Black" />
+                        <TextBlock x:Name="SectionSubtitle" Text="Datos reales desde el servidor" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,4,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Border Padding="14,9" CornerRadius="10" Background="#F7F9FD" BorderBrush="#E1E7F3" BorderThickness="1">
@@ -55,7 +55,10 @@
                 </Grid>
             </Border>
 
-            <inventory:InventoryCenterView x:Name="InventoryCenterContent" Grid.Row="1" />
+            <Grid Grid.Row="1">
+                <inventory:InventoryCenterView x:Name="InventoryCenterContent" />
+                <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

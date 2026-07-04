@@ -20,32 +20,36 @@ public partial class InventoryProductDetailWindow : Window
 
     private void OpenKardex_Click(object sender, RoutedEventArgs e)
     {
-        InventoryProductKardexWindow window = new(detail, apiClient)
-        {
-            Owner = this
-        };
-        window.Show();
-        window.Activate();
+        TryOpenWindow(() => new InventoryProductKardexWindow(detail, apiClient), "Kardex");
     }
 
     private void OpenEntry_Click(object sender, RoutedEventArgs e)
     {
-        InventoryProductEntryWindow window = new(detail, apiClient)
-        {
-            Owner = this
-        };
-        window.Show();
-        window.Activate();
+        TryOpenWindow(() => new InventoryProductEntryWindow(detail, apiClient), "entrada");
     }
 
     private void OpenExit_Click(object sender, RoutedEventArgs e)
     {
-        InventoryProductExitWindow window = new(detail, apiClient)
+        TryOpenWindow(() => new InventoryProductExitWindow(detail, apiClient), "salida");
+    }
+
+    private void TryOpenWindow(Func<Window> createWindow, string actionName)
+    {
+        try
         {
-            Owner = this
-        };
-        window.Show();
-        window.Activate();
+            Window window = createWindow();
+            window.Owner = this;
+            window.Show();
+            window.Activate();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"No se pudo abrir la ventana de {actionName}.\n\n{exception.Message}",
+                "Sistema de Inventario",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void Close_Click(object sender, RoutedEventArgs e)
