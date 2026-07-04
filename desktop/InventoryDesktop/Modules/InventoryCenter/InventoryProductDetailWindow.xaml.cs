@@ -23,6 +23,8 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     private bool movementsLoaded;
     private FilterOption selectedSerialStatus = new("all", "Todos");
     private FilterOption selectedMovementType = new("all", "Todos");
+    private WarehouseFilterOption selectedSerialWarehouse = WarehouseFilterOption.All;
+    private WarehouseFilterOption selectedMovementWarehouse = WarehouseFilterOption.All;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -51,6 +53,12 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             }
         }
 
+        WarehouseFilterOptions.Add(WarehouseFilterOption.All);
+        foreach (InventoryWarehouseStock warehouse in detail.Stock.ByWarehouse)
+        {
+            WarehouseFilterOptions.Add(new WarehouseFilterOption(warehouse.WarehouseId, warehouse.WarehouseLabel));
+        }
+
         InitializeComponent();
         DataContext = this;
         Title = $"Detalle - {detail.Product.Name}";
@@ -71,6 +79,8 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     public ObservableCollection<InventoryProductSerial> SerialRows { get; } = new();
 
     public ObservableCollection<InventoryProductMovement> MovementRows { get; } = new();
+
+    public ObservableCollection<WarehouseFilterOption> WarehouseFilterOptions { get; } = new();
 
     public IReadOnlyList<FilterOption> SerialStatusOptions { get; } =
     [
@@ -111,6 +121,18 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         set => SetProperty(ref selectedMovementType, value);
     }
 
+    public WarehouseFilterOption SelectedSerialWarehouse
+    {
+        get => selectedSerialWarehouse;
+        set => SetProperty(ref selectedSerialWarehouse, value);
+    }
+
+    public WarehouseFilterOption SelectedMovementWarehouse
+    {
+        get => selectedMovementWarehouse;
+        set => SetProperty(ref selectedMovementWarehouse, value);
+    }
+
     public string SerialStatusMessage
     {
         get => serialStatusMessage;
@@ -130,6 +152,14 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     public Brush MovementStatusBrush => isMovementStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
+    public bool CanGoPreviousSerials => serialPagination.HasPrevious;
+
+    public bool CanGoNextSerials => serialPagination.HasNext;
+
+    public bool CanGoPreviousMovements => movementPagination.HasPrevious;
+
+    public bool CanGoNextMovements => movementPagination.HasNext;
 
     private async void DetailTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -154,6 +184,14 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         await LoadSerialsAsync(1);
     }
 
+    private async void ClearSerials_Click(object sender, RoutedEventArgs e)
+    {
+        SerialSearchBox.Text = "";
+        SelectedSerialStatus = SerialStatusOptions.First(option => option.Value == "all");
+        SelectedSerialWarehouse = WarehouseFilterOption.All;
+        await LoadSerialsAsync(1);
+    }
+
     private async void PreviousSerials_Click(object sender, RoutedEventArgs e)
     {
         if (serialPagination.HasPrevious)
@@ -172,6 +210,16 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 
     private async void SearchMovements_Click(object sender, RoutedEventArgs e)
     {
+        await LoadMovementsAsync(1);
+    }
+
+    private async void ClearMovements_Click(object sender, RoutedEventArgs e)
+    {
+        MovementSearchBox.Text = "";
+        MovementDateFromBox.Text = "";
+        MovementDateToBox.Text = "";
+        SelectedMovementType = MovementTypeOptions.First(option => option.Value == "all");
+        SelectedMovementWarehouse = WarehouseFilterOption.All;
         await LoadMovementsAsync(1);
     }
 
@@ -267,6 +315,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
                 $"inventory-center/products/{detail.Product.Id}");
 
             Detail = response.Data;
+            RefreshWarehouseFilters();
         }
         catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
         {
@@ -289,6 +338,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             string query = BuildQuery([
                 ("search", SerialSearchBox.Text),
                 ("status", SelectedSerialStatus.Value),
+                ("warehouse_id", SelectedSerialWarehouse.Id?.ToString()),
                 ("limit", "24"),
                 ("page", page.ToString()),
             ]);
@@ -305,6 +355,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             serialPagination = response.Data.Pagination;
             serialsLoaded = true;
             SerialStatusMessage = PaginationMessage(serialPagination, "seriales/IMEI");
+            RaiseSerialPaginationChanged();
         }
         catch (ApiException exception)
         {
@@ -322,6 +373,11 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 
     private async Task LoadMovementsAsync(int page)
     {
+        if (!ValidateMovementDates())
+        {
+            return;
+        }
+
         isMovementStatusError = false;
         RaisePropertyChanged(nameof(MovementStatusBrush));
         MovementStatusMessage = "Cargando movimientos...";
@@ -331,6 +387,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             string query = BuildQuery([
                 ("search", MovementSearchBox.Text),
                 ("type", SelectedMovementType.Value),
+                ("warehouse_id", SelectedMovementWarehouse.Id?.ToString()),
                 ("date_from", MovementDateFromBox.Text),
                 ("date_to", MovementDateToBox.Text),
                 ("limit", "24"),
@@ -349,6 +406,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             movementPagination = response.Data.Pagination;
             movementsLoaded = true;
             MovementStatusMessage = PaginationMessage(movementPagination, "movimientos");
+            RaiseMovementPaginationChanged();
         }
         catch (ApiException exception)
         {
@@ -386,6 +444,8 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         isSerialStatusError = true;
         RaisePropertyChanged(nameof(SerialStatusBrush));
         SerialStatusMessage = message;
+        serialPagination = new InventoryPagination(1, 24, 0, 1, 0, 0, false, false);
+        RaiseSerialPaginationChanged();
     }
 
     private void SetMovementError(string message)
@@ -393,6 +453,60 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         isMovementStatusError = true;
         RaisePropertyChanged(nameof(MovementStatusBrush));
         MovementStatusMessage = message;
+        movementPagination = new InventoryPagination(1, 24, 0, 1, 0, 0, false, false);
+        RaiseMovementPaginationChanged();
+    }
+
+    private bool ValidateMovementDates()
+    {
+        if (!TryReadDate(MovementDateFromBox.Text, out DateOnly? from))
+        {
+            SetMovementError("La fecha desde debe tener formato yyyy-mm-dd.");
+            return false;
+        }
+
+        if (!TryReadDate(MovementDateToBox.Text, out DateOnly? to))
+        {
+            SetMovementError("La fecha hasta debe tener formato yyyy-mm-dd.");
+            return false;
+        }
+
+        if (from.HasValue && to.HasValue && to.Value < from.Value)
+        {
+            SetMovementError("La fecha hasta no puede ser menor que la fecha desde.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadDate(string value, out DateOnly? date)
+    {
+        date = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out DateOnly parsed))
+        {
+            date = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void RaiseSerialPaginationChanged()
+    {
+        RaisePropertyChanged(nameof(CanGoPreviousSerials));
+        RaisePropertyChanged(nameof(CanGoNextSerials));
+    }
+
+    private void RaiseMovementPaginationChanged()
+    {
+        RaisePropertyChanged(nameof(CanGoPreviousMovements));
+        RaisePropertyChanged(nameof(CanGoNextMovements));
     }
 
     private static void ShowOpenError(string actionName, Exception exception)
@@ -402,6 +516,22 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             "Sistema de Inventario",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
+    }
+
+    private void RefreshWarehouseFilters()
+    {
+        long? serialWarehouseId = SelectedSerialWarehouse.Id;
+        long? movementWarehouseId = SelectedMovementWarehouse.Id;
+
+        WarehouseFilterOptions.Clear();
+        WarehouseFilterOptions.Add(WarehouseFilterOption.All);
+        foreach (InventoryWarehouseStock warehouse in detail.Stock.ByWarehouse)
+        {
+            WarehouseFilterOptions.Add(new WarehouseFilterOption(warehouse.WarehouseId, warehouse.WarehouseLabel));
+        }
+
+        SelectedSerialWarehouse = WarehouseFilterOptions.FirstOrDefault(option => option.Id == serialWarehouseId) ?? WarehouseFilterOption.All;
+        SelectedMovementWarehouse = WarehouseFilterOptions.FirstOrDefault(option => option.Id == movementWarehouseId) ?? WarehouseFilterOption.All;
     }
 
     private void Close_Click(object sender, RoutedEventArgs e)
@@ -425,4 +555,9 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+}
+
+public sealed record WarehouseFilterOption(long? Id, string Label)
+{
+    public static WarehouseFilterOption All { get; } = new(null, "Todos los almacenes");
 }

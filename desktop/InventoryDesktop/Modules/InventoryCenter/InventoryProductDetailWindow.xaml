@@ -169,16 +169,26 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="SerialSearchBox" Height="36" Margin="0,0,10,0" ToolTip="Buscar IMEI o serial" />
                             <ComboBox x:Name="SerialStatusBox"
                                       Grid.Column="1"
                                       Height="36"
+                                      Margin="0,0,10,0"
                                       ItemsSource="{Binding SerialStatusOptions}"
                                       SelectedItem="{Binding SelectedSerialStatus}"
                                       DisplayMemberPath="Label" />
-                            <Button Grid.Column="2" Content="Buscar" Width="96" Height="36" Margin="10,0,0,0" FontWeight="Black" Click="SearchSerials_Click" />
+                            <ComboBox x:Name="SerialWarehouseBox"
+                                      Grid.Column="2"
+                                      Height="36"
+                                      ItemsSource="{Binding WarehouseFilterOptions}"
+                                      SelectedItem="{Binding SelectedSerialWarehouse}"
+                                      DisplayMemberPath="Label" />
+                            <Button Grid.Column="3" Content="Buscar" Width="96" Height="36" Margin="10,0,0,0" FontWeight="Black" Click="SearchSerials_Click" />
+                            <Button Grid.Column="4" Content="Limpiar" Width="86" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="ClearSerials_Click" />
                         </Grid>
                     </Border>
 
@@ -205,8 +215,8 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding SerialStatusMessage}" Foreground="{Binding SerialStatusBrush}" FontWeight="Bold" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="Anterior" Width="96" Height="36" FontWeight="Black" Click="PreviousSerials_Click" />
-                        <Button Grid.Column="2" Content="Siguiente" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="NextSerials_Click" />
+                        <Button Grid.Column="1" Content="Anterior" Width="96" Height="36" FontWeight="Black" IsEnabled="{Binding CanGoPreviousSerials}" Click="PreviousSerials_Click" />
+                        <Button Grid.Column="2" Content="Siguiente" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" IsEnabled="{Binding CanGoNextSerials}" Click="NextSerials_Click" />
                     </Grid>
                 </Grid>
             </TabItem>
@@ -224,20 +234,30 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="200" />
                                 <ColumnDefinition Width="110" />
                                 <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="MovementSearchBox" Height="36" Margin="0,0,10,0" ToolTip="Buscar motivo o referencia" />
                             <ComboBox x:Name="MovementTypeBox"
                                       Grid.Column="1"
                                       Height="36"
+                                      Margin="0,0,10,0"
                                       ItemsSource="{Binding MovementTypeOptions}"
                                       SelectedItem="{Binding SelectedMovementType}"
                                       DisplayMemberPath="Label" />
-                            <TextBox x:Name="MovementDateFromBox" Grid.Column="2" Height="36" Margin="10,0,0,0" ToolTip="Desde: yyyy-mm-dd" />
-                            <TextBox x:Name="MovementDateToBox" Grid.Column="3" Height="36" Margin="10,0,0,0" ToolTip="Hasta: yyyy-mm-dd" />
-                            <Button Grid.Column="4" Content="Buscar" Width="96" Height="36" Margin="10,0,0,0" FontWeight="Black" Click="SearchMovements_Click" />
+                            <ComboBox x:Name="MovementWarehouseBox"
+                                      Grid.Column="2"
+                                      Height="36"
+                                      ItemsSource="{Binding WarehouseFilterOptions}"
+                                      SelectedItem="{Binding SelectedMovementWarehouse}"
+                                      DisplayMemberPath="Label" />
+                            <TextBox x:Name="MovementDateFromBox" Grid.Column="3" Height="36" Margin="10,0,0,0" ToolTip="Desde: yyyy-mm-dd" />
+                            <TextBox x:Name="MovementDateToBox" Grid.Column="4" Height="36" Margin="10,0,0,0" ToolTip="Hasta: yyyy-mm-dd" />
+                            <Button Grid.Column="5" Content="Buscar" Width="96" Height="36" Margin="10,0,0,0" FontWeight="Black" Click="SearchMovements_Click" />
+                            <Button Grid.Column="6" Content="Limpiar" Width="86" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="ClearMovements_Click" />
                         </Grid>
                     </Border>
 
@@ -266,8 +286,8 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding MovementStatusMessage}" Foreground="{Binding MovementStatusBrush}" FontWeight="Bold" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="Anterior" Width="96" Height="36" FontWeight="Black" Click="PreviousMovements_Click" />
-                        <Button Grid.Column="2" Content="Siguiente" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="NextMovements_Click" />
+                        <Button Grid.Column="1" Content="Anterior" Width="96" Height="36" FontWeight="Black" IsEnabled="{Binding CanGoPreviousMovements}" Click="PreviousMovements_Click" />
+                        <Button Grid.Column="2" Content="Siguiente" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" IsEnabled="{Binding CanGoNextMovements}" Click="NextMovements_Click" />
                     </Grid>
                 </Grid>
             </TabItem>

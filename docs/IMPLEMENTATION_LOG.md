@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-04 - Filtros avanzados en detalle WPF de inventario
+
+### Implementado
+
+- Se agregó filtro por almacén en la pestaña `Seriales / IMEI`.
+- Se agregó filtro por almacén en la pestaña `Movimientos`.
+- Se agregaron botones `Limpiar` para reiniciar búsqueda, estado, tipo, fechas y almacén.
+- Se desactivan los botones `Anterior` y `Siguiente` cuando no existe página disponible.
+- Se agregó validación local de fechas en formato `yyyy-mm-dd` antes de consultar movimientos.
+- Los filtros de almacén se reconstruyen cuando el detalle se refresca después de una entrada o salida.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 11 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- Los filtros visuales solo agregan parámetros a las APIs protegidas; el backend conserva la validación de tenant, permisos y producto.
+
 ## 2026-07-04 - Detalle de producto WPF por pestañas
 
 ### Implementado
