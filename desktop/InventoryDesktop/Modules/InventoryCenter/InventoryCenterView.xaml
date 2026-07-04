@@ -70,7 +70,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -141,6 +140,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="{Binding AlertsButtonLabel}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" IsEnabled="{Binding HasAlerts}" ToolTip="Abrir alertas operativas en una ventana aparte" Click="OpenAlerts_Click" />
                     <Button Content="Actualizar" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" ToolTip="Volver a cargar datos desde el servidor" Click="Refresh_Click" />
                     <Button Content="+ Nuevo producto" Style="{StaticResource PrimaryButtonStyle}" ToolTip="Crear producto" Click="CreateProduct_Click" />
                 </StackPanel>
@@ -184,7 +184,7 @@
                 BorderBrush="#E1E7F3"
                 BorderThickness="1"
                 CornerRadius="10"
-                Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibilityConverter}}">
+                Visibility="Collapsed">
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Border Padding="9,5" Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="7">
@@ -231,7 +231,7 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="3" Margin="0,12,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
+        <Border Grid.Row="2" Margin="0,12,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
             <Grid>
                 <DataGrid x:Name="ProductsGrid"
                           ItemsSource="{Binding Products}"
@@ -323,7 +323,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="4" Margin="0,10,0,0">
+        <Grid Grid.Row="3" Margin="0,10,0,0">
             <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0" />

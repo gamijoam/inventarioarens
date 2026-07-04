@@ -94,6 +94,21 @@ public partial class InventoryCenterView : UserControl
         window.Activate();
     }
 
+    private void OpenAlerts_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || ViewModel.Alerts.Count == 0)
+        {
+            return;
+        }
+
+        InventoryAlertsWindow window = new(ViewModel.Alerts.ToList())
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Show();
+        window.Activate();
+    }
+
     private async void EditProduct_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not FrameworkElement { DataContext: InventoryProductItem product })

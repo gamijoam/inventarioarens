@@ -211,6 +211,12 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         ? "Sin alertas operativas"
         : $"{Alerts.Count} alertas operativas";
 
+    public string AlertsButtonLabel => Alerts.Count == 0
+        ? "Sin alertas"
+        : Alerts.Count == 1
+            ? "1 alerta"
+            : $"{Alerts.Count} alertas";
+
     public string EmptyStateTitle => IsStatusError ? "No se pudo cargar el inventario" : "No hay productos para mostrar";
 
     public string EmptyStateMessage => IsStatusError
@@ -436,6 +442,7 @@ public sealed class InventoryCenterViewModel : ViewModelBase
     {
         RaisePropertyChanged(nameof(HasAlerts));
         RaisePropertyChanged(nameof(AlertsSummaryLabel));
+        RaisePropertyChanged(nameof(AlertsButtonLabel));
     }
 }
 

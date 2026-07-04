@@ -24,12 +24,14 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - El resumen del Centro de Inventario incluye alertas operativas para detectar problemas antes de vender.
 - Las alertas iniciales cubren `Stock bajo`, `Sin stock`, `Sin precio base`, `Sin garantía` y `Listas de precio incompletas`.
 - Cada alerta incluye conteo, mensaje, acción recomendada y hasta tres productos de ejemplo.
-- La app WPF muestra estas alertas entre los filtros y la tabla de productos.
+- La app WPF mantiene las alertas fuera del flujo principal para no quitar espacio al listado.
+- El Centro de Inventario muestra un botón compacto con el conteo de alertas y abre una ventana independiente para revisarlas.
 
 ## Implementado
 
 - Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.
-- Bloque WPF de alertas operativas conectado al campo `alerts` del resumen.
+- Botón WPF de alertas operativas conectado al campo `alerts` del resumen.
+- Ventana independiente de alertas operativas con conteo, productos afectados y acción recomendada.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.

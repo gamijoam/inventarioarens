@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-04 - Alertas operativas en ventana WPF
+
+### Implementado
+
+- Se retiró la visualización fija de alertas operativas entre filtros y tabla del Centro de Inventario.
+- Se agregó un botón compacto en la cabecera del Centro de Inventario con el conteo de alertas.
+- Se creó una ventana independiente `Alertas operativas` para revisar conteo, severidad, productos afectados y acción recomendada.
+- La tabla principal vuelve a ocupar el espacio central inmediatamente después de los filtros.
+- No se cambió la API ni la lógica de negocio del backend.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- Las alertas siguen llegando desde `GET /api/inventory-center/summary` y respetan tenant, token y permisos existentes.
+- La nueva ventana es solo lectura; no modifica productos, stock ni listas de precio.
+
 ## 2026-07-04 - Alertas operativas del Centro de Inventario
 
 ### Implementado
