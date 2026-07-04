@@ -1,5 +1,18 @@
 # Registro de implementación
 
+## 2026-07-03 - Cierre explicito de la aplicacion WPF
+
+### Implementado
+
+- Se configuro WPF con `ShutdownMode="OnExplicitShutdown"` para evitar que la app se cierre al cerrar el login.
+- Despues de autenticar, el login se oculta, se abre `ShellWindow`, se registra como ventana principal y la aplicacion solo se apaga cuando el shell se cierra.
+- Esto corrige el caso donde el login se cerraba despues de iniciar sesion y no quedaba ninguna ventana visible.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Correccion de apertura del panel WPF despues del login
 
 ### Implementado

@@ -27,8 +27,10 @@ public partial class MainWindow : Window
 
     private void LoginSucceeded(object? sender, DesktopSession session)
     {
+        Hide();
         ShellWindow shell = new(session);
         Application.Current.MainWindow = shell;
+        shell.Closed += (_, _) => Application.Current.Shutdown();
         shell.Show();
         Close();
     }
