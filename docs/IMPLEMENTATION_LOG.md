@@ -46,6 +46,30 @@
 
 - La pantalla no escribe directo en base de datos; delega las reglas de negocio, permisos y tenant al backend Laravel.
 
+## 2026-07-04 - Recepción avanzada de IMEI en WPF
+
+### Implementado
+
+- Se rediseñó la sección de IMEI/seriales en la ventana `Registrar entrada`.
+- Se agregó contador visual de IMEI/seriales válidos detectados.
+- Se agregó vista previa en tabla con número de línea, serial y estado.
+- Se validan líneas vacías, duplicados, seriales demasiado cortos y diferencia entre cantidad e IMEI detectados.
+- Se agregó botón `Usar conteo` para colocar automáticamente la cantidad según los IMEI válidos.
+- Se agregó botón `Limpiar duplicados` para dejar una sola ocurrencia de cada serial.
+- Se bloquea el guardado localmente si la recepción serializada no está consistente.
+- Se corrigieron textos visibles en español dentro de la ventana de entrada.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php`.
+- Resultado: 6 pruebas pasaron, 36 aserciones.
+
+### Notas de seguridad
+
+- La validación WPF reduce errores humanos, pero Laravel sigue siendo la autoridad final para duplicados, permisos, tenant y cantidad exacta.
+
 ## 2026-07-04 - Tolerancia a auditoría faltante al guardar productos
 
 ### Implementado

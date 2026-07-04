@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Registrar entrada"
-        Width="680"
-        Height="690"
-        MinWidth="620"
-        MinHeight="610"
+        Width="780"
+        Height="780"
+        MinWidth="700"
+        MinHeight="680"
         WindowStartupLocation="CenterOwner"
         Background="#F4F7FB">
     <Grid Margin="22">
@@ -26,45 +26,80 @@
         </Border>
 
         <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <Border Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
-                    <StackPanel>
-                        <TextBlock Text="Almacén" FontWeight="Black" />
-                        <ComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding SelectedWarehouse}" DisplayMemberPath="WarehouseLabel" Height="38" Margin="0,6,0,14" />
+            <Border Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+                <StackPanel>
+                    <TextBlock Text="Almacén" FontWeight="Black" />
+                    <ComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding SelectedWarehouse}" DisplayMemberPath="WarehouseLabel" Height="38" Margin="0,6,0,14" />
 
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Cantidad" FontWeight="Black" />
+                            <TextBox x:Name="QuantityBox" Height="38" Margin="0,6,0,14" Text="1" TextChanged="QuantityBox_TextChanged" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Costo unitario" FontWeight="Black" />
+                            <TextBox x:Name="UnitCostBox" Height="38" Margin="0,6,0,14" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Motivo" FontWeight="Black" />
+                    <TextBox x:Name="ReasonBox" Height="38" Margin="0,6,0,14" Text="Entrada manual" />
+
+                    <TextBlock Text="Referencia" FontWeight="Black" />
+                    <TextBox x:Name="ReferenceBox" Height="38" Margin="0,6,0,14" />
+
+                    <TextBlock Text="Notas" FontWeight="Black" />
+                    <TextBox x:Name="NotesBox" Height="72" Margin="0,6,0,14" TextWrapping="Wrap" AcceptsReturn="True" />
+
+                    <StackPanel x:Name="SerialsPanel">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="Cantidad" FontWeight="Black" />
-                                <TextBox x:Name="QuantityBox" Height="38" Margin="0,6,0,14" Text="1" />
+                            <StackPanel>
+                                <TextBlock Text="IMEI / seriales" FontWeight="Black" />
+                                <TextBlock Text="{Binding SerialSummary}" Foreground="{Binding SerialSummaryBrush}" FontWeight="Bold" Margin="0,4,0,0" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="Costo unitario" FontWeight="Black" />
-                                <TextBox x:Name="UnitCostBox" Height="38" Margin="0,6,0,14" />
-                            </StackPanel>
+                            <Button Grid.Column="1" Content="Usar conteo" Width="112" Height="32" Margin="8,0,0,0" FontWeight="Black" Click="UseSerialCount_Click" />
+                            <Button Grid.Column="2" Content="Limpiar duplicados" Width="145" Height="32" Margin="8,0,0,0" FontWeight="Black" Click="RemoveDuplicateSerials_Click" />
                         </Grid>
 
-                        <TextBlock Text="Motivo" FontWeight="Black" />
-                        <TextBox x:Name="ReasonBox" Height="38" Margin="0,6,0,14" Text="Entrada manual" />
+                        <TextBlock Text="Pega un IMEI o serial por línea. Se validan duplicados, líneas vacías y coincidencia con la cantidad."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,6" />
+                        <TextBox x:Name="SerialsBox"
+                                 Height="130"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 TextChanged="SerialsBox_TextChanged" />
 
-                        <TextBlock Text="Referencia" FontWeight="Black" />
-                        <TextBox x:Name="ReferenceBox" Height="38" Margin="0,6,0,14" />
-
-                        <TextBlock Text="Notas" FontWeight="Black" />
-                        <TextBox x:Name="NotesBox" Height="72" Margin="0,6,0,14" TextWrapping="Wrap" AcceptsReturn="True" />
-
-                        <StackPanel x:Name="SerialsPanel">
-                            <TextBlock Text="IMEI / seriales" FontWeight="Black" />
-                            <TextBlock Text="Escribe un IMEI o serial por línea. La cantidad debe coincidir con el número de líneas."
-                                       Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,6" />
-                            <TextBox x:Name="SerialsBox" Height="150" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" />
-                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding SerialPreview}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  Height="160"
+                                  Margin="0,10,0,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding LineNumber}" Width="55" />
+                                <DataGridTextColumn Header="IMEI / SERIAL" Binding="{Binding SerialNumber}" Width="*" />
+                                <DataGridTextColumn Header="ESTADO" Binding="{Binding StatusLabel}" Width="150" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
-                </Border>
-            </StackPanel>
+                </StackPanel>
+            </Border>
         </ScrollViewer>
 
         <Border Grid.Row="2" Padding="12" Margin="0,14,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">

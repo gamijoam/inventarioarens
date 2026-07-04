@@ -29,6 +29,8 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Acción `Registrar entrada` desde la ventana de detalle del producto.
 - Ventana de entrada conectada a `POST /api/product-entries`.
 - La entrada permite elegir almacén, cantidad, costo unitario, motivo, referencia, notas e IMEI/seriales uno por línea para productos serializados.
+- La recepción de IMEI/seriales tiene contador visual, vista previa, validación de duplicados, líneas vacías, seriales cortos y coincidencia con cantidad.
+- La ventana de entrada permite usar el conteo detectado como cantidad y limpiar duplicados antes de guardar.
 - Acción `Registrar salida` desde la ventana de detalle del producto.
 - Ventana de salida conectada a `POST /api/product-exits`.
 - La salida permite elegir almacén, cantidad, motivo, referencia, notas y seleccionar IMEI/seriales disponibles en productos serializados.

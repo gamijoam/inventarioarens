@@ -15,8 +15,11 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
     private readonly ApiClient apiClient;
     private InventoryWarehouseOption? selectedWarehouse;
     private string statusMessage = "Completa los datos de la entrada.";
+    private string serialSummary = "Sin IMEI/seriales detectados.";
+    private bool isSerialSummaryError;
     private bool isStatusError;
     private bool isBusy;
+    private bool isUpdatingSerialText;
 
     public InventoryProductEntryWindow(InventoryProductDetailData detail, ApiClient apiClient)
     {
@@ -35,7 +38,11 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         InitializeComponent();
         DataContext = this;
         SerialsPanel.Visibility = detail.Product.TrackingType == "serialized" ? Visibility.Visible : Visibility.Collapsed;
-        Loaded += async (_, _) => await LoadWarehousesAsync();
+        Loaded += async (_, _) =>
+        {
+            RefreshSerialPreview();
+            await LoadWarehousesAsync();
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -45,6 +52,8 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
     public string ProductSku { get; }
 
     public ObservableCollection<InventoryWarehouseOption> Warehouses { get; } = new();
+
+    public ObservableCollection<SerialPreviewItem> SerialPreview { get; } = new();
 
     public InventoryWarehouseOption? SelectedWarehouse
     {
@@ -58,9 +67,19 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         set => SetProperty(ref statusMessage, value);
     }
 
+    public string SerialSummary
+    {
+        get => serialSummary;
+        set => SetProperty(ref serialSummary, value);
+    }
+
     public Brush StatusBrush => IsStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
+    public Brush SerialSummaryBrush => isSerialSummaryError
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(4, 120, 87));
 
     public bool IsStatusError
     {
@@ -96,7 +115,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
                 "product-entries",
                 request!);
 
-            StatusMessage = $"Entrada registrada: {response.Data.DocumentNumber ?? "sin numero"}.";
+            StatusMessage = $"Entrada registrada: {response.Data.DocumentNumber ?? "sin número"}.";
         }
         catch (ApiException exception)
         {
@@ -122,6 +141,43 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void SerialsBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (!isUpdatingSerialText)
+        {
+            RefreshSerialPreview();
+        }
+    }
+
+    private void QuantityBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (detail.Product.TrackingType == "serialized")
+        {
+            RefreshSerialPreview();
+        }
+    }
+
+    private void UseSerialCount_Click(object sender, RoutedEventArgs e)
+    {
+        int validCount = SerialPreview.Count(item => item.IsUsable);
+        if (validCount > 0)
+        {
+            QuantityBox.Text = validCount.ToString(CultureInfo.CurrentCulture);
+        }
+    }
+
+    private void RemoveDuplicateSerials_Click(object sender, RoutedEventArgs e)
+    {
+        List<string> uniqueSerials = ReadSerialLines(includeEmpty: false)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        isUpdatingSerialText = true;
+        SerialsBox.Text = string.Join(Environment.NewLine, uniqueSerials);
+        isUpdatingSerialText = false;
+        RefreshSerialPreview();
     }
 
     private bool TryBuildRequest(out ProductEntryStoreRequest? request)
@@ -158,19 +214,9 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         IReadOnlyList<ProductEntrySerialUnitRequest>? serialUnits = null;
         if (detail.Product.TrackingType == "serialized")
         {
-            if (quantity != decimal.Truncate(quantity))
+            if (!ValidateSerialsForSave(quantity, out List<string> serials))
             {
-                return Fail("La cantidad de un producto serializado debe ser un número entero.");
-            }
-
-            List<string> serials = SerialsBox.Text
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (serials.Count != (int) quantity)
-            {
-                return Fail("La cantidad debe coincidir con los IMEI/seriales escritos.");
+                return false;
             }
 
             serialUnits = serials
@@ -193,6 +239,107 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
             });
 
         return true;
+    }
+
+    private bool ValidateSerialsForSave(decimal quantity, out List<string> serials)
+    {
+        serials = new();
+
+        if (quantity != decimal.Truncate(quantity))
+        {
+            return Fail("La cantidad de un producto serializado debe ser un número entero.");
+        }
+
+        List<string> rawLines = ReadSerialLines(includeEmpty: false);
+        List<string> duplicateValues = rawLines
+            .GroupBy(line => line, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToList();
+
+        if (duplicateValues.Count > 0)
+        {
+            return Fail($"Hay IMEI/seriales duplicados: {string.Join(", ", duplicateValues.Take(3))}.");
+        }
+
+        if (rawLines.Count != (int) quantity)
+        {
+            return Fail("La cantidad debe coincidir con los IMEI/seriales escritos.");
+        }
+
+        if (rawLines.Any(serial => serial.Length < 6))
+        {
+            return Fail("Hay IMEI/seriales demasiado cortos. Revisa la vista previa.");
+        }
+
+        serials = rawLines;
+        return true;
+    }
+
+    private void RefreshSerialPreview()
+    {
+        if (detail.Product.TrackingType != "serialized" || !IsInitialized)
+        {
+            return;
+        }
+
+        List<string> lines = ReadSerialLines(includeEmpty: true);
+        Dictionary<string, int> counts = lines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .GroupBy(line => line.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+
+        SerialPreview.Clear();
+        int lineNumber = 1;
+        foreach (string rawLine in lines)
+        {
+            string serial = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(serial))
+            {
+                SerialPreview.Add(new SerialPreviewItem(lineNumber, "(línea vacía)", "Vacía", false));
+            }
+            else if (counts.TryGetValue(serial, out int count) && count > 1)
+            {
+                SerialPreview.Add(new SerialPreviewItem(lineNumber, serial, "Duplicado", false));
+            }
+            else if (serial.Length < 6)
+            {
+                SerialPreview.Add(new SerialPreviewItem(lineNumber, serial, "Muy corto", false));
+            }
+            else
+            {
+                SerialPreview.Add(new SerialPreviewItem(lineNumber, serial, "Correcto", true));
+            }
+
+            lineNumber++;
+        }
+
+        int valid = SerialPreview.Count(item => item.IsUsable);
+        int errors = SerialPreview.Count(item => !item.IsUsable);
+        int expected = TryReadDecimal(QuantityBox.Text, out decimal quantity) ? (int) quantity : 0;
+        bool countMismatch = expected > 0 && valid != expected;
+        isSerialSummaryError = errors > 0 || countMismatch;
+
+        SerialSummary = countMismatch
+            ? $"{valid} IMEI/seriales válidos de {expected} requeridos."
+            : $"{valid} IMEI/seriales válidos detectados.";
+
+        if (errors > 0)
+        {
+            SerialSummary += $" {errors} línea(s) requieren atención.";
+        }
+
+        RaisePropertyChanged(nameof(SerialSummaryBrush));
+    }
+
+    private List<string> ReadSerialLines(bool includeEmpty)
+    {
+        StringSplitOptions options = includeEmpty ? StringSplitOptions.None : StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries;
+        return SerialsBox.Text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n', options)
+            .Select(line => includeEmpty ? line : line.Trim())
+            .ToList();
     }
 
     private bool Fail(string message)
@@ -263,3 +410,5 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed record SerialPreviewItem(int LineNumber, string SerialNumber, string StatusLabel, bool IsUsable);
