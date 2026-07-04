@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Actualización masiva de precios por lista
+
+### Implementado
+
+- Se agregó la acción masiva `update_price_list` en `POST /api/inventory-center/products/bulk-action`.
+- La acción `fill_missing_price_list` se mantiene para completar únicamente precios faltantes sin tocar precios existentes.
+- La nueva acción `update_price_list` crea el precio si no existe y lo actualiza si ya existe.
+- La app WPF ahora muestra dos opciones separadas: `Completar precios faltantes` y `Actualizar precios por lista`.
+- El panel de acciones masivas usa los mismos campos de lista, estrategia, moneda, monto fijo o porcentaje para ambas acciones.
+- Se actualizaron la documentación de API y el README del módulo en español para aclarar cuándo usar cada opción.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=price_list`.
+- Resultado: 2 pruebas pasaron, 11 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- Ambas acciones requieren token, tenant y permiso `products.update`.
+- La lista de precio seleccionada debe pertenecer a la empresa actual.
+- No se modifica stock, seriales, movimientos de inventario ni ventas.
+- Para cambiar precios existentes debe usarse explícitamente `Actualizar precios por lista`.
+
 ## 2026-07-04 - Ajuste visual del formulario de acciones masivas
 
 ### Implementado

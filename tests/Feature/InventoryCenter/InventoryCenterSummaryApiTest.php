@@ -247,6 +247,71 @@ class InventoryCenterSummaryApiTest extends TestCase
         ]);
     }
 
+    public function test_inventory_center_bulk_action_updates_price_list_prices_and_creates_missing_prices(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant, ['products.view', 'inventory.view', 'products.update']);
+        $this->useTenant($tenant);
+
+        $priceList = PriceList::create([
+            'name' => 'Detal',
+            'code' => 'DETAL',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $productA = Product::create([
+            'name' => 'Samsung A06',
+            'sku' => 'PRICE-UPD-A',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $productB = Product::create([
+            'name' => 'Cable USB',
+            'sku' => 'PRICE-UPD-B',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        ProductPrice::create([
+            'product_id' => $productA->id,
+            'price_list_id' => $priceList->id,
+            'price' => 80,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$productA->id, $productB->id],
+                'action' => 'update_price_list',
+                'payload' => [
+                    'price_list_id' => $priceList->id,
+                    'strategy' => 'fixed_price',
+                    'price' => 25,
+                    'currency' => Product::CURRENCY_USD,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.updated_count', 2)
+            ->assertJsonPath('data.skipped_count', 0);
+
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $productA->id,
+            'price_list_id' => $priceList->id,
+            'price' => 25,
+            'currency' => Product::CURRENCY_USD,
+        ]);
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $productB->id,
+            'price_list_id' => $priceList->id,
+            'price' => 25,
+            'currency' => Product::CURRENCY_USD,
+        ]);
+    }
+
     public function test_inventory_center_bulk_action_rejects_foreign_products_and_requires_update_permission(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

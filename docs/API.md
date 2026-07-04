@@ -361,6 +361,7 @@ deactivate
 assign_warranty_policy
 assign_exchange_rate_type
 fill_missing_price_list
+update_price_list
 ```
 
 Payload por acción:
@@ -369,9 +370,10 @@ Payload por acción:
 - `deactivate`: no requiere `payload`;
 - `assign_warranty_policy`: requiere `payload.warranty_policy_id`;
 - `assign_exchange_rate_type`: requiere `payload.sale_exchange_rate_type_id`;
-- `fill_missing_price_list`: requiere `payload.price_list_id`, `payload.strategy` y `payload.currency`.
+- `fill_missing_price_list`: requiere `payload.price_list_id`, `payload.strategy` y `payload.currency`;
+- `update_price_list`: requiere `payload.price_list_id`, `payload.strategy` y `payload.currency`.
 
-Estrategias para `fill_missing_price_list`:
+Estrategias para `fill_missing_price_list` y `update_price_list`:
 
 - `base_price`: copia el precio base del producto en la lista seleccionada;
 - `fixed_price`: usa el monto enviado en `payload.price`;
@@ -387,6 +389,21 @@ Ejemplo para completar precios faltantes en una lista:
     "price_list_id": 2,
     "strategy": "percent_over_base",
     "percent": 20,
+    "currency": "USD"
+  }
+}
+```
+
+Ejemplo para actualizar o crear precios de una lista:
+
+```json
+{
+  "product_ids": [1, 2, 3],
+  "action": "update_price_list",
+  "payload": {
+    "price_list_id": 2,
+    "strategy": "fixed_price",
+    "price": 25,
     "currency": "USD"
   }
 }
@@ -419,6 +436,7 @@ Reglas:
 - la garantía o tasa seleccionada debe pertenecer al tenant actual;
 - la lista de precio seleccionada debe pertenecer al tenant actual;
 - `fill_missing_price_list` solo crea precios faltantes y no sobrescribe precios ya existentes del producto en esa lista;
+- `update_price_list` crea el precio si no existe y actualiza el precio si ya existe;
 - si una estrategia necesita precio base y el producto no lo tiene, ese producto se omite con motivo visible;
 - cada producto modificado genera un registro en `product_audits`;
 - las acciones se ejecutan en transacción y bloquean los productos seleccionados durante la actualización.

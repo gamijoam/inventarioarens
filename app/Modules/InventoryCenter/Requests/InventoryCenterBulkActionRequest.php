@@ -14,6 +14,7 @@ class InventoryCenterBulkActionRequest extends FormRequest
     public const ACTION_ASSIGN_WARRANTY_POLICY = 'assign_warranty_policy';
     public const ACTION_ASSIGN_EXCHANGE_RATE_TYPE = 'assign_exchange_rate_type';
     public const ACTION_FILL_MISSING_PRICE_LIST = 'fill_missing_price_list';
+    public const ACTION_UPDATE_PRICE_LIST = 'update_price_list';
 
     public const PRICE_STRATEGY_BASE_PRICE = 'base_price';
     public const PRICE_STRATEGY_FIXED_PRICE = 'fixed_price';
@@ -44,6 +45,7 @@ class InventoryCenterBulkActionRequest extends FormRequest
                     self::ACTION_ASSIGN_WARRANTY_POLICY,
                     self::ACTION_ASSIGN_EXCHANGE_RATE_TYPE,
                     self::ACTION_FILL_MISSING_PRICE_LIST,
+                    self::ACTION_UPDATE_PRICE_LIST,
                 ]),
             ],
             'payload' => ['nullable', 'array'],
@@ -97,17 +99,17 @@ class InventoryCenterBulkActionRequest extends FormRequest
                     $validator->errors()->add('payload.sale_exchange_rate_type_id', 'Selecciona el tipo de tasa a asignar.');
                 }
 
-                if ($action !== self::ACTION_FILL_MISSING_PRICE_LIST) {
+                if (! in_array($action, [self::ACTION_FILL_MISSING_PRICE_LIST, self::ACTION_UPDATE_PRICE_LIST], true)) {
                     return;
                 }
 
                 if (! $this->filled('payload.price_list_id')) {
-                    $validator->errors()->add('payload.price_list_id', 'Selecciona la lista de precio a completar.');
+                    $validator->errors()->add('payload.price_list_id', 'Selecciona la lista de precio.');
                 }
 
                 $strategy = $this->input('payload.strategy');
                 if (! $strategy) {
-                    $validator->errors()->add('payload.strategy', 'Selecciona la estrategia para completar precios.');
+                    $validator->errors()->add('payload.strategy', 'Selecciona la estrategia para calcular precios.');
                 }
 
                 if ($strategy === self::PRICE_STRATEGY_FIXED_PRICE && ! $this->filled('payload.price')) {

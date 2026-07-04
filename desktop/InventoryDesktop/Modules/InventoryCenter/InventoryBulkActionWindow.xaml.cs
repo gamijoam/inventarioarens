@@ -41,7 +41,7 @@ public partial class InventoryBulkActionWindow : Window
         RatePanel.Visibility = model.SelectedAction?.Value == InventoryBulkActionWindowModel.AssignExchangeRateType
             ? Visibility.Visible
             : Visibility.Collapsed;
-        PriceListPanel.Visibility = model.SelectedAction?.Value == InventoryBulkActionWindowModel.FillMissingPriceList
+        PriceListPanel.Visibility = model.SelectedAction is not null && InventoryBulkActionWindowModel.IsPriceListAction(model.SelectedAction.Value)
             ? Visibility.Visible
             : Visibility.Collapsed;
         UpdatePriceStrategyPanels();
@@ -88,6 +88,7 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
     public const string AssignWarrantyPolicy = "assign_warranty_policy";
     public const string AssignExchangeRateType = "assign_exchange_rate_type";
     public const string FillMissingPriceList = "fill_missing_price_list";
+    public const string UpdatePriceList = "update_price_list";
 
     public const string PriceStrategyBasePrice = "base_price";
     public const string PriceStrategyFixedPrice = "fixed_price";
@@ -116,7 +117,8 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
             new(Deactivate, "Desactivar productos"),
             new(AssignWarrantyPolicy, "Asignar garantía"),
             new(AssignExchangeRateType, "Asignar tipo de tasa"),
-            new(FillMissingPriceList, "Completar precios por lista"),
+            new(FillMissingPriceList, "Completar precios faltantes"),
+            new(UpdatePriceList, "Actualizar precios por lista"),
         ];
         PriceStrategies =
         [
@@ -285,6 +287,7 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
         AssignWarrantyPolicy => "La garantía seleccionada se aplicará a todos los productos de la selección.",
         AssignExchangeRateType => "El tipo de tasa seleccionado se usará como tasa de venta de los productos elegidos.",
         FillMissingPriceList => "Solo se crearán precios faltantes. Los productos que ya tengan precio en esa lista no se sobrescriben.",
+        UpdatePriceList => "Se creará o actualizará el precio de esa lista en todos los productos seleccionados.",
         _ => "Esta herramienta modifica varios productos y deja auditoría por cada cambio aplicado.",
     };
 
@@ -293,7 +296,7 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
         && Products.Count > 0
         && (SelectedAction.Value != AssignWarrantyPolicy || SelectedWarrantyPolicy is not null)
         && (SelectedAction.Value != AssignExchangeRateType || SelectedExchangeRateType is not null)
-        && (SelectedAction.Value != FillMissingPriceList || CanSubmitPriceListAction());
+        && (!IsPriceListAction(SelectedAction.Value) || CanSubmitPriceListAction());
 
     public async Task LoadOptionsAsync()
     {
@@ -400,7 +403,7 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
         {
             AssignWarrantyPolicy => new InventoryBulkActionPayload(WarrantyPolicyId: SelectedWarrantyPolicy?.Id),
             AssignExchangeRateType => new InventoryBulkActionPayload(SaleExchangeRateTypeId: SelectedExchangeRateType?.Id),
-            FillMissingPriceList => new InventoryBulkActionPayload(
+            FillMissingPriceList or UpdatePriceList => new InventoryBulkActionPayload(
                 PriceListId: SelectedPriceList?.Id,
                 Strategy: SelectedPriceStrategy?.Value,
                 Price: TryParseDecimal(FixedPriceText),
@@ -408,6 +411,11 @@ public sealed class InventoryBulkActionWindowModel : ViewModelBase
                 Currency: SelectedCurrency),
             _ => null,
         };
+    }
+
+    public static bool IsPriceListAction(string action)
+    {
+        return action is FillMissingPriceList or UpdatePriceList;
     }
 
     private bool CanSubmitPriceListAction()
