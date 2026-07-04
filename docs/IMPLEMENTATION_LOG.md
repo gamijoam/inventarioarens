@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Ajuste profesional del login WPF
+
+### Implementado
+
+- Se rediseño el login WPF para eliminar referencias tecnicas visibles como `Laravel`, `WPF`, `API` y `BD`.
+- Se reemplazo el bloque lateral por mensajes de producto orientados a inventario, ventas, caja, reportes, permisos y empresa.
+- Se oculto la URL del servidor dentro de `Configuracion de conexion` para que no sea protagonista del login.
+- Se corrigio la jerarquia de botones: `Ingresar` queda como accion principal visible y `Buscar empresas` como accion secundaria.
+- Se mejoro el flujo de ingreso: si el usuario presiona `Ingresar` sin empresa seleccionada, la app busca empresas primero y entra automaticamente cuando solo hay una disponible.
+- Se mantuvo la seleccion manual de empresa cuando el usuario pertenece a varias empresas.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-03 - Shell WPF y Centro de Inventario solo lectura
 
 ### Implementado
