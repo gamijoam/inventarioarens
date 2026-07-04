@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace InventoryDesktop.Modules.InventoryCenter;
 
@@ -50,5 +51,28 @@ public partial class InventoryCenterView : UserControl
         {
             await ViewModel.NextPageAsync();
         }
+    }
+
+    private async void ProductsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel?.SelectedProduct is not null)
+        {
+            await ViewModel.OpenProductDetailAsync(ViewModel.SelectedProduct);
+        }
+    }
+
+    private async void ViewProduct_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not FrameworkElement { DataContext: InventoryProductItem product })
+        {
+            return;
+        }
+
+        await ViewModel.OpenProductDetailAsync(product);
+    }
+
+    private void CloseDetail_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel?.CloseProductDetail();
     }
 }

@@ -22,6 +22,12 @@
             <Setter Property="BorderBrush" Value="#DCE4F2" />
         </Style>
 
+        <Style x:Key="MiniButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
         <Style x:Key="MetricChipStyle" TargetType="Border">
             <Setter Property="Height" Value="54" />
             <Setter Property="MinWidth" Value="132" />
@@ -52,9 +58,19 @@
             <Setter Property="FontWeight" Value="Black" />
             <Setter Property="Margin" Value="0,0,0,5" />
         </Style>
+
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="Margin" Value="0,16,0,8" />
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -62,7 +78,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Padding="18"
+        <Border Grid.Column="0"
+                Padding="18"
                 Background="#FFFFFF"
                 BorderBrush="#E1E7F3"
                 BorderThickness="1"
@@ -75,33 +92,17 @@
 
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Border Padding="9,5"
-                                Background="#EEF0FF"
-                                BorderBrush="#DCE4FF"
-                                BorderThickness="1"
-                                CornerRadius="7">
+                        <Border Padding="9,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7">
                             <TextBlock Text="INVENTARIO" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
                         </Border>
-                        <Border Margin="8,0,0,0"
-                                Padding="9,5"
-                                Background="#F7F9FD"
-                                BorderBrush="#E1E7F3"
-                                BorderThickness="1"
-                                CornerRadius="7">
+                        <Border Margin="8,0,0,0" Padding="9,5" Background="#F7F9FD" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="7">
                             <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" />
                         </Border>
                     </StackPanel>
 
-                    <TextBlock Text="Centro de Inventario"
-                               FontSize="25"
-                               FontWeight="Black"
-                               Margin="0,9,0,0" />
+                    <TextBlock Text="Centro de Inventario" FontSize="25" FontWeight="Black" Margin="0,9,0,0" />
                     <TextBlock Text="Controla disponibilidad, reservas, daños y seriales/IMEI desde una sola vista."
-                               Foreground="{StaticResource MutedBrush}"
-                               FontWeight="SemiBold"
-                               FontSize="13"
-                               TextWrapping="Wrap"
-                               Margin="0,3,0,0" />
+                               Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" />
 
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                         <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#DCE4FF">
@@ -144,26 +145,13 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                    <Button Content="Actualizar"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Margin="0,0,8,0"
-                            ToolTip="Volver a cargar datos desde el servidor"
-                            Click="Refresh_Click" />
-                    <Button Content="+ Nuevo producto"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            ToolTip="Próximamente: creación de productos desde la aplicación de escritorio"
-                            IsEnabled="False" />
+                    <Button Content="Actualizar" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" ToolTip="Volver a cargar datos desde el servidor" Click="Refresh_Click" />
+                    <Button Content="+ Nuevo producto" Style="{StaticResource PrimaryButtonStyle}" ToolTip="Próximamente: creación de productos desde la aplicación de escritorio" IsEnabled="False" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Border Grid.Row="1"
-                Margin="0,12,0,0"
-                Padding="12"
-                Background="#FFFFFF"
-                BorderBrush="#E1E7F3"
-                BorderThickness="1"
-                CornerRadius="10">
+        <Border Grid.Row="1" Grid.Column="0" Margin="0,12,0,0" Padding="12" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -175,55 +163,29 @@
 
                 <StackPanel Margin="0,0,10,0">
                     <TextBlock Text="Buscar" Style="{StaticResource FilterLabelStyle}" />
-                    <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
-                             MinHeight="38"
-                             VerticalContentAlignment="Center"
-                             ToolTip="Buscar por nombre, SKU o serial/IMEI" />
+                    <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" MinHeight="38" VerticalContentAlignment="Center" ToolTip="Buscar por nombre, SKU o serial/IMEI" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Margin="0,0,10,0">
                     <TextBlock Text="Tipo de control" Style="{StaticResource FilterLabelStyle}" />
-                    <ComboBox ItemsSource="{Binding TrackingOptions}"
-                              SelectedValue="{Binding TrackingType, UpdateSourceTrigger=PropertyChanged}"
-                              SelectedValuePath="Value"
-                              DisplayMemberPath="Label"
-                              MinHeight="38"
-                              Padding="10,0" />
+                    <ComboBox ItemsSource="{Binding TrackingOptions}" SelectedValue="{Binding TrackingType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Value" DisplayMemberPath="Label" MinHeight="38" Padding="10,0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Margin="0,0,10,0">
                     <TextBlock Text="Estado de stock" Style="{StaticResource FilterLabelStyle}" />
-                    <ComboBox ItemsSource="{Binding StockOptions}"
-                              SelectedValue="{Binding StockStatus, UpdateSourceTrigger=PropertyChanged}"
-                              SelectedValuePath="Value"
-                              DisplayMemberPath="Label"
-                              MinHeight="38"
-                              Padding="10,0" />
+                    <ComboBox ItemsSource="{Binding StockOptions}" SelectedValue="{Binding StockStatus, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Value" DisplayMemberPath="Label" MinHeight="38" Padding="10,0" />
                 </StackPanel>
 
-                <Button Grid.Column="3"
-                        Content="Aplicar"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        VerticalAlignment="Bottom"
-                        Click="ApplyFilters_Click" />
-
-                <Button Grid.Column="4"
-                        Content="Limpiar"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Margin="8,0,0,0"
-                        VerticalAlignment="Bottom"
-                        Click="ClearFilters_Click" />
+                <Button Grid.Column="3" Content="Aplicar" Style="{StaticResource PrimaryButtonStyle}" VerticalAlignment="Bottom" Click="ApplyFilters_Click" />
+                <Button Grid.Column="4" Content="Limpiar" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0" VerticalAlignment="Bottom" Click="ClearFilters_Click" />
             </Grid>
         </Border>
 
-        <Border Grid.Row="2"
-                Margin="0,12,0,0"
-                Background="#FFFFFF"
-                BorderBrush="#E1E7F3"
-                BorderThickness="1"
-                CornerRadius="10">
+        <Border Grid.Row="2" Grid.Column="0" Margin="0,12,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
             <Grid>
-                <DataGrid ItemsSource="{Binding Products}"
+                <DataGrid x:Name="ProductsGrid"
+                          ItemsSource="{Binding Products}"
+                          SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
                           CanUserDeleteRows="False"
@@ -235,6 +197,7 @@
                           Background="#FFFFFF"
                           AlternatingRowBackground="#FAFCFF"
                           HorizontalGridLinesBrush="#E9EEF7"
+                          MouseDoubleClick="ProductsGrid_MouseDoubleClick"
                           Margin="0,0,0,6">
                     <DataGrid.Resources>
                         <Style TargetType="DataGridColumnHeader">
@@ -252,7 +215,7 @@
                         </Style>
                     </DataGrid.Resources>
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="PRODUCTO" Width="2.5*">
+                        <DataGridTemplateColumn Header="PRODUCTO" Width="2.3*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel VerticalAlignment="Center">
@@ -262,103 +225,210 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="1.15*" />
-                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel}" Width="0.9*" />
-                        <DataGridTextColumn Header="DISPONIBLE" Binding="{Binding Stock.Available}" Width="0.8*" />
-                        <DataGridTextColumn Header="RESERVADO" Binding="{Binding Stock.Reserved}" Width="0.8*" />
-                        <DataGridTextColumn Header="DAÑADO" Binding="{Binding Stock.Damaged}" Width="0.75*" />
-                        <DataGridTemplateColumn Header="ESTADO" Width="0.95*">
+                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="1.1*" />
+                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel}" Width="0.85*" />
+                        <DataGridTextColumn Header="DISP." Binding="{Binding Stock.Available}" Width="0.65*" />
+                        <DataGridTextColumn Header="RES." Binding="{Binding Stock.Reserved}" Width="0.6*" />
+                        <DataGridTextColumn Header="DAÑ." Binding="{Binding Stock.Damaged}" Width="0.6*" />
+                        <DataGridTemplateColumn Header="ESTADO" Width="0.9*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border Padding="9,4"
-                                            CornerRadius="7"
-                                            Background="#EEF0FF"
-                                            BorderBrush="#DCE4FF"
-                                            BorderThickness="1"
-                                            HorizontalAlignment="Left">
-                                        <TextBlock Text="{Binding StockStatusLabel}"
-                                                   Foreground="{StaticResource AccentStrongBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="Black" />
+                                    <Border Padding="9,4" CornerRadius="7" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding StockStatusLabel}" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
                                     </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="ACCIÓN" Width="0.65*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="Ver" Style="{StaticResource MiniButtonStyle}" Click="ViewProduct_Click" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <Border Background="#F8FAFE"
-                        BorderBrush="#E1E7F3"
-                        BorderThickness="1"
-                        CornerRadius="10"
-                        Padding="24"
-                        Width="420"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="24" Width="420" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel>
                         <Border Width="44" Height="44" CornerRadius="12" Background="#EEF0FF" HorizontalAlignment="Center">
                             <TextBlock Text="i" Foreground="{StaticResource AccentStrongBrush}" FontSize="22" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <TextBlock Text="{Binding EmptyStateTitle}"
-                                   FontSize="18"
-                                   FontWeight="Black"
-                                   TextAlignment="Center"
-                                   Margin="0,14,0,0" />
-                        <TextBlock Text="{Binding EmptyStateMessage}"
-                                   Foreground="{StaticResource MutedBrush}"
-                                   FontWeight="SemiBold"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   LineHeight="21"
-                                   Margin="0,7,0,0" />
+                        <TextBlock Text="{Binding EmptyStateTitle}" FontSize="18" FontWeight="Black" TextAlignment="Center" Margin="0,14,0,0" />
+                        <TextBlock Text="{Binding EmptyStateMessage}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" LineHeight="21" Margin="0,7,0,0" />
                     </StackPanel>
                 </Border>
 
-                <Border Background="#B3FFFFFF"
-                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <Border Width="290"
-                            Padding="20"
-                            Background="#FFFFFF"
-                            BorderBrush="#DCE4F2"
-                            BorderThickness="1"
-                            CornerRadius="10"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
+                <Border Background="#B3FFFFFF" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Width="290" Padding="20" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel>
                             <ProgressBar IsIndeterminate="True" Height="6" />
-                            <TextBlock Text="Cargando inventario..."
-                                       FontWeight="Black"
-                                       TextAlignment="Center"
-                                       Margin="0,12,0,0" />
+                            <TextBlock Text="Cargando inventario..." FontWeight="Black" TextAlignment="Center" Margin="0,12,0,0" />
                         </StackPanel>
                     </Border>
                 </Border>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="3" Margin="0,10,0,0">
-            <TextBlock Text="{Binding StatusMessage}"
-                       Foreground="{Binding StatusBrush}"
-                       FontWeight="Bold"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap" />
+        <Grid Grid.Row="3" Grid.Column="0" Margin="0,10,0,0">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <TextBlock Text="{Binding PaginationLabel}"
-                           Foreground="{StaticResource MutedBrush}"
-                           FontWeight="Bold"
-                           VerticalAlignment="Center"
-                           Margin="0,0,14,0" />
-                <Button Content="Anterior"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Margin="0,0,8,0"
-                        IsEnabled="{Binding CanGoPrevious}"
-                        Click="PreviousPage_Click" />
-                <Button Content="Siguiente"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        IsEnabled="{Binding CanGoNext}"
-                        Click="NextPage_Click" />
+                <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0" />
+                <Button Content="Anterior" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" IsEnabled="{Binding CanGoPrevious}" Click="PreviousPage_Click" />
+                <Button Content="Siguiente" Style="{StaticResource SecondaryButtonStyle}" IsEnabled="{Binding CanGoNext}" Click="NextPage_Click" />
             </StackPanel>
         </Grid>
+
+        <Border Grid.Column="1"
+                Grid.RowSpan="4"
+                Margin="12,0,0,0"
+                Background="#FFFFFF"
+                BorderBrush="#DCE4F2"
+                BorderThickness="1"
+                CornerRadius="10"
+                Width="420"
+                Visibility="{Binding IsDetailOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="18,16,18,12">
+                    <StackPanel>
+                        <TextBlock Text="Detalle del producto" FontSize="20" FontWeight="Black" />
+                        <TextBlock Text="{Binding SelectedProductDetail.Product.Sku}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <Button Content="Cerrar" HorizontalAlignment="Right" Style="{StaticResource MiniButtonStyle}" Click="CloseDetail_Click" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" Margin="18,0,18,0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Padding="14" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding SelectedProductDetail.Product.Name}" FontSize="18" FontWeight="Black" TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Border Padding="8,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7" Margin="0,0,6,6">
+                                        <TextBlock Text="{Binding SelectedProductDetail.Product.TrackingLabel}" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                                    </Border>
+                                    <Border Padding="8,5" Background="#ECFDF5" BorderBrush="#B8F0D2" BorderThickness="1" CornerRadius="7" Margin="0,0,6,6">
+                                        <TextBlock Text="{Binding SelectedProductDetail.Product.StatusLabel}" Foreground="#047857" FontSize="11" FontWeight="Black" />
+                                    </Border>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding SelectedProductDetail.Product.PriceLabel}" FontSize="17" FontWeight="Black" Margin="0,8,0,0" />
+                                <TextBlock Text="{Binding SelectedProductDetail.Product.RateLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding SelectedProductDetail.Product.WarrantyLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Stock total" Style="{StaticResource SectionTitleStyle}" />
+                        <UniformGrid Columns="3">
+                            <Border Style="{StaticResource MetricChipStyle}" MinWidth="0">
+                                <StackPanel>
+                                    <TextBlock Text="DISP." Style="{StaticResource ChipLabelStyle}" />
+                                    <TextBlock Text="{Binding SelectedProductDetail.Stock.Totals.Available}" Style="{StaticResource ChipValueStyle}" Foreground="#047857" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource MetricChipStyle}" MinWidth="0">
+                                <StackPanel>
+                                    <TextBlock Text="RES." Style="{StaticResource ChipLabelStyle}" />
+                                    <TextBlock Text="{Binding SelectedProductDetail.Stock.Totals.Reserved}" Style="{StaticResource ChipValueStyle}" Foreground="#3157C8" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource MetricChipStyle}" MinWidth="0" Margin="0">
+                                <StackPanel>
+                                    <TextBlock Text="DAÑ." Style="{StaticResource ChipLabelStyle}" />
+                                    <TextBlock Text="{Binding SelectedProductDetail.Stock.Totals.Damaged}" Style="{StaticResource ChipValueStyle}" Foreground="#B45309" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <TextBlock Text="Stock por almacén" Style="{StaticResource SectionTitleStyle}" />
+                        <ItemsControl ItemsSource="{Binding SelectedProductDetail.Stock.ByWarehouse}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="11" Margin="0,0,0,8" Background="#FFFFFF" BorderBrush="#E9EEF7" BorderThickness="1" CornerRadius="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding WarehouseLabel}" FontWeight="Black" />
+                                                <TextBlock Text="{Binding BranchLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" FontWeight="Black" Foreground="#047857">
+                                                <Run Text="{Binding Available}" />
+                                                <Run Text=" disp." />
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Seriales / IMEI" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="{Binding SelectedProductDetail.Serials.Total, StringFormat={}{0} seriales registrados}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,0,0,8" />
+                        <ItemsControl ItemsSource="{Binding SelectedProductDetail.Serials.Items}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="10" Margin="0,0,0,7" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="8">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding SerialNumber}" FontWeight="Black" />
+                                            <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold">
+                                                <Run Text="{Binding StatusLabel}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding WarehouseLabel}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Movimientos recientes" Style="{StaticResource SectionTitleStyle}" />
+                        <ItemsControl ItemsSource="{Binding SelectedProductDetail.RecentMovements}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="10" Margin="0,0,0,7" Background="#FFFFFF" BorderBrush="#E9EEF7" BorderThickness="1" CornerRadius="8">
+                                        <StackPanel>
+                                            <TextBlock FontWeight="Black">
+                                                <Run Text="{Binding TypeLabel}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding Quantity}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding ReasonLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding WarehouseLabel}" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Auditoría reciente" Style="{StaticResource SectionTitleStyle}" />
+                        <ItemsControl ItemsSource="{Binding SelectedProductDetail.RecentAudits}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="10" Margin="0,0,0,7" Background="#FFFFFF" BorderBrush="#E9EEF7" BorderThickness="1" CornerRadius="8">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding ActionLabel}" FontWeight="Black" />
+                                            <TextBlock Text="{Binding CreatedByLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" Padding="14" BorderBrush="#E1E7F3" BorderThickness="0,1,0,0">
+                    <StackPanel>
+                        <ProgressBar IsIndeterminate="True" Height="5" Visibility="{Binding IsDetailBusy, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <TextBlock Text="{Binding DetailStatusMessage}" Foreground="{Binding DetailStatusBrush}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

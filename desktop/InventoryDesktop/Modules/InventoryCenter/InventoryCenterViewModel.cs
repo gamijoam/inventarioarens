@@ -15,6 +15,12 @@ public sealed class InventoryCenterViewModel : ViewModelBase
     private string stockStatus = "all";
     private string statusMessage = "";
     private bool isStatusError;
+    private InventoryProductItem? selectedProduct;
+    private InventoryProductDetailData? selectedProductDetail;
+    private string detailStatusMessage = "Selecciona un producto para ver su detalle.";
+    private bool isDetailOpen;
+    private bool isDetailBusy;
+    private bool isDetailStatusError;
     private bool isBusy;
     private int page = 1;
     private InventoryCenterMetrics metrics = new(0, 0, 0, 0, 0, 0, 0, 0);
@@ -96,6 +102,61 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         }
     }
 
+    public InventoryProductItem? SelectedProduct
+    {
+        get => selectedProduct;
+        set => SetProperty(ref selectedProduct, value);
+    }
+
+    public InventoryProductDetailData? SelectedProductDetail
+    {
+        get => selectedProductDetail;
+        set
+        {
+            if (SetProperty(ref selectedProductDetail, value))
+            {
+                RaisePropertyChanged(nameof(HasWarehouseStock));
+                RaisePropertyChanged(nameof(HasSerials));
+                RaisePropertyChanged(nameof(HasMovements));
+                RaisePropertyChanged(nameof(HasAudits));
+            }
+        }
+    }
+
+    public string DetailStatusMessage
+    {
+        get => detailStatusMessage;
+        set => SetProperty(ref detailStatusMessage, value);
+    }
+
+    public bool IsDetailOpen
+    {
+        get => isDetailOpen;
+        set => SetProperty(ref isDetailOpen, value);
+    }
+
+    public bool IsDetailBusy
+    {
+        get => isDetailBusy;
+        set => SetProperty(ref isDetailBusy, value);
+    }
+
+    public bool IsDetailStatusError
+    {
+        get => isDetailStatusError;
+        set
+        {
+            if (SetProperty(ref isDetailStatusError, value))
+            {
+                RaisePropertyChanged(nameof(DetailStatusBrush));
+            }
+        }
+    }
+
+    public Brush DetailStatusBrush => IsDetailStatusError
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
     public InventoryCenterMetrics Metrics
     {
         get => metrics;
@@ -149,6 +210,14 @@ public sealed class InventoryCenterViewModel : ViewModelBase
     public bool CanGoPrevious => Pagination.HasPrevious && !IsBusy;
 
     public bool CanGoNext => Pagination.HasNext && !IsBusy;
+
+    public bool HasWarehouseStock => (SelectedProductDetail?.Stock.ByWarehouse.Count > 0) == true;
+
+    public bool HasSerials => (SelectedProductDetail?.Serials.Items.Count > 0) == true;
+
+    public bool HasMovements => (SelectedProductDetail?.RecentMovements.Count > 0) == true;
+
+    public bool HasAudits => (SelectedProductDetail?.RecentAudits.Count > 0) == true;
 
     public async Task LoadAsync()
     {
@@ -207,6 +276,54 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
         page++;
         await LoadAsync();
+    }
+
+    public async Task OpenProductDetailAsync(InventoryProductItem product)
+    {
+        SelectedProduct = product;
+        IsDetailOpen = true;
+        IsDetailBusy = true;
+        IsDetailStatusError = false;
+        SelectedProductDetail = null;
+        DetailStatusMessage = "Cargando detalle del producto...";
+
+        try
+        {
+            InventoryProductDetailResponse response = await apiClient.GetAsync<InventoryProductDetailResponse>(
+                $"inventory-center/products/{product.Id}");
+
+            SelectedProductDetail = response.Data;
+            DetailStatusMessage = "Detalle actualizado.";
+            IsDetailStatusError = false;
+        }
+        catch (ApiException exception)
+        {
+            DetailStatusMessage = exception.Message;
+            IsDetailStatusError = true;
+        }
+        catch (HttpRequestException)
+        {
+            DetailStatusMessage = "No se pudo conectar con la API para cargar el detalle.";
+            IsDetailStatusError = true;
+        }
+        catch (TaskCanceledException)
+        {
+            DetailStatusMessage = "La carga del detalle tardó demasiado. Intenta nuevamente.";
+            IsDetailStatusError = true;
+        }
+        finally
+        {
+            IsDetailBusy = false;
+        }
+    }
+
+    public void CloseProductDetail()
+    {
+        IsDetailOpen = false;
+        SelectedProduct = null;
+        SelectedProductDetail = null;
+        DetailStatusMessage = "Selecciona un producto para ver su detalle.";
+        IsDetailStatusError = false;
     }
 
     private string BuildQuery()

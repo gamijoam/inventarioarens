@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-07-04 - Detalle lateral de producto en Centro de Inventario WPF
+
+### Implementado
+
+- Se agregó detalle lateral de producto dentro del módulo WPF `InventoryCenter`.
+- Se consume `GET /api/inventory-center/products/{product}` desde el cliente de escritorio.
+- Se agregaron DTOs WPF para producto, tasa, garantía, stock por almacén, seriales/IMEI, movimientos y auditorías.
+- Se agregó acción `Ver` por fila y apertura por doble clic sobre el producto.
+- El detalle muestra información general, precio, tasa, garantía, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
+- El panel lateral puede cerrarse y no ocupa espacio cuando está cerrado.
+- Se agregaron mensajes de carga/error propios del detalle, separados del listado principal.
+- Se actualizó `desktop/InventoryDesktop/Modules/InventoryCenter/README.md`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-04 - Compactacion visual del Centro de Inventario WPF
 
 ### Implementado
