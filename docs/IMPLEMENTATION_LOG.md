@@ -1,5 +1,31 @@
 # Registro de implementación
 
+## 2026-07-04 - Listas de precio en WPF y asignación por producto
+
+### Implementado
+
+- Se agregó soporte `PUT` y `DELETE` al cliente API de escritorio.
+- Se agregaron DTOs WPF para listas de precio y precios de producto por lista.
+- Se agregó el botón lateral `Listas de precio` en el shell principal.
+- Se creó la pantalla WPF `PriceListsView` para listar, crear, editar y desactivar listas de precio.
+- La pantalla permite editar nombre, código, descripción, orden, estado activo y si la lista es predeterminada.
+- Se agregó la pestaña `Precios` en la ventana de detalle del producto.
+- La pestaña `Precios` carga listas activas, precios existentes del producto y tipos de tasa activos.
+- La pestaña permite guardar precios por lista con moneda `USD` o `VES`, tasa opcional y estado activo.
+- Se actualizó el README del módulo de Centro de Inventario.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 16 pruebas pasaron, 89 assertions.
+
+### Notas de seguridad
+
+- La app WPF no toca PostgreSQL directamente; todas las operaciones pasan por Laravel.
+- La creación, edición, desactivación y asignación de precios conserva permisos, tenant y validaciones del backend.
+
 ## 2026-07-04 - Listas de precio por producto para POS
 
 ### Implementado

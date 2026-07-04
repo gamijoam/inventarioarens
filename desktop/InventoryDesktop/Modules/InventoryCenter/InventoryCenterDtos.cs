@@ -457,6 +457,58 @@ public sealed record ProductSaveRequest(
     [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId,
     [property: JsonPropertyName("is_active")] bool IsActive);
 
+public sealed record PriceListListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<PriceListOption> Data);
+
+public sealed record PriceListResponse(
+    [property: JsonPropertyName("data")] PriceListOption Data);
+
+public sealed record PriceListOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("is_default")] bool IsDefault,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("sort_order")] int SortOrder)
+{
+    public string StatusLabel => IsActive ? "Activa" : "Inactiva";
+
+    public string DefaultLabel => IsDefault ? "Sí" : "No";
+}
+
+public sealed record PriceListSaveRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("is_default")] bool IsDefault,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("sort_order")] int SortOrder);
+
+public sealed record ProductPriceListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<ProductPriceOption> Data);
+
+public sealed record ProductPriceOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("price_list_id")] long PriceListId,
+    [property: JsonPropertyName("price_list")] PriceListOption? PriceList,
+    [property: JsonPropertyName("price")] decimal Price,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("exchange_rate_type_id")] long? ExchangeRateTypeId,
+    [property: JsonPropertyName("exchange_rate_type")] ExchangeRateTypeOption? ExchangeRateType,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
+public sealed record ProductPricesSyncRequest(
+    [property: JsonPropertyName("prices")] IReadOnlyList<ProductPriceSyncItemRequest> Prices);
+
+public sealed record ProductPriceSyncItemRequest(
+    [property: JsonPropertyName("price_list_id")] long PriceListId,
+    [property: JsonPropertyName("price")] decimal Price,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("exchange_rate_type_id")] long? ExchangeRateTypeId,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
 public sealed record ExchangeRateTypeListResponse(
     [property: JsonPropertyName("data")] IReadOnlyList<ExchangeRateTypeOption> Data);
 

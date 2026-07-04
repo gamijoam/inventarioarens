@@ -40,11 +40,16 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Al guardar una entrada o salida desde el detalle, el detalle del producto se recarga automáticamente y el Centro de Inventario actualiza métricas, disponibilidad y listado.
 - Botón lateral `Entradas y salidas` habilitado en el shell principal.
 - Pantalla operativa `Entradas y salidas` con búsqueda de productos y acciones rápidas `Entrada` / `Salida`.
+- Botón lateral `Listas de precio` habilitado en el shell principal.
+- Pantalla operativa `Listas de precio` conectada a `GET/POST/PATCH/DELETE /api/price-lists`.
+- La pantalla permite crear listas, editar nombre/código/descripción/orden, marcar predeterminada, activar/desactivar y desactivar sin borrar historia.
 - Botón `+ Nuevo producto` habilitado en el Centro de Inventario.
 - Acción `Editar` por producto desde el listado principal.
 - Acción `Editar` dentro de la ventana de detalle del producto.
 - Ventana única de creación/edición conectada a `POST /api/products` y `PATCH /api/products/{product}`.
 - El formulario permite nombre, SKU, tipo de control, moneda, precio base, tipo de tasa, política de garantía y estado activo.
+- Pestaña `Precios` en el detalle del producto conectada a `GET /api/products/{product}/prices` y `PUT /api/products/{product}/prices`.
+- La pestaña `Precios` permite asignar precios por lista, moneda `USD` o `VES`, tasa opcional y estado activo.
 - Las opciones de tasas y garantías se cargan desde `GET /api/currency/rate-types` y `GET /api/warranty-policies`.
 - Si un producto ya tiene unidades serializadas, el formulario bloquea el cambio de tipo de control siguiendo la regla del backend.
 - Al editar desde el detalle, la ventana recarga la información comercial y marca la auditoría como pendiente de recarga.

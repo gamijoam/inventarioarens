@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -19,12 +20,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     private string serialStatusMessage = "Abre esta pestaña para cargar seriales/IMEI.";
     private string movementStatusMessage = "Abre esta pestaña para cargar movimientos.";
     private string auditStatusMessage = "Abre esta pestaña para cargar auditoría.";
+    private string priceStatusMessage = "Abre esta pestaña para cargar precios por lista.";
     private bool isSerialStatusError;
     private bool isMovementStatusError;
     private bool isAuditStatusError;
+    private bool isPriceStatusError;
     private bool serialsLoaded;
     private bool movementsLoaded;
     private bool auditsLoaded;
+    private bool pricesLoaded;
     private FilterOption selectedSerialStatus = new("all", "Todos");
     private FilterOption selectedMovementType = new("all", "Todos");
     private FilterOption selectedAuditAction = new("all", "Todos");
@@ -96,7 +100,17 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 
     public ObservableCollection<InventoryProductAudit> AuditRows { get; } = new();
 
+    public ObservableCollection<ProductPriceEditRow> ProductPriceRows { get; } = new();
+
     public ObservableCollection<WarehouseFilterOption> WarehouseFilterOptions { get; } = new();
+
+    public ObservableCollection<ExchangeRateTypeOption> PriceRateTypes { get; } = new();
+
+    public IReadOnlyList<ProductOption> PriceCurrencyOptions { get; } =
+    [
+        ProductOption.UsdCurrency,
+        ProductOption.VesCurrency,
+    ];
 
     public IReadOnlyList<FilterOption> SerialStatusOptions { get; } =
     [
@@ -181,6 +195,12 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         set => SetProperty(ref auditStatusMessage, value);
     }
 
+    public string PriceStatusMessage
+    {
+        get => priceStatusMessage;
+        set => SetProperty(ref priceStatusMessage, value);
+    }
+
     public Brush SerialStatusBrush => isSerialStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
@@ -190,6 +210,10 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
 
     public Brush AuditStatusBrush => isAuditStatusError
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
+    public Brush PriceStatusBrush => isPriceStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
 
@@ -220,6 +244,10 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         else if (header == "Movimientos" && !movementsLoaded)
         {
             await LoadMovementsAsync(1);
+        }
+        else if (header == "Precios" && !pricesLoaded)
+        {
+            await LoadPricesAsync();
         }
         else if (header == "Auditoría" && !auditsLoaded)
         {
@@ -290,6 +318,16 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     private async void SearchAudits_Click(object sender, RoutedEventArgs e)
     {
         await LoadAuditsAsync(1);
+    }
+
+    private async void ReloadPrices_Click(object sender, RoutedEventArgs e)
+    {
+        await LoadPricesAsync();
+    }
+
+    private async void SavePrices_Click(object sender, RoutedEventArgs e)
+    {
+        await SavePricesAsync();
     }
 
     private async void ClearAudits_Click(object sender, RoutedEventArgs e)
@@ -406,12 +444,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         serialsLoaded = false;
         movementsLoaded = false;
         auditsLoaded = false;
+        pricesLoaded = false;
         SerialRows.Clear();
         MovementRows.Clear();
         AuditRows.Clear();
+        ProductPriceRows.Clear();
         SerialStatusMessage = "Seriales pendientes por recargar.";
         MovementStatusMessage = "Movimientos pendientes por recargar.";
         AuditStatusMessage = "Auditoría pendiente por recargar.";
+        PriceStatusMessage = "Precios pendientes por recargar.";
         ProductChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -419,8 +460,11 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     {
         await RefreshDetailAsync();
         auditsLoaded = false;
+        pricesLoaded = false;
         AuditRows.Clear();
+        ProductPriceRows.Clear();
         AuditStatusMessage = "Auditoría pendiente por recargar.";
+        PriceStatusMessage = "Precios pendientes por recargar.";
         ProductChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -582,6 +626,130 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         }
     }
 
+    private async Task LoadPricesAsync()
+    {
+        isPriceStatusError = false;
+        RaisePropertyChanged(nameof(PriceStatusBrush));
+        PriceStatusMessage = "Cargando precios por lista...";
+
+        try
+        {
+            PriceListListResponse priceListsResponse = await apiClient.GetAsync<PriceListListResponse>("price-lists?active_only=1");
+            ProductPriceListResponse pricesResponse = await apiClient.GetAsync<ProductPriceListResponse>($"products/{detail.Product.Id}/prices");
+            ExchangeRateTypeListResponse rateResponse = await apiClient.GetAsync<ExchangeRateTypeListResponse>("currency/rate-types");
+
+            PriceRateTypes.Clear();
+            foreach (ExchangeRateTypeOption rateType in rateResponse.Data.Where(rateType => rateType.IsActive))
+            {
+                PriceRateTypes.Add(rateType);
+            }
+
+            ProductPriceRows.Clear();
+            foreach (PriceListOption priceList in priceListsResponse.Data)
+            {
+                ProductPriceOption? current = pricesResponse.Data.FirstOrDefault(price => price.PriceListId == priceList.Id);
+                ProductPriceRows.Add(new ProductPriceEditRow(
+                    priceList,
+                    current,
+                    PriceCurrencyOptions,
+                    PriceRateTypes));
+            }
+
+            pricesLoaded = true;
+            PriceStatusMessage = ProductPriceRows.Count == 0
+                ? "No hay listas activas para asignar precios."
+                : $"{ProductPriceRows.Count} listas disponibles para este producto.";
+        }
+        catch (ApiException exception)
+        {
+            SetPriceError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetPriceError("No se pudo conectar con la API para cargar precios.");
+        }
+        catch (TaskCanceledException)
+        {
+            SetPriceError("La carga de precios tardó demasiado. Intenta nuevamente.");
+        }
+    }
+
+    private async Task SavePricesAsync()
+    {
+        if (!TryBuildProductPrices(out ProductPricesSyncRequest? request))
+        {
+            return;
+        }
+
+        isPriceStatusError = false;
+        RaisePropertyChanged(nameof(PriceStatusBrush));
+        PriceStatusMessage = "Guardando precios por lista...";
+
+        try
+        {
+            await apiClient.PutAsync<ProductPricesSyncRequest, ProductPriceListResponse>($"products/{detail.Product.Id}/prices", request!);
+            pricesLoaded = false;
+            await LoadPricesAsync();
+            ProductChanged?.Invoke(this, EventArgs.Empty);
+            PriceStatusMessage = "Precios guardados correctamente.";
+        }
+        catch (ApiException exception)
+        {
+            SetPriceError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetPriceError("No se pudo conectar con la API para guardar precios.");
+        }
+        catch (TaskCanceledException)
+        {
+            SetPriceError("El guardado de precios tardó demasiado. Intenta nuevamente.");
+        }
+    }
+
+    private bool TryBuildProductPrices(out ProductPricesSyncRequest? request)
+    {
+        request = null;
+        List<ProductPriceSyncItemRequest> prices = [];
+
+        foreach (ProductPriceEditRow row in ProductPriceRows)
+        {
+            if (string.IsNullOrWhiteSpace(row.PriceText))
+            {
+                continue;
+            }
+
+            if (!decimal.TryParse(row.PriceText, NumberStyles.Number, CultureInfo.CurrentCulture, out decimal price)
+                && !decimal.TryParse(row.PriceText, NumberStyles.Number, CultureInfo.InvariantCulture, out price))
+            {
+                SetPriceError($"El precio de {row.PriceListName} no es válido.");
+                return false;
+            }
+
+            if (price < 0)
+            {
+                SetPriceError($"El precio de {row.PriceListName} no puede ser negativo.");
+                return false;
+            }
+
+            prices.Add(new ProductPriceSyncItemRequest(
+                row.PriceListId,
+                price,
+                row.SelectedCurrency.Value,
+                row.SelectedRateType?.Id,
+                row.IsActive));
+        }
+
+        if (prices.Count == 0)
+        {
+            SetPriceError("Debes indicar al menos un precio para guardar.");
+            return false;
+        }
+
+        request = new ProductPricesSyncRequest(prices);
+        return true;
+    }
+
     private static string BuildQuery(IEnumerable<(string Key, string? Value)> values)
     {
         List<string> parts = values
@@ -624,6 +792,13 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         AuditStatusMessage = message;
         auditPagination = new InventoryPagination(1, 24, 0, 1, 0, 0, false, false);
         RaiseAuditPaginationChanged();
+    }
+
+    private void SetPriceError(string message)
+    {
+        isPriceStatusError = true;
+        RaisePropertyChanged(nameof(PriceStatusBrush));
+        PriceStatusMessage = message;
     }
 
     private bool ValidateMovementDates()
@@ -735,4 +910,71 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 public sealed record WarehouseFilterOption(long? Id, string Label)
 {
     public static WarehouseFilterOption All { get; } = new(null, "Todos los almacenes");
+}
+
+public sealed class ProductPriceEditRow : INotifyPropertyChanged
+{
+    private string priceText = "";
+    private ProductOption selectedCurrency;
+    private ExchangeRateTypeOption? selectedRateType;
+    private bool isActive = true;
+
+    public ProductPriceEditRow(
+        PriceListOption priceList,
+        ProductPriceOption? current,
+        IReadOnlyList<ProductOption> currencies,
+        IEnumerable<ExchangeRateTypeOption> rateTypes)
+    {
+        PriceListId = priceList.Id;
+        PriceListName = priceList.Name;
+        PriceListCode = priceList.Code;
+        priceText = current is null ? "" : current.Price.ToString("0.##", CultureInfo.CurrentCulture);
+        selectedCurrency = currencies.FirstOrDefault(option => option.Value == current?.Currency) ?? ProductOption.UsdCurrency;
+        selectedRateType = rateTypes.FirstOrDefault(option => option.Id == current?.ExchangeRateTypeId);
+        isActive = current?.IsActive ?? true;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public long PriceListId { get; }
+
+    public string PriceListName { get; }
+
+    public string PriceListCode { get; }
+
+    public string PriceText
+    {
+        get => priceText;
+        set => SetProperty(ref priceText, value);
+    }
+
+    public ProductOption SelectedCurrency
+    {
+        get => selectedCurrency;
+        set => SetProperty(ref selectedCurrency, value);
+    }
+
+    public ExchangeRateTypeOption? SelectedRateType
+    {
+        get => selectedRateType;
+        set => SetProperty(ref selectedRateType, value);
+    }
+
+    public bool IsActive
+    {
+        get => isActive;
+        set => SetProperty(ref isActive, value);
+    }
+
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
 }

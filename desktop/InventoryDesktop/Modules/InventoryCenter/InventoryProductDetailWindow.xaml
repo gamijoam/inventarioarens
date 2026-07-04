@@ -305,6 +305,84 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Precios">
+                <Grid Margin="0,14,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border Style="{StaticResource PanelStyle}" Padding="12">
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="Precios por lista" FontWeight="Black" FontSize="16" />
+                                <TextBlock Text="Configura precios al mayor, detal, técnico u otras listas para que el POS use el precio correcto."
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,5,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Recargar" Width="96" Height="36" FontWeight="Black" Click="ReloadPrices_Click" />
+                                <Button Content="Guardar precios" Width="132" Height="36" Margin="8,0,0,0" FontWeight="Black" Background="{StaticResource AccentBrush}" Foreground="White" Click="SavePrices_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding ProductPriceRows}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              Margin="0,12,0,0"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="LISTA" Width="1.7*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding PriceListName}" FontWeight="Black" />
+                                            <TextBlock Text="{Binding PriceListCode}" FontSize="11" FontWeight="SemiBold" Foreground="#8090AD" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="PRECIO" Width="1.1*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}" Height="32" VerticalContentAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="MONEDA" Width="1.1*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.PriceCurrencyOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  SelectedItem="{Binding SelectedCurrency}"
+                                                  DisplayMemberPath="Label"
+                                                  Height="32" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="TASA" Width="1.6*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.PriceRateTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  SelectedItem="{Binding SelectedRateType}"
+                                                  DisplayMemberPath="Label"
+                                                  Height="32" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridCheckBoxColumn Header="ACTIVO" Binding="{Binding IsActive}" Width="0.7*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="2" Text="{Binding PriceStatusMessage}" Foreground="{Binding PriceStatusBrush}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,12,0,0" />
+                </Grid>
+            </TabItem>
+
             <TabItem Header="Auditoría">
                 <Grid Margin="0,14,0,0">
                     <Grid.RowDefinitions>

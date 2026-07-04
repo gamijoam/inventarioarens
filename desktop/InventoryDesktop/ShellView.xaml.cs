@@ -19,6 +19,7 @@ public partial class ShellView : UserControl
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
+        PriceListsContent.Configure(session.ApiClient);
         Loaded += async (_, _) => await inventoryCenterViewModel.LoadAsync();
     }
 
@@ -34,14 +35,22 @@ public partial class ShellView : UserControl
         await inventoryMovementsViewModel.LoadAsync();
     }
 
+    private async void PriceLists_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        ShowPriceLists();
+        await PriceListsContent.LoadAsync();
+    }
+
     private void ShowInventoryCenter()
     {
         SectionTitle.Text = "Centro de Inventario";
         SectionSubtitle.Text = "Datos reales desde el servidor";
         InventoryCenterContent.Visibility = System.Windows.Visibility.Visible;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PriceListsContent.Visibility = System.Windows.Visibility.Collapsed;
         SetActiveButton(InventoryCenterButton);
         SetInactiveButton(InventoryMovementsButton);
+        SetInactiveButton(PriceListsButton);
     }
 
     private void ShowInventoryMovements()
@@ -50,8 +59,22 @@ public partial class ShellView : UserControl
         SectionSubtitle.Text = "Registra movimientos reales de stock por producto";
         InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Visible;
+        PriceListsContent.Visibility = System.Windows.Visibility.Collapsed;
         SetActiveButton(InventoryMovementsButton);
         SetInactiveButton(InventoryCenterButton);
+        SetInactiveButton(PriceListsButton);
+    }
+
+    private void ShowPriceLists()
+    {
+        SectionTitle.Text = "Listas de precio";
+        SectionSubtitle.Text = "Configura precios para detal, mayor, técnico y futuras ventas POS";
+        InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
+        InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PriceListsContent.Visibility = System.Windows.Visibility.Visible;
+        SetActiveButton(PriceListsButton);
+        SetInactiveButton(InventoryCenterButton);
+        SetInactiveButton(InventoryMovementsButton);
     }
 
     private static void SetActiveButton(Button button)

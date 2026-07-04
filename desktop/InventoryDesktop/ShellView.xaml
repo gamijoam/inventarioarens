@@ -27,6 +27,7 @@
                     <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
                     <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
                     <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="InventoryMovements_Click" />
+                    <Button x:Name="PriceListsButton" Content="Listas de precio" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="PriceLists_Click" />
                     <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
                     <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
@@ -58,6 +59,7 @@
             <Grid Grid.Row="1">
                 <inventory:InventoryCenterView x:Name="InventoryCenterContent" />
                 <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
+                <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
             </Grid>
         </Grid>
     </Grid>
