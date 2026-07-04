@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-03 - Base inicial del cliente de escritorio WPF
+
+### Implementado
+
+- Se creo la base de la aplicacion de escritorio en `desktop/InventoryDesktop`.
+- Se definio WPF como cliente principal de escritorio para consumir el backend Laravel.
+- Se agrego una solucion `.slnx` para abrir el proyecto desde Visual Studio.
+- Se creo la pantalla inicial de login con URL de API, correo, contrasena, seleccion de empresa e ingreso.
+- Se agrego `ApiClient` para centralizar llamadas HTTP, token Bearer y header `X-Tenant`.
+- Se agrego `TokenVault` para guardar el token protegido por usuario de Windows.
+- Se agregaron DTOs de autenticacion ajustados al contrato real de Laravel, donde las respuestas vienen envueltas en `data`.
+- Se creo la estructura modular inicial para `Auth` y `InventoryCenter`.
+- Se actualizo `.gitignore` para excluir `bin/` y `obj/` de proyectos .NET.
+- Se documento la arquitectura WPF + Laravel API + PostgreSQL.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se recompilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php`: 8 pruebas pasadas, 37 aserciones.
+
 ## 2026-07-03 - Migración del rediseño de entradas y salidas a Tailwind CSS
 
 ### Implementado

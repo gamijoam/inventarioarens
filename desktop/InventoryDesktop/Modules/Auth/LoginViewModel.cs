@@ -1,0 +1,152 @@
+using System.Collections.ObjectModel;
+using System.Net.Http;
+using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Security;
+using InventoryDesktop.Core.ViewModels;
+
+namespace InventoryDesktop.Modules.Auth;
+
+public sealed class LoginViewModel : ViewModelBase
+{
+    private readonly ApiClient apiClient = new();
+    private readonly TokenVault tokenVault = new();
+    private string apiBaseUrl = "http://127.0.0.1:8000/api/";
+    private string email = "";
+    private TenantOption? selectedTenant;
+    private string statusMessage = "";
+    private bool isBusy;
+
+    public string ApiBaseUrl
+    {
+        get => apiBaseUrl;
+        set => SetProperty(ref apiBaseUrl, value);
+    }
+
+    public string Email
+    {
+        get => email;
+        set => SetProperty(ref email, value);
+    }
+
+    public ObservableCollection<TenantOption> Tenants { get; } = new();
+
+    public TenantOption? SelectedTenant
+    {
+        get => selectedTenant;
+        set => SetProperty(ref selectedTenant, value);
+    }
+
+    public string StatusMessage
+    {
+        get => statusMessage;
+        set => SetProperty(ref statusMessage, value);
+    }
+
+    public bool IsBusy
+    {
+        get => isBusy;
+        set => SetProperty(ref isBusy, value);
+    }
+
+    public async Task FindTenantsAsync(string password)
+    {
+        if (!ValidateCredentials(password))
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            apiClient.Configure(ApiBaseUrl);
+            TenantLookupResponse response = await apiClient.PostAsync<TenantLookupRequest, TenantLookupResponse>(
+                "auth/tenants",
+                new TenantLookupRequest(Email.Trim(), password));
+
+            Tenants.Clear();
+            foreach (TenantOption tenant in response.Data)
+            {
+                Tenants.Add(tenant);
+            }
+
+            SelectedTenant = Tenants.FirstOrDefault();
+            StatusMessage = Tenants.Count == 0
+                ? "No hay empresas activas para este usuario."
+                : "Selecciona la empresa e ingresa.";
+        });
+    }
+
+    public async Task LoginAsync(string password)
+    {
+        if (!ValidateCredentials(password))
+        {
+            return;
+        }
+
+        if (SelectedTenant is null)
+        {
+            StatusMessage = "Primero busca y selecciona una empresa.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            apiClient.Configure(ApiBaseUrl, tenantSlug: SelectedTenant.Slug);
+            LoginResponse response = await apiClient.PostAsync<LoginRequest, LoginResponse>(
+                "auth/login",
+                new LoginRequest(Email.Trim(), password, Environment.MachineName));
+
+            tokenVault.Save(response.Data.Token);
+            apiClient.Configure(ApiBaseUrl, response.Data.Token, response.Data.Tenant.Slug);
+            StatusMessage = $"Sesion iniciada en {response.Data.Tenant.Name} como {response.Data.User.Name}.";
+        });
+    }
+
+    private bool ValidateCredentials(string password)
+    {
+        if (string.IsNullOrWhiteSpace(ApiBaseUrl))
+        {
+            StatusMessage = "Debes indicar la URL base de la API.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            StatusMessage = "El correo es obligatorio.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            StatusMessage = "La contrasena es obligatoria.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            IsBusy = true;
+            StatusMessage = "Conectando con el servidor...";
+            await action();
+        }
+        catch (ApiException exception)
+        {
+            StatusMessage = exception.Message;
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "No se pudo conectar con la API. Verifica que Laravel este encendido.";
+        }
+        catch (TaskCanceledException)
+        {
+            StatusMessage = "La conexion tardo demasiado. Intenta nuevamente.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}

@@ -93,6 +93,32 @@ Regla importante:
 - las opciones de tasa y garantia se leen desde `Currency` y `Warranties` cuando el usuario tiene permiso para verlas;
 - el frontend solo oculta o muestra acciones por permisos, pero la autoridad real sigue en policies y validaciones del backend.
 
+### Desktop
+
+Responsabilidad:
+
+- servir como cliente principal de escritorio para el sistema de inventario;
+- conectarse al backend Laravel mediante HTTP/JSON;
+- manejar login, seleccion de empresa y token Bearer;
+- organizar pantallas por modulos operativos igual que el backend;
+- consumir APIs existentes sin conectarse directo a PostgreSQL.
+
+Archivos principales:
+
+- `desktop/InventoryDesktop/InventoryDesktop.csproj`
+- `desktop/InventoryDesktop/MainWindow.xaml`
+- `desktop/InventoryDesktop/Core/Api/ApiClient.cs`
+- `desktop/InventoryDesktop/Core/Security/TokenVault.cs`
+- `desktop/InventoryDesktop/Modules/Auth/LoginViewModel.cs`
+- `desktop/InventoryDesktop/Modules/Auth/AuthDtos.cs`
+
+Regla importante:
+
+- WPF es un cliente de APIs, no una fuente de verdad;
+- todas las operaciones reales deben pasar por Laravel con `Authorization: Bearer <token>` y `X-Tenant`;
+- el modulo `Auth` del escritorio debe respetar el contrato real de Laravel, donde las respuestas vienen envueltas en `data`;
+- las siguientes pantallas de escritorio se implementaran por modulo: Centro de Inventario, Entradas y Salidas, POS, Caja y Reportes.
+
 ### Dashboard
 
 Responsabilidad:

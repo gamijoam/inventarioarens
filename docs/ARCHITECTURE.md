@@ -15,6 +15,38 @@ Regla actual de rutas:
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
 
+## Cliente de escritorio WPF
+
+El sistema tendra una aplicacion de escritorio en C# con WPF como cliente principal.
+
+Decision:
+
+- Laravel sigue siendo el backend central y la unica capa autorizada para escribir reglas de negocio.
+- PostgreSQL no debe ser consumido directamente desde la aplicacion de escritorio.
+- WPF consume las APIs HTTP/JSON de Laravel.
+- El login usa `POST /api/auth/tenants` y `POST /api/auth/login`.
+- Las llamadas protegidas envian `Authorization: Bearer <token>` y `X-Tenant: <slug>`.
+- El token se guarda localmente usando proteccion del usuario de Windows.
+
+Estructura inicial:
+
+```txt
+desktop/InventoryDesktop
+|-- Core
+|   |-- Api
+|   |-- Security
+|   `-- ViewModels
+|-- Modules
+|   |-- Auth
+|   `-- InventoryCenter
+|-- App.xaml
+`-- MainWindow.xaml
+```
+
+Regla:
+
+- el cliente WPF puede mejorar experiencia, velocidad y flujo visual, pero permisos, tenant, stock, auditoria, tasas, caja y ventas se validan siempre en Laravel.
+
 ## Dashboard ejecutivo
 
 El dashboard inicial usa `GET /api/dashboard/summary` para cargar la portada del sistema con una sola llamada protegida. El objetivo es evitar que el frontend dispare varias consultas independientes al iniciar sesion.
