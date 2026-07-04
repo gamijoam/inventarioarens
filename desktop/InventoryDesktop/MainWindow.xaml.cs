@@ -7,6 +7,7 @@ namespace InventoryDesktop;
 public partial class MainWindow : Window
 {
     private readonly LoginView loginView = new();
+    private ShellWindow? shellWindow;
 
     public MainWindow()
     {
@@ -19,12 +20,21 @@ public partial class MainWindow : Window
     {
         try
         {
-            Width = 1360;
-            Height = 820;
-            MinWidth = 1120;
-            MinHeight = 720;
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            AppContent.Content = new ShellView(session);
+            if (shellWindow is { IsVisible: true })
+            {
+                shellWindow.Activate();
+                loginView.ShowError("El panel principal ya esta abierto.");
+                return;
+            }
+
+            shellWindow = new ShellWindow(session)
+            {
+                Owner = this
+            };
+            shellWindow.Closed += (_, _) => shellWindow = null;
+            shellWindow.Show();
+            shellWindow.Activate();
+            loginView.ShowError("Sesion iniciada. El panel principal se abrio en otra ventana.");
         }
         catch (Exception exception)
         {

@@ -33,13 +33,14 @@ desktop/InventoryDesktop
 4. El usuario selecciona empresa.
 5. La app inicia sesion con `/api/auth/login`.
 6. El token se guarda protegido con DPAPI para el usuario actual de Windows.
-7. La misma ventana cambia al shell principal.
+7. La app abre el shell principal en una segunda ventana y mantiene el login visible.
 8. El Centro de Inventario consume `GET /api/inventory-center/summary`.
 
 ## Pantallas actuales
 
-- `MainWindow`: contenedor unico de la aplicacion.
+- `MainWindow`: ventana de login que permanece abierta despues de iniciar sesion.
 - `LoginView`: login y seleccion de empresa.
+- `ShellWindow`: ventana del panel principal.
 - `ShellView`: layout principal con sidebar, topbar y contenido modular.
 - `InventoryCenterView`: centro de inventario solo lectura con metricas, filtros, listado y paginacion.
 

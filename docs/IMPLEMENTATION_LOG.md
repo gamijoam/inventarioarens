@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Apertura visible del panel WPF sin cerrar login
+
+### Implementado
+
+- Se reintrodujo `ShellWindow` como ventana host del panel principal para diagnosticar el flujo visual despues del login.
+- `MainWindow` permanece abierta con el login despues de autenticar.
+- Al iniciar sesion correctamente se crea y muestra `ShellWindow`, que carga `ShellView` y el Centro de Inventario.
+- Si el panel ya esta abierto, el login muestra un mensaje y activa la ventana existente.
+- Se cambio `ShutdownMode` a `OnMainWindowClose` para evitar procesos WPF vivos despues de cerrar el login.
+- Se actualizo `desktop/InventoryDesktop/README.md` con el flujo actual de login abierto mas panel en ventana separada.
+
+### Pruebas
+
+- Se ejecuto `dotnet clean` para eliminar el binario WPF anterior y confirmar que no se use una compilacion vieja.
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente despues de restaurar: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Migracion WPF a ventana unica
 
 ### Implementado
