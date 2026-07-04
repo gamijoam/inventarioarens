@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-04 - Completar precios faltantes por lista en acciones masivas
+
+### Implementado
+
+- Se agregó la acción masiva `fill_missing_price_list` en `POST /api/inventory-center/products/bulk-action`.
+- La acción permite completar precios faltantes de una lista usando tres estrategias: copiar precio base, usar monto fijo o calcular porcentaje sobre el precio base.
+- El backend crea registros en `product_prices` solo cuando el producto no tiene precio en la lista seleccionada.
+- Si un producto ya tiene precio en esa lista, se omite y se devuelve el motivo visible.
+- Si la estrategia necesita precio base y el producto no lo tiene, se omite sin modificarlo.
+- Cada precio creado queda auditado en `product_audits`.
+- La ventana WPF de `Acciones masivas` ahora incluye la opción `Completar precios por lista`, selector de lista, estrategia, moneda y campos dinámicos según la estrategia.
+- Se actualizó la documentación de API y el README del módulo en español.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=bulk_action`.
+- Resultado: 3 pruebas pasaron, 20 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 18 pruebas pasaron, 137 assertions.
+
+### Notas de seguridad
+
+- La acción requiere token, tenant y permiso `products.update`.
+- La lista de precio seleccionada debe pertenecer a la empresa actual.
+- No sobrescribe precios existentes.
+- No modifica stock, seriales, movimientos de inventario ni ventas.
+
 ## 2026-07-04 - Corrección de acceso a acciones masivas WPF
 
 ### Implementado

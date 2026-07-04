@@ -360,6 +360,7 @@ activate
 deactivate
 assign_warranty_policy
 assign_exchange_rate_type
+fill_missing_price_list
 ```
 
 Payload por acción:
@@ -367,7 +368,29 @@ Payload por acción:
 - `activate`: no requiere `payload`;
 - `deactivate`: no requiere `payload`;
 - `assign_warranty_policy`: requiere `payload.warranty_policy_id`;
-- `assign_exchange_rate_type`: requiere `payload.sale_exchange_rate_type_id`.
+- `assign_exchange_rate_type`: requiere `payload.sale_exchange_rate_type_id`;
+- `fill_missing_price_list`: requiere `payload.price_list_id`, `payload.strategy` y `payload.currency`.
+
+Estrategias para `fill_missing_price_list`:
+
+- `base_price`: copia el precio base del producto en la lista seleccionada;
+- `fixed_price`: usa el monto enviado en `payload.price`;
+- `percent_over_base`: calcula el precio usando `payload.percent` sobre el precio base.
+
+Ejemplo para completar precios faltantes en una lista:
+
+```json
+{
+  "product_ids": [1, 2, 3],
+  "action": "fill_missing_price_list",
+  "payload": {
+    "price_list_id": 2,
+    "strategy": "percent_over_base",
+    "percent": 20,
+    "currency": "USD"
+  }
+}
+```
 
 Respuesta:
 
@@ -394,6 +417,9 @@ Reglas:
 - acepta hasta 200 productos por solicitud;
 - todos los `product_ids` deben pertenecer al tenant actual;
 - la garantía o tasa seleccionada debe pertenecer al tenant actual;
+- la lista de precio seleccionada debe pertenecer al tenant actual;
+- `fill_missing_price_list` solo crea precios faltantes y no sobrescribe precios ya existentes del producto en esa lista;
+- si una estrategia necesita precio base y el producto no lo tiene, ese producto se omite con motivo visible;
 - cada producto modificado genera un registro en `product_audits`;
 - las acciones se ejecutan en transacción y bloquean los productos seleccionados durante la actualización.
 

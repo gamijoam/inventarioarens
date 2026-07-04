@@ -489,7 +489,12 @@ public sealed record InventoryBulkActionRequest(
 
 public sealed record InventoryBulkActionPayload(
     [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId = null,
-    [property: JsonPropertyName("sale_exchange_rate_type_id")] long? SaleExchangeRateTypeId = null);
+    [property: JsonPropertyName("sale_exchange_rate_type_id")] long? SaleExchangeRateTypeId = null,
+    [property: JsonPropertyName("price_list_id")] long? PriceListId = null,
+    [property: JsonPropertyName("strategy")] string? Strategy = null,
+    [property: JsonPropertyName("price")] decimal? Price = null,
+    [property: JsonPropertyName("percent")] decimal? Percent = null,
+    [property: JsonPropertyName("currency")] string? Currency = null);
 
 public sealed record InventoryBulkActionResponse(
     [property: JsonPropertyName("data")] InventoryBulkActionResult Data);

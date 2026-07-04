@@ -117,6 +117,36 @@
                                   MinHeight="38" />
                     </StackPanel>
 
+                    <StackPanel x:Name="PriceListPanel" Margin="0,14,0,0" Visibility="Collapsed">
+                        <TextBlock Text="Lista de precio" Style="{StaticResource LabelStyle}" />
+                        <ComboBox ItemsSource="{Binding PriceLists}"
+                                  SelectedItem="{Binding SelectedPriceList, Mode=TwoWay}"
+                                  DisplayMemberPath="Name"
+                                  MinHeight="38" />
+
+                        <TextBlock Text="Estrategia" Style="{StaticResource LabelStyle}" Margin="0,12,0,5" />
+                        <ComboBox ItemsSource="{Binding PriceStrategies}"
+                                  SelectedItem="{Binding SelectedPriceStrategy, Mode=TwoWay}"
+                                  DisplayMemberPath="Label"
+                                  MinHeight="38"
+                                  SelectionChanged="PriceStrategy_SelectionChanged" />
+
+                        <TextBlock Text="Moneda" Style="{StaticResource LabelStyle}" Margin="0,12,0,5" />
+                        <ComboBox ItemsSource="{Binding CurrencyOptions}"
+                                  SelectedItem="{Binding SelectedCurrency, Mode=TwoWay}"
+                                  MinHeight="38" />
+
+                        <StackPanel x:Name="FixedPricePanel" Margin="0,12,0,0" Visibility="Collapsed">
+                            <TextBlock Text="Monto fijo" Style="{StaticResource LabelStyle}" />
+                            <TextBox Text="{Binding FixedPriceText, UpdateSourceTrigger=PropertyChanged}" MinHeight="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="PercentPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                            <TextBlock Text="Porcentaje sobre precio base" Style="{StaticResource LabelStyle}" />
+                            <TextBox Text="{Binding PercentText, UpdateSourceTrigger=PropertyChanged}" MinHeight="38" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+
                     <Border Margin="0,18,0,0" Padding="12" Background="#FFFDF9" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="8">
                         <TextBlock Text="{Binding WarningLabel}" Foreground="#B45309" FontWeight="Black" TextWrapping="Wrap" />
                     </Border>

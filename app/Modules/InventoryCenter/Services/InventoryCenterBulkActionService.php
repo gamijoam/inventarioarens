@@ -5,6 +5,7 @@ namespace App\Modules\InventoryCenter\Services;
 use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use App\Modules\Products\Models\ProductPrice;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -27,6 +28,33 @@ class InventoryCenterBulkActionService
             $skipped = [];
 
             foreach ($products as $product) {
+                if ($action === InventoryCenterBulkActionRequest::ACTION_FILL_MISSING_PRICE_LIST) {
+                    $result = $this->fillMissingPrice($product, $payload);
+                    if (! $result['updated']) {
+                        $skipped[] = [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'reason' => $result['reason'],
+                        ];
+                        continue;
+                    }
+
+                    $this->recordAudit(
+                        $product,
+                        ProductAudit::ACTION_UPDATED,
+                        [],
+                        ['product_price' => $result['price']],
+                        $userId
+                    );
+
+                    $updated[] = [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'sku' => $product->sku,
+                    ];
+                    continue;
+                }
+
                 $changes = $this->changesFor($product, $action, $payload);
 
                 if ($changes === []) {
@@ -60,6 +88,71 @@ class InventoryCenterBulkActionService
                 'skipped' => $skipped,
             ];
         });
+    }
+
+    private function fillMissingPrice(Product $product, array $payload): array
+    {
+        $priceListId = (int) $payload['price_list_id'];
+        $exists = ProductPrice::query()
+            ->where('product_id', $product->id)
+            ->where('price_list_id', $priceListId)
+            ->exists();
+
+        if ($exists) {
+            return [
+                'updated' => false,
+                'reason' => 'El producto ya tiene precio para esa lista.',
+            ];
+        }
+
+        $price = $this->calculatePrice($product, $payload);
+        if ($price === null) {
+            return [
+                'updated' => false,
+                'reason' => 'El producto no tiene precio base para calcular el precio.',
+            ];
+        }
+
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceListId,
+            'price' => $price,
+            'currency' => $payload['currency'],
+            'exchange_rate_type_id' => $payload['sale_exchange_rate_type_id'] ?? $product->sale_exchange_rate_type_id,
+            'is_active' => true,
+        ]);
+
+        return [
+            'updated' => true,
+            'price' => [
+                'price_list_id' => $priceListId,
+                'price' => $price,
+                'currency' => $payload['currency'],
+            ],
+        ];
+    }
+
+    private function calculatePrice(Product $product, array $payload): ?float
+    {
+        $strategy = $payload['strategy'];
+        if ($strategy === InventoryCenterBulkActionRequest::PRICE_STRATEGY_FIXED_PRICE) {
+            return round((float) $payload['price'], 4);
+        }
+
+        if ($product->base_price === null) {
+            return null;
+        }
+
+        $basePrice = (float) $product->base_price;
+        if ($strategy === InventoryCenterBulkActionRequest::PRICE_STRATEGY_BASE_PRICE) {
+            return round($basePrice, 4);
+        }
+
+        if ($strategy === InventoryCenterBulkActionRequest::PRICE_STRATEGY_PERCENT_OVER_BASE) {
+            return round($basePrice * (1 + (((float) $payload['percent']) / 100)), 4);
+        }
+
+        return null;
     }
 
     private function changesFor(Product $product, string $action, array $payload): array

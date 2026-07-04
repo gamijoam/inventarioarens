@@ -13,6 +13,11 @@ class InventoryCenterBulkActionRequest extends FormRequest
     public const ACTION_DEACTIVATE = 'deactivate';
     public const ACTION_ASSIGN_WARRANTY_POLICY = 'assign_warranty_policy';
     public const ACTION_ASSIGN_EXCHANGE_RATE_TYPE = 'assign_exchange_rate_type';
+    public const ACTION_FILL_MISSING_PRICE_LIST = 'fill_missing_price_list';
+
+    public const PRICE_STRATEGY_BASE_PRICE = 'base_price';
+    public const PRICE_STRATEGY_FIXED_PRICE = 'fixed_price';
+    public const PRICE_STRATEGY_PERCENT_OVER_BASE = 'percent_over_base';
 
     public function authorize(): bool
     {
@@ -38,9 +43,27 @@ class InventoryCenterBulkActionRequest extends FormRequest
                     self::ACTION_DEACTIVATE,
                     self::ACTION_ASSIGN_WARRANTY_POLICY,
                     self::ACTION_ASSIGN_EXCHANGE_RATE_TYPE,
+                    self::ACTION_FILL_MISSING_PRICE_LIST,
                 ]),
             ],
             'payload' => ['nullable', 'array'],
+            'payload.price_list_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId),
+            ],
+            'payload.strategy' => [
+                'nullable',
+                'string',
+                Rule::in([
+                    self::PRICE_STRATEGY_BASE_PRICE,
+                    self::PRICE_STRATEGY_FIXED_PRICE,
+                    self::PRICE_STRATEGY_PERCENT_OVER_BASE,
+                ]),
+            ],
+            'payload.price' => ['nullable', 'numeric', 'gte:0'],
+            'payload.percent' => ['nullable', 'numeric', 'min:-99', 'max:10000'],
+            'payload.currency' => ['nullable', 'string', 'size:3', Rule::in(['USD', 'VES'])],
             'payload.warranty_policy_id' => [
                 'nullable',
                 'integer',
@@ -73,6 +96,31 @@ class InventoryCenterBulkActionRequest extends FormRequest
                 ) {
                     $validator->errors()->add('payload.sale_exchange_rate_type_id', 'Selecciona el tipo de tasa a asignar.');
                 }
+
+                if ($action !== self::ACTION_FILL_MISSING_PRICE_LIST) {
+                    return;
+                }
+
+                if (! $this->filled('payload.price_list_id')) {
+                    $validator->errors()->add('payload.price_list_id', 'Selecciona la lista de precio a completar.');
+                }
+
+                $strategy = $this->input('payload.strategy');
+                if (! $strategy) {
+                    $validator->errors()->add('payload.strategy', 'Selecciona la estrategia para completar precios.');
+                }
+
+                if ($strategy === self::PRICE_STRATEGY_FIXED_PRICE && ! $this->filled('payload.price')) {
+                    $validator->errors()->add('payload.price', 'Indica el monto fijo a aplicar.');
+                }
+
+                if ($strategy === self::PRICE_STRATEGY_PERCENT_OVER_BASE && ! $this->filled('payload.percent')) {
+                    $validator->errors()->add('payload.percent', 'Indica el porcentaje sobre el precio base.');
+                }
+
+                if (! $this->filled('payload.currency')) {
+                    $validator->errors()->add('payload.currency', 'Selecciona la moneda del precio.');
+                }
             },
         ];
     }
@@ -89,6 +137,15 @@ class InventoryCenterBulkActionRequest extends FormRequest
             'action.required' => 'Selecciona una acción masiva.',
             'action.in' => 'La acción masiva seleccionada no es válida.',
             'payload.warranty_policy_id.exists' => 'La política de garantía seleccionada no pertenece a la empresa actual.',
+            'payload.price_list_id.exists' => 'La lista de precio seleccionada no pertenece a la empresa actual.',
+            'payload.strategy.in' => 'La estrategia de precio seleccionada no es válida.',
+            'payload.price.numeric' => 'El precio debe ser numérico.',
+            'payload.price.gte' => 'El precio no puede ser negativo.',
+            'payload.percent.numeric' => 'El porcentaje debe ser numérico.',
+            'payload.percent.min' => 'El porcentaje no puede ser menor a -99%.',
+            'payload.percent.max' => 'El porcentaje es demasiado alto.',
+            'payload.currency.in' => 'La moneda del precio debe ser USD o VES.',
+            'payload.currency.size' => 'La moneda del precio debe tener 3 caracteres.',
             'payload.sale_exchange_rate_type_id.exists' => 'El tipo de tasa seleccionado no pertenece a la empresa actual.',
         ];
     }

@@ -39,10 +39,12 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 
 - La tabla del Centro de Inventario permite seleccionar varios productos.
 - El botón `Acciones masivas` abre una ventana de confirmación antes de ejecutar cambios.
-- Las acciones iniciales son activar productos, desactivar productos, asignar garantía y asignar tipo de tasa.
+- Las acciones iniciales son activar productos, desactivar productos, asignar garantía, asignar tipo de tasa y completar precios faltantes por lista.
 - El backend usa `POST /api/inventory-center/products/bulk-action`.
 - Cada producto modificado genera auditoría en `product_audits`.
-- El backend valida tenant, permiso `products.update`, productos seleccionados y que la garantía o tasa pertenezca a la empresa actual.
+- El backend valida tenant, permiso `products.update`, productos seleccionados y que la garantía, tasa o lista de precio pertenezca a la empresa actual.
+- La acción `Completar precios por lista` crea precios solo cuando el producto no tiene precio en esa lista. No sobrescribe precios existentes.
+- Para completar precios por lista se puede copiar el precio base, usar un monto fijo o calcular un porcentaje sobre el precio base.
 
 ## Implementado
 
@@ -52,6 +54,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Botón `Exportar CSV` conectado a `GET /api/inventory-center/export` con los filtros actuales.
 - Selección múltiple de productos en la tabla principal.
 - Ventana WPF de acciones masivas conectada a `POST /api/inventory-center/products/bulk-action`.
+- Acción masiva para completar precios faltantes por lista sin sobrescribir precios ya cargados.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.
