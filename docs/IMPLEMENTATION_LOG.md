@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-03 - Diagnostico robusto del cierre WPF despues del login
+
+### Implementado
+
+- Se agrego `AppLogger` para registrar el flujo WPF en `%LOCALAPPDATA%\SistemaInventario\desktop.log`.
+- Se registran eventos de inicio de aplicacion, creacion del login, login exitoso, apertura de `ShellWindow`, carga del panel y errores no controlados.
+- Se agregaron manejadores globales para excepciones de Dispatcher, dominio de aplicacion y tareas no observadas.
+- `ShellWindow` ahora se crea primero con una vista visible de carga antes de construir `ShellView`.
+- Si falla la carga de `ShellView`, la ventana del panel queda abierta mostrando el error y la ruta del log.
+- Se elimino la relacion `Owner` entre login y panel para evitar cierres visuales dependientes de la ventana duena.
+- Se dejo `ShutdownMode` en `OnExplicitShutdown`; el proceso solo se apaga al cerrar `MainWindow`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Apertura visible del panel WPF sin cerrar login
 
 ### Implementado

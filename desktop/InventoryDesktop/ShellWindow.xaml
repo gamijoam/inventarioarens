@@ -6,7 +6,9 @@
         Height="820"
         MinWidth="1120"
         MinHeight="720"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="CenterScreen"
         Background="#F6F8FC">
-    <ContentControl x:Name="ShellContent" />
+    <Grid>
+        <ContentControl x:Name="ShellContent" />
+    </Grid>
 </Window>
