@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Acciones masivas"
-        Width="760"
-        Height="620"
+        Width="880"
+        Height="700"
         MinWidth="680"
-        MinHeight="540"
+        MinHeight="620"
         WindowStartupLocation="CenterOwner"
         Background="#F4F7FB">
     <Window.Resources>
@@ -56,8 +56,8 @@
 
         <Grid Grid.Row="1" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.1*" />
-                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="0.95*" />
+                <ColumnDefinition Width="1.05*" />
             </Grid.ColumnDefinitions>
 
             <Border Padding="14" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Margin="0,0,12,0">
@@ -90,7 +90,8 @@
             </Border>
 
             <Border Grid.Column="1" Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
-                <StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,0,8,0">
                     <TextBlock Text="Acción a aplicar" FontSize="16" FontWeight="Black" />
                     <TextBlock Text="Confirma bien antes de ejecutar. Cada producto afectado quedará auditado." Foreground="#5D6B88" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,3,0,14" />
 
@@ -153,6 +154,7 @@
 
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,16,0,0" />
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
 

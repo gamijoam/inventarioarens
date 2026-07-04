@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-07-04 - Ajuste visual del formulario de acciones masivas
+
+### Implementado
+
+- Se amplió la ventana WPF `Acciones masivas` para dar más espacio al formulario.
+- Se ajustó la distribución entre la lista de productos seleccionados y el panel de acción.
+- El panel derecho ahora tiene desplazamiento vertical interno para que las acciones con más campos, como `Completar precios por lista`, no queden cortadas.
+- Los botones `Cancelar` y `Aplicar acción` permanecen visibles en la parte inferior de la ventana.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se modificó lógica de negocio ni APIs.
+- El cambio afecta únicamente la presentación visual de la ventana WPF.
+
 ## 2026-07-04 - Completar precios faltantes por lista en acciones masivas
 
 ### Implementado
