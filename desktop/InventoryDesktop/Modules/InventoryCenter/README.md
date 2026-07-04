@@ -22,10 +22,10 @@ Este módulo será la primera pantalla operativa después del login.
 - Estado vacío con mensaje en español para filtros sin resultados o errores de carga.
 - Mensajes de error en español con color diferenciado.
 - Tipografía base ajustada a `Segoe UI Variable Text` con respaldo `Segoe UI`.
-- Detalle lateral de producto conectado a `GET /api/inventory-center/products/{product}`.
+- Ventana independiente de detalle de producto conectada a `GET /api/inventory-center/products/{product}`.
 - Acceso al detalle por botón `Ver` o doble clic sobre una fila.
 - El detalle muestra información general, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
-- El panel lateral no ocupa espacio cuando está cerrado para conservar el ancho completo del listado.
+- El listado principal mantiene todo su espacio; el detalle se abre aparte para no reducir el área de trabajo.
 
 ## Regla de conexión
 

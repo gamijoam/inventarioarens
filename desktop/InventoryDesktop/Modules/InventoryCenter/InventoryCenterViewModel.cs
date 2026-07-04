@@ -278,14 +278,15 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         await LoadAsync();
     }
 
-    public async Task OpenProductDetailAsync(InventoryProductItem product)
+    public async Task<InventoryProductDetailData?> LoadProductDetailAsync(InventoryProductItem product)
     {
         SelectedProduct = product;
-        IsDetailOpen = true;
         IsDetailBusy = true;
         IsDetailStatusError = false;
         SelectedProductDetail = null;
         DetailStatusMessage = "Cargando detalle del producto...";
+        StatusMessage = "Cargando detalle del producto...";
+        IsStatusError = false;
 
         try
         {
@@ -294,27 +295,37 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
             SelectedProductDetail = response.Data;
             DetailStatusMessage = "Detalle actualizado.";
+            StatusMessage = "Detalle actualizado.";
             IsDetailStatusError = false;
+            return response.Data;
         }
         catch (ApiException exception)
         {
             DetailStatusMessage = exception.Message;
+            StatusMessage = exception.Message;
             IsDetailStatusError = true;
+            IsStatusError = true;
         }
         catch (HttpRequestException)
         {
             DetailStatusMessage = "No se pudo conectar con la API para cargar el detalle.";
+            StatusMessage = "No se pudo conectar con la API para cargar el detalle.";
             IsDetailStatusError = true;
+            IsStatusError = true;
         }
         catch (TaskCanceledException)
         {
             DetailStatusMessage = "La carga del detalle tardó demasiado. Intenta nuevamente.";
+            StatusMessage = "La carga del detalle tardó demasiado. Intenta nuevamente.";
             IsDetailStatusError = true;
+            IsStatusError = true;
         }
         finally
         {
             IsDetailBusy = false;
         }
+
+        return null;
     }
 
     public void CloseProductDetail()

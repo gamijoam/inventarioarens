@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-04 - Ventana independiente de detalle en Centro de Inventario WPF
+
+### Implementado
+
+- Se reemplazó el detalle embebido/lateral por una ventana independiente `InventoryProductDetailWindow`.
+- El listado principal conserva todo su ancho y no pierde espacio al consultar un producto.
+- La ventana de detalle muestra información comercial, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
+- El botón `Ver` y el doble clic ahora cargan el detalle desde la API y abren la nueva ventana.
+- Si falla la carga del detalle, el error queda visible en el mensaje inferior del Centro de Inventario.
+- Se actualizó `desktop/InventoryDesktop/Modules/InventoryCenter/README.md`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-04 - Detalle lateral de producto en Centro de Inventario WPF
 
 ### Implementado

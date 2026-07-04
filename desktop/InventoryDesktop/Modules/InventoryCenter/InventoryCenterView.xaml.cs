@@ -57,7 +57,7 @@ public partial class InventoryCenterView : UserControl
     {
         if (ViewModel?.SelectedProduct is not null)
         {
-            await ViewModel.OpenProductDetailAsync(ViewModel.SelectedProduct);
+            await OpenDetailWindowAsync(ViewModel.SelectedProduct);
         }
     }
 
@@ -68,11 +68,32 @@ public partial class InventoryCenterView : UserControl
             return;
         }
 
-        await ViewModel.OpenProductDetailAsync(product);
+        await OpenDetailWindowAsync(product);
     }
 
     private void CloseDetail_Click(object sender, RoutedEventArgs e)
     {
         ViewModel?.CloseProductDetail();
+    }
+
+    private async Task OpenDetailWindowAsync(InventoryProductItem product)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        InventoryProductDetailData? detail = await ViewModel.LoadProductDetailAsync(product);
+        if (detail is null)
+        {
+            return;
+        }
+
+        InventoryProductDetailWindow window = new(detail)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Show();
+        window.Activate();
     }
 }
