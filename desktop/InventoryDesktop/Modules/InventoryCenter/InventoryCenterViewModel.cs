@@ -35,6 +35,8 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
     public ObservableCollection<InventoryProductItem> Products { get; } = new();
 
+    public ObservableCollection<InventoryCenterAlert> Alerts { get; } = new();
+
     public IReadOnlyList<FilterOption> TrackingOptions { get; } =
     [
         new("", "Todos"),
@@ -203,6 +205,12 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
     public bool ShowEmptyState => !IsBusy && Products.Count == 0;
 
+    public bool HasAlerts => Alerts.Count > 0;
+
+    public string AlertsSummaryLabel => Alerts.Count == 0
+        ? "Sin alertas operativas"
+        : $"{Alerts.Count} alertas operativas";
+
     public string EmptyStateTitle => IsStatusError ? "No se pudo cargar el inventario" : "No hay productos para mostrar";
 
     public string EmptyStateMessage => IsStatusError
@@ -231,6 +239,12 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
             Metrics = response.Data.Metrics;
             Pagination = response.Data.Pagination;
+            Alerts.Clear();
+            foreach (InventoryCenterAlert alert in response.Data.Alerts)
+            {
+                Alerts.Add(alert);
+            }
+
             Products.Clear();
             foreach (InventoryProductItem product in response.Data.Products)
             {
@@ -239,6 +253,7 @@ public sealed class InventoryCenterViewModel : ViewModelBase
 
             StatusMessage = "Inventario actualizado.";
             IsStatusError = false;
+            RaiseAlertsChanged();
             RaiseEmptyStateChanged();
         });
     }
@@ -371,6 +386,8 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         {
             IsBusy = true;
             IsStatusError = false;
+            Alerts.Clear();
+            RaiseAlertsChanged();
             StatusMessage = "Cargando inventario...";
             await action();
         }
@@ -413,6 +430,12 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         RaisePropertyChanged(nameof(ShowEmptyState));
         RaisePropertyChanged(nameof(EmptyStateTitle));
         RaisePropertyChanged(nameof(EmptyStateMessage));
+    }
+
+    private void RaiseAlertsChanged()
+    {
+        RaisePropertyChanged(nameof(HasAlerts));
+        RaisePropertyChanged(nameof(AlertsSummaryLabel));
     }
 }
 

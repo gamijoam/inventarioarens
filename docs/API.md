@@ -232,6 +232,17 @@ Respuesta:
       "low_stock_count": 1,
       "without_stock_count": 1
     },
+    "alerts": [
+      {
+        "type": "without_base_price",
+        "severity": "danger",
+        "title": "Sin precio base",
+        "count": 2,
+        "message": "Productos sin precio base configurado.",
+        "action": "Asignar precio antes de vender en POS.",
+        "product_names": ["Samsung A06", "Cargador 25W"]
+      }
+    ],
     "products": [
       {
         "id": 1,
@@ -268,6 +279,8 @@ Reglas:
 - no modifica datos;
 - usa `stock_balances` como lectura rapida y productos activos como catalogo;
 - agrega stock por producto en base de datos antes de responder;
+- devuelve `alerts` con alertas operativas agregadas para productos incompletos o que requieren atencion;
+- las alertas iniciales cubren stock bajo, sin stock, sin precio base, sin garantia y listas de precio incompletas;
 - no consulta almacenes uno por uno desde el frontend;
 - limita el listado a maximo 50 productos por llamada;
 - devuelve metadatos de paginacion para navegar inventarios grandes;

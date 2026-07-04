@@ -19,9 +19,17 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - En el detalle del producto, la pestaña `Precios` muestra qué precio usará el POS por cada lista.
 - La pestaña permite copiar el precio base en una lista específica o en todas las listas vacías para acelerar la carga.
 
+## Alertas operativas
+
+- El resumen del Centro de Inventario incluye alertas operativas para detectar problemas antes de vender.
+- Las alertas iniciales cubren `Stock bajo`, `Sin stock`, `Sin precio base`, `Sin garantía` y `Listas de precio incompletas`.
+- Cada alerta incluye conteo, mensaje, acción recomendada y hasta tres productos de ejemplo.
+- La app WPF muestra estas alertas entre los filtros y la tabla de productos.
+
 ## Implementado
 
 - Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.
+- Bloque WPF de alertas operativas conectado al campo `alerts` del resumen.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.

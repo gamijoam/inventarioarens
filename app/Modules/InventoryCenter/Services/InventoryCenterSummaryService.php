@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryCenter\Services;
 
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -30,6 +31,7 @@ class InventoryCenterSummaryService
                 'page' => $page,
             ],
             'metrics' => $this->metrics($threshold),
+            'alerts' => $this->alerts($threshold),
             'products' => $products['data'],
             'pagination' => $products['pagination'],
         ];
@@ -145,6 +147,178 @@ class InventoryCenterSummaryService
                 'has_next' => $page < $lastPage,
             ],
         ];
+    }
+
+    private function alerts(float $threshold): array
+    {
+        $stock = $this->stockTotals();
+        $productStockQuery = $this->productStockQuery($stock)
+            ->where('products.is_active', true);
+
+        $alerts = [
+            $this->alertItem(
+                'low_stock',
+                'warning',
+                'Stock bajo',
+                (clone $productStockQuery)
+                    ->whereRaw('COALESCE(stock_totals.quantity_available, 0) > 0')
+                    ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= ?', [$threshold])
+                    ->count('products.id'),
+                'Productos por debajo del mínimo operativo.',
+                'Revisar reposición o traslado.',
+                $this->productNamesForStock('low', $threshold)
+            ),
+            $this->alertItem(
+                'without_stock',
+                'danger',
+                'Sin stock',
+                (clone $productStockQuery)
+                    ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= 0')
+                    ->count('products.id'),
+                'Productos activos sin disponibilidad.',
+                'Reponer o desactivar si ya no se venden.',
+                $this->productNamesForStock('out', $threshold)
+            ),
+            $this->alertItem(
+                'without_base_price',
+                'danger',
+                'Sin precio base',
+                Product::query()
+                    ->where('is_active', true)
+                    ->whereNull('base_price')
+                    ->count(),
+                'Productos sin precio base configurado.',
+                'Asignar precio antes de vender en POS.',
+                $this->productNamesForBasePrice()
+            ),
+            $this->alertItem(
+                'without_warranty_policy',
+                'warning',
+                'Sin garantía',
+                Product::query()
+                    ->where('is_active', true)
+                    ->whereNull('warranty_policy_id')
+                    ->count(),
+                'Productos sin política de garantía asignada.',
+                'Asignar garantía cuando aplique.',
+                $this->productNamesForWarranty()
+            ),
+            $this->priceListCompletenessAlert(),
+        ];
+
+        return array_values(array_filter($alerts, fn (array $alert): bool => $alert['count'] > 0));
+    }
+
+    private function priceListCompletenessAlert(): array
+    {
+        $tenantId = $this->tenantManager->require()->id;
+        $activePriceListIds = PriceList::query()
+            ->where('is_active', true)
+            ->pluck('id');
+
+        if ($activePriceListIds->isEmpty()) {
+            return $this->alertItem(
+                'missing_price_lists',
+                'info',
+                'Sin listas activas',
+                0,
+                'No hay listas de precio activas para validar.',
+                'Crear listas como detal, mayor o técnico.',
+                []
+            );
+        }
+
+        $activePriceListCount = $activePriceListIds->count();
+        $query = Product::query()
+            ->leftJoin('product_prices', function ($join) use ($activePriceListIds, $tenantId): void {
+                $join
+                    ->on('product_prices.product_id', '=', 'products.id')
+                    ->where('product_prices.tenant_id', $tenantId)
+                    ->where('product_prices.is_active', true)
+                    ->whereIn('product_prices.price_list_id', $activePriceListIds);
+            })
+            ->where('products.is_active', true)
+            ->groupBy('products.id')
+            ->havingRaw('COUNT(DISTINCT product_prices.price_list_id) < ?', [$activePriceListCount]);
+
+        $count = (clone $query)->get('products.id')->count();
+        $names = (clone $query)
+            ->orderBy('products.name')
+            ->limit(3)
+            ->pluck('products.name')
+            ->all();
+
+        return $this->alertItem(
+            'missing_price_lists',
+            'warning',
+            'Listas de precio incompletas',
+            $count,
+            'Productos sin precio en una o más listas activas.',
+            'Completar precios por lista antes de vender.',
+            $names
+        );
+    }
+
+    private function alertItem(
+        string $type,
+        string $severity,
+        string $title,
+        int $count,
+        string $message,
+        string $action,
+        array $productNames
+    ): array {
+        return [
+            'type' => $type,
+            'severity' => $severity,
+            'title' => $title,
+            'count' => $count,
+            'message' => $message,
+            'action' => $action,
+            'product_names' => $productNames,
+        ];
+    }
+
+    private function productNamesForStock(string $status, float $threshold): array
+    {
+        $query = $this->productStockQuery($this->stockTotals())
+            ->where('products.is_active', true);
+
+        if ($status === 'low') {
+            $query
+                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) > 0')
+                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= ?', [$threshold]);
+        } else {
+            $query->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= 0');
+        }
+
+        return $query
+            ->orderBy('products.name')
+            ->limit(3)
+            ->pluck('products.name')
+            ->all();
+    }
+
+    private function productNamesForBasePrice(): array
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->whereNull('base_price')
+            ->orderBy('name')
+            ->limit(3)
+            ->pluck('name')
+            ->all();
+    }
+
+    private function productNamesForWarranty(): array
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->whereNull('warranty_policy_id')
+            ->orderBy('name')
+            ->limit(3)
+            ->pluck('name')
+            ->all();
     }
 
     private function productStockQuery(QueryBuilder $stockTotals): \Illuminate\Database\Eloquent\Builder

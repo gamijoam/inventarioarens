@@ -7,8 +7,10 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -118,6 +120,79 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.products.0.sku', 'NUEVO-001')
             ->assertJsonPath('data.products.0.stock.available', 0)
             ->assertJsonPath('data.products.0.stock.status', 'out');
+    }
+
+    public function test_inventory_center_returns_operational_alerts(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Tienda', 'code' => 'STORE']);
+        $priceList = PriceList::create([
+            'name' => 'Detal',
+            'code' => 'DETAL',
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+
+        $complete = Product::create([
+            'name' => 'Producto Completo',
+            'sku' => 'OK-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        ProductPrice::create([
+            'product_id' => $complete->id,
+            'price_list_id' => $priceList->id,
+            'price' => 12,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $complete->id,
+            'quantity_available' => 6,
+        ]);
+
+        $lowStock = Product::create([
+            'name' => 'Producto Bajo',
+            'sku' => 'LOW-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 20,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $lowStock->id,
+            'quantity_available' => 2,
+        ]);
+
+        Product::create([
+            'name' => 'Producto Sin Precio',
+            'sku' => 'NO-PRICE',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => null,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?low_stock_threshold=3')
+            ->assertOk()
+            ->assertJsonPath('data.alerts.0.type', 'low_stock')
+            ->assertJsonPath('data.alerts.0.count', 1)
+            ->assertJsonPath('data.alerts.1.type', 'without_stock')
+            ->assertJsonPath('data.alerts.1.count', 1)
+            ->assertJsonPath('data.alerts.2.type', 'without_base_price')
+            ->assertJsonPath('data.alerts.2.product_names.0', 'Producto Sin Precio')
+            ->assertJsonPath('data.alerts.3.type', 'without_warranty_policy')
+            ->assertJsonPath('data.alerts.3.count', 3)
+            ->assertJsonPath('data.alerts.4.type', 'missing_price_lists')
+            ->assertJsonPath('data.alerts.4.count', 2);
     }
 
     public function test_inventory_center_product_detail_returns_stock_serials_and_recent_movements(): void

@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Alertas operativas del Centro de Inventario
+
+### Implementado
+
+- Se agregó el bloque `alerts` a `GET /api/inventory-center/summary`.
+- Las alertas iniciales detectan `Stock bajo`, `Sin stock`, `Sin precio base`, `Sin garantía` y `Listas de precio incompletas`.
+- Cada alerta devuelve tipo, severidad, título, conteo, mensaje, acción recomendada y productos de ejemplo.
+- Se conectó la app WPF para mostrar las alertas entre filtros y tabla de productos.
+- Se mantuvo el cálculo en consultas agregadas por tenant para evitar lecturas N+1.
+- Se actualizó la documentación de API y el README del módulo.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=operational_alerts`.
+- Resultado: 1 prueba pasó, 11 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 14 pruebas pasaron, 111 assertions.
+
+### Notas de seguridad
+
+- Las alertas respetan tenant y permisos existentes de `inventory-center/summary`.
+- No modifican datos; son solo lectura operativa.
+
 ## 2026-07-04 - Mejora de precios por lista en detalle de producto WPF
 
 ### Implementado

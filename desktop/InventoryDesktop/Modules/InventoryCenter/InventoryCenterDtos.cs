@@ -9,6 +9,7 @@ public sealed record InventoryCenterSummaryResponse(
 public sealed record InventoryCenterSummaryData(
     [property: JsonPropertyName("filters")] InventoryCenterFilters Filters,
     [property: JsonPropertyName("metrics")] InventoryCenterMetrics Metrics,
+    [property: JsonPropertyName("alerts")] IReadOnlyList<InventoryCenterAlert> Alerts,
     [property: JsonPropertyName("products")] IReadOnlyList<InventoryProductItem> Products,
     [property: JsonPropertyName("pagination")] InventoryPagination Pagination);
 
@@ -29,6 +30,30 @@ public sealed record InventoryCenterMetrics(
     [property: JsonPropertyName("damaged_quantity")] decimal DamagedQuantity,
     [property: JsonPropertyName("low_stock_count")] int LowStockCount,
     [property: JsonPropertyName("without_stock_count")] int WithoutStockCount);
+
+public sealed record InventoryCenterAlert(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("severity")] string Severity,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("count")] int Count,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("product_names")] IReadOnlyList<string> ProductNames)
+{
+    public string CountLabel => Count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+
+    public string ProductNamesLabel => ProductNames.Count == 0
+        ? "Sin ejemplos para mostrar."
+        : string.Join(", ", ProductNames);
+
+    public string SeverityLabel => Severity switch
+    {
+        "danger" => "Crítico",
+        "warning" => "Atención",
+        "info" => "Info",
+        _ => Severity,
+    };
+}
 
 public sealed record InventoryProductItem(
     [property: JsonPropertyName("id")] long Id,
