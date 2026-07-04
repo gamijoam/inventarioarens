@@ -5,8 +5,8 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="16,0" />
             <Setter Property="FontWeight" Value="Black" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
@@ -14,49 +14,59 @@
         </Style>
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="16,0" />
             <Setter Property="FontWeight" Value="Black" />
             <Setter Property="Foreground" Value="#34415F" />
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#DCE4F2" />
         </Style>
 
-        <Style x:Key="MetricTitleStyle" TargetType="TextBlock">
+        <Style x:Key="MetricChipStyle" TargetType="Border">
+            <Setter Property="Height" Value="54" />
+            <Setter Property="MinWidth" Value="132" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#E1E7F3" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
+        <Style x:Key="ChipLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#64718C" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="Black" />
         </Style>
 
-        <Style x:Key="MetricNumberStyle" TargetType="TextBlock">
+        <Style x:Key="ChipValueStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#10172F" />
-            <Setter Property="FontSize" Value="25" />
+            <Setter Property="FontSize" Value="19" />
             <Setter Property="FontWeight" Value="Black" />
-            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="Margin" Value="0,3,0,0" />
         </Style>
 
         <Style x:Key="FilterLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#64718C" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="Black" />
-            <Setter Property="Margin" Value="0,0,0,7" />
+            <Setter Property="Margin" Value="0,0,0,5" />
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="28">
+    <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Padding="22"
+        <Border Padding="18"
                 Background="#FFFFFF"
                 BorderBrush="#E1E7F3"
                 BorderThickness="1"
-                CornerRadius="12">
+                CornerRadius="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -65,39 +75,78 @@
 
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Border Padding="10,6"
+                        <Border Padding="9,5"
                                 Background="#EEF0FF"
                                 BorderBrush="#DCE4FF"
                                 BorderThickness="1"
-                                CornerRadius="8">
-                            <TextBlock Text="INVENTARIO" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                                CornerRadius="7">
+                            <TextBlock Text="INVENTARIO" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
                         </Border>
-                        <Border Margin="10,0,0,0"
-                                Padding="10,6"
+                        <Border Margin="8,0,0,0"
+                                Padding="9,5"
                                 Background="#F7F9FD"
                                 BorderBrush="#E1E7F3"
                                 BorderThickness="1"
-                                CornerRadius="8">
-                            <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" />
+                                CornerRadius="7">
+                            <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" />
                         </Border>
                     </StackPanel>
 
                     <TextBlock Text="Centro de Inventario"
-                               FontSize="28"
+                               FontSize="25"
                                FontWeight="Black"
-                               Margin="0,14,0,0" />
-                    <TextBlock Text="Busca productos, revisa disponibilidad y prepara acciones de entrada, salida, kardex y seriales/IMEI."
+                               Margin="0,9,0,0" />
+                    <TextBlock Text="Controla disponibilidad, reservas, daños y seriales/IMEI desde una sola vista."
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
-                               FontSize="14"
+                               FontSize="13"
                                TextWrapping="Wrap"
-                               Margin="0,6,0,0" />
+                               Margin="0,3,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#DCE4FF">
+                            <StackPanel>
+                                <TextBlock Text="PRODUCTOS" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding TotalProductsLabel}" Style="{StaticResource ChipValueStyle}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#B8F0D2">
+                            <StackPanel>
+                                <TextBlock Text="DISPONIBLE" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding AvailableLabel}" Style="{StaticResource ChipValueStyle}" Foreground="#047857" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#D9E4FF">
+                            <StackPanel>
+                                <TextBlock Text="RESERVADO" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding ReservedLabel}" Style="{StaticResource ChipValueStyle}" Foreground="#3157C8" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#FFE2B8">
+                            <StackPanel>
+                                <TextBlock Text="DAÑADO" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding DamagedLabel}" Style="{StaticResource ChipValueStyle}" Foreground="#B45309" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#FFD2D9">
+                            <StackPanel>
+                                <TextBlock Text="STOCK BAJO" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding LowStockLabel}" Style="{StaticResource ChipValueStyle}" Foreground="#E11D48" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChipStyle}" BorderBrush="#E2E8F0">
+                            <StackPanel>
+                                <TextBlock Text="SIN STOCK" Style="{StaticResource ChipLabelStyle}" />
+                                <TextBlock Text="{Binding WithoutStockLabel}" Style="{StaticResource ChipValueStyle}" Foreground="#475569" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Content="Actualizar"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            Margin="0,0,10,0"
+                            Margin="0,0,8,0"
                             ToolTip="Volver a cargar datos desde el servidor"
                             Click="Refresh_Click" />
                     <Button Content="+ Nuevo producto"
@@ -108,92 +157,47 @@
             </Grid>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="6" Margin="0,18,0,0">
-            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0" BorderBrush="#DCE4FF">
-                <StackPanel>
-                    <TextBlock Text="PRODUCTOS" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding TotalProductsLabel}" Style="{StaticResource MetricNumberStyle}" />
-                    <TextBlock Text="Catálogo activo" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0" BorderBrush="#B8F0D2">
-                <StackPanel>
-                    <TextBlock Text="DISPONIBLE" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding AvailableLabel}" Style="{StaticResource MetricNumberStyle}" Foreground="#047857" />
-                    <TextBlock Text="Unidades vendibles" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0" BorderBrush="#D9E4FF">
-                <StackPanel>
-                    <TextBlock Text="RESERVADO" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding ReservedLabel}" Style="{StaticResource MetricNumberStyle}" Foreground="#3157C8" />
-                    <TextBlock Text="Apartado o comprometido" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0" BorderBrush="#FFE2B8">
-                <StackPanel>
-                    <TextBlock Text="DAÑADO" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding DamagedLabel}" Style="{StaticResource MetricNumberStyle}" Foreground="#B45309" />
-                    <TextBlock Text="No disponible" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0" BorderBrush="#FFD2D9">
-                <StackPanel>
-                    <TextBlock Text="STOCK BAJO" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding LowStockLabel}" Style="{StaticResource MetricNumberStyle}" Foreground="#E11D48" />
-                    <TextBlock Text="Requiere atención" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource MetricCardStyle}" BorderBrush="#E2E8F0">
-                <StackPanel>
-                    <TextBlock Text="SIN STOCK" Style="{StaticResource MetricTitleStyle}" />
-                    <TextBlock Text="{Binding WithoutStockLabel}" Style="{StaticResource MetricNumberStyle}" Foreground="#475569" />
-                    <TextBlock Text="Pendiente de reposición" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-            </Border>
-        </UniformGrid>
-
-        <Border Grid.Row="2"
-                Margin="0,18,0,0"
-                Padding="16"
+        <Border Grid.Row="1"
+                Margin="0,12,0,0"
+                Padding="12"
                 Background="#FFFFFF"
                 BorderBrush="#E1E7F3"
                 BorderThickness="1"
-                CornerRadius="12">
+                CornerRadius="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="210" />
-                    <ColumnDefinition Width="190" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="180" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Margin="0,0,12,0">
+                <StackPanel Margin="0,0,10,0">
                     <TextBlock Text="Buscar" Style="{StaticResource FilterLabelStyle}" />
                     <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
-                             MinHeight="42"
+                             MinHeight="38"
                              VerticalContentAlignment="Center"
                              ToolTip="Buscar por nombre, SKU o serial/IMEI" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                <StackPanel Grid.Column="1" Margin="0,0,10,0">
                     <TextBlock Text="Tipo de control" Style="{StaticResource FilterLabelStyle}" />
                     <ComboBox ItemsSource="{Binding TrackingOptions}"
                               SelectedValue="{Binding TrackingType, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Value"
                               DisplayMemberPath="Label"
-                              MinHeight="42"
+                              MinHeight="38"
                               Padding="10,0" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                <StackPanel Grid.Column="2" Margin="0,0,10,0">
                     <TextBlock Text="Estado de stock" Style="{StaticResource FilterLabelStyle}" />
                     <ComboBox ItemsSource="{Binding StockOptions}"
                               SelectedValue="{Binding StockStatus, UpdateSourceTrigger=PropertyChanged}"
                               SelectedValuePath="Value"
                               DisplayMemberPath="Label"
-                              MinHeight="42"
+                              MinHeight="38"
                               Padding="10,0" />
                 </StackPanel>
 
@@ -206,18 +210,18 @@
                 <Button Grid.Column="4"
                         Content="Limpiar"
                         Style="{StaticResource SecondaryButtonStyle}"
-                        Margin="10,0,0,0"
+                        Margin="8,0,0,0"
                         VerticalAlignment="Bottom"
                         Click="ClearFilters_Click" />
             </Grid>
         </Border>
 
-        <Border Grid.Row="3"
-                Margin="0,18,0,0"
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
                 Background="#FFFFFF"
                 BorderBrush="#E1E7F3"
                 BorderThickness="1"
-                CornerRadius="12">
+                CornerRadius="10">
             <Grid>
                 <DataGrid ItemsSource="{Binding Products}"
                           AutoGenerateColumns="False"
@@ -226,55 +230,55 @@
                           IsReadOnly="True"
                           GridLinesVisibility="Horizontal"
                           HeadersVisibility="Column"
-                          RowHeight="66"
+                          RowHeight="49"
                           BorderThickness="0"
                           Background="#FFFFFF"
                           AlternatingRowBackground="#FAFCFF"
                           HorizontalGridLinesBrush="#E9EEF7"
-                          Margin="0,0,0,10">
+                          Margin="0,0,0,6">
                     <DataGrid.Resources>
                         <Style TargetType="DataGridColumnHeader">
                             <Setter Property="FontWeight" Value="Black" />
-                            <Setter Property="FontSize" Value="12" />
+                            <Setter Property="FontSize" Value="11" />
                             <Setter Property="Foreground" Value="#64718C" />
                             <Setter Property="Background" Value="#F7F9FD" />
-                            <Setter Property="Padding" Value="14,12" />
+                            <Setter Property="Padding" Value="12,9" />
                             <Setter Property="BorderBrush" Value="#E1E7F3" />
                         </Style>
                         <Style TargetType="DataGridCell">
                             <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Padding" Value="14,0" />
+                            <Setter Property="Padding" Value="12,0" />
                             <Setter Property="VerticalContentAlignment" Value="Center" />
                         </Style>
                     </DataGrid.Resources>
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="PRODUCTO" Width="2.4*">
+                        <DataGridTemplateColumn Header="PRODUCTO" Width="2.5*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Black" FontSize="14" Foreground="#10172F" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Sku}" FontSize="12" FontWeight="SemiBold" Foreground="#8090AD" Margin="0,4,0,0" />
+                                        <TextBlock Text="{Binding Name}" FontWeight="Black" FontSize="13" Foreground="#10172F" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Sku}" FontSize="11" FontWeight="SemiBold" Foreground="#8090AD" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="1.25*" />
-                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel}" Width="0.95*" />
-                        <DataGridTextColumn Header="DISPONIBLE" Binding="{Binding Stock.Available}" Width="0.85*" />
-                        <DataGridTextColumn Header="RESERVADO" Binding="{Binding Stock.Reserved}" Width="0.85*" />
-                        <DataGridTextColumn Header="DAÑADO" Binding="{Binding Stock.Damaged}" Width="0.85*" />
-                        <DataGridTemplateColumn Header="ESTADO" Width="1*">
+                        <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="1.15*" />
+                        <DataGridTextColumn Header="PRECIO" Binding="{Binding PriceLabel}" Width="0.9*" />
+                        <DataGridTextColumn Header="DISPONIBLE" Binding="{Binding Stock.Available}" Width="0.8*" />
+                        <DataGridTextColumn Header="RESERVADO" Binding="{Binding Stock.Reserved}" Width="0.8*" />
+                        <DataGridTextColumn Header="DAÑADO" Binding="{Binding Stock.Damaged}" Width="0.75*" />
+                        <DataGridTemplateColumn Header="ESTADO" Width="0.95*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border Padding="10,5"
-                                            CornerRadius="8"
+                                    <Border Padding="9,4"
+                                            CornerRadius="7"
                                             Background="#EEF0FF"
                                             BorderBrush="#DCE4FF"
                                             BorderThickness="1"
                                             HorizontalAlignment="Left">
                                         <TextBlock Text="{Binding StockStatusLabel}"
                                                    Foreground="{StaticResource AccentStrongBrush}"
-                                                   FontSize="12"
+                                                   FontSize="11"
                                                    FontWeight="Black" />
                                     </Border>
                                 </DataTemplate>
@@ -286,39 +290,39 @@
                 <Border Background="#F8FAFE"
                         BorderBrush="#E1E7F3"
                         BorderThickness="1"
-                        CornerRadius="12"
-                        Padding="28"
-                        Width="430"
+                        CornerRadius="10"
+                        Padding="24"
+                        Width="420"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel>
-                        <Border Width="48" Height="48" CornerRadius="14" Background="#EEF0FF" HorizontalAlignment="Center">
-                            <TextBlock Text="i" Foreground="{StaticResource AccentStrongBrush}" FontSize="24" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border Width="44" Height="44" CornerRadius="12" Background="#EEF0FF" HorizontalAlignment="Center">
+                            <TextBlock Text="i" Foreground="{StaticResource AccentStrongBrush}" FontSize="22" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <TextBlock Text="{Binding EmptyStateTitle}"
-                                   FontSize="19"
+                                   FontSize="18"
                                    FontWeight="Black"
                                    TextAlignment="Center"
-                                   Margin="0,16,0,0" />
+                                   Margin="0,14,0,0" />
                         <TextBlock Text="{Binding EmptyStateMessage}"
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap"
-                                   LineHeight="22"
-                                   Margin="0,8,0,0" />
+                                   LineHeight="21"
+                                   Margin="0,7,0,0" />
                     </StackPanel>
                 </Border>
 
                 <Border Background="#B3FFFFFF"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <Border Width="300"
-                            Padding="22"
+                    <Border Width="290"
+                            Padding="20"
                             Background="#FFFFFF"
                             BorderBrush="#DCE4F2"
                             BorderThickness="1"
-                            CornerRadius="12"
+                            CornerRadius="10"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
                         <StackPanel>
@@ -326,14 +330,14 @@
                             <TextBlock Text="Cargando inventario..."
                                        FontWeight="Black"
                                        TextAlignment="Center"
-                                       Margin="0,14,0,0" />
+                                       Margin="0,12,0,0" />
                         </StackPanel>
                     </Border>
                 </Border>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="4" Margin="0,14,0,0">
+        <Grid Grid.Row="3" Margin="0,10,0,0">
             <TextBlock Text="{Binding StatusMessage}"
                        Foreground="{Binding StatusBrush}"
                        FontWeight="Bold"
@@ -344,7 +348,7 @@
                            Foreground="{StaticResource MutedBrush}"
                            FontWeight="Bold"
                            VerticalAlignment="Center"
-                           Margin="0,0,16,0" />
+                           Margin="0,0,14,0" />
                 <Button Content="Anterior"
                         Style="{StaticResource SecondaryButtonStyle}"
                         Margin="0,0,8,0"

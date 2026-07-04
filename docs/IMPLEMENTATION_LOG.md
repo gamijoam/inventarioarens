@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-04 - Compactacion visual del Centro de Inventario WPF
+
+### Implementado
+
+- Se compactó la pantalla del Centro de Inventario para priorizar el espacio útil del listado.
+- Se eliminaron las tarjetas grandes de métricas como franja independiente.
+- Las métricas ahora se muestran como chips pequeños dentro de la cabecera.
+- Se redujo el alto de cabecera, filtros, botones y filas de tabla para mostrar más productos visibles.
+- Se conservan estados de carga, estado vacío, mensajes en español y textos con acentos.
+- Se documentó el ajuste en `desktop/InventoryDesktop/Modules/InventoryCenter/README.md`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-04 - Mejora visual y UX del Centro de Inventario WPF
 
 ### Implementado
