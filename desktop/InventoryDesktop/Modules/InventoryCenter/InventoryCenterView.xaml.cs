@@ -89,7 +89,7 @@ public partial class InventoryCenterView : UserControl
             return;
         }
 
-        InventoryProductDetailWindow window = new(detail)
+        InventoryProductDetailWindow window = new(detail, ViewModel.ApiClient)
         {
             Owner = Window.GetWindow(this)
         };

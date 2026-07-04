@@ -31,6 +31,8 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         this.apiClient = apiClient;
     }
 
+    public ApiClient ApiClient => apiClient;
+
     public ObservableCollection<InventoryProductItem> Products { get; } = new();
 
     public IReadOnlyList<FilterOption> TrackingOptions { get; } =

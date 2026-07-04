@@ -188,7 +188,7 @@
                                 <StackPanel>
                                     <TextBlock FontWeight="Black">
                                         <Run Text="{Binding TypeLabel, Mode=OneWay}" />
-                                        <Run Text=" · " />
+                                        <Run Text=" - " />
                                         <Run Text="{Binding Quantity, Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="{Binding ReasonLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -216,10 +216,26 @@
         </ScrollViewer>
 
         <Border Grid.Row="2" Padding="12" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Margin="0,14,0,0">
-            <TextBlock Text="Las acciones de entrada, salida, edición y kardex se integrarán desde esta ventana en las siguientes fases."
-                       Foreground="{StaticResource MutedBrush}"
-                       FontWeight="Bold"
-                       TextWrapping="Wrap" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Consulta el historial completo de entradas, salidas, traslados, ventas y ajustes de este producto."
+                           Foreground="{StaticResource MutedBrush}"
+                           FontWeight="Bold"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Content="Ver Kardex"
+                        Width="124"
+                        Height="38"
+                        Margin="14,0,0,0"
+                        FontWeight="Black"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        Click="OpenKardex_Click" />
+            </Grid>
         </Border>
     </Grid>
 </Window>

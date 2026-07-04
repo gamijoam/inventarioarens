@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-04 - Kardex por producto en WPF
+
+### Implementado
+
+- Se agregó la acción `Ver Kardex` en la ventana de detalle del producto del Centro de Inventario.
+- Se creó una ventana independiente de Kardex por producto en WPF.
+- La ventana consume `GET /api/kardex/products/{product}` usando el token y tenant de la sesión activa.
+- Se agregaron filtros por almacén, fecha desde y fecha hasta.
+- Se muestran saldo inicial, saldo final, cantidad de movimientos y tabla cronológica con entradas, salidas, saldo y motivo.
+- Se agregaron mensajes visibles en español para errores de API, errores de conexión, timeout y filtros de fecha inválidos.
+- Se mantuvo la regla de que la app de escritorio no consulta PostgreSQL directamente.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Kardex/KardexApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 12 pruebas pasaron, 85 aserciones.
+
+### Notas de seguridad
+
+- El Kardex sigue validando permisos y tenant desde Laravel.
+- La ventana usa el cliente API autenticado existente, por lo que no duplica login ni pierde contexto de empresa.
+
 ## 2026-07-04 - Correccion de binding en ventana de detalle WPF
 
 ### Implementado

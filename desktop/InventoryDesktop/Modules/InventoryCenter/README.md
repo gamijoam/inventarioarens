@@ -1,32 +1,31 @@
 # Módulo Centro de Inventario
 
-Este módulo será la primera pantalla operativa después del login.
+Este módulo es la primera pantalla operativa después del login en la aplicación de escritorio WPF.
 
-## Objetivo inicial
+## Objetivo
 
-- Consumir `GET /api/inventory-center/summary`.
-- Mostrar métricas del inventario.
-- Listar productos con búsqueda y filtros.
-- Abrir acciones rápidas: entrada, salida, kardex, seriales y edición.
+- Consumir el backend Laravel como fuente unica de datos.
+- Mostrar metricas, listado de productos, detalle operativo y herramientas de consulta.
+- Mantener permisos, tenant, auditoría y reglas de stock en el backend.
 
 ## Implementado
 
-- Vista WPF solo lectura con metricas principales.
+- Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.
-- Rediseño visual con cabecera operativa, métricas con intención visual y filtros agrupados.
-- Distribución compacta para dar prioridad al listado y ver más productos sin hacer scroll.
-- Métricas convertidas en chips pequeños dentro de la cabecera para no consumir una franja completa de pantalla.
-- Estado de carga visible sobre el listado.
-- Estado vacío con mensaje en español para filtros sin resultados o errores de carga.
-- Mensajes de error en español con color diferenciado.
-- Tipografía base ajustada a `Segoe UI Variable Text` con respaldo `Segoe UI`.
+- Diseño compacto para aprovechar mejor el espacio y ver más productos sin hacer scroll.
+- Metricas principales convertidas en chips dentro de la cabecera.
+- Estado de carga, estado vacío y mensajes de error visibles en español.
 - Ventana independiente de detalle de producto conectada a `GET /api/inventory-center/products/{product}`.
-- Acceso al detalle por botón `Ver` o doble clic sobre una fila.
+- Acceso al detalle por boton `Ver` o doble clic sobre una fila.
 - El detalle muestra información general, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
-- El listado principal mantiene todo su espacio; el detalle se abre aparte para no reducir el área de trabajo.
 - Si la base real aún no tiene `product_audits`, el detalle abre igual y muestra auditoría vacía.
+- Acción `Ver Kardex` desde la ventana de detalle del producto.
+- Ventana independiente de Kardex por producto conectada a `GET /api/kardex/products/{product}`.
+- Filtros de Kardex por almacén, fecha desde y fecha hasta.
+- Kardex con saldo inicial, saldo final, cantidad de movimientos y tabla cronológica con entradas, salidas, saldo y motivo.
+- Errores de Kardex visibles dentro de la ventana, sin cerrar el panel ni ocultar el problema.
 
 ## Regla de conexión
 

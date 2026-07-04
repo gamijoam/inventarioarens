@@ -204,3 +204,68 @@ public sealed record InventoryProductAudit(
 
     public string CreatedByLabel => string.IsNullOrWhiteSpace(CreatedByName) ? "Sistema" : CreatedByName;
 }
+
+public sealed record InventoryProductKardexResponse(
+    [property: JsonPropertyName("data")] InventoryProductKardexData Data);
+
+public sealed record InventoryProductKardexData(
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("product_name")] string ProductName,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
+    [property: JsonPropertyName("date_from")] string? DateFrom,
+    [property: JsonPropertyName("date_to")] string? DateTo,
+    [property: JsonPropertyName("opening_balance")] decimal OpeningBalance,
+    [property: JsonPropertyName("closing_balance")] decimal ClosingBalance,
+    [property: JsonPropertyName("movements")] IReadOnlyList<InventoryProductKardexMovement> Movements);
+
+public sealed record InventoryProductKardexMovement(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("date")] string? Date,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
+    [property: JsonPropertyName("warehouse_name")] string? WarehouseName,
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("product_name")] string? ProductName,
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("quantity_in")] decimal QuantityIn,
+    [property: JsonPropertyName("quantity_out")] decimal QuantityOut,
+    [property: JsonPropertyName("running_balance")] decimal RunningBalance,
+    [property: JsonPropertyName("unit_cost")] decimal? UnitCost,
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("reference_type")] string? ReferenceType,
+    [property: JsonPropertyName("reference_id")] long? ReferenceId)
+{
+    public string DateLabel
+    {
+        get
+        {
+            if (DateTimeOffset.TryParse(Date, out DateTimeOffset parsed))
+            {
+                return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
+            }
+
+            return "Sin fecha";
+        }
+    }
+
+    public string TypeLabel => Type switch
+    {
+        "purchase" => "Entrada",
+        "sale_return" => "Dev. venta",
+        "adjustment_in" => "Ajuste entrada",
+        "transfer_in" => "Traslado entrada",
+        "return_in" => "Retorno entrada",
+        "released" => "Liberación",
+        "purchase_return" => "Dev. proveedor",
+        "sale" => "Venta",
+        "adjustment_out" => "Ajuste salida",
+        "transfer_out" => "Traslado salida",
+        "return_out" => "Retorno salida",
+        "damaged" => "Dañado",
+        "reserved" => "Reserva",
+        _ => Type,
+    };
+
+    public string WarehouseLabel => string.IsNullOrWhiteSpace(WarehouseName) ? "Sin almacén" : WarehouseName;
+
+    public string ReasonLabel => string.IsNullOrWhiteSpace(Reason) ? "Sin motivo" : Reason;
+}
