@@ -965,7 +965,8 @@ Body para crear/editar:
   "description": "Precio usado para clientes mayoristas",
   "is_default": false,
   "is_active": true,
-  "sort_order": 10
+  "sort_order": 10,
+  "payment_method_ids": [1, 2]
 }
 ```
 
@@ -975,6 +976,70 @@ Reglas:
 - solo una lista puede quedar como predeterminada por empresa;
 - `DELETE` no borra fisicamente; marca la lista como inactiva y quita `is_default`;
 - una lista inactiva no puede ser usada para cotizar productos.
+- `payment_method_ids` es opcional;
+- si se envian métodos de pago, todos deben pertenecer a la empresa actual;
+- si una lista tiene métodos asociados, POS solo puede cobrar productos de esa lista con esos métodos;
+- si una lista no tiene métodos asociados, queda abierta y mantiene compatibilidad con cualquier método POS válido.
+
+### Métodos de pago
+
+```txt
+GET /api/payment-methods
+POST /api/payment-methods
+PATCH /api/payment-methods/{paymentMethod}
+DELETE /api/payment-methods/{paymentMethod}
+```
+
+Permisos:
+
+```txt
+GET: payment_methods.view
+POST/PATCH/DELETE: payment_methods.update
+```
+
+Query params:
+
+```txt
+active_only=1
+```
+
+Body para crear/editar:
+
+```json
+{
+  "name": "Zelle",
+  "code": "ZELLE",
+  "method": "zelle",
+  "currency_mode": "USD",
+  "requires_reference": true,
+  "is_active": true,
+  "sort_order": 10
+}
+```
+
+Métodos operativos:
+
+- `cash`
+- `card`
+- `mobile_payment`
+- `transfer`
+- `zelle`
+- `external_financing`
+- `other`
+
+Modos de moneda:
+
+- `USD`: solo permite pagos en dólares;
+- `VES`: solo permite pagos en bolívares;
+- `flexible`: permite pagos en dólares o bolívares.
+
+Reglas:
+
+- `code` es único por empresa y se normaliza a mayúsculas;
+- `DELETE` no borra físicamente; marca el método como inactivo;
+- un método inactivo no puede usarse en checkout POS;
+- si `requires_reference` está activo, POS debe enviar `reference`;
+- las listas de precio pueden asociarse a métodos de pago para limitar cómo se cobra cada precio.
 
 ### Precios de producto por lista
 
@@ -3387,12 +3452,14 @@ Body:
     {
       "warehouse_id": 1,
       "product_id": 1,
+      "price_list_id": 1,
       "quantity": 2,
       "product_unit_ids": []
     }
   ],
   "payments": [
     {
+      "payment_method_id": 1,
       "method": "cash",
       "currency": "USD",
       "amount": 200,
@@ -3429,6 +3496,15 @@ Reglas:
 - para productos serializados, POS debe enviar `product_unit_ids` igual que `Sales`;
 - el IMEI o serial vendido queda guardado en `sale_items` y visible en la venta asociada a la orden POS;
 - POS registra los pagos en `pos_payments`;
+- POS puede recibir `payment_method_id` para usar un método de pago configurado;
+- POS guarda `payment_method_id` en `pos_payments` para auditoría histórica;
+- si un item usa una lista de precio con métodos restringidos, todos los pagos deben usar métodos permitidos por esa lista;
+- si una lista restringida no recibe `payment_method_id`, backend intenta resolverlo con `method` y `currency`;
+- si no puede resolver un método compatible, el checkout falla con mensaje de validación;
+- si el método configurado exige referencia, `reference` es obligatorio;
+- si el método configurado es `USD`, solo acepta pagos `USD`;
+- si el método configurado es `VES`, solo acepta pagos `VES`;
+- si el método configurado es `flexible`, acepta pagos `USD` o `VES`;
 - solo pagos `captured` suman al total pagado;
 - cada pago `captured` crea un movimiento `pos_payment` en la caja asociada;
 - cada pago `captured` se refleja como cobro automatico en `AccountsReceivable` cuando POS confirma la venta;

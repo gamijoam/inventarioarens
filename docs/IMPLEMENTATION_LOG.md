@@ -1,5 +1,36 @@
 # Registro de implementación
 
+## 2026-07-04 - Métodos de pago configurables y reglas por lista de precio
+
+### Implementado
+
+- Se creó el módulo backend `PaymentMethods` para administrar métodos de pago por empresa.
+- Se agregó la tabla `payment_methods` con nombre, código, tipo operativo, modo de moneda, referencia obligatoria, estado y orden.
+- Se agregó la tabla pivote `price_list_payment_method` para asociar listas de precio con métodos de pago permitidos.
+- Se agregó `payment_method_id` en `pos_payments` para conservar históricamente el método configurado usado en una venta POS.
+- Las listas de precio ahora pueden recibir y devolver `payment_method_ids` y `payment_methods`.
+- El checkout POS ahora acepta `items.*.price_list_id` para saber qué lista se está vendiendo.
+- El checkout POS ahora acepta `payments.*.payment_method_id`.
+- Si una lista de precio tiene métodos asociados, el POS solo permite cobrar con esos métodos.
+- Si el método está configurado como `USD`, solo acepta pagos en dólares.
+- Si el método está configurado como `VES`, solo acepta pagos en bolívares.
+- Si el método está configurado como `flexible`, acepta pagos en dólares o bolívares.
+- Si el método exige referencia, el POS rechaza el pago cuando no se envía `reference`.
+- Se mantuvo compatibilidad con el checkout existente: si la lista de precio no tiene métodos restringidos, el POS puede seguir usando `method` y `currency` como antes.
+- Se agregaron permisos `payment_methods.view` y `payment_methods.update`.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/PaymentMethods/PaymentMethodApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 13 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- La validación final vive en backend; el frontend o WPF solo deben mostrar opciones disponibles.
+- Las reglas de pago se aplican por empresa y no se mezclan entre tenants.
+- Las financiadoras externas quedan representadas como tipo operativo `external_financing`, pero sus datos específicos se implementarán en una fase futura.
+- Las listas de precio pueden quedar sin métodos asociados para operar como listas abiertas.
+
 ## 2026-07-04 - Contexto operativo e IMEI en POS
 
 ### Implementado

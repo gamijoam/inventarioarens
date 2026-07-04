@@ -3,6 +3,7 @@
 namespace App\Modules\POS\Models;
 
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'pos_order_id',
+    'payment_method_id',
     'method',
     'currency',
     'amount',
@@ -53,6 +55,11 @@ class PosPayment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(PosOrder::class, 'pos_order_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 
     public function exchangeRateType(): BelongsTo

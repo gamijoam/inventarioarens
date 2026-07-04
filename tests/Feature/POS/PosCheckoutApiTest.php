@@ -12,9 +12,12 @@ use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -154,6 +157,168 @@ class PosCheckoutApiTest extends TestCase
             'amount_local' => '60000.0000',
             'exchange_rate_type_code' => 'PARALELO',
         ]);
+    }
+
+    public function test_pos_checkout_rejects_payment_method_not_allowed_by_price_list(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Detal Divisa', 'DETAL-USD', 100);
+        $usdCash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $vesMobile = PaymentMethod::create([
+            'name' => 'Pago movil Bs',
+            'code' => 'PM-VES',
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency_mode' => PaymentMethod::CURRENCY_VES,
+        ]);
+        $priceList->paymentMethods()->sync([$usdCash->id => ['tenant_id' => $tenant->id]]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $vesMobile->id,
+                    'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+                    'currency' => Product::CURRENCY_VES,
+                    'amount' => 50000,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments.0.payment_method_id']);
+    }
+
+    public function test_pos_checkout_accepts_flexible_price_list_with_mixed_payments(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product, $rateType] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Detal Flexible', 'DETAL-FLEX', 100);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo flexible',
+            'code' => 'CASH-FLEX',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_FLEXIBLE,
+        ]);
+        $mobile = PaymentMethod::create([
+            'name' => 'Pago movil Bs',
+            'code' => 'PM-FLEX',
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency_mode' => PaymentMethod::CURRENCY_VES,
+            'requires_reference' => true,
+        ]);
+        $priceList->paymentMethods()->sync([
+            $cash->id => ['tenant_id' => $tenant->id],
+            $mobile->id => ['tenant_id' => $tenant->id],
+        ]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [
+                    [
+                        'payment_method_id' => $cash->id,
+                        'method' => PosPayment::METHOD_CASH,
+                        'currency' => Product::CURRENCY_USD,
+                        'amount' => 40,
+                    ],
+                    [
+                        'payment_method_id' => $mobile->id,
+                        'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+                        'currency' => Product::CURRENCY_VES,
+                        'amount' => 30000,
+                        'exchange_rate_type_id' => $rateType->id,
+                        'reference' => 'PM-MIX-001',
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.paid_base_amount', '100.0000')
+            ->assertJsonPath('data.payments.0.payment_method_id', $cash->id)
+            ->assertJsonPath('data.payments.1.payment_method_id', $mobile->id);
+    }
+
+    public function test_pos_checkout_rejects_inactive_payment_method_for_restricted_price_list(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Tecnico', 'TEC', 100);
+        $inactiveCash = PaymentMethod::create([
+            'name' => 'Efectivo USD inactivo',
+            'code' => 'CASH-USD-OFF',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => false,
+        ]);
+        $priceList->paymentMethods()->sync([$inactiveCash->id => ['tenant_id' => $tenant->id]]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $inactiveCash->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments.0.payment_method_id']);
     }
 
     public function test_pending_external_financing_keeps_pos_order_open_and_sale_draft(): void
@@ -506,6 +671,27 @@ class PosCheckoutApiTest extends TestCase
         ]);
 
         return [$warehouse, $product, $rateType];
+    }
+
+    private function priceListWithPrice(Tenant $tenant, Product $product, string $name, string $code, float $price): PriceList
+    {
+        $this->useTenant($tenant);
+
+        $priceList = PriceList::create([
+            'name' => $name,
+            'code' => $code,
+            'is_active' => true,
+        ]);
+
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceList->id,
+            'price' => $price,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+
+        return $priceList;
     }
 
     private function userInTenant(Tenant $tenant): User

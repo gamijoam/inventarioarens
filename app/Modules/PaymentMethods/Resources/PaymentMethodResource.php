@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Modules\Products\Resources;
+namespace App\Modules\PaymentMethods\Resources;
 
-use App\Modules\PaymentMethods\Resources\PaymentMethodResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class PriceListResource extends JsonResource
+class PaymentMethodResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
@@ -15,16 +14,11 @@ class PriceListResource extends JsonResource
             'tenant_id' => $this->tenant_id,
             'name' => $this->name,
             'code' => $this->code,
-            'description' => $this->description,
-            'is_default' => (bool) $this->is_default,
+            'method' => $this->method,
+            'currency_mode' => $this->currency_mode,
+            'requires_reference' => (bool) $this->requires_reference,
             'is_active' => (bool) $this->is_active,
             'sort_order' => (int) $this->sort_order,
-            'payment_method_ids' => $this->whenLoaded(
-                'paymentMethods',
-                fn () => $this->paymentMethods->pluck('id')->values(),
-                []
-            ),
-            'payment_methods' => PaymentMethodResource::collection($this->whenLoaded('paymentMethods')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

@@ -21,6 +21,7 @@ class PriceListController extends Controller
 
         return PriceListResource::collection(
             PriceList::query()
+                ->with('paymentMethods')
                 ->when($request->boolean('active_only'), fn ($query) => $query->where('is_active', true))
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -32,15 +33,23 @@ class PriceListController extends Controller
     {
         $data = $this->normalize($request->validated());
 
-        $priceList = DB::transaction(function () use ($data): PriceList {
+        $paymentMethodIds = $data['payment_method_ids'] ?? null;
+        unset($data['payment_method_ids']);
+
+        $priceList = DB::transaction(function () use ($data, $paymentMethodIds): PriceList {
             if (($data['is_default'] ?? false) === true) {
                 PriceList::query()->update(['is_default' => false]);
             }
 
-            return PriceList::create($data);
+            $priceList = PriceList::create($data);
+            if ($paymentMethodIds !== null) {
+                $priceList->paymentMethods()->sync($this->syncPayload($paymentMethodIds));
+            }
+
+            return $priceList;
         });
 
-        return PriceListResource::make($priceList)
+        return PriceListResource::make($priceList->load('paymentMethods'))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
@@ -49,7 +58,10 @@ class PriceListController extends Controller
     {
         $data = $this->normalize($request->validated());
 
-        DB::transaction(function () use ($priceList, $data): void {
+        $paymentMethodIds = $data['payment_method_ids'] ?? null;
+        unset($data['payment_method_ids']);
+
+        DB::transaction(function () use ($priceList, $data, $paymentMethodIds): void {
             if (($data['is_default'] ?? false) === true) {
                 PriceList::query()
                     ->whereKeyNot($priceList->id)
@@ -57,9 +69,12 @@ class PriceListController extends Controller
             }
 
             $priceList->update($data);
+            if ($paymentMethodIds !== null) {
+                $priceList->paymentMethods()->sync($this->syncPayload($paymentMethodIds));
+            }
         });
 
-        return PriceListResource::make($priceList->refresh());
+        return PriceListResource::make($priceList->refresh()->load('paymentMethods'));
     }
 
     public function destroy(Request $request, PriceList $priceList): Response
@@ -81,5 +96,13 @@ class PriceListController extends Controller
         }
 
         return $data;
+    }
+
+    private function syncPayload(array $paymentMethodIds): array
+    {
+        return collect($paymentMethodIds)
+            ->unique()
+            ->mapWithKeys(fn (int $id): array => [$id => ['tenant_id' => app(\App\Support\Tenancy\TenantManager::class)->require()->id]])
+            ->all();
     }
 }

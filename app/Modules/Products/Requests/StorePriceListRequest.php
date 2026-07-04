@@ -19,6 +19,11 @@ class StorePriceListRequest extends FormRequest
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
+            'payment_method_ids' => ['sometimes', 'array'],
+            'payment_method_ids.*' => [
+                'integer',
+                Rule::exists('payment_methods', 'id')->where('tenant_id', $tenantId),
+            ],
         ];
     }
 

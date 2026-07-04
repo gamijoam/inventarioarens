@@ -3,8 +3,10 @@
 namespace App\Modules\Products\Models;
 
 use App\Support\Tenancy\Concerns\BelongsToTenant;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -31,5 +33,12 @@ class PriceList extends Model
     public function productPrices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);
+    }
+
+    public function paymentMethods(): BelongsToMany
+    {
+        return $this->belongsToMany(PaymentMethod::class, 'price_list_payment_method')
+            ->withPivot('tenant_id')
+            ->withTimestamps();
     }
 }

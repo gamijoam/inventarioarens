@@ -229,9 +229,42 @@ Regla importante:
 - `sale_exchange_rate_type_id` permite que un producto use `BCV`, `PARALELO` u otro tipo de tasa.
 - `price_lists` define listas como `MAYOR`, `DETAL` o `TECNICO`;
 - `product_prices` define el precio de un producto en cada lista, con moneda `USD` o `VES` y tasa opcional;
+- una lista de precio puede restringir qué métodos de pago acepta mediante `price_list_payment_method`;
 - el POS debe enviar `price_list_id` por item cuando quiera usar una lista concreta;
 - las ventas copian historicamente la lista, precio, moneda y tasa usada.
 - la respuesta del producto puede incluir `sale_exchange_rate_type` y `warranty_policy` cuando el controller los carga para formularios o detalle.
+
+### PaymentMethods
+
+Responsabilidad:
+
+- administrar los métodos de pago disponibles por empresa;
+- definir si un método opera en dólares, bolívares o de forma flexible;
+- indicar si un método requiere referencia obligatoria;
+- permitir que una lista de precio limite los métodos aceptados;
+- servir como base para reglas de cobro en POS, caja y futuras conciliaciones.
+
+Archivos principales:
+
+- `app/Modules/PaymentMethods/Models/PaymentMethod.php`
+- `app/Modules/PaymentMethods/Controllers/PaymentMethodController.php`
+- `app/Modules/PaymentMethods/Requests/StorePaymentMethodRequest.php`
+- `app/Modules/PaymentMethods/Requests/UpdatePaymentMethodRequest.php`
+- `app/Modules/PaymentMethods/Resources/PaymentMethodResource.php`
+- `app/Modules/PaymentMethods/routes.php`
+
+Regla importante:
+
+- cada método pertenece a una empresa;
+- `code` es único por empresa y se normaliza a mayúsculas;
+- `method` define el tipo operativo usado por POS: `cash`, `card`, `mobile_payment`, `transfer`, `zelle`, `external_financing` u `other`;
+- `currency_mode = USD` permite solo cobros en dólares;
+- `currency_mode = VES` permite solo cobros en bolívares;
+- `currency_mode = flexible` permite cobros en dólares o bolívares;
+- si `requires_reference` está activo, el POS debe enviar referencia;
+- eliminar un método por API lo desactiva, no lo borra físicamente;
+- si una lista de precio tiene métodos asociados, POS solo puede cobrar con esos métodos;
+- si una lista de precio no tiene métodos asociados, se considera abierta y mantiene compatibilidad con el checkout existente.
 
 ### Branches
 

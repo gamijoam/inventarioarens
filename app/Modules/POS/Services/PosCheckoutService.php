@@ -9,9 +9,11 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Sales\Services\SaleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -37,6 +39,7 @@ class PosCheckoutService
         return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
             $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
             $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+            $resolvedPaymentMethods = $this->validatePaymentMethods($items, $payments);
 
             $sale = $this->sales->createDraft($cashier, $items, $customerId);
 
@@ -55,12 +58,14 @@ class PosCheckoutService
             $paidBase = 0.0;
             $paidLocal = 0.0;
 
-            foreach ($payments as $payment) {
+            foreach ($payments as $index => $payment) {
                 $resolved = $this->resolvePayment($payment);
                 $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
+                $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
 
                 $posPayment = PosPayment::create([
                     'pos_order_id' => $order->id,
+                    'payment_method_id' => $paymentMethod?->id,
                     'method' => $payment['method'],
                     'currency' => strtoupper($payment['currency']),
                     'amount' => $payment['amount'],
@@ -114,6 +119,121 @@ class PosCheckoutService
                 'cash_register_session_id' => 'La caja seleccionada pertenece a otro cajero.',
             ]);
         }
+    }
+
+    private function validatePaymentMethods(array $items, array $payments): array
+    {
+        $priceLists = $this->priceListsForItems($items);
+        $restrictedPriceLists = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isNotEmpty());
+        $resolved = [];
+
+        foreach ($payments as $index => $payment) {
+            $paymentMethod = $this->resolveConfiguredPaymentMethod($payment, $restrictedPriceLists, $index);
+            $resolved[$index] = $paymentMethod;
+
+            if (! $paymentMethod) {
+                if ($restrictedPriceLists->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        "payments.{$index}.payment_method_id" => 'El pago no coincide con un método activo permitido para la lista de precio.',
+                    ]);
+                }
+
+                continue;
+            }
+
+            if ($paymentMethod->method !== $payment['method']) {
+                throw ValidationException::withMessages([
+                    "payments.{$index}.method" => 'El método de pago no coincide con el método configurado.',
+                ]);
+            }
+
+            if (! $paymentMethod->allowsCurrency(strtoupper($payment['currency']))) {
+                throw ValidationException::withMessages([
+                    "payments.{$index}.currency" => 'La moneda del pago no está permitida para este método.',
+                ]);
+            }
+
+            if ($paymentMethod->requires_reference && empty($payment['reference'])) {
+                throw ValidationException::withMessages([
+                    "payments.{$index}.reference" => 'Este método de pago requiere referencia.',
+                ]);
+            }
+
+            foreach ($restrictedPriceLists as $priceList) {
+                if (! $priceList->paymentMethods->contains('id', $paymentMethod->id)) {
+                    throw ValidationException::withMessages([
+                        "payments.{$index}.payment_method_id" => "El método de pago no está permitido para la lista de precio {$priceList->name}.",
+                    ]);
+                }
+            }
+        }
+
+        return $resolved;
+    }
+
+    private function priceListsForItems(array $items)
+    {
+        $defaultPriceList = null;
+        $priceListIds = collect($items)
+            ->map(function (array $item) use (&$defaultPriceList): ?int {
+                if (! empty($item['price_list_id'])) {
+                    return (int) $item['price_list_id'];
+                }
+
+                $defaultPriceList ??= PriceList::query()
+                    ->where('is_default', true)
+                    ->where('is_active', true)
+                    ->first();
+
+                return $defaultPriceList?->id;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($priceListIds->isEmpty()) {
+            return collect();
+        }
+
+        return PriceList::query()
+            ->with('paymentMethods')
+            ->whereIn('id', $priceListIds)
+            ->get();
+    }
+
+    private function resolveConfiguredPaymentMethod(array $payment, $restrictedPriceLists, int $index): ?PaymentMethod
+    {
+        $query = PaymentMethod::query()
+            ->where('is_active', true);
+
+        if (! empty($payment['payment_method_id'])) {
+            $paymentMethod = (clone $query)->find($payment['payment_method_id']);
+            if (! $paymentMethod) {
+                throw ValidationException::withMessages([
+                    "payments.{$index}.payment_method_id" => 'El método de pago seleccionado no está activo o no pertenece a la empresa actual.',
+                ]);
+            }
+
+            return $paymentMethod;
+        }
+
+        $currency = strtoupper($payment['currency']);
+        $allowedIds = $restrictedPriceLists
+            ->flatMap(fn (PriceList $priceList) => $priceList->paymentMethods->pluck('id'))
+            ->unique()
+            ->values();
+
+        return $query
+            ->where('method', $payment['method'])
+            ->where(function ($query) use ($currency): void {
+                $query
+                    ->where('currency_mode', PaymentMethod::CURRENCY_FLEXIBLE)
+                    ->orWhere('currency_mode', $currency);
+            })
+            ->when($allowedIds->isNotEmpty(), fn ($query) => $query->whereIn('id', $allowedIds))
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->first();
     }
 
     private function resolvePayment(array $payment): array
