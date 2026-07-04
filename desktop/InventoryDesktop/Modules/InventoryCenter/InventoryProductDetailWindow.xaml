@@ -315,16 +315,17 @@
 
                     <Border Style="{StaticResource PanelStyle}" Padding="12">
                         <Grid>
-                            <StackPanel>
+                            <StackPanel Margin="0,0,410,0">
                                 <TextBlock Text="Precios por lista" FontWeight="Black" FontSize="16" />
-                                <TextBlock Text="Configura precios al mayor, detal, técnico u otras listas para que el POS use el precio correcto."
+                                <TextBlock Text="Configura precios al mayor, detal, técnico u otras listas. Si una lista queda sin precio, el POS usará el precio base del producto."
                                            Foreground="{StaticResource MutedBrush}"
                                            FontWeight="SemiBold"
                                            TextWrapping="Wrap"
                                            Margin="0,5,0,0" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Recargar" Width="96" Height="36" FontWeight="Black" Click="ReloadPrices_Click" />
+                                <Button Content="Copiar base a vacíos" Width="150" Height="36" FontWeight="Black" Click="CopyBasePrices_Click" />
+                                <Button Content="Recargar" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="ReloadPrices_Click" />
                                 <Button Content="Guardar precios" Width="132" Height="36" Margin="8,0,0,0" FontWeight="Black" Background="{StaticResource AccentBrush}" Foreground="White" Click="SavePrices_Click" />
                             </StackPanel>
                         </Grid>
@@ -338,7 +339,7 @@
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="LISTA" Width="1.7*">
+                            <DataGridTemplateColumn Header="LISTA" Width="1.35*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel VerticalAlignment="Center">
@@ -348,14 +349,24 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="PRECIO" Width="1.1*">
+                            <DataGridTemplateColumn Header="USARÁ EL POS" Width="1.45*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding PosPriceLabel}" FontWeight="Black" />
+                                            <TextBlock Text="{Binding PriceSourceLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding PriceSourceBrush}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="PRECIO LISTA" Width="1.05*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}" Height="32" VerticalContentAlignment="Center" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="MONEDA" Width="1.1*">
+                            <DataGridTemplateColumn Header="MONEDA" Width="1.05*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding DataContext.PriceCurrencyOptions, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -365,7 +376,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="TASA" Width="1.6*">
+                            <DataGridTemplateColumn Header="TASA" Width="1.45*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding DataContext.PriceRateTypes, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -375,7 +386,14 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridCheckBoxColumn Header="ACTIVO" Binding="{Binding IsActive}" Width="0.7*" />
+                            <DataGridCheckBoxColumn Header="ACTIVO" Binding="{Binding IsActive}" Width="0.65*" />
+                            <DataGridTemplateColumn Header="ACCIÓN" Width="0.9*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Copiar base" Height="30" FontWeight="Black" Click="CopyBasePrice_Click" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
 

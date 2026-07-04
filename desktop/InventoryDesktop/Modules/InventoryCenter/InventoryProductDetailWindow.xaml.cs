@@ -330,6 +330,50 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         await SavePricesAsync();
     }
 
+    private void CopyBasePrices_Click(object sender, RoutedEventArgs e)
+    {
+        if (detail.Product.BasePrice is null)
+        {
+            SetPriceError("Este producto no tiene precio base para copiar.");
+            return;
+        }
+
+        int copied = 0;
+        foreach (ProductPriceEditRow row in ProductPriceRows)
+        {
+            if (!row.HasTypedPrice)
+            {
+                row.CopyBasePrice();
+                copied++;
+            }
+        }
+
+        isPriceStatusError = false;
+        RaisePropertyChanged(nameof(PriceStatusBrush));
+        PriceStatusMessage = copied == 0
+            ? "No había listas vacías para completar con el precio base."
+            : $"Se copió el precio base en {copied} listas vacías. Presiona Guardar precios para confirmar.";
+    }
+
+    private void CopyBasePrice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not ProductPriceEditRow row)
+        {
+            return;
+        }
+
+        if (detail.Product.BasePrice is null)
+        {
+            SetPriceError("Este producto no tiene precio base para copiar.");
+            return;
+        }
+
+        row.CopyBasePrice();
+        isPriceStatusError = false;
+        RaisePropertyChanged(nameof(PriceStatusBrush));
+        PriceStatusMessage = $"Se copió el precio base en {row.PriceListName}. Presiona Guardar precios para confirmar.";
+    }
+
     private async void ClearAudits_Click(object sender, RoutedEventArgs e)
     {
         AuditSearchBox.Text = "";
@@ -652,13 +696,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
                     priceList,
                     current,
                     PriceCurrencyOptions,
-                    PriceRateTypes));
+                    PriceRateTypes,
+                    detail.Product.BasePrice,
+                    detail.Product.SaleCurrency));
             }
 
             pricesLoaded = true;
             PriceStatusMessage = ProductPriceRows.Count == 0
                 ? "No hay listas activas para asignar precios."
-                : $"{ProductPriceRows.Count} listas disponibles para este producto.";
+                : $"{ProductPriceRows.Count} listas disponibles. Las filas sin precio específico usarán el precio base del producto.";
         }
         catch (ApiException exception)
         {
@@ -914,6 +960,9 @@ public sealed record WarehouseFilterOption(long? Id, string Label)
 
 public sealed class ProductPriceEditRow : INotifyPropertyChanged
 {
+    private readonly IReadOnlyList<ProductOption> currencies;
+    private readonly decimal? basePrice;
+    private readonly string baseCurrency;
     private string priceText = "";
     private ProductOption selectedCurrency;
     private ExchangeRateTypeOption? selectedRateType;
@@ -923,8 +972,13 @@ public sealed class ProductPriceEditRow : INotifyPropertyChanged
         PriceListOption priceList,
         ProductPriceOption? current,
         IReadOnlyList<ProductOption> currencies,
-        IEnumerable<ExchangeRateTypeOption> rateTypes)
+        IEnumerable<ExchangeRateTypeOption> rateTypes,
+        decimal? basePrice,
+        string baseCurrency)
     {
+        this.currencies = currencies;
+        this.basePrice = basePrice;
+        this.baseCurrency = string.IsNullOrWhiteSpace(baseCurrency) ? "USD" : baseCurrency;
         PriceListId = priceList.Id;
         PriceListName = priceList.Name;
         PriceListCode = priceList.Code;
@@ -945,13 +999,25 @@ public sealed class ProductPriceEditRow : INotifyPropertyChanged
     public string PriceText
     {
         get => priceText;
-        set => SetProperty(ref priceText, value);
+        set
+        {
+            if (SetProperty(ref priceText, value))
+            {
+                RaisePricePreviewChanged();
+            }
+        }
     }
 
     public ProductOption SelectedCurrency
     {
         get => selectedCurrency;
-        set => SetProperty(ref selectedCurrency, value);
+        set
+        {
+            if (SetProperty(ref selectedCurrency, value))
+            {
+                RaisePricePreviewChanged();
+            }
+        }
     }
 
     public ExchangeRateTypeOption? SelectedRateType
@@ -963,7 +1029,105 @@ public sealed class ProductPriceEditRow : INotifyPropertyChanged
     public bool IsActive
     {
         get => isActive;
-        set => SetProperty(ref isActive, value);
+        set
+        {
+            if (SetProperty(ref isActive, value))
+            {
+                RaisePricePreviewChanged();
+            }
+        }
+    }
+
+    public bool HasTypedPrice => !string.IsNullOrWhiteSpace(PriceText);
+
+    public string PosPriceLabel
+    {
+        get
+        {
+            if (TryReadTypedPrice(out decimal typedPrice) && IsActive)
+            {
+                return $"{SelectedCurrency.Value} {typedPrice:0.##}";
+            }
+
+            if (HasTypedPrice && !TryReadTypedPrice(out _))
+            {
+                return "Precio inválido";
+            }
+
+            return basePrice is null ? "Sin precio" : $"{baseCurrency} {basePrice.Value:0.##}";
+        }
+    }
+
+    public string PriceSourceLabel
+    {
+        get
+        {
+            if (TryReadTypedPrice(out _) && IsActive)
+            {
+                return "Precio específico de la lista";
+            }
+
+            if (HasTypedPrice && !TryReadTypedPrice(out _))
+            {
+                return "Revisa el monto antes de guardar";
+            }
+
+            if (HasTypedPrice && !IsActive)
+            {
+                return "Lista inactiva: usará precio base";
+            }
+
+            return basePrice is null ? "Sin precio base" : "Respaldo: precio base";
+        }
+    }
+
+    public Brush PriceSourceBrush
+    {
+        get
+        {
+            if (TryReadTypedPrice(out _) && IsActive)
+            {
+                return new SolidColorBrush(Color.FromRgb(4, 120, 87));
+            }
+
+            if (HasTypedPrice && !TryReadTypedPrice(out _))
+            {
+                return new SolidColorBrush(Color.FromRgb(217, 54, 92));
+            }
+
+            if (basePrice is null)
+            {
+                return new SolidColorBrush(Color.FromRgb(217, 54, 92));
+            }
+
+            return new SolidColorBrush(Color.FromRgb(100, 113, 140));
+        }
+    }
+
+    public void CopyBasePrice()
+    {
+        if (basePrice is null)
+        {
+            return;
+        }
+
+        PriceText = basePrice.Value.ToString("0.##", CultureInfo.CurrentCulture);
+        SelectedCurrency = currencies.FirstOrDefault(option => option.Value == baseCurrency) ?? SelectedCurrency;
+        IsActive = true;
+    }
+
+    private bool TryReadTypedPrice(out decimal price)
+    {
+        return decimal.TryParse(PriceText, NumberStyles.Number, CultureInfo.CurrentCulture, out price)
+            || decimal.TryParse(PriceText, NumberStyles.Number, CultureInfo.InvariantCulture, out price);
+    }
+
+    private void RaisePricePreviewChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasTypedPrice)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PosPriceLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriceSourceLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriceSourceBrush)));
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

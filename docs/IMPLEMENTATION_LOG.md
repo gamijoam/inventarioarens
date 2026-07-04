@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Mejora de precios por lista en detalle de producto WPF
+
+### Implementado
+
+- Se mejoró la pestaña `Precios` dentro del detalle del producto.
+- Cada fila ahora muestra qué precio usará el POS: precio específico de la lista o respaldo del precio base.
+- Se agregó la acción `Copiar base a vacíos` para completar listas sin precio específico.
+- Se agregó la acción por fila `Copiar base` para cargar el precio base en una lista puntual.
+- La vista recalcula el precio efectivo cuando se cambia precio, moneda o estado activo.
+- Se documentó el flujo de listas de precio dentro del módulo Centro de Inventario.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php --filter=price_lists`.
+- Resultado: 1 prueba pasó, 14 assertions.
+
+### Notas de seguridad
+
+- No se cambió la API ni las reglas de negocio del backend.
+- La pantalla sigue usando `GET /api/products/{product}/prices` y `PUT /api/products/{product}/prices` con token y tenant.
+
 ## 2026-07-04 - Corrección UX definitiva de listas de precio WPF
 
 ### Implementado
