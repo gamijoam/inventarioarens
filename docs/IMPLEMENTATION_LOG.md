@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-04 - Mejora UX de formulario de listas de precio
+
+### Implementado
+
+- Se cambió el botón superior de `+ Nueva lista` a `+ Preparar nueva` para evitar confundirlo con la acción de guardar.
+- El botón principal del formulario ahora cambia entre `Crear lista` y `Guardar cambios`.
+- El subtítulo del formulario explica la acción esperada según el modo actual.
+- Después de crear o editar una lista, la pantalla recarga y selecciona automáticamente la lista guardada.
+- Se corrigió que la recarga posterior al guardado no ejecutaba porque `IsBusy` seguía activo.
+- Se mantiene `Cancelar` para limpiar el formulario y volver al modo nueva lista.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- El cambio es visual y conserva las mismas APIs protegidas del backend.
+
 ## 2026-07-04 - Migración local de listas de precio y menú lateral con scroll
 
 ### Implementado

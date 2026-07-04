@@ -44,6 +44,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - El menú lateral principal usa scroll vertical para soportar más módulos sin cortar opciones.
 - Pantalla operativa `Listas de precio` conectada a `GET/POST/PATCH/DELETE /api/price-lists`.
 - La pantalla permite crear listas, editar nombre/código/descripción/orden, marcar predeterminada, activar/desactivar y desactivar sin borrar historia.
+- El formulario de listas diferencia entre `Preparar nueva`, `Crear lista`, `Guardar cambios` y `Cancelar` para evitar confusión operativa.
 - Botón `+ Nuevo producto` habilitado en el Centro de Inventario.
 - Acción `Editar` por producto desde el listado principal.
 - Acción `Editar` dentro de la ventana de detalle del producto.

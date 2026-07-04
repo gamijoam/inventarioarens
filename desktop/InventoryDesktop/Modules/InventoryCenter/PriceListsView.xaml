@@ -42,7 +42,7 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
                     <Button Content="Actualizar" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" Click="Refresh_Click" />
-                    <Button Content="+ Nueva lista" Style="{StaticResource PrimaryButtonStyle}" Click="New_Click" />
+                    <Button Content="+ Preparar nueva" Style="{StaticResource PrimaryButtonStyle}" Click="New_Click" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -94,7 +94,7 @@
             <Border Grid.Column="1" Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
                 <StackPanel>
                     <TextBlock Text="{Binding FormTitle}" FontSize="18" FontWeight="Black" />
-                    <TextBlock Text="El código se normaliza en mayúsculas y debe ser único por empresa."
+                    <TextBlock Text="{Binding FormSubtitle}"
                                Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,16" />
 
                     <TextBlock Text="Nombre" FontWeight="Black" />
@@ -113,8 +113,8 @@
                     <CheckBox Content="Lista activa" IsChecked="{Binding IsActiveInput}" FontWeight="Black" />
 
                     <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                        <Button Content="Guardar" Style="{StaticResource PrimaryButtonStyle}" Width="130" Click="Save_Click" />
-                        <Button Content="Limpiar" Style="{StaticResource SecondaryButtonStyle}" Width="110" Margin="8,0,0,0" Click="New_Click" />
+                        <Button Content="{Binding SaveButtonLabel}" Style="{StaticResource PrimaryButtonStyle}" Width="136" Click="Save_Click" />
+                        <Button Content="Cancelar" Style="{StaticResource SecondaryButtonStyle}" Width="110" Margin="8,0,0,0" Click="New_Click" />
                         <Button Content="Desactivar" Style="{StaticResource SecondaryButtonStyle}" Width="118" Margin="8,0,0,0" Click="Deactivate_Click" IsEnabled="{Binding CanDeactivate}" />
                     </StackPanel>
                 </StackPanel>

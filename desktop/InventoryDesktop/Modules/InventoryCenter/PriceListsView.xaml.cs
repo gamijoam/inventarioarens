@@ -41,13 +41,22 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         {
             if (SetProperty(ref selectedPriceList, value))
             {
+                LoadSelectedPriceListIntoForm();
                 RaisePropertyChanged(nameof(FormTitle));
+                RaisePropertyChanged(nameof(FormSubtitle));
+                RaisePropertyChanged(nameof(SaveButtonLabel));
                 RaisePropertyChanged(nameof(CanDeactivate));
             }
         }
     }
 
     public string FormTitle => SelectedPriceList is null ? "Nueva lista" : "Editar lista";
+
+    public string FormSubtitle => SelectedPriceList is null
+        ? "Completa los datos y presiona Crear lista para registrarla."
+        : "Modifica los datos y presiona Guardar cambios para actualizarla.";
+
+    public string SaveButtonLabel => SelectedPriceList is null ? "Crear lista" : "Guardar cambios";
 
     public string NameInput
     {
@@ -154,17 +163,7 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
 
     private void PriceListsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SelectedPriceList is null)
-        {
-            return;
-        }
-
-        NameInput = SelectedPriceList.Name;
-        CodeInput = SelectedPriceList.Code;
-        DescriptionInput = SelectedPriceList.Description;
-        SortOrderInput = SelectedPriceList.SortOrder.ToString(CultureInfo.CurrentCulture);
-        IsDefaultInput = SelectedPriceList.IsDefault;
-        IsActiveInput = SelectedPriceList.IsActive;
+        LoadSelectedPriceListIntoForm();
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -179,17 +178,23 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
 
         try
         {
+            long? savedId;
             if (SelectedPriceList is null)
             {
-                await apiClient.PostAsync<PriceListSaveRequest, PriceListResponse>("price-lists", request!);
+                PriceListResponse response = await apiClient.PostAsync<PriceListSaveRequest, PriceListResponse>("price-lists", request!);
+                savedId = response.Data.Id;
             }
             else
             {
-                await apiClient.PatchAsync<PriceListSaveRequest, PriceListResponse>($"price-lists/{SelectedPriceList.Id}", request!);
+                savedId = SelectedPriceList.Id;
+                PriceListResponse response = await apiClient.PatchAsync<PriceListSaveRequest, PriceListResponse>($"price-lists/{SelectedPriceList.Id}", request!);
+                savedId = response.Data.Id;
             }
 
+            IsBusy = false;
             ClearForm();
             await LoadAsync();
+            SelectPriceList(savedId);
             SetStatus("Lista de precio guardada correctamente.", false);
         }
         catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
@@ -216,6 +221,7 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         try
         {
             await apiClient.DeleteAsync($"price-lists/{SelectedPriceList.Id}");
+            IsBusy = false;
             ClearForm();
             await LoadAsync();
             SetStatus("Lista de precio desactivada correctamente.", false);
@@ -274,6 +280,31 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         IsDefaultInput = false;
         IsActiveInput = true;
         SetStatus("Formulario listo para una nueva lista.", false);
+    }
+
+    private void SelectPriceList(long? id)
+    {
+        if (id is null)
+        {
+            return;
+        }
+
+        SelectedPriceList = PriceLists.FirstOrDefault(item => item.Id == id.Value);
+    }
+
+    private void LoadSelectedPriceListIntoForm()
+    {
+        if (SelectedPriceList is null)
+        {
+            return;
+        }
+
+        NameInput = SelectedPriceList.Name;
+        CodeInput = SelectedPriceList.Code;
+        DescriptionInput = SelectedPriceList.Description;
+        SortOrderInput = SelectedPriceList.SortOrder.ToString(CultureInfo.CurrentCulture);
+        IsDefaultInput = SelectedPriceList.IsDefault;
+        IsActiveInput = SelectedPriceList.IsActive;
     }
 
     private void SetStatus(string message, bool isError)
