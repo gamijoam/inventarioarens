@@ -1,5 +1,33 @@
 # Registro de implementación
 
+## 2026-07-04 - Acciones masivas del Centro de Inventario
+
+### Implementado
+
+- Se agregó `POST /api/inventory-center/products/bulk-action` para ejecutar acciones masivas sobre productos.
+- Las acciones iniciales son `activate`, `deactivate`, `assign_warranty_policy` y `assign_exchange_rate_type`.
+- El backend valida tenant, permiso `products.update`, productos seleccionados y que garantía o tasa pertenezcan a la empresa actual.
+- Cada producto modificado genera auditoría en `product_audits`.
+- Las acciones se ejecutan en transacción y bloquean los productos seleccionados durante la actualización.
+- Se agregó selección múltiple en la tabla WPF del Centro de Inventario.
+- Se creó la ventana WPF `Acciones masivas` con confirmación, lista de productos seleccionados y campos dinámicos según la acción.
+- Se actualizó la documentación de API y el README del módulo.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=bulk_action`.
+- Resultado: 2 pruebas pasaron, 14 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 17 pruebas pasaron, 131 assertions.
+
+### Notas de seguridad
+
+- No se permite modificar productos de otra empresa.
+- La ventana WPF solo consume APIs; no toca PostgreSQL directamente.
+- Las acciones no modifican stock ni movimientos de inventario.
+
 ## 2026-07-04 - Exportación CSV del Centro de Inventario
 
 ### Implementado

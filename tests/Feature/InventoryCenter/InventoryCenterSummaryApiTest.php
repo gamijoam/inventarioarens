@@ -7,11 +7,13 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -92,6 +94,136 @@ class InventoryCenterSummaryApiTest extends TestCase
         $this->assertStringContainsString('Producto;SKU;"Tipo de control";Moneda;"Precio base";Disponible;Reservado;Dañado;"Estado de stock"', $content);
         $this->assertStringContainsString('"Xiaomi Serial";IMEI-0;"Serializado / IMEI";USD;90;0;0;0;"Sin stock"', $content);
         $this->assertStringNotContainsString('Samsung A06', $content);
+    }
+
+    public function test_inventory_center_bulk_action_assigns_warranty_and_rate_with_audits(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant, ['products.view', 'inventory.view', 'products.update']);
+        $this->useTenant($tenant);
+
+        $warranty = WarrantyPolicy::create([
+            'name' => 'Android 30 dias',
+            'duration_days' => 30,
+            'coverage_type' => WarrantyPolicy::COVERAGE_STORE,
+            'is_active' => true,
+        ]);
+        $rate = ExchangeRateType::create([
+            'code' => 'BCV',
+            'name' => 'Banco Central',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $productA = Product::create([
+            'name' => 'Samsung A06',
+            'sku' => 'BULK-A06',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $productB = Product::create([
+            'name' => 'Cable USB',
+            'sku' => 'BULK-USB',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 5,
+            'sale_currency' => Product::CURRENCY_USD,
+            'is_active' => false,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$productA->id, $productB->id],
+                'action' => 'assign_warranty_policy',
+                'payload' => ['warranty_policy_id' => $warranty->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.updated_count', 2)
+            ->assertJsonPath('data.skipped_count', 0);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$productA->id, $productB->id],
+                'action' => 'assign_exchange_rate_type',
+                'payload' => ['sale_exchange_rate_type_id' => $rate->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.updated_count', 2);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$productB->id],
+                'action' => 'activate',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.updated_count', 1);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $productA->id,
+            'warranty_policy_id' => $warranty->id,
+            'sale_exchange_rate_type_id' => $rate->id,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'id' => $productB->id,
+            'warranty_policy_id' => $warranty->id,
+            'sale_exchange_rate_type_id' => $rate->id,
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseCount('product_audits', 5);
+        $this->assertDatabaseHas('product_audits', [
+            'product_id' => $productB->id,
+            'action' => ProductAudit::ACTION_UPDATED,
+            'created_by' => $user->id,
+        ]);
+    }
+
+    public function test_inventory_center_bulk_action_rejects_foreign_products_and_requires_update_permission(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $viewer = $this->inventoryUser($tenantA);
+        $editor = $this->inventoryUser($tenantA, ['products.view', 'inventory.view', 'products.update']);
+
+        $this->useTenant($tenantA);
+        $ownProduct = Product::create([
+            'name' => 'Producto A',
+            'sku' => 'OWN-BULK',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        $this->useTenant($tenantB);
+        $foreignProduct = Product::create([
+            'name' => 'Producto B',
+            'sku' => 'FOREIGN-BULK',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        $this
+            ->actingAs($viewer)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$ownProduct->id],
+                'action' => 'deactivate',
+            ])
+            ->assertForbidden();
+
+        $this
+            ->actingAs($editor)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => [$foreignProduct->id],
+                'action' => 'deactivate',
+            ])
+            ->assertJsonValidationErrors(['product_ids.0']);
     }
 
     public function test_inventory_center_paginates_and_filters_by_tracking_type(): void
@@ -694,11 +826,11 @@ class InventoryCenterSummaryApiTest extends TestCase
         ]);
     }
 
-    private function inventoryUser(Tenant $tenant): User
+    private function inventoryUser(Tenant $tenant, array $permissions = ['products.view', 'inventory.view']): User
     {
         $user = User::factory()->create();
         $user->tenants()->attach($tenant, ['status' => 'active']);
-        $this->grantRole($tenant, $user, 'Inventario', ['products.view', 'inventory.view']);
+        $this->grantRole($tenant, $user, 'Inventario '.md5(implode('|', $permissions)), $permissions);
 
         return $user;
     }

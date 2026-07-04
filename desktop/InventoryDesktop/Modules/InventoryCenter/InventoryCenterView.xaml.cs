@@ -62,6 +62,14 @@ public partial class InventoryCenterView : UserControl
         }
     }
 
+    private void ProductsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            ViewModel.SelectedProductsCount = ProductsGrid.SelectedItems.Count;
+        }
+    }
+
     private async void ViewProduct_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not FrameworkElement { DataContext: InventoryProductItem product })
@@ -117,6 +125,37 @@ public partial class InventoryCenterView : UserControl
         }
 
         await ViewModel.ExportCsvAsync(dialog.FileName);
+    }
+
+    private async void BulkActions_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        List<InventoryProductItem> products = ProductsGrid.SelectedItems
+            .OfType<InventoryProductItem>()
+            .ToList();
+
+        if (products.Count == 0)
+        {
+            return;
+        }
+
+        InventoryBulkActionWindow window = new(ViewModel.ApiClient, products)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Completed += async (_, _) =>
+        {
+            ProductsGrid.SelectedItems.Clear();
+            ViewModel.SelectedProductsCount = 0;
+            await ViewModel.LoadAsync();
+        };
+        window.Show();
+        await window.InitializeAsync();
+        window.Activate();
     }
 
     private void OpenAlerts_Click(object sender, RoutedEventArgs e)

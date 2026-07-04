@@ -482,6 +482,36 @@ public sealed record ProductSaveRequest(
     [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId,
     [property: JsonPropertyName("is_active")] bool IsActive);
 
+public sealed record InventoryBulkActionRequest(
+    [property: JsonPropertyName("product_ids")] IReadOnlyList<long> ProductIds,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("payload")] InventoryBulkActionPayload? Payload);
+
+public sealed record InventoryBulkActionPayload(
+    [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId = null,
+    [property: JsonPropertyName("sale_exchange_rate_type_id")] long? SaleExchangeRateTypeId = null);
+
+public sealed record InventoryBulkActionResponse(
+    [property: JsonPropertyName("data")] InventoryBulkActionResult Data);
+
+public sealed record InventoryBulkActionResult(
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("requested_count")] int RequestedCount,
+    [property: JsonPropertyName("updated_count")] int UpdatedCount,
+    [property: JsonPropertyName("skipped_count")] int SkippedCount,
+    [property: JsonPropertyName("updated")] IReadOnlyList<InventoryBulkActionProduct> Updated,
+    [property: JsonPropertyName("skipped")] IReadOnlyList<InventoryBulkActionSkippedProduct> Skipped);
+
+public sealed record InventoryBulkActionProduct(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("sku")] string Sku);
+
+public sealed record InventoryBulkActionSkippedProduct(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("reason")] string Reason);
+
 public sealed record PriceListListResponse(
     [property: JsonPropertyName("data")] IReadOnlyList<PriceListOption> Data);
 

@@ -23,6 +23,7 @@ public sealed class InventoryCenterViewModel : ViewModelBase
     private bool isDetailBusy;
     private bool isDetailStatusError;
     private bool isBusy;
+    private int selectedProductsCount;
     private int page = 1;
     private InventoryCenterMetrics metrics = new(0, 0, 0, 0, 0, 0, 0, 0);
     private InventoryPagination pagination = new(1, 24, 0, 1, 0, 0, false, false);
@@ -106,6 +107,25 @@ public sealed class InventoryCenterViewModel : ViewModelBase
             }
         }
     }
+
+    public int SelectedProductsCount
+    {
+        get => selectedProductsCount;
+        set
+        {
+            if (SetProperty(ref selectedProductsCount, value))
+            {
+                RaisePropertyChanged(nameof(HasSelectedProducts));
+                RaisePropertyChanged(nameof(SelectedProductsLabel));
+            }
+        }
+    }
+
+    public bool HasSelectedProducts => SelectedProductsCount > 0;
+
+    public string SelectedProductsLabel => SelectedProductsCount == 1
+        ? "1 producto seleccionado"
+        : $"{SelectedProductsCount} productos seleccionados";
 
     public InventoryProductItem? SelectedProduct
     {

@@ -329,6 +329,74 @@ Reglas:
 - usa separador `;` para facilitar apertura en hojas de cálculo en español;
 - no modifica datos ni genera movimientos de inventario.
 
+### Acciones masivas de productos
+
+```txt
+POST /api/inventory-center/products/bulk-action
+```
+
+Permiso requerido:
+
+```txt
+products.update
+```
+
+Body:
+
+```json
+{
+  "product_ids": [1, 2, 3],
+  "action": "assign_warranty_policy",
+  "payload": {
+    "warranty_policy_id": 5
+  }
+}
+```
+
+Acciones soportadas:
+
+```txt
+activate
+deactivate
+assign_warranty_policy
+assign_exchange_rate_type
+```
+
+Payload por acción:
+
+- `activate`: no requiere `payload`;
+- `deactivate`: no requiere `payload`;
+- `assign_warranty_policy`: requiere `payload.warranty_policy_id`;
+- `assign_exchange_rate_type`: requiere `payload.sale_exchange_rate_type_id`.
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "action": "assign_warranty_policy",
+    "requested_count": 3,
+    "updated_count": 2,
+    "skipped_count": 1,
+    "updated": [
+      {"id": 1, "name": "Samsung A06", "sku": "A06-001"}
+    ],
+    "skipped": [
+      {"id": 3, "name": "Cable USB", "reason": "Sin cambios necesarios."}
+    ]
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y permiso `products.update`;
+- acepta hasta 200 productos por solicitud;
+- todos los `product_ids` deben pertenecer al tenant actual;
+- la garantía o tasa seleccionada debe pertenecer al tenant actual;
+- cada producto modificado genera un registro en `product_audits`;
+- las acciones se ejecutan en transacción y bloquean los productos seleccionados durante la actualización.
+
 ### Detalle de producto en Centro de Inventario
 
 ```txt

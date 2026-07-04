@@ -3,9 +3,11 @@
 namespace App\Modules\InventoryCenter\Controllers;
 
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
+use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductSerialsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
+use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
 use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\Products\Models\Product;
@@ -30,6 +32,13 @@ class InventoryCenterController extends Controller
         return response($service->exportCsv($request->validated()), 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    public function bulkAction(InventoryCenterBulkActionRequest $request, InventoryCenterBulkActionService $service): JsonResponse
+    {
+        return response()->json([
+            'data' => $service->apply($request->validated(), $request->user()?->id),
         ]);
     }
 

@@ -35,12 +35,23 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - La app WPF muestra un selector de ubicación para guardar el archivo localmente.
 - La exportación no modifica datos; solo consulta productos activos del tenant actual.
 
+## Acciones masivas
+
+- La tabla del Centro de Inventario permite seleccionar varios productos.
+- El botón `Acciones masivas` abre una ventana de confirmación antes de ejecutar cambios.
+- Las acciones iniciales son activar productos, desactivar productos, asignar garantía y asignar tipo de tasa.
+- El backend usa `POST /api/inventory-center/products/bulk-action`.
+- Cada producto modificado genera auditoría en `product_audits`.
+- El backend valida tenant, permiso `products.update`, productos seleccionados y que la garantía o tasa pertenezca a la empresa actual.
+
 ## Implementado
 
 - Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.
 - Botón WPF de alertas operativas conectado al campo `alerts` del resumen.
 - Ventana independiente de alertas operativas con conteo, productos afectados y acción recomendada.
 - Botón `Exportar CSV` conectado a `GET /api/inventory-center/export` con los filtros actuales.
+- Selección múltiple de productos en la tabla principal.
+- Ventana WPF de acciones masivas conectada a `POST /api/inventory-center/products/bulk-action`.
 - Filtros por búsqueda, tipo de control y estado de stock.
 - Listado de productos con SKU, precio, stock disponible, reservado, dañado y estado.
 - Paginación básica con anterior y siguiente.
