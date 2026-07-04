@@ -269,3 +269,71 @@ public sealed record InventoryProductKardexMovement(
 
     public string ReasonLabel => string.IsNullOrWhiteSpace(Reason) ? "Sin motivo" : Reason;
 }
+
+public sealed record ProductEntryStoreRequest(
+    [property: JsonPropertyName("reason")] string Reason,
+    [property: JsonPropertyName("reference")] string? Reference,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("items")] IReadOnlyList<ProductEntryStoreItemRequest> Items);
+
+public sealed record ProductEntryStoreItemRequest(
+    [property: JsonPropertyName("warehouse_id")] long WarehouseId,
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("quantity")] decimal Quantity,
+    [property: JsonPropertyName("unit_cost")] decimal? UnitCost,
+    [property: JsonPropertyName("serial_units")] IReadOnlyList<ProductEntrySerialUnitRequest>? SerialUnits);
+
+public sealed record ProductEntrySerialUnitRequest(
+    [property: JsonPropertyName("serial_type")] string SerialType,
+    [property: JsonPropertyName("serial_number")] string SerialNumber);
+
+public sealed record ProductExitStoreRequest(
+    [property: JsonPropertyName("reason")] string Reason,
+    [property: JsonPropertyName("reference")] string? Reference,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("items")] IReadOnlyList<ProductExitStoreItemRequest> Items);
+
+public sealed record ProductExitStoreItemRequest(
+    [property: JsonPropertyName("warehouse_id")] long WarehouseId,
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("quantity")] decimal Quantity,
+    [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long>? ProductUnitIds);
+
+public sealed record ProductMovementCreatedResponse(
+    [property: JsonPropertyName("data")] ProductMovementCreatedData Data);
+
+public sealed record ProductMovementCreatedData(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("document_number")] string? DocumentNumber,
+    [property: JsonPropertyName("reason")] string Reason,
+    [property: JsonPropertyName("status")] string Status);
+
+public sealed record WarehouseListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<InventoryWarehouseOption> Data);
+
+public sealed record InventoryWarehouseOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("code")] string? Code,
+    [property: JsonPropertyName("branch_name")] string? BranchName,
+    [property: JsonPropertyName("status")] string? Status)
+{
+    public string WarehouseLabel
+    {
+        get
+        {
+            string name = string.IsNullOrWhiteSpace(Name) ? "Almacén sin nombre" : Name;
+            return string.IsNullOrWhiteSpace(Code) ? name : $"{name} ({Code})";
+        }
+    }
+
+    public static InventoryWarehouseOption FromStock(InventoryWarehouseStock stock)
+    {
+        return new InventoryWarehouseOption(
+            stock.WarehouseId,
+            stock.WarehouseName,
+            stock.WarehouseCode,
+            stock.BranchName,
+            "active");
+    }
+}

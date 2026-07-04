@@ -28,6 +28,26 @@ public partial class InventoryProductDetailWindow : Window
         window.Activate();
     }
 
+    private void OpenEntry_Click(object sender, RoutedEventArgs e)
+    {
+        InventoryProductEntryWindow window = new(detail, apiClient)
+        {
+            Owner = this
+        };
+        window.Show();
+        window.Activate();
+    }
+
+    private void OpenExit_Click(object sender, RoutedEventArgs e)
+    {
+        InventoryProductExitWindow window = new(detail, apiClient)
+        {
+            Owner = this
+        };
+        window.Show();
+        window.Activate();
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();

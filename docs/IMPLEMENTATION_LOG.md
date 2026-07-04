@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Entradas y salidas desde WPF
+
+### Implementado
+
+- Se agregó la acción `Registrar entrada` desde la ventana de detalle del producto.
+- Se creó una ventana WPF de entrada conectada a `POST /api/product-entries`.
+- La entrada permite elegir almacén, cantidad, costo unitario, motivo, referencia, notas e IMEI/seriales uno por línea para productos serializados.
+- Se agregó la acción `Registrar salida` desde la ventana de detalle del producto.
+- Se creó una ventana WPF de salida conectada a `POST /api/product-exits`.
+- La salida permite elegir almacén, cantidad, motivo, referencia, notas y seleccionar IMEI/seriales disponibles en productos serializados.
+- Las ventanas cargan almacenes desde `GET /api/warehouses` y conservan fallback desde el detalle cuando la API no puede listar almacenes.
+- Se agregaron validaciones en español para cantidad, almacén, motivo y coincidencia exacta de IMEI/seriales en productos serializados.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`.
+- Resultado: 13 pruebas pasaron, 69 aserciones.
+
+### Notas de seguridad
+
+- La app de escritorio solo envía solicitudes al backend Laravel; PostgreSQL no se consulta directamente.
+- Los permisos, tenant, stock insuficiente y seriales inválidos siguen siendo validados por Laravel.
+
 ## 2026-07-04 - Kardex por producto en WPF
 
 ### Implementado

@@ -26,6 +26,13 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Filtros de Kardex por almacén, fecha desde y fecha hasta.
 - Kardex con saldo inicial, saldo final, cantidad de movimientos y tabla cronológica con entradas, salidas, saldo y motivo.
 - Errores de Kardex visibles dentro de la ventana, sin cerrar el panel ni ocultar el problema.
+- Acción `Registrar entrada` desde la ventana de detalle del producto.
+- Ventana de entrada conectada a `POST /api/product-entries`.
+- La entrada permite elegir almacén, cantidad, costo unitario, motivo, referencia, notas e IMEI/seriales uno por línea para productos serializados.
+- Acción `Registrar salida` desde la ventana de detalle del producto.
+- Ventana de salida conectada a `POST /api/product-exits`.
+- La salida permite elegir almacén, cantidad, motivo, referencia, notas y seleccionar IMEI/seriales disponibles en productos serializados.
+- Las entradas y salidas validan mensajes en español antes de llamar a la API.
 
 ## Regla de conexión
 

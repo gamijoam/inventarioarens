@@ -220,6 +220,8 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Consulta el historial completo de entradas, salidas, traslados, ventas y ajustes de este producto."
                            Foreground="{StaticResource MutedBrush}"
@@ -227,10 +229,28 @@
                            TextWrapping="Wrap"
                            VerticalAlignment="Center" />
                 <Button Grid.Column="1"
+                        Content="Registrar entrada"
+                        Width="150"
+                        Height="38"
+                        Margin="14,0,0,0"
+                        FontWeight="Black"
+                        Background="#FFFFFF"
+                        Foreground="#10172F"
+                        Click="OpenEntry_Click" />
+                <Button Grid.Column="2"
+                        Content="Registrar salida"
+                        Width="140"
+                        Height="38"
+                        Margin="10,0,0,0"
+                        FontWeight="Black"
+                        Background="#FFFFFF"
+                        Foreground="#10172F"
+                        Click="OpenExit_Click" />
+                <Button Grid.Column="3"
                         Content="Ver Kardex"
                         Width="124"
                         Height="38"
-                        Margin="14,0,0,0"
+                        Margin="10,0,0,0"
                         FontWeight="Black"
                         Background="{StaticResource AccentBrush}"
                         Foreground="White"
