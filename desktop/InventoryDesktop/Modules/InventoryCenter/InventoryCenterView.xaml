@@ -1,0 +1,170 @@
+<UserControl x:Class="InventoryDesktop.Modules.InventoryCenter.InventoryCenterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="Catalogo operativo" FontSize="26" FontWeight="Black" />
+                <TextBlock Text="Busca productos, revisa stock y prepara acciones de entrada, salida, kardex y seriales."
+                           Foreground="{StaticResource MutedBrush}"
+                           FontWeight="Bold"
+                           Margin="0,6,0,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Refrescar"
+                        Width="118"
+                        Height="42"
+                        Margin="0,0,10,0"
+                        FontWeight="Black"
+                        Click="Refresh_Click" />
+                <Button Content="Nuevo producto"
+                        Width="142"
+                        Height="42"
+                        FontWeight="Black"
+                        Foreground="White"
+                        Background="{StaticResource AccentBrush}"
+                        BorderBrush="{StaticResource AccentBrush}"
+                        IsEnabled="False" />
+            </StackPanel>
+        </Grid>
+
+        <UniformGrid Grid.Row="1" Columns="6" Margin="0,24,0,0">
+            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Productos" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding TotalProductsLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Disponible" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding AvailableLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Reservado" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding ReservedLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Danado" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding DamagedLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource MetricCardStyle}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Stock bajo" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding LowStockLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource MetricCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Sin stock" Style="{StaticResource MetricLabelStyle}" />
+                    <TextBlock Text="{Binding WithoutStockLabel}" Style="{StaticResource MetricValueStyle}" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="2" Margin="0,22,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="190" />
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
+                             MinHeight="42"
+                             VerticalContentAlignment="Center"
+                             Margin="0,0,12,0"
+                             ToolTip="Buscar por nombre o SKU" />
+
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding TrackingOptions}"
+                              SelectedValue="{Binding TrackingType, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label"
+                              MinHeight="42"
+                              Margin="0,0,12,0" />
+
+                    <ComboBox Grid.Column="2"
+                              ItemsSource="{Binding StockOptions}"
+                              SelectedValue="{Binding StockStatus, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label"
+                              MinHeight="42"
+                              Margin="0,0,12,0" />
+
+                    <Button Grid.Column="3"
+                            Content="Aplicar"
+                            Width="104"
+                            Height="42"
+                            FontWeight="Black"
+                            Click="ApplyFilters_Click" />
+
+                    <Button Grid.Column="4"
+                            Content="Limpiar"
+                            Width="104"
+                            Height="42"
+                            Margin="10,0,0,0"
+                            Click="ClearFilters_Click" />
+                </Grid>
+
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding Products}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          RowHeight="58"
+                          BorderThickness="0"
+                          Margin="0,0,0,10">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Producto" Binding="{Binding Name}" Width="2.2*" />
+                        <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="1.1*" />
+                        <DataGridTextColumn Header="Control" Binding="{Binding TrackingLabel}" Width="1.2*" />
+                        <DataGridTextColumn Header="Precio" Binding="{Binding PriceLabel}" Width="0.9*" />
+                        <DataGridTextColumn Header="Disponible" Binding="{Binding Stock.Available}" Width="0.8*" />
+                        <DataGridTextColumn Header="Reservado" Binding="{Binding Stock.Reserved}" Width="0.8*" />
+                        <DataGridTextColumn Header="Danado" Binding="{Binding Stock.Damaged}" Width="0.8*" />
+                        <DataGridTextColumn Header="Estado" Binding="{Binding StockStatusLabel}" Width="0.9*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <TextBlock Text="{Binding PaginationLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0" />
+                <Button Content="Anterior" Width="96" Height="38" Margin="0,0,8,0" IsEnabled="{Binding CanGoPrevious}" Click="PreviousPage_Click" />
+                <Button Content="Siguiente" Width="96" Height="38" IsEnabled="{Binding CanGoNext}" Click="NextPage_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

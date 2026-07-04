@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-07-03 - Shell WPF y Centro de Inventario solo lectura
+
+### Implementado
+
+- Se agrego `ShellWindow` como pantalla principal posterior al login.
+- El login WPF ahora abre el shell con la sesion autenticada y mantiene el `ApiClient` configurado con token Bearer y `X-Tenant`.
+- Se creo el modulo WPF `InventoryCenter` con DTOs, ViewModel y vista propia.
+- El Centro de Inventario consume `GET /api/inventory-center/summary` usando datos reales del backend Laravel.
+- Se muestran metricas principales: productos, disponible, reservado, danado, stock bajo y sin stock.
+- Se agrego listado de productos con SKU, tipo de control, precio, cantidades y estado.
+- Se agregaron filtros iniciales por busqueda, tipo de control y estado de stock.
+- Se agrego paginacion basica con botones `Anterior` y `Siguiente`.
+- Se dejo preparado el shell visual con sidebar modular para los siguientes modulos.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-03 - Base inicial del cliente de escritorio WPF
 
 ### Implementado

@@ -16,6 +16,8 @@ public sealed class LoginViewModel : ViewModelBase
     private string statusMessage = "";
     private bool isBusy;
 
+    public event EventHandler<DesktopSession>? LoginSucceeded;
+
     public string ApiBaseUrl
     {
         get => apiBaseUrl;
@@ -98,6 +100,7 @@ public sealed class LoginViewModel : ViewModelBase
             tokenVault.Save(response.Data.Token);
             apiClient.Configure(ApiBaseUrl, response.Data.Token, response.Data.Tenant.Slug);
             StatusMessage = $"Sesion iniciada en {response.Data.Tenant.Name} como {response.Data.User.Name}.";
+            LoginSucceeded?.Invoke(this, new DesktopSession(apiClient, response.Data, ApiBaseUrl));
         });
     }
 
