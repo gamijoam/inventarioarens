@@ -197,17 +197,26 @@ Responsabilidad:
 - productos tenant-scoped;
 - policy base de productos;
 - definir si un producto se controla por cantidad o por unidades serializadas;
-- precio base en `USD`, moneda de venta y tipo de tasa sugerido.
+- precio base en `USD`, moneda de venta y tipo de tasa sugerido;
+- listas de precio por empresa y precios especificos por producto/lista para POS.
 
 Archivos principales:
 
 - `app/Modules/Products/Models/Product.php`
+- `app/Modules/Products/Models/PriceList.php`
+- `app/Modules/Products/Models/ProductPrice.php`
 - `app/Modules/Products/Policies/ProductPolicy.php`
 - `app/Modules/Products/Controllers/ProductController.php`
+- `app/Modules/Products/Controllers/PriceListController.php`
 - `app/Modules/Products/Requests/StoreProductRequest.php`
 - `app/Modules/Products/Requests/UpdateProductRequest.php`
+- `app/Modules/Products/Requests/StorePriceListRequest.php`
+- `app/Modules/Products/Requests/UpdatePriceListRequest.php`
+- `app/Modules/Products/Requests/SyncProductPricesRequest.php`
 - `app/Modules/Products/Resources/ProductResource.php`
 - `app/Modules/Products/Resources/ProductPriceResource.php`
+- `app/Modules/Products/Resources/PriceListResource.php`
+- `app/Modules/Products/Resources/ProductPriceListResource.php`
 - `app/Modules/Products/Services/ProductPriceService.php`
 - `app/Modules/Products/routes.php`
 
@@ -218,6 +227,10 @@ Regla importante:
 - `base_price` se guarda en `USD`;
 - `sale_currency` define si la cotizacion preferida sale en `USD` o `VES`;
 - `sale_exchange_rate_type_id` permite que un producto use `BCV`, `PARALELO` u otro tipo de tasa.
+- `price_lists` define listas como `MAYOR`, `DETAL` o `TECNICO`;
+- `product_prices` define el precio de un producto en cada lista, con moneda `USD` o `VES` y tasa opcional;
+- el POS debe enviar `price_list_id` por item cuando quiera usar una lista concreta;
+- las ventas copian historicamente la lista, precio, moneda y tasa usada.
 - la respuesta del producto puede incluir `sale_exchange_rate_type` y `warranty_policy` cuando el controller los carga para formularios o detalle.
 
 ### Branches

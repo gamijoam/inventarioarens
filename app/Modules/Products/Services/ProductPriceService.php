@@ -4,37 +4,54 @@ namespace App\Modules\Products\Services;
 
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use Illuminate\Validation\ValidationException;
 
 class ProductPriceService
 {
-    public function quote(Product $product): array
+    public function quote(Product $product, ?int $priceListId = null): array
     {
-        if ($product->base_price === null) {
+        $productPrice = $this->productPriceFor($product, $priceListId);
+
+        if (! $productPrice && $product->base_price === null) {
             throw ValidationException::withMessages([
                 'base_price' => 'El producto no tiene precio base configurado.',
             ]);
         }
 
-        $basePriceUsd = (float) $product->base_price;
-        $rateType = $this->rateTypeFor($product);
+        $price = $productPrice ? (float) $productPrice->price : (float) $product->base_price;
+        $rateType = $this->rateTypeFor($product, $productPrice);
         $rate = $rateType ? $this->activeRateFor($rateType) : null;
+        $requiresRate = $productPrice
+            ? $productPrice->currency === Product::CURRENCY_VES
+            : $product->sale_currency === Product::CURRENCY_VES;
 
-        if ($product->sale_currency === Product::CURRENCY_VES && ! $rate) {
+        if ($requiresRate && ! $rate) {
             throw ValidationException::withMessages([
-                'exchange_rate' => 'El producto requiere una tasa activa para cotizar en bolivares.',
+                'exchange_rate' => 'El producto requiere una tasa activa para cotizar en bolívares.',
             ]);
         }
 
         $exchangeRate = $rate ? (float) $rate->rate : null;
+        $basePriceUsd = $productPrice?->currency === Product::CURRENCY_VES
+            ? round($price / (float) $exchangeRate, 4)
+            : $price;
         $priceVes = $exchangeRate === null ? null : round($basePriceUsd * $exchangeRate, 2);
+        $saleCurrency = $productPrice?->currency ?? $product->sale_currency;
+        $salePrice = $productPrice
+            ? $price
+            : ($product->sale_currency === Product::CURRENCY_VES ? $priceVes : $basePriceUsd);
 
         return [
             'product_id' => $product->id,
+            'price_list_id' => $productPrice?->price_list_id,
+            'price_list_name' => $productPrice?->priceList?->name,
+            'price_source' => $productPrice ? 'price_list' : 'product_base',
             'base_price_usd' => $basePriceUsd,
-            'sale_currency' => $product->sale_currency,
-            'sale_price' => $product->sale_currency === Product::CURRENCY_VES ? $priceVes : $basePriceUsd,
+            'sale_currency' => $saleCurrency,
+            'sale_price' => $salePrice,
             'price_usd' => $basePriceUsd,
             'price_ves' => $priceVes,
             'exchange_rate_type_id' => $rateType?->id,
@@ -46,8 +63,49 @@ class ProductPriceService
         ];
     }
 
-    private function rateTypeFor(Product $product): ?ExchangeRateType
+    private function productPriceFor(Product $product, ?int $priceListId): ?ProductPrice
     {
+        if ($priceListId) {
+            $price = ProductPrice::query()
+                ->with('priceList')
+                ->where('product_id', $product->id)
+                ->where('price_list_id', $priceListId)
+                ->where('is_active', true)
+                ->whereHas('priceList', fn ($query) => $query->where('is_active', true))
+                ->first();
+
+            if (! $price) {
+                throw ValidationException::withMessages([
+                    'price_list_id' => 'El producto no tiene precio activo para la lista seleccionada.',
+                ]);
+            }
+
+            return $price;
+        }
+
+        $defaultPriceList = PriceList::query()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $defaultPriceList) {
+            return null;
+        }
+
+        return ProductPrice::query()
+            ->with('priceList')
+            ->where('product_id', $product->id)
+            ->where('price_list_id', $defaultPriceList->id)
+            ->where('is_active', true)
+            ->first();
+    }
+
+    private function rateTypeFor(Product $product, ?ProductPrice $productPrice): ?ExchangeRateType
+    {
+        if ($productPrice?->exchange_rate_type_id) {
+            return $productPrice->exchangeRateType()->first();
+        }
+
         if ($product->sale_exchange_rate_type_id) {
             return $product->saleExchangeRateType()->first();
         }

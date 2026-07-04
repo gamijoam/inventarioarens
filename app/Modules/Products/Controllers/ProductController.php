@@ -4,9 +4,12 @@ namespace App\Modules\Products\Controllers;
 
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Requests\StoreProductRequest;
+use App\Modules\Products\Requests\SyncProductPricesRequest;
 use App\Modules\Products\Requests\UpdateProductRequest;
 use App\Modules\Products\Resources\ProductPriceResource;
+use App\Modules\Products\Resources\ProductPriceListResource;
 use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -68,7 +71,46 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        return ProductPriceResource::make($priceService->quote($product));
+        $priceListId = request()->query('price_list_id');
+
+        return ProductPriceResource::make($priceService->quote(
+            $product,
+            $priceListId === null ? null : (int) $priceListId
+        ));
+    }
+
+    public function prices(Product $product): AnonymousResourceCollection
+    {
+        Gate::authorize('view', $product);
+
+        return ProductPriceListResource::collection(
+            $product->prices()
+                ->with(['priceList', 'exchangeRateType'])
+                ->orderBy('price_list_id')
+                ->get()
+        );
+    }
+
+    public function syncPrices(SyncProductPricesRequest $request, Product $product): AnonymousResourceCollection
+    {
+        Gate::authorize('update', $product);
+
+        foreach ($request->validated('prices') as $price) {
+            ProductPrice::query()->updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'price_list_id' => $price['price_list_id'],
+                ],
+                [
+                    'price' => $price['price'],
+                    'currency' => $price['currency'],
+                    'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
+                    'is_active' => $price['is_active'] ?? true,
+                ]
+            );
+        }
+
+        return $this->prices($product);
     }
 
     public function update(UpdateProductRequest $request, Product $product): ProductResource

@@ -49,6 +49,11 @@ class Product extends Model
         return $this->hasMany(ProductAudit::class);
     }
 
+    public function prices(): HasMany
+    {
+        return $this->hasMany(ProductPrice::class);
+    }
+
     public function saleExchangeRateType(): BelongsTo
     {
         return $this->belongsTo(ExchangeRateType::class, 'sale_exchange_rate_type_id');

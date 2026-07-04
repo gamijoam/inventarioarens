@@ -7,6 +7,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Tenancy\Models\Tenant;
@@ -107,6 +108,94 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
             ->assertJsonPath('data.sale_exchange_rate_type_id', $parallel->id)
             ->assertJsonPath('data.sale_exchange_rate_type.code', 'PARALELO');
+    }
+
+    public function test_user_can_manage_product_price_lists_and_quote_selected_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $bcv = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV', true);
+        $this->rateFor($tenant, $bcv, 500, true);
+        $product = $this->productFor($tenant, 'Samsung A06', 'SAMSUNG-A06', [
+            'base_price' => 20,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $priceListId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/price-lists', [
+                'name' => 'Precio al mayor',
+                'code' => 'mayor',
+                'is_default' => true,
+                'sort_order' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.code', 'MAYOR')
+            ->assertJsonPath('data.is_default', true)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/products/{$product->id}/prices", [
+                'prices' => [[
+                    'price_list_id' => $priceListId,
+                    'price' => 10,
+                    'currency' => Product::CURRENCY_USD,
+                    'exchange_rate_type_id' => $bcv->id,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.price_list.code', 'MAYOR')
+            ->assertJsonPath('data.0.price', 10);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price?price_list_id={$priceListId}")
+            ->assertOk()
+            ->assertJsonPath('data.price_source', 'price_list')
+            ->assertJsonPath('data.price_list_id', $priceListId)
+            ->assertJsonPath('data.price_list_name', 'Precio al mayor')
+            ->assertJsonPath('data.sale_price', 10)
+            ->assertJsonPath('data.price_ves', 5000);
+
+        $this->assertDatabaseHas('product_prices', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'price_list_id' => $priceListId,
+            'price' => '10.0000',
+        ]);
+    }
+
+    public function test_product_price_list_does_not_mix_companies(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+        $productA = $this->productFor($tenantA, 'Samsung A06', 'SAMSUNG-A06', ['base_price' => 20]);
+        $foreignList = $this->priceListFor($tenantB, 'Precio externo', 'EXTERNO');
+        $user = $this->userInTenant($tenantA);
+
+        $this->grantRole($tenantA, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->putJson("/api/products/{$productA->id}/prices", [
+                'prices' => [[
+                    'price_list_id' => $foreignList->id,
+                    'price' => 10,
+                    'currency' => Product::CURRENCY_USD,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['prices.0.price_list_id']);
     }
 
     public function test_product_price_endpoint_uses_assigned_active_rate_type(): void
@@ -458,6 +547,17 @@ class ProductApiTest extends TestCase
         return ExchangeRateType::create([
             'code' => $code,
             'name' => $name,
+            'is_default' => $isDefault,
+        ]);
+    }
+
+    private function priceListFor(Tenant $tenant, string $name, string $code, bool $isDefault = false): PriceList
+    {
+        $this->useTenant($tenant);
+
+        return PriceList::create([
+            'name' => $name,
+            'code' => $code,
             'is_default' => $isDefault,
         ]);
     }

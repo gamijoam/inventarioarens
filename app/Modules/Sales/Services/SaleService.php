@@ -44,7 +44,7 @@ class SaleService
                     throw ValidationException::withMessages(['items' => 'La cantidad debe ser mayor que cero.']);
                 }
 
-                $quote = $this->prices->quote($product);
+                $quote = $this->prices->quote($product, $item['price_list_id'] ?? null);
                 $baseUnitPrice = (float) $quote['base_price_usd'];
                 $baseTotal = round($baseUnitPrice * $quantity, 4);
                 $unitPrice = (float) $quote['sale_price'];
@@ -55,6 +55,8 @@ class SaleService
                     'sale_id' => $sale->id,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
+                    'price_list_id' => $quote['price_list_id'],
+                    'price_list_name' => $quote['price_list_name'],
                     'quantity' => $quantity,
                     'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
                     'sale_currency' => $quote['sale_currency'],

@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Listas de precio por producto para POS
+
+### Implementado
+
+- Se creó la tabla `price_lists` para manejar listas de precio por empresa, por ejemplo `MAYOR`, `DETAL` o `TECNICO`.
+- Se creó la tabla `product_prices` para asignar precios específicos de un producto en cada lista.
+- Se agregó soporte para precio en `USD` o `VES` por lista.
+- Se agregó `exchange_rate_type_id` opcional por precio de lista para permitir tasas distintas por producto/lista.
+- Se agregaron endpoints `GET/POST/PATCH/DELETE /api/price-lists`.
+- Se agregaron endpoints `GET /api/products/{product}/prices` y `PUT /api/products/{product}/prices`.
+- `GET /api/products/{product}/price` ahora acepta `price_list_id`.
+- Si no se envía `price_list_id`, el servicio usa la lista predeterminada si el producto tiene precio activo en esa lista; si no, mantiene el `base_price` del producto.
+- El servicio de ventas ahora acepta `items.*.price_list_id` y copia `price_list_id` y `price_list_name` en `sale_items`.
+- La respuesta de ventas expone la lista de precio usada por cada item.
+- Se actualizó `docs/API.md` con los contratos de listas de precio y precios por producto.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/Sales/SalesApiTest.php`.
+- Resultado: 25 pruebas pasaron, 141 assertions.
+
+### Notas de seguridad
+
+- Las listas y precios quedan aislados por tenant.
+- No se permite asignar listas, tasas ni productos de otra empresa.
+- El POS futuro debe copiar `price_list_id`, nombre de lista, moneda, precio, tasa y valor de tasa al momento de vender para mantener historia.
+
 ## 2026-07-04 - Edición completa de productos en Centro de Inventario WPF
 
 ### Implementado

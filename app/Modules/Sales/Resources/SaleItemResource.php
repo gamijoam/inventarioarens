@@ -18,6 +18,8 @@ class SaleItemResource extends JsonResource
             'warehouse_name' => $this->whenLoaded('warehouse', fn (): ?string => $this->warehouse?->name),
             'product_id' => $this->product_id,
             'product_name' => $this->whenLoaded('product', fn (): ?string => $this->product?->name),
+            'price_list_id' => $this->price_list_id,
+            'price_list_name' => $this->price_list_name,
             'quantity' => (float) $this->quantity,
             'sale_currency' => $this->sale_currency,
             'unit_price' => (float) $this->unit_price,

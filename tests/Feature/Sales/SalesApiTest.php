@@ -9,7 +9,9 @@ use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -57,6 +59,46 @@ class SalesApiTest extends TestCase
             ->assertJsonPath('data.items.0.unit_price', 60000)
             ->assertJsonPath('data.items.0.exchange_rate_type_code', 'PARALELO')
             ->assertJsonPath('data.items.0.exchange_rate', 600);
+    }
+
+    public function test_user_can_create_draft_sale_with_product_price_list_snapshot(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500);
+        $this->useTenant($tenant);
+        $priceList = PriceList::create([
+            'name' => 'Precio técnico',
+            'code' => 'TECNICO',
+        ]);
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceList->id,
+            'price' => 30,
+            'currency' => Product::CURRENCY_USD,
+        ]);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.total_base_amount', 60)
+            ->assertJsonPath('data.total_local_amount', 30000)
+            ->assertJsonPath('data.items.0.price_list_id', $priceList->id)
+            ->assertJsonPath('data.items.0.price_list_name', 'Precio técnico')
+            ->assertJsonPath('data.items.0.sale_currency', Product::CURRENCY_USD)
+            ->assertJsonPath('data.items.0.unit_price', 30)
+            ->assertJsonPath('data.items.0.base_unit_price', 30);
     }
 
     public function test_confirm_sale_decreases_inventory_and_links_stock_movement(): void

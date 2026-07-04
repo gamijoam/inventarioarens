@@ -730,6 +730,7 @@ products.view
 
 ```txt
 GET /api/products/{product}/price
+GET /api/products/{product}/price?price_list_id=1
 ```
 
 Permiso requerido:
@@ -741,11 +742,118 @@ products.view
 Reglas:
 
 - usa `base_price` como precio interno en `USD`;
+- si se envia `price_list_id`, usa el precio activo del producto para esa lista;
+- si no se envia `price_list_id` y existe una lista predeterminada con precio activo para el producto, usa esa lista;
+- si no hay lista aplicable, usa el precio base del producto;
 - si el producto tiene `sale_exchange_rate_type_id`, usa ese tipo de tasa;
+- si el precio de lista tiene `exchange_rate_type_id`, ese tipo de tasa tiene prioridad sobre la tasa del producto;
 - si no tiene tipo de tasa asignado, usa el tipo de tasa predeterminado de la empresa;
 - si `sale_currency = VES`, requiere una tasa activa;
-- devuelve precio en `USD`, equivalente en `VES`, tipo de tasa y valor de tasa usado;
+- devuelve precio en `USD`, equivalente en `VES`, tipo de tasa, valor de tasa usado y origen del precio;
 - esta cotizacion no mueve inventario ni crea venta.
+
+Respuesta con lista:
+
+```json
+{
+  "data": {
+    "product_id": 15,
+    "price_list_id": 2,
+    "price_list_name": "Precio al mayor",
+    "price_source": "price_list",
+    "base_price_usd": 10,
+    "sale_currency": "USD",
+    "sale_price": 10,
+    "price_usd": 10,
+    "price_ves": 5000,
+    "exchange_rate_type_id": 1,
+    "exchange_rate_type_code": "BCV",
+    "exchange_rate": 500
+  }
+}
+```
+
+### Listas de precio
+
+```txt
+GET /api/price-lists
+POST /api/price-lists
+PATCH /api/price-lists/{priceList}
+DELETE /api/price-lists/{priceList}
+```
+
+Permisos:
+
+```txt
+GET: products.view
+POST/PATCH/DELETE: products.update
+```
+
+Body para crear/editar:
+
+```json
+{
+  "name": "Precio al mayor",
+  "code": "MAYOR",
+  "description": "Precio usado para clientes mayoristas",
+  "is_default": false,
+  "is_active": true,
+  "sort_order": 10
+}
+```
+
+Reglas:
+
+- `code` es unico por empresa y se normaliza a mayusculas;
+- solo una lista puede quedar como predeterminada por empresa;
+- `DELETE` no borra fisicamente; marca la lista como inactiva y quita `is_default`;
+- una lista inactiva no puede ser usada para cotizar productos.
+
+### Precios de producto por lista
+
+```txt
+GET /api/products/{product}/prices
+PUT /api/products/{product}/prices
+```
+
+Permisos:
+
+```txt
+GET: products.view
+PUT: products.update
+```
+
+Body:
+
+```json
+{
+  "prices": [
+    {
+      "price_list_id": 1,
+      "price": 10,
+      "currency": "USD",
+      "exchange_rate_type_id": 1,
+      "is_active": true
+    },
+    {
+      "price_list_id": 2,
+      "price": 20,
+      "currency": "USD",
+      "exchange_rate_type_id": 1,
+      "is_active": true
+    }
+  ]
+}
+```
+
+Reglas:
+
+- `price_list_id` debe pertenecer a la empresa actual;
+- `currency` puede ser `USD` o `VES`;
+- si el precio esta en `VES`, la cotizacion requiere una tasa activa para calcular el equivalente base en `USD`;
+- `exchange_rate_type_id` es opcional y, si se envia, debe pertenecer a la empresa actual;
+- se hace `upsert` por producto y lista: si ya existe, se actualiza.
+- ventas/POS pueden enviar `price_list_id` por item para copiar historicamente la lista y el precio usado.
 
 ### Actualizar producto
 

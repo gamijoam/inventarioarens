@@ -4,6 +4,7 @@ namespace App\Modules\Sales\Models;
 
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'sale_id',
     'warehouse_id',
     'product_id',
+    'price_list_id',
+    'price_list_name',
     'quantity',
     'sale_currency',
     'unit_price',
@@ -66,6 +69,11 @@ class SaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function priceList(): BelongsTo
+    {
+        return $this->belongsTo(PriceList::class);
     }
 
     public function exchangeRateType(): BelongsTo
