@@ -13,6 +13,8 @@ public sealed class ApiClient
     };
 
     private readonly HttpClient httpClient = new();
+    private string? bearerToken;
+    private string? tenantSlug;
 
     public Uri BaseUri { get; private set; } = new("http://127.0.0.1:8000/api/");
 
@@ -24,28 +26,49 @@ public sealed class ApiClient
         }
 
         BaseUri = new Uri(apiBaseUrl, UriKind.Absolute);
-        httpClient.BaseAddress = BaseUri;
-        httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(bearerToken)
-            ? null
-            : new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        httpClient.DefaultRequestHeaders.Remove("X-Tenant");
-        if (!string.IsNullOrWhiteSpace(tenantSlug))
-        {
-            httpClient.DefaultRequestHeaders.Add("X-Tenant", tenantSlug);
-        }
+        this.bearerToken = bearerToken;
+        this.tenantSlug = tenantSlug;
     }
 
     public async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await httpClient.PostAsJsonAsync(path, payload, JsonOptions, cancellationToken);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Post, path);
+        request.Content = JsonContent.Create(payload, options: JsonOptions);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
         return await ReadResponseAsync<TResponse>(response, cancellationToken);
     }
 
     public async Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await httpClient.GetAsync(path, cancellationToken);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, path);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
         return await ReadResponseAsync<TResponse>(response, cancellationToken);
+    }
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string path)
+    {
+        HttpRequestMessage request = new(method, BuildUri(path));
+
+        if (!string.IsNullOrWhiteSpace(bearerToken))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tenantSlug))
+        {
+            request.Headers.Add("X-Tenant", tenantSlug);
+        }
+
+        return request;
+    }
+
+    private Uri BuildUri(string path)
+    {
+        return Uri.TryCreate(path, UriKind.Absolute, out Uri? absoluteUri)
+            ? absoluteUri
+            : new Uri(BaseUri, path);
     }
 
     private static async Task<TResponse> ReadResponseAsync<TResponse>(HttpResponseMessage response, CancellationToken cancellationToken)

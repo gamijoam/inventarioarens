@@ -29,6 +29,7 @@ public static class AppLogger
             File.AppendAllText(
                 LogPath,
                 $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{level}] {message}{Environment.NewLine}");
+            Console.WriteLine($"{DateTimeOffset.Now:HH:mm:ss.fff} [{level}] {message}");
         }
     }
 }

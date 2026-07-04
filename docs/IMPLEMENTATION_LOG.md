@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-04 - Correccion de reconfiguracion HTTP en cliente WPF
+
+### Implementado
+
+- Se corrigio `ApiClient` para no modificar `HttpClient.BaseAddress` ni `DefaultRequestHeaders` despues de haber enviado solicitudes.
+- `ApiClient` ahora guarda la URL base, token Bearer y empresa activa como estado propio y los aplica por cada solicitud HTTP.
+- Se evita el error de .NET: `This instance has already started one or more requests. Properties can only be modified before sending the first request`.
+- Se cambio el cliente WPF a salida de consola (`OutputType=Exe`) para que `dotnet run` mantenga una consola visible.
+- `AppLogger` ahora escribe tanto en `%LOCALAPPDATA%\SistemaInventario\desktop.log` como en la consola.
+- Se cerro el proceso WPF anterior que mantenia bloqueado `InventoryDesktop.exe` durante la compilacion.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Diagnostico robusto del cierre WPF despues del login
 
 ### Implementado
