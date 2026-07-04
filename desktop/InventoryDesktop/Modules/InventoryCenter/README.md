@@ -8,6 +8,15 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Mostrar métricas, listado de productos, detalle operativo y herramientas de consulta.
 - Mantener permisos, tenant, auditoría y reglas de stock en el backend.
 
+## Listas de precio
+
+- Una lista de precio pertenece a una empresa y queda disponible para todos los productos de esa empresa.
+- Crear una lista no copia el mismo monto a todos los productos.
+- Cada producto debe tener su propio precio por lista. Ejemplo: `Precio al mayor`, `Precio detal` y `Precio técnico` pueden existir para todos, pero el Samsung A06 y un cargador tendrán montos distintos.
+- La lista predeterminada se usará como referencia cuando el POS no reciba una lista específica.
+- `Posición visual` solo ordena cómo se muestran las listas en pantalla. No afecta cálculos, stock ni ventas.
+- Si no se asigna un precio específico a un producto en una lista, el backend conserva el precio base del producto como respaldo.
+
 ## Implementado
 
 - Vista WPF de Centro de Inventario conectada a `GET /api/inventory-center/summary`.

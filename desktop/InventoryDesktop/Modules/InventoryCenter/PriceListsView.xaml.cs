@@ -17,7 +17,7 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
     private string nameInput = "";
     private string codeInput = "";
     private string? descriptionInput;
-    private string sortOrderInput = "0";
+    private string sortOrderInput = "1";
     private bool isDefaultInput;
     private bool isActiveInput = true;
     private bool isBusy;
@@ -50,13 +50,15 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         }
     }
 
-    public string FormTitle => SelectedPriceList is null ? "Nueva lista" : "Editar lista";
+    public string FormTitle => SelectedPriceList is null ? "Crear lista de precio" : "Editar lista de precio";
 
     public string FormSubtitle => SelectedPriceList is null
-        ? "Completa los datos y presiona Crear lista para registrarla."
+        ? "La lista queda disponible para todos los productos, pero cada producto tendrá su propio precio."
         : "Modifica los datos y presiona Guardar cambios para actualizarla.";
 
     public string SaveButtonLabel => SelectedPriceList is null ? "Crear lista" : "Guardar cambios";
+
+    public bool HasNoPriceLists => !IsBusy && PriceLists.Count == 0;
 
     public string NameInput
     {
@@ -97,7 +99,14 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
     public bool IsBusy
     {
         get => isBusy;
-        set => SetProperty(ref isBusy, value);
+        set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                RaisePropertyChanged(nameof(HasNoPriceLists));
+                RaisePropertyChanged(nameof(CanDeactivate));
+            }
+        }
     }
 
     public bool CanDeactivate => SelectedPriceList is not null && SelectedPriceList.IsActive && !IsBusy;
@@ -136,6 +145,11 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
                 PriceLists.Add(item);
             }
 
+            if (SelectedPriceList is null)
+            {
+                SortOrderInput = NextSortOrder().ToString(CultureInfo.CurrentCulture);
+            }
+
             SetStatus(PriceLists.Count == 0
                 ? "No hay listas de precio registradas."
                 : $"{PriceLists.Count} listas de precio cargadas.", false);
@@ -147,7 +161,6 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         finally
         {
             IsBusy = false;
-            RaisePropertyChanged(nameof(CanDeactivate));
         }
     }
 
@@ -186,13 +199,12 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
             }
             else
             {
-                savedId = SelectedPriceList.Id;
                 PriceListResponse response = await apiClient.PatchAsync<PriceListSaveRequest, PriceListResponse>($"price-lists/{SelectedPriceList.Id}", request!);
                 savedId = response.Data.Id;
             }
 
             IsBusy = false;
-            ClearForm();
+            ClearForm(showStatus: false);
             await LoadAsync();
             SelectPriceList(savedId);
             SetStatus("Lista de precio guardada correctamente.", false);
@@ -204,7 +216,6 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         finally
         {
             IsBusy = false;
-            RaisePropertyChanged(nameof(CanDeactivate));
         }
     }
 
@@ -222,7 +233,7 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         {
             await apiClient.DeleteAsync($"price-lists/{SelectedPriceList.Id}");
             IsBusy = false;
-            ClearForm();
+            ClearForm(showStatus: false);
             await LoadAsync();
             SetStatus("Lista de precio desactivada correctamente.", false);
         }
@@ -233,7 +244,6 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         finally
         {
             IsBusy = false;
-            RaisePropertyChanged(nameof(CanDeactivate));
         }
     }
 
@@ -255,7 +265,7 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
 
         if (!int.TryParse(SortOrderInput, NumberStyles.Integer, CultureInfo.CurrentCulture, out int sortOrder) || sortOrder < 0)
         {
-            SetStatus("El orden debe ser un número entero igual o mayor que cero.", true);
+            SetStatus("La posición visual debe ser un número entero igual o mayor que cero.", true);
             return false;
         }
 
@@ -270,16 +280,20 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         return true;
     }
 
-    private void ClearForm()
+    private void ClearForm(bool showStatus = true)
     {
         SelectedPriceList = null;
         NameInput = "";
         CodeInput = "";
         DescriptionInput = null;
-        SortOrderInput = "0";
+        SortOrderInput = NextSortOrder().ToString(CultureInfo.CurrentCulture);
         IsDefaultInput = false;
         IsActiveInput = true;
-        SetStatus("Formulario listo para una nueva lista.", false);
+
+        if (showStatus)
+        {
+            SetStatus("Formulario listo. Completa los datos y presiona Crear lista.", false);
+        }
     }
 
     private void SelectPriceList(long? id)
@@ -307,11 +321,17 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         IsActiveInput = SelectedPriceList.IsActive;
     }
 
+    private int NextSortOrder()
+    {
+        return PriceLists.Count == 0 ? 1 : PriceLists.Max(item => item.SortOrder) + 1;
+    }
+
     private void SetStatus(string message, bool isError)
     {
         StatusMessage = message;
         isStatusError = isError;
         RaisePropertyChanged(nameof(StatusBrush));
+        RaisePropertyChanged(nameof(HasNoPriceLists));
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

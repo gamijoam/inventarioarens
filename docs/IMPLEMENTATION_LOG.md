@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Corrección UX definitiva de listas de precio WPF
+
+### Implementado
+
+- Se eliminó el botón confuso `+ Preparar nueva` de la cabecera de listas de precio.
+- La cabecera ahora solo permite `Actualizar` y `Limpiar formulario`.
+- La acción real de guardado queda dentro del formulario con un botón principal visible: `Crear lista` o `Guardar cambios`.
+- Se agregó un estado vacío claro: si no hay listas, la pantalla indica que se debe completar el formulario y presionar `Crear lista`.
+- El campo `Orden` se cambió a `Posición visual` y se movió a `Opciones avanzadas`.
+- La posición visual ahora se calcula automáticamente al crear una lista nueva.
+- Se corrigieron textos visibles con tildes en la pantalla WPF de listas de precio.
+- Se aclaró en pantalla que crear una lista la deja disponible para todos los productos, pero cada producto debe tener su precio específico por lista.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php --filter=price_lists`.
+- Resultado: 1 prueba pasó, 14 assertions.
+
+### Notas de seguridad
+
+- No se cambió la regla de negocio del backend.
+- Las listas siguen protegidas por token, empresa actual y permiso `products.update`.
+
 ## 2026-07-04 - Mejora UX de formulario de listas de precio
 
 ### Implementado
