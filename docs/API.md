@@ -760,6 +760,31 @@ Permiso requerido:
 products.update
 ```
 
+Body aceptado:
+
+```json
+{
+  "name": "Samsung A06 128GB",
+  "sku": "SAMSUNG-A06-128",
+  "tracking_type": "serialized",
+  "base_price": 125,
+  "sale_currency": "USD",
+  "sale_exchange_rate_type_id": 1,
+  "warranty_policy_id": 2,
+  "is_active": true
+}
+```
+
+Reglas:
+
+- todos los campos son editables de forma parcial;
+- `sku` sigue siendo unico por empresa y puede repetirse en otra empresa;
+- `sale_exchange_rate_type_id` y `warranty_policy_id` deben pertenecer a la empresa actual;
+- si el producto ya tiene unidades serializadas, no se puede cambiar `tracking_type`;
+- cada cambio real genera auditoria en `product_audits`;
+- si no hubo cambios reales, la API responde el producto sin crear auditoria adicional;
+- los errores de validacion se devuelven en `errors` para que el cliente WPF los muestre en espanol.
+
 ### Desactivar producto
 
 ```txt

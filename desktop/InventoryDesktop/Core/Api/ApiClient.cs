@@ -90,7 +90,7 @@ public sealed class ApiClient
         }
 
         TResponse? data = JsonSerializer.Deserialize<TResponse>(content, JsonOptions);
-        return data ?? throw new ApiException("El servidor respondio sin datos validos.", response.StatusCode, content);
+        return data ?? throw new ApiException("El servidor respondió sin datos válidos.", response.StatusCode, content);
     }
 
     private static string? TryReadApiMessage(string content)
@@ -98,6 +98,33 @@ public sealed class ApiClient
         try
         {
             using JsonDocument document = JsonDocument.Parse(content);
+            if (document.RootElement.TryGetProperty("errors", out JsonElement errors)
+                && errors.ValueKind == JsonValueKind.Object)
+            {
+                List<string> validationMessages = [];
+                foreach (JsonProperty field in errors.EnumerateObject())
+                {
+                    if (field.Value.ValueKind != JsonValueKind.Array)
+                    {
+                        continue;
+                    }
+
+                    foreach (JsonElement item in field.Value.EnumerateArray())
+                    {
+                        string? error = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            validationMessages.Add(error);
+                        }
+                    }
+                }
+
+                if (validationMessages.Count > 0)
+                {
+                    return string.Join(Environment.NewLine, validationMessages);
+                }
+            }
+
             if (document.RootElement.TryGetProperty("message", out JsonElement message))
             {
                 return message.GetString();

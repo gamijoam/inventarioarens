@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-07-04 - Edición completa de productos en Centro de Inventario WPF
+
+### Implementado
+
+- Se habilitó la acción `Editar` dentro de la ventana de detalle del producto.
+- La edición reutiliza la ventana única de producto conectada a `PATCH /api/products/{product}`.
+- Al guardar desde el detalle, se recarga la información comercial del producto y se notifica al Centro de Inventario para refrescar métricas/listado.
+- La pestaña `Auditoría` queda marcada como pendiente de recarga después de editar para evitar mostrar datos viejos.
+- El cliente WPF ahora lee los errores de validación de Laravel desde `errors` y los muestra en español.
+- Se corrigió el mensaje local cuando la API responde sin datos válidos.
+- Se normalizaron los mensajes de validación de edición de producto en backend para precio numérico y política de garantía.
+- Se actualizó la documentación del módulo WPF y la sección de productos en `docs/API.md`.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 14 pruebas pasaron, 72 assertions.
+
+### Notas de seguridad
+
+- La edición sigue pasando únicamente por Laravel, con autenticación, tenant, policy `products.update`, SKU único por empresa, tasa/garantía del tenant actual y auditoría de cambios.
+
 ## 2026-07-04 - Auditoría paginada en Centro de Inventario
 
 ### Implementado

@@ -57,6 +57,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -81,6 +82,18 @@
                 </StackPanel>
 
                 <Button Grid.Column="1"
+                        Content="Editar"
+                        Width="96"
+                        Height="36"
+                        Margin="0,0,10,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        FontWeight="Black"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        Click="EditProduct_Click" />
+
+                <Button Grid.Column="2"
                         Content="Cerrar"
                         Width="96"
                         Height="36"

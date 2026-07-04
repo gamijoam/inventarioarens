@@ -356,6 +356,35 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         }
     }
 
+    private async void EditProduct_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            InventoryProductFormWindow window = new(apiClient, detail.Product.Id)
+            {
+                Owner = this
+            };
+
+            window.Closed += async (_, _) =>
+            {
+                if (!window.WasSaved)
+                {
+                    return;
+                }
+
+                await RefreshAfterProductEditAsync();
+            };
+
+            window.Show();
+            await window.InitializeAsync();
+            window.Activate();
+        }
+        catch (Exception exception)
+        {
+            ShowOpenError("edición de producto", exception);
+        }
+    }
+
     private void TryOpenWindow(Func<Window> createWindow, string actionName)
     {
         try
@@ -382,6 +411,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         AuditRows.Clear();
         SerialStatusMessage = "Seriales pendientes por recargar.";
         MovementStatusMessage = "Movimientos pendientes por recargar.";
+        AuditStatusMessage = "Auditoría pendiente por recargar.";
+        ProductChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task RefreshAfterProductEditAsync()
+    {
+        await RefreshDetailAsync();
+        auditsLoaded = false;
+        AuditRows.Clear();
         AuditStatusMessage = "Auditoría pendiente por recargar.";
         ProductChanged?.Invoke(this, EventArgs.Empty);
     }
