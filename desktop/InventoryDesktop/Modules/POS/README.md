@@ -8,6 +8,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Priorizar velocidad de venta: búsqueda arriba, catálogo amplio, carrito fijo y acciones rápidas abajo.
 - Mostrar más productos por fila mediante tarjetas compactas.
 - Mantener el carrito visible, pero con ancho controlado para no quitar espacio al catálogo.
+- Preparar cotizaciones visibles en segundo plano para que agregar al carrito responda más rápido.
 - Buscar productos reales desde el backend.
 - Seleccionar lista de precio activa.
 - Cotizar el producto con `GET /api/products/{product}/price`.
@@ -23,6 +24,14 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Las tarjetas son compactas para permitir más columnas visibles.
 - El carrito queda a la derecha con ancho reducido.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
+
+## Rendimiento del carrito
+
+- El POS mantiene una caché temporal de cotizaciones por producto y lista de precio.
+- Después de buscar productos, precarga hasta 18 cotizaciones visibles en segundo plano.
+- Si el vendedor hace click mientras una cotización ya se está preparando, el click reutiliza esa misma consulta.
+- Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.
+- La caché es solo de la pantalla actual; el checkout real deberá volver a validar precios en backend.
 
 ## APIs usadas
 

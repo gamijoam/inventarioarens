@@ -11,11 +11,15 @@ namespace InventoryDesktop.Modules.POS;
 public sealed class PosViewModel : ViewModelBase
 {
     private readonly ApiClient apiClient;
+    private readonly Dictionary<QuoteCacheKey, PosPriceQuote> quoteCache = new();
+    private readonly Dictionary<QuoteCacheKey, Task<PosPriceQuote>> quoteRequests = new();
+    private readonly object quoteSync = new();
     private string searchText = "";
     private string statusMessage = "Busca un producto por nombre, SKU o serial/IMEI.";
     private bool isStatusError;
     private bool isBusy;
     private PriceListOption? selectedPriceList;
+    private CancellationTokenSource? quoteWarmupCancellation;
 
     public PosViewModel(ApiClient apiClient)
     {
@@ -41,7 +45,9 @@ public sealed class PosViewModel : ViewModelBase
         {
             if (SetProperty(ref selectedPriceList, value))
             {
+                ResetQuoteCache();
                 RaisePropertyChanged(nameof(PriceListLabel));
+                StartQuoteWarmup();
             }
         }
     }
@@ -136,6 +142,7 @@ public sealed class PosViewModel : ViewModelBase
             ]);
             InventoryCenterSummaryResponse response = await apiClient.GetAsync<InventoryCenterSummaryResponse>($"inventory-center/summary{query}");
 
+            ResetQuoteCache();
             Products.Clear();
             foreach (InventoryProductItem product in response.Data.Products)
             {
@@ -145,6 +152,7 @@ public sealed class PosViewModel : ViewModelBase
             StatusMessage = Products.Count == 0
                 ? "No se encontraron productos para la búsqueda."
                 : $"{Products.Count} productos disponibles para seleccionar.";
+            StartQuoteWarmup();
         }
         catch (ApiException exception)
         {
@@ -178,11 +186,12 @@ public sealed class PosViewModel : ViewModelBase
         {
             IsBusy = true;
             IsStatusError = false;
-            StatusMessage = "Cotizando producto...";
+            long? priceListId = SelectedPriceList?.Id;
+            StatusMessage = HasCachedQuote(card.Product.Id, priceListId)
+                ? "Agregando producto..."
+                : "Cotizando producto...";
 
-            string priceQuery = SelectedPriceList is null ? "" : $"?price_list_id={SelectedPriceList.Id}";
-            PosPriceQuoteResponse response = await apiClient.GetAsync<PosPriceQuoteResponse>($"products/{card.Product.Id}/price{priceQuery}");
-            PosPriceQuote quote = response.Data;
+            PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
 
             PosCartItem? existing = CartItems.FirstOrDefault(item =>
                 item.ProductId == card.Product.Id
@@ -265,6 +274,132 @@ public sealed class PosViewModel : ViewModelBase
         StatusMessage = message;
     }
 
+    private bool HasCachedQuote(long productId, long? priceListId)
+    {
+        lock (quoteSync)
+        {
+            return quoteCache.ContainsKey(new QuoteCacheKey(productId, priceListId));
+        }
+    }
+
+    private Task<PosPriceQuote> GetQuoteAsync(long productId, long? priceListId)
+    {
+        QuoteCacheKey key = new(productId, priceListId);
+        lock (quoteSync)
+        {
+            if (quoteCache.TryGetValue(key, out PosPriceQuote? cachedQuote))
+            {
+                return Task.FromResult(cachedQuote);
+            }
+
+            if (quoteRequests.TryGetValue(key, out Task<PosPriceQuote>? activeRequest))
+            {
+                return activeRequest;
+            }
+
+            Task<PosPriceQuote> request = FetchQuoteAsync(key);
+            quoteRequests[key] = request;
+            return request;
+        }
+    }
+
+    private async Task<PosPriceQuote> FetchQuoteAsync(QuoteCacheKey key)
+    {
+        try
+        {
+            string priceQuery = key.PriceListId is null ? "" : $"?price_list_id={key.PriceListId}";
+            PosPriceQuoteResponse response = await apiClient.GetAsync<PosPriceQuoteResponse>($"products/{key.ProductId}/price{priceQuery}");
+
+            lock (quoteSync)
+            {
+                quoteCache[key] = response.Data;
+            }
+
+            return response.Data;
+        }
+        finally
+        {
+            lock (quoteSync)
+            {
+                quoteRequests.Remove(key);
+            }
+        }
+    }
+
+    private void ResetQuoteCache()
+    {
+        quoteWarmupCancellation?.Cancel();
+        quoteWarmupCancellation?.Dispose();
+        quoteWarmupCancellation = null;
+
+        lock (quoteSync)
+        {
+            quoteCache.Clear();
+            quoteRequests.Clear();
+        }
+    }
+
+    private void StartQuoteWarmup()
+    {
+        quoteWarmupCancellation?.Cancel();
+        quoteWarmupCancellation?.Dispose();
+        quoteWarmupCancellation = null;
+
+        List<PosProductCard> cards = Products
+            .Where(card => card.Product.Stock.Available > 0 && card.Product.TrackingType != "serialized")
+            .Take(18)
+            .ToList();
+
+        if (cards.Count == 0)
+        {
+            return;
+        }
+
+        quoteWarmupCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = quoteWarmupCancellation.Token;
+        long? priceListId = SelectedPriceList?.Id;
+
+        _ = WarmupQuotesAsync(cards, priceListId, cancellationToken);
+    }
+
+    private async Task WarmupQuotesAsync(IReadOnlyList<PosProductCard> cards, long? priceListId, CancellationToken cancellationToken)
+    {
+        using SemaphoreSlim gate = new(4);
+        IEnumerable<Task> tasks = cards.Select(async card =>
+        {
+            try
+            {
+                await gate.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    await GetQuoteAsync(card.Product.Id, priceListId);
+                }
+            }
+            catch (ApiException)
+            {
+                // La precarga no debe interrumpir la venta; el click mostrará el error real si aplica.
+            }
+            catch (HttpRequestException)
+            {
+                // La precarga es oportunista. La acción manual seguirá mostrando errores visibles.
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+    }
+
     private static string BuildQuery(IEnumerable<(string Key, string? Value)> values)
     {
         List<string> parts = values
@@ -275,6 +410,8 @@ public sealed class PosViewModel : ViewModelBase
         return parts.Count == 0 ? string.Empty : "?" + string.Join("&", parts);
     }
 }
+
+internal readonly record struct QuoteCacheKey(long ProductId, long? PriceListId);
 
 public sealed class PosProductCard(InventoryProductItem product)
 {

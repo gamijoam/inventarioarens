@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Optimización de cotizaciones en POS
+
+### Implementado
+
+- Se agregó caché temporal de cotizaciones en el POS de escritorio.
+- El POS precarga cotizaciones de productos visibles en segundo plano después de cada búsqueda.
+- Si el usuario hace click en un producto cuya cotización ya está preparada, el agregado al carrito evita una nueva llamada a la API.
+- Si la precarga y el click coinciden, ambos comparten la misma consulta para no duplicar llamadas.
+- Al cambiar lista de precio o ejecutar una nueva búsqueda se limpia la caché para evitar mezclar precios.
+- Se documentó que el checkout real debe volver a validar precios contra backend antes de vender.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se modificó backend.
+- No se habilitó checkout ni pagos.
+- No se descuenta inventario.
+- La caché solo acelera la experiencia visual del POS; no reemplaza validación final del servidor.
+
 ## 2026-07-04 - POS compacto con mayor espacio para catálogo
 
 ### Implementado
