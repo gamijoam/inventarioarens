@@ -100,6 +100,41 @@ public partial class PosView : UserControl
         ViewModel?.ClearCart();
     }
 
+    private void SelectCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        PosCustomerSelectionWindow dialog = new(ViewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        bool? result = dialog.ShowDialog();
+        if (result != true)
+        {
+            return;
+        }
+
+        if (dialog.UseWalkInCustomer)
+        {
+            ViewModel.ClearCustomer();
+            return;
+        }
+
+        if (dialog.SelectedCustomer is not null)
+        {
+            ViewModel.SelectedCustomer = dialog.SelectedCustomer;
+        }
+    }
+
+    private void ClearCustomer_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel?.ClearCustomer();
+    }
+
     private async void Pay_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null)

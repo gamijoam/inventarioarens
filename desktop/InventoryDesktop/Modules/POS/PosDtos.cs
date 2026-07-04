@@ -45,6 +45,7 @@ public sealed record PosPriceQuote(
 
 public sealed record PosCheckoutRequest(
     [property: JsonPropertyName("cash_register_session_id")] long CashRegisterSessionId,
+    [property: JsonPropertyName("customer_id")] long? CustomerId,
     [property: JsonPropertyName("customer_name")] string CustomerName,
     [property: JsonPropertyName("items")] IReadOnlyList<PosCheckoutItemRequest> Items,
     [property: JsonPropertyName("payments")] IReadOnlyList<PosCheckoutPaymentRequest> Payments);
@@ -74,3 +75,40 @@ public sealed record PosOrderResult(
     [property: JsonPropertyName("payment_status")] string? PaymentStatus,
     [property: JsonPropertyName("total_base")] decimal? TotalBase,
     [property: JsonPropertyName("paid_base")] decimal? PaidBase);
+
+public sealed record PosCustomerListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<PosCustomerOption> Data);
+
+public sealed record PosCustomerOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("document_type")] string DocumentType,
+    [property: JsonPropertyName("document_number")] string DocumentNumber,
+    [property: JsonPropertyName("phone")] string? Phone,
+    [property: JsonPropertyName("email")] string? Email,
+    [property: JsonPropertyName("is_generic")] bool IsGeneric,
+    [property: JsonPropertyName("is_active")] bool IsActive)
+{
+    public string DocumentLabel => $"{DocumentType}-{DocumentNumber}";
+
+    public string DisplayLabel => IsGeneric ? $"{Name} · genérico" : $"{Name} · {DocumentLabel}";
+
+    public string DetailLabel
+    {
+        get
+        {
+            List<string> parts = [DocumentLabel];
+            if (!string.IsNullOrWhiteSpace(Phone))
+            {
+                parts.Add(Phone);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Email))
+            {
+                parts.Add(Email);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+}

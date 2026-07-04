@@ -1615,6 +1615,21 @@ Permiso requerido:
 customers.view
 ```
 
+Query params:
+
+```txt
+search=texto
+active_only=1
+limit=20
+```
+
+Reglas:
+
+- `search` busca por nombre, documento, teléfono o correo;
+- `active_only=1` devuelve solo clientes activos;
+- `limit` permite ajustar la paginación entre 1 y 100 registros;
+- la búsqueda siempre queda limitada a la empresa actual.
+
 ### Crear cliente
 
 ```txt

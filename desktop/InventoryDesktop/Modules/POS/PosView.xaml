@@ -200,13 +200,38 @@
                     <StackPanel>
                         <TextBlock Text="Orden actual" FontSize="22" FontWeight="Black" />
                         <TextBlock Text="{Binding CartCountLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                        <Border Background="#F7F9FD" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Cliente" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" />
+                                <TextBlock Grid.Row="1" Text="{Binding CustomerLabel}" FontWeight="Black" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="2" Text="{Binding CustomerDetailLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
-                    <Button Content="Limpiar"
-                            Width="78"
-                            Height="34"
-                            HorizontalAlignment="Right"
-                            FontWeight="Black"
-                            Click="ClearCart_Click" />
+                    <StackPanel HorizontalAlignment="Right">
+                        <Button Content="Limpiar"
+                                Width="78"
+                                Height="34"
+                                FontWeight="Black"
+                                Click="ClearCart_Click" />
+                        <Button Content="Cliente"
+                                Width="78"
+                                Height="30"
+                                Margin="0,8,0,0"
+                                FontWeight="Black"
+                                Click="SelectCustomer_Click" />
+                        <Button Content="Mostrador"
+                                Width="78"
+                                Height="30"
+                                Margin="0,8,0,0"
+                                FontWeight="Black"
+                                Click="ClearCustomer_Click" />
+                    </StackPanel>
                 </Grid>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0">

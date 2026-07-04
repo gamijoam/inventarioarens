@@ -126,6 +126,37 @@ class CustomerApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_user_can_search_active_customers_for_pos(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $otherTenant = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['customers.view']);
+
+        $this->customer($tenant, 'Maria Telefonos', Customer::DOCUMENT_V, '12345678', '04141234567');
+        $inactive = $this->customer($tenant, 'Maria Inactiva', Customer::DOCUMENT_V, '88888888', '04140000000');
+        $inactive->update(['is_active' => false]);
+        $this->customer($tenant, 'Pedro Accesorios', Customer::DOCUMENT_V, '99999999', '04149999999');
+        $this->customer($otherTenant, 'Maria Otra Empresa', Customer::DOCUMENT_V, '12345678', '04141234567');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/customers?search=12345678&active_only=1&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Maria Telefonos');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/customers?search=0414&active_only=1&limit=10')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.name', 'Maria Telefonos')
+            ->assertJsonPath('data.1.name', 'Pedro Accesorios');
+    }
+
     public function test_customer_api_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -153,7 +184,7 @@ class CustomerApiTest extends TestCase
         }
     }
 
-    private function customer(Tenant $tenant, string $name, string $documentType, string $documentNumber): Customer
+    private function customer(Tenant $tenant, string $name, string $documentType, string $documentNumber, ?string $phone = null): Customer
     {
         $this->useTenant($tenant);
 
@@ -161,6 +192,7 @@ class CustomerApiTest extends TestCase
             'name' => $name,
             'document_type' => $documentType,
             'document_number' => $documentNumber,
+            'phone' => $phone,
         ]);
     }
 

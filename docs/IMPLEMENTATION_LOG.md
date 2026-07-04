@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-04 - Cliente en POS de escritorio
+
+### Implementado
+
+- Se agregó búsqueda backend de clientes por `search` en `GET /api/customers`.
+- La búsqueda de clientes filtra por nombre, documento, teléfono o correo.
+- Se agregó `active_only=1` para consultar solo clientes activos.
+- Se agregó `limit` configurable entre 1 y 100 registros.
+- Se agregó ventana WPF `Seleccionar cliente` en el módulo POS.
+- El POS mantiene `Cliente mostrador` por defecto para ventas rápidas.
+- El cajero puede buscar clientes activos por nombre, documento, teléfono o correo.
+- El cajero puede seleccionar un cliente real o volver a `Cliente mostrador`.
+- La orden actual muestra nombre, documento y datos básicos del cliente seleccionado.
+- El checkout de escritorio envía `customer_id` cuando hay cliente seleccionado.
+- Si no hay cliente seleccionado, el checkout conserva `customer_name = Cliente mostrador`.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Customers/CustomerApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 16 pruebas pasaron, 101 assertions.
+
+### Notas de seguridad
+
+- El frontend solo selecciona el cliente; backend valida que `customer_id` pertenezca a la empresa actual.
+- La búsqueda no mezcla clientes entre empresas.
+- La creación rápida de cliente desde POS queda para una fase posterior.
+
 ## 2026-07-04 - Mejoras de cobro en POS de escritorio
 
 ### Implementado

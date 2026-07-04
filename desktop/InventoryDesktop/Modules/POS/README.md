@@ -17,6 +17,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Abrir ventana de cobro con métodos de pago activos.
 - Permitir pagos en `USD`, `VES` o mixtos cuando la lista de precio lo permite.
 - Confirmar checkout real contra Laravel usando `POST /api/pos/checkouts`.
+- Seleccionar cliente registrado o mantener `Cliente mostrador` por defecto.
 
 ## Diseño actual
 
@@ -65,6 +66,16 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
 
+## Cliente en POS
+
+- El POS usa `Cliente mostrador` por defecto para ventas rápidas.
+- El botón `Cliente` abre una ventana de búsqueda.
+- La búsqueda consulta `GET /api/customers?search={texto}&active_only=1&limit=20`.
+- Se puede buscar por nombre, cédula/RIF, teléfono o correo.
+- Al seleccionar un cliente, el POS muestra nombre y documento en la orden actual.
+- Al confirmar checkout, WPF envía `customer_id` y `customer_name`.
+- El botón `Mostrador` limpia el cliente seleccionado y vuelve a venta rápida.
+
 ## Productos serializados / IMEI
 
 - Los productos serializados ya no se bloquean de forma genérica.
@@ -83,6 +94,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - `GET /api/cash-register/sessions`: sesiones de caja abiertas.
 - `GET /api/inventory-center/products/{product}/serials`: seriales/IMEI disponibles por producto y almacén.
 - `GET /api/payment-methods?active_only=1`: métodos de pago disponibles.
+- `GET /api/customers?search={texto}&active_only=1&limit=20`: búsqueda rápida de clientes activos.
 - `POST /api/pos/checkouts`: confirmación real de venta POS.
 
 ## Reglas actuales

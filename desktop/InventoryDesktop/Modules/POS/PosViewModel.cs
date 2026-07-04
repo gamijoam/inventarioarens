@@ -21,6 +21,7 @@ public sealed class PosViewModel : ViewModelBase
     private PriceListOption? selectedPriceList;
     private InventoryWarehouseOption? selectedWarehouse;
     private PosCashRegisterSession? selectedCashRegisterSession;
+    private PosCustomerOption? selectedCustomer;
     private CancellationTokenSource? quoteWarmupCancellation;
 
     public PosViewModel(ApiClient apiClient)
@@ -39,6 +40,8 @@ public sealed class PosViewModel : ViewModelBase
     public ObservableCollection<PosCashRegisterSession> CashRegisterSessions { get; } = new();
 
     public ObservableCollection<PaymentMethodOption> PaymentMethods { get; } = new();
+
+    public ObservableCollection<PosCustomerOption> CustomerSearchResults { get; } = new();
 
     public string SearchText
     {
@@ -98,6 +101,23 @@ public sealed class PosViewModel : ViewModelBase
             return $"{warehouse} · {cashRegister}";
         }
     }
+
+    public PosCustomerOption? SelectedCustomer
+    {
+        get => selectedCustomer;
+        set
+        {
+            if (SetProperty(ref selectedCustomer, value))
+            {
+                RaisePropertyChanged(nameof(CustomerLabel));
+                RaisePropertyChanged(nameof(CustomerDetailLabel));
+            }
+        }
+    }
+
+    public string CustomerLabel => SelectedCustomer?.Name ?? "Cliente mostrador";
+
+    public string CustomerDetailLabel => SelectedCustomer?.DetailLabel ?? "Venta rápida sin cliente registrado";
 
     public string StatusMessage
     {
@@ -262,6 +282,43 @@ public sealed class PosViewModel : ViewModelBase
         {
             SetError("No se pudo conectar con la API para cargar métodos de pago.");
         }
+    }
+
+    public async Task<IReadOnlyList<PosCustomerOption>> SearchCustomersAsync(string search)
+    {
+        try
+        {
+            string query = BuildQuery([
+                ("search", search),
+                ("active_only", "1"),
+                ("limit", "20"),
+            ]);
+            PosCustomerListResponse response = await apiClient.GetAsync<PosCustomerListResponse>($"customers{query}");
+            CustomerSearchResults.Clear();
+            foreach (PosCustomerOption customer in response.Data.Where(customer => customer.IsActive))
+            {
+                CustomerSearchResults.Add(customer);
+            }
+
+            return CustomerSearchResults;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            return [];
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para buscar clientes.");
+            return [];
+        }
+    }
+
+    public void ClearCustomer()
+    {
+        SelectedCustomer = null;
+        StatusMessage = "Cliente mostrador seleccionado.";
+        IsStatusError = false;
     }
 
     public async Task SearchAsync()
@@ -470,7 +527,8 @@ public sealed class PosViewModel : ViewModelBase
 
             PosCheckoutRequest request = new(
                 SelectedCashRegisterSession.Id,
-                "Cliente mostrador",
+                SelectedCustomer?.Id,
+                SelectedCustomer?.Name ?? "Cliente mostrador",
                 CartItems.Select(item => new PosCheckoutItemRequest(
                     item.WarehouseId,
                     item.ProductId,
