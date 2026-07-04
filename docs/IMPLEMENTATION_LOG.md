@@ -7,7 +7,9 @@
 - Se cambió la primera vista del panel de escritorio para mostrar un `Centro de módulos` después del login.
 - Se agregaron tarjetas grandes para abrir POS, Centro de Inventario, Entradas y salidas y Listas de precio.
 - Se dejaron tarjetas preparadas para Caja, Reportes y Configuración como módulos próximos.
-- El menú lateral queda como acceso rápido, pero la entrada inicial ahora es el selector de módulos.
+- Se eliminó el menú lateral para dejar la navegación principal solo por tarjetas de módulos.
+- Las pantallas internas usan un botón superior `Módulos` para volver al selector principal.
+- POS se mantiene como pantalla completa y vuelve al `Centro de módulos` con su acción inferior.
 - El POS vuelve al `Centro de módulos` cuando el usuario usa `Volver al panel`.
 - Se agregó base de permisos en `DesktopSession` con `HasPermission` y `HasAnyPermission`.
 - Las tarjetas y botones principales ya pueden habilitarse o deshabilitarse según permisos.

@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.InventoryCenter;
 using InventoryDesktop.Modules.POS;
@@ -48,7 +47,7 @@ public partial class ShellView : UserControl
 
     private async void InventoryCenter_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanOpen(InventoryCenterButton))
+        if (!HomeInventoryCard.IsEnabled)
         {
             return;
         }
@@ -59,7 +58,7 @@ public partial class ShellView : UserControl
 
     private async void InventoryMovements_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanOpen(InventoryMovementsButton))
+        if (!HomeMovementsCard.IsEnabled)
         {
             return;
         }
@@ -70,7 +69,7 @@ public partial class ShellView : UserControl
 
     private async void PriceLists_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanOpen(PriceListsButton))
+        if (!HomePriceListsCard.IsEnabled)
         {
             return;
         }
@@ -81,7 +80,7 @@ public partial class ShellView : UserControl
 
     private async void Pos_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanOpen(PosButton))
+        if (!HomePosCard.IsEnabled)
         {
             return;
         }
@@ -94,80 +93,62 @@ public partial class ShellView : UserControl
     {
         SectionTitle.Text = "Centro de módulos";
         SectionSubtitle.Text = "Selecciona el área de trabajo";
+        BackToModulesButton.Visibility = Visibility.Collapsed;
+        ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Visible;
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
-        SetActiveButton(HomeButton);
-        SetInactiveButton(InventoryCenterButton);
-        SetInactiveButton(InventoryMovementsButton);
-        SetInactiveButton(PriceListsButton);
-        SetInactiveButton(PosButton);
     }
 
     private void ShowInventoryCenter()
     {
         SectionTitle.Text = "Centro de Inventario";
         SectionSubtitle.Text = "Datos reales desde el servidor";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Collapsed;
         InventoryCenterContent.Visibility = Visibility.Visible;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
-        SetActiveButton(InventoryCenterButton);
-        SetInactiveButton(HomeButton);
-        SetInactiveButton(InventoryMovementsButton);
-        SetInactiveButton(PriceListsButton);
-        SetInactiveButton(PosButton);
     }
 
     private void ShowInventoryMovements()
     {
         SectionTitle.Text = "Entradas y salidas";
         SectionSubtitle.Text = "Registra movimientos reales de stock por producto";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Collapsed;
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Visible;
         PriceListsContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
-        SetActiveButton(InventoryMovementsButton);
-        SetInactiveButton(HomeButton);
-        SetInactiveButton(InventoryCenterButton);
-        SetInactiveButton(PriceListsButton);
-        SetInactiveButton(PosButton);
     }
 
     private void ShowPriceLists()
     {
         SectionTitle.Text = "Listas de precio";
         SectionSubtitle.Text = "Configura precios para detal, mayor, técnico y futuras ventas POS";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Collapsed;
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Visible;
         PosContent.Visibility = Visibility.Collapsed;
-        SetActiveButton(PriceListsButton);
-        SetInactiveButton(HomeButton);
-        SetInactiveButton(InventoryCenterButton);
-        SetInactiveButton(InventoryMovementsButton);
-        SetInactiveButton(PosButton);
     }
 
     private void ShowPos()
     {
-        SectionTitle.Text = "POS";
-        SectionSubtitle.Text = "Búsqueda rápida, listas de precio y carrito de venta";
+        ShellHeader.Visibility = Visibility.Collapsed;
         HomeContent.Visibility = Visibility.Collapsed;
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Visible;
-        SetActiveButton(PosButton);
-        SetInactiveButton(HomeButton);
-        SetInactiveButton(InventoryCenterButton);
-        SetInactiveButton(InventoryMovementsButton);
-        SetInactiveButton(PriceListsButton);
     }
 
     private void ConfigureModulePermissions()
@@ -177,52 +158,16 @@ public partial class ShellView : UserControl
         bool canMoveInventory = session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update");
         bool canManagePrices = session.HasPermission("products.update");
 
-        SetModuleAccess(PosButton, HomePosCard, canUsePos, "Sin permiso POS");
-        SetModuleAccess(InventoryCenterButton, HomeInventoryCard, canViewInventory, "Sin permiso de inventario");
-        SetModuleAccess(InventoryMovementsButton, HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
-        SetModuleAccess(PriceListsButton, HomePriceListsCard, canManagePrices, "Sin permiso de precios");
+        SetCardAccess(HomePosCard, canUsePos, "Sin permiso POS");
+        SetCardAccess(HomeInventoryCard, canViewInventory, "Sin permiso de inventario");
+        SetCardAccess(HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
+        SetCardAccess(HomePriceListsCard, canManagePrices, "Sin permiso de precios");
     }
 
-    private static void SetModuleAccess(Button sideButton, Button cardButton, bool canAccess, string deniedText)
+    private static void SetCardAccess(Button cardButton, bool canAccess, string deniedText)
     {
-        sideButton.IsEnabled = canAccess;
         cardButton.IsEnabled = canAccess;
         cardButton.ToolTip = canAccess ? null : deniedText;
         cardButton.Opacity = canAccess ? 1 : 0.55;
-    }
-
-    private static bool CanOpen(Button button)
-    {
-        return button.IsEnabled;
-    }
-
-    private static void SetActiveButton(Button button)
-    {
-        if (!button.IsEnabled)
-        {
-            return;
-        }
-
-        button.Background = new SolidColorBrush(Color.FromRgb(238, 240, 255));
-        button.Foreground = new SolidColorBrush(Color.FromRgb(53, 36, 223));
-        button.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 228, 255));
-        button.FontWeight = FontWeights.Black;
-    }
-
-    private static void SetInactiveButton(Button button)
-    {
-        if (!button.IsEnabled)
-        {
-            button.Background = new SolidColorBrush(Color.FromRgb(247, 249, 253));
-            button.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
-            button.BorderBrush = new SolidColorBrush(Color.FromRgb(225, 231, 243));
-            button.FontWeight = FontWeights.Bold;
-            return;
-        }
-
-        button.Background = new SolidColorBrush(Colors.Transparent);
-        button.Foreground = new SolidColorBrush(Color.FromRgb(16, 23, 47));
-        button.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 228, 242));
-        button.FontWeight = FontWeights.Bold;
     }
 }

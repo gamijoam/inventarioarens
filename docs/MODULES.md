@@ -121,7 +121,8 @@ Regla importante:
 - el modulo `Auth` del escritorio debe respetar el contrato real de Laravel, donde las respuestas vienen envueltas en `data`;
 - las siguientes pantallas de escritorio se implementaran por modulo: Centro de Inventario, Entradas y Salidas, POS, Caja y Reportes.
 - el flujo recomendado es `Login -> Centro de modulos -> Modulo seleccionado`.
-- el menu lateral funciona como acceso rapido, pero no debe ser el unico organizador cuando crezcan los modulos.
+- la navegacion principal del escritorio queda basada en tarjetas de modulos, sin menu lateral permanente.
+- cada modulo debe ofrecer una forma clara de volver al centro de modulos o tener navegacion interna propia.
 
 ### Dashboard
 
