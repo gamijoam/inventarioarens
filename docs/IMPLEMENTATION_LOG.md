@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-07-04 - Corrección de acceso a acciones masivas WPF
+
+### Implementado
+
+- Se corrigió el botón `Acciones masivas` para que siempre responda al clic.
+- Si no hay productos seleccionados, la app muestra un mensaje claro en español.
+- Si hay una fila activa, la acción masiva usa esa fila aunque no haya una selección múltiple explícita.
+- La selección de la tabla ahora sincroniza la fila activa con el ViewModel del Centro de Inventario.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se cambió la API ni las reglas de negocio.
+- Las acciones masivas siguen pasando por `POST /api/inventory-center/products/bulk-action` con token, tenant y permisos.
+
 ## 2026-07-04 - Acciones masivas del Centro de Inventario
 
 ### Implementado

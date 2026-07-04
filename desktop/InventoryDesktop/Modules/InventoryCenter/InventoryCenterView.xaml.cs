@@ -67,6 +67,10 @@ public partial class InventoryCenterView : UserControl
         if (ViewModel is not null)
         {
             ViewModel.SelectedProductsCount = ProductsGrid.SelectedItems.Count;
+            if (ProductsGrid.SelectedItem is InventoryProductItem product)
+            {
+                ViewModel.SelectedProduct = product;
+            }
         }
     }
 
@@ -138,8 +142,23 @@ public partial class InventoryCenterView : UserControl
             .OfType<InventoryProductItem>()
             .ToList();
 
+        if (products.Count == 0 && ProductsGrid.SelectedItem is InventoryProductItem selectedProduct)
+        {
+            products.Add(selectedProduct);
+        }
+
+        if (products.Count == 0 && ViewModel.SelectedProduct is not null)
+        {
+            products.Add(ViewModel.SelectedProduct);
+        }
+
         if (products.Count == 0)
         {
+            MessageBox.Show(
+                "Selecciona al menos un producto de la tabla antes de usar acciones masivas.",
+                "Acciones masivas",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
 
