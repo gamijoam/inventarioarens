@@ -36,6 +36,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - La salida permite elegir almacén, cantidad, motivo, referencia, notas y seleccionar IMEI/seriales disponibles en productos serializados.
 - La salida serializada incluye buscador de IMEI/serial, almacén o estado, contador de selección contra cantidad requerida, botón para limpiar selección y opción para usar la selección como cantidad.
 - Las entradas y salidas validan mensajes en español antes de llamar a la API.
+- Al guardar una entrada o salida desde el detalle, el detalle del producto se recarga automáticamente y el Centro de Inventario actualiza métricas, disponibilidad y listado.
 - Botón lateral `Entradas y salidas` habilitado en el shell principal.
 - Pantalla operativa `Entradas y salidas` con búsqueda de productos y acciones rápidas `Entrada` / `Salida`.
 - Si una ventana de movimiento no puede abrirse, la app muestra un mensaje visible en español.

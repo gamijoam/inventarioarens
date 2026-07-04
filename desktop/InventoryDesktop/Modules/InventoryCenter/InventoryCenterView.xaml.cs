@@ -139,6 +139,7 @@ public partial class InventoryCenterView : UserControl
         {
             Owner = Window.GetWindow(this)
         };
+        window.ProductChanged += async (_, _) => await ViewModel.LoadAsync();
         window.Show();
         window.Activate();
     }

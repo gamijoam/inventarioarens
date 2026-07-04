@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-04 - Refresco automático del Centro de Inventario WPF
+
+### Implementado
+
+- Se agregó aviso de guardado en las ventanas WPF de `Registrar entrada` y `Registrar salida`.
+- Cuando una entrada o salida se guarda correctamente, la ventana de detalle del producto se recarga desde `GET /api/inventory-center/products/{product}`.
+- El Centro de Inventario se actualiza automáticamente para refrescar métricas, disponibilidad, estados de stock y listado.
+- Si el movimiento se guarda pero falla la recarga del detalle, la aplicación muestra un mensaje visible en español sin cerrar la ventana.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductEntries/ProductEntryApiTest.php tests/Feature/ProductExits/ProductExitApiTest.php`.
+- Resultado: 13 pruebas pasaron, 69 assertions.
+
+### Notas de seguridad
+
+- El refresco automático solo vuelve a consultar la API; no accede directo a PostgreSQL ni omite reglas de permisos, tenant o stock del backend.
+
 ## 2026-07-04 - Mejora de selección IMEI en salidas WPF
 
 ### Implementado

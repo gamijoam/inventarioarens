@@ -52,6 +52,10 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public event EventHandler? Saved;
+
+    public bool WasSaved { get; private set; }
+
     public string ProductName { get; }
 
     public string ProductSku { get; }
@@ -138,7 +142,9 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
                 "product-exits",
                 request!);
 
-            StatusMessage = $"Salida registrada: {response.Data.DocumentNumber ?? "sin numero"}.";
+            WasSaved = true;
+            StatusMessage = $"Salida registrada: {response.Data.DocumentNumber ?? "sin número"}.";
+            Saved?.Invoke(this, EventArgs.Empty);
         }
         catch (ApiException exception)
         {
