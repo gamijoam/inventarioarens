@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryCenter\Controllers;
 
+use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductSerialsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
@@ -51,6 +52,18 @@ class InventoryCenterController extends Controller
 
         return response()->json([
             'data' => $service->movementsPage($product, $request->validated()),
+        ]);
+    }
+
+    public function productAudits(
+        InventoryCenterProductAuditsRequest $request,
+        Product $product,
+        InventoryCenterProductDetailService $service
+    ): JsonResponse {
+        Gate::authorize('view', $product);
+
+        return response()->json([
+            'data' => $service->auditsPage($product, $request->validated()),
         ]);
     }
 

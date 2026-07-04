@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-04 - Auditoría paginada en Centro de Inventario
+
+### Implementado
+
+- Se agregó `GET /api/inventory-center/products/{product}/audits` para consultar auditoría paginada de producto.
+- La API permite filtrar por acción `created`, `updated` y `deactivated`.
+- La API permite buscar por nombre o correo del usuario que hizo el cambio.
+- Si la tabla `product_audits` no existe, la API responde lista vacía para no romper el detalle del producto.
+- Se conectó la pestaña `Auditoría` de WPF al nuevo endpoint.
+- La pestaña `Auditoría` ahora tiene búsqueda, filtro por acción, botón `Limpiar` y paginación.
+- Se muestra fecha, acción, usuario, correo y resumen JSON de cambios.
+- Se actualizó `docs/API.md` y el README del módulo.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 13 pruebas pasaron, 100 assertions.
+
+### Notas de seguridad
+
+- La auditoría se consulta solo mediante API protegida con autenticación, tenant y policy de producto.
+- La búsqueda de auditoría no permite ver usuarios ni cambios de productos de otra empresa.
+
 ## 2026-07-04 - Filtros avanzados en detalle WPF de inventario
 
 ### Implementado

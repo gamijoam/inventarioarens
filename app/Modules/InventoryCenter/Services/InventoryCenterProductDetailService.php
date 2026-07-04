@@ -136,6 +136,55 @@ class InventoryCenterProductDetailService
         ];
     }
 
+    public function auditsPage(Product $product, array $filters): array
+    {
+        $limit = $this->limit($filters);
+        $page = $this->page($filters);
+
+        if (! Schema::hasTable('product_audits')) {
+            return [
+                'filters' => $this->pageFilters($filters, [
+                    'action' => $filters['action'] ?? 'all',
+                ], $limit, 1),
+                'data' => [],
+                'pagination' => $this->pagination(1, $limit, 0),
+            ];
+        }
+
+        $query = ProductAudit::query()
+            ->where('product_id', $product->id)
+            ->with('creator');
+
+        if (($filters['action'] ?? null) && $filters['action'] !== 'all') {
+            $query->where('action', $filters['action']);
+        }
+
+        if ($search = $filters['search'] ?? null) {
+            $query->whereHas('creator', function (Builder $query) use ($search): void {
+                $query
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+        $lastPage = max((int) ceil($total / $limit), 1);
+        $page = min($page, $lastPage);
+
+        return [
+            'filters' => $this->pageFilters($filters, [
+                'action' => $filters['action'] ?? 'all',
+            ], $limit, $page),
+            'data' => $query
+                ->latest('id')
+                ->forPage($page, $limit)
+                ->get()
+                ->map(fn (ProductAudit $audit): array => $this->audit($audit))
+                ->all(),
+            'pagination' => $this->pagination($page, $limit, $total),
+        ];
+    }
+
     private function product(Product $product): array
     {
         return [
@@ -252,15 +301,7 @@ class InventoryCenterProductDetailService
             ->latest('id')
             ->limit(12)
             ->get()
-            ->map(fn (ProductAudit $audit): array => [
-                'id' => $audit->id,
-                'action' => $audit->action,
-                'changes' => $audit->changes,
-                'created_by' => $audit->created_by,
-                'created_by_name' => $audit->creator?->name,
-                'created_by_email' => $audit->creator?->email,
-                'created_at' => $audit->created_at?->toISOString(),
-            ])
+            ->map(fn (ProductAudit $audit): array => $this->audit($audit))
             ->all();
     }
 
@@ -296,6 +337,19 @@ class InventoryCenterProductDetailService
             'created_by' => $movement->created_by,
             'created_by_name' => $movement->creator?->name,
             'created_at' => $movement->created_at?->toISOString(),
+        ];
+    }
+
+    private function audit(ProductAudit $audit): array
+    {
+        return [
+            'id' => $audit->id,
+            'action' => $audit->action,
+            'changes' => $audit->changes,
+            'created_by' => $audit->created_by,
+            'created_by_name' => $audit->creator?->name,
+            'created_by_email' => $audit->creator?->email,
+            'created_at' => $audit->created_at?->toISOString(),
         ];
     }
 

@@ -8,5 +8,6 @@ Route::prefix('inventory-center')->group(function (): void {
     Route::get('products/{product}', [InventoryCenterController::class, 'product']);
     Route::get('products/{product}/serials', [InventoryCenterController::class, 'productSerials']);
     Route::get('products/{product}/movements', [InventoryCenterController::class, 'productMovements']);
+    Route::get('products/{product}/audits', [InventoryCenterController::class, 'productAudits']);
     Route::get('products/{product}/stock-by-warehouse', [InventoryCenterController::class, 'productStockByWarehouse']);
 });

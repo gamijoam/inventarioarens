@@ -408,6 +408,86 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_inventory_center_product_audits_endpoint_filters_and_paginates(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $product = Product::create([
+            'name' => 'Producto auditado',
+            'sku' => 'AUDIT-PAGE',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_CREATED,
+            'changes' => ['after' => ['name' => 'Producto auditado']],
+            'created_by' => $user->id,
+        ]);
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_UPDATED,
+            'changes' => ['before' => ['base_price' => 10], 'after' => ['base_price' => 12]],
+            'created_by' => $user->id,
+        ]);
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_DEACTIVATED,
+            'changes' => ['before' => ['is_active' => true], 'after' => ['is_active' => false]],
+            'created_by' => $user->id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/audits?action=updated")
+            ->assertOk()
+            ->assertJsonPath('data.filters.action', ProductAudit::ACTION_UPDATED)
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.data.0.action', ProductAudit::ACTION_UPDATED)
+            ->assertJsonPath('data.data.0.created_by_name', $user->name)
+            ->assertJsonPath('data.data.0.created_by_email', $user->email)
+            ->assertJsonPath('data.data.0.changes.after.base_price', 12);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/audits?search={$user->email}&limit=2&page=1")
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 3)
+            ->assertJsonPath('data.pagination.has_next', true)
+            ->assertJsonCount(2, 'data.data');
+    }
+
+    public function test_inventory_center_product_audits_endpoint_works_without_product_audits_table(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $product = Product::create([
+            'name' => 'Producto sin tabla auditoria',
+            'sku' => 'NO-AUDIT-PAGE',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        Schema::dropIfExists('product_audits');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/audits")
+            ->assertOk()
+            ->assertJsonPath('data.data', [])
+            ->assertJsonPath('data.pagination.total', 0);
+    }
+
     public function test_inventory_center_does_not_mix_companies(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

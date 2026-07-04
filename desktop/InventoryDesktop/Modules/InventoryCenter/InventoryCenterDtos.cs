@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace InventoryDesktop.Modules.InventoryCenter;
@@ -207,7 +208,9 @@ public sealed record InventoryProductMovement(
 public sealed record InventoryProductAudit(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("changes")] JsonElement? Changes,
     [property: JsonPropertyName("created_by_name")] string? CreatedByName,
+    [property: JsonPropertyName("created_by_email")] string? CreatedByEmail,
     [property: JsonPropertyName("created_at")] string? CreatedAt)
 {
     public string ActionLabel => Action switch
@@ -219,7 +222,49 @@ public sealed record InventoryProductAudit(
     };
 
     public string CreatedByLabel => string.IsNullOrWhiteSpace(CreatedByName) ? "Sistema" : CreatedByName;
+
+    public string CreatedByEmailLabel => string.IsNullOrWhiteSpace(CreatedByEmail) ? "Sin correo" : CreatedByEmail;
+
+    public string DateLabel
+    {
+        get
+        {
+            if (DateTimeOffset.TryParse(CreatedAt, out DateTimeOffset parsed))
+            {
+                return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
+            }
+
+            return "Sin fecha";
+        }
+    }
+
+    public string ChangesLabel
+    {
+        get
+        {
+            if (Changes is null || Changes.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                return "Sin cambios detallados";
+            }
+
+            return Changes.Value.GetRawText();
+        }
+    }
 }
+
+public sealed record InventoryProductAuditsPageResponse(
+    [property: JsonPropertyName("data")] InventoryProductAuditsPageData Data);
+
+public sealed record InventoryProductAuditsPageData(
+    [property: JsonPropertyName("filters")] InventoryProductAuditsPageFilters Filters,
+    [property: JsonPropertyName("data")] IReadOnlyList<InventoryProductAudit> Data,
+    [property: JsonPropertyName("pagination")] InventoryPagination Pagination);
+
+public sealed record InventoryProductAuditsPageFilters(
+    [property: JsonPropertyName("search")] string? Search,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("limit")] int Limit,
+    [property: JsonPropertyName("page")] int Page);
 
 public sealed record InventoryProductSerialsPageResponse(
     [property: JsonPropertyName("data")] InventoryProductSerialsPageData Data);

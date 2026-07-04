@@ -539,6 +539,79 @@ Reglas:
 - lee desde `stock_balances`;
 - no devuelve saldos de almacenes o productos de otra empresa.
 
+### Auditoria paginada de producto
+
+```txt
+GET /api/inventory-center/products/{product}/audits
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Query params:
+
+```txt
+search=gerente@empresa.com
+action=all|created|updated|deactivated
+limit=24
+page=1
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "filters": {
+      "search": "gerente@empresa.com",
+      "action": "updated",
+      "limit": 24,
+      "page": 1
+    },
+    "data": [
+      {
+        "id": 50,
+        "action": "updated",
+        "changes": {
+          "before": {
+            "base_price": 10
+          },
+          "after": {
+            "base_price": 12
+          }
+        },
+        "created_by": 5,
+        "created_by_name": "Gerente",
+        "created_by_email": "gerente@empresa.com",
+        "created_at": "2026-07-04T12:00:00.000000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 24,
+      "total": 80,
+      "last_page": 4,
+      "from": 1,
+      "to": 24,
+      "has_previous": false,
+      "has_next": true
+    }
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y policy de producto;
+- no modifica datos;
+- permite filtrar por accion de auditoria;
+- permite buscar por nombre o correo del usuario que hizo el cambio;
+- si la tabla `product_audits` no existe, responde lista vacia para no bloquear el detalle;
+- no devuelve auditoria de productos de otra empresa.
+
 ### Ver sesion actual
 
 ```txt

@@ -293,20 +293,61 @@
             </TabItem>
 
             <TabItem Header="Auditoría">
-                <Border Style="{StaticResource PanelStyle}" Margin="0,14,0,0">
-                    <DataGrid ItemsSource="{Binding Detail.RecentAudits}"
+                <Grid Margin="0,14,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border Style="{StaticResource PanelStyle}" Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="AuditSearchBox" Height="36" Margin="0,0,10,0" ToolTip="Buscar usuario o correo" />
+                            <ComboBox x:Name="AuditActionBox"
+                                      Grid.Column="1"
+                                      Height="36"
+                                      ItemsSource="{Binding AuditActionOptions}"
+                                      SelectedItem="{Binding SelectedAuditAction}"
+                                      DisplayMemberPath="Label" />
+                            <Button Grid.Column="2" Content="Buscar" Width="96" Height="36" Margin="10,0,0,0" FontWeight="Black" Click="SearchAudits_Click" />
+                            <Button Grid.Column="3" Content="Limpiar" Width="86" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="ClearAudits_Click" />
+                        </Grid>
+                    </Border>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding AuditRows}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               IsReadOnly="True"
+                              Margin="0,12,0,0"
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="ACCIÓN" Binding="{Binding ActionLabel}" Width="*" />
-                            <DataGridTextColumn Header="USUARIO" Binding="{Binding CreatedByLabel}" Width="2*" />
-                            <DataGridTextColumn Header="FECHA" Binding="{Binding CreatedAt}" Width="2*" />
+                            <DataGridTextColumn Header="FECHA" Binding="{Binding DateLabel}" Width="1.4*" />
+                            <DataGridTextColumn Header="ACCIÓN" Binding="{Binding ActionLabel}" Width="1.1*" />
+                            <DataGridTextColumn Header="USUARIO" Binding="{Binding CreatedByLabel}" Width="1.4*" />
+                            <DataGridTextColumn Header="CORREO" Binding="{Binding CreatedByEmailLabel}" Width="1.8*" />
+                            <DataGridTextColumn Header="CAMBIOS" Binding="{Binding ChangesLabel}" Width="2.6*" />
                         </DataGrid.Columns>
                     </DataGrid>
-                </Border>
+
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding AuditStatusMessage}" Foreground="{Binding AuditStatusBrush}" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Anterior" Width="96" Height="36" FontWeight="Black" IsEnabled="{Binding CanGoPreviousAudits}" Click="PreviousAudits_Click" />
+                        <Button Grid.Column="2" Content="Siguiente" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" IsEnabled="{Binding CanGoNextAudits}" Click="NextAudits_Click" />
+                    </Grid>
+                </Grid>
             </TabItem>
         </TabControl>
 

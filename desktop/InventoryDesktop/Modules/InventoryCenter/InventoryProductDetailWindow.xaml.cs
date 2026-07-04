@@ -15,14 +15,19 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     private InventoryProductDetailData detail;
     private InventoryPagination serialPagination = new(1, 24, 0, 1, 0, 0, false, false);
     private InventoryPagination movementPagination = new(1, 24, 0, 1, 0, 0, false, false);
+    private InventoryPagination auditPagination = new(1, 24, 0, 1, 0, 0, false, false);
     private string serialStatusMessage = "Abre esta pestaña para cargar seriales/IMEI.";
     private string movementStatusMessage = "Abre esta pestaña para cargar movimientos.";
+    private string auditStatusMessage = "Abre esta pestaña para cargar auditoría.";
     private bool isSerialStatusError;
     private bool isMovementStatusError;
+    private bool isAuditStatusError;
     private bool serialsLoaded;
     private bool movementsLoaded;
+    private bool auditsLoaded;
     private FilterOption selectedSerialStatus = new("all", "Todos");
     private FilterOption selectedMovementType = new("all", "Todos");
+    private FilterOption selectedAuditAction = new("all", "Todos");
     private WarehouseFilterOption selectedSerialWarehouse = WarehouseFilterOption.All;
     private WarehouseFilterOption selectedMovementWarehouse = WarehouseFilterOption.All;
 
@@ -49,6 +54,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
             if (option.Value == "all")
             {
                 selectedMovementType = option;
+                break;
+            }
+        }
+
+        foreach (FilterOption option in AuditActionOptions)
+        {
+            if (option.Value == "all")
+            {
+                selectedAuditAction = option;
                 break;
             }
         }
@@ -80,6 +94,8 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 
     public ObservableCollection<InventoryProductMovement> MovementRows { get; } = new();
 
+    public ObservableCollection<InventoryProductAudit> AuditRows { get; } = new();
+
     public ObservableCollection<WarehouseFilterOption> WarehouseFilterOptions { get; } = new();
 
     public IReadOnlyList<FilterOption> SerialStatusOptions { get; } =
@@ -109,6 +125,14 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         new("released", "Liberación"),
     ];
 
+    public IReadOnlyList<FilterOption> AuditActionOptions { get; } =
+    [
+        new("all", "Todas"),
+        new("created", "Creado"),
+        new("updated", "Actualizado"),
+        new("deactivated", "Desactivado"),
+    ];
+
     public FilterOption SelectedSerialStatus
     {
         get => selectedSerialStatus;
@@ -119,6 +143,12 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     {
         get => selectedMovementType;
         set => SetProperty(ref selectedMovementType, value);
+    }
+
+    public FilterOption SelectedAuditAction
+    {
+        get => selectedAuditAction;
+        set => SetProperty(ref selectedAuditAction, value);
     }
 
     public WarehouseFilterOption SelectedSerialWarehouse
@@ -145,11 +175,21 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         set => SetProperty(ref movementStatusMessage, value);
     }
 
+    public string AuditStatusMessage
+    {
+        get => auditStatusMessage;
+        set => SetProperty(ref auditStatusMessage, value);
+    }
+
     public Brush SerialStatusBrush => isSerialStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
 
     public Brush MovementStatusBrush => isMovementStatusError
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
+    public Brush AuditStatusBrush => isAuditStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
 
@@ -160,6 +200,10 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     public bool CanGoPreviousMovements => movementPagination.HasPrevious;
 
     public bool CanGoNextMovements => movementPagination.HasNext;
+
+    public bool CanGoPreviousAudits => auditPagination.HasPrevious;
+
+    public bool CanGoNextAudits => auditPagination.HasNext;
 
     private async void DetailTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -176,6 +220,10 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         else if (header == "Movimientos" && !movementsLoaded)
         {
             await LoadMovementsAsync(1);
+        }
+        else if (header == "Auditoría" && !auditsLoaded)
+        {
+            await LoadAuditsAsync(1);
         }
     }
 
@@ -236,6 +284,34 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         if (movementPagination.HasNext)
         {
             await LoadMovementsAsync(movementPagination.Page + 1);
+        }
+    }
+
+    private async void SearchAudits_Click(object sender, RoutedEventArgs e)
+    {
+        await LoadAuditsAsync(1);
+    }
+
+    private async void ClearAudits_Click(object sender, RoutedEventArgs e)
+    {
+        AuditSearchBox.Text = "";
+        SelectedAuditAction = AuditActionOptions.First(option => option.Value == "all");
+        await LoadAuditsAsync(1);
+    }
+
+    private async void PreviousAudits_Click(object sender, RoutedEventArgs e)
+    {
+        if (auditPagination.HasPrevious)
+        {
+            await LoadAuditsAsync(auditPagination.Page - 1);
+        }
+    }
+
+    private async void NextAudits_Click(object sender, RoutedEventArgs e)
+    {
+        if (auditPagination.HasNext)
+        {
+            await LoadAuditsAsync(auditPagination.Page + 1);
         }
     }
 
@@ -300,10 +376,13 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         await RefreshDetailAsync();
         serialsLoaded = false;
         movementsLoaded = false;
+        auditsLoaded = false;
         SerialRows.Clear();
         MovementRows.Clear();
+        AuditRows.Clear();
         SerialStatusMessage = "Seriales pendientes por recargar.";
         MovementStatusMessage = "Movimientos pendientes por recargar.";
+        AuditStatusMessage = "Auditoría pendiente por recargar.";
         ProductChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -422,6 +501,49 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         }
     }
 
+    private async Task LoadAuditsAsync(int page)
+    {
+        isAuditStatusError = false;
+        RaisePropertyChanged(nameof(AuditStatusBrush));
+        AuditStatusMessage = "Cargando auditoría...";
+
+        try
+        {
+            string query = BuildQuery([
+                ("search", AuditSearchBox.Text),
+                ("action", SelectedAuditAction.Value),
+                ("limit", "24"),
+                ("page", page.ToString()),
+            ]);
+
+            InventoryProductAuditsPageResponse response = await apiClient.GetAsync<InventoryProductAuditsPageResponse>(
+                $"inventory-center/products/{detail.Product.Id}/audits{query}");
+
+            AuditRows.Clear();
+            foreach (InventoryProductAudit audit in response.Data.Data)
+            {
+                AuditRows.Add(audit);
+            }
+
+            auditPagination = response.Data.Pagination;
+            auditsLoaded = true;
+            AuditStatusMessage = PaginationMessage(auditPagination, "registros de auditoría");
+            RaiseAuditPaginationChanged();
+        }
+        catch (ApiException exception)
+        {
+            SetAuditError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetAuditError("No se pudo conectar con la API para cargar auditoría.");
+        }
+        catch (TaskCanceledException)
+        {
+            SetAuditError("La carga de auditoría tardó demasiado. Intenta nuevamente.");
+        }
+    }
+
     private static string BuildQuery(IEnumerable<(string Key, string? Value)> values)
     {
         List<string> parts = values
@@ -455,6 +577,15 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         MovementStatusMessage = message;
         movementPagination = new InventoryPagination(1, 24, 0, 1, 0, 0, false, false);
         RaiseMovementPaginationChanged();
+    }
+
+    private void SetAuditError(string message)
+    {
+        isAuditStatusError = true;
+        RaisePropertyChanged(nameof(AuditStatusBrush));
+        AuditStatusMessage = message;
+        auditPagination = new InventoryPagination(1, 24, 0, 1, 0, 0, false, false);
+        RaiseAuditPaginationChanged();
     }
 
     private bool ValidateMovementDates()
@@ -507,6 +638,12 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
     {
         RaisePropertyChanged(nameof(CanGoPreviousMovements));
         RaisePropertyChanged(nameof(CanGoNextMovements));
+    }
+
+    private void RaiseAuditPaginationChanged()
+    {
+        RaisePropertyChanged(nameof(CanGoPreviousAudits));
+        RaisePropertyChanged(nameof(CanGoNextAudits));
     }
 
     private static void ShowOpenError(string actionName, Exception exception)
