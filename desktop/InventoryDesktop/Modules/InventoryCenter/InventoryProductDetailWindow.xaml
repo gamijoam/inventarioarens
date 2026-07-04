@@ -173,9 +173,7 @@
                 <Grid Margin="0,14,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="1.25*" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="0.8*" />
+                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
@@ -328,6 +326,7 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="Copiar base a vacíos" Width="150" Height="36" FontWeight="Black" Click="CopyBasePrices_Click" />
                                 <Button Content="Recargar" Width="96" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="ReloadPrices_Click" />
+                                <Button Content="Ver historial" Width="112" Height="36" Margin="8,0,0,0" FontWeight="Black" Click="OpenPriceHistory_Click" />
                                 <Button Content="Guardar precios" Width="132" Height="36" Margin="8,0,0,0" FontWeight="Black" Background="{StaticResource AccentBrush}" Foreground="White" Click="SavePrices_Click" />
                             </StackPanel>
                         </Grid>
@@ -399,35 +398,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Border Grid.Row="2" Style="{StaticResource PanelStyle}" Padding="12" Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Historial reciente de precios" FontWeight="Black" FontSize="15" />
-                            <TextBlock Text="Muestra cambios manuales y masivos de precios por lista."
-                                       Foreground="{StaticResource MutedBrush}"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <DataGrid Grid.Row="3"
-                              ItemsSource="{Binding ProductPriceHistoryRows}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              IsReadOnly="True"
-                              Margin="0,8,0,0"
-                              HeadersVisibility="Column"
-                              GridLinesVisibility="Horizontal">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="FECHA" Binding="{Binding DateLabel}" Width="1.25*" />
-                            <DataGridTextColumn Header="LISTA" Binding="{Binding ListLabel}" Width="1.45*" />
-                            <DataGridTextColumn Header="ANTES" Binding="{Binding BeforeLabel}" Width="1.15*" />
-                            <DataGridTextColumn Header="DESPUÉS" Binding="{Binding AfterLabel}" Width="1.15*" />
-                            <DataGridTextColumn Header="USUARIO" Binding="{Binding UserLabel}" Width="1.2*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-                    <TextBlock Grid.Row="4" Text="{Binding PriceStatusMessage}" Foreground="{Binding PriceStatusBrush}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,12,0,0" />
+                    <TextBlock Grid.Row="2" Text="{Binding PriceStatusMessage}" Foreground="{Binding PriceStatusBrush}" FontWeight="Bold" TextWrapping="Wrap" Margin="0,12,0,0" />
                 </Grid>
             </TabItem>
 

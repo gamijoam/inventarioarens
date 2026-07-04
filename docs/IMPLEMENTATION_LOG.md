@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-04 - Historial de precios en ventana independiente
+
+### Implementado
+
+- Se retiró el historial embebido de la parte inferior de la pestaña `Precios`.
+- Se agregó el botón `Ver historial` en la cabecera de la pestaña `Precios`.
+- Se creó la ventana WPF `Historial de precios` para mostrar fecha, lista, precio anterior, precio nuevo y usuario.
+- La ventana permite recargar el historial y muestra errores en español si falla la API.
+- La pestaña `Precios` vuelve a priorizar la edición de precios sin ocupar espacio con historial.
+- Se actualizó el README del módulo en español.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se modificó backend ni reglas de negocio.
+- El historial sigue consultando `GET /api/products/{product}/price-history`.
+
 ## 2026-07-04 - Historial de precios por producto
 
 ### Implementado
