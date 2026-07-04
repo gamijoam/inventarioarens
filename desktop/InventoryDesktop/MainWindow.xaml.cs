@@ -6,40 +6,29 @@ namespace InventoryDesktop;
 
 public partial class MainWindow : Window
 {
-    private readonly LoginViewModel viewModel = new();
+    private readonly LoginView loginView = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = viewModel;
-        viewModel.LoginSucceeded += LoginSucceeded;
-    }
-
-    private async void Login_Click(object sender, RoutedEventArgs e)
-    {
-        await viewModel.LoginAsync(PasswordInput.Password);
+        AppContent.Content = loginView;
+        loginView.LoginSucceeded += LoginSucceeded;
     }
 
     private void LoginSucceeded(object? sender, DesktopSession session)
     {
         try
         {
-            Hide();
-
-            ShellWindow shell = new(session);
-            Application.Current.MainWindow = shell;
-            shell.Closed += (_, _) => Application.Current.Shutdown();
-            shell.Show();
-            shell.Activate();
+            Width = 1360;
+            Height = 820;
+            MinWidth = 1120;
+            MinHeight = 720;
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            AppContent.Content = new ShellView(session);
         }
         catch (Exception exception)
         {
-            Show();
-            MessageBox.Show(
-                $"No se pudo abrir el panel principal.\n\n{exception.Message}",
-                "Sistema de Inventario",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            loginView.ShowError($"No se pudo abrir el panel principal. {exception.Message}");
         }
     }
 }

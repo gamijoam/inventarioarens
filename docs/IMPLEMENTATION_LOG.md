@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-07-03 - Migracion WPF a ventana unica
+
+### Implementado
+
+- Se convirtio `MainWindow` en el contenedor unico de la aplicacion WPF.
+- Se separo el login en `LoginView`, reutilizando el flujo de autenticacion existente.
+- Se convirtio el contenido del antiguo `ShellWindow` en `ShellView`.
+- Al iniciar sesion correctamente ya no se abre una segunda ventana, no se oculta el login y no se cierra `MainWindow`.
+- La misma ventana reemplaza su contenido interno de `LoginView` a `ShellView`.
+- Se eliminaron `ShellWindow.xaml` y `ShellWindow.xaml.cs` para evitar ciclos de vida duplicados.
+- El panel principal conserva el Centro de Inventario conectado a datos reales.
+- Se actualizo `desktop/InventoryDesktop/README.md` para documentar `MainWindow`, `LoginView` y `ShellView`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 15 pruebas pasadas, 94 aserciones.
+
 ## 2026-07-03 - Auditoria del flujo login WPF a shell
 
 ### Implementado

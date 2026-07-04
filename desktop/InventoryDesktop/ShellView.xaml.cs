@@ -1,14 +1,14 @@
-using System.Windows;
+using System.Windows.Controls;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.InventoryCenter;
 
 namespace InventoryDesktop;
 
-public partial class ShellWindow : Window
+public partial class ShellView : UserControl
 {
     private readonly InventoryCenterViewModel inventoryCenterViewModel;
 
-    public ShellWindow(DesktopSession session)
+    public ShellView(DesktopSession session)
     {
         InitializeComponent();
         DataContext = session;
