@@ -43,7 +43,32 @@ public partial class PosView : UserControl
             return;
         }
 
+        if (card.Product.TrackingType == "serialized")
+        {
+            PosSerialSelectionWindow dialog = new(card, ViewModel)
+            {
+                Owner = Window.GetWindow(this),
+            };
+
+            bool? result = dialog.ShowDialog();
+            if (result != true || dialog.SelectedSerial is null)
+            {
+                return;
+            }
+
+            await ViewModel.AddProductAsync(card, dialog.SelectedSerial);
+            return;
+        }
+
         await ViewModel.AddProductAsync(card);
+    }
+
+    private async void ReloadContext_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            await ViewModel.LoadOperationalContextAsync();
+        }
     }
 
     private void IncreaseItem_Click(object sender, RoutedEventArgs e)

@@ -169,6 +169,7 @@ public sealed record InventoryProductSerial(
     [property: JsonPropertyName("serial_type")] string SerialType,
     [property: JsonPropertyName("serial_number")] string SerialNumber,
     [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
     [property: JsonPropertyName("warehouse_name")] string? WarehouseName)
 {
     public string StatusLabel => Status switch

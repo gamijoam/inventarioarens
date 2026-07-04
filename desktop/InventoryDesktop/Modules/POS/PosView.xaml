@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Background="#F6F8FC">
         <Grid.RowDefinitions>
-            <RowDefinition Height="78" />
+            <RowDefinition Height="118" />
             <RowDefinition Height="*" />
             <RowDefinition Height="48" />
         </Grid.RowDefinitions>
@@ -14,6 +14,10 @@
 
         <Border Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
             <Grid Margin="20,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="76" />
+                    <RowDefinition Height="40" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -57,6 +61,33 @@
                         Background="{StaticResource AccentBrush}"
                         Foreground="White"
                         Click="Search_Click" />
+
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" VerticalAlignment="Top">
+                    <TextBlock Text="Almacén" FontWeight="Black" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding Warehouses}"
+                              SelectedItem="{Binding SelectedWarehouse}"
+                              DisplayMemberPath="WarehouseLabel"
+                              Width="260"
+                              Height="30"
+                              Margin="0,0,16,0" />
+                    <TextBlock Text="Caja" FontWeight="Black" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding CashRegisterSessions}"
+                              SelectedItem="{Binding SelectedCashRegisterSession}"
+                              DisplayMemberPath="DisplayLabel"
+                              Width="210"
+                              Height="30"
+                              Margin="0,0,16,0" />
+                    <Button Content="Recargar contexto"
+                            Width="138"
+                            Height="30"
+                            FontWeight="Black"
+                            Click="ReloadContext_Click" />
+                    <TextBlock Text="{Binding OperationalContextLabel}"
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="16,0,0,0" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -200,6 +231,8 @@
                                         <StackPanel Grid.Row="1" Margin="0,5,0,0">
                                             <TextBlock Text="{Binding PriceListLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding UnitPriceLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding WarehouseLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding SerialLabel}" Foreground="#058561" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
                                         </StackPanel>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RateLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="8,5,0,0" />
 

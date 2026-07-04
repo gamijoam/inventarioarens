@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-04 - Contexto operativo e IMEI en POS
+
+### Implementado
+
+- Se agregó selector de almacén activo en la cabecera del POS de escritorio.
+- Se agregó selector de caja abierta consultando sesiones de caja existentes.
+- El POS ahora impide agregar productos si no hay almacén seleccionado.
+- Cada línea del carrito conserva el almacén de salida.
+- Se creó la ventana `Seleccionar IMEI/serial` para productos serializados.
+- La ventana consulta seriales disponibles filtrados por producto, estado disponible y almacén seleccionado.
+- El carrito evita repetir el mismo IMEI/serial dentro de la orden actual.
+- Las líneas con IMEI no permiten aumentar cantidad con `+`; otra unidad requiere escoger otro serial.
+- Se dejó preparado `product_unit_ids` en el item del carrito para el futuro checkout real.
+- Se actualizó el README del módulo POS en español.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter="serials|checkout"`.
+- Resultado: 10 pruebas pasaron, 89 assertions.
+
+### Notas de seguridad
+
+- No se modificó backend.
+- No se habilitó checkout ni pagos.
+- No se descuenta inventario.
+- El checkout real deberá revalidar caja, almacén, stock, seriales y precios en backend.
+
 ## 2026-07-04 - Optimización de cotizaciones en POS
 
 ### Implementado

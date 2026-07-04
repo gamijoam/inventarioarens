@@ -19,6 +19,8 @@ public sealed class PosViewModel : ViewModelBase
     private bool isStatusError;
     private bool isBusy;
     private PriceListOption? selectedPriceList;
+    private InventoryWarehouseOption? selectedWarehouse;
+    private PosCashRegisterSession? selectedCashRegisterSession;
     private CancellationTokenSource? quoteWarmupCancellation;
 
     public PosViewModel(ApiClient apiClient)
@@ -31,6 +33,10 @@ public sealed class PosViewModel : ViewModelBase
     public ObservableCollection<PosProductCard> Products { get; } = new();
 
     public ObservableCollection<PosCartItem> CartItems { get; } = new();
+
+    public ObservableCollection<InventoryWarehouseOption> Warehouses { get; } = new();
+
+    public ObservableCollection<PosCashRegisterSession> CashRegisterSessions { get; } = new();
 
     public string SearchText
     {
@@ -55,6 +61,40 @@ public sealed class PosViewModel : ViewModelBase
     public string PriceListLabel => SelectedPriceList is null
         ? "Lista: predeterminada"
         : $"Lista: {SelectedPriceList.Name}";
+
+    public InventoryWarehouseOption? SelectedWarehouse
+    {
+        get => selectedWarehouse;
+        set
+        {
+            if (SetProperty(ref selectedWarehouse, value))
+            {
+                RaisePropertyChanged(nameof(OperationalContextLabel));
+            }
+        }
+    }
+
+    public PosCashRegisterSession? SelectedCashRegisterSession
+    {
+        get => selectedCashRegisterSession;
+        set
+        {
+            if (SetProperty(ref selectedCashRegisterSession, value))
+            {
+                RaisePropertyChanged(nameof(OperationalContextLabel));
+            }
+        }
+    }
+
+    public string OperationalContextLabel
+    {
+        get
+        {
+            string warehouse = SelectedWarehouse?.WarehouseLabel ?? "Sin almacén";
+            string cashRegister = SelectedCashRegisterSession?.DisplayLabel ?? "Sin caja abierta";
+            return $"{warehouse} · {cashRegister}";
+        }
+    }
 
     public string StatusMessage
     {
@@ -101,7 +141,14 @@ public sealed class PosViewModel : ViewModelBase
     public async Task InitializeAsync()
     {
         await LoadPriceListsAsync();
+        await LoadOperationalContextAsync();
         await SearchAsync();
+    }
+
+    public async Task LoadOperationalContextAsync()
+    {
+        await LoadWarehousesAsync();
+        await LoadCashRegisterSessionsAsync();
     }
 
     public async Task LoadPriceListsAsync()
@@ -124,6 +171,63 @@ public sealed class PosViewModel : ViewModelBase
         catch (HttpRequestException)
         {
             SetError("No se pudo conectar con la API para cargar listas de precio.");
+        }
+    }
+
+    public async Task LoadWarehousesAsync()
+    {
+        try
+        {
+            WarehouseListResponse response = await apiClient.GetAsync<WarehouseListResponse>("warehouses");
+            long? selectedId = SelectedWarehouse?.Id;
+            List<InventoryWarehouseOption> activeWarehouses = response.Data
+                .Where(warehouse => warehouse.Status is null || warehouse.Status == "active")
+                .ToList();
+
+            Warehouses.Clear();
+            foreach (InventoryWarehouseOption warehouse in activeWarehouses)
+            {
+                Warehouses.Add(warehouse);
+            }
+
+            SelectedWarehouse = Warehouses.FirstOrDefault(warehouse => warehouse.Id == selectedId) ?? Warehouses.FirstOrDefault();
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar almacenes.");
+        }
+    }
+
+    public async Task LoadCashRegisterSessionsAsync()
+    {
+        try
+        {
+            PosCashRegisterSessionListResponse response = await apiClient.GetAsync<PosCashRegisterSessionListResponse>("cash-register/sessions");
+            long? selectedId = SelectedCashRegisterSession?.Id;
+            List<PosCashRegisterSession> openSessions = response.Data
+                .Where(session => session.Status == "open")
+                .ToList();
+
+            CashRegisterSessions.Clear();
+            foreach (PosCashRegisterSession session in openSessions)
+            {
+                CashRegisterSessions.Add(session);
+            }
+
+            SelectedCashRegisterSession = CashRegisterSessions.FirstOrDefault(session => session.Id == selectedId)
+                ?? CashRegisterSessions.FirstOrDefault();
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar cajas abiertas.");
         }
     }
 
@@ -168,17 +272,50 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    public async Task AddProductAsync(PosProductCard card)
+    public async Task<IReadOnlyList<InventoryProductSerial>> LoadAvailableSerialsAsync(long productId, string search = "")
     {
+        if (SelectedWarehouse is null)
+        {
+            SetError("Selecciona un almacén antes de buscar IMEI/seriales.");
+            return [];
+        }
+
+        string query = BuildQuery([
+            ("status", "available"),
+            ("warehouse_id", SelectedWarehouse.Id.ToString(CultureInfo.InvariantCulture)),
+            ("search", search),
+            ("limit", "100"),
+        ]);
+
+        InventoryProductSerialsPageResponse response = await apiClient.GetAsync<InventoryProductSerialsPageResponse>(
+            $"inventory-center/products/{productId}/serials{query}");
+
+        return response.Data.Data;
+    }
+
+    public async Task AddProductAsync(PosProductCard card, InventoryProductSerial? selectedSerial = null)
+    {
+        if (SelectedWarehouse is null)
+        {
+            SetError("Selecciona un almacén antes de agregar productos.");
+            return;
+        }
+
         if (card.Product.Stock.Available <= 0)
         {
             SetError("No se puede agregar un producto sin stock disponible.");
             return;
         }
 
-        if (card.Product.TrackingType == "serialized")
+        if (card.Product.TrackingType == "serialized" && selectedSerial is null)
         {
-            SetError("Este producto requiere seleccionar IMEI/serial. Esa selección se integrará en la siguiente fase del POS.");
+            SetError("Este producto requiere seleccionar un IMEI/serial disponible.");
+            return;
+        }
+
+        if (selectedSerial is not null && CartItems.Any(item => item.ProductUnitIds.Contains(selectedSerial.Id)))
+        {
+            SetError("Ese IMEI/serial ya está en la orden actual.");
             return;
         }
 
@@ -193,10 +330,14 @@ public sealed class PosViewModel : ViewModelBase
 
             PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
 
-            PosCartItem? existing = CartItems.FirstOrDefault(item =>
-                item.ProductId == card.Product.Id
-                && item.PriceListId == quote.PriceListId
-                && item.UnitPriceUsd == quote.PriceUsd);
+            PosCartItem? existing = selectedSerial is null
+                ? CartItems.FirstOrDefault(item =>
+                    item.ProductId == card.Product.Id
+                    && item.PriceListId == quote.PriceListId
+                    && item.UnitPriceUsd == quote.PriceUsd
+                    && item.WarehouseId == SelectedWarehouse.Id
+                    && item.ProductUnitIds.Count == 0)
+                : null;
 
             if (existing is not null)
             {
@@ -204,7 +345,7 @@ public sealed class PosViewModel : ViewModelBase
             }
             else
             {
-                PosCartItem item = new(card.Product, quote);
+                PosCartItem item = new(card.Product, quote, SelectedWarehouse, selectedSerial);
                 item.Changed += (_, _) => RaiseTotalsChanged();
                 CartItems.Add(item);
             }
@@ -244,6 +385,13 @@ public sealed class PosViewModel : ViewModelBase
 
     public void Increase(PosCartItem item)
     {
+        if (item.ProductUnitIds.Count > 0)
+        {
+            StatusMessage = "Para productos con IMEI agrega otra unidad seleccionando otro serial.";
+            IsStatusError = false;
+            return;
+        }
+
         item.Increase();
         RaiseTotalsChanged();
     }
@@ -440,11 +588,17 @@ public sealed class PosCartItem : ViewModelBase
 {
     private decimal quantity = 1;
 
-    public PosCartItem(InventoryProductItem product, PosPriceQuote quote)
+    public PosCartItem(
+        InventoryProductItem product,
+        PosPriceQuote quote,
+        InventoryWarehouseOption warehouse,
+        InventoryProductSerial? serial)
     {
         ProductId = product.Id;
         Name = product.Name;
         Sku = product.Sku;
+        WarehouseId = warehouse.Id;
+        WarehouseLabel = warehouse.WarehouseLabel;
         PriceListId = quote.PriceListId;
         PriceListLabel = quote.PriceListLabel;
         UnitPriceUsd = quote.PriceUsd;
@@ -452,6 +606,9 @@ public sealed class PosCartItem : ViewModelBase
         SaleCurrency = quote.SaleCurrency;
         SalePrice = quote.SalePrice;
         RateLabel = quote.RateLabel;
+        ProductUnitIds = serial is null ? [] : [serial.Id];
+        SerialLabel = serial is null ? "Por cantidad" : $"IMEI/serial: {serial.SerialNumber}";
+        quantity = serial is null ? 1 : ProductUnitIds.Count;
     }
 
     public event EventHandler? Changed;
@@ -461,6 +618,10 @@ public sealed class PosCartItem : ViewModelBase
     public string Name { get; }
 
     public string Sku { get; }
+
+    public long WarehouseId { get; }
+
+    public string WarehouseLabel { get; }
 
     public long? PriceListId { get; }
 
@@ -475,6 +636,10 @@ public sealed class PosCartItem : ViewModelBase
     public decimal SalePrice { get; }
 
     public string RateLabel { get; }
+
+    public IReadOnlyList<long> ProductUnitIds { get; }
+
+    public string SerialLabel { get; }
 
     public decimal Quantity
     {

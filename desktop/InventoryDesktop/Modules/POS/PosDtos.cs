@@ -2,6 +2,21 @@ using System.Text.Json.Serialization;
 
 namespace InventoryDesktop.Modules.POS;
 
+public sealed record PosCashRegisterSessionListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<PosCashRegisterSession> Data);
+
+public sealed record PosCashRegisterSession(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("cashier_id")] long? CashierId,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("opened_at")] string? OpenedAt)
+{
+    public string StatusLabel => Status == "open" ? "Abierta" : Status;
+
+    public string DisplayLabel => $"Caja #{Id} - {StatusLabel}";
+}
+
 public sealed record PosPriceQuoteResponse(
     [property: JsonPropertyName("data")] PosPriceQuote Data);
 

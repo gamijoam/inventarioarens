@@ -20,6 +20,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - No tiene menú lateral interno del POS.
 - La búsqueda, lista de precio y botón `Buscar` viven en la barra superior.
+- El contexto operativo del POS permite seleccionar almacén y caja abierta.
 - El catálogo ocupa la mayor parte de la pantalla.
 - Las tarjetas son compactas para permitir más columnas visibles.
 - El carrito queda a la derecha con ancho reducido.
@@ -33,17 +34,37 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.
 - La caché es solo de la pantalla actual; el checkout real deberá volver a validar precios en backend.
 
+## Contexto operativo
+
+- El POS carga almacenes activos desde `GET /api/warehouses`.
+- El POS carga cajas abiertas desde `GET /api/cash-register/sessions`.
+- Cada línea agregada al carrito conserva el almacén seleccionado.
+- Si no hay almacén seleccionado, no se permite agregar productos.
+- La caja abierta se muestra desde esta fase para preparar el futuro checkout, aunque el botón de pago sigue deshabilitado.
+
+## Productos serializados / IMEI
+
+- Los productos serializados ya no se bloquean de forma genérica.
+- Al seleccionar un producto serializado, se abre la ventana `Seleccionar IMEI/serial`.
+- La ventana consulta `GET /api/inventory-center/products/{product}/serials?status=available&warehouse_id={warehouse_id}`.
+- El carrito evita repetir el mismo IMEI/serial en la orden actual.
+- Las líneas con IMEI no permiten aumentar cantidad con el botón `+`; para otra unidad se debe elegir otro serial.
+- El item del carrito conserva `product_unit_ids` para el futuro checkout real.
+
 ## APIs usadas
 
 - `GET /api/inventory-center/summary`: búsqueda de productos con stock.
 - `GET /api/price-lists?active_only=1`: listas de precio disponibles.
 - `GET /api/products/{product}/price?price_list_id={id}`: cotización del producto según lista.
+- `GET /api/warehouses`: almacenes disponibles.
+- `GET /api/cash-register/sessions`: sesiones de caja abiertas.
+- `GET /api/inventory-center/products/{product}/serials`: seriales/IMEI disponibles por producto y almacén.
 
 ## Reglas actuales
 
 - El POS de escritorio no se conecta directo a PostgreSQL.
 - Si un producto no tiene stock disponible, no se agrega al carrito.
-- Si el producto es serializado/IMEI, se bloquea el agregado directo hasta integrar selección de seriales.
+- Si el producto es serializado/IMEI, se exige seleccionar un serial disponible del almacén activo.
 - Si se elige una lista de precio y el producto no tiene precio activo para esa lista, la API rechaza la cotización y la app muestra el error.
 - Esta fase no crea ventas, no descuenta inventario, no registra pagos y no toca caja.
 - El botón `Volver al panel` regresa al panel administrativo sin cerrar sesión.
