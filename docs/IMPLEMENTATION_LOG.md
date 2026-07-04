@@ -1,5 +1,20 @@
 # Registro de implementación
 
+## 2026-07-04 - Tolerancia a auditoria faltante en detalle de inventario
+
+### Implementado
+
+- Se corrigió `InventoryCenterProductDetailService` para que el detalle de producto no falle si la base real aún no tiene la tabla `product_audits`.
+- Cuando la tabla de auditoría no existe, el endpoint devuelve `recent_audits` vacío y mantiene el resto del detalle operativo.
+- Esto permite abrir la ventana independiente de detalle aunque falte ejecutar la migración de auditoría en una base existente.
+- Se agregó prueba específica para el caso de `product_audits` ausente.
+- Se actualizó `desktop/InventoryDesktop/Modules/InventoryCenter/README.md`.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 8 pruebas pasadas, 60 aserciones.
+
 ## 2026-07-04 - Ventana independiente de detalle en Centro de Inventario WPF
 
 ### Implementado

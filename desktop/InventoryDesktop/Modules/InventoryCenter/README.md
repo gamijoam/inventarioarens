@@ -26,6 +26,7 @@ Este módulo será la primera pantalla operativa después del login.
 - Acceso al detalle por botón `Ver` o doble clic sobre una fila.
 - El detalle muestra información general, stock total, stock por almacén, seriales/IMEI, movimientos recientes y auditoría reciente.
 - El listado principal mantiene todo su espacio; el detalle se abre aparte para no reducir el área de trabajo.
+- Si la base real aún no tiene `product_audits`, el detalle abre igual y muestra auditoría vacía.
 
 ## Regla de conexión
 

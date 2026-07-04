@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class InventoryCenterSummaryApiTest extends TestCase
@@ -200,6 +201,31 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.recent_audits.0.action', ProductAudit::ACTION_UPDATED)
             ->assertJsonPath('data.recent_audits.0.created_by_name', $user->name)
             ->assertJsonPath('data.recent_audits.0.changes.after.base_price', 120);
+    }
+
+    public function test_inventory_center_product_detail_works_without_product_audits_table(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $product = Product::create([
+            'name' => 'Producto sin auditoria',
+            'sku' => 'NO-AUDIT-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        Schema::dropIfExists('product_audits');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.name', 'Producto sin auditoria')
+            ->assertJsonPath('data.recent_audits', []);
     }
 
     public function test_inventory_center_does_not_mix_companies(): void

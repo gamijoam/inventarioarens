@@ -7,6 +7,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use Illuminate\Support\Facades\Schema;
 
 class InventoryCenterProductDetailService
 {
@@ -150,6 +151,10 @@ class InventoryCenterProductDetailService
 
     private function recentAudits(Product $product): array
     {
+        if (! Schema::hasTable('product_audits')) {
+            return [];
+        }
+
         return ProductAudit::query()
             ->where('product_id', $product->id)
             ->with('creator')
