@@ -23,6 +23,11 @@ public partial class ShellView : UserControl
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
         PosContent.DataContext = posViewModel;
+        PosContent.ExitRequested += async (_, _) =>
+        {
+            ShowInventoryCenter();
+            await inventoryCenterViewModel.LoadAsync();
+        };
         PriceListsContent.Configure(session.ApiClient);
         Loaded += async (_, _) => await inventoryCenterViewModel.LoadAsync();
     }

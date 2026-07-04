@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-04 - POS en pantalla completa
+
+### Implementado
+
+- Se rediseñó `PosView` para ocupar toda la ventana de trabajo.
+- El POS ahora se muestra como capa completa sobre el shell, sin sidebar ni cabecera administrativa.
+- Se agregó una barra lateral mínima propia del POS con botón `Salir`.
+- El catálogo de productos usa más espacio horizontal y tarjetas más estables.
+- El carrito permanece fijo a la derecha con totales visibles.
+- Se actualizó el README del módulo POS en español.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- No se modificó backend.
+- No se habilitó checkout ni pagos.
+- No se descuenta inventario.
+
 ## 2026-07-04 - Base visual y operativa del POS en WPF
 
 ### Implementado

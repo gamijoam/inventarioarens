@@ -71,8 +71,9 @@
                 <inventory:InventoryCenterView x:Name="InventoryCenterContent" />
                 <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
                 <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
-                <pos:PosView x:Name="PosContent" Visibility="Collapsed" />
             </Grid>
         </Grid>
+
+        <pos:PosView x:Name="PosContent" Grid.ColumnSpan="2" Visibility="Collapsed" />
     </Grid>
 </UserControl>

@@ -11,7 +11,14 @@ public partial class PosView : UserControl
         InitializeComponent();
     }
 
+    public event EventHandler? ExitRequested;
+
     private PosViewModel? ViewModel => DataContext as PosViewModel;
+
+    private void Exit_Click(object sender, RoutedEventArgs e)
+    {
+        ExitRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private async void Search_Click(object sender, RoutedEventArgs e)
     {

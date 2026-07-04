@@ -9,6 +9,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cotizar el producto con `GET /api/products/{product}/price`.
 - Agregar productos por cantidad a un carrito local.
 - Mostrar total en `USD` y equivalente en `VES` cuando la API devuelve tasa.
+- Usar una pantalla completa propia para POS, sin quedar limitado por el sidebar del panel administrativo.
 - Mantener el botón de pago deshabilitado hasta implementar checkout, caja y métodos de pago.
 
 ## APIs usadas
@@ -24,6 +25,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si el producto es serializado/IMEI, se bloquea el agregado directo hasta integrar selección de seriales.
 - Si se elige una lista de precio y el producto no tiene precio activo para esa lista, la API rechaza la cotización y la app muestra el error.
 - Esta fase no crea ventas, no descuenta inventario, no registra pagos y no toca caja.
+- El botón `Salir` vuelve al panel administrativo sin cerrar sesión.
 
 ## Siguiente fase natural
 
