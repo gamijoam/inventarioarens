@@ -18,6 +18,10 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
     private string statusMessage = "Completa los datos de la salida.";
     private bool isStatusError;
     private bool isBusy;
+    private string serialSelectionSummary = "0 seleccionados de 1 requerido.";
+    private bool isSerialSelectionReady;
+    private bool isUpdatingSerialSelection;
+    private readonly HashSet<long> selectedSerialIds = new();
 
     public InventoryProductExitWindow(InventoryProductDetailData detail, ApiClient apiClient)
     {
@@ -34,6 +38,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
         foreach (InventoryProductSerial serial in detail.Serials.Items.Where(serial => serial.Status == "available"))
         {
             AvailableSerials.Add(serial);
+            FilteredSerials.Add(serial);
         }
 
         SelectedWarehouse = Warehouses.FirstOrDefault();
@@ -41,6 +46,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
         InitializeComponent();
         DataContext = this;
         SerialsPanel.Visibility = detail.Product.TrackingType == "serialized" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshSerialSelectionSummary();
         Loaded += async (_, _) => await LoadWarehousesAsync();
     }
 
@@ -53,6 +59,8 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
     public ObservableCollection<InventoryWarehouseOption> Warehouses { get; } = new();
 
     public ObservableCollection<InventoryProductSerial> AvailableSerials { get; } = new();
+
+    public ObservableCollection<InventoryProductSerial> FilteredSerials { get; } = new();
 
     public IReadOnlyList<ProductExitReasonOption> Reasons { get; } =
     [
@@ -85,6 +93,16 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
     public Brush StatusBrush => IsStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
         : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
+    public string SerialSelectionSummary
+    {
+        get => serialSelectionSummary;
+        set => SetProperty(ref serialSelectionSummary, value);
+    }
+
+    public Brush SerialSelectionBrush => isSerialSelectionReady
+        ? new SolidColorBrush(Color.FromRgb(5, 133, 97))
+        : new SolidColorBrush(Color.FromRgb(217, 54, 92));
 
     public bool IsStatusError
     {
@@ -148,6 +166,47 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
         Close();
     }
 
+    private void QuantityBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        RefreshSerialSelectionSummary();
+    }
+
+    private void SerialSearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        ApplySerialFilter();
+    }
+
+    private void SerialsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!isUpdatingSerialSelection)
+        {
+            foreach (InventoryProductSerial serial in e.AddedItems.OfType<InventoryProductSerial>())
+            {
+                selectedSerialIds.Add(serial.Id);
+            }
+
+            foreach (InventoryProductSerial serial in e.RemovedItems.OfType<InventoryProductSerial>())
+            {
+                selectedSerialIds.Remove(serial.Id);
+            }
+
+            RefreshSerialSelectionSummary();
+        }
+    }
+
+    private void ClearSerialSelection_Click(object sender, RoutedEventArgs e)
+    {
+        selectedSerialIds.Clear();
+        SerialsList.SelectedItems.Clear();
+        RefreshSerialSelectionSummary();
+    }
+
+    private void UseSelectedCount_Click(object sender, RoutedEventArgs e)
+    {
+        QuantityBox.Text = SelectedSerials().Count.ToString(CultureInfo.CurrentCulture);
+        RefreshSerialSelectionSummary();
+    }
+
     private bool TryBuildRequest(out ProductExitStoreRequest? request)
     {
         request = null;
@@ -170,8 +229,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
                 return Fail("La cantidad de un producto serializado debe ser un número entero.");
             }
 
-            List<long> selectedIds = SerialsList.SelectedItems
-                .OfType<InventoryProductSerial>()
+            List<long> selectedIds = SelectedSerials()
                 .Select(serial => serial.Id)
                 .ToList();
 
@@ -230,6 +288,80 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
                 IsStatusError = true;
             }
         }
+    }
+
+    private void ApplySerialFilter()
+    {
+        string filter = SerialSearchBox?.Text?.Trim() ?? string.Empty;
+
+        isUpdatingSerialSelection = true;
+        try
+        {
+            FilteredSerials.Clear();
+            foreach (InventoryProductSerial serial in AvailableSerials.Where(serial => MatchesSerialFilter(serial, filter)))
+            {
+                FilteredSerials.Add(serial);
+            }
+
+            SerialsList.SelectedItems.Clear();
+            foreach (InventoryProductSerial serial in FilteredSerials.Where(serial => selectedSerialIds.Contains(serial.Id)))
+            {
+                SerialsList.SelectedItems.Add(serial);
+            }
+        }
+        finally
+        {
+            isUpdatingSerialSelection = false;
+        }
+
+        RefreshSerialSelectionSummary();
+    }
+
+    private static bool MatchesSerialFilter(InventoryProductSerial serial, string filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return true;
+        }
+
+        return Contains(serial.SerialNumber, filter)
+            || Contains(serial.WarehouseLabel, filter)
+            || Contains(serial.StatusLabel, filter);
+    }
+
+    private static bool Contains(string value, string filter)
+    {
+        return value.Contains(filter, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private IReadOnlyList<InventoryProductSerial> SelectedSerials()
+    {
+        return AvailableSerials
+            .Where(serial => selectedSerialIds.Contains(serial.Id))
+            .ToList();
+    }
+
+    private void RefreshSerialSelectionSummary()
+    {
+        if (detail.Product.TrackingType != "serialized")
+        {
+            return;
+        }
+
+        int selectedCount = SelectedSerials().Count;
+        if (!TryReadDecimal(QuantityBox?.Text ?? string.Empty, out decimal quantity) || quantity <= 0 || quantity != decimal.Truncate(quantity))
+        {
+            isSerialSelectionReady = false;
+            SerialSelectionSummary = $"{selectedCount} seleccionados. Ingresa una cantidad entera.";
+            RaisePropertyChanged(nameof(SerialSelectionBrush));
+            return;
+        }
+
+        int requiredCount = (int) quantity;
+        isSerialSelectionReady = selectedCount == requiredCount;
+        string requiredText = requiredCount == 1 ? "requerido" : "requeridos";
+        SerialSelectionSummary = $"{selectedCount} seleccionados de {requiredCount} {requiredText}.";
+        RaisePropertyChanged(nameof(SerialSelectionBrush));
     }
 
     private bool Fail(string message)

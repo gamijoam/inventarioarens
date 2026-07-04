@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Mejora de selección IMEI en salidas WPF
+
+### Implementado
+
+- Se mejoró la ventana `Registrar salida` para productos serializados en la aplicación WPF.
+- Se agregó búsqueda de IMEI/serial por número, almacén o estado.
+- Se agregó contador visible de seriales seleccionados contra la cantidad requerida.
+- Se agregó botón para limpiar la selección de seriales.
+- Se agregó botón para usar la cantidad de seriales seleccionados como cantidad de salida.
+- Se conservó el bloqueo antes de guardar cuando la cantidad no coincide con los IMEI/seriales seleccionados.
+- Se mantuvieron mensajes visibles en español dentro de la ventana.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/ProductExits/ProductExitApiTest.php`.
+- Resultado: 7 pruebas pasaron, 33 assertions.
+
+### Notas de seguridad
+
+- La selección visual no reemplaza las reglas del backend: `POST /api/product-exits` sigue validando tenant, stock disponible y unidades serializadas antes de registrar la salida.
+
 ## 2026-07-04 - Entradas y salidas desde WPF
 
 ### Implementado

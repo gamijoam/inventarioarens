@@ -39,7 +39,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="Cantidad" FontWeight="Black" />
-                                <TextBox x:Name="QuantityBox" Height="38" Margin="0,6,0,14" Text="1" />
+                                <TextBox x:Name="QuantityBox" Height="38" Margin="0,6,0,14" Text="1" TextChanged="QuantityBox_TextChanged" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Text="Motivo" FontWeight="Black" />
@@ -54,14 +54,76 @@
                         <TextBox x:Name="NotesBox" Height="72" Margin="0,6,0,14" TextWrapping="Wrap" AcceptsReturn="True" />
 
                         <StackPanel x:Name="SerialsPanel">
-                            <TextBlock Text="IMEI / seriales disponibles" FontWeight="Black" />
-                            <TextBlock Text="Selecciona exactamente los IMEI/seriales que saldrán del inventario."
-                                       Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,6" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="IMEI / seriales disponibles" FontWeight="Black" />
+                                    <TextBlock Text="Busca y selecciona exactamente los IMEI/seriales que saldrán del inventario."
+                                               Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SerialSelectionSummary}"
+                                           Foreground="{Binding SerialSelectionBrush}"
+                                           FontWeight="Black"
+                                           VerticalAlignment="Bottom"
+                                           Margin="12,0,0,0" />
+                            </Grid>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="SerialSearchBox"
+                                         Height="38"
+                                         Margin="0,0,10,0"
+                                         TextChanged="SerialSearchBox_TextChanged"
+                                         ToolTip="Buscar por IMEI, almacén o estado" />
+                                <Button Grid.Column="1"
+                                        Content="Usar selección"
+                                        Width="116"
+                                        Height="38"
+                                        Margin="10,0,0,0"
+                                        FontWeight="Black"
+                                        Click="UseSelectedCount_Click" />
+                                <Button Grid.Column="2"
+                                        Content="Limpiar"
+                                        Width="86"
+                                        Height="38"
+                                        Margin="8,0,0,0"
+                                        FontWeight="Black"
+                                        Click="ClearSerialSelection_Click" />
+                            </Grid>
+
                             <ListBox x:Name="SerialsList"
-                                     ItemsSource="{Binding AvailableSerials}"
+                                     ItemsSource="{Binding FilteredSerials}"
                                      SelectionMode="Multiple"
-                                     DisplayMemberPath="SerialNumber"
-                                     Height="180" />
+                                     SelectionChanged="SerialsList_SelectionChanged"
+                                     Height="220">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="8" BorderBrush="#EAF0FA" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding SerialNumber}" FontWeight="Black" />
+                                                    <TextBlock Text="{Binding WarehouseLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Padding="8,4" Background="#EEF2FF" BorderBrush="#DDE5FF" BorderThickness="1" CornerRadius="7" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding StatusLabel}" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Black" />
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </StackPanel>
                     </StackPanel>
                 </Border>
