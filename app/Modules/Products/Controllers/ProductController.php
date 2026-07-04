@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
@@ -143,6 +144,10 @@ class ProductController extends Controller
 
     private function recordAudit(Product $product, string $action, array $before, array $after, ?int $userId): void
     {
+        if (! Schema::hasTable('product_audits')) {
+            return;
+        }
+
         ProductAudit::create([
             'product_id' => $product->id,
             'action' => $action,

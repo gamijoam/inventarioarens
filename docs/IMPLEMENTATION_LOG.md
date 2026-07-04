@@ -46,6 +46,25 @@
 
 - La pantalla no escribe directo en base de datos; delega las reglas de negocio, permisos y tenant al backend Laravel.
 
+## 2026-07-04 - Tolerancia a auditoría faltante al guardar productos
+
+### Implementado
+
+- Se corrigió el error al crear productos cuando la tabla `product_audits` no existe en la base real.
+- `ProductController::recordAudit()` ahora verifica `Schema::hasTable('product_audits')` antes de escribir auditoría.
+- Si la tabla falta, el producto se crea/edita/desactiva normalmente y se omite solo la auditoría.
+- Se agregó prueba específica que elimina `product_audits` y crea un producto por API.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 14 pruebas pasaron, 72 aserciones.
+
+### Notas de seguridad
+
+- Esto evita caída operativa en bases locales desactualizadas.
+- La auditoría seguirá guardándose automáticamente en bases que sí tengan la migración aplicada.
+
 ## 2026-07-04 - Crear y editar productos desde WPF
 
 ### Implementado

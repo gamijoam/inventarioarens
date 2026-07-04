@@ -14,6 +14,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -53,6 +54,33 @@ class ProductApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'action' => ProductAudit::ACTION_CREATED,
             'created_by' => $user->id,
+        ]);
+    }
+
+    public function test_user_can_create_product_when_product_audits_table_is_missing(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+        Schema::dropIfExists('product_audits');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto sin auditoria',
+                'sku' => 'SIN-AUDITORIA',
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => 100,
+                'sale_currency' => Product::CURRENCY_USD,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Producto sin auditoria')
+            ->assertJsonPath('data.sku', 'SIN-AUDITORIA');
+
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'sku' => 'SIN-AUDITORIA',
         ]);
     }
 
