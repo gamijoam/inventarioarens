@@ -19,7 +19,7 @@
                 </StackPanel>
 
                 <StackPanel Margin="16,132,16,0">
-                    <TextBlock Text="OPERACION" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
+                    <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
                     <Button Content="Resumen" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
                     <Button Content="Centro de Ventas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
                     <Button Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
@@ -29,8 +29,8 @@
                     <Button Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
                     <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
-                    <TextBlock Text="ADMINISTRACION" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                    <Button Content="Configuracion" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                    <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
+                    <Button Content="Configuración" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
                 </StackPanel>
             </DockPanel>
         </Border>

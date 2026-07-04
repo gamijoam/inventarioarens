@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-07-04 - Mejora visual y UX del Centro de Inventario WPF
+
+### Implementado
+
+- Se rediseño `InventoryCenterView` con cabecera operativa, filtros agrupados y tabla más legible.
+- Se agregaron métricas con colores por intención: disponible, reservado, dañado, stock bajo y sin stock.
+- Se agregó estado de carga visible sobre el listado mientras se consulta la API.
+- Se agregó estado vacío con mensajes en español cuando no hay productos o cuando ocurre un error.
+- Se diferenciaron los mensajes de error con color propio mediante `StatusBrush`.
+- Se corrigieron textos visibles con acentos en el Centro de Inventario y el shell lateral.
+- Se ajustó la tipografía base a `Segoe UI Variable Text` con respaldo `Segoe UI`.
+- Se actualizó `desktop/InventoryDesktop/Modules/InventoryCenter/README.md` en español con el nuevo estándar visual y de mensajes.
+
+### Pruebas
+
+- Se compilo `desktop/InventoryDesktop/InventoryDesktop.csproj` con .NET correctamente: 0 errores, 0 advertencias.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php` contra PostgreSQL: 7 pruebas pasadas, 57 aserciones.
+
 ## 2026-07-04 - Correccion de reconfiguracion HTTP en cliente WPF
 
 ### Implementado

@@ -18,11 +18,12 @@
         <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
 
         <Style TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
             <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
         </Style>
 
         <Style TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
             <Setter Property="MinHeight" Value="44" />
             <Setter Property="Padding" Value="14,0" />
             <Setter Property="BorderBrush" Value="#DCE4F2" />
@@ -32,6 +33,7 @@
         </Style>
 
         <Style TargetType="PasswordBox">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
             <Setter Property="MinHeight" Value="44" />
             <Setter Property="Padding" Value="14,0" />
             <Setter Property="BorderBrush" Value="#DCE4F2" />

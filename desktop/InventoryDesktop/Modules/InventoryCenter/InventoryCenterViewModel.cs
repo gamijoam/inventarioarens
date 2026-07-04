@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Net.Http;
+using System.Windows.Media;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.ViewModels;
 
@@ -13,6 +14,7 @@ public sealed class InventoryCenterViewModel : ViewModelBase
     private string trackingType = "";
     private string stockStatus = "all";
     private string statusMessage = "";
+    private bool isStatusError;
     private bool isBusy;
     private int page = 1;
     private InventoryCenterMetrics metrics = new(0, 0, 0, 0, 0, 0, 0, 0);
@@ -64,10 +66,34 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         set => SetProperty(ref statusMessage, value);
     }
 
+    public bool IsStatusError
+    {
+        get => isStatusError;
+        set
+        {
+            if (SetProperty(ref isStatusError, value))
+            {
+                RaisePropertyChanged(nameof(StatusBrush));
+                RaisePropertyChanged(nameof(EmptyStateTitle));
+                RaisePropertyChanged(nameof(EmptyStateMessage));
+            }
+        }
+    }
+
+    public Brush StatusBrush => IsStatusError
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(100, 113, 140));
+
     public bool IsBusy
     {
         get => isBusy;
-        set => SetProperty(ref isBusy, value);
+        set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                RaisePropertyChanged(nameof(ShowEmptyState));
+            }
+        }
     }
 
     public InventoryCenterMetrics Metrics
@@ -112,6 +138,14 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         ? "Sin productos para mostrar"
         : $"{Pagination.From}-{Pagination.To} de {Pagination.Total} productos";
 
+    public bool ShowEmptyState => !IsBusy && Products.Count == 0;
+
+    public string EmptyStateTitle => IsStatusError ? "No se pudo cargar el inventario" : "No hay productos para mostrar";
+
+    public string EmptyStateMessage => IsStatusError
+        ? "Revisa el mensaje inferior, confirma que la API esté activa y vuelve a intentar."
+        : "Ajusta los filtros o crea productos para comenzar a controlar el stock.";
+
     public bool CanGoPrevious => Pagination.HasPrevious && !IsBusy;
 
     public bool CanGoNext => Pagination.HasNext && !IsBusy;
@@ -133,6 +167,8 @@ public sealed class InventoryCenterViewModel : ViewModelBase
             }
 
             StatusMessage = "Inventario actualizado.";
+            IsStatusError = false;
+            RaiseEmptyStateChanged();
         });
     }
 
@@ -204,26 +240,31 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            IsStatusError = false;
             StatusMessage = "Cargando inventario...";
             await action();
         }
         catch (ApiException exception)
         {
             StatusMessage = exception.Message;
+            IsStatusError = true;
         }
         catch (HttpRequestException)
         {
-            StatusMessage = "No se pudo conectar con la API. Verifica que Laravel este encendido.";
+            StatusMessage = "No se pudo conectar con la API. Verifica que Laravel esté encendido.";
+            IsStatusError = true;
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La conexion tardo demasiado. Intenta nuevamente.";
+            StatusMessage = "La conexión tardó demasiado. Intenta nuevamente.";
+            IsStatusError = true;
         }
         finally
         {
             IsBusy = false;
             RaisePropertyChanged(nameof(CanGoPrevious));
             RaisePropertyChanged(nameof(CanGoNext));
+            RaiseEmptyStateChanged();
         }
     }
 
@@ -235,6 +276,13 @@ public sealed class InventoryCenterViewModel : ViewModelBase
         RaisePropertyChanged(nameof(DamagedLabel));
         RaisePropertyChanged(nameof(LowStockLabel));
         RaisePropertyChanged(nameof(WithoutStockLabel));
+    }
+
+    private void RaiseEmptyStateChanged()
+    {
+        RaisePropertyChanged(nameof(ShowEmptyState));
+        RaisePropertyChanged(nameof(EmptyStateTitle));
+        RaisePropertyChanged(nameof(EmptyStateMessage));
     }
 }
 
