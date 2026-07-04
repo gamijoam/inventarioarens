@@ -2,6 +2,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.InventoryCenter;
+using InventoryDesktop.Modules.POS;
 
 namespace InventoryDesktop;
 
@@ -9,6 +10,7 @@ public partial class ShellView : UserControl
 {
     private readonly InventoryCenterViewModel inventoryCenterViewModel;
     private readonly InventoryCenterViewModel inventoryMovementsViewModel;
+    private readonly PosViewModel posViewModel;
 
     public ShellView(DesktopSession session)
     {
@@ -17,8 +19,10 @@ public partial class ShellView : UserControl
 
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
+        posViewModel = new PosViewModel(session.ApiClient);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
+        PosContent.DataContext = posViewModel;
         PriceListsContent.Configure(session.ApiClient);
         Loaded += async (_, _) => await inventoryCenterViewModel.LoadAsync();
     }
@@ -41,6 +45,12 @@ public partial class ShellView : UserControl
         await PriceListsContent.LoadAsync();
     }
 
+    private async void Pos_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        ShowPos();
+        await posViewModel.InitializeAsync();
+    }
+
     private void ShowInventoryCenter()
     {
         SectionTitle.Text = "Centro de Inventario";
@@ -48,9 +58,11 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = System.Windows.Visibility.Visible;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
         PriceListsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PosContent.Visibility = System.Windows.Visibility.Collapsed;
         SetActiveButton(InventoryCenterButton);
         SetInactiveButton(InventoryMovementsButton);
         SetInactiveButton(PriceListsButton);
+        SetInactiveButton(PosButton);
     }
 
     private void ShowInventoryMovements()
@@ -60,9 +72,11 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Visible;
         PriceListsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PosContent.Visibility = System.Windows.Visibility.Collapsed;
         SetActiveButton(InventoryMovementsButton);
         SetInactiveButton(InventoryCenterButton);
         SetInactiveButton(PriceListsButton);
+        SetInactiveButton(PosButton);
     }
 
     private void ShowPriceLists()
@@ -72,9 +86,25 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
         InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
         PriceListsContent.Visibility = System.Windows.Visibility.Visible;
+        PosContent.Visibility = System.Windows.Visibility.Collapsed;
         SetActiveButton(PriceListsButton);
         SetInactiveButton(InventoryCenterButton);
         SetInactiveButton(InventoryMovementsButton);
+        SetInactiveButton(PosButton);
+    }
+
+    private void ShowPos()
+    {
+        SectionTitle.Text = "POS";
+        SectionSubtitle.Text = "Búsqueda rápida, listas de precio y carrito de venta";
+        InventoryCenterContent.Visibility = System.Windows.Visibility.Collapsed;
+        InventoryMovementsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PriceListsContent.Visibility = System.Windows.Visibility.Collapsed;
+        PosContent.Visibility = System.Windows.Visibility.Visible;
+        SetActiveButton(PosButton);
+        SetInactiveButton(InventoryCenterButton);
+        SetInactiveButton(InventoryMovementsButton);
+        SetInactiveButton(PriceListsButton);
     }
 
     private static void SetActiveButton(Button button)

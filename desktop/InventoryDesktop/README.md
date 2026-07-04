@@ -20,7 +20,8 @@ desktop/InventoryDesktop
 │   └── ViewModels
 ├── Modules
 │   ├── Auth
-│   └── InventoryCenter
+│   ├── InventoryCenter
+│   └── POS
 ├── App.xaml
 └── MainWindow.xaml
 ```
@@ -43,6 +44,7 @@ desktop/InventoryDesktop
 - `ShellWindow`: ventana del panel principal.
 - `ShellView`: layout principal con sidebar, topbar y contenido modular.
 - `InventoryCenterView`: centro de inventario solo lectura con metricas, filtros, listado y paginacion.
+- `PosView`: base del punto de venta con busqueda real, listas de precio y carrito local.
 
 ## Pendiente local
 

@@ -1,7 +1,8 @@
 <UserControl x:Class="InventoryDesktop.ShellView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter">
+             xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter"
+             xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS">
     <Grid Background="#F4F7FB">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="280" />
@@ -31,7 +32,7 @@
                         <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
                         <Button Content="Resumen" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
                         <Button Content="Centro de Ventas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                        <Button Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <Button x:Name="PosButton" Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="Pos_Click" />
 
                         <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
                         <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
@@ -70,6 +71,7 @@
                 <inventory:InventoryCenterView x:Name="InventoryCenterContent" />
                 <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
                 <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
+                <pos:PosView x:Name="PosContent" Visibility="Collapsed" />
             </Grid>
         </Grid>
     </Grid>

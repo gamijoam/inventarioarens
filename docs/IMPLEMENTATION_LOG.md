@@ -1,5 +1,38 @@
 # Registro de implementación
 
+## 2026-07-04 - Base visual y operativa del POS en WPF
+
+### Implementado
+
+- Se creó el módulo de escritorio `desktop/InventoryDesktop/Modules/POS`.
+- Se agregó `PosView` con diseño base inspirado en POS moderno: búsqueda superior, catálogo de productos y carrito fijo a la derecha.
+- Se agregó `PosViewModel` para buscar productos reales desde `GET /api/inventory-center/summary`.
+- Se cargan listas de precio activas desde `GET /api/price-lists?active_only=1`.
+- Al agregar un producto se cotiza con `GET /api/products/{product}/price`, respetando la lista seleccionada.
+- El carrito local muestra cantidad, precio unitario, lista usada, tasa usada, total `USD` y equivalente `VES` cuando aplica.
+- El menú lateral del shell ahora habilita el botón `POS`.
+- El botón `Pagar` queda deshabilitado porque checkout, caja y métodos de pago se implementarán en la siguiente fase.
+- Se bloquea el agregado directo de productos serializados/IMEI hasta integrar selección o lectura de serial.
+- Se agregó README del módulo POS de escritorio y se actualizó el README general de escritorio.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan migrate:fresh` para restaurar la base de pruebas después de un intento paralelo fallido.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter="filters_by_search|paginates"`.
+- Resultado: 5 pruebas pasaron, 44 assertions.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php --filter=price`.
+- Resultado: 6 pruebas pasaron, 48 assertions.
+
+### Notas de seguridad
+
+- Esta fase no crea ventas ni pagos.
+- No descuenta inventario.
+- No registra movimientos de caja.
+- La cotización y la búsqueda siguen pasando por el backend con token, tenant y permisos.
+- El checkout real debe usar el módulo backend `POS` y no descontar inventario directamente.
+
 ## 2026-07-04 - Historial de precios en ventana independiente
 
 ### Implementado

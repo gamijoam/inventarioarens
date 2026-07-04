@@ -659,6 +659,8 @@ Archivos principales:
 - `app/Modules/POS/Resources/PosPaymentResource.php`
 - `app/Modules/POS/Services/PosCheckoutService.php`
 - `app/Modules/POS/routes.php`
+- `desktop/InventoryDesktop/Modules/POS/PosView.xaml`
+- `desktop/InventoryDesktop/Modules/POS/PosViewModel.cs`
 
 Regla importante:
 
@@ -674,6 +676,7 @@ Regla importante:
 - pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
 - pagos `pending` no generan cobros automaticos ni cuenta por cobrar porque la venta sigue en borrador;
 - cada pago en `VES` debe guardar la tasa exacta usada.
+- La primera fase WPF arma carrito local y cotiza productos, pero no crea ventas ni pagos hasta integrar checkout y caja.
 
 ### CashRegister
 
