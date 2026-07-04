@@ -337,3 +337,55 @@ public sealed record InventoryWarehouseOption(
             "active");
     }
 }
+
+public sealed record ProductApiResponse(
+    [property: JsonPropertyName("data")] ProductApiData Data);
+
+public sealed record ProductApiData(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("sku")] string Sku,
+    [property: JsonPropertyName("tracking_type")] string TrackingType,
+    [property: JsonPropertyName("base_price")] decimal? BasePrice,
+    [property: JsonPropertyName("sale_currency")] string SaleCurrency,
+    [property: JsonPropertyName("sale_exchange_rate_type_id")] long? SaleExchangeRateTypeId,
+    [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId,
+    [property: JsonPropertyName("can_change_tracking_type")] bool? CanChangeTrackingType,
+    [property: JsonPropertyName("units_count")] int? UnitsCount,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
+public sealed record ProductSaveRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("sku")] string Sku,
+    [property: JsonPropertyName("tracking_type")] string TrackingType,
+    [property: JsonPropertyName("base_price")] decimal? BasePrice,
+    [property: JsonPropertyName("sale_currency")] string SaleCurrency,
+    [property: JsonPropertyName("sale_exchange_rate_type_id")] long? SaleExchangeRateTypeId,
+    [property: JsonPropertyName("warranty_policy_id")] long? WarrantyPolicyId,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
+public sealed record ExchangeRateTypeListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<ExchangeRateTypeOption> Data);
+
+public sealed record ExchangeRateTypeOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("is_default")] bool IsDefault,
+    [property: JsonPropertyName("is_active")] bool IsActive)
+{
+    public string Label => IsDefault ? $"{Name} ({Code}) - predeterminada" : $"{Name} ({Code})";
+}
+
+public sealed record WarrantyPolicyListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<WarrantyPolicyOption> Data);
+
+public sealed record WarrantyPolicyOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("duration_days")] int DurationDays,
+    [property: JsonPropertyName("coverage_type")] string CoverageType,
+    [property: JsonPropertyName("is_active")] bool IsActive)
+{
+    public string Label => $"{Name} - {DurationDays} días";
+}

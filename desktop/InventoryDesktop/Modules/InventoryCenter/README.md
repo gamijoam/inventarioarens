@@ -36,6 +36,12 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Botón lateral `Entradas y salidas` habilitado en el shell principal.
 - Pantalla operativa `Entradas y salidas` con búsqueda de productos y acciones rápidas `Entrada` / `Salida`.
 - Si una ventana de movimiento no puede abrirse, la app muestra un mensaje visible en español.
+- Botón `+ Nuevo producto` habilitado en el Centro de Inventario.
+- Acción `Editar` por producto desde el listado principal.
+- Ventana única de creación/edición conectada a `POST /api/products` y `PATCH /api/products/{product}`.
+- El formulario permite nombre, SKU, tipo de control, moneda, precio base, tipo de tasa, política de garantía y estado activo.
+- Las opciones de tasas y garantías se cargan desde `GET /api/currency/rate-types` y `GET /api/warranty-policies`.
+- Si un producto ya tiene unidades serializadas, el formulario bloquea el cambio de tipo de control siguiendo la regla del backend.
 
 ## Regla de conexión
 

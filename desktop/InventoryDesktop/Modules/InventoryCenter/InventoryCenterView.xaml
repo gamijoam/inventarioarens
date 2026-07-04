@@ -141,7 +141,7 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Content="Actualizar" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" ToolTip="Volver a cargar datos desde el servidor" Click="Refresh_Click" />
-                    <Button Content="+ Nuevo producto" Style="{StaticResource PrimaryButtonStyle}" ToolTip="Próximamente: creación de productos desde la aplicación de escritorio" IsEnabled="False" />
+                    <Button Content="+ Nuevo producto" Style="{StaticResource PrimaryButtonStyle}" ToolTip="Crear producto" Click="CreateProduct_Click" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -234,10 +234,13 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="ACCIÓN" Width="0.65*">
+                        <DataGridTemplateColumn Header="ACCIÓN" Width="1.1*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Button Content="Ver" Style="{StaticResource MiniButtonStyle}" Click="ViewProduct_Click" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Ver" Style="{StaticResource MiniButtonStyle}" Click="ViewProduct_Click" />
+                                        <Button Content="Editar" Style="{StaticResource MiniButtonStyle}" Margin="6,0,0,0" Click="EditProduct_Click" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

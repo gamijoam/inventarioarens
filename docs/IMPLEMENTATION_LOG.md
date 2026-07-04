@@ -46,6 +46,34 @@
 
 - La pantalla no escribe directo en base de datos; delega las reglas de negocio, permisos y tenant al backend Laravel.
 
+## 2026-07-04 - Crear y editar productos desde WPF
+
+### Implementado
+
+- Se habilitó el botón `+ Nuevo producto` en el Centro de Inventario.
+- Se agregó acción `Editar` por producto en el listado principal.
+- Se creó una ventana única de creación/edición de productos en WPF.
+- La ventana consume `POST /api/products` para crear productos.
+- La ventana consume `PATCH /api/products/{product}` para editar productos.
+- Se agregó soporte `PATCH` al cliente API de escritorio.
+- El formulario permite configurar nombre, SKU, tipo de control, precio base, moneda de venta, tipo de tasa, política de garantía y estado activo.
+- Se cargan tipos de tasa desde `GET /api/currency/rate-types`.
+- Se cargan políticas de garantía desde `GET /api/warranty-policies`.
+- Si el backend indica que el tipo de control no puede cambiarse, el formulario bloquea ese campo.
+- Al guardar correctamente, el listado del Centro de Inventario se refresca automáticamente.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/Currency/CurrencyApiTest.php tests/Feature/Warranties/WarrantyPolicyApiTest.php`.
+- Resultado: 35 pruebas pasaron, 197 aserciones.
+
+### Notas de seguridad
+
+- La app no escribe directo en base de datos; creación y edición pasan por Laravel.
+- Laravel conserva permisos, validación de SKU por tenant, validación de tasa/garantía por tenant y auditoría de producto.
+
 ## 2026-07-04 - Corrección de recurso visual en navegación WPF
 
 ### Implementado

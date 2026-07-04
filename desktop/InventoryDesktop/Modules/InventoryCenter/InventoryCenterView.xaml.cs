@@ -71,6 +71,52 @@ public partial class InventoryCenterView : UserControl
         await OpenDetailWindowAsync(product);
     }
 
+    private async void CreateProduct_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        InventoryProductFormWindow window = new(ViewModel.ApiClient)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Closed += async (_, _) =>
+        {
+            if (window.WasSaved)
+            {
+                await ViewModel.LoadAsync();
+            }
+        };
+        window.Show();
+        await window.InitializeAsync();
+        window.Activate();
+    }
+
+    private async void EditProduct_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not FrameworkElement { DataContext: InventoryProductItem product })
+        {
+            return;
+        }
+
+        InventoryProductFormWindow window = new(ViewModel.ApiClient, product.Id)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Closed += async (_, _) =>
+        {
+            if (window.WasSaved)
+            {
+                await ViewModel.LoadAsync();
+            }
+        };
+        window.Show();
+        await window.InitializeAsync();
+        window.Activate();
+    }
+
     private void CloseDetail_Click(object sender, RoutedEventArgs e)
     {
         ViewModel?.CloseProductDetail();

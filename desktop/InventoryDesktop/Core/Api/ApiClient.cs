@@ -39,6 +39,15 @@ public sealed class ApiClient
         return await ReadResponseAsync<TResponse>(response, cancellationToken);
     }
 
+    public async Task<TResponse> PatchAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Patch, path);
+        request.Content = JsonContent.Create(payload, options: JsonOptions);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<TResponse>(response, cancellationToken);
+    }
+
     public async Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default)
     {
         using HttpRequestMessage request = CreateRequest(HttpMethod.Get, path);
