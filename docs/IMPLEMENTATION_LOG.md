@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Migración local de listas de precio y menú lateral con scroll
+
+### Implementado
+
+- Se aplicaron las migraciones pendientes en la base local `inventory_arens`.
+- Quedaron creadas las tablas `price_lists`, `product_prices` y `product_audits` en la base usada por la app WPF.
+- Se corrigió el origen del error visual `relation "price_lists" does not exist`.
+- Se ajustó el menú lateral WPF para usar `ScrollViewer`.
+- La cabecera del negocio queda fija y las opciones de módulos ahora pueden crecer con scroll vertical.
+
+### Pruebas
+
+- Se ejecutó `docker compose exec app php artisan migrate --force`.
+- Se ejecutó `docker compose exec app php artisan migrate:status`.
+- Resultado: `2026_07_04_141000_create_price_lists_and_product_prices_tables` aparece como ejecutada.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- El cambio de menú es solo visual.
+- La base local quedó alineada con las migraciones versionadas del backend.
+
 ## 2026-07-04 - Listas de precio en WPF y asignación por producto
 
 ### Implementado

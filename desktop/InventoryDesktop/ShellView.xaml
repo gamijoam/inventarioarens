@@ -9,8 +9,13 @@
         </Grid.ColumnDefinitions>
 
         <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,1,0">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Margin="24">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Margin="24,24,24,18">
                     <Border Width="52" Height="52" CornerRadius="14" HorizontalAlignment="Left" Background="{StaticResource AccentBrush}">
                         <TextBlock Text="SI" Foreground="White" FontWeight="Black" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
@@ -18,22 +23,27 @@
                     <TextBlock Text="{Binding TenantName}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" Margin="0,4,0,0" />
                 </StackPanel>
 
-                <StackPanel Margin="16,132,16,0">
-                    <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
-                    <Button Content="Resumen" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                    <Button Content="Centro de Ventas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                    <Button Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="16,0,12,18">
+                    <StackPanel>
+                        <TextBlock Text="OPERACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,0,0,10" />
+                        <Button Content="Resumen" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <Button Content="Centro de Ventas" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <Button Content="POS" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
-                    <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                    <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
-                    <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="InventoryMovements_Click" />
-                    <Button x:Name="PriceListsButton" Content="Listas de precio" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="PriceLists_Click" />
-                    <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                        <TextBlock Text="INVENTARIO" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
+                        <Button x:Name="InventoryCenterButton" Content="Centro de Inventario" Height="46" Margin="0,0,0,8" FontWeight="Black" Background="#EEF0FF" Foreground="{StaticResource AccentStrongBrush}" BorderBrush="#DCE4FF" Click="InventoryCenter_Click" />
+                        <Button x:Name="InventoryMovementsButton" Content="Entradas y salidas" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="InventoryMovements_Click" />
+                        <Button x:Name="PriceListsButton" Content="Listas de precio" Height="44" Margin="0,0,0,8" FontWeight="Bold" Click="PriceLists_Click" />
+                        <Button Content="Kardex" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
 
-                    <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
-                    <Button Content="Configuración" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
-                </StackPanel>
-            </DockPanel>
+                        <TextBlock Text="ADMINISTRACIÓN" Foreground="#94A3B8" FontSize="12" FontWeight="Black" Margin="10,22,0,10" />
+                        <Button Content="Configuración" Height="44" Margin="0,0,0,8" FontWeight="Bold" IsEnabled="False" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <Grid Grid.Column="1">

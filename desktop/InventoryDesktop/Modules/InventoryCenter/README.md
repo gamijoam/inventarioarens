@@ -41,6 +41,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Botón lateral `Entradas y salidas` habilitado en el shell principal.
 - Pantalla operativa `Entradas y salidas` con búsqueda de productos y acciones rápidas `Entrada` / `Salida`.
 - Botón lateral `Listas de precio` habilitado en el shell principal.
+- El menú lateral principal usa scroll vertical para soportar más módulos sin cortar opciones.
 - Pantalla operativa `Listas de precio` conectada a `GET/POST/PATCH/DELETE /api/price-lists`.
 - La pantalla permite crear listas, editar nombre/código/descripción/orden, marcar predeterminada, activar/desactivar y desactivar sin borrar historia.
 - Botón `+ Nuevo producto` habilitado en el Centro de Inventario.
