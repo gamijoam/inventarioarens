@@ -1022,6 +1022,59 @@ Reglas:
 - se hace `upsert` por producto y lista: si ya existe, se actualiza.
 - ventas/POS pueden enviar `price_list_id` por item para copiar historicamente la lista y el precio usado.
 
+### Historial de precios de producto
+
+```txt
+GET /api/products/{product}/price-history
+```
+
+Permiso:
+
+```txt
+products.view
+```
+
+Respuesta:
+
+```json
+{
+  "data": [
+    {
+      "id": 45,
+      "action": "updated",
+      "price_list_id": 2,
+      "price_list_name": "Precio al mayor",
+      "price_list_code": "MAYOR",
+      "before": {
+        "price_list_id": 2,
+        "price": 10,
+        "currency": "USD",
+        "exchange_rate_type_id": 1,
+        "is_active": true
+      },
+      "after": {
+        "price_list_id": 2,
+        "price": 12,
+        "currency": "USD",
+        "exchange_rate_type_id": 1,
+        "is_active": true
+      },
+      "created_by_name": "Gerente Caracas",
+      "created_by_email": "gerente.caracas@demo.test",
+      "created_at": "2026-07-04T12:00:00.000000Z"
+    }
+  ]
+}
+```
+
+Reglas:
+
+- lee los cambios registrados en `product_audits`;
+- incluye cambios manuales desde `PUT /api/products/{product}/prices`;
+- incluye cambios masivos realizados desde `POST /api/inventory-center/products/bulk-action`;
+- devuelve los cambios más recientes primero;
+- no modifica datos.
+
 ### Actualizar producto
 
 ```txt

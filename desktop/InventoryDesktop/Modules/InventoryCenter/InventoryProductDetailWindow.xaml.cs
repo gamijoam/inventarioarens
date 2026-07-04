@@ -102,6 +102,8 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
 
     public ObservableCollection<ProductPriceEditRow> ProductPriceRows { get; } = new();
 
+    public ObservableCollection<ProductPriceHistoryItem> ProductPriceHistoryRows { get; } = new();
+
     public ObservableCollection<WarehouseFilterOption> WarehouseFilterOptions { get; } = new();
 
     public ObservableCollection<ExchangeRateTypeOption> PriceRateTypes { get; } = new();
@@ -680,6 +682,7 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         {
             PriceListListResponse priceListsResponse = await apiClient.GetAsync<PriceListListResponse>("price-lists?active_only=1");
             ProductPriceListResponse pricesResponse = await apiClient.GetAsync<ProductPriceListResponse>($"products/{detail.Product.Id}/prices");
+            ProductPriceHistoryResponse historyResponse = await apiClient.GetAsync<ProductPriceHistoryResponse>($"products/{detail.Product.Id}/price-history");
             ExchangeRateTypeListResponse rateResponse = await apiClient.GetAsync<ExchangeRateTypeListResponse>("currency/rate-types");
 
             PriceRateTypes.Clear();
@@ -701,10 +704,16 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
                     detail.Product.SaleCurrency));
             }
 
+            ProductPriceHistoryRows.Clear();
+            foreach (ProductPriceHistoryItem history in historyResponse.Data)
+            {
+                ProductPriceHistoryRows.Add(history);
+            }
+
             pricesLoaded = true;
             PriceStatusMessage = ProductPriceRows.Count == 0
                 ? "No hay listas activas para asignar precios."
-                : $"{ProductPriceRows.Count} listas disponibles. Las filas sin precio específico usarán el precio base del producto.";
+                : $"{ProductPriceRows.Count} listas disponibles. Historial reciente: {ProductPriceHistoryRows.Count} cambios.";
         }
         catch (ApiException exception)
         {

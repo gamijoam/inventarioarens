@@ -91,23 +91,97 @@ class ProductController extends Controller
         );
     }
 
+    public function priceHistory(Product $product): JsonResponse
+    {
+        Gate::authorize('view', $product);
+
+        $audits = ProductAudit::query()
+            ->with('creator')
+            ->where('product_id', $product->id)
+            ->latest('id')
+            ->limit(200)
+            ->get()
+            ->filter(fn (ProductAudit $audit): bool => $this->extractProductPriceChange($audit) !== null)
+            ->take(50)
+            ->values();
+
+        $priceListIds = $audits
+            ->flatMap(function (ProductAudit $audit): array {
+                $change = $this->extractProductPriceChange($audit);
+
+                return array_filter([
+                    $change['before']['price_list_id'] ?? null,
+                    $change['after']['price_list_id'] ?? null,
+                ]);
+            })
+            ->unique()
+            ->values();
+
+        $priceLists = \App\Modules\Products\Models\PriceList::query()
+            ->whereIn('id', $priceListIds)
+            ->get()
+            ->keyBy('id');
+
+        return response()->json([
+            'data' => $audits->map(function (ProductAudit $audit) use ($priceLists): array {
+                $change = $this->extractProductPriceChange($audit) ?? ['before' => null, 'after' => null];
+                $priceListId = $change['after']['price_list_id'] ?? $change['before']['price_list_id'] ?? null;
+                $priceList = $priceListId ? $priceLists->get($priceListId) : null;
+
+                return [
+                    'id' => $audit->id,
+                    'action' => $audit->action,
+                    'price_list_id' => $priceListId,
+                    'price_list_name' => $priceList?->name ?? 'Lista no disponible',
+                    'price_list_code' => $priceList?->code,
+                    'before' => $change['before'],
+                    'after' => $change['after'],
+                    'created_by_name' => $audit->creator?->name,
+                    'created_by_email' => $audit->creator?->email,
+                    'created_at' => $audit->created_at?->toISOString(),
+                ];
+            }),
+        ]);
+    }
+
     public function syncPrices(SyncProductPricesRequest $request, Product $product): AnonymousResourceCollection
     {
         Gate::authorize('update', $product);
 
         foreach ($request->validated('prices') as $price) {
-            ProductPrice::query()->updateOrCreate(
-                [
+            $productPrice = ProductPrice::query()
+                ->where('product_id', $product->id)
+                ->where('price_list_id', $price['price_list_id'])
+                ->first();
+
+            $attributes = [
+                'price' => $price['price'],
+                'currency' => $price['currency'],
+                'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
+                'is_active' => $price['is_active'] ?? true,
+            ];
+            $before = $productPrice ? $this->productPriceAuditData($productPrice) : null;
+
+            if ($productPrice) {
+                $productPrice->update($attributes);
+            } else {
+                $productPrice = ProductPrice::create([
                     'product_id' => $product->id,
                     'price_list_id' => $price['price_list_id'],
-                ],
-                [
-                    'price' => $price['price'],
-                    'currency' => $price['currency'],
-                    'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
-                    'is_active' => $price['is_active'] ?? true,
-                ]
-            );
+                    ...$attributes,
+                ]);
+            }
+
+            $after = $this->productPriceAuditData($productPrice->refresh());
+            if ($before != $after) {
+                $this->recordAudit(
+                    $product,
+                    ProductAudit::ACTION_UPDATED,
+                    ['product_price' => $before],
+                    ['product_price' => $after],
+                    $request->user()?->id
+                );
+            }
         }
 
         return $this->prices($product);
@@ -199,5 +273,32 @@ class ProductController extends Controller
             ],
             'created_by' => $userId,
         ]);
+    }
+
+    private function productPriceAuditData(ProductPrice $productPrice): array
+    {
+        return [
+            'price_list_id' => $productPrice->price_list_id,
+            'price' => round((float) $productPrice->price, 4),
+            'currency' => $productPrice->currency,
+            'exchange_rate_type_id' => $productPrice->exchange_rate_type_id,
+            'is_active' => (bool) $productPrice->is_active,
+        ];
+    }
+
+    private function extractProductPriceChange(ProductAudit $audit): ?array
+    {
+        $changes = $audit->changes ?? [];
+        $before = $changes['before']['product_price'] ?? null;
+        $after = $changes['after']['product_price'] ?? null;
+
+        if ($before === null && $after === null) {
+            return null;
+        }
+
+        return [
+            'before' => $before,
+            'after' => $after,
+        ];
     }
 }

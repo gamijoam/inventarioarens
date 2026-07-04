@@ -559,6 +559,63 @@ public sealed record ProductPriceOption(
     [property: JsonPropertyName("exchange_rate_type")] ExchangeRateTypeOption? ExchangeRateType,
     [property: JsonPropertyName("is_active")] bool IsActive);
 
+public sealed record ProductPriceHistoryResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<ProductPriceHistoryItem> Data);
+
+public sealed record ProductPriceHistoryItem(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("price_list_id")] long? PriceListId,
+    [property: JsonPropertyName("price_list_name")] string PriceListName,
+    [property: JsonPropertyName("price_list_code")] string? PriceListCode,
+    [property: JsonPropertyName("before")] ProductPriceHistorySnapshot? Before,
+    [property: JsonPropertyName("after")] ProductPriceHistorySnapshot? After,
+    [property: JsonPropertyName("created_by_name")] string? CreatedByName,
+    [property: JsonPropertyName("created_by_email")] string? CreatedByEmail,
+    [property: JsonPropertyName("created_at")] string? CreatedAt)
+{
+    public string DateLabel
+    {
+        get
+        {
+            if (DateTimeOffset.TryParse(CreatedAt, out DateTimeOffset parsed))
+            {
+                return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
+            }
+
+            return "Sin fecha";
+        }
+    }
+
+    public string UserLabel => string.IsNullOrWhiteSpace(CreatedByName) ? "Sistema" : CreatedByName;
+
+    public string ListLabel => string.IsNullOrWhiteSpace(PriceListCode)
+        ? PriceListName
+        : $"{PriceListName} ({PriceListCode})";
+
+    public string BeforeLabel => FormatSnapshot(Before, "Sin precio");
+
+    public string AfterLabel => FormatSnapshot(After, "Sin precio");
+
+    private static string FormatSnapshot(ProductPriceHistorySnapshot? snapshot, string fallback)
+    {
+        if (snapshot is null)
+        {
+            return fallback;
+        }
+
+        string active = snapshot.IsActive ? "activo" : "inactivo";
+        return $"{snapshot.Currency} {snapshot.Price:0.##} - {active}";
+    }
+}
+
+public sealed record ProductPriceHistorySnapshot(
+    [property: JsonPropertyName("price_list_id")] long? PriceListId,
+    [property: JsonPropertyName("price")] decimal Price,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("exchange_rate_type_id")] long? ExchangeRateTypeId,
+    [property: JsonPropertyName("is_active")] bool IsActive);
+
 public sealed record ProductPricesSyncRequest(
     [property: JsonPropertyName("prices")] IReadOnlyList<ProductPriceSyncItemRequest> Prices);
 

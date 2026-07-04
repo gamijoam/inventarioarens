@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Historial de precios por producto
+
+### Implementado
+
+- Se agregó `GET /api/products/{product}/price-history` para consultar historial estructurado de cambios de precio por lista.
+- `PUT /api/products/{product}/prices` ahora registra auditoría con precio anterior y precio nuevo cuando se crea o actualiza un precio por lista.
+- El historial reutiliza `product_audits` y muestra cambios manuales y cambios masivos.
+- La pestaña WPF `Precios` del detalle de producto ahora muestra un bloque de `Historial reciente de precios`.
+- El historial muestra fecha, lista, precio anterior, precio nuevo y usuario responsable.
+- Se actualizó la documentación de API y el README del módulo en español.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php --filter=price`.
+- Resultado: 6 pruebas pasaron, 48 assertions.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=price_list`.
+- Resultado: 2 pruebas pasaron, 11 assertions.
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+### Notas de seguridad
+
+- El historial requiere permiso `products.view`.
+- La edición de precios sigue requiriendo `products.update`.
+- No se modifican stock, seriales, movimientos ni ventas.
+- El POS futuro podrá apoyarse en este historial para auditoría de cambios de precios antes de vender.
+
 ## 2026-07-04 - Actualización masiva de precios por lista
 
 ### Implementado

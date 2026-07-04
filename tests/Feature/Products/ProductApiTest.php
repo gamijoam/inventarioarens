@@ -156,19 +156,45 @@ class ProductApiTest extends TestCase
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/products/{$product->id}/prices", [
+                'prices' => [[
+                    'price_list_id' => $priceListId,
+                    'price' => 12,
+                    'currency' => Product::CURRENCY_USD,
+                    'exchange_rate_type_id' => $bcv->id,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.0.price', 12);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price-history")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.price_list_name', 'Precio al mayor')
+            ->assertJsonPath('data.0.before.price', 10)
+            ->assertJsonPath('data.0.after.price', 12)
+            ->assertJsonPath('data.1.before', null)
+            ->assertJsonPath('data.1.after.price', 10);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
             ->getJson("/api/products/{$product->id}/price?price_list_id={$priceListId}")
             ->assertOk()
             ->assertJsonPath('data.price_source', 'price_list')
             ->assertJsonPath('data.price_list_id', $priceListId)
             ->assertJsonPath('data.price_list_name', 'Precio al mayor')
-            ->assertJsonPath('data.sale_price', 10)
-            ->assertJsonPath('data.price_ves', 5000);
+            ->assertJsonPath('data.sale_price', 12)
+            ->assertJsonPath('data.price_ves', 6000);
 
         $this->assertDatabaseHas('product_prices', [
             'tenant_id' => $tenant->id,
             'product_id' => $product->id,
             'price_list_id' => $priceListId,
-            'price' => '10.0000',
+            'price' => '12.0000',
         ]);
     }
 

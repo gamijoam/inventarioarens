@@ -9,5 +9,6 @@ Route::apiResource('price-lists', PriceListController::class)
     ->parameters(['price-lists' => 'priceList']);
 Route::get('products/{product}/price', [ProductController::class, 'price']);
 Route::get('products/{product}/prices', [ProductController::class, 'prices']);
+Route::get('products/{product}/price-history', [ProductController::class, 'priceHistory']);
 Route::put('products/{product}/prices', [ProductController::class, 'syncPrices']);
 Route::apiResource('products', ProductController::class);

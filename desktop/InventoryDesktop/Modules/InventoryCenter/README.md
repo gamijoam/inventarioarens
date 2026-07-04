@@ -18,6 +18,7 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - Si no se asigna un precio específico a un producto en una lista, el backend conserva el precio base del producto como respaldo.
 - En el detalle del producto, la pestaña `Precios` muestra qué precio usará el POS por cada lista.
 - La pestaña permite copiar el precio base en una lista específica o en todas las listas vacías para acelerar la carga.
+- La pestaña `Precios` muestra historial reciente con fecha, usuario, lista, precio anterior y precio nuevo.
 
 ## Alertas operativas
 
@@ -100,6 +101,8 @@ Este módulo es la primera pantalla operativa después del login en la aplicaci�
 - La pestaña `Precios` permite asignar precios por lista, moneda `USD` o `VES`, tasa opcional y estado activo.
 - La pestaña `Precios` indica si el POS usará un precio específico de lista o el respaldo del precio base.
 - La pestaña `Precios` incluye acciones para copiar el precio base a una fila o a todas las listas vacías.
+- Historial reciente de precios conectado a `GET /api/products/{product}/price-history`.
+- El historial de precios registra cambios manuales y cambios masivos por lista.
 - Las opciones de tasas y garantías se cargan desde `GET /api/currency/rate-types` y `GET /api/warranty-policies`.
 - Si un producto ya tiene unidades serializadas, el formulario bloquea el cambio de tipo de control siguiendo la regla del backend.
 - Al editar desde el detalle, la ventana recarga la información comercial y marca la auditoría como pendiente de recarga.
