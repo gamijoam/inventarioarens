@@ -1,4 +1,18 @@
 # Registro de implementación
+## 2026-07-05 - PostgreSQL local instalado en VPS
+
+### Implementado
+
+- Se verifico que el VPS no tenia PostgreSQL instalado en el host.
+- Se instalo PostgreSQL 16 directamente en Ubuntu, fuera de Docker.
+- Se habilito el servicio postgresql en systemd.
+- Se crearon las bases inventory_arens e inventory_arens_testing.
+- Se documento el entorno en docs/ENTORNO_VPS_POSTGRES_LOCAL_2026-07-05.md.
+
+### Verificacion
+
+- PostgreSQL local escucha en 127.0.0.1:5432.
+- La conexion local con usuario postgres responde correctamente.
 ## 2026-07-05 - Servicio outbox inicial para POS y Caja
 
 ### Implementado
