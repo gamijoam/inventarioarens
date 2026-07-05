@@ -85,8 +85,20 @@ public partial class ShellView : UserControl
             return;
         }
 
-        ShowPos();
         await posViewModel.InitializeAsync();
+        if (posViewModel.SelectedCashRegisterSession is null)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "No tienes una caja abierta asignada a tu usuario. Abre una caja desde el módulo Caja antes de entrar al POS.",
+                "Caja requerida",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            ShowHome();
+            return;
+        }
+
+        ShowPos();
     }
 
     private void ShowHome()

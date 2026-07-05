@@ -174,10 +174,12 @@ class InventoryCenterSummaryService
             ->where('products.is_active', true);
 
         if ($search = $filters['search'] ?? null) {
-            $query->where(function ($query) use ($search): void {
+            $normalizedSearch = mb_strtolower(trim((string) $search));
+            $query->where(function ($query) use ($normalizedSearch): void {
+                $like = "%{$normalizedSearch}%";
                 $query
-                    ->where('products.name', 'like', "%{$search}%")
-                    ->orWhere('products.sku', 'like', "%{$search}%");
+                    ->whereRaw('LOWER(products.name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like]);
             });
         }
 

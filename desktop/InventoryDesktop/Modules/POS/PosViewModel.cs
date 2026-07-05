@@ -127,10 +127,13 @@ public sealed class PosViewModel : ViewModelBase
         get
         {
             string warehouse = SelectedWarehouse?.WarehouseLabel ?? "Sin almacén";
-            string cashRegister = SelectedCashRegisterSession?.DisplayLabel ?? "Sin caja abierta";
-            return $"{warehouse} · {cashRegister}";
+            return warehouse;
         }
     }
+
+    public string ActiveCashRegisterLabel => SelectedCashRegisterSession is null
+        ? "Sin caja abierta"
+        : SelectedCashRegisterSession.DisplayLabel;
 
     public string CashRegisterStatusTitle => SelectedCashRegisterSession is null
         ? "Caja requerida"
@@ -165,9 +168,9 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    public string CustomerLabel => SelectedCustomer?.Name ?? "Cliente mostrador";
+    public string CustomerLabel => SelectedCustomer?.Name ?? "Consumidor final";
 
-    public string CustomerDetailLabel => SelectedCustomer?.DetailLabel ?? "Venta rápida sin cliente registrado";
+    public string CustomerDetailLabel => SelectedCustomer?.DetailLabel ?? "Venta sin cliente registrado";
 
     public string StatusMessage
     {
@@ -544,7 +547,7 @@ public sealed class PosViewModel : ViewModelBase
     public void ClearCustomer()
     {
         SelectedCustomer = null;
-        StatusMessage = "Cliente mostrador seleccionado.";
+        StatusMessage = "Consumidor final seleccionado.";
         IsStatusError = false;
     }
 
@@ -870,6 +873,7 @@ public sealed class PosViewModel : ViewModelBase
         RaisePropertyChanged(nameof(CashRegisterStatusDetail));
         RaisePropertyChanged(nameof(CashRegisterStatusBadge));
         RaisePropertyChanged(nameof(CashRegisterStatusBrush));
+        RaisePropertyChanged(nameof(ActiveCashRegisterLabel));
         RaisePropertyChanged(nameof(WarehouseStatusDetail));
         RaisePropertyChanged(nameof(HasOperationalContext));
         RaisePropertyChanged(nameof(CanPay));

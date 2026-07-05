@@ -74,6 +74,21 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonCount(1, 'data.products');
     }
 
+    public function test_inventory_center_search_is_case_insensitive_for_pos(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?search=samsung&stock_status=all')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.products')
+            ->assertJsonPath('data.products.0.name', 'Samsung A06');
+    }
+
     public function test_inventory_center_exports_filtered_inventory_as_csv(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

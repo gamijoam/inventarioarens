@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-05 - Limpieza operativa del POS y búsqueda robusta
+
+### Diagnóstico
+
+- El POS todavía mostraba controles de caja que pertenecen a un módulo propio de apertura/cierre.
+- El bloque de cliente ocupaba demasiado espacio para una acción que debe abrirse bajo demanda.
+- Si el cajero escribía búsquedas en minúsculas, PostgreSQL podía no devolver coincidencias esperadas como `Samsung`.
+
+### Implementado
+
+- El POS ya no muestra selector de caja ni botón `Abrir mi caja`.
+- Al entrar al POS desde el centro de módulos, WPF valida primero que el usuario tenga caja abierta.
+- Si no hay caja abierta, se muestra una alerta y el POS no se abre.
+- El panel derecho del POS se simplificó: herramientas y total, sin cuadro redundante de contexto de caja.
+- El cliente por defecto ahora se muestra como `Consumidor final`.
+- La selección o creación de cliente se mantiene por ventana con `F8`.
+- La búsqueda de inventario ahora usa `LOWER(...) LIKE` para ser insensible a mayúsculas/minúsculas en PostgreSQL.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php --filter=case_insensitive`.
+- Resultado: 1 prueba correcta, 3 aserciones.
+
 ## 2026-07-05 - POS centrado en carrito y selector manual
 
 ### Diagnóstico

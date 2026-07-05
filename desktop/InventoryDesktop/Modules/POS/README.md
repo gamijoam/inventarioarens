@@ -8,6 +8,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Priorizar velocidad de venta: búsqueda/escaneo arriba, carrito central y herramientas de cobro a la derecha.
 - Usar el selector de productos como ventana auxiliar para búsqueda manual cuando no hay código de barra.
 - Evitar un catálogo permanente ocupando espacio de la venta.
+- No abrir ni cerrar caja dentro del POS; caja será un módulo independiente.
+- Bloquear la entrada al POS cuando el usuario no tenga una caja abierta.
 - Preparar cotizaciones visibles en segundo plano para que agregar al carrito responda más rápido.
 - Buscar productos reales desde el backend.
 - Seleccionar lista de precio activa.
@@ -28,7 +30,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - No tiene menú lateral interno del POS.
 - La búsqueda, lista de precio y botón `Buscar` viven en la barra superior.
-- El contexto operativo del POS permite seleccionar almacén y caja abierta.
+- El contexto operativo del POS permite seleccionar almacén y ver la caja activa asignada.
+- La caja activa se muestra solo como referencia; no se administra desde esta pantalla.
 - El carrito ocupa la zona principal de la pantalla.
 - Cada línea del carrito muestra producto, SKU, almacén, control, serial/IMEI si aplica, precio, descuento, cantidad y subtotal.
 - Las herramientas de cliente, caja, búsqueda manual, pendientes y total quedan organizadas a la derecha.
@@ -54,6 +57,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La tecla `F2` abre el selector manual de productos.
 - La tecla `F8` abre la selección de cliente.
 - La tecla `F12` abre el cobro cuando la orden tiene productos y caja válida.
+- La búsqueda de productos es insensible a mayúsculas y minúsculas en PostgreSQL.
 - Al presionar Enter, el POS busca y revisa si el texto coincide exactamente con un SKU o nombre único.
 - Si la coincidencia exacta es un producto por cantidad, se agrega directamente al carrito.
 - Si la coincidencia exacta es un producto serializado, el POS intenta usar el IMEI exacto disponible; si no lo encuentra, abre el selector de IMEI.
@@ -63,14 +67,14 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - El POS carga almacenes activos desde `GET /api/warehouses`.
 - El POS carga cajas abiertas desde `GET /api/cash-register/sessions`.
+- Si no existe una caja abierta para el usuario, el panel de módulos muestra una alerta y no abre el POS.
 - Cada línea agregada al carrito conserva el almacén seleccionado.
 - Si no hay almacén seleccionado, no se permite agregar productos.
 - La caja abierta es obligatoria para confirmar una venta.
 - En escritorio solo se listan cajas abiertas asignadas al usuario conectado; así se evita intentar vender con una caja de otro cajero.
 - Si el almacén seleccionado cambia y la caja pertenece a otra sucursal, el POS limpia la caja seleccionada y pide abrir o seleccionar una caja correcta.
 - El botón `Pagar` queda bloqueado si falta almacén o caja abierta, con mensaje claro en pantalla.
-- El encabezado del catálogo muestra el estado operativo `ABIERTA` o `SIN CAJA` para que el cajero vea el bloqueo antes de cobrar.
-- El botón `Abrir mi caja` pide confirmación antes de crear una caja abierta para el usuario conectado usando la sucursal del almacén seleccionado y monto inicial cero.
+- La apertura y cierre de caja quedan fuera del POS y pertenecen al módulo Caja.
 
 ## Cobro y checkout
 
