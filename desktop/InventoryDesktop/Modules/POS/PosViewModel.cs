@@ -417,13 +417,15 @@ public sealed class PosViewModel : ViewModelBase
         {
             PosOrderListResponse response = await apiClient.GetAsync<PosOrderListResponse>("pos/orders?status=open");
             PendingOrders.Clear();
-            foreach (PosOrderSummary order in response.Data.OrderByDescending(order => order.Id))
+            foreach (PosOrderSummary order in response.Data
+                .Where(order => order.CashierId == currentUserId)
+                .OrderByDescending(order => order.Id))
             {
                 PendingOrders.Add(order);
             }
 
             StatusMessage = PendingOrders.Count == 0
-                ? "No hay ordenes POS pendientes."
+                ? "No hay ordenes POS pendientes para tu caja."
                 : $"{PendingOrders.Count} orden(es) POS pendiente(s).";
             IsStatusError = false;
             return PendingOrders;

@@ -27,13 +27,13 @@ public partial class PosPendingOrdersWindow : Window
         await EnsurePaymentMethodsAsync();
         await viewModel.LoadPendingOrdersAsync();
         OrdersSummaryText.Text = viewModel.PendingOrders.Count == 0
-            ? "No hay ordenes pendientes."
-            : $"{viewModel.PendingOrders.Count} orden(es) pendiente(s).";
+            ? "No hay ordenes pendientes para tu caja."
+            : $"{viewModel.PendingOrders.Count} orden(es) pendiente(s) de tu caja.";
         OrdersGrid.SelectedIndex = viewModel.PendingOrders.Count > 0 ? 0 : -1;
         RefreshSelectedOrder();
         if (viewModel.PendingOrders.Count == 0)
         {
-            SetInfo("No hay ordenes pendientes. Si acabas de cobrar una, ya quedo cerrada.");
+            SetInfo("No hay ordenes pendientes para tu caja. Si acabas de cobrar una, ya quedo cerrada.");
         }
     }
 

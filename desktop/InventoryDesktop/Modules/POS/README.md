@@ -72,7 +72,9 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cada pago puede marcarse como capturado o pendiente.
 - Los pagos capturados cuentan para cerrar la venta.
 - Los pagos pendientes permiten registrar una orden abierta sin cerrar la venta.
+- Si el pago capturado es menor al total, WPF permite confirmar la operacion como orden pendiente con advertencia previa.
 - Las órdenes pendientes se consultan con `GET /api/pos/orders?status=open`.
+- WPF filtra las ordenes pendientes por cajero conectado para evitar intentar cobrar ordenes de otra caja.
 - Desde la ventana `Ordenes POS pendientes` se puede agregar un pago a una orden abierta.
 - La ventana de pendientes esta enfocada en cobrar el faltante como pago capturado para cerrar la venta.
 - El boton principal se muestra como `Cobrar faltante y cerrar` para dejar claro que, si el monto cubre el total, la orden sale de pendientes.

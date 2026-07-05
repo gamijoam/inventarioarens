@@ -94,6 +94,7 @@ public sealed record PosOrderSummary(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("sale_id")] long SaleId,
     [property: JsonPropertyName("cash_register_session_id")] long CashRegisterSessionId,
+    [property: JsonPropertyName("cashier_id")] long CashierId,
     [property: JsonPropertyName("customer_name")] string? CustomerName,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("total_base_amount")]

@@ -259,7 +259,7 @@ public partial class PosPaymentWindow : Window
         hasUnknownBaseAmount = payments.Any(payment => payment.IsCaptured && payment.BaseAmountUsd is null);
         if (!hasUnknownBaseAmount && knownPaid + 0.01m < viewModel.TotalUsd)
         {
-            if (payments.Any(payment => !payment.IsCaptured))
+            if (payments.Any())
             {
                 MessageBoxResult result = MessageBox.Show(
                     this,

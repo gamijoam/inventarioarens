@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Reglas claras para pendientes POS por caja
+
+### Diagnostico
+
+- La ventana de pendientes mostraba ordenes abiertas de la empresa completa, incluyendo ordenes creadas por otros cajeros.
+- Al intentar completar una orden de otro cajero, Laravel respondia correctamente que la caja pertenecia a otro cajero.
+- En el cobro inicial, WPF no permitia confirmar una venta parcial si todos los pagos agregados estaban marcados como capturados, aunque el backend puede registrarla como orden pendiente.
+
+### Implementado
+
+- WPF ahora filtra las ordenes pendientes por `cashier_id` del usuario conectado.
+- La ventana de pendientes muestra mensajes orientados a `tu caja`.
+- El cobro inicial permite confirmar una orden pendiente cuando los pagos capturados no cubren el total, previa advertencia al cajero.
+- Se actualizo la documentacion del modulo POS en espanol.
+
+### Pruebas
+
+- Se ejecuto `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilacion correcta, 0 advertencias, 0 errores.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php --filter=pending`.
+- Resultado: 2 pruebas pasaron, 21 assertions.
+
+### Notas de seguridad
+
+- Backend sigue rechazando completar cobros de cajas ajenas.
+- El filtro visual evita confusion, pero la seguridad real sigue estando en Laravel.
+
 ## 2026-07-04 - Claridad visual al completar orden POS pendiente
 
 ### Diagnostico
