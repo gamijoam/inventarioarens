@@ -299,14 +299,19 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    public async Task LoadOperationalContextAsync()
+    public async Task LoadOperationalContextAsync(bool forceStaticRefresh = false)
     {
-        await LoadWarehousesAsync();
+        await LoadWarehousesAsync(forceStaticRefresh);
         await LoadCashRegisterSessionsAsync();
     }
 
-    public async Task LoadPriceListsAsync()
+    public async Task LoadPriceListsAsync(bool forceRefresh = false)
     {
+        if (!forceRefresh && PriceLists.Count > 1)
+        {
+            return;
+        }
+
         try
         {
             PriceListListResponse response = await apiClient.GetAsync<PriceListListResponse>("price-lists?active_only=1");
@@ -332,8 +337,13 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    public async Task LoadWarehousesAsync()
+    public async Task LoadWarehousesAsync(bool forceRefresh = false)
     {
+        if (!forceRefresh && Warehouses.Count > 0)
+        {
+            return;
+        }
+
         try
         {
             WarehouseListResponse response = await apiClient.GetAsync<WarehouseListResponse>("warehouses");
@@ -441,8 +451,13 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    public async Task LoadPaymentMethodsAsync()
+    public async Task LoadPaymentMethodsAsync(bool forceRefresh = false)
     {
+        if (!forceRefresh && PaymentMethods.Count > 0)
+        {
+            return;
+        }
+
         try
         {
             PaymentMethodListResponse response = await apiClient.GetAsync<PaymentMethodListResponse>("payment-methods?active_only=1");
@@ -564,12 +579,14 @@ public sealed class PosViewModel : ViewModelBase
                 $"pos/orders/{orderId}/payments",
                 new PosOrderPaymentsRequest(payments));
 
-            StatusMessage = response.Data.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
+            string resultMessage = response.Data.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
                 ? $"Orden POS #{response.Data.Id} pagada y cerrada."
                 : $"Orden POS #{response.Data.Id} actualizada. Sigue pendiente.";
+            StatusMessage = resultMessage;
             IsStatusError = false;
             await LoadPendingOrdersAsync();
-            await SearchAsync();
+            SearchText = string.Empty;
+            ClearProductResults(resultMessage);
             return response.Data;
         }
         catch (ApiException exception)
@@ -919,6 +936,7 @@ public sealed class PosViewModel : ViewModelBase
 
         try
         {
+            using PerformanceTrace trace = PerformanceTrace.Start("POS checkout backend", 1000);
             IsBusy = true;
             IsStatusError = false;
             StatusMessage = "Confirmando venta en el servidor...";
@@ -941,9 +959,8 @@ public sealed class PosViewModel : ViewModelBase
             PosOrderResponse response = await apiClient.PostAsync<PosCheckoutRequest, PosOrderResponse>("pos/checkouts", request);
             CartItems.Clear();
             RaiseTotalsChanged();
-            StatusMessage = $"Venta confirmada. Orden POS #{response.Data.Id}.";
-            IsStatusError = false;
-            await SearchAsync();
+            SearchText = string.Empty;
+            ClearProductResults($"Venta confirmada. Orden POS #{response.Data.Id}. Escanea o busca para iniciar otra venta.");
             return response.Data;
         }
         catch (ApiException exception)

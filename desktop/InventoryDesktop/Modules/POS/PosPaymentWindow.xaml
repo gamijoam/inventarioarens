@@ -280,6 +280,7 @@
                        VerticalAlignment="Center" />
 
             <Button Grid.Column="1"
+                    x:Name="CancelButton"
                     Content="Cancelar"
                     Width="120"
                     Height="42"
@@ -287,6 +288,7 @@
                     FontWeight="Black"
                     Click="Cancel_Click" />
             <Button Grid.Column="2"
+                    x:Name="ConfirmButton"
                     Content="Confirmar venta"
                     Width="156"
                     Height="42"

@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-05 - Optimización del cobro POS
+
+### Diagnóstico
+
+- Al confirmar una venta, el POS se sentía lento porque después del checkout volvía a refrescar la búsqueda de productos antes de mostrar el resultado.
+- La ventana de cobro se deshabilitaba completa durante el procesamiento, lo que podía sentirse como bloqueo visual.
+- Algunas listas estáticas del POS podían volver a pedirse aunque ya estuvieran cargadas en la sesión.
+
+### Implementado
+
+- El checkout POS ya no ejecuta una búsqueda de productos al terminar la venta.
+- Después de cobrar, WPF limpia el carrito y deja listo el POS para escanear o buscar otra venta sin bloquear el recibo.
+- Las listas de precio, almacenes y métodos de pago quedan cacheados durante la sesión WPF.
+- El botón de recargar contexto fuerza actualización de almacenes y cajas abiertas cuando el usuario lo necesite.
+- La ventana de cobro muestra un mensaje de procesamiento mientras Laravel valida caja, stock, seriales y pagos.
+- Durante el cobro se bloquean solo los botones de cancelar y confirmar.
+- Se agregaron mediciones de rendimiento para `POS confirmar venta`, `POS checkout backend` y `POS preparar recibo`.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Último recibo y detalle operativo POS
 
 ### Diagnóstico

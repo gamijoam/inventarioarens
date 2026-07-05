@@ -37,3 +37,18 @@ Detectar y reducir esperas visibles en el POS, especialmente al abrir el módulo
 - Resultado: compilación correcta, 0 advertencias, 0 errores.
 - Se volvió a ejecutar la compilación después de cambiar el POS a búsqueda bajo demanda.
 - Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+## Ajuste de cobro rápido
+
+- Las listas de precio, almacenes y métodos de pago quedan cacheados durante la sesión WPF.
+- Si el usuario presiona recargar contexto, se fuerza la actualización de almacenes y cajas abiertas.
+- Al confirmar una venta, WPF ya no refresca la búsqueda de productos antes de mostrar el recibo.
+- Primero se registra el checkout en Laravel, se limpia el carrito y se muestra el resumen de venta.
+- La ventana de cobro muestra un mensaje visible de procesamiento mientras Laravel valida caja, stock, seriales y pagos.
+- Se bloquearon solo los botones de cancelar y confirmar durante el procesamiento, evitando que la ventana parezca cerrada o congelada.
+- El log ahora mide `POS confirmar venta`, `POS checkout backend` y `POS preparar recibo`.
+
+## Pruebas de cobro rápido
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.

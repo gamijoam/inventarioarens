@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Modules.InventoryCenter;
 
 namespace InventoryDesktop.Modules.POS;
@@ -14,6 +16,7 @@ public partial class PosPaymentWindow : Window
     private readonly ObservableCollection<PaymentLine> payments = new();
     private readonly decimal? impliedVesRate;
     private bool hasUnknownBaseAmount;
+    private bool isConfirming;
 
     public PosPaymentWindow(PosViewModel viewModel)
     {
@@ -271,6 +274,11 @@ public partial class PosPaymentWindow : Window
 
     private async void Confirm_Click(object sender, RoutedEventArgs e)
     {
+        if (isConfirming)
+        {
+            return;
+        }
+
         ClearError();
         if (payments.Count == 0)
         {
@@ -312,7 +320,12 @@ public partial class PosPaymentWindow : Window
 
         try
         {
-            IsEnabled = false;
+            using PerformanceTrace trace = PerformanceTrace.Start("POS confirmar venta", 1000);
+            isConfirming = true;
+            ConfirmButton.IsEnabled = false;
+            CancelButton.IsEnabled = false;
+            SetInfo("Procesando venta. Validando caja, stock, seriales y pagos en el servidor...");
+
             List<PosReceiptItem> receiptItems = BuildReceiptItems();
             List<PosReceiptPayment> receiptPayments = BuildReceiptPayments();
             string totalUsdLabel = viewModel.TotalUsdLabel;
@@ -334,7 +347,11 @@ public partial class PosPaymentWindow : Window
             WasConfirmed = true;
             if (IsPaidOrder(order))
             {
-                Receipt = BuildReceipt(order, receiptItems, receiptPayments, totalUsdLabel, totalVesLabel, paidLabel, changeLabel);
+                using (PerformanceTrace.Start("POS preparar recibo", 250))
+                {
+                    Receipt = BuildReceipt(order, receiptItems, receiptPayments, totalUsdLabel, totalVesLabel, paidLabel, changeLabel);
+                }
+
                 PosReceiptWindow receiptWindow = new(Receipt)
                 {
                     Owner = this,
@@ -356,17 +373,24 @@ public partial class PosPaymentWindow : Window
         }
         catch (ApiException exception)
         {
-            IsEnabled = true;
             string message = FriendlyError(exception.Message);
             ShowAlert(message, "Venta rechazada");
             SetError(message);
         }
         catch (InvalidOperationException exception)
         {
-            IsEnabled = true;
             string message = FriendlyError(exception.Message);
             ShowAlert(message, "No se puede confirmar");
             SetError(message);
+        }
+        finally
+        {
+            if (!WasConfirmed)
+            {
+                isConfirming = false;
+                ConfirmButton.IsEnabled = true;
+                CancelButton.IsEnabled = true;
+            }
         }
     }
 
@@ -620,6 +644,13 @@ public partial class PosPaymentWindow : Window
 
     private void SetError(string message)
     {
+        StatusText.Foreground = new SolidColorBrush(Color.FromRgb(217, 54, 92));
+        StatusText.Text = message;
+    }
+
+    private void SetInfo(string message)
+    {
+        StatusText.Foreground = new SolidColorBrush(Color.FromRgb(81, 97, 127));
         StatusText.Text = message;
     }
 

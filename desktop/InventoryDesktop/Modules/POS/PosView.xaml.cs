@@ -235,7 +235,7 @@ public partial class PosView : UserControl
     {
         if (ViewModel is not null)
         {
-            await ViewModel.LoadOperationalContextAsync();
+            await ViewModel.LoadOperationalContextAsync(forceStaticRefresh: true);
         }
     }
 
