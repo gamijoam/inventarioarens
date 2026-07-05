@@ -589,6 +589,33 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
+    public PosProductCard? FindExactSearchMatch()
+    {
+        string search = NormalizeExactSearch(SearchText);
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return null;
+        }
+
+        List<PosProductCard> matches = Products
+            .Where(card => ProductMatchesExactSearch(card.Product, search))
+            .ToList();
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    public async Task<InventoryProductSerial?> FindExactAvailableSerialAsync(PosProductCard card, string serialText)
+    {
+        string search = NormalizeExactSearch(serialText);
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return null;
+        }
+
+        IReadOnlyList<InventoryProductSerial> serials = await LoadAvailableSerialsAsync(card.Product.Id, serialText);
+        return serials.FirstOrDefault(serial => NormalizeExactSearch(serial.SerialNumber) == search);
+    }
+
     public async Task<IReadOnlyList<InventoryProductSerial>> LoadAvailableSerialsAsync(long productId, string search = "")
     {
         if (SelectedWarehouse is null)
@@ -1025,6 +1052,19 @@ public sealed class PosViewModel : ViewModelBase
             .ToList();
 
         return parts.Count == 0 ? string.Empty : "?" + string.Join("&", parts);
+    }
+
+    private static bool ProductMatchesExactSearch(InventoryProductItem product, string search)
+    {
+        return NormalizeExactSearch(product.Sku) == search
+            || NormalizeExactSearch(product.Name) == search;
+    }
+
+    private static string NormalizeExactSearch(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToUpperInvariant();
     }
 }
 

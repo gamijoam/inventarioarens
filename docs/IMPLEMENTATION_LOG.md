@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-05 - Búsqueda rápida y agregado exacto en POS
+
+### Diagnóstico
+
+- El POS exigía presionar `Buscar` para refrescar resultados.
+- Para una venta rápida, el cajero necesita escribir o pistolear un código y resolver con pocas acciones.
+- La búsqueda no debía consultar la API en cada tecla para no afectar rendimiento cuando el catálogo crezca.
+
+### Implementado
+
+- Se agregó búsqueda automática con pausa corta al escribir.
+- Enter ejecuta búsqueda inmediata y revisa coincidencia exacta por SKU o nombre.
+- Si existe una única coincidencia exacta por cantidad, el producto se agrega directamente al carrito.
+- Si la coincidencia exacta es serializada, el POS intenta ubicar el IMEI exacto disponible.
+- Si no se encuentra el IMEI exacto, se abre el selector de IMEI para que el cajero elija.
+- Se mantiene el botón `Buscar` como acción manual.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Contexto operativo de caja en POS
 
 ### Diagnóstico

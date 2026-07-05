@@ -43,6 +43,15 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.
 - La caché es solo de la pantalla actual; el checkout real deberá volver a validar precios en backend.
 
+## Búsqueda rápida
+
+- La búsqueda se ejecuta automáticamente con una pausa corta mientras el cajero escribe.
+- No se consulta la API en cada tecla; se espera un pequeño intervalo para proteger el rendimiento.
+- El botón `Buscar` sigue disponible para forzar una búsqueda manual.
+- Al presionar Enter, el POS busca y revisa si el texto coincide exactamente con un SKU o nombre único.
+- Si la coincidencia exacta es un producto por cantidad, se agrega directamente al carrito.
+- Si la coincidencia exacta es un producto serializado, el POS intenta usar el IMEI exacto disponible; si no lo encuentra, abre el selector de IMEI.
+
 ## Contexto operativo
 
 - El POS carga almacenes activos desde `GET /api/warehouses`.

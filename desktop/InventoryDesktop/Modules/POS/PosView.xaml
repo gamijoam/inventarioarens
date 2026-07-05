@@ -43,6 +43,7 @@
                          FontSize="15"
                          VerticalAlignment="Center"
                          ToolTip="Buscar por nombre, SKU, serial o IMEI"
+                         TextChanged="SearchBox_TextChanged"
                          KeyDown="SearchBox_KeyDown" />
 
                 <ComboBox Grid.Column="2"

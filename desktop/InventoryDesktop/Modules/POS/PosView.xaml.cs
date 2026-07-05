@@ -1,14 +1,25 @@
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
+using InventoryDesktop.Core.Api;
+using InventoryDesktop.Modules.InventoryCenter;
 
 namespace InventoryDesktop.Modules.POS;
 
 public partial class PosView : UserControl
 {
+    private readonly DispatcherTimer searchDebounceTimer;
+
     public PosView()
     {
         InitializeComponent();
+        searchDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(450),
+        };
+        searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
     }
 
     public event EventHandler? ExitRequested;
@@ -24,6 +35,7 @@ public partial class PosView : UserControl
     {
         if (ViewModel is not null)
         {
+            searchDebounceTimer.Stop();
             await ViewModel.SearchAsync();
         }
     }
@@ -32,8 +44,39 @@ public partial class PosView : UserControl
     {
         if (e.Key == Key.Enter && ViewModel is not null)
         {
+            searchDebounceTimer.Stop();
             await ViewModel.SearchAsync();
+            await TryAddExactSearchMatchAsync();
+            e.Handled = true;
         }
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        string text = SearchBox.Text.Trim();
+        searchDebounceTimer.Stop();
+        if (text.Length is 1)
+        {
+            return;
+        }
+
+        searchDebounceTimer.Start();
+    }
+
+    private async void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        searchDebounceTimer.Stop();
+        if (ViewModel is null || ViewModel.IsBusy)
+        {
+            return;
+        }
+
+        await ViewModel.SearchAsync();
     }
 
     private async void Product_Click(object sender, RoutedEventArgs e)
@@ -43,7 +86,17 @@ public partial class PosView : UserControl
             return;
         }
 
-        if (card.Product.TrackingType == "serialized")
+        await AddCardToCartAsync(card);
+    }
+
+    private async Task AddCardToCartAsync(PosProductCard card, InventoryProductSerial? selectedSerial = null)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        if (card.Product.TrackingType == "serialized" && selectedSerial is null)
         {
             PosSerialSelectionWindow dialog = new(card, ViewModel)
             {
@@ -60,7 +113,45 @@ public partial class PosView : UserControl
             return;
         }
 
-        await ViewModel.AddProductAsync(card);
+        await ViewModel.AddProductAsync(card, selectedSerial);
+    }
+
+    private async Task TryAddExactSearchMatchAsync()
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        PosProductCard? card = ViewModel.FindExactSearchMatch();
+        if (card is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (card.Product.TrackingType == "serialized")
+            {
+                InventoryProductSerial? exactSerial = await ViewModel.FindExactAvailableSerialAsync(card, ViewModel.SearchText);
+                await AddCardToCartAsync(card, exactSerial);
+            }
+            else
+            {
+                await AddCardToCartAsync(card);
+            }
+
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+        catch (ApiException exception)
+        {
+            ViewModel.SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            ViewModel.SetError("No se pudo conectar con la API para agregar por código.");
+        }
     }
 
     private async void ReloadContext_Click(object sender, RoutedEventArgs e)
