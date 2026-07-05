@@ -25,8 +25,22 @@ public sealed record CashRegisterSessionItem(
     [property: JsonPropertyName("expected_local_amount")]
     [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     decimal ExpectedLocalAmount,
+    [property: JsonPropertyName("counted_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? CountedBaseAmount,
+    [property: JsonPropertyName("counted_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? CountedLocalAmount,
+    [property: JsonPropertyName("difference_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? DifferenceBaseAmount,
+    [property: JsonPropertyName("difference_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? DifferenceLocalAmount,
     [property: JsonPropertyName("opened_at")] string? OpenedAt,
+    [property: JsonPropertyName("closed_at")] string? ClosedAt,
     [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("closing_notes")] string? ClosingNotes,
     [property: JsonPropertyName("branch")] CashRegisterBranch? Branch)
 {
     public string SessionLabel => $"Caja #{Id}";
@@ -67,3 +81,8 @@ public sealed record OpenCashRegisterRequest(
     [property: JsonPropertyName("opening_currency")] string OpeningCurrency,
     [property: JsonPropertyName("opening_amount")] decimal OpeningAmount,
     [property: JsonPropertyName("notes")] string? Notes);
+
+public sealed record CloseCashRegisterRequest(
+    [property: JsonPropertyName("counted_currency")] string CountedCurrency,
+    [property: JsonPropertyName("counted_amount")] decimal CountedAmount,
+    [property: JsonPropertyName("closing_notes")] string? ClosingNotes);

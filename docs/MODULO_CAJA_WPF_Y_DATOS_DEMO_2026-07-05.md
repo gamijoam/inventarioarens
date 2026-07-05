@@ -118,3 +118,56 @@ Resultado:
 
 - 14 pruebas pasadas.
 - 68 aserciones.
+
+## Cierre operativo de caja en escritorio
+
+Se agrego el cierre de caja al modulo WPF **Caja**.
+
+La vista ahora permite:
+
+- Ver las cajas abiertas de la empresa.
+- Seleccionar una caja abierta.
+- Revisar el monto esperado antes de cerrar.
+- Registrar moneda contada: `USD` o `VES`.
+- Registrar monto contado.
+- Ver una diferencia estimada en USD cuando el conteo se hace en dolares.
+- Escribir notas de cierre.
+- Confirmar el cierre con una alerta antes de enviarlo.
+
+El cierre usa el endpoint existente:
+
+```http
+PATCH /api/cash-register/sessions/{id}/close
+```
+
+El backend recalcula los totales esperados, convierte el monto contado si aplica y guarda:
+
+- Monto contado base/local.
+- Diferencia base/local.
+- Usuario que cerro.
+- Fecha de cierre.
+- Notas de cierre.
+
+## Verificacion del cierre WPF
+
+Compilacion WPF:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- Compilacion correcta.
+- 0 errores.
+
+Pruebas backend:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests/Feature/CashRegister/CashRegisterApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/Auth/AuthApiTest.php
+```
+
+Resultado:
+
+- 30 pruebas pasadas.
+- 188 aserciones.

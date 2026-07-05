@@ -25,4 +25,25 @@ public partial class CashRegisterView : UserControl
             await viewModel.OpenCashRegisterAsync();
         }
     }
+
+    private async void Close_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not CashRegisterViewModel viewModel)
+        {
+            return;
+        }
+
+        MessageBoxResult result = MessageBox.Show(
+            "Vas a cerrar la caja seleccionada. Despues de cerrarla no podra usarse para vender en POS. ¿Deseas continuar?",
+            "Confirmar cierre de caja",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await viewModel.CloseCashRegisterAsync();
+    }
 }

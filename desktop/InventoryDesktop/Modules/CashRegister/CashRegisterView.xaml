@@ -97,6 +97,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <StackPanel>
@@ -110,6 +111,7 @@
 
                     <DataGrid Grid.Row="1"
                               ItemsSource="{Binding Sessions}"
+                              SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
@@ -125,6 +127,81 @@
                             <DataGridTextColumn Header="ABIERTA" Binding="{Binding OpenedAtLabel}" Width="150" />
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <Border Grid.Row="2"
+                            Background="#F8FAFE"
+                            BorderBrush="#E1E7F3"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="16"
+                            Margin="0,16,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="170" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Cerrar caja seleccionada" FontSize="18" FontWeight="Black" />
+                                <TextBlock Text="{Binding SelectedSessionLabel}"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="Bold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding ExpectedCloseLabel}"
+                                           Foreground="#058561"
+                                           FontWeight="Black"
+                                           Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding DifferencePreviewLabel}"
+                                           Foreground="#B45309"
+                                           FontWeight="Black"
+                                           Margin="0,3,0,0" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                <TextBlock Text="Moneda contada" FontWeight="Black" />
+                                <ComboBox ItemsSource="{Binding CurrencyOptions}"
+                                          SelectedItem="{Binding ClosingCurrency}"
+                                          Height="38"
+                                          Margin="0,6,0,0" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                                <TextBlock Text="Monto contado" FontWeight="Black" />
+                                <TextBox Text="{Binding CountedAmount, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="38"
+                                         Margin="0,6,0,0" />
+                            </StackPanel>
+
+                            <Button Grid.Column="3"
+                                    Content="Cerrar caja"
+                                    Height="42"
+                                    VerticalAlignment="Bottom"
+                                    Background="#D9365C"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    IsEnabled="{Binding CanCloseCashRegister}"
+                                    Click="Close_Click" />
+
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Margin="0,12,0,0">
+                                <TextBlock Text="{Binding CountedHelpLabel}"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBox Text="{Binding ClosingNotes, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="42"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
         </Grid>

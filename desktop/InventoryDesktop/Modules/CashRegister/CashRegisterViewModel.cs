@@ -13,9 +13,13 @@ public sealed class CashRegisterViewModel : ViewModelBase
     private readonly ApiClient apiClient;
     private readonly long currentUserId;
     private InventoryWarehouseOption? selectedWarehouse;
+    private CashRegisterSessionItem? selectedSession;
     private string openingCurrency = "USD";
     private decimal openingAmount;
     private string notes = "Apertura desde modulo Caja de escritorio.";
+    private string closingCurrency = "USD";
+    private decimal countedAmount;
+    private string closingNotes = "Cierre desde modulo Caja de escritorio.";
     private string statusMessage = "Carga el contexto y abre tu caja para vender en POS.";
     private bool isStatusError;
     private bool isBusy;
@@ -45,6 +49,20 @@ public sealed class CashRegisterViewModel : ViewModelBase
         }
     }
 
+    public CashRegisterSessionItem? SelectedSession
+    {
+        get => selectedSession;
+        set
+        {
+            if (SetProperty(ref selectedSession, value))
+            {
+                CountedAmount = value?.ExpectedBaseAmount ?? 0;
+                ClosingCurrency = "USD";
+                RaiseClosingProperties();
+            }
+        }
+    }
+
     public string OpeningCurrency
     {
         get => openingCurrency;
@@ -61,6 +79,36 @@ public sealed class CashRegisterViewModel : ViewModelBase
     {
         get => notes;
         set => SetProperty(ref notes, value);
+    }
+
+    public string ClosingCurrency
+    {
+        get => closingCurrency;
+        set
+        {
+            if (SetProperty(ref closingCurrency, value))
+            {
+                RaiseClosingProperties();
+            }
+        }
+    }
+
+    public decimal CountedAmount
+    {
+        get => countedAmount;
+        set
+        {
+            if (SetProperty(ref countedAmount, value))
+            {
+                RaiseClosingProperties();
+            }
+        }
+    }
+
+    public string ClosingNotes
+    {
+        get => closingNotes;
+        set => SetProperty(ref closingNotes, value);
     }
 
     public string StatusMessage
@@ -89,6 +137,7 @@ public sealed class CashRegisterViewModel : ViewModelBase
             if (SetProperty(ref isBusy, value))
             {
                 RaisePropertyChanged(nameof(CanOpenCashRegister));
+                RaisePropertyChanged(nameof(CanCloseCashRegister));
             }
         }
     }
@@ -102,6 +151,39 @@ public sealed class CashRegisterViewModel : ViewModelBase
         : $"Sucursal: {SelectedWarehouse.BranchName}";
 
     public bool CanOpenCashRegister => !IsBusy && SelectedWarehouse?.BranchId is not null;
+
+    public bool CanCloseCashRegister => !IsBusy && SelectedSession is not null;
+
+    public string SelectedSessionLabel => SelectedSession is null
+        ? "Selecciona una caja abierta para cerrar turno."
+        : $"{SelectedSession.SessionLabel} - {SelectedSession.BranchLabel}";
+
+    public string ExpectedCloseLabel => SelectedSession is null
+        ? "Esperado: USD 0.00 / Bs 0.00"
+        : $"Esperado: USD {SelectedSession.ExpectedBaseAmount:0.00} / Bs {SelectedSession.ExpectedLocalAmount:0.00}";
+
+    public string CountedHelpLabel => ClosingCurrency == "VES"
+        ? "El conteo en bolivares sera convertido por el backend con la tasa vigente."
+        : "El conteo se compara contra el esperado en dolares.";
+
+    public string DifferencePreviewLabel
+    {
+        get
+        {
+            if (SelectedSession is null)
+            {
+                return "Diferencia estimada: USD 0.00";
+            }
+
+            if (ClosingCurrency == "VES")
+            {
+                return "Diferencia estimada: se calculara al cerrar con la tasa vigente.";
+            }
+
+            decimal difference = CountedAmount - SelectedSession.ExpectedBaseAmount;
+            return $"Diferencia estimada: USD {difference:0.00}";
+        }
+    }
 
     public async Task LoadAsync()
     {
@@ -134,6 +216,10 @@ public sealed class CashRegisterViewModel : ViewModelBase
             {
                 Sessions.Add(session);
             }
+
+            SelectedSession = Sessions.FirstOrDefault(session => session.Id == SelectedSession?.Id)
+                ?? Sessions.FirstOrDefault(session => session.CashierId == currentUserId)
+                ?? Sessions.FirstOrDefault();
         }
         catch (ApiException exception)
         {
@@ -189,6 +275,46 @@ public sealed class CashRegisterViewModel : ViewModelBase
         }
     }
 
+    public async Task CloseCashRegisterAsync()
+    {
+        if (SelectedSession is not CashRegisterSessionItem session)
+        {
+            SetError("Selecciona una caja abierta antes de cerrar.");
+            return;
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Cerrando {session.SessionLabel}...";
+
+        try
+        {
+            CashRegisterSessionResponse response = await apiClient.PatchAsync<CloseCashRegisterRequest, CashRegisterSessionResponse>(
+                $"cash-register/sessions/{session.Id}/close",
+                new CloseCashRegisterRequest(ClosingCurrency, CountedAmount, ClosingNotes));
+
+            await LoadSessionsAsync();
+            StatusMessage = $"Caja #{response.Data.Id} cerrada. Diferencia: USD {response.Data.DifferenceBaseAmount ?? 0:0.00} / Bs {response.Data.DifferenceLocalAmount ?? 0:0.00}.";
+            IsStatusError = false;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (JsonException)
+        {
+            SetError("La API devolvio el cierre de caja con un formato inesperado. Actualiza e intenta nuevamente.");
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cerrar caja.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task LoadWarehousesAsync()
     {
         try
@@ -226,5 +352,14 @@ public sealed class CashRegisterViewModel : ViewModelBase
     {
         IsStatusError = true;
         StatusMessage = message;
+    }
+
+    private void RaiseClosingProperties()
+    {
+        RaisePropertyChanged(nameof(CanCloseCashRegister));
+        RaisePropertyChanged(nameof(SelectedSessionLabel));
+        RaisePropertyChanged(nameof(ExpectedCloseLabel));
+        RaisePropertyChanged(nameof(CountedHelpLabel));
+        RaisePropertyChanged(nameof(DifferencePreviewLabel));
     }
 }
