@@ -7,4 +7,5 @@ Route::prefix('pos')->group(function (): void {
     Route::get('orders', [PosOrderController::class, 'index']);
     Route::post('checkouts', [PosOrderController::class, 'checkout']);
     Route::get('orders/{posOrder}', [PosOrderController::class, 'show']);
+    Route::post('orders/{posOrder}/payments', [PosOrderController::class, 'addPayments']);
 });

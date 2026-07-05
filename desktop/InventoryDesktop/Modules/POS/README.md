@@ -29,6 +29,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El carrito queda a la derecha con ancho reducido.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
 - El botón `Pagar` abre una ventana separada para no quitar espacio al catálogo ni al carrito.
+- El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
 
 ## Rendimiento del carrito
 
@@ -71,6 +72,10 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cada pago puede marcarse como capturado o pendiente.
 - Los pagos capturados cuentan para cerrar la venta.
 - Los pagos pendientes permiten registrar una orden abierta sin cerrar la venta.
+- Las órdenes pendientes se consultan con `GET /api/pos/orders?status=open`.
+- Desde la ventana `Ordenes POS pendientes` se puede agregar un pago a una orden abierta.
+- Al agregar pagos capturados a una orden pendiente, WPF consume `POST /api/pos/orders/{order}/payments`.
+- Si los pagos capturados cubren el total, Laravel confirma la venta, descuenta inventario y marca la orden como `paid`.
 - La ventana muestra vuelto estimado cuando el pago capturado supera el total.
 - El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
@@ -110,6 +115,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - `GET /api/payment-methods?active_only=1`: métodos de pago disponibles.
 - `GET /api/customers?search={texto}&active_only=1&limit=20`: búsqueda rápida de clientes activos.
 - `POST /api/pos/checkouts`: confirmación real de venta POS.
+- `GET /api/pos/orders?status=open`: listado de órdenes POS pendientes.
+- `POST /api/pos/orders/{order}/payments`: completar cobro de una orden POS pendiente.
 
 ## Reglas actuales
 
@@ -118,6 +125,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si el producto es serializado/IMEI, se exige seleccionar un serial disponible del almacén activo.
 - Si se elige una lista de precio y el producto no tiene precio activo para esa lista, la API rechaza la cotización y la app muestra el error.
 - El checkout real crea la orden POS, registra pagos, usa caja y confirma venta cuando el backend valida que el pago cubre el total.
+- Una orden pendiente conserva la venta en borrador hasta que se agreguen pagos capturados suficientes.
+- Completar una orden pendiente no crea otra venta; agrega pagos a la orden existente.
 - El botón `Volver al panel` regresa al panel administrativo sin cerrar sesión.
 
 ## Siguiente fase natural

@@ -370,6 +370,83 @@ class PosCheckoutApiTest extends TestCase
         $this->assertDatabaseCount('accounts_receivable_payments', 0);
     }
 
+    public function test_pending_pos_order_can_be_completed_with_captured_payment(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_PENDING,
+                    'reference' => 'TRX-PEND-001',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN)
+            ->assertJsonPath('data.sale.status', Sale::STATUS_DRAFT);
+
+        $orderId = $checkout->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/payments", [
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-CAPT-001',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.sale.status', Sale::STATUS_CONFIRMED)
+            ->assertJsonPath('data.paid_base_amount', '100.0000')
+            ->assertJsonCount(2, 'data.payments');
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+        ]);
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+            'method' => PosPayment::METHOD_TRANSFER,
+            'amount_base' => '100.0000',
+        ]);
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $checkout->json('data.sale_id'),
+            'status' => AccountsReceivable::STATUS_PAID,
+            'collected_base_amount' => '100.0000',
+            'balance_base_amount' => '0.0000',
+        ]);
+    }
+
     public function test_pos_checkout_can_sell_exact_serialized_imei(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

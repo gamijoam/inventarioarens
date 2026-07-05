@@ -178,4 +178,19 @@ public partial class PosView : UserControl
 
         dialog.ShowDialog();
     }
+
+    private void PendingOrders_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        PosPendingOrdersWindow dialog = new(ViewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        dialog.ShowDialog();
+    }
 }

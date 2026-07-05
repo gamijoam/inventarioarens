@@ -1,5 +1,39 @@
 # Registro de implementación
 
+## 2026-07-04 - Ordenes POS pendientes y completar cobro
+
+### Diagnostico
+
+- Las ordenes POS abiertas ya existian en backend cuando un pago quedaba pendiente o no cubria el total.
+- Faltaba una operacion segura para agregar pagos a una orden abierta sin crear una venta nueva.
+- Faltaba una herramienta visual en WPF para que el cajero pudiera ver pendientes y completar el cobro.
+
+### Implementado
+
+- Se agrego `POST /api/pos/orders/{posOrder}/payments` para registrar pagos adicionales sobre una orden POS abierta.
+- El backend valida que la orden este `open`, que la venta asociada siga en borrador y que la caja pertenezca al cajero conectado.
+- Al agregar pagos capturados, el backend registra movimiento de caja y recalcula lo pagado.
+- Si los pagos capturados cubren el total, el backend confirma la venta, descuenta inventario, crea la cuenta por cobrar pagada y marca la orden como `paid`.
+- Se agrego filtro `status` en `GET /api/pos/orders` para consultar `status=open`.
+- Se agrego la ventana WPF `Ordenes POS pendientes` con listado de ordenes abiertas, total, pagado, faltante y registro de pago.
+- Se agrego boton `Pendientes` dentro del POS de escritorio.
+- Se actualizo el README del modulo POS en espanol.
+
+### Pruebas
+
+- Se ejecuto `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilacion correcta, 0 advertencias, 0 errores.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php --filter=pending`.
+- Resultado: 2 pruebas pasaron, 21 assertions.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 12 pruebas pasaron, 86 assertions.
+
+### Notas de seguridad
+
+- Completar una orden pendiente no crea una venta adicional.
+- Solo se pueden completar ordenes de la empresa actual y con permisos `pos.checkout`.
+- La confirmacion final sigue pasando por el servicio de ventas, por lo que conserva validacion de stock, IMEI/seriales y concurrencia.
+
 ## 2026-07-04 - Corrección de estado pagado en cobro POS WPF
 
 ### Diagnóstico

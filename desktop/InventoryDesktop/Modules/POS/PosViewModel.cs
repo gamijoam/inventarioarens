@@ -46,6 +46,8 @@ public sealed class PosViewModel : ViewModelBase
 
     public ObservableCollection<PosCustomerOption> CustomerSearchResults { get; } = new();
 
+    public ObservableCollection<PosOrderSummary> PendingOrders { get; } = new();
+
     public string SearchText
     {
         get => searchText;
@@ -406,6 +408,77 @@ public sealed class PosViewModel : ViewModelBase
             const string message = "No se pudo conectar con la API para registrar el cliente.";
             SetError(message);
             throw new InvalidOperationException(message, exception);
+        }
+    }
+
+    public async Task<IReadOnlyList<PosOrderSummary>> LoadPendingOrdersAsync()
+    {
+        try
+        {
+            PosOrderListResponse response = await apiClient.GetAsync<PosOrderListResponse>("pos/orders?status=open");
+            PendingOrders.Clear();
+            foreach (PosOrderSummary order in response.Data.OrderByDescending(order => order.Id))
+            {
+                PendingOrders.Add(order);
+            }
+
+            StatusMessage = PendingOrders.Count == 0
+                ? "No hay ordenes POS pendientes."
+                : $"{PendingOrders.Count} orden(es) POS pendiente(s).";
+            IsStatusError = false;
+            return PendingOrders;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            return [];
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar ordenes pendientes.");
+            return [];
+        }
+    }
+
+    public async Task<PosOrderResult> AddPaymentsToPendingOrderAsync(long orderId, IReadOnlyList<PosCheckoutPaymentRequest> payments)
+    {
+        if (payments.Count == 0)
+        {
+            throw new InvalidOperationException("Agrega al menos un pago para completar la orden.");
+        }
+
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Completando cobro de la orden pendiente...";
+
+            PosOrderResponse response = await apiClient.PostAsync<PosOrderPaymentsRequest, PosOrderResponse>(
+                $"pos/orders/{orderId}/payments",
+                new PosOrderPaymentsRequest(payments));
+
+            StatusMessage = response.Data.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
+                ? $"Orden POS #{response.Data.Id} pagada y cerrada."
+                : $"Orden POS #{response.Data.Id} actualizada. Sigue pendiente.";
+            IsStatusError = false;
+            await LoadPendingOrdersAsync();
+            await SearchAsync();
+            return response.Data;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            const string message = "No se pudo conectar con la API para completar la orden.";
+            SetError(message);
+            throw new InvalidOperationException(message, exception);
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 

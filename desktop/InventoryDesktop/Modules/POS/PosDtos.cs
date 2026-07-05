@@ -87,6 +87,70 @@ public sealed record PosOrderResult(
     [property: JsonPropertyName("total_base")] decimal? TotalBase,
     [property: JsonPropertyName("paid_base")] decimal? PaidBase);
 
+public sealed record PosOrderListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<PosOrderSummary> Data);
+
+public sealed record PosOrderSummary(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("sale_id")] long SaleId,
+    [property: JsonPropertyName("cash_register_session_id")] long CashRegisterSessionId,
+    [property: JsonPropertyName("customer_name")] string? CustomerName,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("total_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal TotalBaseAmount,
+    [property: JsonPropertyName("total_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? TotalLocalAmount,
+    [property: JsonPropertyName("paid_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? PaidBaseAmount,
+    [property: JsonPropertyName("paid_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? PaidLocalAmount,
+    [property: JsonPropertyName("opened_at")] string? OpenedAt,
+    [property: JsonPropertyName("payments")] IReadOnlyList<PosOrderPaymentSummary>? Payments)
+{
+    public decimal PaidBase => PaidBaseAmount ?? 0m;
+
+    public decimal RemainingBase => Math.Max(0m, TotalBaseAmount - PaidBase);
+
+    public string CustomerLabel => string.IsNullOrWhiteSpace(CustomerName) ? "Cliente mostrador" : CustomerName;
+
+    public string TotalLabel => $"USD {TotalBaseAmount:0.00}";
+
+    public string PaidLabel => $"USD {PaidBase:0.00}";
+
+    public string RemainingLabel => $"USD {RemainingBase:0.00}";
+
+    public string StatusLabel => Status.Equals("open", StringComparison.OrdinalIgnoreCase) ? "Pendiente" : Status;
+
+    public string PaymentsLabel => Payments is null || Payments.Count == 0
+        ? "Sin pagos"
+        : $"{Payments.Count} pago(s)";
+}
+
+public sealed record PosOrderPaymentSummary(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal Amount,
+    [property: JsonPropertyName("amount_base")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal AmountBase,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("reference")] string? Reference)
+{
+    public string AmountLabel => $"{Currency} {Amount:0.00}";
+
+    public string BaseLabel => $"USD {AmountBase:0.00}";
+}
+
+public sealed record PosOrderPaymentsRequest(
+    [property: JsonPropertyName("payments")] IReadOnlyList<PosCheckoutPaymentRequest> Payments);
+
 public sealed record PosCustomerListResponse(
     [property: JsonPropertyName("data")] IReadOnlyList<PosCustomerOption> Data);
 
