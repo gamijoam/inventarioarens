@@ -1,4 +1,18 @@
 # Registro de implementación
+## 2026-07-05 - Base inicial para sincronizacion local y nube
+
+### Implementado
+
+- Se documento la estrategia local-first con outbox bidireccional en docs/SINCRONIZACION_LOCAL_NUBE_2026-07-05.md.
+- Se definieron fases para local -> nube, nube -> local, worker, conflictos, observabilidad y WebSocket opcional.
+- Se crearon las tablas base sync_nodes, sync_outbox, sync_inbox y sync_states.
+- Se agrego una prueba especifica para validar que la estructura guarda eventos por empresa, nodo y direccion.
+- Esta fase no emite eventos desde POS, caja ni inventario. Solo prepara la base para hacerlo por modulo.
+
+### Pruebas
+
+- Se ejecuto SyncSchemaTest.
+
 ## 2026-07-05 - Compactacion visual final de Caja
 
 ### Implementado
