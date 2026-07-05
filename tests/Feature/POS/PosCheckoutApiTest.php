@@ -102,6 +102,13 @@ class PosCheckoutApiTest extends TestCase
             'method' => 'pos_cash',
             'amount_base' => '200.0000',
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => $response->json('data.id'),
+            'status' => 'pending',
+        ]);
     }
 
     public function test_pos_checkout_with_ves_payment_stores_payment_rate_snapshot(): void

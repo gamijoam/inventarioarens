@@ -110,3 +110,16 @@ Guarda el ultimo punto de sincronizacion por nodo y direccion.
 
 En esta primera fase se deja solo la base de datos de sincronizacion y una prueba especifica. Todavia no se emiten eventos desde POS, caja ni inventario. Eso se hara por modulo para no contaminar la logica ya estable.
 
+## Segundo alcance implementado
+
+Se agrego el primer servicio interno de outbox y se conecto con POS y Caja.
+
+Eventos iniciales:
+
+- `pos.order.paid`
+- `pos.order.pending`
+- `pos.order.payment_added`
+- `cash.session.opened`
+- `cash.session.closed`
+
+Detalle documentado en `docs/SYNC_OUTBOX_EVENTOS_POS_CAJA_2026-07-05.md`.

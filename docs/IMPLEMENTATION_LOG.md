@@ -1,4 +1,17 @@
 # Registro de implementación
+## 2026-07-05 - Servicio outbox inicial para POS y Caja
+
+### Implementado
+
+- Se creo SyncOutboxService para registrar eventos pendientes en sync_outbox.
+- POS ahora registra pos.order.paid, pos.order.pending y pos.order.payment_added.
+- Caja ahora registra cash.session.opened y cash.session.closed.
+- Se documento el detalle de eventos y payloads en docs/SYNC_OUTBOX_EVENTOS_POS_CAJA_2026-07-05.md.
+- Los eventos quedan en pending; todavia no existe worker de envio a nube.
+
+### Pruebas
+
+- Se ejecutaron SyncSchemaTest, PosCheckoutApiTest y CashRegisterApiTest.
 ## 2026-07-05 - Base inicial para sincronizacion local y nube
 
 ### Implementado

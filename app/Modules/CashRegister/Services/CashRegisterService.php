@@ -11,12 +11,17 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CashRegisterService
 {
+    public function __construct(
+        private readonly SyncOutboxService $syncOutbox,
+    ) {}
+
     public function open(User $operator, Branch $branch, ?CashRegister $physicalRegister, ?User $cashier, array $data): CashRegisterSession
     {
         return DB::transaction(function () use ($operator, $branch, $physicalRegister, $cashier, $data): CashRegisterSession {
@@ -102,6 +107,8 @@ class CashRegisterService
                 ], $operator);
             }
 
+            $this->recordSessionSyncEvent($session->refresh(), 'cash.session.opened');
+
             return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
     }
@@ -142,6 +149,8 @@ class CashRegisterService
                 'closed_at' => now(),
                 'closing_notes' => $data['closing_notes'] ?? null,
             ]);
+
+            $this->recordSessionSyncEvent($session->refresh(), 'cash.session.closed');
 
             return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
@@ -317,5 +326,34 @@ class CashRegisterService
                 'status' => 'La caja no esta abierta.',
             ]);
         }
+    }
+
+    private function recordSessionSyncEvent(CashRegisterSession $session, string $eventType): void
+    {
+        $this->syncOutbox->record(
+            eventType: $eventType,
+            aggregateType: 'cash_register_session',
+            aggregateId: $session->id,
+            payload: [
+                'session_id' => $session->id,
+                'branch_id' => $session->branch_id,
+                'cash_register_id' => $session->cash_register_id,
+                'cashier_id' => $session->cashier_id,
+                'opened_by' => $session->opened_by,
+                'closed_by' => $session->closed_by,
+                'status' => $session->status,
+                'opening_base_amount' => (string) $session->opening_base_amount,
+                'opening_local_amount' => (string) $session->opening_local_amount,
+                'expected_base_amount' => (string) $session->expected_base_amount,
+                'expected_local_amount' => (string) $session->expected_local_amount,
+                'counted_base_amount' => $session->counted_base_amount === null ? null : (string) $session->counted_base_amount,
+                'counted_local_amount' => $session->counted_local_amount === null ? null : (string) $session->counted_local_amount,
+                'difference_base_amount' => $session->difference_base_amount === null ? null : (string) $session->difference_base_amount,
+                'difference_local_amount' => $session->difference_local_amount === null ? null : (string) $session->difference_local_amount,
+                'opened_at' => $session->opened_at?->toJSON(),
+                'closed_at' => $session->closed_at?->toJSON(),
+            ],
+            idempotencyKey: "{$eventType}:cash_register_session:{$session->id}"
+        );
     }
 }

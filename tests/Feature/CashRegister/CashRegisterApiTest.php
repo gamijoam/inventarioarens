@@ -30,7 +30,7 @@ class CashRegisterApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.view']);
 
-        $this
+        $sessionId = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/cash-register/sessions', [
@@ -43,7 +43,16 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonPath('data.status', CashRegisterSession::STATUS_OPEN)
             ->assertJsonPath('data.opening_base_amount', '50.0000')
             ->assertJsonPath('data.expected_base_amount', '50.0000')
-            ->assertJsonPath('data.movements.0.type', CashRegisterMovement::TYPE_OPENING);
+            ->assertJsonPath('data.movements.0.type', CashRegisterMovement::TYPE_OPENING)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'cash.session.opened',
+            'aggregate_type' => 'cash_register_session',
+            'aggregate_id' => $sessionId,
+            'status' => 'pending',
+        ]);
     }
 
     public function test_user_can_create_physical_cash_register_and_open_it(): void

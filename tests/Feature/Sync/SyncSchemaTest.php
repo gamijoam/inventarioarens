@@ -3,6 +3,8 @@
 namespace Tests\Feature\Sync;
 
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Sync\Services\SyncOutboxService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -99,6 +101,42 @@ class SyncSchemaTest extends TestCase
             'tenant_id' => $tenant->id,
             'node_id' => $nodeId,
             'direction' => 'pull',
+        ]);
+    }
+
+    public function test_sync_outbox_service_records_idempotent_events_for_current_tenant(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Tenant Sync Service',
+            'slug' => 'tenant-sync-service',
+        ]);
+        app(TenantManager::class)->set($tenant);
+
+        $service = app(SyncOutboxService::class);
+
+        $firstId = $service->record(
+            eventType: 'pos.order.paid',
+            aggregateType: 'pos_order',
+            aggregateId: 10,
+            payload: ['order_id' => 10, 'total_base_amount' => '20.0000'],
+            idempotencyKey: 'pos.order.paid:pos_order:10:test'
+        );
+        $secondId = $service->record(
+            eventType: 'pos.order.paid',
+            aggregateType: 'pos_order',
+            aggregateId: 10,
+            payload: ['order_id' => 10, 'total_base_amount' => '20.0000'],
+            idempotencyKey: 'pos.order.paid:pos_order:10:test'
+        );
+
+        $this->assertSame($firstId, $secondId);
+        $this->assertSame(1, DB::table('sync_outbox')->where('tenant_id', $tenant->id)->count());
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => 10,
+            'status' => 'pending',
         ]);
     }
 }

@@ -21,6 +21,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
+use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Performance\PerformanceProbe;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -32,6 +33,7 @@ class PosCheckoutService
         private readonly CashRegisterService $cashRegister,
         private readonly AccountsReceivableService $accountsReceivable,
         private readonly InventoryMovementService $inventory,
+        private readonly SyncOutboxService $syncOutbox,
     ) {}
 
     public function checkout(
@@ -137,6 +139,7 @@ class PosCheckoutService
                         'paid_at' => now(),
                         'closed_at' => now(),
                     ]);
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
                 } else {
                     PerformanceProbe::measure(
                         'POS reservar inventario pendiente',
@@ -144,6 +147,7 @@ class PosCheckoutService
                         500,
                         ['order_id' => $order->id, 'items' => count($items)]
                     );
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.pending');
                 }
 
                 return PerformanceProbe::measure(
@@ -262,6 +266,9 @@ class PosCheckoutService
                         'closed_at' => now(),
                     ]);
                     $order->setRelation('sale', $sale);
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
+                } else {
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.payment_added');
                 }
 
                 return PerformanceProbe::measure(
@@ -636,5 +643,35 @@ class PosCheckoutService
             $this->accountsReceivable->registerPosPayment($account, $cashier, $payment);
             $account->refresh();
         }
+    }
+
+    private function recordOrderSyncEvent(PosOrder $order, string $eventType): void
+    {
+        $order->loadMissing(['payments', 'sale']);
+
+        $this->syncOutbox->record(
+            eventType: $eventType,
+            aggregateType: 'pos_order',
+            aggregateId: $order->id,
+            payload: [
+                'order_id' => $order->id,
+                'sale_id' => $order->sale_id,
+                'sale_status' => $order->sale?->status,
+                'cash_register_session_id' => $order->cash_register_session_id,
+                'customer_id' => $order->customer_id,
+                'customer_name' => $order->customer_name,
+                'status' => $order->status,
+                'cashier_id' => $order->cashier_id,
+                'total_base_amount' => (string) $order->total_base_amount,
+                'total_local_amount' => (string) $order->total_local_amount,
+                'paid_base_amount' => (string) $order->paid_base_amount,
+                'paid_local_amount' => (string) $order->paid_local_amount,
+                'payments_count' => $order->payments->count(),
+                'opened_at' => $order->opened_at?->toJSON(),
+                'paid_at' => $order->paid_at?->toJSON(),
+                'closed_at' => $order->closed_at?->toJSON(),
+            ],
+            idempotencyKey: "{$eventType}:pos_order:{$order->id}:{$order->status}:payments:{$order->payments->count()}"
+        );
     }
 }
