@@ -13,9 +13,15 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
-    public function availableTenants(string $email, string $password): array
+    public function availableTenants(string $email): array
     {
-        $user = $this->validateCredentials($email, $password);
+        $user = User::query()
+            ->where('email', Str::lower($email))
+            ->first();
+
+        if (! $user) {
+            return [];
+        }
 
         return $user->tenants()
             ->wherePivot('status', 'active')

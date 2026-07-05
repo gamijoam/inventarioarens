@@ -50,19 +50,21 @@ public sealed class LoginViewModel : ViewModelBase
         set => SetProperty(ref isBusy, value);
     }
 
-    public async Task FindTenantsAsync(string password)
+    public async Task FindTenantsByEmailAsync()
     {
-        if (!ValidateCredentials(password))
+        if (!ValidateEmailForTenantLookup())
         {
             return;
         }
 
         await RunAsync(async () =>
         {
-            await FetchTenantsAsync(password);
+            await FetchTenantsAsync();
             StatusMessage = Tenants.Count == 0
                 ? "No hay empresas activas para este usuario."
-                : "Selecciona la empresa e ingresa.";
+                : Tenants.Count == 1
+                    ? $"Empresa encontrada: {Tenants[0].Name}."
+                    : $"Selecciona una de las {Tenants.Count} empresas disponibles.";
         });
     }
 
@@ -77,7 +79,7 @@ public sealed class LoginViewModel : ViewModelBase
         {
             await RunAsync(async () =>
             {
-                await FetchTenantsAsync(password);
+                await FetchTenantsAsync();
                 if (Tenants.Count != 1)
                 {
                     StatusMessage = Tenants.Count == 0
@@ -95,12 +97,12 @@ public sealed class LoginViewModel : ViewModelBase
         await RunAsync(() => LoginWithSelectedTenantAsync(password));
     }
 
-    private async Task FetchTenantsAsync(string password)
+    private async Task FetchTenantsAsync()
     {
         apiClient.Configure(ApiBaseUrl);
         TenantLookupResponse response = await apiClient.PostAsync<TenantLookupRequest, TenantLookupResponse>(
             "auth/tenants",
-            new TenantLookupRequest(Email.Trim(), password));
+            new TenantLookupRequest(Email.Trim()));
 
         Tenants.Clear();
         foreach (TenantOption tenant in response.Data)
@@ -147,6 +149,33 @@ public sealed class LoginViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(password))
         {
             StatusMessage = "La contrasena es obligatoria.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool ValidateEmailForTenantLookup()
+    {
+        Tenants.Clear();
+        SelectedTenant = null;
+
+        if (string.IsNullOrWhiteSpace(ApiBaseUrl))
+        {
+            StatusMessage = "Debes indicar la URL base de la API.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            StatusMessage = "";
+            return false;
+        }
+
+        string normalizedEmail = Email.Trim();
+        if (!normalizedEmail.Contains('@') || !normalizedEmail.Contains('.'))
+        {
+            StatusMessage = "";
             return false;
         }
 

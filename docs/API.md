@@ -40,17 +40,17 @@ Body:
 
 ```json
 {
-  "email": "usuario@example.test",
-  "password": "password-seguro"
+  "email": "usuario@example.test"
 }
 ```
 
 Reglas:
 
 - no requiere `X-Tenant`;
-- valida credenciales;
+- no abre sesion ni valida contraseña;
 - devuelve solo empresas donde el usuario esta activo;
 - sirve para que el frontend permita escoger empresa cuando el usuario pertenece a varias.
+- la contraseña se valida despues en `POST /api/auth/login`.
 
 ### Iniciar sesion
 

@@ -307,7 +307,7 @@ El modulo `Auth` emite tokens de API propios para el frontend web. No se guarda 
 
 Reglas arquitectonicas:
 
-- `POST /api/auth/tenants` permite validar credenciales y listar empresas activas del usuario;
+- `POST /api/auth/tenants` permite listar empresas activas del usuario por correo, sin abrir sesion;
 - `POST /api/auth/login` requiere `X-Tenant` y emite un token asociado a esa empresa;
 - `GET /api/auth/me` devuelve usuario, empresa, roles y permisos efectivos;
 - `POST /api/auth/logout` revoca el token actual;

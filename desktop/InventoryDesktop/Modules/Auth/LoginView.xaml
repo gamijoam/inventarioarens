@@ -26,24 +26,6 @@
                            FontSize="42"
                            FontWeight="Black"
                            LineHeight="48" />
-                <TextBlock Text="Control empresarial para inventario, ventas, caja y reportes en una sola aplicacion de escritorio."
-                           Margin="0,16,0,0"
-                           FontSize="17"
-                           Foreground="{StaticResource MutedBrush}"
-                           TextWrapping="Wrap"
-                           LineHeight="28" />
-
-                <StackPanel Margin="0,34,0,0">
-                    <Border Padding="18" Margin="0,0,0,12" Background="#FFFFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
-                        <TextBlock Text="Inventario por empresa, almacen y seriales/IMEIs." FontWeight="Black" Foreground="{StaticResource InkBrush}" />
-                    </Border>
-                    <Border Padding="18" Margin="0,0,0,12" Background="#FFFFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
-                        <TextBlock Text="Ventas, caja y reportes preparados para operacion diaria." FontWeight="Black" Foreground="{StaticResource InkBrush}" />
-                    </Border>
-                    <Border Padding="18" Background="#FFFFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
-                        <TextBlock Text="Acceso seguro por usuario, permisos y empresa." FontWeight="Black" Foreground="{StaticResource InkBrush}" />
-                    </Border>
-                </StackPanel>
             </StackPanel>
 
             <Border Grid.Column="1"
@@ -65,7 +47,7 @@
                     </Border>
 
                     <TextBlock Text="Iniciar sesion" FontSize="34" FontWeight="Black" Margin="0,26,0,0" />
-                    <TextBlock Text="Ingresa con tu usuario para abrir el panel de trabajo de tu empresa."
+                    <TextBlock Text="Escribe tu correo, selecciona la empresa y confirma tu contraseña."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap"
                                FontSize="15"
@@ -73,7 +55,9 @@
                                Margin="0,8,0,24" />
 
                     <TextBlock Text="Correo" FontWeight="Bold" Margin="0,0,0,8" />
-                    <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox x:Name="EmailInput"
+                             Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
+                             TextChanged="EmailInput_TextChanged" />
 
                     <TextBlock Text="Contrasena" FontWeight="Bold" Margin="0,16,0,8" />
                     <PasswordBox x:Name="PasswordInput" />

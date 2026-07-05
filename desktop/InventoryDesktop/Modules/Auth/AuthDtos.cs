@@ -3,8 +3,7 @@ using System.Text.Json.Serialization;
 namespace InventoryDesktop.Modules.Auth;
 
 public sealed record TenantLookupRequest(
-    [property: JsonPropertyName("email")] string Email,
-    [property: JsonPropertyName("password")] string Password);
+    [property: JsonPropertyName("email")] string Email);
 
 public sealed record LoginRequest(
     [property: JsonPropertyName("email")] string Email,

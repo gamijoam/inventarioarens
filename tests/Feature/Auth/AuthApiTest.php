@@ -34,11 +34,37 @@ class AuthApiTest extends TestCase
         $this
             ->postJson('/api/auth/tenants', [
                 'email' => 'usuario@example.test',
-                'password' => 'secret123',
             ])
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.slug', 'empresa-a');
+    }
+
+    public function test_same_email_can_list_multiple_active_companies_before_login(): void
+    {
+        [$tenantA, $tenantB, $tenantC] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+            Tenant::create(['name' => 'Empresa C', 'slug' => 'empresa-c']),
+        ];
+
+        $user = User::factory()->create([
+            'email' => 'multiempresa@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+        $user->tenants()->attach($tenantC, ['status' => 'active']);
+
+        $this
+            ->postJson('/api/auth/tenants', [
+                'email' => 'multiempresa@example.test',
+            ])
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.slug', 'empresa-a')
+            ->assertJsonPath('data.1.slug', 'empresa-b')
+            ->assertJsonPath('data.2.slug', 'empresa-c');
     }
 
     public function test_user_can_login_and_receive_tenant_context(): void

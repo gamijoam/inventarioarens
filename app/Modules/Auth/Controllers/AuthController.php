@@ -22,8 +22,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'data' => $this->auth->availableTenants(
-                $request->validated('email'),
-                $request->validated('password')
+                $request->validated('email')
             ),
         ]);
     }
