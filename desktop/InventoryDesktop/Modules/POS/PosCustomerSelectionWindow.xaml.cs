@@ -12,6 +12,7 @@ public partial class PosCustomerSelectionWindow : Window
         InitializeComponent();
         this.viewModel = viewModel;
         CustomersGrid.ItemsSource = viewModel.CustomerSearchResults;
+        PreviewKeyDown += CustomerSelectionWindow_PreviewKeyDown;
         SearchBox.Focus();
     }
 
@@ -29,6 +30,31 @@ public partial class PosCustomerSelectionWindow : Window
         if (e.Key == Key.Enter)
         {
             await SearchAsync();
+        }
+    }
+
+    private void CustomerSelectionWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            DialogResult = false;
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F2)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && Keyboard.FocusedElement != SearchBox)
+        {
+            SelectCurrentCustomer();
+            e.Handled = true;
         }
     }
 

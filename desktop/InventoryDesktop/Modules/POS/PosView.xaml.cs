@@ -359,6 +359,8 @@ public partial class PosView : UserControl
         if (dialog.SelectedCustomer is not null)
         {
             ViewModel.SelectedCustomer = dialog.SelectedCustomer;
+            ViewModel.StatusMessage = $"Cliente seleccionado: {dialog.SelectedCustomer.Name}.";
+            ViewModel.IsStatusError = false;
         }
     }
 

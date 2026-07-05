@@ -958,6 +958,7 @@ public sealed class PosViewModel : ViewModelBase
 
             PosOrderResponse response = await apiClient.PostAsync<PosCheckoutRequest, PosOrderResponse>("pos/checkouts", request);
             CartItems.Clear();
+            SelectedCustomer = null;
             RaiseTotalsChanged();
             SearchText = string.Empty;
             ClearProductResults($"Venta confirmada. Orden POS #{response.Data.Id}. Escanea o busca para iniciar otra venta.");

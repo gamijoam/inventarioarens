@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace InventoryDesktop.Modules.POS;
 
@@ -12,12 +13,18 @@ public partial class PosCustomerCreateWindow : Window
         this.viewModel = viewModel;
         DocumentTypeBox.ItemsSource = new[] { "V", "E", "J", "G", "P" };
         DocumentTypeBox.SelectedIndex = 0;
+        PreviewKeyDown += CustomerCreateWindow_PreviewKeyDown;
         NameBox.Focus();
     }
 
     public PosCustomerOption? CreatedCustomer { get; private set; }
 
     private async void Create_Click(object sender, RoutedEventArgs e)
+    {
+        await CreateCustomerAsync();
+    }
+
+    private async Task CreateCustomerAsync()
     {
         StatusText.Text = string.Empty;
         string name = NameBox.Text.Trim();
@@ -57,6 +64,23 @@ public partial class PosCustomerCreateWindow : Window
         {
             IsEnabled = true;
             StatusText.Text = exception.Message;
+        }
+    }
+
+    private async void CustomerCreateWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            DialogResult = false;
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == System.Windows.Input.Key.Enter && Keyboard.FocusedElement != FiscalAddressBox)
+        {
+            await CreateCustomerAsync();
+            e.Handled = true;
         }
     }
 
