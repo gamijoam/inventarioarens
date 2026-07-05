@@ -94,6 +94,15 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Laravel devuelve `paid` cuando la orden queda pagada; WPF lo interpreta como venta confirmada y no como pendiente.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
 
+## Rendimiento de listas de precio
+
+- La opción `Precio base` no consulta precio por cada tarjeta; muestra el precio normal que ya viene en el catálogo.
+- Al cambiar a una lista de precio específica, el POS no cotiza todo el catálogo.
+- Solo se precotizan los primeros productos disponibles para dar respuesta visual rápida.
+- El resto de productos muestra `Cotizar al tocar` y se cotiza justo cuando el cajero lo agrega al carrito.
+- Este flujo evita bloqueos cuando existan cientos o miles de productos y mantiene la validación final en Laravel.
+- Si el producto no tiene precio en la lista seleccionada, la tarjeta muestra `Sin precio en lista` y el backend bloquea la venta.
+
 ## Cliente en POS
 
 - El POS usa `Cliente mostrador` por defecto para ventas rápidas.
@@ -111,6 +120,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - Los productos serializados ya no se bloquean de forma genérica.
 - Al seleccionar un producto serializado, se abre la ventana `Seleccionar IMEI/serial`.
+- La ventana enfoca automáticamente el buscador para pistolear o escribir el IMEI de inmediato.
+- Si la búsqueda deja un único IMEI/serial disponible, Enter lo selecciona sin usar el mouse.
 - La ventana consulta `GET /api/inventory-center/products/{product}/serials?status=available&warehouse_id={warehouse_id}`.
 - El carrito evita repetir el mismo IMEI/serial en la orden actual.
 - Las líneas con IMEI no permiten aumentar cantidad con el botón `+`; para otra unidad se debe elegir otro serial.

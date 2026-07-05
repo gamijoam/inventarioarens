@@ -31,7 +31,12 @@ public partial class PosSerialSelectionWindow : Window, INotifyPropertyChanged
 
         InitializeComponent();
         DataContext = this;
-        Loaded += async (_, _) => await LoadSerialsAsync();
+        Loaded += async (_, _) =>
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            await LoadSerialsAsync();
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -105,6 +110,12 @@ public partial class PosSerialSelectionWindow : Window, INotifyPropertyChanged
     {
         if (e.Key == Key.Enter)
         {
+            if (Serials.Count == 1 && SelectedSerial is not null)
+            {
+                UseSelectedSerial();
+                return;
+            }
+
             await LoadSerialsAsync();
         }
     }

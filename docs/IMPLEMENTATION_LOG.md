@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-04 - Rendimiento POS al cambiar listas de precio
+
+### Diagnóstico
+
+- El POS ya actualizaba las tarjetas al cambiar entre `Precio base` y listas específicas.
+- El flujo anterior podía disparar cotizaciones para todas las tarjetas cargadas, lo que no escala bien cuando el catálogo crezca a cientos o miles de productos.
+- En productos serializados, el flujo de selección de IMEI podía requerir más clicks de los necesarios para una operación de caja.
+
+### Implementado
+
+- `Precio base` ahora muestra el precio normal del catálogo sin consultar una cotización por cada tarjeta.
+- Al seleccionar una lista específica, el POS solo precotiza un grupo pequeño de productos disponibles.
+- Los productos no precotizados muestran `Cotizar al tocar` y se cotizan cuando el cajero intenta agregarlos.
+- Se redujo la concurrencia de precotización para no saturar la API.
+- Al agregar un producto al carrito, la tarjeta actualiza su precio visual con la cotización usada.
+- La ventana de IMEI enfoca automáticamente el buscador y permite confirmar con Enter si hay un único resultado.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Tarjetas POS recotizadas por lista de precio
 
 ### Diagnóstico

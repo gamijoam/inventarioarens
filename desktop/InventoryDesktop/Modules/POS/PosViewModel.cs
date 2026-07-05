@@ -10,6 +10,9 @@ namespace InventoryDesktop.Modules.POS;
 
 public sealed class PosViewModel : ViewModelBase
 {
+    private const int QuoteWarmupLimit = 8;
+    private const int QuoteWarmupConcurrency = 2;
+
     private static readonly PriceListOption BasePriceOption = new(
         0,
         "Precio base",
@@ -606,6 +609,7 @@ public sealed class PosViewModel : ViewModelBase
                 : "Cotizando producto...";
 
             PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
+            card.SetQuote(quote);
 
             PosCartItem? existing = selectedSerial is null
                 ? CartItems.FirstOrDefault(item =>
@@ -632,6 +636,15 @@ public sealed class PosViewModel : ViewModelBase
         }
         catch (ApiException exception)
         {
+            if (exception.Message.Contains("Este producto no tiene precio en esta lista", StringComparison.OrdinalIgnoreCase))
+            {
+                card.SetNoPriceInList();
+            }
+            else if (exception.Message.Contains("precio base", StringComparison.OrdinalIgnoreCase))
+            {
+                card.SetNoBasePrice();
+            }
+
             SetError(exception.Message);
         }
         catch (HttpRequestException)
@@ -864,16 +877,29 @@ public sealed class PosViewModel : ViewModelBase
         quoteWarmupCancellation = null;
 
         long? priceListId = SelectedPriceListId;
-        List<PosProductCard> cards = Products
-            .Take(24)
-            .ToList();
+        List<PosProductCard> cards = Products.ToList();
 
         foreach (PosProductCard card in cards)
         {
             card.PreparePrice(priceListId);
         }
 
-        if (cards.Count == 0)
+        if (cards.Count == 0 || priceListId is null)
+        {
+            return;
+        }
+
+        List<PosProductCard> warmupCards = cards
+            .Where(card => card.Product.Stock.Available > 0)
+            .Take(QuoteWarmupLimit)
+            .ToList();
+
+        foreach (PosProductCard card in warmupCards)
+        {
+            card.SetQuoteLoading();
+        }
+
+        if (warmupCards.Count == 0)
         {
             return;
         }
@@ -881,12 +907,12 @@ public sealed class PosViewModel : ViewModelBase
         quoteWarmupCancellation = new CancellationTokenSource();
         CancellationToken cancellationToken = quoteWarmupCancellation.Token;
 
-        _ = WarmupQuotesAsync(cards, priceListId, cancellationToken);
+        _ = WarmupQuotesAsync(warmupCards, priceListId, cancellationToken);
     }
 
     private async Task WarmupQuotesAsync(IReadOnlyList<PosProductCard> cards, long? priceListId, CancellationToken cancellationToken)
     {
-        using SemaphoreSlim gate = new(4);
+        using SemaphoreSlim gate = new(QuoteWarmupConcurrency);
         IEnumerable<Task> tasks = cards.Select(async card =>
         {
             try
@@ -1000,6 +1026,12 @@ public sealed class PosProductCard(InventoryProductItem product)
             return;
         }
 
+        CardPriceLabel = "Cotizar al tocar";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(100, 113, 140));
+    }
+
+    public void SetQuoteLoading()
+    {
         CardPriceLabel = "Cotizando...";
         CardPriceBrush = new SolidColorBrush(Color.FromRgb(100, 113, 140));
     }
