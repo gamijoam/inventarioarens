@@ -142,6 +142,22 @@ public partial class PosView : UserControl
             return;
         }
 
+        if (ViewModel.CartItems.Count == 0)
+        {
+            ViewModel.SetError("Agrega al menos un producto antes de cobrar.");
+            return;
+        }
+
+        if (ViewModel.SelectedCashRegisterSession is null)
+        {
+            await ViewModel.LoadCashRegisterSessionsAsync();
+            if (ViewModel.SelectedCashRegisterSession is null)
+            {
+                ViewModel.SetError("No tienes una caja abierta asignada a tu usuario. Abre tu caja o recarga el contexto antes de cobrar.");
+                return;
+            }
+        }
+
         if (ViewModel.PaymentMethods.Count == 0)
         {
             await ViewModel.LoadPaymentMethodsAsync();

@@ -91,6 +91,7 @@ public sealed class PosViewModel : ViewModelBase
             {
                 RaisePropertyChanged(nameof(OperationalContextLabel));
                 RaisePropertyChanged(nameof(CanPay));
+                RaisePropertyChanged(nameof(PayHint));
             }
         }
     }
@@ -148,6 +149,7 @@ public sealed class PosViewModel : ViewModelBase
             if (SetProperty(ref isBusy, value))
             {
                 RaisePropertyChanged(nameof(CanPay));
+                RaisePropertyChanged(nameof(PayHint));
             }
         }
     }
@@ -170,7 +172,25 @@ public sealed class PosViewModel : ViewModelBase
         ? "Sin productos"
         : $"{CartItems.Sum(item => item.Quantity):0.##} unidades";
 
-    public bool CanPay => CartItems.Count > 0 && SelectedCashRegisterSession is not null && !IsBusy;
+    public bool CanPay => CartItems.Count > 0 && !IsBusy;
+
+    public string PayHint
+    {
+        get
+        {
+            if (CartItems.Count == 0)
+            {
+                return "Agrega productos para poder cobrar.";
+            }
+
+            if (SelectedCashRegisterSession is null)
+            {
+                return "No tienes una caja abierta asignada a tu usuario. Recarga contexto o abre tu caja.";
+            }
+
+            return "Abre la ventana de cobro para pagos en USD, Bs o mixtos.";
+        }
+    }
 
     public async Task InitializeAsync()
     {
@@ -626,6 +646,7 @@ public sealed class PosViewModel : ViewModelBase
         RaisePropertyChanged(nameof(TotalVesLabel));
         RaisePropertyChanged(nameof(CartCountLabel));
         RaisePropertyChanged(nameof(CanPay));
+        RaisePropertyChanged(nameof(PayHint));
     }
 
     public void SetError(string message)
@@ -633,6 +654,7 @@ public sealed class PosViewModel : ViewModelBase
         IsStatusError = true;
         StatusMessage = message;
         RaisePropertyChanged(nameof(CanPay));
+        RaisePropertyChanged(nameof(PayHint));
     }
 
     private bool HasCachedQuote(long productId, long? priceListId)

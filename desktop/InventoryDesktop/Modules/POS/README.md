@@ -46,6 +46,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si no hay almacén seleccionado, no se permite agregar productos.
 - La caja abierta es obligatoria para confirmar una venta.
 - En escritorio solo se listan cajas abiertas asignadas al usuario conectado; así se evita intentar vender con una caja de otro cajero.
+- El botón `Pagar` muestra un mensaje claro si falta caja propia abierta, en vez de quedar silencioso.
 
 ## Cobro y checkout
 

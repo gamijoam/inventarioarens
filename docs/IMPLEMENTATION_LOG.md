@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-07-04 - Mensaje claro al pagar sin caja propia
+
+### Implementado
+
+- Se ajustó el botón `Pagar` para que responda cuando hay productos en el carrito aunque falte caja seleccionada.
+- Al presionar `Pagar` sin caja propia abierta, WPF recarga cajas abiertas del usuario y muestra un mensaje claro si no encuentra ninguna.
+- Se agregó `PayHint` al POS para mostrar debajo del botón si falta producto, caja o si ya puede abrir cobro.
+- Se mantiene la protección backend: la venta solo se confirma si la caja pertenece al cajero autenticado.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Corrección de caja y equivalentes en cobro POS
 
 ### Implementado
