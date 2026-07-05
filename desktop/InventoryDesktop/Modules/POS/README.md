@@ -67,6 +67,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si no hay coincidencia exacta, el vendedor puede abrir el selector y elegir el producto desde una lista compacta con nombre, SKU, precio, stock y tipo de control.
 - El POS bloquea agregar productos sin stock o productos cuyo stock disponible ya fue consumido por la orden actual.
 - En el selector, `Sin stock` se muestra en rojo para que el cajero no lo confunda con una opción vendible.
+- La lista del selector usa columnas alineadas para que SKU, precio, stock y control no se mezclen visualmente.
 
 ## Contexto operativo
 

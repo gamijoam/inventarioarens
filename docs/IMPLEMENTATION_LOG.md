@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-05 - Alineación del selector de productos POS
+
+### Diagnóstico
+
+- En la ventana `Buscar producto`, los valores de SKU, precio, stock y control no quedaban alineados con sus encabezados.
+- El contenido del `ListBox` no se estiraba completamente al ancho disponible, por eso las columnas se veían corridas.
+
+### Implementado
+
+- Se ajustó el selector para usar columnas compartidas entre encabezado y filas.
+- Cada fila del resultado ahora ocupa todo el ancho disponible para mantener la lectura de tabla.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Bloqueo de productos sin stock en POS
 
 ### Diagnóstico
