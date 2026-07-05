@@ -21,6 +21,8 @@
 - Se rediseñó el modal de descuento para mostrar campos, vista previa, error y botones completos.
 - Se amplió el carrito del POS y se redujo una columna visual de productos para mejorar lectura y acciones.
 - Las acciones del carrito ahora usan `Descuento` y `Quitar` con más espacio, evitando botones cortados.
+- Se aumentó el alto del modal de descuento para evitar cortes con escalado de Windows.
+- Se compactaron las tarjetas del catálogo, eliminando la franja superior vacía y acercando precio, SKU y tipo de control.
 
 ### Pruebas
 

@@ -174,49 +174,36 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Width="212"
-                                    Height="166"
+                                    Height="150"
                                     Margin="0,0,10,10"
                                     Padding="0"
                                     Background="#FFFFFF"
                                     BorderBrush="#DCE4F2"
                                     Click="Product_Click">
-                                <Grid>
+                                <Grid Margin="12,10">
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="48" />
-                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <Border Background="#F2F5FB" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
-                                        <Grid>
-                                            <Border Width="36" Height="36" CornerRadius="10" Background="#EEF0FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0">
-                                                <TextBlock Text="{Binding Initials}" Foreground="{StaticResource AccentStrongBrush}" FontSize="13" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <Border Padding="8,3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0">
-                                                <TextBlock Text="{Binding StockLabel}" FontSize="10" FontWeight="Black" Foreground="#34415F" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
-
-                                    <Grid Grid.Row="1" Margin="10,9,10,9">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                            <TextBlock Text="{Binding Product.Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" MaxHeight="38" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Row="1" Text="{Binding Product.Sku}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
-
-                                        <Grid Grid.Row="3">
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Text="{Binding CardPriceLabel}" FontSize="20" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Row="1" Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" Margin="0,2,0,0" />
-                                        </Grid>
+                                    <Grid>
+                                        <Border Width="38" Height="38" CornerRadius="12" Background="#EEF0FF" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Initials}" Foreground="{StaticResource AccentStrongBrush}" FontSize="13" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border Padding="8,3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding StockLabel}" FontSize="10" FontWeight="Black" Foreground="#34415F" />
+                                        </Border>
                                     </Grid>
+
+                                    <TextBlock Grid.Row="1" Text="{Binding Product.Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Margin="0,12,0,0" />
+                                    <TextBlock Grid.Row="2" Text="{Binding Product.Sku}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+
+                                    <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding CardPriceLabel}" FontSize="20" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" Margin="0,2,0,0" />
+                                    </StackPanel>
                                 </Grid>
                             </Button>
                         </DataTemplate>
