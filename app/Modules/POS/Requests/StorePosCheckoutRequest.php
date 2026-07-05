@@ -45,6 +45,9 @@ class StorePosCheckoutRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['sometimes', 'array'],
             'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
+            'items.*.discount_type' => ['nullable', 'string', Rule::in(['percent', 'fixed'])],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_reason' => ['nullable', 'string', 'max:255'],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.payment_method_id' => [
                 'nullable',

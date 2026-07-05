@@ -1,0 +1,57 @@
+<Window x:Class="InventoryDesktop.Modules.POS.PosDiscountWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Descuento de producto"
+        Width="520"
+        Height="430"
+        WindowStartupLocation="CenterOwner"
+        Background="#F6F8FC">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18">
+            <StackPanel>
+                <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Left">
+                    <TextBlock Text="DESCUENTO" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                </Border>
+                <TextBlock x:Name="ProductNameText" Text="Producto" FontSize="24" FontWeight="Black" Margin="0,12,0,0" TextWrapping="Wrap" />
+                <TextBlock x:Name="ProductTotalText" Text="Total original" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,16,0,16">
+            <StackPanel>
+                <TextBlock Text="Tipo de descuento" FontWeight="Black" />
+                <ComboBox x:Name="DiscountTypeBox" Height="38" Margin="0,6,0,14" SelectionChanged="DiscountTypeBox_SelectionChanged">
+                    <ComboBoxItem Content="Porcentaje (%)" Tag="percent" />
+                    <ComboBoxItem Content="Monto fijo" Tag="fixed" />
+                </ComboBox>
+
+                <TextBlock x:Name="ValueLabel" Text="Valor" FontWeight="Black" />
+                <TextBox x:Name="ValueBox" Height="38" Margin="0,6,0,14" FontSize="15" PreviewTextInput="DecimalInput_PreviewTextInput" TextChanged="ValueBox_TextChanged" />
+
+                <TextBlock Text="Motivo" FontWeight="Black" />
+                <TextBox x:Name="ReasonBox" Height="62" Margin="0,6,0,10" TextWrapping="Wrap" AcceptsReturn="True" />
+
+                <TextBlock x:Name="PreviewText" Text="Indica el descuento y el motivo." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="ErrorText" Foreground="#D9365C" FontWeight="Black" TextWrapping="Wrap" Margin="0,8,0,0" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="1" Content="Quitar descuento" Width="128" Height="40" FontWeight="Black" Click="Clear_Click" />
+            <Button Grid.Column="2" Content="Cancelar" Width="104" Height="40" Margin="10,0,0,0" FontWeight="Black" Click="Cancel_Click" />
+            <Button Grid.Column="3" Content="Aplicar" Width="116" Height="40" Margin="10,0,0,0" FontWeight="Black" Background="{StaticResource AccentBrush}" Foreground="White" Click="Apply_Click" />
+        </Grid>
+    </Grid>
+</Window>

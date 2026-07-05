@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-05 - Descuentos por línea en POS
+
+### Diagnóstico
+
+- El POS necesitaba permitir descuentos operativos sin alterar la lista de precio del producto.
+- El descuento debía quedar asociado al producto vendido para poder auditar quién autorizó el ajuste.
+- El total de la venta debía recalcularse antes del cobro y validarse nuevamente en backend.
+
+### Implementado
+
+- Se agregaron campos de descuento en `sale_items`: tipo, valor, monto descontado, base USD, local VES y motivo.
+- `POST /api/pos/checkouts` acepta descuentos por item con tipo `percent` o `fixed`.
+- Laravel valida que el descuento no supere el total de la línea y descuenta los totales de la venta antes de confirmar.
+- El recurso de venta devuelve los datos de descuento por línea.
+- En WPF, cada producto del carrito tiene botón `Desc.` para abrir una ventana de descuento.
+- La ventana exige motivo, valida porcentaje máximo de 100% y bloquea montos fijos superiores a la línea.
+- El carrito recalcula totales y envía el descuento al backend durante el checkout.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 16 pruebas correctas, 120 aserciones.
+
 ## 2026-07-05 - Búsqueda rápida y agregado exacto en POS
 
 ### Diagnóstico

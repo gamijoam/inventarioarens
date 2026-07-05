@@ -308,6 +308,7 @@
                                         <StackPanel Grid.Row="1" Margin="0,8,0,0">
                                             <TextBlock Text="{Binding PriceListLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding UnitPriceLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding DiscountLabel}" Foreground="#B45309" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding WarehouseLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
                                             <Border Background="#ECFDF5"
                                                     BorderBrush="#A7F3D0"
@@ -327,6 +328,7 @@
                                                 <TextBlock Text="{Binding QuantityLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Black" />
                                             </Border>
                                             <Button Content="+" Width="32" Height="28" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="IncreaseItem_Click" />
+                                            <Button Content="Desc." Width="58" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#B45309" Click="DiscountItem_Click" />
                                             <Button Content="Quitar" Width="66" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#D9365C" Click="RemoveItem_Click" />
                                         </StackPanel>
                                     </Grid>

@@ -159,6 +159,59 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_checkout_applies_line_discount_and_stores_audit_data(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'discount_type' => 'percent',
+                    'discount_value' => 10,
+                    'discount_reason' => 'Promocion autorizada',
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 180,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.total_base_amount', '180.0000')
+            ->assertJsonPath('data.sale.total_base_amount', 180)
+            ->assertJsonPath('data.sale.items.0.discount_type', 'percent')
+            ->assertJsonPath('data.sale.items.0.discount_value', 10)
+            ->assertJsonPath('data.sale.items.0.discount_base_amount', 20)
+            ->assertJsonPath('data.sale.items.0.discount_reason', 'Promocion autorizada');
+
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'discount_type' => 'percent',
+            'discount_value' => '10.0000',
+            'discount_amount' => '20.0000',
+            'discount_base_amount' => '20.0000',
+            'base_total_amount' => '180.0000',
+            'discount_reason' => 'Promocion autorizada',
+        ]);
+    }
+
     public function test_pos_checkout_rejects_payment_method_not_allowed_by_price_list(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

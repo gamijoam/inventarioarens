@@ -798,7 +798,10 @@ public sealed class PosViewModel : ViewModelBase
                     item.ProductId,
                     item.PriceListId,
                     item.Quantity,
-                    item.ProductUnitIds)).ToList(),
+                    item.ProductUnitIds,
+                    item.DiscountType,
+                    item.DiscountValueForRequest,
+                    item.DiscountReasonForRequest)).ToList(),
                 payments);
 
             PosOrderResponse response = await apiClient.PostAsync<PosCheckoutRequest, PosOrderResponse>("pos/checkouts", request);
@@ -1160,6 +1163,9 @@ public sealed class PosProductCard(InventoryProductItem product)
 public sealed class PosCartItem : ViewModelBase
 {
     private decimal quantity = 1;
+    private string? discountType;
+    private decimal discountValue;
+    private string? discountReason;
 
     public PosCartItem(
         InventoryProductItem product,
@@ -1231,6 +1237,30 @@ public sealed class PosCartItem : ViewModelBase
         ? "Para vender otra unidad selecciona otro IMEI."
         : "Cantidad editable.";
 
+    public string? DiscountType
+    {
+        get => discountType;
+        private set => SetProperty(ref discountType, value);
+    }
+
+    public decimal DiscountValue
+    {
+        get => discountValue;
+        private set => SetProperty(ref discountValue, value);
+    }
+
+    public string? DiscountReason
+    {
+        get => discountReason;
+        private set => SetProperty(ref discountReason, value);
+    }
+
+    public decimal? DiscountValueForRequest => HasDiscount ? DiscountValue : null;
+
+    public string? DiscountReasonForRequest => HasDiscount ? DiscountReason : null;
+
+    public bool HasDiscount => !string.IsNullOrWhiteSpace(DiscountType) && DiscountValue > 0;
+
     public decimal Quantity
     {
         get => quantity;
@@ -1239,9 +1269,7 @@ public sealed class PosCartItem : ViewModelBase
             if (SetProperty(ref quantity, value))
             {
                 RaisePropertyChanged(nameof(QuantityLabel));
-                RaisePropertyChanged(nameof(TotalUsd));
-                RaisePropertyChanged(nameof(TotalVes));
-                RaisePropertyChanged(nameof(TotalLabel));
+                RaiseMoneyPropertiesChanged();
                 Changed?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -1249,13 +1277,43 @@ public sealed class PosCartItem : ViewModelBase
 
     public string QuantityLabel => Quantity.ToString("0.##", CultureInfo.CurrentCulture);
 
-    public decimal TotalUsd => UnitPriceUsd * Quantity;
+    public decimal GrossTotalUsd => UnitPriceUsd * Quantity;
 
-    public decimal? TotalVes => UnitPriceVes is null ? null : UnitPriceVes.Value * Quantity;
+    public decimal? GrossTotalVes => UnitPriceVes is null ? null : UnitPriceVes.Value * Quantity;
+
+    public decimal DiscountUsd => CalculateDiscountUsd();
+
+    public decimal? DiscountVes => CalculateDiscountVes();
+
+    public decimal TotalUsd => Math.Max(0m, GrossTotalUsd - DiscountUsd);
+
+    public decimal? TotalVes => GrossTotalVes is null ? null : Math.Max(0m, GrossTotalVes.Value - (DiscountVes ?? 0m));
 
     public string UnitPriceLabel => $"{SaleCurrency} {SalePrice:0.00}";
 
     public string TotalLabel => $"USD {TotalUsd:0.00}";
+
+    public string DiscountLabel => HasDiscount
+        ? $"Desc. {DiscountDisplayAmountLabel} · {DiscountReason}"
+        : "Sin descuento";
+
+    public void ApplyDiscount(string type, decimal value, string reason)
+    {
+        DiscountType = type;
+        DiscountValue = value;
+        DiscountReason = string.IsNullOrWhiteSpace(reason) ? "Sin motivo" : reason.Trim();
+        RaiseMoneyPropertiesChanged();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ClearDiscount()
+    {
+        DiscountType = null;
+        DiscountValue = 0m;
+        DiscountReason = null;
+        RaiseMoneyPropertiesChanged();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public void Increase()
     {
@@ -1265,5 +1323,92 @@ public sealed class PosCartItem : ViewModelBase
     public void Decrease()
     {
         Quantity -= 1;
+    }
+
+    private string DiscountDisplayAmountLabel
+    {
+        get
+        {
+            if (!HasDiscount)
+            {
+                return "0";
+            }
+
+            return DiscountType == "percent"
+                ? $"{DiscountValue:0.##}%"
+                : $"{SaleCurrency} {DiscountValue:0.00}";
+        }
+    }
+
+    private decimal CalculateDiscountUsd()
+    {
+        if (!HasDiscount)
+        {
+            return 0m;
+        }
+
+        if (DiscountType == "percent")
+        {
+            return Math.Min(GrossTotalUsd, Math.Round(GrossTotalUsd * DiscountValue / 100m, 4));
+        }
+
+        if (SaleCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Min(GrossTotalUsd, DiscountValue);
+        }
+
+        if (UnitPriceVes is null || UnitPriceVes <= 0 || UnitPriceUsd <= 0)
+        {
+            return 0m;
+        }
+
+        decimal rate = UnitPriceVes.Value / UnitPriceUsd;
+        return Math.Min(GrossTotalUsd, Math.Round(DiscountValue / rate, 4));
+    }
+
+    private decimal? CalculateDiscountVes()
+    {
+        if (GrossTotalVes is null)
+        {
+            return null;
+        }
+
+        if (!HasDiscount)
+        {
+            return 0m;
+        }
+
+        if (DiscountType == "percent")
+        {
+            return Math.Min(GrossTotalVes.Value, Math.Round(GrossTotalVes.Value * DiscountValue / 100m, 4));
+        }
+
+        if (SaleCurrency.Equals("VES", StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Min(GrossTotalVes.Value, DiscountValue);
+        }
+
+        if (UnitPriceUsd <= 0)
+        {
+            return 0m;
+        }
+
+        decimal rate = GrossTotalVes.Value / GrossTotalUsd;
+        return Math.Min(GrossTotalVes.Value, Math.Round(DiscountValue * rate, 4));
+    }
+
+    private void RaiseMoneyPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(GrossTotalUsd));
+        RaisePropertyChanged(nameof(GrossTotalVes));
+        RaisePropertyChanged(nameof(DiscountUsd));
+        RaisePropertyChanged(nameof(DiscountVes));
+        RaisePropertyChanged(nameof(TotalUsd));
+        RaisePropertyChanged(nameof(TotalVes));
+        RaisePropertyChanged(nameof(TotalLabel));
+        RaisePropertyChanged(nameof(DiscountLabel));
+        RaisePropertyChanged(nameof(HasDiscount));
+        RaisePropertyChanged(nameof(DiscountValueForRequest));
+        RaisePropertyChanged(nameof(DiscountReasonForRequest));
     }
 }

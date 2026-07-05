@@ -22,6 +22,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Permitir pagos en `USD`, `VES` o mixtos cuando la lista de precio lo permite.
 - Confirmar checkout real contra Laravel usando `POST /api/pos/checkouts`.
 - Seleccionar cliente registrado o mantener `Cliente mostrador` por defecto.
+- Aplicar descuentos por línea antes de cobrar la venta.
 
 ## Diseño actual
 
@@ -34,6 +35,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
 - El botón `Pagar` abre una ventana separada para no quitar espacio al catálogo ni al carrito.
 - El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
+- Cada producto del carrito tiene acción `Desc.` para abrir una ventana pequeña de descuento.
 
 ## Rendimiento del carrito
 
@@ -67,6 +69,12 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 ## Cobro y checkout
 
+- Los descuentos se aplican por línea del carrito, no como descuento global de toda la venta.
+- El descuento puede ser porcentual o monto fijo.
+- El descuento exige motivo para dejar respaldo operativo.
+- WPF recalcula el total del carrito antes de abrir el cobro.
+- Laravel vuelve a validar el descuento en `POST /api/pos/checkouts` para impedir descuentos mayores al total de la línea.
+- Laravel guarda en cada `sale_item` el tipo, valor, monto descontado, equivalente base, equivalente local y motivo.
 - El POS carga métodos de pago activos desde `GET /api/payment-methods?active_only=1`.
 - Si la lista de precio tiene métodos restringidos, la ventana de cobro solo muestra esos métodos.
 - Si la lista de precio está abierta, se muestran todos los métodos activos.

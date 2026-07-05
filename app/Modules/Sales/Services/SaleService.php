@@ -50,6 +50,10 @@ class SaleService
                 $unitPrice = (float) $quote['sale_price'];
                 $totalAmount = round($unitPrice * $quantity, 4);
                 $localTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
+                $discount = $this->resolveLineDiscount($item, $quote, $totalAmount, $baseTotal, $localTotal);
+                $netTotalAmount = round($totalAmount - $discount['amount'], 4);
+                $netBaseTotal = round($baseTotal - $discount['base_amount'], 4);
+                $netLocalTotal = round($localTotal - $discount['local_amount'], 4);
 
                 SaleItem::create([
                     'sale_id' => $sale->id,
@@ -61,9 +65,15 @@ class SaleService
                     'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
                     'sale_currency' => $quote['sale_currency'],
                     'unit_price' => $unitPrice,
-                    'total_amount' => $totalAmount,
+                    'total_amount' => $netTotalAmount,
                     'base_unit_price' => $baseUnitPrice,
-                    'base_total_amount' => $baseTotal,
+                    'base_total_amount' => $netBaseTotal,
+                    'discount_type' => $discount['type'],
+                    'discount_value' => $discount['value'],
+                    'discount_amount' => $discount['amount'],
+                    'discount_base_amount' => $discount['base_amount'],
+                    'discount_local_amount' => $discount['local_amount'],
+                    'discount_reason' => $discount['reason'],
                     'exchange_rate_type_id' => $quote['exchange_rate_type_id'],
                     'exchange_rate_type_code' => $quote['exchange_rate_type_code'],
                     'exchange_rate' => $quote['exchange_rate'],
@@ -74,8 +84,8 @@ class SaleService
                     'warranty_conditions' => $product->warrantyPolicy?->conditions,
                 ]);
 
-                $totalBase += $baseTotal;
-                $totalLocal += $localTotal;
+                $totalBase += $netBaseTotal;
+                $totalLocal += $netLocalTotal;
             }
 
             $sale->update([
@@ -220,6 +230,81 @@ class SaleService
         }
 
         return $units->values()->all();
+    }
+
+    private function resolveLineDiscount(array $item, array $quote, float $totalAmount, float $baseTotal, float $localTotal): array
+    {
+        $type = $item['discount_type'] ?? null;
+        $value = isset($item['discount_value']) ? (float) $item['discount_value'] : 0.0;
+        $reason = $item['discount_reason'] ?? null;
+
+        if ($type === null || $value <= 0) {
+            return [
+                'type' => null,
+                'value' => 0.0,
+                'amount' => 0.0,
+                'base_amount' => 0.0,
+                'local_amount' => 0.0,
+                'reason' => null,
+            ];
+        }
+
+        if (! in_array($type, ['percent', 'fixed'], true)) {
+            throw ValidationException::withMessages([
+                'discount_type' => 'El tipo de descuento no es valido.',
+            ]);
+        }
+
+        if ($type === 'percent' && $value > 100) {
+            throw ValidationException::withMessages([
+                'discount_value' => 'El descuento porcentual no puede superar 100%.',
+            ]);
+        }
+
+        $saleCurrency = strtoupper((string) $quote['sale_currency']);
+        $exchangeRate = $quote['exchange_rate'] === null ? null : (float) $quote['exchange_rate'];
+
+        if ($type === 'percent') {
+            $discountAmount = round($totalAmount * $value / 100, 4);
+            $discountBase = round($baseTotal * $value / 100, 4);
+            $discountLocal = round($localTotal * $value / 100, 4);
+        } else {
+            $discountAmount = round($value, 4);
+            if ($discountAmount > $totalAmount) {
+                throw ValidationException::withMessages([
+                    'discount_value' => 'El descuento no puede ser mayor al total de la linea.',
+                ]);
+            }
+
+            if ($saleCurrency === Product::CURRENCY_USD) {
+                $discountBase = $discountAmount;
+                $discountLocal = $exchangeRate === null ? 0.0 : round($discountAmount * $exchangeRate, 4);
+            } else {
+                if (! $exchangeRate) {
+                    throw ValidationException::withMessages([
+                        'discount_value' => 'El descuento fijo en bolivares requiere una tasa activa.',
+                    ]);
+                }
+
+                $discountBase = round($discountAmount / $exchangeRate, 4);
+                $discountLocal = $discountAmount;
+            }
+        }
+
+        if ($discountBase > $baseTotal || $discountAmount > $totalAmount || $discountLocal > $localTotal) {
+            throw ValidationException::withMessages([
+                'discount_value' => 'El descuento no puede dejar la linea en negativo.',
+            ]);
+        }
+
+        return [
+            'type' => $type,
+            'value' => round($value, 4),
+            'amount' => $discountAmount,
+            'base_amount' => $discountBase,
+            'local_amount' => $discountLocal,
+            'reason' => $reason,
+        ];
     }
 
     private function markProductUnitsAsSold(array $productUnits, int $movementId): void

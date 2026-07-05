@@ -212,6 +212,37 @@ public partial class PosView : UserControl
         }
     }
 
+    private void DiscountItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not FrameworkElement element || element.DataContext is not PosCartItem item)
+        {
+            return;
+        }
+
+        PosDiscountWindow dialog = new(item)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        bool? result = dialog.ShowDialog();
+        if (result != true)
+        {
+            return;
+        }
+
+        if (dialog.ShouldClearDiscount)
+        {
+            item.ClearDiscount();
+            ViewModel.StatusMessage = "Descuento retirado.";
+            ViewModel.IsStatusError = false;
+            return;
+        }
+
+        item.ApplyDiscount(dialog.DiscountType, dialog.DiscountValue, dialog.DiscountReason);
+        ViewModel.StatusMessage = "Descuento aplicado al producto.";
+        ViewModel.IsStatusError = false;
+    }
+
     private void ClearCart_Click(object sender, RoutedEventArgs e)
     {
         ViewModel?.ClearCart();

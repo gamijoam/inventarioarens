@@ -65,7 +65,10 @@ public sealed record PosCheckoutItemRequest(
     [property: JsonPropertyName("product_id")] long ProductId,
     [property: JsonPropertyName("price_list_id")] long? PriceListId,
     [property: JsonPropertyName("quantity")] decimal Quantity,
-    [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long> ProductUnitIds);
+    [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long> ProductUnitIds,
+    [property: JsonPropertyName("discount_type")] string? DiscountType,
+    [property: JsonPropertyName("discount_value")] decimal? DiscountValue,
+    [property: JsonPropertyName("discount_reason")] string? DiscountReason);
 
 public sealed record PosCheckoutPaymentRequest(
     [property: JsonPropertyName("payment_method_id")] long? PaymentMethodId,
