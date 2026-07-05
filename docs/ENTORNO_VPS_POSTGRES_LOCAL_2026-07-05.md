@@ -6,21 +6,23 @@ Dejar preparado el VPS para usar PostgreSQL instalado directamente en Ubuntu, si
 
 ## Revision realizada
 
-Servidor revisado:
+Servidor correcto revisado por SSH manual:
 
-- Host: `vmi3062717`
-- Sistema operativo: Ubuntu 24.04.3 LTS
+- IP: `217.216.80.158`
+- Host: `vmi3267687`
+- Sistema operativo: Ubuntu 24.04.4 LTS
 
-Antes de instalar:
+Nota: durante la revision inicial se consulto otro host (`vmi3062717`) mediante MCP. Ese servidor no corresponde al VPS operativo que el propietario usa por SSH manual. La referencia valida para este entorno queda establecida como `vmi3267687`.
 
-- No existia binario `psql` en el host.
-- No habia paquetes `postgresql` instalados en Ubuntu.
-- No habia servicio `postgresql` registrado en `systemd`.
-- El puerto visible relacionado con PostgreSQL era `54322`, expuesto por Docker.
+Estado encontrado en el VPS correcto:
 
-## Instalacion realizada
+- PostgreSQL 16 ya estaba instalado en el host.
+- El cluster local `16/main` estaba activo en el puerto `5432`.
+- Solo existian las bases por defecto: `postgres`, `template0` y `template1`.
 
-Se instalo PostgreSQL directamente en el host con paquetes oficiales de Ubuntu:
+## Instalacion validada
+
+PostgreSQL esta instalado directamente en el host con paquetes oficiales de Ubuntu:
 
 - `postgresql`
 - `postgresql-contrib`
@@ -33,9 +35,9 @@ El servicio quedo habilitado para iniciar con el sistema:
 - Estado: `online`
 - Puerto local: `5432`
 
-## Bases creadas
+## Bases creadas en el VPS correcto
 
-Se crearon las bases iniciales:
+Se crearon y validaron las bases iniciales:
 
 - `inventory_arens`
 - `inventory_arens_testing`
@@ -54,6 +56,23 @@ Usuario configurado:
 - `postgres`
 
 La clave fue definida segun lo indicado por el propietario del servidor. No se documenta la clave en archivos del proyecto.
+
+Validacion ejecutada en el VPS:
+
+```bash
+sudo -u postgres psql -tAc "select datname from pg_database order by datname;"
+PGPASSWORD='********' psql -h 127.0.0.1 -p 5432 -U postgres -d inventory_arens -tAc "select current_database();"
+```
+
+Resultado esperado:
+
+```text
+inventory_arens
+inventory_arens_testing
+postgres
+template0
+template1
+```
 
 ## Docker existente
 
@@ -75,4 +94,3 @@ Cuando se prepare el backend en el VPS sin Docker, se debe configurar el `.env` 
 - `DB_USERNAME=postgres`
 
 Luego se deben ejecutar migraciones y pruebas contra esta base local del VPS.
-
