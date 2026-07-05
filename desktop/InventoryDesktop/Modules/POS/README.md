@@ -5,16 +5,16 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 ## Objetivo de la fase actual
 
 - Trabajar el POS como pantalla completa propia, separada del panel administrativo.
-- Priorizar velocidad de venta: búsqueda arriba, catálogo amplio, carrito fijo y acciones rápidas abajo.
-- Mostrar más productos por fila mediante tarjetas compactas.
-- Mantener el carrito visible, pero con ancho controlado para no quitar espacio al catálogo.
+- Priorizar velocidad de venta: búsqueda/escaneo arriba, carrito central y herramientas de cobro a la derecha.
+- Usar el selector de productos como ventana auxiliar para búsqueda manual cuando no hay código de barra.
+- Evitar un catálogo permanente ocupando espacio de la venta.
 - Preparar cotizaciones visibles en segundo plano para que agregar al carrito responda más rápido.
 - Buscar productos reales desde el backend.
 - Seleccionar lista de precio activa.
 - Cotizar el producto con `GET /api/products/{product}/price`.
 - El selector de precios incluye `Precio base` como primera opción; esa opción no envía `price_list_id` y usa el precio normal del producto.
-- Al cambiar de `Precio base` a una lista específica, las tarjetas visibles se recotizan en segundo plano y muestran el precio de esa lista.
-- Si un producto visible no tiene precio en la lista seleccionada, la tarjeta muestra `Sin precio en lista`.
+- Al cambiar de `Precio base` a una lista específica, los productos consultados desde el selector se recotizan en segundo plano.
+- Si un producto no tiene precio en la lista seleccionada, el selector muestra `Sin precio en lista`.
 - Si se selecciona una lista de precio y el producto no tiene precio en esa lista, Laravel bloquea la cotización con el mensaje `Este producto no tiene precio en esta lista.`
 - Agregar productos por cantidad a un carrito local.
 - Mostrar total en `USD` y equivalente en `VES` cuando la API devuelve tasa.
@@ -29,13 +29,14 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - No tiene menú lateral interno del POS.
 - La búsqueda, lista de precio y botón `Buscar` viven en la barra superior.
 - El contexto operativo del POS permite seleccionar almacén y caja abierta.
-- El catálogo ocupa la mayor parte de la pantalla.
-- Las tarjetas son compactas para permitir más columnas visibles.
-- El carrito queda a la derecha con ancho reducido.
+- El carrito ocupa la zona principal de la pantalla.
+- Cada línea del carrito muestra producto, SKU, almacén, control, serial/IMEI si aplica, precio, descuento, cantidad y subtotal.
+- Las herramientas de cliente, caja, búsqueda manual, pendientes y total quedan organizadas a la derecha.
+- El selector manual de productos se abre con el botón `Selector (F2)` o la tecla `F2`.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
-- El botón `Pagar` abre una ventana separada para no quitar espacio al catálogo ni al carrito.
+- El botón `Cobrar (F12)` abre una ventana separada para no quitar espacio al carrito.
 - El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
-- Cada producto del carrito tiene acción `Desc.` para abrir una ventana pequeña de descuento.
+- Cada producto del carrito tiene acción `Descuento` para abrir una ventana pequeña de descuento.
 
 ## Rendimiento del carrito
 
@@ -50,9 +51,13 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La búsqueda se ejecuta automáticamente con una pausa corta mientras el cajero escribe.
 - No se consulta la API en cada tecla; se espera un pequeño intervalo para proteger el rendimiento.
 - El botón `Buscar` sigue disponible para forzar una búsqueda manual.
+- La tecla `F2` abre el selector manual de productos.
+- La tecla `F8` abre la selección de cliente.
+- La tecla `F12` abre el cobro cuando la orden tiene productos y caja válida.
 - Al presionar Enter, el POS busca y revisa si el texto coincide exactamente con un SKU o nombre único.
 - Si la coincidencia exacta es un producto por cantidad, se agrega directamente al carrito.
 - Si la coincidencia exacta es un producto serializado, el POS intenta usar el IMEI exacto disponible; si no lo encuentra, abre el selector de IMEI.
+- Si no hay coincidencia exacta, el vendedor puede abrir el selector y elegir el producto desde una lista compacta con nombre, SKU, precio, stock y tipo de control.
 
 ## Contexto operativo
 

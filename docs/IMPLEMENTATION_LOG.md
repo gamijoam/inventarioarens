@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-05 - POS centrado en carrito y selector manual
+
+### Diagnóstico
+
+- El POS con tarjetas permanentes desperdiciaba espacio y hacía que la información de productos se cortara.
+- Para caja real, el flujo principal debe ser escanear/agregar/cobrar, no navegar un catálogo grande.
+- Cuando no hay código de barra, el cajero necesita un selector manual sin quitar espacio al carrito.
+
+### Implementado
+
+- Se rediseñó la pantalla principal del POS para que el carrito sea el área central.
+- El panel derecho concentra cliente, contexto de caja, herramientas, pendientes y total.
+- La búsqueda superior queda enfocada para escanear o escribir, y Enter intenta agregar coincidencia exacta.
+- Se agregó la ventana `Buscar producto` para selección manual con nombre, SKU, precio, stock y tipo de control.
+- El selector manual se abre con `F2` o con el botón `Selector (F2)`.
+- Se agregaron accesos rápidos `F8` para cliente y `F12` para cobrar.
+- Se mantuvieron los flujos existentes de IMEI, descuentos por línea, caja, cliente, pendientes y cobro.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Descuentos por línea en POS
 
 ### Diagnóstico

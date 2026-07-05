@@ -20,6 +20,8 @@ public partial class PosView : UserControl
             Interval = TimeSpan.FromMilliseconds(450),
         };
         searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
+        Loaded += (_, _) => SearchBox.Focus();
+        PreviewKeyDown += PosView_PreviewKeyDown;
     }
 
     public event EventHandler? ExitRequested;
@@ -37,6 +39,30 @@ public partial class PosView : UserControl
         {
             searchDebounceTimer.Stop();
             await ViewModel.SearchAsync();
+            OpenProductSearchDialog();
+        }
+    }
+
+    private void PosView_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2)
+        {
+            OpenProductSearchDialog();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F8)
+        {
+            OpenCustomerDialog();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F12)
+        {
+            Pay_Click(sender, e);
+            e.Handled = true;
         }
     }
 
@@ -250,6 +276,11 @@ public partial class PosView : UserControl
 
     private void SelectCustomer_Click(object sender, RoutedEventArgs e)
     {
+        OpenCustomerDialog();
+    }
+
+    private void OpenCustomerDialog()
+    {
         if (ViewModel is null)
         {
             return;
@@ -276,6 +307,28 @@ public partial class PosView : UserControl
         {
             ViewModel.SelectedCustomer = dialog.SelectedCustomer;
         }
+    }
+
+    private void OpenProductSearch_Click(object sender, RoutedEventArgs e)
+    {
+        OpenProductSearchDialog();
+    }
+
+    private void OpenProductSearchDialog()
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        PosProductSearchWindow dialog = new(ViewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        dialog.ShowDialog();
+        SearchBox.Focus();
+        SearchBox.SelectAll();
     }
 
     private void ClearCustomer_Click(object sender, RoutedEventArgs e)

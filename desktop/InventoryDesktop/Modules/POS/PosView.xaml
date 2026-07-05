@@ -3,26 +3,23 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Background="#F6F8FC">
         <Grid.RowDefinitions>
-            <RowDefinition Height="118" />
+            <RowDefinition Height="122" />
             <RowDefinition Height="*" />
             <RowDefinition Height="48" />
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="470" />
-        </Grid.ColumnDefinitions>
 
-        <Border Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
+        <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
             <Grid Margin="20,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="76" />
-                    <RowDefinition Height="40" />
+                    <RowDefinition Height="42" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="240" />
                     <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="138" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -31,7 +28,7 @@
                     </Border>
                     <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="Punto de Venta" FontSize="24" FontWeight="Black" />
-                        <TextBlock Text="Búsqueda rápida, precios y carrito" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                        <TextBlock Text="Escanea, agrega, cobra y controla la orden" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,3,0,0" />
                     </StackPanel>
                 </StackPanel>
 
@@ -40,9 +37,9 @@
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Height="46"
                          Margin="28,0,10,0"
-                         FontSize="15"
+                         FontSize="16"
                          VerticalAlignment="Center"
-                         ToolTip="Buscar por nombre, SKU, serial o IMEI"
+                         ToolTip="Escanea o escribe SKU, nombre, serial o IMEI. Enter agrega coincidencia exacta."
                          TextChanged="SearchBox_TextChanged"
                          KeyDown="SearchBox_KeyDown" />
 
@@ -63,7 +60,15 @@
                         Foreground="White"
                         Click="Search_Click" />
 
-                <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Grid.Column="4"
+                        Content="Selector (F2)"
+                        Height="46"
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        FontWeight="Black"
+                        Click="OpenProductSearch_Click" />
+
+                <WrapPanel Grid.Row="1" Grid.ColumnSpan="5" VerticalAlignment="Top">
                     <TextBlock Text="Almacén" FontWeight="Black" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox ItemsSource="{Binding Warehouses}"
                               SelectedItem="{Binding SelectedWarehouse}"
@@ -102,230 +107,174 @@
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="12,0,0,0" />
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="18,14,12,8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Grid Grid.Row="1" Margin="18,14,18,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="380" />
+            </Grid.ColumnDefinitions>
 
-            <Border Padding="16,12" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10">
+            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="18">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8">
-                                <TextBlock Text="CATÁLOGO" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
-                            </Border>
-                            <Border Padding="10,5" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
-                                <TextBlock Text="{Binding PriceListLabel}" Foreground="#51617F" FontSize="11" FontWeight="Black" />
-                            </Border>
-                        </StackPanel>
-                        <TextBlock Text="Productos disponibles" FontSize="22" FontWeight="Black" Margin="0,10,0,0" />
-                        <TextBlock Text="Selecciona productos por cantidad. Los serializados/IMEI se integran con lectura de serial en la siguiente fase."
-                                   Foreground="{StaticResource MutedBrush}"
-                                   FontWeight="SemiBold"
-                                   Margin="0,3,0,0" />
-                    </StackPanel>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding CartCountLabel}"
-                                   Foreground="{StaticResource MutedBrush}"
-                                   FontWeight="Black"
-                                   HorizontalAlignment="Right" />
-                        <Border Background="#F7F9FD"
-                                BorderBrush="#DCE4F2"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="9,4"
-                                Margin="0,8,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding CashRegisterStatusBadge}"
-                                           Foreground="{Binding CashRegisterStatusBrush}"
-                                           FontWeight="Black"
-                                           FontSize="11" />
-                                <TextBlock Text=" · "
-                                           Foreground="{StaticResource MutedBrush}"
-                                           FontWeight="Black"
-                                           FontSize="11" />
-                                <TextBlock Text="{Binding CashRegisterStatusDetail}"
-                                           Foreground="{Binding CashRegisterStatusBrush}"
-                                           FontWeight="Black"
-                                           FontSize="11" />
+                                <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8">
+                                    <TextBlock Text="ORDEN" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                                </Border>
+                                <Border Padding="10,5" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding PriceListLabel}" Foreground="#51617F" FontSize="11" FontWeight="Black" />
+                                </Border>
+                                <Border Padding="10,5" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding CartCountLabel}" Foreground="#51617F" FontSize="11" FontWeight="Black" />
+                                </Border>
                             </StackPanel>
-                        </Border>
-                    </StackPanel>
+                            <TextBlock Text="Carrito de venta" FontSize="24" FontWeight="Black" Margin="0,10,0,0" />
+                            <TextBlock Text="Escanea arriba para agregar directo. Usa F2 si necesitas buscar por nombre o seleccionar manualmente."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="+ Buscar producto"
+                                    Width="138"
+                                    Height="38"
+                                    Margin="0,0,8,0"
+                                    FontWeight="Black"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="White"
+                                    Click="OpenProductSearch_Click" />
+                            <Button Content="Limpiar"
+                                    Width="92"
+                                    Height="38"
+                                    FontWeight="Black"
+                                    Click="ClearCart_Click" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1" BorderBrush="#E6ECF5" BorderThickness="0,1,0,0" Margin="0,16,0,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                            <ItemsControl ItemsSource="{Binding CartItems}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="136" />
+                                                    <ColumnDefinition Width="138" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Black" FontSize="16" TextWrapping="Wrap" />
+                                                    <WrapPanel Margin="0,6,0,0">
+                                                        <Border Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8" Padding="7,3" Margin="0,0,6,0">
+                                                            <TextBlock Text="{Binding ControlLabel}" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
+                                                        </Border>
+                                                        <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="7,3" Margin="0,0,6,0">
+                                                            <TextBlock Text="{Binding SerialLabel}" Foreground="#058561" FontSize="10" FontWeight="Black" TextWrapping="Wrap" />
+                                                        </Border>
+                                                    </WrapPanel>
+                                                    <TextBlock Text="{Binding Sku}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                                    <TextBlock Text="{Binding WarehouseLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                    <TextBlock Text="Precio" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" />
+                                                    <TextBlock Text="{Binding UnitPriceLabel}" FontWeight="Black" FontSize="14" Margin="0,4,0,0" />
+                                                    <TextBlock Text="{Binding RateLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" />
+                                                    <TextBlock Text="{Binding DiscountLabel}" Foreground="#B45309" FontSize="11" FontWeight="Black" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                                                    <TextBlock Text="Cantidad" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                        <Button Content="-" Width="32" Height="30" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="DecreaseItem_Click" />
+                                                        <Border Width="46" Height="30" BorderBrush="#DCE4F2" BorderThickness="1">
+                                                            <TextBlock Text="{Binding QuantityLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Black" />
+                                                        </Border>
+                                                        <Button Content="+" Width="32" Height="30" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="IncreaseItem_Click" />
+                                                    </StackPanel>
+                                                    <Button Content="Descuento" Height="30" Margin="0,8,0,0" FontWeight="Black" Foreground="#B45309" Click="DiscountItem_Click" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="3" Margin="14,0,0,0" Width="118">
+                                                    <TextBlock Text="Subtotal" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" HorizontalAlignment="Right" />
+                                                    <TextBlock Text="{Binding TotalLabel}" FontWeight="Black" FontSize="18" Foreground="{StaticResource AccentStrongBrush}" HorizontalAlignment="Right" Margin="0,4,0,0" />
+                                                    <Button Content="Quitar" Height="30" Margin="0,14,0,0" FontWeight="Black" Foreground="#D9365C" Click="RemoveItem_Click" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
                 </Grid>
             </Border>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
-                <ItemsControl ItemsSource="{Binding Products}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button Width="212"
-                                    Height="150"
-                                    Margin="0,0,10,10"
-                                    Padding="0"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#DCE4F2"
-                                    Click="Product_Click">
-                                <Grid Margin="12,10">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <Grid>
-                                        <Border Width="38" Height="38" CornerRadius="12" Background="#EEF0FF" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Initials}" Foreground="{StaticResource AccentStrongBrush}" FontSize="13" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <Border Padding="8,3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding StockLabel}" FontSize="10" FontWeight="Black" Foreground="#34415F" />
-                                        </Border>
-                                    </Grid>
-
-                                    <TextBlock Grid.Row="1" Text="{Binding Product.Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Margin="0,12,0,0" />
-                                    <TextBlock Grid.Row="2" Text="{Binding Product.Sku}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
-
-                                    <StackPanel Grid.Row="3" Margin="0,8,0,0">
-                                        <TextBlock Text="{Binding CardPriceLabel}" FontSize="20" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" Margin="0,2,0,0" />
-                                    </StackPanel>
-                                </Grid>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </Grid>
-
-        <Border Grid.Row="1" Grid.Column="1" Margin="0,14,18,8" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10">
-            <Grid Margin="16">
+            <Grid Grid.Column="1" Margin="14,0,0,0">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel>
-                    <Grid>
-                        <StackPanel>
-                            <TextBlock Text="Orden actual" FontSize="22" FontWeight="Black" />
-                            <TextBlock Text="{Binding CartCountLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,3,0,0" />
-                        </StackPanel>
-                        <Button Content="Limpiar carrito"
-                                Width="118"
-                                Height="34"
-                                HorizontalAlignment="Right"
-                                FontWeight="Black"
-                                Click="ClearCart_Click" />
-                    </Grid>
-
-                    <Border Background="#F7F9FD" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,12,0,0">
-                        <Grid>
+                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="Cliente" FontSize="19" FontWeight="Black" />
+                        <TextBlock Text="{Binding CustomerLabel}" FontWeight="Black" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding CustomerDetailLabel}" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <Grid Margin="0,14,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-
-                            <StackPanel>
-                                <TextBlock Text="Cliente de la venta" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" />
-                                <TextBlock Text="{Binding CustomerLabel}" FontWeight="Black" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding CustomerDetailLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,8,0" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="1" Width="122" Margin="10,0,0,0">
-                                <Button Content="Buscar cliente"
-                                        Height="30"
-                                        FontWeight="Black"
-                                        Click="SelectCustomer_Click" />
-                                <Button Content="Venta mostrador"
-                                        Height="30"
-                                        Margin="0,8,0,0"
-                                        FontWeight="Black"
-                                        Click="ClearCustomer_Click" />
-                            </StackPanel>
+                            <Button Content="Buscar cliente" Height="34" FontWeight="Black" Click="SelectCustomer_Click" />
+                            <Button Grid.Column="1" Content="Mostrador" Height="34" Margin="8,0,0,0" FontWeight="Black" Click="ClearCustomer_Click" />
                         </Grid>
-                    </Border>
-                </StackPanel>
+                    </StackPanel>
+                </Border>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0">
-                    <ItemsControl ItemsSource="{Binding CartItems}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Padding="0,0,0,12" BorderBrush="#E6ECF5" BorderThickness="0,0,0,1" Margin="0,0,0,12">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Contexto de caja" FontSize="19" FontWeight="Black" />
+                        <Border Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,10,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding CashRegisterStatusBadge}" Foreground="{Binding CashRegisterStatusBrush}" FontWeight="Black" />
+                                <TextBlock Text="{Binding CashRegisterStatusDetail}" Foreground="{Binding CashRegisterStatusBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="{Binding WarehouseStatusDetail}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
 
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" />
-                                            <Border Background="#EEF0FF"
-                                                    BorderBrush="#DCE4FF"
-                                                    BorderThickness="1"
-                                                    CornerRadius="8"
-                                                    Padding="7,3"
-                                                    HorizontalAlignment="Left"
-                                                    Margin="0,5,0,0">
-                                                <TextBlock Text="{Binding ControlLabel}" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{Binding TotalLabel}" FontWeight="Black" FontSize="14" Margin="10,0,0,0" />
+                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Herramientas POS" FontSize="19" FontWeight="Black" />
+                        <Button Content="F2 Buscar producto" Height="38" Margin="0,12,0,0" FontWeight="Black" Click="OpenProductSearch_Click" />
+                        <Button Content="Pendientes" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="PendingOrders_Click" />
+                        <Button Content="Recargar contexto" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="ReloadContext_Click" />
+                    </StackPanel>
+                </Border>
 
-                                        <StackPanel Grid.Row="1" Margin="0,8,0,0">
-                                            <TextBlock Text="{Binding PriceListLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding UnitPriceLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding DiscountLabel}" Foreground="#B45309" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding WarehouseLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" />
-                                            <Border Background="#ECFDF5"
-                                                    BorderBrush="#A7F3D0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="8"
-                                                    Padding="7,4"
-                                                    HorizontalAlignment="Left"
-                                                    Margin="0,5,0,0">
-                                                <TextBlock Text="{Binding SerialLabel}" Foreground="#058561" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RateLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="8,5,0,0" />
-
-                                        <WrapPanel Grid.Row="2" Margin="0,10,0,0">
-                                            <Button Content="-" Width="32" Height="28" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="DecreaseItem_Click" />
-                                            <Border Width="42" Height="28" BorderBrush="#DCE4F2" BorderThickness="1">
-                                                <TextBlock Text="{Binding QuantityLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Black" />
-                                            </Border>
-                                            <Button Content="+" Width="32" Height="28" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="IncreaseItem_Click" />
-                                            <Button Content="Descuento" Width="92" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#B45309" Click="DiscountItem_Click" />
-                                            <Button Content="Quitar" Width="74" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#D9365C" Click="RemoveItem_Click" />
-                                        </WrapPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <Border Grid.Row="2" BorderBrush="#E6ECF5" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+                <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,12,0,0">
                     <StackPanel>
                         <Grid>
                             <TextBlock Text="Total USD" FontSize="17" FontWeight="Black" />
@@ -335,26 +284,21 @@
                             <TextBlock Text="Equivalente Bs" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding TotalVesLabel}" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" FontWeight="Black" />
                         </Grid>
-                        <Button Content="Pagar"
-                                Height="48"
+                        <Button Content="Cobrar (F12)"
+                                Height="50"
                                 Margin="0,16,0,0"
                                 IsEnabled="{Binding CanPay}"
                                 FontWeight="Black"
                                 Background="{StaticResource AccentBrush}"
                                 Foreground="White"
                                 Click="Pay_Click" />
-                        <TextBlock Text="{Binding PayHint}"
-                                   Foreground="{Binding StatusBrush}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Margin="0,9,0,0" />
+                        <TextBlock Text="{Binding PayHint}" Foreground="{Binding StatusBrush}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,9,0,0" />
                     </StackPanel>
                 </Border>
             </Grid>
-        </Border>
+        </Grid>
 
-        <Border Grid.Row="2" Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,1,0,0">
             <Grid Margin="18,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -362,27 +306,9 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Button Content="Volver al panel"
-                        Width="132"
-                        Height="32"
-                        VerticalAlignment="Center"
-                        FontWeight="Black"
-                        Click="Exit_Click" />
-
-                <TextBlock Grid.Column="1"
-                           Text="{Binding StatusMessage}"
-                           Foreground="{Binding StatusBrush}"
-                           FontWeight="Bold"
-                           TextWrapping="Wrap"
-                           VerticalAlignment="Center"
-                           Margin="14,0" />
-
-                <TextBlock Grid.Column="2"
-                           Text="F2 Buscar · Click agrega producto · Pagar confirma contra backend"
-                           Foreground="{StaticResource MutedBrush}"
-                           FontSize="12"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center" />
+                <Button Content="Volver al panel" Width="132" Height="32" VerticalAlignment="Center" FontWeight="Black" Click="Exit_Click" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center" Margin="14,0" />
+                <TextBlock Grid.Column="2" Text="Enter agrega exacto · F2 selector · F8 cliente · F12 cobrar" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
             </Grid>
         </Border>
     </Grid>
