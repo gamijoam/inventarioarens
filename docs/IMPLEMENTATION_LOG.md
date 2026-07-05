@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Corrección de caja y equivalentes en cobro POS
+
+### Implementado
+
+- Se corrigió la relación `PriceList -> paymentMethods` indicando explícitamente las llaves del pivote `price_list_payment_method`.
+- Se corrigió la relación inversa `PaymentMethod -> priceLists` con las llaves correctas del pivote.
+- Se agregó prueba para listar listas de precio con métodos de pago asociados.
+- El POS de escritorio ahora filtra cajas abiertas por el usuario conectado.
+- Si el usuario no tiene caja abierta propia, el POS muestra un mensaje claro antes de intentar vender.
+- La ventana de cobro se amplió para dar más espacio a los pagos agregados.
+- La tabla de pagos ahora muestra método, monto recibido, equivalente, estado y referencia.
+- Cuando el pago es en USD, se muestra equivalente en Bs si la tasa está disponible.
+- Cuando el pago es en Bs, se muestra equivalente en USD.
+- Se agregó mensaje más claro si el backend rechaza la caja por pertenecer a otro cajero o por estar cerrada.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/PaymentMethods/PaymentMethodApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 14 pruebas pasaron, 89 assertions.
+
+### Notas
+
+- La validación final de caja sigue en Laravel.
+- El filtrado WPF evita seleccionar cajas ajenas, pero el backend conserva la protección definitiva.
+
 ## 2026-07-04 - Registro rápido de cliente y cobro visible en POS
 
 ### Implementado

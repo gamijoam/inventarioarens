@@ -5,6 +5,7 @@ namespace Tests\Feature\PaymentMethods;
 use App\Models\User;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosPayment;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -82,6 +83,38 @@ class PaymentMethodApiTest extends TestCase
             ->getJson('/api/payment-methods')
             ->assertOk()
             ->assertJsonCount(0, 'data');
+    }
+
+    public function test_price_lists_can_include_payment_methods(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador precios', ['products.view']);
+        $this->useTenant($tenant);
+
+        $method = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'requires_reference' => false,
+            'is_active' => true,
+        ]);
+        $priceList = PriceList::create([
+            'name' => 'Detal',
+            'code' => 'DETAL',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $priceList->paymentMethods()->sync([$method->id => ['tenant_id' => $tenant->id]]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/price-lists')
+            ->assertOk()
+            ->assertJsonPath('data.0.payment_method_ids.0', $method->id)
+            ->assertJsonPath('data.0.payment_methods.0.code', 'CASH-USD');
     }
 
     protected function setUp(): void

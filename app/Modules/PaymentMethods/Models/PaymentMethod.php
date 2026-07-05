@@ -36,7 +36,7 @@ class PaymentMethod extends Model
 
     public function priceLists(): BelongsToMany
     {
-        return $this->belongsToMany(PriceList::class, 'price_list_payment_method')
+        return $this->belongsToMany(PriceList::class, 'price_list_payment_method', 'payment_method_id', 'price_list_id')
             ->withPivot('tenant_id')
             ->withTimestamps();
     }

@@ -24,9 +24,12 @@ public sealed class PosViewModel : ViewModelBase
     private PosCustomerOption? selectedCustomer;
     private CancellationTokenSource? quoteWarmupCancellation;
 
-    public PosViewModel(ApiClient apiClient)
+    private readonly long currentUserId;
+
+    public PosViewModel(ApiClient apiClient, long currentUserId)
     {
         this.apiClient = apiClient;
+        this.currentUserId = currentUserId;
     }
 
     public ObservableCollection<PriceListOption> PriceLists { get; } = new();
@@ -241,7 +244,7 @@ public sealed class PosViewModel : ViewModelBase
             PosCashRegisterSessionListResponse response = await apiClient.GetAsync<PosCashRegisterSessionListResponse>("cash-register/sessions");
             long? selectedId = SelectedCashRegisterSession?.Id;
             List<PosCashRegisterSession> openSessions = response.Data
-                .Where(session => session.Status == "open")
+                .Where(session => session.Status == "open" && session.CashierId == currentUserId)
                 .ToList();
 
             CashRegisterSessions.Clear();
@@ -252,6 +255,11 @@ public sealed class PosViewModel : ViewModelBase
 
             SelectedCashRegisterSession = CashRegisterSessions.FirstOrDefault(session => session.Id == selectedId)
                 ?? CashRegisterSessions.FirstOrDefault();
+
+            if (SelectedCashRegisterSession is null)
+            {
+                SetError("No tienes una caja abierta asignada a tu usuario. Abre tu caja antes de vender.");
+            }
         }
         catch (ApiException exception)
         {

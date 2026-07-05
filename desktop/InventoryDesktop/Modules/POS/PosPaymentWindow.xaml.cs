@@ -216,7 +216,7 @@ public partial class PosPaymentWindow : Window
         }
 
         decimal? baseUsd = EstimateBaseUsd(currency, amount);
-        payments.Add(new PaymentLine(method, currency, amount, baseUsd, reference, status.Code, status.Label));
+        payments.Add(new PaymentLine(method, currency, amount, BuildEquivalentLabel(currency, amount, baseUsd), baseUsd, reference, status.Code, status.Label));
         AmountBox.Text = string.Empty;
         ReferenceBox.Text = string.Empty;
         PaymentStatusBox.SelectedIndex = 0;
@@ -297,12 +297,12 @@ public partial class PosPaymentWindow : Window
         catch (ApiException exception)
         {
             IsEnabled = true;
-            SetError(exception.Message);
+            SetError(FriendlyError(exception.Message));
         }
         catch (InvalidOperationException exception)
         {
             IsEnabled = true;
-            SetError(exception.Message);
+            SetError(FriendlyError(exception.Message));
         }
     }
 
@@ -358,6 +358,36 @@ public partial class PosPaymentWindow : Window
         }
 
         return null;
+    }
+
+    private string BuildEquivalentLabel(string currency, decimal amount, decimal? baseUsd)
+    {
+        if (currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+        {
+            return impliedVesRate is > 0 ? $"Bs {amount * impliedVesRate.Value:0.00}" : "Solo USD";
+        }
+
+        if (currency.Equals("VES", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseUsd is null ? "Por validar" : $"USD {baseUsd.Value:0.00}";
+        }
+
+        return baseUsd is null ? "Por validar" : $"USD {baseUsd.Value:0.00}";
+    }
+
+    private static string FriendlyError(string message)
+    {
+        if (message.Contains("pertenece a otro cajero", StringComparison.OrdinalIgnoreCase))
+        {
+            return "La caja seleccionada pertenece a otro cajero. Recarga el contexto y selecciona una caja abierta a tu nombre.";
+        }
+
+        if (message.Contains("no esta abierta", StringComparison.OrdinalIgnoreCase) || message.Contains("no está abierta", StringComparison.OrdinalIgnoreCase))
+        {
+            return "La caja seleccionada ya no está abierta. Recarga el contexto antes de continuar.";
+        }
+
+        return message;
     }
 
     private static string BuildSuccessMessage(PosOrderResult order)
@@ -494,6 +524,7 @@ public sealed record PaymentLine(
     PaymentMethodChoice MethodChoice,
     string Currency,
     decimal Amount,
+    string EquivalentLabel,
     decimal? BaseAmountUsd,
     string? Reference,
     string Status,
@@ -508,6 +539,8 @@ public sealed record PaymentLine(
     public string AmountLabel => $"{Currency} {Amount:0.00}";
 
     public string BaseUsdLabel => BaseAmountUsd is null ? "Por validar" : $"USD {BaseAmountUsd:0.00}";
+
+    public string ReferenceLabel => string.IsNullOrWhiteSpace(Reference) ? "Sin referencia" : Reference;
 
     public bool IsCaptured => Status.Equals("captured", StringComparison.OrdinalIgnoreCase);
 }

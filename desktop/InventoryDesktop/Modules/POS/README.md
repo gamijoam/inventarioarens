@@ -45,6 +45,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cada línea agregada al carrito conserva el almacén seleccionado.
 - Si no hay almacén seleccionado, no se permite agregar productos.
 - La caja abierta es obligatoria para confirmar una venta.
+- En escritorio solo se listan cajas abiertas asignadas al usuario conectado; así se evita intentar vender con una caja de otro cajero.
 
 ## Cobro y checkout
 
@@ -59,6 +60,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La ventana permite agregar varios pagos antes de confirmar.
 - El botón `Completar saldo` coloca el monto faltante según la moneda seleccionada.
 - Al escribir el monto recibido, la ventana muestra una vista previa inmediata de pagado, faltante y vuelto estimado.
+- Cada pago agregado muestra el monto recibido y su equivalente: USD a bolívares cuando hay tasa, o bolívares a USD cuando se paga en Bs.
 - El botón `Borrar monto` limpia solo el monto y la referencia del pago que se está preparando.
 - El botón `Agregar pago` acepta el pago recibido y lo pasa a la tabla de pagos agregados.
 - El botón `Eliminar pago` elimina el pago seleccionado en la tabla de pagos agregados.

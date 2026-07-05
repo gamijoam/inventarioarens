@@ -21,7 +21,7 @@ public partial class ShellView : UserControl
 
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
-        posViewModel = new PosViewModel(session.ApiClient);
+        posViewModel = new PosViewModel(session.ApiClient, session.Login.User.Id);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
         PosContent.DataContext = posViewModel;
