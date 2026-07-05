@@ -209,40 +209,70 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="16">
+                <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="14">
                     <StackPanel>
-                        <TextBlock Text="Cliente actual" FontSize="19" FontWeight="Black" />
-                        <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
+                        <TextBlock Text="Cliente actual" FontSize="18" FontWeight="Black" />
+                        <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,8,0,0">
                             <StackPanel>
-                                <TextBlock Text="{Binding CustomerLabel}" FontSize="18" FontWeight="Black" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding CustomerLabel}" FontSize="17" FontWeight="Black" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Text="{Binding CustomerDetailLabel}"
                                            Foreground="{StaticResource MutedBrush}"
                                            FontWeight="SemiBold"
-                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
                                            Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
-                        <Grid Margin="0,12,0,0">
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button Content="F8 Buscar / crear"
-                                    Height="38"
+                                    Height="34"
                                     FontWeight="Black"
                                     Click="SelectCustomer_Click" />
                             <Button Grid.Column="1"
                                     Content="Consumidor final"
-                                    Height="38"
+                                    Height="34"
                                     Margin="8,0,0,0"
                                     FontWeight="Black"
                                     Click="ClearCustomer_Click" />
                         </Grid>
-                        <TextBlock Text="Herramientas POS" FontSize="17" FontWeight="Black" Margin="0,16,0,0" />
-                        <Button Content="F2 Buscar producto" Height="38" Margin="0,12,0,0" FontWeight="Black" Click="OpenProductSearch_Click" />
-                        <Button Content="F9 Último recibo" Height="38" Margin="0,8,0,0" FontWeight="Black" IsEnabled="{Binding HasLastReceipt}" Click="LastReceipt_Click" />
-                        <Button Content="Pendientes" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="PendingOrders_Click" />
-                        <Button Content="Limpiar carrito" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="ClearCart_Click" />
+                        <TextBlock Text="Herramientas POS" FontSize="17" FontWeight="Black" Margin="0,12,0,0" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Button Content="F2 Buscar"
+                                    Height="34"
+                                    FontWeight="Black"
+                                    Click="OpenProductSearch_Click" />
+                            <Button Grid.Column="1"
+                                    Content="F9 Recibo"
+                                    Height="34"
+                                    Margin="8,0,0,0"
+                                    FontWeight="Black"
+                                    IsEnabled="{Binding HasLastReceipt}"
+                                    Click="LastReceipt_Click" />
+                            <Button Grid.Row="1"
+                                    Content="Pendientes"
+                                    Height="34"
+                                    Margin="0,8,0,0"
+                                    FontWeight="Black"
+                                    Click="PendingOrders_Click" />
+                            <Button Grid.Row="1"
+                                    Grid.Column="1"
+                                    Content="Limpiar"
+                                    Height="34"
+                                    Margin="8,8,0,0"
+                                    FontWeight="Black"
+                                    Click="ClearCart_Click" />
+                        </Grid>
                     </StackPanel>
                 </Border>
 

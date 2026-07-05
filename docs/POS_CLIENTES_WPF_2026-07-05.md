@@ -74,3 +74,20 @@ Resultado:
 
 - 29 pruebas pasadas.
 - 183 aserciones.
+
+## Ajuste visual del panel derecho
+
+Se corrigió el panel derecho del POS para que los botones de herramientas no se corten cuando el nombre o detalle del cliente sea largo.
+
+Cambios realizados:
+
+- El bloque **Cliente actual** ahora usa una altura más estable.
+- Los textos largos del cliente se muestran resumidos visualmente para no empujar las herramientas.
+- Las herramientas POS pasaron de una lista vertical a una grilla compacta de dos columnas:
+  - `F2 Buscar`
+  - `F9 Recibo`
+  - `Pendientes`
+  - `Limpiar`
+- El resumen de total y el botón **Cobrar (F12)** quedan visibles en la parte inferior.
+
+Este ajuste es solo visual y no cambia la lógica de cliente, pagos, caja ni confirmación de venta.
