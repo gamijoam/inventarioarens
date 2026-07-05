@@ -38,6 +38,36 @@
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,4,0,0" />
+                    <Border Background="#F7F9FD"
+                            BorderBrush="#E1E7F3"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="10"
+                            Margin="0,12,0,0"
+                            MaxHeight="86">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="OrderItemsList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Black" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding SerialLabel}" Foreground="#058561" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="12,0,0,0" HorizontalAlignment="Right">
+                                                <TextBlock Text="{Binding QuantityLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" HorizontalAlignment="Right" />
+                                                <TextBlock Text="{Binding TotalLabel}" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" HorizontalAlignment="Right" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="220">

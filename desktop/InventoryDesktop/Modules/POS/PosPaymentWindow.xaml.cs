@@ -24,6 +24,7 @@ public partial class PosPaymentWindow : Window
             : null;
 
         PaymentsGrid.ItemsSource = payments;
+        OrderItemsList.ItemsSource = viewModel.CartItems;
         LoadHeader();
         LoadPaymentStatuses();
         LoadPaymentMethods();

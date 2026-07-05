@@ -1093,7 +1093,9 @@ public sealed class PosCartItem : ViewModelBase
         SalePrice = quote.SalePrice;
         RateLabel = quote.RateLabel;
         ProductUnitIds = serial is null ? [] : [serial.Id];
-        SerialLabel = serial is null ? "Por cantidad" : $"IMEI/serial: {serial.SerialNumber}";
+        SerialNumber = serial?.SerialNumber;
+        ControlLabel = serial is null ? "Por cantidad" : "Serializado / IMEI";
+        SerialLabel = serial is null ? "Venta por cantidad" : $"IMEI: {serial.SerialNumber}";
         quantity = serial is null ? 1 : ProductUnitIds.Count;
     }
 
@@ -1127,7 +1129,19 @@ public sealed class PosCartItem : ViewModelBase
 
     public IReadOnlyList<long> ProductUnitIds { get; }
 
+    public string? SerialNumber { get; }
+
+    public string ControlLabel { get; }
+
     public string SerialLabel { get; }
+
+    public bool IsSerialized => ProductUnitIds.Count > 0;
+
+    public bool CanChangeQuantity => !IsSerialized;
+
+    public string QuantityActionHint => IsSerialized
+        ? "Para vender otra unidad selecciona otro IMEI."
+        : "Cantidad editable.";
 
     public decimal Quantity
     {

@@ -125,6 +125,9 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La ventana consulta `GET /api/inventory-center/products/{product}/serials?status=available&warehouse_id={warehouse_id}`.
 - El carrito evita repetir el mismo IMEI/serial en la orden actual.
 - Las líneas con IMEI no permiten aumentar cantidad con el botón `+`; para otra unidad se debe elegir otro serial.
+- En el carrito, cada línea muestra si el producto se vende `Por cantidad` o como `Serializado / IMEI`.
+- Las líneas serializadas muestran el IMEI en una etiqueta verde y desactivan los botones `+` y `-`.
+- La ventana de cobro muestra un resumen compacto de los productos a confirmar, incluyendo el IMEI cuando aplica.
 - El item del carrito conserva `product_unit_ids` para el futuro checkout real.
 
 ## APIs usadas

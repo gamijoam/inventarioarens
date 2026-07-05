@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-04 - Claridad visual de IMEI en carrito y cobro POS
+
+### Diagnóstico
+
+- El POS ya exigía seleccionar IMEI/serial para productos serializados.
+- El carrito lo mostraba como una línea pequeña, pero no diferenciaba claramente una venta por cantidad de una venta serializada.
+- En la ventana de cobro no había un resumen visible de los productos/IMEI que se iban a confirmar.
+
+### Implementado
+
+- Cada línea del carrito ahora muestra una etiqueta de control: `Por cantidad` o `Serializado / IMEI`.
+- Los productos serializados muestran el IMEI en una etiqueta verde.
+- Los botones `+` y `-` quedan desactivados para líneas con IMEI, porque otra unidad debe seleccionarse con otro serial.
+- La ventana de cobro muestra un resumen compacto de los productos que se van a confirmar, incluyendo el IMEI cuando aplica.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Rendimiento POS al cambiar listas de precio
 
 ### Diagnóstico
