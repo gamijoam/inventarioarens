@@ -200,6 +200,7 @@ class DemoDataSeeder extends Seeder
             branchCode: $data['branch_code'],
             imeiPrefix: $data['imei_prefix'],
         );
+        $this->bulkDemoProducts($warehouse, $secondaryWarehouse, $manager, $accessoryWarranty, $bcv, $parallel, $data['branch_code']);
 
         $this->initialStock($warehouse, $phone, 8, $manager, "Carga demo inicial {$phone->sku}");
         $this->initialStock($warehouse, $headphones, 20, $manager, "Carga demo inicial {$headphones->sku}");
@@ -918,6 +919,108 @@ class DemoDataSeeder extends Seeder
                     app(InventoryMovementService::class)->markDamaged($item['warehouse'], $product, (float) $item['damaged'], $user, $reason);
                 }
             }
+        }
+    }
+
+    private function bulkDemoProducts(
+        Warehouse $warehouse,
+        Warehouse $secondaryWarehouse,
+        User $user,
+        WarrantyPolicy $accessoryWarranty,
+        ExchangeRateType $bcv,
+        ExchangeRateType $parallel,
+        string $branchCode,
+    ): void {
+        $names = [
+            'Cable Lightning 1M',
+            'Cable Lightning 2M',
+            'Cable USB-C 2M',
+            'Cable Micro USB',
+            'Cargador Tipo C 20W',
+            'Cargador Turbo 33W',
+            'Cargador Auto USB-C',
+            'Base Carga Inalambrica',
+            'Audifonos Tipo C',
+            'Audifonos Lightning',
+            'Audifonos Deportivos',
+            'Corneta Bluetooth Mini',
+            'Corneta Bluetooth Pro',
+            'Power Bank 20000mAh',
+            'Power Bank 5000mAh',
+            'Protector iPhone 11',
+            'Protector iPhone 12',
+            'Protector iPhone 13',
+            'Protector Samsung A05',
+            'Protector Samsung A15',
+            'Forro iPhone 11 Transparente',
+            'Forro iPhone 12 Silicon',
+            'Forro Samsung A15 Antigolpe',
+            'Forro Redmi 13C',
+            'Forro Tecno Spark',
+            'Memoria MicroSD 128GB',
+            'Memoria MicroSD 256GB',
+            'Pendrive USB 32GB',
+            'Pendrive USB 64GB',
+            'Pendrive Tipo C 128GB',
+            'Adaptador OTG Tipo C',
+            'Adaptador OTG Micro USB',
+            'Adaptador HDMI Tipo C',
+            'Tripode Flexible',
+            'Aro de Luz 10 Pulgadas',
+            'Aro de Luz 12 Pulgadas',
+            'Mouse Inalambrico',
+            'Teclado Compacto',
+            'Combo Teclado Mouse',
+            'Camara Web HD',
+            'Cable HDMI 1.5M',
+            'Cable HDMI 3M',
+            'Organizador de Cables',
+            'Lamina Hidrogel Universal',
+            'Lamina Ceramica Samsung',
+            'Lamina Ceramica iPhone',
+            'Soporte Celular Auto',
+            'Soporte Celular Mesa',
+            'Kit Limpieza Pantalla',
+            'Control Bluetooth Juegos',
+        ];
+
+        foreach ($names as $index => $name) {
+            $number = $index + 1;
+            $currency = $number % 5 === 0 ? Product::CURRENCY_VES : Product::CURRENCY_USD;
+            $rateType = $currency === Product::CURRENCY_VES
+                ? ($number % 2 === 0 ? $parallel : $bcv)
+                : null;
+            $price = $currency === Product::CURRENCY_VES
+                ? 90 + ($number * 7)
+                : 2 + ($number * 1.35);
+
+            $product = Product::query()->firstOrCreate(
+                ['sku' => sprintf('DEMO-%02d-%s', $number, $branchCode)],
+                [
+                    'name' => $name,
+                    'tracking_type' => Product::TRACKING_QUANTITY,
+                    'base_price' => $price,
+                    'sale_currency' => $currency,
+                    'sale_exchange_rate_type_id' => $rateType?->id,
+                    'warranty_policy_id' => $accessoryWarranty->id,
+                    'is_active' => true,
+                ]
+            );
+
+            $product->update([
+                'name' => $name,
+                'tracking_type' => Product::TRACKING_QUANTITY,
+                'base_price' => $price,
+                'sale_currency' => $currency,
+                'sale_exchange_rate_type_id' => $rateType?->id,
+                'warranty_policy_id' => $accessoryWarranty->id,
+                'is_active' => true,
+            ]);
+
+            $targetWarehouse = $number % 4 === 0 ? $secondaryWarehouse : $warehouse;
+            $quantity = 8 + (($number * 3) % 45);
+            $reason = "Carga demo ampliada {$product->sku}";
+            $this->initialStock($targetWarehouse, $product, $quantity, $user, $reason);
         }
     }
 

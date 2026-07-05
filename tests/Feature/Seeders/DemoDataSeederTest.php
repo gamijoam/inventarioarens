@@ -55,7 +55,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertDatabaseHas('products', ['sku' => 'CARG-25W-CCS', 'name' => 'Cargador Rapido 25W']);
         $this->assertDatabaseHas('products', ['sku' => 'PROT-A06-CCS', 'name' => 'Protector Pantalla Samsung A06']);
         $this->assertDatabaseHas('products', ['sku' => 'IPH11-64-CCS', 'tracking_type' => Product::TRACKING_SERIALIZED]);
-        $this->assertSame(24, Product::withoutGlobalScopes()->where('is_active', true)->count());
+        $this->assertSame(124, Product::withoutGlobalScopes()->where('is_active', true)->count());
+        $this->assertSame(100, Product::withoutGlobalScopes()->where('sku', 'like', 'DEMO-%')->count());
         $this->assertDatabaseHas('customers', ['name' => 'Consumidor final', 'is_generic' => true]);
         $this->assertSame(6, Customer::withoutGlobalScopes()->where('is_active', true)->count());
         $this->assertSame(2, Supplier::withoutGlobalScopes()->where('name', 'like', 'Proveedor Demo%')->count());

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
+using InventoryDesktop.Modules.CashRegister;
 using InventoryDesktop.Modules.InventoryCenter;
 using InventoryDesktop.Modules.POS;
 
@@ -12,6 +13,7 @@ public partial class ShellView : UserControl
     private readonly DesktopSession session;
     private readonly InventoryCenterViewModel inventoryCenterViewModel;
     private readonly InventoryCenterViewModel inventoryMovementsViewModel;
+    private readonly CashRegisterViewModel cashRegisterViewModel;
     private readonly PosViewModel posViewModel;
 
     public ShellView(DesktopSession session)
@@ -22,9 +24,11 @@ public partial class ShellView : UserControl
 
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
+        cashRegisterViewModel = new CashRegisterViewModel(session.ApiClient, session.Login.User.Id);
         posViewModel = new PosViewModel(session.ApiClient, session.Login.User.Id);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
+        CashRegisterContent.DataContext = cashRegisterViewModel;
         PosContent.DataContext = posViewModel;
         PosContent.ExitRequested += (_, _) => ShowHome();
         PriceListsContent.Configure(session.ApiClient);
@@ -79,6 +83,17 @@ public partial class ShellView : UserControl
         await PriceListsContent.LoadAsync();
     }
 
+    private async void CashRegister_Click(object sender, RoutedEventArgs e)
+    {
+        if (!HomeCashCard.IsEnabled)
+        {
+            return;
+        }
+
+        ShowCashRegister();
+        await cashRegisterViewModel.LoadAsync();
+    }
+
     private async void Pos_Click(object sender, RoutedEventArgs e)
     {
         if (!HomePosCard.IsEnabled)
@@ -112,6 +127,7 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
 
@@ -125,6 +141,7 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = Visibility.Visible;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
 
@@ -138,6 +155,7 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Visible;
         PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
 
@@ -151,6 +169,21 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Visible;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
+        PosContent.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowCashRegister()
+    {
+        SectionTitle.Text = "Caja";
+        SectionSubtitle.Text = "Apertura y control operativo para POS";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
+        HomeContent.Visibility = Visibility.Collapsed;
+        InventoryCenterContent.Visibility = Visibility.Collapsed;
+        InventoryMovementsContent.Visibility = Visibility.Collapsed;
+        PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Visible;
         PosContent.Visibility = Visibility.Collapsed;
     }
 
@@ -161,6 +194,7 @@ public partial class ShellView : UserControl
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Visible;
     }
 
@@ -170,11 +204,13 @@ public partial class ShellView : UserControl
         bool canViewInventory = session.HasPermission("products.view");
         bool canMoveInventory = session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update");
         bool canManagePrices = session.HasPermission("products.update");
+        bool canUseCashRegister = session.HasAnyPermission("cash_register.view", "cash_register.open");
 
         SetCardAccess(HomePosCard, canUsePos, "Sin permiso POS");
         SetCardAccess(HomeInventoryCard, canViewInventory, "Sin permiso de inventario");
         SetCardAccess(HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
         SetCardAccess(HomePriceListsCard, canManagePrices, "Sin permiso de precios");
+        SetCardAccess(HomeCashCard, canUseCashRegister, "Sin permiso de caja");
     }
 
     private static void SetCardAccess(Button cardButton, bool canAccess, string deniedText)
