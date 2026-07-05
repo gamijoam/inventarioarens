@@ -46,7 +46,13 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 ## Rendimiento del carrito
 
+- La app de escritorio registra mediciones `PERF` en `desktop.log` para detectar operaciones lentas del POS.
+- El log local se guarda en `AppData\Local\SistemaInventario\desktop.log`.
+- Al entrar al POS, la pantalla se muestra primero y luego se carga el contexto para evitar que el click parezca congelado.
+- La carga inicial trae listas de precio, métodos de pago y almacenes en paralelo.
+- Si el POS ya se inicializó antes, al volver a entrar refresca caja y productos sin repetir toda la carga estática.
 - El POS mantiene una caché temporal de cotizaciones por producto y lista de precio.
+- En `Precio base` con productos en USD, WPF usa el precio ya recibido en el catálogo para agregar al carrito sin pedir una cotización extra.
 - Después de buscar productos, precarga solo un grupo pequeño de cotizaciones visibles en segundo plano para no saturar la API.
 - Si el vendedor hace click mientras una cotización ya se está preparando, el click reutiliza esa misma consulta.
 - Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.

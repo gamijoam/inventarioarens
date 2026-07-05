@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Http;
 using System.Windows.Media;
 using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.ViewModels;
 using InventoryDesktop.Modules.InventoryCenter;
 
@@ -36,6 +37,7 @@ public sealed class PosViewModel : ViewModelBase
     private PosCustomerOption? selectedCustomer;
     private PosReceiptSnapshot? lastReceipt;
     private CancellationTokenSource? quoteWarmupCancellation;
+    private bool hasInitialized;
 
     private readonly long currentUserId;
 
@@ -271,10 +273,31 @@ public sealed class PosViewModel : ViewModelBase
 
     public async Task InitializeAsync()
     {
-        await LoadPriceListsAsync();
-        await LoadPaymentMethodsAsync();
-        await LoadOperationalContextAsync();
-        await SearchAsync();
+        using PerformanceTrace trace = PerformanceTrace.Start("POS InitializeAsync", 700);
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = hasInitialized
+            ? "Actualizando POS..."
+            : "Cargando POS...";
+
+        try
+        {
+            if (!hasInitialized)
+            {
+                await Task.WhenAll(
+                    LoadPriceListsAsync(),
+                    LoadPaymentMethodsAsync(),
+                    LoadWarehousesAsync());
+                hasInitialized = true;
+            }
+
+            await LoadCashRegisterSessionsAsync();
+            await SearchAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task LoadOperationalContextAsync()
@@ -576,6 +599,7 @@ public sealed class PosViewModel : ViewModelBase
 
     public async Task SearchAsync()
     {
+        using PerformanceTrace trace = PerformanceTrace.Start("POS buscar productos", 450);
         try
         {
             IsBusy = true;
@@ -665,6 +689,7 @@ public sealed class PosViewModel : ViewModelBase
 
     public async Task AddProductAsync(PosProductCard card, InventoryProductSerial? selectedSerial = null)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"POS agregar producto {card.Product.Sku}", 250);
         if (SelectedWarehouse is null)
         {
             SetError("Selecciona un almacén antes de agregar productos.");
@@ -698,7 +723,7 @@ public sealed class PosViewModel : ViewModelBase
                 ? "Agregando producto..."
                 : "Cotizando producto...";
 
-            PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
+            PosPriceQuote quote = await GetQuoteAsync(card.Product, priceListId);
             card.SetQuote(quote);
 
             PosCartItem? existing = selectedSerial is null
@@ -805,7 +830,7 @@ public sealed class PosViewModel : ViewModelBase
             long? priceListId = SelectedPriceListId;
             foreach (PosCartItem item in CartItems.ToList())
             {
-                PosPriceQuote quote = await GetQuoteAsync(item.ProductId, priceListId);
+                PosPriceQuote quote = await GetQuoteAsync(item.Product, priceListId);
                 item.ApplyQuote(quote);
             }
 
@@ -981,14 +1006,20 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
-    private Task<PosPriceQuote> GetQuoteAsync(long productId, long? priceListId)
+    private Task<PosPriceQuote> GetQuoteAsync(InventoryProductItem product, long? priceListId)
     {
-        QuoteCacheKey key = new(productId, priceListId);
+        QuoteCacheKey key = new(product.Id, priceListId);
         lock (quoteSync)
         {
             if (quoteCache.TryGetValue(key, out PosPriceQuote? cachedQuote))
             {
                 return Task.FromResult(cachedQuote);
+            }
+
+            if (TryBuildFastBaseQuote(product, priceListId) is PosPriceQuote fastQuote)
+            {
+                quoteCache[key] = fastQuote;
+                return Task.FromResult(fastQuote);
             }
 
             if (quoteRequests.TryGetValue(key, out Task<PosPriceQuote>? activeRequest))
@@ -1000,6 +1031,34 @@ public sealed class PosViewModel : ViewModelBase
             quoteRequests[key] = request;
             return request;
         }
+    }
+
+    private static PosPriceQuote? TryBuildFastBaseQuote(InventoryProductItem product, long? priceListId)
+    {
+        if (priceListId is not null || product.BasePrice is null)
+        {
+            return null;
+        }
+
+        if (!product.SaleCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new PosPriceQuote(
+            product.Id,
+            null,
+            null,
+            "base",
+            product.BasePrice.Value,
+            "USD",
+            product.BasePrice.Value,
+            product.BasePrice.Value,
+            null,
+            null,
+            null,
+            null,
+            null);
     }
 
     private async Task<PosPriceQuote> FetchQuoteAsync(QuoteCacheKey key)
@@ -1096,7 +1155,7 @@ public sealed class PosViewModel : ViewModelBase
             {
                 if (!cancellationToken.IsCancellationRequested)
                 {
-                    PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
+                    PosPriceQuote quote = await GetQuoteAsync(card.Product, priceListId);
                     if (!cancellationToken.IsCancellationRequested)
                     {
                         card.SetQuote(quote);

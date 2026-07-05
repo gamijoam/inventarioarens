@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.InventoryCenter;
 using InventoryDesktop.Modules.POS;
@@ -85,6 +86,8 @@ public partial class ShellView : UserControl
             return;
         }
 
+        ShowPos();
+        using PerformanceTrace trace = PerformanceTrace.Start("Abrir módulo POS", 500);
         await posViewModel.InitializeAsync();
         if (posViewModel.SelectedCashRegisterSession is null)
         {
@@ -97,8 +100,6 @@ public partial class ShellView : UserControl
             ShowHome();
             return;
         }
-
-        ShowPos();
     }
 
     private void ShowHome()

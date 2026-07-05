@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using InventoryDesktop.Core.Diagnostics;
 
 namespace InventoryDesktop.Core.Api;
 
@@ -32,6 +33,7 @@ public sealed class ApiClient
 
     public async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API POST {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Post, path);
         request.Content = JsonContent.Create(payload, options: JsonOptions);
 
@@ -41,6 +43,7 @@ public sealed class ApiClient
 
     public async Task<TResponse> PatchAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API PATCH {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Patch, path);
         request.Content = JsonContent.Create(payload, options: JsonOptions);
 
@@ -50,6 +53,7 @@ public sealed class ApiClient
 
     public async Task<TResponse> PutAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API PUT {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Put, path);
         request.Content = JsonContent.Create(payload, options: JsonOptions);
 
@@ -59,6 +63,7 @@ public sealed class ApiClient
 
     public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API DELETE {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Delete, path);
 
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
@@ -70,6 +75,7 @@ public sealed class ApiClient
 
     public async Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API GET {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Get, path);
 
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
@@ -78,6 +84,7 @@ public sealed class ApiClient
 
     public async Task<byte[]> GetBytesAsync(string path, CancellationToken cancellationToken = default)
     {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API GET_BYTES {path}", 350);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Get, path);
 
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
