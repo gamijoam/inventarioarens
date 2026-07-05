@@ -65,6 +65,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si la coincidencia exacta es un producto por cantidad, se agrega directamente al carrito.
 - Si la coincidencia exacta es un producto serializado, el POS intenta usar el IMEI exacto disponible; si no lo encuentra, abre el selector de IMEI.
 - Si no hay coincidencia exacta, el vendedor puede abrir el selector y elegir el producto desde una lista compacta con nombre, SKU, precio, stock y tipo de control.
+- El POS bloquea agregar productos sin stock o productos cuyo stock disponible ya fue consumido por la orden actual.
+- En el selector, `Sin stock` se muestra en rojo para que el cajero no lo confunda con una opción vendible.
 
 ## Contexto operativo
 
@@ -132,6 +134,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Los productos del recibo se toman del carrito antes de que el checkout limpie la orden local.
 - Los pagos del recibo se toman de los pagos agregados en la ventana de cobro.
 - Si la orden queda pendiente, no se muestra recibo final; se mantiene el aviso de orden pendiente para no confundir reserva con venta cerrada.
+- La ventana de recibo se puede cerrar rapidamente con `Enter`, `Esc` o el botón `Cerrar`.
 - Impresión, PDF, numeración fiscal y formato de ticket quedan para una fase posterior.
 
 ## Rendimiento de listas de precio

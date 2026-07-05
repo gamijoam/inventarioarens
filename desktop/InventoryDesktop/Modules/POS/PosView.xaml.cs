@@ -122,6 +122,12 @@ public partial class PosView : UserControl
             return;
         }
 
+        if (!ViewModel.HasStockAvailableForCart(card))
+        {
+            ViewModel.SetError(ViewModel.BuildNoStockMessage(card));
+            return;
+        }
+
         if (card.Product.TrackingType == "serialized" && selectedSerial is null)
         {
             PosSerialSelectionWindow dialog = new(card, ViewModel)

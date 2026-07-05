@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace InventoryDesktop.Modules.POS;
 
@@ -8,6 +9,7 @@ public partial class PosReceiptWindow : Window
     {
         InitializeComponent();
         LoadReceipt(receipt);
+        PreviewKeyDown += PosReceiptWindow_PreviewKeyDown;
     }
 
     private void LoadReceipt(PosReceiptSnapshot receipt)
@@ -28,5 +30,14 @@ public partial class PosReceiptWindow : Window
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void PosReceiptWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+        }
     }
 }

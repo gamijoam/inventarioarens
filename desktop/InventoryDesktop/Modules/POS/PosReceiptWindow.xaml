@@ -161,6 +161,8 @@
                     Width="150"
                     Height="42"
                     FontWeight="Black"
+                    IsDefault="True"
+                    IsCancel="True"
                     Background="#0F766E"
                     BorderBrush="#0F766E"
                     Foreground="White"

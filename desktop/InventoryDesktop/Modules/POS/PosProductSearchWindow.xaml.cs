@@ -70,6 +70,12 @@ public partial class PosProductSearchWindow : Window
 
         try
         {
+            if (!viewModel.HasStockAvailableForCart(card))
+            {
+                viewModel.SetError(viewModel.BuildNoStockMessage(card));
+                return;
+            }
+
             if (card.Product.TrackingType == "serialized")
             {
                 PosSerialSelectionWindow serialDialog = new(card, viewModel)

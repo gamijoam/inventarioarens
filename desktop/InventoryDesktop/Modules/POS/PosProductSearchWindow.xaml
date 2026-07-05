@@ -113,7 +113,7 @@
                                 <TextBlock Text="{Binding Product.Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" Margin="14,8" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="{Binding Product.Sku}" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="10,8" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="2" Text="{Binding CardPriceLabel}" Foreground="{Binding CardPriceBrush}" FontWeight="Black" FontSize="15" Margin="10,8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="3" Text="{Binding StockLabel}" FontWeight="Black" Margin="10,8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding StockLabel}" Foreground="{Binding StockBrush}" FontWeight="Black" Margin="10,8" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="4" Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Black" Margin="10,8" VerticalAlignment="Center" />
                             </Grid>
                         </DataTemplate>

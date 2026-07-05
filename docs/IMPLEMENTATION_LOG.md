@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-05 - Bloqueo de productos sin stock en POS
+
+### Diagnóstico
+
+- El POS podía confundir al cajero mostrando productos sin stock como seleccionables.
+- También era posible intentar agregar más unidades de un producto si el stock visible ya estaba consumido dentro del carrito actual.
+- El recibo visual necesitaba una salida rápida para continuar vendiendo sin depender solo del botón.
+
+### Implementado
+
+- Se reforzó la validación del carrito para bloquear productos sin stock y productos cuyo disponible ya está dentro de la orden actual.
+- La ventana de búsqueda de producto bloquea la acción antes de abrir seriales/IMEI o cotizar cuando no queda stock.
+- El selector muestra `Sin stock` en rojo.
+- El recibo POS ahora cierra con `Enter`, `Esc` o el botón `Cerrar`.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Recibo visual para ventas POS confirmadas
 
 ### Diagnóstico

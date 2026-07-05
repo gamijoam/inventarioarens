@@ -649,9 +649,9 @@ public sealed class PosViewModel : ViewModelBase
             return;
         }
 
-        if (card.Product.Stock.Available <= 0)
+        if (!HasStockAvailableForCart(card))
         {
-            SetError("No se puede agregar un producto sin stock disponible.");
+            SetError(BuildNoStockMessage(card));
             return;
         }
 
@@ -731,6 +731,27 @@ public sealed class PosViewModel : ViewModelBase
         RaiseTotalsChanged();
         StatusMessage = "Producto retirado del carrito.";
         IsStatusError = false;
+    }
+
+    public bool HasStockAvailableForCart(PosProductCard card)
+    {
+        return RemainingStockForCart(card) >= 1;
+    }
+
+    public string BuildNoStockMessage(PosProductCard card)
+    {
+        return card.Product.Stock.Available <= 0
+            ? $"{card.Product.Name} no tiene stock disponible para vender."
+            : $"No puedes agregar mas unidades de {card.Product.Name}; el stock disponible ya esta en el carrito.";
+    }
+
+    private decimal RemainingStockForCart(PosProductCard card)
+    {
+        decimal quantityAlreadyInCart = CartItems
+            .Where(item => item.ProductId == card.Product.Id)
+            .Sum(item => item.Quantity);
+
+        return card.Product.Stock.Available - quantityAlreadyInCart;
     }
 
     public void ClearCart()
@@ -1141,6 +1162,10 @@ public sealed class PosProductCard(InventoryProductItem product)
     public string StockLabel => Product.Stock.Available <= 0
         ? "Sin stock"
         : $"{Product.Stock.Available:0.##} disp.";
+
+    public Brush StockBrush => Product.Stock.Available <= 0
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(5, 133, 97));
 
     public string CardPriceLabel
     {
