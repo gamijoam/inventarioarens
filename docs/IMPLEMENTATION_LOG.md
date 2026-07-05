@@ -1,5 +1,26 @@
 # Registro de implementación
 
+## 2026-07-04 - Tarjetas POS recotizadas por lista de precio
+
+### Diagnóstico
+
+- El selector del POS ya permitía elegir `Precio base` o una lista específica.
+- Las tarjetas del catálogo seguían mostrando el precio base/resumen, aunque el cajero cambiara a una lista distinta.
+- Esto podía confundir porque el precio visual no siempre coincidía con el precio que Laravel usaría al agregar al carrito.
+
+### Implementado
+
+- Las tarjetas POS ahora tienen un precio visual propio que se actualiza al cambiar la lista seleccionada.
+- Al seleccionar una lista específica, las tarjetas visibles muestran `Cotizando...` mientras consultan `GET /api/products/{product}/price?price_list_id={id}`.
+- Si Laravel devuelve precio, la tarjeta muestra el precio de esa lista.
+- Si el producto no tiene precio en la lista, la tarjeta muestra `Sin precio en lista` en color de error.
+- Si se selecciona `Precio base`, la tarjeta vuelve a mostrar el precio normal del producto.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Opción Precio base en selector POS
 
 ### Diagnóstico

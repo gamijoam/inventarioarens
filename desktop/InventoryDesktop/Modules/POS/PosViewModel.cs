@@ -863,10 +863,15 @@ public sealed class PosViewModel : ViewModelBase
         quoteWarmupCancellation?.Dispose();
         quoteWarmupCancellation = null;
 
+        long? priceListId = SelectedPriceListId;
         List<PosProductCard> cards = Products
-            .Where(card => card.Product.Stock.Available > 0 && card.Product.TrackingType != "serialized")
-            .Take(18)
+            .Take(24)
             .ToList();
+
+        foreach (PosProductCard card in cards)
+        {
+            card.PreparePrice(priceListId);
+        }
 
         if (cards.Count == 0)
         {
@@ -875,7 +880,6 @@ public sealed class PosViewModel : ViewModelBase
 
         quoteWarmupCancellation = new CancellationTokenSource();
         CancellationToken cancellationToken = quoteWarmupCancellation.Token;
-        long? priceListId = SelectedPriceListId;
 
         _ = WarmupQuotesAsync(cards, priceListId, cancellationToken);
     }
@@ -898,16 +902,37 @@ public sealed class PosViewModel : ViewModelBase
             {
                 if (!cancellationToken.IsCancellationRequested)
                 {
-                    await GetQuoteAsync(card.Product.Id, priceListId);
+                    PosPriceQuote quote = await GetQuoteAsync(card.Product.Id, priceListId);
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        card.SetQuote(quote);
+                    }
                 }
             }
-            catch (ApiException)
+            catch (ApiException exception)
             {
-                // La precarga no debe interrumpir la venta; el click mostrará el error real si aplica.
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    if (exception.Message.Contains("Este producto no tiene precio en esta lista", StringComparison.OrdinalIgnoreCase))
+                    {
+                        card.SetNoPriceInList();
+                    }
+                    else if (exception.Message.Contains("precio base", StringComparison.OrdinalIgnoreCase))
+                    {
+                        card.SetNoBasePrice();
+                    }
+                    else
+                    {
+                        card.SetQuoteError();
+                    }
+                }
             }
             catch (HttpRequestException)
             {
-                // La precarga es oportunista. La acción manual seguirá mostrando errores visibles.
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    card.SetQuoteError();
+                }
             }
             finally
             {
@@ -932,7 +957,11 @@ public sealed class PosViewModel : ViewModelBase
 internal readonly record struct QuoteCacheKey(long ProductId, long? PriceListId);
 
 public sealed class PosProductCard(InventoryProductItem product)
+    : ViewModelBase
 {
+    private string cardPriceLabel = product.BasePrice is null ? "Sin precio base" : product.PriceLabel;
+    private Brush cardPriceBrush = new SolidColorBrush(Color.FromRgb(49, 38, 238));
+
     public InventoryProductItem Product { get; } = product;
 
     public string Initials
@@ -949,9 +978,63 @@ public sealed class PosProductCard(InventoryProductItem product)
         ? "Sin stock"
         : $"{Product.Stock.Available:0.##} disp.";
 
-    public string CardPriceLabel => Product.BasePrice is null ? "Sin precio base" : Product.PriceLabel;
+    public string CardPriceLabel
+    {
+        get => cardPriceLabel;
+        private set => SetProperty(ref cardPriceLabel, value);
+    }
+
+    public Brush CardPriceBrush
+    {
+        get => cardPriceBrush;
+        private set => SetProperty(ref cardPriceBrush, value);
+    }
 
     public string TrackingShortLabel => Product.TrackingType == "serialized" ? "IMEI" : "Cantidad";
+
+    public void PreparePrice(long? priceListId)
+    {
+        if (priceListId is null)
+        {
+            SetBasePrice();
+            return;
+        }
+
+        CardPriceLabel = "Cotizando...";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(100, 113, 140));
+    }
+
+    public void SetQuote(PosPriceQuote quote)
+    {
+        CardPriceLabel = $"{quote.SaleCurrency} {quote.SalePrice:0.00}";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(49, 38, 238));
+    }
+
+    public void SetNoPriceInList()
+    {
+        CardPriceLabel = "Sin precio en lista";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(217, 54, 92));
+    }
+
+    public void SetNoBasePrice()
+    {
+        CardPriceLabel = "Sin precio base";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(217, 54, 92));
+    }
+
+    public void SetQuoteError()
+    {
+        CardPriceLabel = "Error al cotizar";
+        CardPriceBrush = new SolidColorBrush(Color.FromRgb(217, 54, 92));
+    }
+
+    private void SetBasePrice()
+    {
+        CardPriceLabel = Product.BasePrice is null ? "Sin precio base" : Product.PriceLabel;
+        CardPriceBrush = Product.BasePrice is null
+            ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+            : new SolidColorBrush(Color.FromRgb(49, 38, 238));
+    }
 }
 
 public sealed class PosCartItem : ViewModelBase

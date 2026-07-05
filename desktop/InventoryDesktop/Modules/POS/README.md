@@ -13,6 +13,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Seleccionar lista de precio activa.
 - Cotizar el producto con `GET /api/products/{product}/price`.
 - El selector de precios incluye `Precio base` como primera opción; esa opción no envía `price_list_id` y usa el precio normal del producto.
+- Al cambiar de `Precio base` a una lista específica, las tarjetas visibles se recotizan en segundo plano y muestran el precio de esa lista.
+- Si un producto visible no tiene precio en la lista seleccionada, la tarjeta muestra `Sin precio en lista`.
 - Si se selecciona una lista de precio y el producto no tiene precio en esa lista, Laravel bloquea la cotización con el mensaje `Este producto no tiene precio en esta lista.`
 - Agregar productos por cantidad a un carrito local.
 - Mostrar total en `USD` y equivalente en `VES` cuando la API devuelve tasa.

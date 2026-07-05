@@ -190,7 +190,7 @@
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <TextBlock Text="{Binding CardPriceLabel}" FontSize="18" FontWeight="Black" Foreground="{StaticResource AccentStrongBrush}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding CardPriceLabel}" FontSize="18" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Row="1" Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" Margin="0,2,0,0" />
                                         </Grid>
                                     </Grid>
