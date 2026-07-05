@@ -75,3 +75,46 @@ Resultado:
 ## Nota de operacion
 
 Si el POS indica que no hay caja abierta, se debe abrir desde el modulo **Caja**. El sistema mantiene las cajas por cajero, por eso una caja abierta por otro usuario no habilita el cobro para el usuario actual.
+
+## Correccion de lectura de montos en escritorio
+
+Se corrigio el cliente WPF para aceptar montos de caja cuando Laravel/PostgreSQL los devuelve como texto decimal, por ejemplo `"0.0000"`.
+
+Campos ajustados:
+
+- `opening_base_amount`
+- `opening_local_amount`
+- `expected_base_amount`
+- `expected_local_amount`
+
+Antes, si alguno de esos valores llegaba como texto, la vista de Caja podia cerrar o mostrar una excepcion de conversion JSON. Ahora el cliente acepta numeros y textos numericos.
+
+Tambien se agrego manejo de error visible en la pantalla de Caja cuando la API devuelve un formato inesperado, evitando que la excepcion quede sin controlar.
+
+## Ajuste visual del formulario de Caja
+
+El formulario **Abrir mi caja** ahora tiene desplazamiento interno y el campo de notas es mas compacto. Esto evita que el boton **Abrir caja** o parte del formulario queden cortados en pantallas con menor alto.
+
+## Verificacion de la correccion
+
+Compilacion WPF ejecutada nuevamente:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- Compilacion correcta.
+- 0 errores.
+
+Pruebas especificas ejecutadas:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests/Feature/CashRegister/CashRegisterApiTest.php tests/Feature/Auth/AuthApiTest.php
+```
+
+Resultado:
+
+- 14 pruebas pasadas.
+- 68 aserciones.

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Net.Http;
+using System.Text.Json;
 using System.Windows.Media;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.ViewModels;
@@ -138,6 +139,10 @@ public sealed class CashRegisterViewModel : ViewModelBase
         {
             SetError(exception.Message);
         }
+        catch (JsonException)
+        {
+            SetError("La API devolvio datos de caja con un formato inesperado. Actualiza e intenta nuevamente.");
+        }
         catch (HttpRequestException)
         {
             SetError("No se pudo conectar con la API para cargar cajas.");
@@ -169,6 +174,10 @@ public sealed class CashRegisterViewModel : ViewModelBase
         catch (ApiException exception)
         {
             SetError(exception.Message);
+        }
+        catch (JsonException)
+        {
+            SetError("La API devolvio la caja abierta con un formato inesperado. Actualiza e intenta nuevamente.");
         }
         catch (HttpRequestException)
         {
@@ -202,6 +211,10 @@ public sealed class CashRegisterViewModel : ViewModelBase
         catch (ApiException exception)
         {
             SetError(exception.Message);
+        }
+        catch (JsonException)
+        {
+            SetError("La API devolvio almacenes con un formato inesperado. Actualiza e intenta nuevamente.");
         }
         catch (HttpRequestException)
         {

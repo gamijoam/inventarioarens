@@ -13,10 +13,18 @@ public sealed record CashRegisterSessionItem(
     [property: JsonPropertyName("branch_id")] long BranchId,
     [property: JsonPropertyName("cashier_id")] long? CashierId,
     [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("opening_base_amount")] decimal OpeningBaseAmount,
-    [property: JsonPropertyName("opening_local_amount")] decimal OpeningLocalAmount,
-    [property: JsonPropertyName("expected_base_amount")] decimal ExpectedBaseAmount,
-    [property: JsonPropertyName("expected_local_amount")] decimal ExpectedLocalAmount,
+    [property: JsonPropertyName("opening_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal OpeningBaseAmount,
+    [property: JsonPropertyName("opening_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal OpeningLocalAmount,
+    [property: JsonPropertyName("expected_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal ExpectedBaseAmount,
+    [property: JsonPropertyName("expected_local_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal ExpectedLocalAmount,
     [property: JsonPropertyName("opened_at")] string? OpenedAt,
     [property: JsonPropertyName("notes")] string? Notes,
     [property: JsonPropertyName("branch")] CashRegisterBranch? Branch)

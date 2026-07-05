@@ -45,49 +45,51 @@
             </Grid.ColumnDefinitions>
 
             <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18">
-                <StackPanel>
-                    <TextBlock Text="Abrir mi caja" FontSize="22" FontWeight="Black" />
-                    <TextBlock Text="Selecciona el almacén de trabajo. La caja se abre para la sucursal de ese almacén."
-                               Foreground="{StaticResource MutedBrush}"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               Margin="0,5,0,18" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Abrir mi caja" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Selecciona el almacén de trabajo. La caja se abre para la sucursal de ese almacén."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,5,0,18" />
 
-                    <TextBlock Text="Almacén" FontWeight="Black" />
-                    <ComboBox ItemsSource="{Binding Warehouses}"
-                              SelectedItem="{Binding SelectedWarehouse}"
-                              DisplayMemberPath="WarehouseLabel"
-                              Height="40"
-                              Margin="0,6,0,10" />
+                        <TextBlock Text="Almacén" FontWeight="Black" />
+                        <ComboBox ItemsSource="{Binding Warehouses}"
+                                  SelectedItem="{Binding SelectedWarehouse}"
+                                  DisplayMemberPath="WarehouseLabel"
+                                  Height="40"
+                                  Margin="0,6,0,10" />
 
-                    <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,14">
-                        <TextBlock Text="{Binding SelectedBranchLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" TextWrapping="Wrap" />
-                    </Border>
+                        <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,14">
+                            <TextBlock Text="{Binding SelectedBranchLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" TextWrapping="Wrap" />
+                        </Border>
 
-                    <TextBlock Text="Moneda inicial" FontWeight="Black" />
-                    <ComboBox ItemsSource="{Binding CurrencyOptions}"
-                              SelectedItem="{Binding OpeningCurrency}"
-                              Height="40"
-                              Margin="0,6,0,10" />
+                        <TextBlock Text="Moneda inicial" FontWeight="Black" />
+                        <ComboBox ItemsSource="{Binding CurrencyOptions}"
+                                  SelectedItem="{Binding OpeningCurrency}"
+                                  Height="40"
+                                  Margin="0,6,0,10" />
 
-                    <TextBlock Text="Monto inicial" FontWeight="Black" />
-                    <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=PropertyChanged}" Height="40" Margin="0,6,0,10" />
+                        <TextBlock Text="Monto inicial" FontWeight="Black" />
+                        <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=PropertyChanged}" Height="40" Margin="0,6,0,10" />
 
-                    <TextBlock Text="Notas" FontWeight="Black" />
-                    <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
-                             Height="76"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             Margin="0,6,0,18" />
+                        <TextBlock Text="Notas" FontWeight="Black" />
+                        <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="58"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 Margin="0,6,0,18" />
 
-                    <Button Content="Abrir caja"
-                            Height="44"
-                            Background="#F59E0B"
-                            Foreground="White"
-                            FontWeight="Black"
-                            IsEnabled="{Binding CanOpenCashRegister}"
-                            Click="Open_Click" />
-                </StackPanel>
+                        <Button Content="Abrir caja"
+                                Height="44"
+                                Background="#F59E0B"
+                                Foreground="White"
+                                FontWeight="Black"
+                                IsEnabled="{Binding CanOpenCashRegister}"
+                                Click="Open_Click" />
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18">
