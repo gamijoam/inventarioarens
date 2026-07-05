@@ -286,13 +286,12 @@ public sealed class PosViewModel : ViewModelBase
             {
                 await Task.WhenAll(
                     LoadPriceListsAsync(),
-                    LoadPaymentMethodsAsync(),
                     LoadWarehousesAsync());
                 hasInitialized = true;
             }
 
             await LoadCashRegisterSessionsAsync();
-            await SearchAsync();
+            ClearProductResults("POS listo. Escanea, escribe un código o usa F2 para buscar productos.");
         }
         finally
         {
@@ -602,12 +601,25 @@ public sealed class PosViewModel : ViewModelBase
         using PerformanceTrace trace = PerformanceTrace.Start("POS buscar productos", 450);
         try
         {
+            string search = SearchText.Trim();
+            if (string.IsNullOrWhiteSpace(search))
+            {
+                ClearProductResults("Escanea o escribe para buscar productos. No se carga catálogo completo al abrir el POS.");
+                return;
+            }
+
+            if (search.Length < 2)
+            {
+                ClearProductResults("Escribe al menos 2 caracteres para buscar productos.");
+                return;
+            }
+
             IsBusy = true;
             IsStatusError = false;
             StatusMessage = "Buscando productos...";
 
             string query = BuildQuery([
-                ("search", SearchText),
+                ("search", search),
                 ("stock_status", "all"),
                 ("limit", "24"),
             ]);
@@ -637,6 +649,14 @@ public sealed class PosViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    private void ClearProductResults(string message)
+    {
+        ResetQuoteCache();
+        Products.Clear();
+        StatusMessage = message;
+        IsStatusError = false;
     }
 
     public PosProductCard? FindExactSearchMatch()

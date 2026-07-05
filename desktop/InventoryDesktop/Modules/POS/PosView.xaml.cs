@@ -113,7 +113,7 @@ public partial class PosView : UserControl
 
         string text = SearchBox.Text.Trim();
         searchDebounceTimer.Stop();
-        if (text.Length is 1)
+        if (text.Length < 2)
         {
             return;
         }
