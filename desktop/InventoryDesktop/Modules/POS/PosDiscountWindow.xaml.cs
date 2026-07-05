@@ -19,6 +19,12 @@ public partial class PosDiscountWindow : Window
         DiscountTypeBox.SelectedIndex = item.DiscountType == "fixed" ? 1 : 0;
         ValueBox.Text = item.HasDiscount ? item.DiscountValue.ToString("0.##", CultureInfo.InvariantCulture) : "";
         ReasonBox.Text = item.DiscountReason ?? "";
+        Loaded += (_, _) =>
+        {
+            UpdatePreview();
+            ValueBox.Focus();
+            ValueBox.SelectAll();
+        };
         UpdatePreview();
     }
 
@@ -40,6 +46,7 @@ public partial class PosDiscountWindow : Window
 
     private void ValueBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        ErrorText.Text = "";
         UpdatePreview();
     }
 
@@ -109,7 +116,7 @@ public partial class PosDiscountWindow : Window
 
     private void UpdatePreview()
     {
-        if (!IsLoaded)
+        if (PreviewText is null)
         {
             return;
         }

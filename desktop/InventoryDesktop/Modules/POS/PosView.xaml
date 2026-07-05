@@ -9,7 +9,7 @@
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="350" />
+            <ColumnDefinition Width="470" />
         </Grid.ColumnDefinitions>
 
         <Border Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
@@ -173,8 +173,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Button Width="178"
-                                    Height="154"
+                            <Button Width="212"
+                                    Height="166"
                                     Margin="0,0,10,10"
                                     Padding="0"
                                     Background="#FFFFFF"
@@ -182,16 +182,16 @@
                                     Click="Product_Click">
                                 <Grid>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="44" />
+                                        <RowDefinition Height="48" />
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
                                     <Border Background="#F2F5FB" BorderBrush="#E1E7F3" BorderThickness="0,0,0,1">
                                         <Grid>
-                                            <Border Width="34" Height="34" CornerRadius="10" Background="#EEF0FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <Border Width="36" Height="36" CornerRadius="10" Background="#EEF0FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0">
                                                 <TextBlock Text="{Binding Initials}" Foreground="{StaticResource AccentStrongBrush}" FontSize="13" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Border>
-                                            <Border Padding="7,3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0">
+                                            <Border Padding="8,3" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0">
                                                 <TextBlock Text="{Binding StockLabel}" FontSize="10" FontWeight="Black" Foreground="#34415F" />
                                             </Border>
                                         </Grid>
@@ -205,7 +205,7 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
-                                        <TextBlock Text="{Binding Product.Name}" FontWeight="Black" FontSize="13" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Product.Name}" FontWeight="Black" FontSize="14" TextWrapping="Wrap" MaxHeight="38" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Row="1" Text="{Binding Product.Sku}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
 
                                         <Grid Grid.Row="3">
@@ -213,7 +213,7 @@
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <TextBlock Text="{Binding CardPriceLabel}" FontSize="18" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding CardPriceLabel}" FontSize="20" FontWeight="Black" Foreground="{Binding CardPriceBrush}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Row="1" Text="{Binding TrackingShortLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" Margin="0,2,0,0" />
                                         </Grid>
                                     </Grid>
@@ -322,15 +322,15 @@
                                         </StackPanel>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RateLabel}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="8,5,0,0" />
 
-                                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                                        <WrapPanel Grid.Row="2" Margin="0,10,0,0">
                                             <Button Content="-" Width="32" Height="28" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="DecreaseItem_Click" />
                                             <Border Width="42" Height="28" BorderBrush="#DCE4F2" BorderThickness="1">
                                                 <TextBlock Text="{Binding QuantityLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Black" />
                                             </Border>
                                             <Button Content="+" Width="32" Height="28" FontWeight="Black" IsEnabled="{Binding CanChangeQuantity}" ToolTip="{Binding QuantityActionHint}" Click="IncreaseItem_Click" />
-                                            <Button Content="Desc." Width="58" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#B45309" Click="DiscountItem_Click" />
-                                            <Button Content="Quitar" Width="66" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#D9365C" Click="RemoveItem_Click" />
-                                        </StackPanel>
+                                            <Button Content="Descuento" Width="92" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#B45309" Click="DiscountItem_Click" />
+                                            <Button Content="Quitar" Width="74" Height="28" Margin="8,0,0,0" FontWeight="Black" Foreground="#D9365C" Click="RemoveItem_Click" />
+                                        </WrapPanel>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

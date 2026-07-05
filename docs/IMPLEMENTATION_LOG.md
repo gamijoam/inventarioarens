@@ -7,6 +7,7 @@
 - El POS necesitaba permitir descuentos operativos sin alterar la lista de precio del producto.
 - El descuento debía quedar asociado al producto vendido para poder auditar quién autorizó el ajuste.
 - El total de la venta debía recalcularse antes del cobro y validarse nuevamente en backend.
+- La primera versión visual dejaba el modal de descuento muy justo y el carrito demasiado angosto para mostrar acciones claras.
 
 ### Implementado
 
@@ -17,6 +18,9 @@
 - En WPF, cada producto del carrito tiene botón `Desc.` para abrir una ventana de descuento.
 - La ventana exige motivo, valida porcentaje máximo de 100% y bloquea montos fijos superiores a la línea.
 - El carrito recalcula totales y envía el descuento al backend durante el checkout.
+- Se rediseñó el modal de descuento para mostrar campos, vista previa, error y botones completos.
+- Se amplió el carrito del POS y se redujo una columna visual de productos para mejorar lectura y acciones.
+- Las acciones del carrito ahora usan `Descuento` y `Quitar` con más espacio, evitando botones cortados.
 
 ### Pruebas
 
