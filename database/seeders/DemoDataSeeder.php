@@ -46,6 +46,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warranties\Models\WarrantyClaim;
 use App\Modules\Warranties\Services\WarrantyClaimService;
+use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -695,6 +696,7 @@ class DemoDataSeeder extends Seeder
         setPermissionsTeamId($tenant->id);
 
         $role = Role::findOrCreate($roleName, 'web');
+        $role->syncPermissions(BasePermissions::ROLE_PERMISSIONS[$roleName] ?? []);
         $user->assignRole($role);
     }
 

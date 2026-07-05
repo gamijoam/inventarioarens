@@ -27,9 +27,11 @@ use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Models\User;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class DemoDataSeederTest extends TestCase
@@ -93,5 +95,15 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, DB::table('stock_movements')->where('type', 'sale_return')->count());
         $this->assertSame(2, CashRegisterSession::withoutGlobalScopes()->where('status', CashRegisterSession::STATUS_OPEN)->count());
         $this->assertSame(2, CashRegisterMovement::withoutGlobalScopes()->where('type', CashRegisterMovement::TYPE_POS_PAYMENT)->count());
+
+        $tenant = Tenant::query()->where('slug', 'demo-caracas')->firstOrFail();
+        $manager = User::query()->where('email', 'gerente.caracas@demo.test')->firstOrFail();
+        setPermissionsTeamId($tenant->id);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->assertTrue($manager->hasPermissionTo('pos.view'));
+        $this->assertTrue($manager->hasPermissionTo('products.view'));
+        $this->assertTrue($manager->hasPermissionTo('products.update'));
+        $this->assertTrue($manager->hasPermissionTo('cash_register.view'));
     }
 }

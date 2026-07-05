@@ -108,6 +108,9 @@ Ejecutar pruebas locales:
 - Resultado: base local con 2 empresas, 24 productos, 4 usuarios, 4 almacenes y 2 cajas abiertas.
 - Se ejecuto `artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
 - Resultado: 44 pruebas pasadas, 302 aserciones.
+- Se corrigio y valido la semilla demo para que los roles locales devuelvan permisos al login WPF.
+- Prueba especifica: `artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/Seeders/DemoDataSeederTest.php`.
+- Resultado: 9 pruebas pasadas, 99 aserciones.
 
 ## Nota operativa
 
