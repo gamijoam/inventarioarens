@@ -39,79 +39,75 @@ DB_PASSWORD=secret
 
 Las pruebas tambien quedan apuntando a la base local `inventory_arens_testing` en el puerto `5434`.
 
-## Bloqueo pendiente
+## PHP local instalado
 
-El proyecto requiere PHP `>= 8.4.1`.
-
-Laragon tiene PHP `8.3.30`, por lo que Artisan no puede iniciar todavia:
+Se instalo PHP 8.4 binario para Windows x64 en:
 
 ```text
-Composer dependencies require a PHP version >= 8.4.1
+C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64
 ```
 
-Para terminar de sacar el backend de Docker, hay que instalar PHP 8.4 en Laragon y seleccionar esa version.
-
-## Paso adicional requerido
-
-Instalar PHP 8.4 para Windows x64 en Laragon.
-
-Ruta esperada sugerida:
-
-```text
-C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64
-```
-
-Despues de instalarlo:
-
-1. Abrir Laragon.
-2. Seleccionar la version PHP 8.4.
-3. Activar en su `php.ini`:
+En su `php.ini` se activaron las extensiones:
 
 ```ini
+extension_dir = "C:/laragon/bin/php/php-8.4.23-Win32-vs17-x64/ext"
 extension=pdo_pgsql
 extension=pgsql
+extension=zip
+extension=mbstring
+extension=fileinfo
+extension=openssl
 ```
 
-4. Verificar:
+Verificacion:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' -v
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' -m
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' -v
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' -m
 ```
 
-Debe aparecer `pdo_pgsql`.
+Debe aparecer `pdo_pgsql`, `pgsql`, `zip`, `mbstring`, `fileinfo` y `openssl`.
 
 ## Comandos esperados al tener PHP 8.4
 
 Limpiar configuracion:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' artisan config:clear
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan config:clear
 ```
 
 Migrar base local:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' artisan migrate --force
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan migrate --force
 ```
 
 Cargar datos demo:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' artisan db:seed --class=DemoDataSeeder --force
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan db:seed --class=DemoDataSeeder --force
 ```
 
 Levantar API local:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' artisan serve --host=127.0.0.1 --port=8000
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan serve --host=127.0.0.1 --port=8000
 ```
 
 Ejecutar pruebas locales:
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.x-Win32-vs17-x64\php.exe' artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php
 ```
+
+## Pruebas ejecutadas
+
+- Se ejecuto `artisan migrate --force` con PHP 8.4 local.
+- Resultado: todas las migraciones quedaron en estado `Ran`.
+- Se ejecuto `artisan db:seed --class=DemoDataSeeder --force`.
+- Resultado: base local con 2 empresas, 24 productos, 4 usuarios, 4 almacenes y 2 cajas abiertas.
+- Se ejecuto `artisan test tests/Feature/Auth/AuthApiTest.php tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 44 pruebas pasadas, 302 aserciones.
 
 ## Nota operativa
 
