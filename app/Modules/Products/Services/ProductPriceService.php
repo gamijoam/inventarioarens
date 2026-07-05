@@ -76,7 +76,7 @@ class ProductPriceService
 
             if (! $price) {
                 throw ValidationException::withMessages([
-                    'price_list_id' => 'El producto no tiene precio activo para la lista seleccionada.',
+                    'price_list_id' => 'Este producto no tiene precio en esta lista.',
                 ]);
             }
 

@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Mensaje claro cuando falta precio en una lista seleccionada
+
+### Diagnóstico
+
+- En el POS se puede seleccionar una lista de precio para vender con precios especiales.
+- Si el producto no tenía precio activo en esa lista, el backend devolvía un mensaje técnico y menos claro.
+- La regla comercial deseada es no usar el precio base en silencio cuando el cajero seleccionó una lista específica.
+
+### Implementado
+
+- La cotización `GET /api/products/{product}/price?price_list_id={id}` ahora responde: `Este producto no tiene precio en esta lista.`
+- El checkout POS hereda la misma validación; si intenta vender con una lista sin precio para ese producto, la venta se bloquea.
+- Se mantuvo el comportamiento seguro: una lista seleccionada exige precio activo del producto en esa lista.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Products/ProductApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 32 pruebas pasaron, 213 assertions.
+
+### Nota funcional
+
+- La siguiente mejora visual será agregar en WPF una opción clara `Precio base` en el selector del POS para que el cajero pueda vender con el precio normal del producto sin elegir una lista especial.
+
 ## 2026-07-04 - Reservas de inventario para órdenes POS pendientes
 
 ### Diagnóstico

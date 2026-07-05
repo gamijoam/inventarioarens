@@ -279,6 +279,27 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.exchange_rate_type_code', 'BCV');
     }
 
+    public function test_product_price_endpoint_rejects_selected_list_without_product_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $product = $this->productFor($tenant, 'Redmi A3', 'REDMI-A3', [
+            'base_price' => 80,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $priceList = $this->priceListFor($tenant, 'Precio mayor', 'MAYOR');
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price?price_list_id={$priceList->id}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['price_list_id'])
+            ->assertJsonPath('errors.price_list_id.0', 'Este producto no tiene precio en esta lista.');
+    }
+
     public function test_product_rejects_exchange_rate_type_from_another_tenant(): void
     {
         [$tenantA, $tenantB] = [

@@ -321,6 +321,46 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonValidationErrors(['payments.0.payment_method_id']);
     }
 
+    public function test_pos_checkout_rejects_selected_price_list_without_product_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $this->useTenant($tenant);
+        $priceList = PriceList::create([
+            'name' => 'Precio mayor',
+            'code' => 'MAYOR',
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['price_list_id'])
+            ->assertJsonPath('errors.price_list_id.0', 'Este producto no tiene precio en esta lista.');
+    }
+
     public function test_pending_external_financing_keeps_pos_order_open_and_sale_draft(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

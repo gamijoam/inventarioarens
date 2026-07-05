@@ -12,6 +12,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Buscar productos reales desde el backend.
 - Seleccionar lista de precio activa.
 - Cotizar el producto con `GET /api/products/{product}/price`.
+- Si se selecciona una lista de precio y el producto no tiene precio en esa lista, Laravel bloquea la cotización con el mensaje `Este producto no tiene precio en esta lista.`
 - Agregar productos por cantidad a un carrito local.
 - Mostrar total en `USD` y equivalente en `VES` cuando la API devuelve tasa.
 - Abrir ventana de cobro con métodos de pago activos.
@@ -86,6 +87,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La ventana muestra vuelto estimado cuando el pago capturado supera el total.
 - El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
+- Si la lista seleccionada no tiene precio para un producto del carrito, Laravel rechaza el checkout para evitar vender con un precio equivocado.
 - Laravel devuelve `paid` cuando la orden queda pagada; WPF lo interpreta como venta confirmada y no como pendiente.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
 
