@@ -10,6 +10,15 @@ namespace InventoryDesktop.Modules.POS;
 
 public sealed class PosViewModel : ViewModelBase
 {
+    private static readonly PriceListOption BasePriceOption = new(
+        0,
+        "Precio base",
+        "BASE",
+        "Usa el precio normal configurado en el producto.",
+        false,
+        true,
+        -1);
+
     private readonly ApiClient apiClient;
     private readonly Dictionary<QuoteCacheKey, PosPriceQuote> quoteCache = new();
     private readonly Dictionary<QuoteCacheKey, Task<PosPriceQuote>> quoteRequests = new();
@@ -69,8 +78,12 @@ public sealed class PosViewModel : ViewModelBase
     }
 
     public string PriceListLabel => SelectedPriceList is null
-        ? "Lista: predeterminada"
+        ? "Lista: Precio base"
         : $"Lista: {SelectedPriceList.Name}";
+
+    private long? SelectedPriceListId => SelectedPriceList is null || SelectedPriceList.Id <= 0
+        ? null
+        : SelectedPriceList.Id;
 
     public InventoryWarehouseOption? SelectedWarehouse
     {
@@ -213,13 +226,17 @@ public sealed class PosViewModel : ViewModelBase
         try
         {
             PriceListListResponse response = await apiClient.GetAsync<PriceListListResponse>("price-lists?active_only=1");
+            long? selectedId = SelectedPriceList?.Id;
             PriceLists.Clear();
+            PriceLists.Add(BasePriceOption);
             foreach (PriceListOption priceList in response.Data.Where(list => list.IsActive))
             {
                 PriceLists.Add(priceList);
             }
 
-            SelectedPriceList = PriceLists.FirstOrDefault(list => list.IsDefault) ?? PriceLists.FirstOrDefault();
+            SelectedPriceList = selectedId is not null
+                ? PriceLists.FirstOrDefault(list => list.Id == selectedId.Value) ?? BasePriceOption
+                : BasePriceOption;
         }
         catch (ApiException exception)
         {
@@ -583,7 +600,7 @@ public sealed class PosViewModel : ViewModelBase
         {
             IsBusy = true;
             IsStatusError = false;
-            long? priceListId = SelectedPriceList?.Id;
+            long? priceListId = SelectedPriceListId;
             StatusMessage = HasCachedQuote(card.Product.Id, priceListId)
                 ? "Agregando producto..."
                 : "Cotizando producto...";
@@ -645,7 +662,7 @@ public sealed class PosViewModel : ViewModelBase
 
     public IReadOnlyList<PaymentMethodOption> GetAllowedPaymentMethods()
     {
-        PriceListOption? selectedList = SelectedPriceList;
+        PriceListOption? selectedList = SelectedPriceListId is null ? null : SelectedPriceList;
         if (selectedList?.PaymentMethods is { Count: > 0 } restrictedMethods)
         {
             return restrictedMethods
@@ -858,7 +875,7 @@ public sealed class PosViewModel : ViewModelBase
 
         quoteWarmupCancellation = new CancellationTokenSource();
         CancellationToken cancellationToken = quoteWarmupCancellation.Token;
-        long? priceListId = SelectedPriceList?.Id;
+        long? priceListId = SelectedPriceListId;
 
         _ = WarmupQuotesAsync(cards, priceListId, cancellationToken);
     }

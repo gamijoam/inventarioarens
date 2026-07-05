@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-04 - Opción Precio base en selector POS
+
+### Diagnóstico
+
+- El backend ya permitía cotizar con precio base cuando no se enviaba `price_list_id`.
+- En WPF, el selector del POS solo mostraba listas de precio reales y seleccionaba una lista automáticamente.
+- Eso impedía vender de forma clara con el precio base normal configurado en el producto.
+
+### Implementado
+
+- Se agregó la opción visual `Precio base` como primera opción del selector del POS.
+- Cuando `Precio base` está seleccionado, WPF cotiza sin `price_list_id`.
+- El checkout también envía `price_list_id` como `null`, por lo que Laravel usa el precio base del producto.
+- Si el usuario selecciona una lista real, se mantiene la regla de exigir precio específico en esa lista.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Mensaje claro cuando falta precio en una lista seleccionada
 
 ### Diagnóstico
