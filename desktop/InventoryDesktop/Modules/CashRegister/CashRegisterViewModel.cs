@@ -14,10 +14,15 @@ public sealed class CashRegisterViewModel : ViewModelBase
     private readonly long currentUserId;
     private InventoryWarehouseOption? selectedWarehouse;
     private CashRegisterItem? selectedCashRegister;
+    private CashRegisterItem? selectedManagedCashRegister;
     private CashRegisterSessionItem? selectedSession;
     private string newCashRegisterName = "Caja Mostrador 1";
     private string newCashRegisterCode = "CJ-1";
     private string newCashRegisterNotes = "Caja creada desde modulo Caja.";
+    private string editCashRegisterName = string.Empty;
+    private string editCashRegisterCode = string.Empty;
+    private string editCashRegisterStatus = "active";
+    private string editCashRegisterNotes = string.Empty;
     private string openingCurrency = "USD";
     private decimal openingAmount;
     private string notes = "Apertura desde modulo Caja de escritorio.";
@@ -38,9 +43,13 @@ public sealed class CashRegisterViewModel : ViewModelBase
 
     public ObservableCollection<CashRegisterItem> CashRegisters { get; } = new();
 
+    public ObservableCollection<CashRegisterItem> ActiveCashRegisters { get; } = new();
+
     public ObservableCollection<CashRegisterSessionItem> Sessions { get; } = new();
 
     public IReadOnlyList<string> CurrencyOptions { get; } = ["USD", "VES"];
+
+    public IReadOnlyList<string> CashRegisterStatusOptions { get; } = ["active", "inactive"];
 
     public InventoryWarehouseOption? SelectedWarehouse
     {
@@ -66,6 +75,20 @@ public sealed class CashRegisterViewModel : ViewModelBase
             {
                 RaisePropertyChanged(nameof(SelectedCashRegisterLabel));
                 RaisePropertyChanged(nameof(CanOpenCashRegister));
+            }
+        }
+    }
+
+    public CashRegisterItem? SelectedManagedCashRegister
+    {
+        get => selectedManagedCashRegister;
+        set
+        {
+            if (SetProperty(ref selectedManagedCashRegister, value))
+            {
+                LoadManagedCashRegisterIntoForm(value);
+                RaisePropertyChanged(nameof(SelectedManagedCashRegisterLabel));
+                RaisePropertyChanged(nameof(CanUpdateCashRegister));
             }
         }
     }
@@ -132,6 +155,48 @@ public sealed class CashRegisterViewModel : ViewModelBase
         set => SetProperty(ref newCashRegisterNotes, value);
     }
 
+    public string EditCashRegisterName
+    {
+        get => editCashRegisterName;
+        set
+        {
+            if (SetProperty(ref editCashRegisterName, value))
+            {
+                RaisePropertyChanged(nameof(CanUpdateCashRegister));
+            }
+        }
+    }
+
+    public string EditCashRegisterCode
+    {
+        get => editCashRegisterCode;
+        set
+        {
+            if (SetProperty(ref editCashRegisterCode, value))
+            {
+                RaisePropertyChanged(nameof(CanUpdateCashRegister));
+            }
+        }
+    }
+
+    public string EditCashRegisterStatus
+    {
+        get => editCashRegisterStatus;
+        set
+        {
+            if (SetProperty(ref editCashRegisterStatus, value))
+            {
+                RaisePropertyChanged(nameof(CanUpdateCashRegister));
+            }
+        }
+    }
+
+    public string EditCashRegisterNotes
+    {
+        get => editCashRegisterNotes;
+        set => SetProperty(ref editCashRegisterNotes, value);
+    }
+
     public string ClosingCurrency
     {
         get => closingCurrency;
@@ -190,6 +255,7 @@ public sealed class CashRegisterViewModel : ViewModelBase
                 RaisePropertyChanged(nameof(CanOpenCashRegister));
                 RaisePropertyChanged(nameof(CanCloseCashRegister));
                 RaisePropertyChanged(nameof(CanCreateCashRegister));
+                RaisePropertyChanged(nameof(CanUpdateCashRegister));
             }
         }
     }
@@ -211,9 +277,19 @@ public sealed class CashRegisterViewModel : ViewModelBase
         && !string.IsNullOrWhiteSpace(NewCashRegisterName)
         && !string.IsNullOrWhiteSpace(NewCashRegisterCode);
 
+    public bool CanUpdateCashRegister => !IsBusy
+        && SelectedManagedCashRegister is not null
+        && !string.IsNullOrWhiteSpace(EditCashRegisterName)
+        && !string.IsNullOrWhiteSpace(EditCashRegisterCode)
+        && CashRegisterStatusOptions.Contains(EditCashRegisterStatus);
+
     public bool CanOpenCashRegister => !IsBusy
         && SelectedWarehouse?.BranchId is not null
         && SelectedCashRegister is not null;
+
+    public string SelectedManagedCashRegisterLabel => SelectedManagedCashRegister is null
+        ? "Selecciona una caja fisica para editarla."
+        : $"{SelectedManagedCashRegister.RegisterLabel} - {SelectedManagedCashRegister.BranchLabel}";
 
     public bool CanCloseCashRegister => !IsBusy && SelectedSession is not null;
 
@@ -308,14 +384,21 @@ public sealed class CashRegisterViewModel : ViewModelBase
 
             CashRegisters.Clear();
             foreach (CashRegisterItem cashRegister in response.Data
-                .Where(cashRegister => cashRegister.Status == "active")
                 .OrderBy(cashRegister => cashRegister.BranchLabel)
                 .ThenBy(cashRegister => cashRegister.Name))
             {
                 CashRegisters.Add(cashRegister);
             }
 
-            SelectedCashRegister = CashRegisters.FirstOrDefault(cashRegister => cashRegister.Id == selectedId);
+            ActiveCashRegisters.Clear();
+            foreach (CashRegisterItem cashRegister in CashRegisters.Where(cashRegister => cashRegister.Status == "active"))
+            {
+                ActiveCashRegisters.Add(cashRegister);
+            }
+
+            SelectedCashRegister = ActiveCashRegisters.FirstOrDefault(cashRegister => cashRegister.Id == selectedId);
+            SelectedManagedCashRegister = CashRegisters.FirstOrDefault(cashRegister => cashRegister.Id == SelectedManagedCashRegister?.Id)
+                ?? CashRegisters.FirstOrDefault();
             SelectCashRegisterForWarehouse();
         }
         catch (ApiException exception)
@@ -360,6 +443,7 @@ public sealed class CashRegisterViewModel : ViewModelBase
             SelectedCashRegister = CashRegisters.FirstOrDefault(cashRegister => cashRegister.Id == response.Data.Id) ?? response.Data;
             NewCashRegisterName = string.Empty;
             NewCashRegisterCode = string.Empty;
+            NewCashRegisterNotes = string.Empty;
             StatusMessage = $"{response.Data.RegisterLabel} creada correctamente. Ya puedes abrir turno en esa caja.";
             IsStatusError = false;
         }
@@ -374,6 +458,57 @@ public sealed class CashRegisterViewModel : ViewModelBase
         catch (HttpRequestException)
         {
             SetError("No se pudo conectar con la API para crear la caja fisica.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task UpdateCashRegisterAsync()
+    {
+        if (SelectedManagedCashRegister is not CashRegisterItem cashRegister)
+        {
+            SetError("Selecciona una caja fisica para editar.");
+            return;
+        }
+
+        if (!CanUpdateCashRegister)
+        {
+            SetError("Indica nombre, codigo y estado de la caja.");
+            return;
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Actualizando {cashRegister.RegisterLabel}...";
+
+        try
+        {
+            CashRegisterResponse response = await apiClient.PatchAsync<UpdateCashRegisterRequest, CashRegisterResponse>(
+                $"cash-register/registers/{cashRegister.Id}",
+                new UpdateCashRegisterRequest(
+                    EditCashRegisterName.Trim(),
+                    EditCashRegisterCode.Trim(),
+                    EditCashRegisterStatus,
+                    string.IsNullOrWhiteSpace(EditCashRegisterNotes) ? null : EditCashRegisterNotes.Trim()));
+
+            await LoadCashRegistersAsync();
+            SelectedManagedCashRegister = CashRegisters.FirstOrDefault(item => item.Id == response.Data.Id) ?? response.Data;
+            StatusMessage = $"{response.Data.RegisterLabel} actualizada correctamente.";
+            IsStatusError = false;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (JsonException)
+        {
+            SetError("La API devolvio la caja fisica con un formato inesperado. Actualiza e intenta nuevamente.");
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para actualizar la caja fisica.");
         }
         finally
         {
@@ -517,12 +652,29 @@ public sealed class CashRegisterViewModel : ViewModelBase
             return;
         }
 
-        if (SelectedCashRegister?.BranchId == branchId)
+        if (SelectedCashRegister?.BranchId == branchId && SelectedCashRegister.Status == "active")
         {
             return;
         }
 
-        SelectedCashRegister = CashRegisters.FirstOrDefault(cashRegister => cashRegister.BranchId == branchId);
+        SelectedCashRegister = ActiveCashRegisters.FirstOrDefault(cashRegister => cashRegister.BranchId == branchId);
+    }
+
+    private void LoadManagedCashRegisterIntoForm(CashRegisterItem? cashRegister)
+    {
+        if (cashRegister is null)
+        {
+            EditCashRegisterName = string.Empty;
+            EditCashRegisterCode = string.Empty;
+            EditCashRegisterStatus = "active";
+            EditCashRegisterNotes = string.Empty;
+            return;
+        }
+
+        EditCashRegisterName = cashRegister.Name;
+        EditCashRegisterCode = cashRegister.Code;
+        EditCashRegisterStatus = cashRegister.Status;
+        EditCashRegisterNotes = cashRegister.Notes ?? string.Empty;
     }
 
     private void RaiseClosingProperties()

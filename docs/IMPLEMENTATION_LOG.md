@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-05 - Rediseño WPF del modulo Caja
+
+### Implementado
+
+- Se simplifico la pantalla principal de Caja para enfocarla en abrir turno, ver turnos abiertos y cerrar/arquear caja.
+- Se retiro el formulario grande de creacion de caja de la parte izquierda.
+- Se agrego una ventana independiente **Administrar cajas**.
+- Desde esa ventana se pueden crear, editar, activar o desactivar cajas fisicas.
+- La desactivacion funciona como borrado logico: la caja deja de aparecer para abrir turno, pero se conserva para historial y auditoria.
+- La apertura de turno solo lista cajas activas.
+
+### Pruebas
+
+- Se compilo WPF en salida alternativa `desktop\InventoryDesktop\bin\CodexBuild`.
+- Se ejecuto `CashRegisterApiTest`.
+
 ## 2026-07-05 - POS exige caja fisica abierta desde modulo Caja
 
 ### Implementado

@@ -1,0 +1,180 @@
+<Window x:Class="InventoryDesktop.Modules.CashRegister.CashRegisterManagementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Administrar cajas"
+        Width="1180"
+        Height="760"
+        MinWidth="1040"
+        MinHeight="680"
+        WindowStartupLocation="CenterOwner"
+        Background="#F4F7FB">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="22" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+            <Grid>
+                <StackPanel>
+                    <Border Padding="9,5" Background="#EEF2FF" BorderBrush="#D7DFFF" BorderThickness="1" CornerRadius="7" HorizontalAlignment="Left">
+                        <TextBlock Text="CAJAS FISICAS" Foreground="#3B2CF6" FontSize="10" FontWeight="Black" />
+                    </Border>
+                    <TextBlock Text="Administrar cajas" FontSize="29" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="Crea, renombra, activa o desactiva cajas por sucursal. Las cajas inactivas no se pueden abrir en POS."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="Actualizar"
+                            Width="120"
+                            Height="40"
+                            FontWeight="Black"
+                            Click="Refresh_Click" />
+                    <Button Content="Cerrar"
+                            Width="120"
+                            Height="40"
+                            Margin="10,0,0,0"
+                            FontWeight="Black"
+                            Click="CloseWindow_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="420" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock Text="Cajas registradas" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Selecciona una caja para editarla. Desactivar equivale al borrado logico."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding CashRegisters}"
+                              SelectedItem="{Binding SelectedManagedCashRegister, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              RowHeight="52">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="CAJA" Binding="{Binding RegisterLabel}" Width="220" />
+                            <DataGridTextColumn Header="SUCURSAL" Binding="{Binding BranchLabel}" Width="*" />
+                            <DataGridTextColumn Header="ESTADO" Binding="{Binding StatusLabel}" Width="110" />
+                            <DataGridTextColumn Header="USO" Binding="{Binding OpenLabel}" Width="190" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18">
+                        <StackPanel>
+                            <TextBlock Text="Crear caja" FontSize="22" FontWeight="Black" />
+                            <TextBlock Text="La caja se crea en la sucursal del almacen seleccionado."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,14" />
+
+                            <TextBlock Text="Almacen / sucursal" FontWeight="Black" />
+                            <ComboBox ItemsSource="{Binding Warehouses}"
+                                      SelectedItem="{Binding SelectedWarehouse}"
+                                      DisplayMemberPath="WarehouseLabel"
+                                      Height="40"
+                                      Margin="0,6,0,10" />
+
+                            <TextBlock Text="Nombre" FontWeight="Black" />
+                            <TextBox Text="{Binding NewCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+
+                            <TextBlock Text="Codigo" FontWeight="Black" />
+                            <TextBox Text="{Binding NewCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+
+                            <TextBlock Text="Notas" FontWeight="Black" />
+                            <TextBox Text="{Binding NewCashRegisterNotes, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="58"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Margin="0,6,0,14" />
+
+                            <Button Content="Crear caja"
+                                    Height="42"
+                                    Background="#3B2CF6"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    IsEnabled="{Binding CanCreateCashRegister}"
+                                    Click="Create_Click" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,16,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Editar caja" FontSize="22" FontWeight="Black" />
+                            <TextBlock Text="{Binding SelectedManagedCashRegisterLabel}"
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,14" />
+
+                            <TextBlock Text="Nombre" FontWeight="Black" />
+                            <TextBox Text="{Binding EditCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+
+                            <TextBlock Text="Codigo" FontWeight="Black" />
+                            <TextBox Text="{Binding EditCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+
+                            <TextBlock Text="Estado" FontWeight="Black" />
+                            <ComboBox ItemsSource="{Binding CashRegisterStatusOptions}"
+                                      SelectedItem="{Binding EditCashRegisterStatus}"
+                                      Height="40"
+                                      Margin="0,6,0,10" />
+
+                            <TextBlock Text="Notas" FontWeight="Black" />
+                            <TextBox Text="{Binding EditCashRegisterNotes, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="70"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Margin="0,6,0,14" />
+
+                            <Button Content="Guardar cambios"
+                                    Height="42"
+                                    Background="#3B2CF6"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    IsEnabled="{Binding CanUpdateCashRegister}"
+                                    Click="Update_Click" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Text="{Binding StatusMessage}"
+                   Foreground="{Binding StatusBrush}"
+                   FontWeight="Bold"
+                   TextWrapping="Wrap"
+                   Margin="0,14,0,0" />
+    </Grid>
+</Window>

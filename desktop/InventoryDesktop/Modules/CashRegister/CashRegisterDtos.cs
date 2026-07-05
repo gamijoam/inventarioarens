@@ -121,6 +121,12 @@ public sealed record StoreCashRegisterRequest(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("notes")] string? Notes);
 
+public sealed record UpdateCashRegisterRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("notes")] string? Notes);
+
 public sealed record CloseCashRegisterRequest(
     [property: JsonPropertyName("counted_currency")] string CountedCurrency,
     [property: JsonPropertyName("counted_amount")] decimal CountedAmount,

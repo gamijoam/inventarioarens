@@ -171,3 +171,55 @@ Resultado:
 
 - 30 pruebas pasadas.
 - 188 aserciones.
+
+## Rediseño de Caja y administracion de cajas fisicas
+
+Se reorganizo el modulo **Caja** para separar operacion diaria y mantenimiento de cajas fisicas.
+
+La pantalla principal ahora se enfoca en:
+
+- abrir turno;
+- seleccionar almacen de trabajo;
+- seleccionar una caja fisica activa;
+- ver turnos abiertos;
+- cerrar turno con conteo y diferencia estimada.
+
+La creacion y edicion de cajas fisicas se movio a una ventana independiente desde el boton **Administrar cajas**.
+
+Esa ventana permite:
+
+- listar todas las cajas fisicas de la empresa;
+- crear una caja fisica para la sucursal del almacen seleccionado;
+- editar nombre, codigo, estado y notas;
+- desactivar una caja como borrado logico;
+- reactivar una caja cuando vuelva a estar disponible.
+
+Regla operativa:
+
+- una caja inactiva no aparece como opcion para abrir turno;
+- una caja inactiva permanece en la administracion para auditoria e historial;
+- el POS sigue dependiendo de que el cajero tenga una caja fisica activa abierta desde este modulo.
+
+## Verificacion del rediseño de Caja
+
+Compilacion WPF:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore -o desktop\InventoryDesktop\bin\CodexBuild
+```
+
+Resultado:
+
+- Compilacion correcta.
+- 0 errores.
+
+Pruebas backend:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests/Feature/CashRegister/CashRegisterApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas.
+- 42 aserciones.

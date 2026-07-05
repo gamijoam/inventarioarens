@@ -34,6 +34,22 @@ public partial class CashRegisterView : UserControl
         }
     }
 
+    private async void ManageRegisters_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not CashRegisterViewModel viewModel)
+        {
+            return;
+        }
+
+        CashRegisterManagementWindow window = new(viewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        window.ShowDialog();
+        await viewModel.LoadAsync();
+    }
+
     private async void Close_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not CashRegisterViewModel viewModel)
