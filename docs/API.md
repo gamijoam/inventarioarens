@@ -3507,6 +3507,7 @@ Reglas:
 - `customer_name` puede conservar el nombre mostrado en ticket aunque exista `customer_id`;
 - la caja debe estar abierta;
 - la caja debe pertenecer al cajero autenticado;
+- la sesion debe estar asociada a una caja fisica activa; las sesiones antiguas sin `cash_register_id` no pueden vender en POS;
 - POS crea una venta en `Sales`;
 - para productos serializados, POS debe enviar `product_unit_ids` igual que `Sales`;
 - el IMEI o serial vendido queda guardado en `sale_items` y visible en la venta asociada a la orden POS;

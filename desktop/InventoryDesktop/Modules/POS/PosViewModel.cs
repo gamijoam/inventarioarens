@@ -104,7 +104,7 @@ public sealed class PosViewModel : ViewModelBase
                     && SelectedCashRegisterSession.BranchId != branchId)
                 {
                     SelectedCashRegisterSession = null;
-                    SetError("El almacén cambió. Selecciona o abre una caja de esa misma sucursal.");
+                    SetError("El almacen cambio. Abre una caja fisica de esa sucursal desde el modulo Caja.");
                 }
 
                 RaisePropertyChanged(nameof(OperationalContextLabel));
@@ -130,8 +130,9 @@ public sealed class PosViewModel : ViewModelBase
     {
         get
         {
-            string warehouse = SelectedWarehouse?.WarehouseLabel ?? "Sin almacén";
-            return warehouse;
+            string warehouse = SelectedWarehouse?.WarehouseLabel ?? "Sin almacen";
+            string cashRegister = SelectedCashRegisterSession?.DisplayLabel ?? "Sin caja abierta";
+            return $"{warehouse} - {cashRegister}";
         }
     }
 
@@ -144,7 +145,7 @@ public sealed class PosViewModel : ViewModelBase
         : "Caja abierta";
 
     public string CashRegisterStatusDetail => SelectedCashRegisterSession is null
-        ? "Abre tu caja para poder cobrar ventas."
+        ? "Abre tu caja desde el modulo Caja para poder cobrar ventas."
         : $"{SelectedCashRegisterSession.DisplayLabel} lista para vender.";
 
     public string CashRegisterStatusBadge => SelectedCashRegisterSession is null ? "SIN CAJA" : "ABIERTA";
@@ -157,7 +158,7 @@ public sealed class PosViewModel : ViewModelBase
         ? "Selecciona un almacén antes de vender."
         : SelectedWarehouse.WarehouseLabel;
 
-    public bool HasOperationalContext => SelectedWarehouse is not null && SelectedCashRegisterSession is not null;
+    public bool HasOperationalContext => SelectedWarehouse is not null && SelectedCashRegisterSession?.HasPhysicalRegister == true;
 
     public PosCustomerOption? SelectedCustomer
     {
@@ -255,9 +256,9 @@ public sealed class PosViewModel : ViewModelBase
                 return "Selecciona un almacén antes de cobrar.";
             }
 
-            if (SelectedCashRegisterSession is null)
+            if (SelectedCashRegisterSession?.HasPhysicalRegister != true)
             {
-                return "No tienes una caja abierta asignada a tu usuario. Recarga contexto o abre tu caja.";
+                return "No tienes una caja fisica abierta asignada a tu usuario. Abrela desde el modulo Caja.";
             }
 
             return "Abre la ventana de cobro para pagos en USD, Bs o mixtos.";
@@ -379,6 +380,7 @@ public sealed class PosViewModel : ViewModelBase
             long? branchId = SelectedWarehouse?.BranchId;
             List<PosCashRegisterSession> openSessions = response.Data
                 .Where(session => session.Status == "open" && session.CashierId == currentUserId)
+                .Where(session => session.HasPhysicalRegister)
                 .Where(session => branchId is null || session.BranchId == branchId.Value)
                 .ToList();
 
@@ -395,7 +397,7 @@ public sealed class PosViewModel : ViewModelBase
             {
                 SetError(branchId is null
                     ? "Selecciona un almacén para cargar la caja de esa sucursal."
-                    : "No tienes una caja abierta para la sucursal del almacén seleccionado. Abre tu caja antes de vender.");
+                    : "No tienes una caja fisica abierta para la sucursal del almacen seleccionado. Abrela desde el modulo Caja antes de vender.");
             }
         }
         catch (ApiException exception)
@@ -410,45 +412,8 @@ public sealed class PosViewModel : ViewModelBase
 
     public async Task OpenOwnCashRegisterAsync()
     {
-        if (SelectedWarehouse?.BranchId is not long branchId)
-        {
-            SetError("Selecciona un almacén con sucursal para abrir caja.");
-            return;
-        }
-
-        try
-        {
-            IsBusy = true;
-            IsStatusError = false;
-            StatusMessage = "Abriendo caja para tu usuario...";
-
-            PosCashRegisterSessionResponse response = await apiClient.PostAsync<PosOpenCashRegisterRequest, PosCashRegisterSessionResponse>(
-                "cash-register/sessions",
-                new PosOpenCashRegisterRequest(branchId, "USD", 0m, "Apertura desde POS de escritorio."));
-
-            CashRegisterSessions.Clear();
-            if (response.Data.Status == "open" && response.Data.CashierId == currentUserId)
-            {
-                CashRegisterSessions.Add(response.Data);
-                SelectedCashRegisterSession = response.Data;
-                StatusMessage = $"Caja #{response.Data.Id} abierta para vender.";
-                IsStatusError = false;
-            }
-
-            await LoadCashRegisterSessionsAsync();
-        }
-        catch (ApiException exception)
-        {
-            SetError(exception.Message);
-        }
-        catch (HttpRequestException)
-        {
-            SetError("No se pudo conectar con la API para abrir caja.");
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        await Task.CompletedTask;
+        SetError("La apertura de caja se gestiona desde el modulo Caja. Abre una caja fisica y vuelve al POS.");
     }
 
     public async Task LoadPaymentMethodsAsync(bool forceRefresh = false)

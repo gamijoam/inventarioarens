@@ -32,7 +32,7 @@ Cada caja fisica puede tener muchas sesiones historicas, pero solo una sesion ab
 - Una caja inactiva no puede abrir turno.
 - Una caja fisica no puede tener dos turnos abiertos al mismo tiempo.
 - Un cajero no puede tener dos turnos abiertos al mismo tiempo.
-- Las sesiones antiguas sin caja fisica siguen siendo compatibles.
+- Las sesiones antiguas sin caja fisica pueden existir por historial, pero no habilitan ventas POS.
 
 ## APIs nuevas
 
@@ -118,6 +118,8 @@ La opcion se implemento dentro del modulo Caja:
 - cerrar turno seleccionado.
 
 El POS no crea ni administra cajas. Solo usa la caja abierta del usuario.
+
+Desde esta etapa, POS exige que esa caja abierta tenga una caja fisica asociada y activa. Si el usuario no tiene turno abierto en una caja fisica de la sucursal del almacen seleccionado, la aplicacion no abre el POS y ofrece ir al modulo Caja.
 
 ## Datos demo
 

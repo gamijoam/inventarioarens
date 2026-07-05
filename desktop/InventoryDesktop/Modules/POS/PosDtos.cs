@@ -8,14 +8,27 @@ public sealed record PosCashRegisterSessionListResponse(
 public sealed record PosCashRegisterSession(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("cash_register_id")] long? CashRegisterId,
     [property: JsonPropertyName("cashier_id")] long? CashierId,
     [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("opened_at")] string? OpenedAt)
+    [property: JsonPropertyName("opened_at")] string? OpenedAt,
+    [property: JsonPropertyName("cash_register")] PosCashRegisterInfo? CashRegister)
 {
     public string StatusLabel => Status == "open" ? "Abierta" : Status;
 
-    public string DisplayLabel => $"Caja #{Id} - {StatusLabel}";
+    public string DisplayLabel => CashRegister is null
+        ? $"Caja #{Id} - {StatusLabel}"
+        : $"{CashRegister.Name} - Turno #{Id}";
+
+    public bool HasPhysicalRegister => CashRegisterId is not null && CashRegister is not null;
 }
+
+public sealed record PosCashRegisterInfo(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("status")] string Status);
 
 public sealed record PosOpenCashRegisterRequest(
     [property: JsonPropertyName("branch_id")] long BranchId,

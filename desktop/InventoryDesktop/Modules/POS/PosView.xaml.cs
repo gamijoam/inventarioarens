@@ -414,12 +414,12 @@ public partial class PosView : UserControl
             return;
         }
 
-        if (ViewModel.SelectedCashRegisterSession is null)
+        if (ViewModel.SelectedCashRegisterSession?.HasPhysicalRegister != true)
         {
             await ViewModel.LoadCashRegisterSessionsAsync();
-            if (ViewModel.SelectedCashRegisterSession is null)
+            if (ViewModel.SelectedCashRegisterSession?.HasPhysicalRegister != true)
             {
-                string message = "No tienes una caja abierta asignada a tu usuario. Abre tu caja desde el módulo Caja o recarga el contexto antes de cobrar.";
+                string message = "No tienes una caja fisica abierta asignada a tu usuario. Abre tu caja desde el modulo Caja antes de cobrar.";
                 ShowPosAlert(message, "Caja requerida");
                 ViewModel.SetError(message);
                 return;

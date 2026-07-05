@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-07-05 - POS exige caja fisica abierta desde modulo Caja
+
+### Implementado
+
+- El backend POS ahora rechaza checkouts si la sesion de caja no tiene `cash_register_id`.
+- La caja fisica asociada al turno debe estar activa.
+- El escritorio WPF filtra las sesiones abiertas y solo usa la caja fisica del cajero actual en la sucursal del almacen seleccionado.
+- Si el usuario intenta abrir POS sin caja fisica abierta, la aplicacion muestra una alerta y ofrece ir al modulo Caja.
+- El POS muestra la caja fisica activa como nombre operativo, por ejemplo `Caja Mostrador 1 - Turno #12`.
+- Se evito que POS abra cajas genericas; la apertura y cierre queda centralizada en el modulo Caja.
+
+### Pruebas
+
+- Se agrego una prueba para rechazar sesiones antiguas sin caja fisica en POS.
+- Se actualizaron las pruebas POS para crear cajas fisicas reales antes de abrir sesiones.
+
 ## 2026-07-05 - Métricas internas de rendimiento backend para POS e Inventario
 
 ### Diagnóstico

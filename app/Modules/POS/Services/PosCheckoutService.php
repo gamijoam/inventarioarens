@@ -5,6 +5,7 @@ namespace App\Modules\POS\Services;
 use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -284,6 +285,19 @@ class PosCheckoutService
         if ((int) $session->cashier_id !== (int) $cashier->id) {
             throw ValidationException::withMessages([
                 'cash_register_session_id' => 'La caja seleccionada pertenece a otro cajero.',
+            ]);
+        }
+
+        if (! $session->cash_register_id) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'La venta requiere una caja fisica abierta desde el modulo Caja.',
+            ]);
+        }
+
+        $cashRegister = $session->cashRegister()->first();
+        if (! $cashRegister || $cashRegister->status !== CashRegister::STATUS_ACTIVE) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'La caja fisica de este turno no esta activa.',
             ]);
         }
     }

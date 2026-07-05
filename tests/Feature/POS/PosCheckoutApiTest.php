@@ -5,6 +5,7 @@ namespace Tests\Feature\POS;
 use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -936,6 +937,24 @@ class PosCheckoutApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['cash_register_session_id']);
 
+        $this->useTenant($tenant);
+        $legacySession = CashRegisterSession::create([
+            'branch_id' => $warehouse->branch_id,
+            'cashier_id' => $cashier->id,
+            'opened_by' => $cashier->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opened_at' => now(),
+        ]);
+        $payload['cash_register_session_id'] = $legacySession->id;
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id'])
+            ->assertJsonPath('errors.cash_register_session_id.0', 'La venta requiere una caja fisica abierta desde el modulo Caja.');
+
         $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id, CashRegisterSession::STATUS_CLOSED);
         $payload['cash_register_session_id'] = $session->id;
 
@@ -1077,8 +1096,16 @@ class PosCheckoutApiTest extends TestCase
     {
         $this->useTenant($tenant);
 
+        $cashRegister = CashRegister::create([
+            'branch_id' => $branchId,
+            'name' => 'Caja '.$cashier->id,
+            'code' => 'CJ-'.$cashier->id.'-'.strtoupper(substr((string) str()->uuid(), 0, 6)),
+            'status' => CashRegister::STATUS_ACTIVE,
+        ]);
+
         return CashRegisterSession::create([
             'branch_id' => $branchId,
+            'cash_register_id' => $cashRegister->id,
             'cashier_id' => $cashier->id,
             'opened_by' => $cashier->id,
             'status' => $status,

@@ -101,20 +101,31 @@ public partial class ShellView : UserControl
             return;
         }
 
-        ShowPos();
         using PerformanceTrace trace = PerformanceTrace.Start("Abrir módulo POS", 500);
         await posViewModel.InitializeAsync();
-        if (posViewModel.SelectedCashRegisterSession is null)
+        if (posViewModel.SelectedCashRegisterSession?.HasPhysicalRegister != true)
         {
-            MessageBox.Show(
+            MessageBoxResult result = MessageBox.Show(
                 Window.GetWindow(this),
-                "No tienes una caja abierta asignada a tu usuario. Abre una caja desde el módulo Caja antes de entrar al POS.",
+                "No tienes una caja fisica abierta asignada a tu usuario. Abre una caja desde el modulo Caja antes de entrar al POS.\n\nDeseas ir al modulo Caja ahora?",
                 "Caja requerida",
-                MessageBoxButton.OK,
+                MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
-            ShowHome();
+
+            if (result == MessageBoxResult.Yes && HomeCashCard.IsEnabled)
+            {
+                ShowCashRegister();
+                await cashRegisterViewModel.LoadAsync();
+            }
+            else
+            {
+                ShowHome();
+            }
+
             return;
         }
+
+        ShowPos();
     }
 
     private void ShowHome()
