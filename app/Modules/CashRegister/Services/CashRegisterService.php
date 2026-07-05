@@ -136,9 +136,12 @@ class CashRegisterService
                 'created_by' => $operator->id,
             ]);
 
-            $this->recalculateExpectedTotals($session);
+            $session->update([
+                'expected_base_amount' => round((float) $session->expected_base_amount + (float) $payment->amount_base, 4),
+                'expected_local_amount' => round((float) $session->expected_local_amount + (float) ($payment->amount_local ?? 0), 4),
+            ]);
 
-            return $session->refresh()->load(['branch', 'movements']);
+            return $session->refresh();
         });
     }
 

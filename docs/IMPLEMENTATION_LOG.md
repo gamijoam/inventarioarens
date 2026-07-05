@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-05 - Mejora de medición y caja en cobro POS
+
+### Diagnóstico
+
+- El log `POS confirmar venta` incluía el tiempo que el recibo quedaba abierto en pantalla, por lo que podía aparentar una espera mayor a la real.
+- El pago POS en caja recalculaba el total esperado leyendo todos los movimientos de la caja.
+- Ese recalculo es correcto, pero en una caja con muchas ventas puede volverse cada vez más costoso.
+
+### Implementado
+
+- La medición `POS confirmar venta` ahora cubre solo la confirmación real contra backend.
+- `POS preparar recibo` sigue midiendo la construcción del resumen visual.
+- La lectura del recibo por parte del cajero ya no infla las métricas de rendimiento.
+- `CashRegisterService::recordPosPayment` ahora actualiza el monto esperado de la caja sumando el pago POS capturado sobre la sesión bloqueada.
+- Se eliminó la recarga innecesaria de movimientos de caja al registrar pagos POS desde checkout.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/CashRegister/CashRegisterApiTest.php`.
+- Resultado: 22 pruebas pasadas, 151 aserciones.
+
 ## 2026-07-05 - Optimización del cobro POS
 
 ### Diagnóstico

@@ -52,3 +52,18 @@ Detectar y reducir esperas visibles en el POS, especialmente al abrir el módulo
 
 - Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
 - Resultado: compilación correcta, 0 advertencias, 0 errores.
+
+## Ajuste de caja en checkout POS
+
+- El log `POS confirmar venta` ya no mide el tiempo que el cajero deja abierta la ventana de recibo.
+- Ahora `POS confirmar venta` mide solo la llamada real de confirmación.
+- El registro de pago POS en caja ya no recarga todos los movimientos de caja para devolver una respuesta que el checkout no usa.
+- Cuando entra un pago POS capturado, la caja actualiza su monto esperado sumando el pago sobre la sesión bloqueada.
+- Esto mantiene la misma regla contable, pero evita una consulta creciente cuando la caja acumula muchos movimientos.
+
+## Pruebas de caja en checkout POS
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/CashRegister/CashRegisterApiTest.php`.
+- Resultado: 22 pruebas pasadas, 151 aserciones.

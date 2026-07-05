@@ -320,7 +320,6 @@ public partial class PosPaymentWindow : Window
 
         try
         {
-            using PerformanceTrace trace = PerformanceTrace.Start("POS confirmar venta", 1000);
             isConfirming = true;
             ConfirmButton.IsEnabled = false;
             CancelButton.IsEnabled = false;
@@ -343,7 +342,12 @@ public partial class PosPaymentWindow : Window
                     payment.Reference))
                 .ToList();
 
-            PosOrderResult order = await viewModel.SubmitCheckoutAsync(payload);
+            PosOrderResult order;
+            using (PerformanceTrace.Start("POS confirmar venta", 1000))
+            {
+                order = await viewModel.SubmitCheckoutAsync(payload);
+            }
+
             WasConfirmed = true;
             if (IsPaidOrder(order))
             {
