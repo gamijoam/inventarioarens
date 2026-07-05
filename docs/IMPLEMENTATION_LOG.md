@@ -1,5 +1,18 @@
 # Registro de implementación
-## 2026-07-05 - Ajuste visual de apertura y cierre en Caja
+## 2026-07-05 - Compactacion visual final de Caja
+
+### Implementado
+
+- Se compacto la pantalla de Caja para ventanas pequenas.
+- Se retiro el campo visible de notas de apertura y se conserva la nota automatica auditable.
+- Se redujeron margenes y alturas de controles en apertura y cierre.
+- Se redujo la altura de turnos abiertos y del resumen para que movimientos quede visible.
+- El cierre y los movimientos del turno quedan accesibles sin depender de desplazamiento vertical.
+
+### Pruebas
+
+- Se compilo WPF en `desktop\InventoryDesktop\bin\CodexBuild`.
+- Se ejecuto `CashRegisterApiTest`.## 2026-07-05 - Ajuste visual de apertura y cierre en Caja
 
 ### Implementado
 

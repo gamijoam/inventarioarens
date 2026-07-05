@@ -242,6 +242,24 @@ Verificacion:
 - Compilacion WPF correcta.
 - `CashRegisterApiTest` ejecutado correctamente.
 
+## Compactacion final de Caja para ventanas pequenas
+
+Se realizo un segundo ajuste visual porque en resoluciones bajas seguian quedando cortados campos y zonas importantes.
+
+Cambios realizados:
+
+- Se elimino el campo visible de **Notas de apertura** para que la apertura no oculte controles.
+- La apertura conserva una nota automatica auditable desde el ViewModel.
+- Se redujo altura de selectores, campos y margenes dentro de apertura/cierre.
+- El bloque de turnos abiertos se hizo mas bajo.
+- El resumen de movimientos se compacto para dejar espacio real a la tabla de movimientos.
+- El apartado **Movimientos del turno** queda visible dentro de la misma pantalla.
+
+Verificacion:
+
+- Compilacion WPF correcta.
+- `CashRegisterApiTest` ejecutado correctamente.
+
 ## Ajuste visual de Caja y administracion de cajas
 
 Se ajusto la experiencia del modulo **Caja** para evitar que acciones importantes queden ocultas en ventanas pequenas.
