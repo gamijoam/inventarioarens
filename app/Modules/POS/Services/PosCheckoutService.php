@@ -9,12 +9,16 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +29,7 @@ class PosCheckoutService
         private readonly SaleService $sales,
         private readonly CashRegisterService $cashRegister,
         private readonly AccountsReceivableService $accountsReceivable,
+        private readonly InventoryMovementService $inventory,
     ) {
     }
 
@@ -101,6 +106,8 @@ class PosCheckoutService
                     'paid_at' => now(),
                     'closed_at' => now(),
                 ]);
+            } else {
+                $this->reserveOrderInventory($order, $cashier);
             }
 
             return $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']);
@@ -173,6 +180,7 @@ class PosCheckoutService
             ]);
 
             if ($this->coversTotal($paidBase, (float) $order->total_base_amount)) {
+                $this->releaseOrderReservation($order, $cashier);
                 $sale = $this->sales->confirm($order->sale, $cashier);
                 $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier);
                 $order->update([
@@ -391,6 +399,128 @@ class PosCheckoutService
     private function coversTotal(float $paidBase, float $totalBase): bool
     {
         return round($paidBase, 4) + 0.0001 >= round($totalBase, 4);
+    }
+
+    private function reserveOrderInventory(PosOrder $order, User $cashier): void
+    {
+        if ($this->orderHasReservation($order)) {
+            return;
+        }
+
+        $order->loadMissing(['sale.items.product', 'sale.items.warehouse']);
+
+        foreach ($order->sale->items as $item) {
+            $movement = $this->inventory->reserve(
+                warehouse: $item->warehouse,
+                product: $item->product,
+                quantity: (float) $item->quantity,
+                createdBy: $cashier,
+                reason: "Reserva POS #{$order->id}",
+                referenceType: PosOrder::class,
+                referenceId: $order->id,
+            );
+
+            $this->reserveProductUnitsForSaleItem($item, $movement);
+        }
+    }
+
+    private function releaseOrderReservation(PosOrder $order, User $cashier): void
+    {
+        if (! $this->orderHasReservation($order)) {
+            return;
+        }
+
+        $order->loadMissing(['sale.items.product', 'sale.items.warehouse']);
+
+        foreach ($order->sale->items as $item) {
+            $this->inventory->release(
+                warehouse: $item->warehouse,
+                product: $item->product,
+                quantity: (float) $item->quantity,
+                createdBy: $cashier,
+                reason: "Liberacion reserva POS #{$order->id}",
+                referenceType: PosOrder::class,
+                referenceId: $order->id,
+            );
+
+            $this->releaseReservedUnitsForSaleItem($item);
+        }
+    }
+
+    private function orderHasReservation(PosOrder $order): bool
+    {
+        return StockMovement::query()
+            ->where('type', 'reserved')
+            ->where('reference_type', PosOrder::class)
+            ->where('reference_id', $order->id)
+            ->exists();
+    }
+
+    private function reserveProductUnitsForSaleItem(SaleItem $item, StockMovement $movement): void
+    {
+        $unitIds = $item->product_unit_ids ?? [];
+
+        if ($unitIds === []) {
+            return;
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($units->count() !== count($unitIds)) {
+            throw ValidationException::withMessages([
+                'items' => 'Uno o mas seriales/IMEI ya no estan disponibles para reservar.',
+            ]);
+        }
+
+        foreach ($unitIds as $unitId) {
+            $unit = $units->get($unitId);
+
+            if ((int) $unit->product_id !== (int) $item->product_id || (int) $unit->warehouse_id !== (int) $item->warehouse_id) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uno o mas seriales/IMEI no pertenecen al producto o almacen seleccionado.',
+                ]);
+            }
+
+            if ($unit->status !== ProductUnit::STATUS_AVAILABLE) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uno o mas seriales/IMEI ya no estan disponibles para reservar.',
+                ]);
+            }
+
+            $unit->update([
+                'status' => ProductUnit::STATUS_RESERVED,
+                'released_stock_movement_id' => $movement->id,
+            ]);
+        }
+    }
+
+    private function releaseReservedUnitsForSaleItem(SaleItem $item): void
+    {
+        $unitIds = $item->product_unit_ids ?? [];
+
+        if ($unitIds === []) {
+            return;
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($units as $unit) {
+            if ($unit->status !== ProductUnit::STATUS_RESERVED) {
+                continue;
+            }
+
+            $unit->update([
+                'status' => ProductUnit::STATUS_AVAILABLE,
+                'released_stock_movement_id' => null,
+            ]);
+        }
     }
 
     private function syncCapturedPaymentsToReceivable(PosOrder $order, User $cashier): void

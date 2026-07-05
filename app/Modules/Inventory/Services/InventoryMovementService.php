@@ -125,9 +125,17 @@ class InventoryMovementService
         return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId);
     }
 
-    public function reserve(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
+    public function reserve(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
     {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product);
@@ -137,13 +145,21 @@ class InventoryMovementService
             $balance->quantity_reserved = (float) $balance->quantity_reserved + $quantity;
             $balance->save();
 
-            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason);
+            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 
-    public function release(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
+    public function release(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
     {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product);
@@ -153,7 +169,7 @@ class InventoryMovementService
             $balance->quantity_available = (float) $balance->quantity_available + $quantity;
             $balance->save();
 
-            return $this->recordMovement('released', $warehouse, $product, $quantity, null, $createdBy, $reason);
+            return $this->recordMovement('released', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 

@@ -362,9 +362,17 @@ class PosCheckoutApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
-            'quantity_available' => '2.0000',
+            'quantity_available' => '1.0000',
+            'quantity_reserved' => '1.0000',
         ]);
-        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'reserved',
+            'quantity' => '1.0000',
+            'reference_type' => PosOrder::class,
+        ]);
         $this->assertDatabaseCount('cash_register_movements', 0);
         $this->assertDatabaseCount('accounts_receivables', 0);
         $this->assertDatabaseCount('accounts_receivable_payments', 0);
@@ -407,6 +415,20 @@ class PosCheckoutApiTest extends TestCase
 
         $orderId = $checkout->json('data.id');
 
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'reserved',
+            'reference_type' => PosOrder::class,
+            'reference_id' => $orderId,
+        ]);
+
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -430,6 +452,13 @@ class PosCheckoutApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity_available' => '1.0000',
+            'quantity_reserved' => '0.0000',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'released',
+            'reference_type' => PosOrder::class,
+            'reference_id' => $orderId,
         ]);
         $this->assertDatabaseHas('cash_register_movements', [
             'tenant_id' => $tenant->id,
@@ -444,6 +473,178 @@ class PosCheckoutApiTest extends TestCase
             'status' => AccountsReceivable::STATUS_PAID,
             'collected_base_amount' => '100.0000',
             'balance_base_amount' => '0.0000',
+        ]);
+    }
+
+    public function test_pending_pos_order_reserves_last_unit_and_blocks_another_cashier(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+
+        $cashierA = $this->userInTenant($tenant);
+        $cashierB = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashierA, 'Cajero A', ['pos.checkout']);
+        $this->grantRole($tenant, $cashierB, 'Cajero B', ['pos.checkout']);
+        $sessionA = $this->cashRegisterSession($tenant, $cashierA, $warehouse->branch_id);
+        $sessionB = $this->cashRegisterSession($tenant, $cashierB, $warehouse->branch_id);
+
+        $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $sessionA->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-PARTIAL-001',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+
+        $this
+            ->actingAs($cashierB)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $sessionB->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock']);
+
+        $this->assertDatabaseCount('pos_orders', 1);
+    }
+
+    public function test_pending_pos_order_reserves_serialized_imei_until_completed(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001111111111',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-IMEI-PARTIAL',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_RESERVED,
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_unit_ids']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$checkout->json('data.id')}/payments", [
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-IMEI-CLOSE',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '0.0000',
         ]);
     }
 

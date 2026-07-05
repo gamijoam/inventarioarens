@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-07-04 - Reservas de inventario para órdenes POS pendientes
+
+### Diagnóstico
+
+- Una orden POS pendiente dejaba la venta en borrador, pero el inventario seguía apareciendo como disponible.
+- En productos de baja cantidad, esto podía permitir que otra caja vendiera una unidad que ya estaba comprometida por un pago parcial o pendiente.
+- En productos serializados/IMEI, hacía falta que el serial quedara apartado mientras se completaba el cobro.
+
+### Implementado
+
+- El backend ahora reserva inventario cuando `POST /api/pos/checkouts` crea una orden POS abierta.
+- La reserva mueve unidades de `quantity_available` a `quantity_reserved` y queda referenciada a la orden POS.
+- Si el producto tiene serial/IMEI, el `product_unit` pasa a estado `reserved`.
+- Cuando `POST /api/pos/orders/{order}/payments` completa el total capturado, Laravel libera la reserva dentro de la misma transacción y confirma la venta inmediatamente.
+- Al confirmar, el inventario termina descontado como venta real y los seriales/IMEI pasan a estado `sold`.
+- Las ventas pagadas completo desde el primer cobro no reservan; se confirman directo como antes.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 14 pruebas pasaron, 107 assertions.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/Inventory/InventoryMovementServiceTest.php`.
+- Resultado: 6 pruebas pasaron, 18 assertions.
+
+### Notas de seguridad
+
+- Si queda una sola unidad disponible y una orden pendiente la reserva, otra caja ya no puede venderla.
+- Si el producto es serializado/IMEI, el mismo IMEI no puede reutilizarse mientras esté reservado.
+- La protección queda en backend, no depende de que el frontend refresque rápido.
+
 ## 2026-07-04 - Reglas claras para pendientes POS por caja
 
 ### Diagnostico

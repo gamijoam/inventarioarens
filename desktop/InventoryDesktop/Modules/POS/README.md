@@ -73,13 +73,16 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Los pagos capturados cuentan para cerrar la venta.
 - Los pagos pendientes permiten registrar una orden abierta sin cerrar la venta.
 - Si el pago capturado es menor al total, WPF permite confirmar la operacion como orden pendiente con advertencia previa.
+- Cuando una orden queda pendiente, Laravel reserva el inventario de sus productos para que otra caja no pueda vender esas mismas unidades.
+- En productos por cantidad, la reserva mueve stock de disponible a reservado.
+- En productos serializados/IMEI, el serial queda en estado `reserved` hasta completar el cobro.
 - Las órdenes pendientes se consultan con `GET /api/pos/orders?status=open`.
 - WPF filtra las ordenes pendientes por cajero conectado para evitar intentar cobrar ordenes de otra caja.
 - Desde la ventana `Ordenes POS pendientes` se puede agregar un pago a una orden abierta.
 - La ventana de pendientes esta enfocada en cobrar el faltante como pago capturado para cerrar la venta.
 - El boton principal se muestra como `Cobrar faltante y cerrar` para dejar claro que, si el monto cubre el total, la orden sale de pendientes.
 - Al agregar pagos capturados a una orden pendiente, WPF consume `POST /api/pos/orders/{order}/payments`.
-- Si los pagos capturados cubren el total, Laravel confirma la venta, descuenta inventario y marca la orden como `paid`.
+- Si los pagos capturados cubren el total, Laravel libera la reserva en la misma transaccion, confirma la venta, descuenta inventario y marca la orden como `paid`.
 - La ventana muestra vuelto estimado cuando el pago capturado supera el total.
 - El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
