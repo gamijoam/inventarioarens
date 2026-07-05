@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Cobrar venta"
-        Width="1000"
-        Height="720"
-        MinWidth="920"
-        MinHeight="680"
+        Width="1080"
+        Height="700"
+        MinWidth="980"
+        MinHeight="650"
         WindowStartupLocation="CenterOwner"
         Background="#F6F8FC">
     <Grid Margin="22">
@@ -15,11 +15,10 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="20">
+        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -31,61 +30,23 @@
                             <TextBlock x:Name="RestrictionText" Text="Lista abierta" Foreground="#B45309" FontSize="11" FontWeight="Black" />
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Cobrar venta" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="Cobrar venta" FontSize="28" FontWeight="Black" Margin="0,10,0,0" />
                     <TextBlock x:Name="ContextText"
                                Text="Agrega uno o varios pagos. El servidor validará caja, lista de precio, moneda y referencia."
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,4,0,0" />
-                    <Border Background="#F7F9FD"
-                            BorderBrush="#E1E7F3"
-                            BorderThickness="1"
-                            CornerRadius="9"
-                            Padding="10"
-                            Margin="0,12,0,0"
-                            MaxHeight="86">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl x:Name="OrderItemsList">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Name}" FontWeight="Black" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Text="{Binding SerialLabel}" Foreground="#058561" FontSize="11" FontWeight="Black" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Margin="12,0,0,0" HorizontalAlignment="Right">
-                                                <TextBlock Text="{Binding QuantityLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Black" HorizontalAlignment="Right" />
-                                                <TextBlock Text="{Binding TotalLabel}" Foreground="{StaticResource AccentStrongBrush}" FontWeight="Black" HorizontalAlignment="Right" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Border>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="220">
-                    <Grid>
-                        <TextBlock Text="Total USD" FontWeight="Black" />
-                        <TextBlock x:Name="TotalUsdText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="22" FontWeight="Black" Foreground="{StaticResource AccentStrongBrush}" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <TextBlock Text="Equivalente Bs" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
-                        <TextBlock x:Name="TotalVesText" Text="Bs por calcular" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" FontWeight="Black" />
-                    </Grid>
+                    <ItemsControl x:Name="OrderItemsList" Visibility="Collapsed" />
+                    <TextBlock x:Name="TotalUsdText" Visibility="Collapsed" />
+                    <TextBlock x:Name="TotalVesText" Visibility="Collapsed" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="0,18,0,18">
+        <Grid Grid.Row="1" Margin="0,14,0,14">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="400" />
+                <ColumnDefinition Width="440" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -103,7 +64,7 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel>
-                        <TextBlock Text="Nuevo pago" FontSize="20" FontWeight="Black" />
+                        <TextBlock Text="Nuevo pago" FontSize="22" FontWeight="Black" />
                         <TextBlock Text="Selecciona el método y registra el monto recibido."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
@@ -114,7 +75,7 @@
                     <StackPanel Grid.Row="1" Margin="0,18,0,0">
                         <TextBlock Text="Método de pago" FontWeight="Black" />
                         <ComboBox x:Name="PaymentMethodBox"
-                                  Height="40"
+                                  Height="46"
                                   Margin="0,6,0,0"
                                   DisplayMemberPath="DisplayLabel"
                                   SelectionChanged="PaymentMethodBox_SelectionChanged" />
@@ -123,7 +84,7 @@
                     <StackPanel Grid.Row="2" Margin="0,14,0,0">
                         <TextBlock Text="Moneda" FontWeight="Black" />
                         <ComboBox x:Name="CurrencyBox"
-                                  Height="40"
+                                  Height="46"
                                   Margin="0,6,0,0"
                                   SelectionChanged="CurrencyBox_SelectionChanged" />
                     </StackPanel>
@@ -131,27 +92,27 @@
                     <StackPanel Grid.Row="3" Margin="0,14,0,0">
                         <TextBlock Text="Monto recibido" FontWeight="Black" />
                         <TextBox x:Name="AmountBox"
-                                 Height="40"
+                                 Height="52"
                                  Margin="0,6,0,0"
-                                 FontSize="15"
+                                 FontSize="18"
                                  PreviewTextInput="DecimalInput_PreviewTextInput"
                                  TextChanged="AmountBox_TextChanged"
                                  KeyDown="AmountBox_KeyDown" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Completar saldo"
-                                    Width="118"
-                                    Height="30"
+                                    Width="130"
+                                    Height="38"
                                     FontWeight="Black"
                                     Click="UseRemaining_Click" />
                             <Button Content="Borrar monto"
-                                    Width="86"
-                                    Height="30"
+                                    Width="104"
+                                    Height="38"
                                     Margin="8,0,0,0"
                                     FontWeight="Black"
                                     Click="ClearPaymentForm_Click" />
                             <Button Content="Agregar pago"
-                                    Width="124"
-                                    Height="30"
+                                    Width="142"
+                                    Height="38"
                                     Margin="8,0,0,0"
                                     FontWeight="Black"
                                     Background="{StaticResource AccentBrush}"
@@ -170,7 +131,7 @@
                     <StackPanel Grid.Row="4" Margin="0,14,0,0">
                         <TextBlock x:Name="ReferenceLabel" Text="Referencia" FontWeight="Black" />
                         <TextBox x:Name="ReferenceBox"
-                                 Height="40"
+                                 Height="46"
                                  Margin="0,6,0,0"
                                  FontSize="15"
                                  KeyDown="ReferenceBox_KeyDown" />
@@ -179,7 +140,7 @@
                     <StackPanel Grid.Row="5" Margin="0,14,0,0">
                         <TextBlock Text="Estado del pago" FontWeight="Black" />
                         <ComboBox x:Name="PaymentStatusBox"
-                                  Height="40"
+                                  Height="44"
                                   Margin="0,6,0,0"
                                   DisplayMemberPath="Label"
                                   SelectionChanged="PaymentStatusBox_SelectionChanged" />
