@@ -37,6 +37,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cada línea del carrito muestra producto, SKU, almacén, control, serial/IMEI si aplica, precio, descuento, cantidad y subtotal.
 - Las herramientas de cliente, caja, búsqueda manual, pendientes y total quedan organizadas a la derecha.
 - El selector manual de productos se abre con el botón `Buscar`, la herramienta `F2 Buscar producto` o la tecla `F2`.
+- La herramienta `F9 Último recibo` permite reabrir el último recibo confirmado en la sesión actual del POS.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
 - El botón `Cobrar (F12)` abre una ventana separada para no quitar espacio al carrito.
 - El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
@@ -132,8 +133,11 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - El recibo se muestra solo cuando Laravel confirma la orden como pagada.
 - La ventana `Venta confirmada` muestra número de orden POS, cliente, lista de precio, caja, total USD, equivalente Bs, pagado, vuelto, productos y pagos.
+- El recibo muestra SKU, control e IMEI/serial dentro del detalle del producto cuando aplica.
+- Los pagos del recibo muestran método, monto recibido, equivalente y referencia.
 - Los productos del recibo se toman del carrito antes de que el checkout limpie la orden local.
 - Los pagos del recibo se toman de los pagos agregados en la ventana de cobro.
+- El último recibo se conserva en memoria durante la sesión actual del POS para reabrirlo rápido con `F9`.
 - Si la orden queda pendiente, no se muestra recibo final; se mantiene el aviso de orden pendiente para no confundir reserva con venta cerrada.
 - La ventana de recibo se puede cerrar rapidamente con `Enter`, `Esc` o el botón `Cerrar`.
 - Impresión, PDF, numeración fiscal y formato de ticket quedan para una fase posterior.

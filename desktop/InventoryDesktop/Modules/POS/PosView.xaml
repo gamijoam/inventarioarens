@@ -214,6 +214,7 @@
                         <TextBlock Text="Herramientas POS" FontSize="19" FontWeight="Black" />
                         <Button Content="F8 Cliente" Height="38" Margin="0,12,0,0" FontWeight="Black" Click="SelectCustomer_Click" />
                         <Button Content="F2 Buscar producto" Height="38" Margin="0,12,0,0" FontWeight="Black" Click="OpenProductSearch_Click" />
+                        <Button Content="F9 Último recibo" Height="38" Margin="0,8,0,0" FontWeight="Black" IsEnabled="{Binding HasLastReceipt}" Click="LastReceipt_Click" />
                         <Button Content="Pendientes" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="PendingOrders_Click" />
                         <Button Content="Limpiar carrito" Height="38" Margin="0,8,0,0" FontWeight="Black" Click="ClearCart_Click" />
                     </StackPanel>
@@ -254,7 +255,7 @@
 
                 <Button Content="Volver al panel" Width="132" Height="32" VerticalAlignment="Center" FontWeight="Black" Click="Exit_Click" />
                 <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center" Margin="14,0" />
-                <TextBlock Grid.Column="2" Text="Enter agrega exacto · F2 buscar producto · F8 cliente · F12 cobrar" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="Enter agrega exacto · F2 buscar producto · F8 cliente · F9 último recibo · F12 cobrar" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
             </Grid>
         </Border>
     </Grid>

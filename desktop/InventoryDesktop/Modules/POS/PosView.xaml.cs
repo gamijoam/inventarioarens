@@ -59,6 +59,13 @@ public partial class PosView : UserControl
             return;
         }
 
+        if (e.Key == Key.F9)
+        {
+            OpenLastReceiptDialog();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F12)
         {
             Pay_Click(sender, e);
@@ -377,6 +384,31 @@ public partial class PosView : UserControl
         }
 
         PosPaymentWindow dialog = new(ViewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        dialog.ShowDialog();
+        if (dialog.Receipt is not null)
+        {
+            ViewModel.StoreLastReceipt(dialog.Receipt);
+        }
+    }
+
+    private void LastReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        OpenLastReceiptDialog();
+    }
+
+    private void OpenLastReceiptDialog()
+    {
+        if (ViewModel?.LastReceipt is not PosReceiptSnapshot receipt)
+        {
+            ViewModel?.SetError("No hay un recibo reciente para mostrar.");
+            return;
+        }
+
+        PosReceiptWindow dialog = new(receipt)
         {
             Owner = Window.GetWindow(this),
         };

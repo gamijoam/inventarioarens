@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-05 - Último recibo y detalle operativo POS
+
+### Diagnóstico
+
+- Después de cerrar el recibo visual, el cajero no tenía una forma rápida de volver a verlo dentro del POS.
+- El recibo necesitaba mostrar mejor los datos operativos de productos serializados y pagos.
+
+### Implementado
+
+- El POS conserva en memoria el último recibo pagado de la sesión actual.
+- Se agregó la herramienta `F9 Último recibo` para reabrir ese recibo desde el POS.
+- Se agregó atajo `F9` y se actualizó la barra inferior.
+- El recibo ahora muestra SKU, tipo de control e IMEI/serial dentro del producto.
+- La sección de pagos ahora incluye equivalente y referencia.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Alineación del selector de productos POS
 
 ### Diagnóstico

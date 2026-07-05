@@ -34,6 +34,7 @@ public sealed class PosViewModel : ViewModelBase
     private InventoryWarehouseOption? selectedWarehouse;
     private PosCashRegisterSession? selectedCashRegisterSession;
     private PosCustomerOption? selectedCustomer;
+    private PosReceiptSnapshot? lastReceipt;
     private CancellationTokenSource? quoteWarmupCancellation;
 
     private readonly long currentUserId;
@@ -224,6 +225,20 @@ public sealed class PosViewModel : ViewModelBase
 
     public bool CanPay => CartItems.Count > 0 && HasOperationalContext && !IsBusy;
 
+    public PosReceiptSnapshot? LastReceipt
+    {
+        get => lastReceipt;
+        private set
+        {
+            if (SetProperty(ref lastReceipt, value))
+            {
+                RaisePropertyChanged(nameof(HasLastReceipt));
+            }
+        }
+    }
+
+    public bool HasLastReceipt => LastReceipt is not null;
+
     public string PayHint
     {
         get
@@ -245,6 +260,13 @@ public sealed class PosViewModel : ViewModelBase
 
             return "Abre la ventana de cobro para pagos en USD, Bs o mixtos.";
         }
+    }
+
+    public void StoreLastReceipt(PosReceiptSnapshot receipt)
+    {
+        LastReceipt = receipt;
+        StatusMessage = $"Ultimo recibo disponible: {receipt.OrderLabel}.";
+        IsStatusError = false;
     }
 
     public async Task InitializeAsync()
