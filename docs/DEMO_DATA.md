@@ -25,6 +25,42 @@ docker compose run --rm app php artisan migrate
 docker compose run --rm app php artisan db:seed --class=DemoDataSeeder
 ```
 
+Con Laragon y PostgreSQL local, ejecutar:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan migrate
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan db:seed --class=DemoDataSeeder
+```
+
+## Datos demo multiempresa para login
+
+Para probar que un mismo correo pueda elegir entre varias empresas, ejecutar:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan db:seed --class=MultiCompanyLoginDemoSeeder
+```
+
+Esta semilla crea empresas adicionales ligeras, con dos productos por empresa y cajas abiertas para poder probar POS:
+
+- `gerente.caracas@demo.test` y `cajero.caracas@demo.test`:
+  - `Demo Caracas Este`
+  - `Demo Caracas Norte`
+- `gerente.valencia@demo.test` y `cajero.valencia@demo.test`:
+  - `Demo Valencia Centro`
+  - `Demo Valencia Norte`
+
+La clave demo para todos esos usuarios es:
+
+```txt
+password
+```
+
+Detalle completo:
+
+```txt
+docs/DATOS_DEMO_MULTIEMPRESA_2026-07-05.md
+```
+
 ## Que crea
 
 - Empresas demo:
