@@ -1,4 +1,18 @@
 # Registro de implementación
+## 2026-07-05 - Ajuste visual de Caja y administracion de cajas
+
+### Implementado
+
+- Se reubico el boton **Abrir turno** al encabezado del formulario para que siempre quede visible.
+- Se compacto el formulario de apertura de turno.
+- La ventana **Administrar cajas** dejo de usar scroll lateral para crear y editar.
+- Se separo la administracion en pestanas: crear caja y editar caja seleccionada.
+- Se mantuvo la creacion, edicion, activacion y desactivacion dentro del modulo Caja.
+
+### Pruebas
+
+- Se compila WPF.
+- Se ejecuta `CashRegisterApiTest`.
 
 ## 2026-07-05 - Rediseño WPF del modulo Caja
 

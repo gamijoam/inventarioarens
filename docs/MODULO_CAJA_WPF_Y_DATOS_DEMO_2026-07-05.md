@@ -223,3 +223,24 @@ Resultado:
 
 - 8 pruebas pasadas.
 - 42 aserciones.
+
+## Ajuste visual de Caja y administracion de cajas
+
+Se ajusto la experiencia del modulo **Caja** para evitar que acciones importantes queden ocultas en ventanas pequenas.
+
+Cambios realizados:
+
+- El boton **Abrir turno** ahora queda visible en el encabezado del formulario de apertura.
+- Se compacto el formulario de apertura para reducir desplazamiento vertical.
+- La ventana **Administrar cajas** ya no muestra crear y editar uno debajo del otro.
+- La administracion usa secciones por pestañas:
+  - **Crear caja** para registrar una caja fisica nueva.
+  - **Editar seleccionada** para cambiar nombre, codigo, estado y notas de la caja elegida.
+- Se elimino el scroll interno innecesario de la zona derecha.
+
+Objetivo operativo:
+
+- abrir turno sin perder de vista el boton principal;
+- crear cajas nuevas sin mezclarlo con la edicion;
+- editar la caja seleccionada con una pantalla mas clara;
+- mantener la administracion dentro del modulo Caja.

@@ -59,21 +59,35 @@
 
                 <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18">
                     <StackPanel>
-                        <TextBlock Text="Abrir mi turno" FontSize="22" FontWeight="Black" />
-                        <TextBlock Text="Selecciona almacen y caja fisica activa. Si no existe, creala desde Administrar cajas."
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Abrir mi turno" FontSize="22" FontWeight="Black" VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Abrir turno"
+                                    Height="40"
+                                    Background="#F59E0B"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    IsEnabled="{Binding CanOpenCashRegister}"
+                                    Click="Open_Click" />
+                        </Grid>
+                        <TextBlock Text="Selecciona almacen y caja fisica activa."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
-                                   Margin="0,5,0,16" />
+                                   Margin="0,0,0,10" />
 
                         <TextBlock Text="Almacen de trabajo" FontWeight="Black" />
                         <ComboBox ItemsSource="{Binding Warehouses}"
                                   SelectedItem="{Binding SelectedWarehouse}"
                                   DisplayMemberPath="WarehouseLabel"
-                                  Height="40"
-                                  Margin="0,6,0,10" />
+                                  Height="38"
+                                  Margin="0,5,0,8" />
 
-                        <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,14">
+                        <Border Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
                             <TextBlock Text="{Binding SelectedBranchLabel}" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" TextWrapping="Wrap" />
                         </Border>
 
@@ -81,13 +95,13 @@
                         <ComboBox ItemsSource="{Binding ActiveCashRegisters}"
                                   SelectedItem="{Binding SelectedCashRegister}"
                                   DisplayMemberPath="RegisterLabel"
-                                  Height="40"
-                                  Margin="0,6,0,6" />
+                                  Height="38"
+                                  Margin="0,5,0,5" />
                         <TextBlock Text="{Binding SelectedCashRegisterLabel}"
                                    Foreground="#058561"
                                    FontWeight="Black"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,16" />
+                                   Margin="0,0,0,10" />
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -97,31 +111,23 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Monto inicial" FontWeight="Black" />
-                                <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=PropertyChanged}" Height="40" Margin="0,6,0,0" />
+                                <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,5,0,0" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Moneda" FontWeight="Black" />
                                 <ComboBox ItemsSource="{Binding CurrencyOptions}"
                                           SelectedItem="{Binding OpeningCurrency}"
-                                          Height="40"
-                                          Margin="0,6,0,0" />
+                                          Height="38"
+                                          Margin="0,5,0,0" />
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="Notas de apertura" FontWeight="Black" Margin="0,14,0,0" />
+                        <TextBlock Text="Notas de apertura" FontWeight="Black" Margin="0,10,0,0" />
                         <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
-                                 Height="58"
+                                 Height="42"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
-                                 Margin="0,6,0,16" />
-
-                        <Button Content="Abrir turno"
-                                Height="44"
-                                Background="#F59E0B"
-                                Foreground="White"
-                                FontWeight="Black"
-                                IsEnabled="{Binding CanOpenCashRegister}"
-                                Click="Open_Click" />
+                                 Margin="0,5,0,0" />
                     </StackPanel>
                 </Border>
 

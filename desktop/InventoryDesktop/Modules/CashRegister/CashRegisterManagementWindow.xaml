@@ -88,86 +88,86 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18">
-                        <StackPanel>
+            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="14">
+                <TabControl>
+                    <TabItem Header="Crear caja">
+                        <StackPanel Margin="8,14,8,0">
                             <TextBlock Text="Crear caja" FontSize="22" FontWeight="Black" />
                             <TextBlock Text="La caja se crea en la sucursal del almacen seleccionado."
                                        Foreground="{StaticResource MutedBrush}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
-                                       Margin="0,4,0,14" />
+                                       Margin="0,4,0,12" />
 
                             <TextBlock Text="Almacen / sucursal" FontWeight="Black" />
                             <ComboBox ItemsSource="{Binding Warehouses}"
                                       SelectedItem="{Binding SelectedWarehouse}"
                                       DisplayMemberPath="WarehouseLabel"
-                                      Height="40"
-                                      Margin="0,6,0,10" />
+                                      Height="38"
+                                      Margin="0,5,0,8" />
 
                             <TextBlock Text="Nombre" FontWeight="Black" />
-                            <TextBox Text="{Binding NewCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+                            <TextBox Text="{Binding NewCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="36" Margin="0,5,0,8" />
 
                             <TextBlock Text="Codigo" FontWeight="Black" />
-                            <TextBox Text="{Binding NewCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+                            <TextBox Text="{Binding NewCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="36" Margin="0,5,0,8" />
 
                             <TextBlock Text="Notas" FontWeight="Black" />
                             <TextBox Text="{Binding NewCashRegisterNotes, UpdateSourceTrigger=PropertyChanged}"
-                                     Height="58"
+                                     Height="48"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
-                                     Margin="0,6,0,14" />
+                                     Margin="0,5,0,12" />
 
                             <Button Content="Crear caja"
-                                    Height="42"
+                                    Height="40"
                                     Background="#3B2CF6"
                                     Foreground="White"
                                     FontWeight="Black"
                                     IsEnabled="{Binding CanCreateCashRegister}"
                                     Click="Create_Click" />
                         </StackPanel>
-                    </Border>
+                    </TabItem>
 
-                    <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,16,0,0">
-                        <StackPanel>
+                    <TabItem Header="Editar seleccionada">
+                        <StackPanel Margin="8,14,8,0">
                             <TextBlock Text="Editar caja" FontSize="22" FontWeight="Black" />
                             <TextBlock Text="{Binding SelectedManagedCashRegisterLabel}"
                                        Foreground="{StaticResource MutedBrush}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
-                                       Margin="0,4,0,14" />
+                                       Margin="0,4,0,12" />
 
                             <TextBlock Text="Nombre" FontWeight="Black" />
-                            <TextBox Text="{Binding EditCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+                            <TextBox Text="{Binding EditCashRegisterName, UpdateSourceTrigger=PropertyChanged}" Height="36" Margin="0,5,0,8" />
 
                             <TextBlock Text="Codigo" FontWeight="Black" />
-                            <TextBox Text="{Binding EditCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="38" Margin="0,6,0,10" />
+                            <TextBox Text="{Binding EditCashRegisterCode, UpdateSourceTrigger=PropertyChanged}" Height="36" Margin="0,5,0,8" />
 
                             <TextBlock Text="Estado" FontWeight="Black" />
                             <ComboBox ItemsSource="{Binding CashRegisterStatusOptions}"
                                       SelectedItem="{Binding EditCashRegisterStatus}"
-                                      Height="40"
-                                      Margin="0,6,0,10" />
+                                      Height="38"
+                                      Margin="0,5,0,8" />
 
                             <TextBlock Text="Notas" FontWeight="Black" />
                             <TextBox Text="{Binding EditCashRegisterNotes, UpdateSourceTrigger=PropertyChanged}"
-                                     Height="70"
+                                     Height="58"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
-                                     Margin="0,6,0,14" />
+                                     Margin="0,5,0,12" />
 
                             <Button Content="Guardar cambios"
-                                    Height="42"
+                                    Height="40"
                                     Background="#3B2CF6"
                                     Foreground="White"
                                     FontWeight="Black"
                                     IsEnabled="{Binding CanUpdateCashRegister}"
                                     Click="Update_Click" />
                         </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Border>
         </Grid>
 
         <TextBlock Grid.Row="2"
