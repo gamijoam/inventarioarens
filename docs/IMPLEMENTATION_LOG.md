@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-07-05 - Aplicación de migración de descuentos en base local
+
+### Diagnóstico
+
+- Al confirmar una venta POS, PostgreSQL rechazaba el guardado porque la tabla `sale_items` no tenía la columna `discount_type`.
+- La migración de descuentos ya existía en el proyecto, pero no estaba aplicada en la base local `inventory_arens` usada por la app de escritorio.
+
+### Implementado
+
+- Se ejecutó la migración pendiente `2026_07_05_120000_add_discounts_to_sale_items_table` sobre la base local de PostgreSQL.
+- La tabla `sale_items` ahora tiene los campos necesarios para guardar descuentos por línea: tipo, valor, montos calculados y motivo.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 16 pruebas correctas, 120 aserciones.
+
 ## 2026-07-05 - Ajuste de búsqueda y precios activos en POS
 
 ### Diagnóstico
