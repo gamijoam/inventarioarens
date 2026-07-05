@@ -95,7 +95,16 @@ public sealed class PosViewModel : ViewModelBase
         {
             if (SetProperty(ref selectedWarehouse, value))
             {
+                if (SelectedCashRegisterSession is not null
+                    && SelectedWarehouse?.BranchId is long branchId
+                    && SelectedCashRegisterSession.BranchId != branchId)
+                {
+                    SelectedCashRegisterSession = null;
+                    SetError("El almacén cambió. Selecciona o abre una caja de esa misma sucursal.");
+                }
+
                 RaisePropertyChanged(nameof(OperationalContextLabel));
+                RaiseOperationalContextChanged();
             }
         }
     }
@@ -108,8 +117,7 @@ public sealed class PosViewModel : ViewModelBase
             if (SetProperty(ref selectedCashRegisterSession, value))
             {
                 RaisePropertyChanged(nameof(OperationalContextLabel));
-                RaisePropertyChanged(nameof(CanPay));
-                RaisePropertyChanged(nameof(PayHint));
+                RaiseOperationalContextChanged();
             }
         }
     }
@@ -123,6 +131,26 @@ public sealed class PosViewModel : ViewModelBase
             return $"{warehouse} · {cashRegister}";
         }
     }
+
+    public string CashRegisterStatusTitle => SelectedCashRegisterSession is null
+        ? "Caja requerida"
+        : "Caja abierta";
+
+    public string CashRegisterStatusDetail => SelectedCashRegisterSession is null
+        ? "Abre tu caja para poder cobrar ventas."
+        : $"{SelectedCashRegisterSession.DisplayLabel} lista para vender.";
+
+    public string CashRegisterStatusBadge => SelectedCashRegisterSession is null ? "SIN CAJA" : "ABIERTA";
+
+    public Brush CashRegisterStatusBrush => SelectedCashRegisterSession is null
+        ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
+        : new SolidColorBrush(Color.FromRgb(5, 133, 97));
+
+    public string WarehouseStatusDetail => SelectedWarehouse is null
+        ? "Selecciona un almacén antes de vender."
+        : SelectedWarehouse.WarehouseLabel;
+
+    public bool HasOperationalContext => SelectedWarehouse is not null && SelectedCashRegisterSession is not null;
 
     public PosCustomerOption? SelectedCustomer
     {
@@ -190,7 +218,7 @@ public sealed class PosViewModel : ViewModelBase
         ? "Sin productos"
         : $"{CartItems.Sum(item => item.Quantity):0.##} unidades";
 
-    public bool CanPay => CartItems.Count > 0 && !IsBusy;
+    public bool CanPay => CartItems.Count > 0 && HasOperationalContext && !IsBusy;
 
     public string PayHint
     {
@@ -199,6 +227,11 @@ public sealed class PosViewModel : ViewModelBase
             if (CartItems.Count == 0)
             {
                 return "Agrega productos para poder cobrar.";
+            }
+
+            if (SelectedWarehouse is null)
+            {
+                return "Selecciona un almacén antes de cobrar.";
             }
 
             if (SelectedCashRegisterSession is null)
@@ -285,8 +318,10 @@ public sealed class PosViewModel : ViewModelBase
         {
             PosCashRegisterSessionListResponse response = await apiClient.GetAsync<PosCashRegisterSessionListResponse>("cash-register/sessions");
             long? selectedId = SelectedCashRegisterSession?.Id;
+            long? branchId = SelectedWarehouse?.BranchId;
             List<PosCashRegisterSession> openSessions = response.Data
                 .Where(session => session.Status == "open" && session.CashierId == currentUserId)
+                .Where(session => branchId is null || session.BranchId == branchId.Value)
                 .ToList();
 
             CashRegisterSessions.Clear();
@@ -300,7 +335,9 @@ public sealed class PosViewModel : ViewModelBase
 
             if (SelectedCashRegisterSession is null)
             {
-                SetError("No tienes una caja abierta asignada a tu usuario. Abre tu caja antes de vender.");
+                SetError(branchId is null
+                    ? "Selecciona un almacén para cargar la caja de esa sucursal."
+                    : "No tienes una caja abierta para la sucursal del almacén seleccionado. Abre tu caja antes de vender.");
             }
         }
         catch (ApiException exception)
@@ -797,12 +834,23 @@ public sealed class PosViewModel : ViewModelBase
         RaisePropertyChanged(nameof(PayHint));
     }
 
+    private void RaiseOperationalContextChanged()
+    {
+        RaisePropertyChanged(nameof(CashRegisterStatusTitle));
+        RaisePropertyChanged(nameof(CashRegisterStatusDetail));
+        RaisePropertyChanged(nameof(CashRegisterStatusBadge));
+        RaisePropertyChanged(nameof(CashRegisterStatusBrush));
+        RaisePropertyChanged(nameof(WarehouseStatusDetail));
+        RaisePropertyChanged(nameof(HasOperationalContext));
+        RaisePropertyChanged(nameof(CanPay));
+        RaisePropertyChanged(nameof(PayHint));
+    }
+
     public void SetError(string message)
     {
         IsStatusError = true;
         StatusMessage = message;
-        RaisePropertyChanged(nameof(CanPay));
-        RaisePropertyChanged(nameof(PayHint));
+        RaiseOperationalContextChanged();
     }
 
     private bool HasCachedQuote(long productId, long? priceListId)

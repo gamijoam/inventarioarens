@@ -133,11 +133,33 @@
                                    Margin="0,3,0,0" />
                     </StackPanel>
 
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding CartCountLabel}"
-                               Foreground="{StaticResource MutedBrush}"
-                               FontWeight="Black"
-                               VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CartCountLabel}"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="Black"
+                                   HorizontalAlignment="Right" />
+                        <Border Background="#F7F9FD"
+                                BorderBrush="#DCE4F2"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="9,4"
+                                Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding CashRegisterStatusBadge}"
+                                           Foreground="{Binding CashRegisterStatusBrush}"
+                                           FontWeight="Black"
+                                           FontSize="11" />
+                                <TextBlock Text=" · "
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="Black"
+                                           FontSize="11" />
+                                <TextBlock Text="{Binding CashRegisterStatusDetail}"
+                                           Foreground="{Binding CashRegisterStatusBrush}"
+                                           FontWeight="Black"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
 

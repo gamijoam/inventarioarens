@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-05 - Contexto operativo de caja en POS
+
+### Diagnóstico
+
+- El POS ya podía abrir y seleccionar cajas, pero el bloqueo visual no era suficientemente claro.
+- El botón `Pagar` podía verse disponible con productos en carrito aunque faltara contexto operativo.
+- Si el usuario cambiaba de almacén, podía quedar seleccionada una caja de otra sucursal hasta recargar contexto.
+
+### Implementado
+
+- `CanPay` ahora exige productos, almacén seleccionado, caja abierta y que la pantalla no esté ocupada.
+- El encabezado del catálogo muestra estado operativo `ABIERTA` o `SIN CAJA`.
+- Si se cambia el almacén y la caja pertenece a otra sucursal, el POS limpia la caja seleccionada y muestra un mensaje claro.
+- Las cajas listadas se filtran por cajero conectado y por la sucursal del almacén seleccionado.
+- `Abrir mi caja` pide confirmación antes de crear una caja con monto inicial `USD 0.00`.
+- El flujo de pago valida almacén y caja antes de abrir la ventana de cobro.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-04 - Claridad visual de IMEI en carrito y cobro POS
 
 ### Diagnóstico

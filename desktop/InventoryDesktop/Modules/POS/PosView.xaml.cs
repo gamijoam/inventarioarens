@@ -75,6 +75,24 @@ public partial class PosView : UserControl
     {
         if (ViewModel is not null)
         {
+            if (ViewModel.SelectedWarehouse is null)
+            {
+                ViewModel.SetError("Selecciona un almacén antes de abrir caja.");
+                return;
+            }
+
+            MessageBoxResult result = MessageBox.Show(
+                Window.GetWindow(this),
+                $"Se abrirá una caja para vender en:\n\n{ViewModel.SelectedWarehouse.WarehouseLabel}\n\nMonto inicial: USD 0.00\n\n¿Deseas continuar?",
+                "Abrir caja",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
             await ViewModel.OpenOwnCashRegisterAsync();
         }
     }
@@ -147,6 +165,12 @@ public partial class PosView : UserControl
     {
         if (ViewModel is null)
         {
+            return;
+        }
+
+        if (ViewModel.SelectedWarehouse is null)
+        {
+            ViewModel.SetError("Selecciona un almacén antes de cobrar.");
             return;
         }
 

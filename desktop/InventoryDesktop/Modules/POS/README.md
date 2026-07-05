@@ -38,7 +38,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 ## Rendimiento del carrito
 
 - El POS mantiene una caché temporal de cotizaciones por producto y lista de precio.
-- Después de buscar productos, precarga hasta 18 cotizaciones visibles en segundo plano.
+- Después de buscar productos, precarga solo un grupo pequeño de cotizaciones visibles en segundo plano para no saturar la API.
 - Si el vendedor hace click mientras una cotización ya se está preparando, el click reutiliza esa misma consulta.
 - Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.
 - La caché es solo de la pantalla actual; el checkout real deberá volver a validar precios en backend.
@@ -51,8 +51,10 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si no hay almacén seleccionado, no se permite agregar productos.
 - La caja abierta es obligatoria para confirmar una venta.
 - En escritorio solo se listan cajas abiertas asignadas al usuario conectado; así se evita intentar vender con una caja de otro cajero.
-- El botón `Pagar` muestra un mensaje claro si falta caja propia abierta, en vez de quedar silencioso.
-- El botón `Abrir mi caja` crea una caja abierta para el usuario conectado usando la sucursal del almacén seleccionado y monto inicial cero.
+- Si el almacén seleccionado cambia y la caja pertenece a otra sucursal, el POS limpia la caja seleccionada y pide abrir o seleccionar una caja correcta.
+- El botón `Pagar` queda bloqueado si falta almacén o caja abierta, con mensaje claro en pantalla.
+- El encabezado del catálogo muestra el estado operativo `ABIERTA` o `SIN CAJA` para que el cajero vea el bloqueo antes de cobrar.
+- El botón `Abrir mi caja` pide confirmación antes de crear una caja abierta para el usuario conectado usando la sucursal del almacén seleccionado y monto inicial cero.
 
 ## Cobro y checkout
 
