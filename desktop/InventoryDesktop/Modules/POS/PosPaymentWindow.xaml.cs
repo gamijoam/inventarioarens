@@ -215,8 +215,19 @@ public partial class PosPaymentWindow : Window
             return;
         }
 
+        long? exchangeRateTypeId;
+        try
+        {
+            exchangeRateTypeId = ResolvePaymentExchangeRateTypeId(currency);
+        }
+        catch (InvalidOperationException exception)
+        {
+            SetError(exception.Message);
+            return;
+        }
+
         decimal? baseUsd = EstimateBaseUsd(currency, amount);
-        payments.Add(new PaymentLine(method, currency, amount, BuildEquivalentLabel(currency, amount, baseUsd), baseUsd, reference, status.Code, status.Label));
+        payments.Add(new PaymentLine(method, currency, amount, BuildEquivalentLabel(currency, amount, baseUsd), baseUsd, exchangeRateTypeId, reference, status.Code, status.Label));
         AmountBox.Text = string.Empty;
         ReferenceBox.Text = string.Empty;
         PaymentStatusBox.SelectedIndex = 0;
@@ -279,6 +290,7 @@ public partial class PosPaymentWindow : Window
                     payment.Method,
                     payment.Currency,
                     payment.Amount,
+                    payment.ExchangeRateTypeId,
                     payment.Status,
                     payment.Reference))
                 .ToList();
@@ -358,6 +370,28 @@ public partial class PosPaymentWindow : Window
         }
 
         return null;
+    }
+
+    private long? ResolvePaymentExchangeRateTypeId(string currency)
+    {
+        if (!currency.Equals("VES", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        List<long> rateTypeIds = viewModel.CartItems
+            .Select(item => item.ExchangeRateTypeId)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (rateTypeIds.Count > 1)
+        {
+            throw new InvalidOperationException("La orden mezcla productos con tasas diferentes. Para cobrar en bolívares, separa la venta por tasa o cobra en dólares.");
+        }
+
+        return rateTypeIds.Count == 0 ? null : rateTypeIds[0];
     }
 
     private string BuildEquivalentLabel(string currency, decimal amount, decimal? baseUsd)
@@ -526,6 +560,7 @@ public sealed record PaymentLine(
     decimal Amount,
     string EquivalentLabel,
     decimal? BaseAmountUsd,
+    long? ExchangeRateTypeId,
     string? Reference,
     string Status,
     string StatusLabel)

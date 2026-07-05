@@ -63,6 +63,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El botón `Completar saldo` coloca el monto faltante según la moneda seleccionada.
 - Al escribir el monto recibido, la ventana muestra una vista previa inmediata de pagado, faltante y vuelto estimado.
 - Cada pago agregado muestra el monto recibido y su equivalente: USD a bolívares cuando hay tasa, o bolívares a USD cuando se paga en Bs.
+- Cuando el cobro es en bolívares, WPF envía a Laravel el tipo de tasa usado para cotizar los productos del carrito.
+- Si el carrito mezcla productos con tipos de tasa distintos, WPF bloquea el pago en bolívares y pide separar la venta o cobrar en dólares.
 - El botón `Borrar monto` limpia solo el monto y la referencia del pago que se está preparando.
 - El botón `Agregar pago` acepta el pago recibido y lo pasa a la tabla de pagos agregados.
 - El botón `Eliminar pago` elimina el pago seleccionado en la tabla de pagos agregados.

@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-04 - Tasa correcta al cobrar POS en bolívares
+
+### Diagnóstico
+
+- Una orden podía quedar pendiente aunque el monto en bolívares pareciera cubrir el total mostrado en WPF.
+- La causa probable era una diferencia entre la tasa usada para cotizar el producto en pantalla y la tasa predeterminada que Laravel usaba al procesar el pago.
+- El backend ya soportaba `payments.*.exchange_rate_type_id`, pero WPF no lo enviaba.
+
+### Implementado
+
+- Se agregó `exchange_rate_type_id` al DTO de cotización POS en WPF.
+- Cada ítem del carrito conserva el tipo de tasa usado por su cotización.
+- Al cobrar en bolívares, WPF envía el `exchange_rate_type_id` del carrito en cada pago.
+- Si el carrito mezcla productos con tipos de tasa distintos, WPF bloquea el pago en bolívares y muestra un mensaje claro.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 11 pruebas pasaron, 75 assertions.
+
 ## 2026-07-04 - Migración local pendiente para métodos de pago
 
 ### Diagnóstico

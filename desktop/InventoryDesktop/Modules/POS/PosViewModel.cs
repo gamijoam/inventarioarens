@@ -881,6 +881,7 @@ public sealed class PosCartItem : ViewModelBase
         PriceListLabel = quote.PriceListLabel;
         UnitPriceUsd = quote.PriceUsd;
         UnitPriceVes = quote.PriceVes;
+        ExchangeRateTypeId = quote.ExchangeRateTypeId;
         SaleCurrency = quote.SaleCurrency;
         SalePrice = quote.SalePrice;
         RateLabel = quote.RateLabel;
@@ -908,6 +909,8 @@ public sealed class PosCartItem : ViewModelBase
     public decimal UnitPriceUsd { get; }
 
     public decimal? UnitPriceVes { get; }
+
+    public long? ExchangeRateTypeId { get; }
 
     public string SaleCurrency { get; }
 

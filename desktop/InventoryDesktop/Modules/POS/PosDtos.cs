@@ -39,6 +39,7 @@ public sealed record PosPriceQuote(
     [property: JsonPropertyName("sale_price")] decimal SalePrice,
     [property: JsonPropertyName("price_usd")] decimal PriceUsd,
     [property: JsonPropertyName("price_ves")] decimal? PriceVes,
+    [property: JsonPropertyName("exchange_rate_type_id")] long? ExchangeRateTypeId,
     [property: JsonPropertyName("exchange_rate_type_code")] string? ExchangeRateTypeCode,
     [property: JsonPropertyName("exchange_rate_type_name")] string? ExchangeRateTypeName,
     [property: JsonPropertyName("exchange_rate")] decimal? ExchangeRate)
@@ -71,6 +72,7 @@ public sealed record PosCheckoutPaymentRequest(
     [property: JsonPropertyName("method")] string Method,
     [property: JsonPropertyName("currency")] string Currency,
     [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("exchange_rate_type_id")] long? ExchangeRateTypeId,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("reference")] string? Reference);
 
