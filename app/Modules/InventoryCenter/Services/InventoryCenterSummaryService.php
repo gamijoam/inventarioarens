@@ -4,45 +4,75 @@ namespace App\Modules\InventoryCenter\Services;
 
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Support\Performance\PerformanceProbe;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 class InventoryCenterSummaryService
 {
-    public function __construct(private readonly TenantManager $tenantManager)
-    {
-    }
+    public function __construct(private readonly TenantManager $tenantManager) {}
 
     public function summary(array $filters): array
     {
+        $startedAt = microtime(true);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
         $limit = min(max((int) ($filters['limit'] ?? 24), 1), 50);
         $page = max((int) ($filters['page'] ?? 1), 1);
-        $products = $this->products($filters, $threshold, $limit, $page);
 
-        return [
-            'filters' => [
+        try {
+            $products = PerformanceProbe::measure(
+                'InventoryCenter resumen productos',
+                fn (): array => $this->products($filters, $threshold, $limit, $page),
+                350,
+                ['limit' => $limit, 'page' => $page, 'search' => $filters['search'] ?? null]
+            );
+
+            $metrics = PerformanceProbe::measure(
+                'InventoryCenter resumen metricas',
+                fn (): array => $this->metrics($threshold),
+                350,
+                ['threshold' => $threshold]
+            );
+
+            $alerts = PerformanceProbe::measure(
+                'InventoryCenter resumen alertas',
+                fn (): array => $this->alerts($threshold),
+                450,
+                ['threshold' => $threshold]
+            );
+
+            return [
+                'filters' => [
+                    'search' => $filters['search'] ?? null,
+                    'tracking_type' => $filters['tracking_type'] ?? null,
+                    'stock_status' => $filters['stock_status'] ?? 'all',
+                    'low_stock_threshold' => $threshold,
+                    'limit' => $limit,
+                    'page' => $page,
+                ],
+                'metrics' => $metrics,
+                'alerts' => $alerts,
+                'products' => $products['data'],
+                'pagination' => $products['pagination'],
+            ];
+        } finally {
+            PerformanceProbe::log('InventoryCenter resumen total', $startedAt, 900, [
                 'search' => $filters['search'] ?? null,
                 'tracking_type' => $filters['tracking_type'] ?? null,
                 'stock_status' => $filters['stock_status'] ?? 'all',
-                'low_stock_threshold' => $threshold,
-                'limit' => $limit,
-                'page' => $page,
-            ],
-            'metrics' => $this->metrics($threshold),
-            'alerts' => $this->alerts($threshold),
-            'products' => $products['data'],
-            'pagination' => $products['pagination'],
-        ];
+            ]);
+        }
     }
 
     public function exportCsv(array $filters): string
     {
+        $startedAt = microtime(true);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
         $handle = fopen('php://temp', 'r+');
 
-        fputs($handle, "\xEF\xBB\xBF");
+        fwrite($handle, "\xEF\xBB\xBF");
         fputcsv($handle, [
             'Producto',
             'SKU',
@@ -55,7 +85,14 @@ class InventoryCenterSummaryService
             'Estado de stock',
         ], ';');
 
-        foreach ($this->productRows($filters, $threshold) as $product) {
+        $rows = PerformanceProbe::measure(
+            'InventoryCenter exportar filas',
+            fn (): array => $this->productRows($filters, $threshold),
+            800,
+            ['search' => $filters['search'] ?? null]
+        );
+
+        foreach ($rows as $product) {
             fputcsv($handle, [
                 $product['name'],
                 $product['sku'],
@@ -77,6 +114,11 @@ class InventoryCenterSummaryService
         rewind($handle);
         $csv = stream_get_contents($handle);
         fclose($handle);
+
+        PerformanceProbe::log('InventoryCenter exportar CSV', $startedAt, 1200, [
+            'search' => $filters['search'] ?? null,
+            'rows' => count($rows),
+        ]);
 
         return $csv === false ? '' : $csv;
     }
@@ -156,7 +198,7 @@ class InventoryCenterSummaryService
             ->all();
     }
 
-    private function filteredProductsQuery(array $filters, float $threshold): \Illuminate\Database\Eloquent\Builder
+    private function filteredProductsQuery(array $filters, float $threshold): Builder
     {
         $query = $this->productStockQuery($this->stockTotals())
             ->select([
@@ -388,7 +430,7 @@ class InventoryCenterSummaryService
             ->all();
     }
 
-    private function productStockQuery(QueryBuilder $stockTotals): \Illuminate\Database\Eloquent\Builder
+    private function productStockQuery(QueryBuilder $stockTotals): Builder
     {
         return Product::query()
             ->leftJoinSub($stockTotals, 'stock_totals', 'stock_totals.product_id', '=', 'products.id');

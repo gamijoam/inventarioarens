@@ -15,11 +15,12 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
-use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\PriceList;
+use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
+use App\Support\Performance\PerformanceProbe;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -30,8 +31,7 @@ class PosCheckoutService
         private readonly CashRegisterService $cashRegister,
         private readonly AccountsReceivableService $accountsReceivable,
         private readonly InventoryMovementService $inventory,
-    ) {
-    }
+    ) {}
 
     public function checkout(
         User $cashier,
@@ -40,159 +40,237 @@ class PosCheckoutService
         array $payments,
         ?int $customerId = null,
         ?string $customerName = null,
-    ): PosOrder
-    {
-        return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
-            $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
-            $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
-            $resolvedPaymentMethods = $this->validatePaymentMethods($items, $payments);
+    ): PosOrder {
+        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
+            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
+                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
+                $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                $resolvedPaymentMethods = PerformanceProbe::measure(
+                    'POS validar metodos de pago',
+                    fn (): array => $this->validatePaymentMethods($items, $payments),
+                    200,
+                    ['items' => count($items), 'payments' => count($payments)]
+                );
 
-            $sale = $this->sales->createDraft($cashier, $items, $customerId);
+                $sale = PerformanceProbe::measure(
+                    'POS crear venta borrador',
+                    fn (): Sale => $this->sales->createDraft($cashier, $items, $customerId),
+                    500,
+                    ['items' => count($items)]
+                );
 
-            $order = PosOrder::create([
-                'sale_id' => $sale->id,
-                'cash_register_session_id' => $cashRegisterSession->id,
-                'customer_id' => $customerId,
-                'status' => PosOrder::STATUS_OPEN,
-                'cashier_id' => $cashier->id,
-                'customer_name' => $customerName,
-                'total_base_amount' => $sale->total_base_amount,
-                'total_local_amount' => $sale->total_local_amount,
-                'opened_at' => now(),
-            ]);
-
-            $paidBase = 0.0;
-            $paidLocal = 0.0;
-
-            foreach ($payments as $index => $payment) {
-                $resolved = $this->resolvePayment($payment);
-                $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
-                $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
-
-                $posPayment = PosPayment::create([
-                    'pos_order_id' => $order->id,
-                    'payment_method_id' => $paymentMethod?->id,
-                    'method' => $payment['method'],
-                    'currency' => strtoupper($payment['currency']),
-                    'amount' => $payment['amount'],
-                    'amount_base' => $resolved['amount_base'],
-                    'amount_local' => $resolved['amount_local'],
-                    'exchange_rate_type_id' => $resolved['exchange_rate_type_id'],
-                    'exchange_rate_type_code' => $resolved['exchange_rate_type_code'],
-                    'exchange_rate' => $resolved['exchange_rate'],
-                    'status' => $status,
-                    'reference' => $payment['reference'] ?? null,
-                    'external_provider' => $payment['external_provider'] ?? null,
-                    'metadata' => $payment['metadata'] ?? null,
+                $order = PosOrder::create([
+                    'sale_id' => $sale->id,
+                    'cash_register_session_id' => $cashRegisterSession->id,
+                    'customer_id' => $customerId,
+                    'status' => PosOrder::STATUS_OPEN,
+                    'cashier_id' => $cashier->id,
+                    'customer_name' => $customerName,
+                    'total_base_amount' => $sale->total_base_amount,
+                    'total_local_amount' => $sale->total_local_amount,
+                    'opened_at' => now(),
                 ]);
 
-                if ($status === PosPayment::STATUS_CAPTURED) {
-                    $paidBase += $resolved['amount_base'];
-                    $paidLocal += $resolved['amount_local'] ?? 0.0;
-                    $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier);
+                $paidBase = 0.0;
+                $paidLocal = 0.0;
+
+                foreach ($payments as $index => $payment) {
+                    $resolved = PerformanceProbe::measure(
+                        'POS resolver pago',
+                        fn (): array => $this->resolvePayment($payment),
+                        150,
+                        ['payment_index' => $index, 'currency' => strtoupper($payment['currency'])]
+                    );
+                    $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
+                    $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
+
+                    $posPayment = PosPayment::create([
+                        'pos_order_id' => $order->id,
+                        'payment_method_id' => $paymentMethod?->id,
+                        'method' => $payment['method'],
+                        'currency' => strtoupper($payment['currency']),
+                        'amount' => $payment['amount'],
+                        'amount_base' => $resolved['amount_base'],
+                        'amount_local' => $resolved['amount_local'],
+                        'exchange_rate_type_id' => $resolved['exchange_rate_type_id'],
+                        'exchange_rate_type_code' => $resolved['exchange_rate_type_code'],
+                        'exchange_rate' => $resolved['exchange_rate'],
+                        'status' => $status,
+                        'reference' => $payment['reference'] ?? null,
+                        'external_provider' => $payment['external_provider'] ?? null,
+                        'metadata' => $payment['metadata'] ?? null,
+                    ]);
+
+                    if ($status === PosPayment::STATUS_CAPTURED) {
+                        $paidBase += $resolved['amount_base'];
+                        $paidLocal += $resolved['amount_local'] ?? 0.0;
+                        PerformanceProbe::measure(
+                            'POS registrar pago en caja',
+                            fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
+                            300,
+                            ['payment_id' => $posPayment->id]
+                        );
+                    }
                 }
-            }
 
-            $order->update([
-                'paid_base_amount' => round($paidBase, 4),
-                'paid_local_amount' => round($paidLocal, 4),
-            ]);
-
-            if ($this->coversTotal($paidBase, (float) $sale->total_base_amount)) {
-                $sale = $this->sales->confirm($sale, $cashier);
-                $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier);
                 $order->update([
-                    'status' => PosOrder::STATUS_PAID,
-                    'paid_at' => now(),
-                    'closed_at' => now(),
+                    'paid_base_amount' => round($paidBase, 4),
+                    'paid_local_amount' => round($paidLocal, 4),
                 ]);
-            } else {
-                $this->reserveOrderInventory($order, $cashier);
-            }
 
-            return $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']);
-        });
+                if ($this->coversTotal($paidBase, (float) $sale->total_base_amount)) {
+                    $sale = PerformanceProbe::measure(
+                        'POS confirmar venta',
+                        fn (): Sale => $this->sales->confirm($sale, $cashier),
+                        600,
+                        ['sale_id' => $sale->id, 'items' => count($items)]
+                    );
+                    PerformanceProbe::measure(
+                        'POS sincronizar cuentas por cobrar',
+                        fn () => $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier),
+                        400,
+                        ['order_id' => $order->id]
+                    );
+                    $order->update([
+                        'status' => PosOrder::STATUS_PAID,
+                        'paid_at' => now(),
+                        'closed_at' => now(),
+                    ]);
+                } else {
+                    PerformanceProbe::measure(
+                        'POS reservar inventario pendiente',
+                        fn () => $this->reserveOrderInventory($order, $cashier),
+                        500,
+                        ['order_id' => $order->id, 'items' => count($items)]
+                    );
+                }
+
+                return PerformanceProbe::measure(
+                    'POS cargar respuesta checkout',
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    300,
+                    ['order_id' => $order->id]
+                );
+            });
+        }, 1200, ['items' => count($items), 'payments' => count($payments)]);
     }
 
     public function addPayments(PosOrder $order, User $cashier, array $payments): PosOrder
     {
-        return DB::transaction(function () use ($order, $cashier, $payments): PosOrder {
-            $order = PosOrder::query()
-                ->with(['sale.items', 'cashRegisterSession', 'payments'])
-                ->lockForUpdate()
-                ->findOrFail($order->id);
+        return PerformanceProbe::measure('POS completar orden pendiente total', function () use ($order, $cashier, $payments): PosOrder {
+            return DB::transaction(function () use ($order, $cashier, $payments): PosOrder {
+                $order = PosOrder::query()
+                    ->with(['sale.items', 'cashRegisterSession', 'payments'])
+                    ->lockForUpdate()
+                    ->findOrFail($order->id);
 
-            if ($order->status !== PosOrder::STATUS_OPEN) {
-                throw ValidationException::withMessages([
-                    'order' => 'Solo se pueden completar cobros de ordenes POS pendientes.',
-                ]);
-            }
-
-            if (! $order->sale || $order->sale->status !== Sale::STATUS_DRAFT) {
-                throw ValidationException::withMessages([
-                    'order' => 'La venta asociada ya no esta disponible para completar cobro.',
-                ]);
-            }
-
-            $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
-            $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
-
-            $resolvedPaymentMethods = $this->validatePaymentMethods($this->itemsForExistingOrder($order), $payments);
-
-            foreach ($payments as $index => $payment) {
-                $resolved = $this->resolvePayment($payment);
-                $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
-                $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
-
-                $posPayment = PosPayment::create([
-                    'pos_order_id' => $order->id,
-                    'payment_method_id' => $paymentMethod?->id,
-                    'method' => $payment['method'],
-                    'currency' => strtoupper($payment['currency']),
-                    'amount' => $payment['amount'],
-                    'amount_base' => $resolved['amount_base'],
-                    'amount_local' => $resolved['amount_local'],
-                    'exchange_rate_type_id' => $resolved['exchange_rate_type_id'],
-                    'exchange_rate_type_code' => $resolved['exchange_rate_type_code'],
-                    'exchange_rate' => $resolved['exchange_rate'],
-                    'status' => $status,
-                    'reference' => $payment['reference'] ?? null,
-                    'external_provider' => $payment['external_provider'] ?? null,
-                    'metadata' => $payment['metadata'] ?? null,
-                ]);
-
-                if ($status === PosPayment::STATUS_CAPTURED) {
-                    $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier);
+                if ($order->status !== PosOrder::STATUS_OPEN) {
+                    throw ValidationException::withMessages([
+                        'order' => 'Solo se pueden completar cobros de ordenes POS pendientes.',
+                    ]);
                 }
-            }
 
-            $order->refresh()->load('payments');
-            $paidBase = (float) $order->payments
-                ->where('status', PosPayment::STATUS_CAPTURED)
-                ->sum('amount_base');
-            $paidLocal = (float) $order->payments
-                ->where('status', PosPayment::STATUS_CAPTURED)
-                ->sum(fn (PosPayment $payment) => (float) ($payment->amount_local ?? 0));
+                if (! $order->sale || $order->sale->status !== Sale::STATUS_DRAFT) {
+                    throw ValidationException::withMessages([
+                        'order' => 'La venta asociada ya no esta disponible para completar cobro.',
+                    ]);
+                }
 
-            $order->update([
-                'paid_base_amount' => round($paidBase, 4),
-                'paid_local_amount' => round($paidLocal, 4),
-            ]);
+                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
+                $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
 
-            if ($this->coversTotal($paidBase, (float) $order->total_base_amount)) {
-                $this->releaseOrderReservation($order, $cashier);
-                $sale = $this->sales->confirm($order->sale, $cashier);
-                $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier);
+                $resolvedPaymentMethods = PerformanceProbe::measure(
+                    'POS pendiente validar metodos de pago',
+                    fn (): array => $this->validatePaymentMethods($this->itemsForExistingOrder($order), $payments),
+                    200,
+                    ['order_id' => $order->id, 'payments' => count($payments)]
+                );
+
+                foreach ($payments as $index => $payment) {
+                    $resolved = PerformanceProbe::measure(
+                        'POS pendiente resolver pago',
+                        fn (): array => $this->resolvePayment($payment),
+                        150,
+                        ['order_id' => $order->id, 'payment_index' => $index]
+                    );
+                    $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
+                    $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
+
+                    $posPayment = PosPayment::create([
+                        'pos_order_id' => $order->id,
+                        'payment_method_id' => $paymentMethod?->id,
+                        'method' => $payment['method'],
+                        'currency' => strtoupper($payment['currency']),
+                        'amount' => $payment['amount'],
+                        'amount_base' => $resolved['amount_base'],
+                        'amount_local' => $resolved['amount_local'],
+                        'exchange_rate_type_id' => $resolved['exchange_rate_type_id'],
+                        'exchange_rate_type_code' => $resolved['exchange_rate_type_code'],
+                        'exchange_rate' => $resolved['exchange_rate'],
+                        'status' => $status,
+                        'reference' => $payment['reference'] ?? null,
+                        'external_provider' => $payment['external_provider'] ?? null,
+                        'metadata' => $payment['metadata'] ?? null,
+                    ]);
+
+                    if ($status === PosPayment::STATUS_CAPTURED) {
+                        PerformanceProbe::measure(
+                            'POS pendiente registrar pago en caja',
+                            fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
+                            300,
+                            ['order_id' => $order->id, 'payment_id' => $posPayment->id]
+                        );
+                    }
+                }
+
+                $order->refresh()->load('payments');
+                $paidBase = (float) $order->payments
+                    ->where('status', PosPayment::STATUS_CAPTURED)
+                    ->sum('amount_base');
+                $paidLocal = (float) $order->payments
+                    ->where('status', PosPayment::STATUS_CAPTURED)
+                    ->sum(fn (PosPayment $payment) => (float) ($payment->amount_local ?? 0));
+
                 $order->update([
-                    'status' => PosOrder::STATUS_PAID,
-                    'paid_at' => now(),
-                    'closed_at' => now(),
+                    'paid_base_amount' => round($paidBase, 4),
+                    'paid_local_amount' => round($paidLocal, 4),
                 ]);
-                $order->setRelation('sale', $sale);
-            }
 
-            return $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']);
-        });
+                if ($this->coversTotal($paidBase, (float) $order->total_base_amount)) {
+                    PerformanceProbe::measure(
+                        'POS pendiente liberar reserva',
+                        fn () => $this->releaseOrderReservation($order, $cashier),
+                        400,
+                        ['order_id' => $order->id]
+                    );
+                    $sale = PerformanceProbe::measure(
+                        'POS pendiente confirmar venta',
+                        fn (): Sale => $this->sales->confirm($order->sale, $cashier),
+                        600,
+                        ['order_id' => $order->id, 'sale_id' => $order->sale_id]
+                    );
+                    PerformanceProbe::measure(
+                        'POS pendiente sincronizar cuentas por cobrar',
+                        fn () => $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier),
+                        400,
+                        ['order_id' => $order->id]
+                    );
+                    $order->update([
+                        'status' => PosOrder::STATUS_PAID,
+                        'paid_at' => now(),
+                        'closed_at' => now(),
+                    ]);
+                    $order->setRelation('sale', $sale);
+                }
+
+                return PerformanceProbe::measure(
+                    'POS pendiente cargar respuesta',
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    300,
+                    ['order_id' => $order->id]
+                );
+            });
+        }, 1200, ['order_id' => $order->id, 'payments' => count($payments)]);
     }
 
     private function assertCashRegisterCanSell(CashRegisterSession $session, User $cashier): void

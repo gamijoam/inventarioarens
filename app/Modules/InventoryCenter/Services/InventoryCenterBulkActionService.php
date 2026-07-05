@@ -6,6 +6,7 @@ use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
+use App\Support\Performance\PerformanceProbe;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -17,157 +18,169 @@ class InventoryCenterBulkActionService
         $action = $data['action'];
         $payload = $data['payload'] ?? [];
 
-        return DB::transaction(function () use ($productIds, $action, $payload, $userId): array {
-            $products = Product::query()
-                ->whereIn('id', $productIds)
-                ->orderBy('name')
-                ->lockForUpdate()
-                ->get();
+        return PerformanceProbe::measure('InventoryCenter accion masiva total', function () use ($productIds, $action, $payload, $userId): array {
+            return DB::transaction(function () use ($productIds, $action, $payload, $userId): array {
+                $products = PerformanceProbe::measure(
+                    'InventoryCenter accion masiva cargar productos',
+                    fn () => Product::query()
+                        ->whereIn('id', $productIds)
+                        ->orderBy('name')
+                        ->lockForUpdate()
+                        ->get(),
+                    300,
+                    ['requested_count' => count($productIds), 'action' => $action]
+                );
 
-            $updated = [];
-            $skipped = [];
+                $updated = [];
+                $skipped = [];
 
-            foreach ($products as $product) {
-                if (in_array($action, [
-                    InventoryCenterBulkActionRequest::ACTION_FILL_MISSING_PRICE_LIST,
-                    InventoryCenterBulkActionRequest::ACTION_UPDATE_PRICE_LIST,
-                ], true)) {
-                    $result = $this->applyPriceListAction(
-                        $product,
-                        $payload,
-                        $action === InventoryCenterBulkActionRequest::ACTION_UPDATE_PRICE_LIST
-                    );
-                    if (! $result['updated']) {
-                        $skipped[] = [
+                foreach ($products as $product) {
+                    if (in_array($action, [
+                        InventoryCenterBulkActionRequest::ACTION_FILL_MISSING_PRICE_LIST,
+                        InventoryCenterBulkActionRequest::ACTION_UPDATE_PRICE_LIST,
+                    ], true)) {
+                        $result = $this->applyPriceListAction(
+                            $product,
+                            $payload,
+                            $action === InventoryCenterBulkActionRequest::ACTION_UPDATE_PRICE_LIST
+                        );
+                        if (! $result['updated']) {
+                            $skipped[] = [
+                                'id' => $product->id,
+                                'name' => $product->name,
+                                'reason' => $result['reason'],
+                            ];
+
+                            continue;
+                        }
+
+                        $this->recordAudit(
+                            $product,
+                            ProductAudit::ACTION_UPDATED,
+                            ['product_price' => $result['before']],
+                            ['product_price' => $result['price']],
+                            $userId
+                        );
+
+                        $updated[] = [
                             'id' => $product->id,
                             'name' => $product->name,
-                            'reason' => $result['reason'],
+                            'sku' => $product->sku,
                         ];
+
                         continue;
                     }
 
-                    $this->recordAudit(
-                        $product,
-                        ProductAudit::ACTION_UPDATED,
-                        ['product_price' => $result['before']],
-                        ['product_price' => $result['price']],
-                        $userId
-                    );
+                    $changes = $this->changesFor($product, $action, $payload);
+
+                    if ($changes === []) {
+                        $skipped[] = [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'reason' => 'Sin cambios necesarios.',
+                        ];
+
+                        continue;
+                    }
+
+                    $before = $product->only(array_keys($changes));
+                    $product->update($changes);
+                    $after = $product->refresh()->only(array_keys($changes));
+
+                    $this->recordAudit($product, $this->auditAction($action), $before, $after, $userId);
 
                     $updated[] = [
                         'id' => $product->id,
                         'name' => $product->name,
                         'sku' => $product->sku,
                     ];
-                    continue;
                 }
 
-                $changes = $this->changesFor($product, $action, $payload);
-
-                if ($changes === []) {
-                    $skipped[] = [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'reason' => 'Sin cambios necesarios.',
-                    ];
-                    continue;
-                }
-
-                $before = $product->only(array_keys($changes));
-                $product->update($changes);
-                $after = $product->refresh()->only(array_keys($changes));
-
-                $this->recordAudit($product, $this->auditAction($action), $before, $after, $userId);
-
-                $updated[] = [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'sku' => $product->sku,
+                return [
+                    'action' => $action,
+                    'requested_count' => count($productIds),
+                    'updated_count' => count($updated),
+                    'skipped_count' => count($skipped),
+                    'updated' => $updated,
+                    'skipped' => $skipped,
                 ];
-            }
-
-            return [
-                'action' => $action,
-                'requested_count' => count($productIds),
-                'updated_count' => count($updated),
-                'skipped_count' => count($skipped),
-                'updated' => $updated,
-                'skipped' => $skipped,
-            ];
-        });
+            });
+        }, 900, ['requested_count' => count($productIds), 'action' => $action]);
     }
 
     private function applyPriceListAction(Product $product, array $payload, bool $overwrite): array
     {
-        $priceListId = (int) $payload['price_list_id'];
-        $productPrice = ProductPrice::query()
-            ->where('product_id', $product->id)
-            ->where('price_list_id', $priceListId)
-            ->first();
+        return PerformanceProbe::measure('InventoryCenter accion masiva precio lista producto', function () use ($product, $payload, $overwrite): array {
+            $priceListId = (int) $payload['price_list_id'];
+            $productPrice = ProductPrice::query()
+                ->where('product_id', $product->id)
+                ->where('price_list_id', $priceListId)
+                ->first();
 
-        if ($productPrice && ! $overwrite) {
-            return [
-                'updated' => false,
-                'reason' => 'El producto ya tiene precio para esa lista.',
-            ];
-        }
-
-        $price = $this->calculatePrice($product, $payload);
-        if ($price === null) {
-            return [
-                'updated' => false,
-                'reason' => 'El producto no tiene precio base para calcular el precio.',
-            ];
-        }
-
-        $attributes = [
-            'price' => $price,
-            'currency' => $payload['currency'],
-            'exchange_rate_type_id' => $payload['sale_exchange_rate_type_id'] ?? $product->sale_exchange_rate_type_id,
-            'is_active' => true,
-        ];
-        $before = $productPrice?->only(['price', 'currency', 'exchange_rate_type_id', 'is_active']);
-
-        if ($productPrice) {
-            $normalizedBefore = [
-                'price' => round((float) $productPrice->price, 4),
-                'currency' => $productPrice->currency,
-                'exchange_rate_type_id' => $productPrice->exchange_rate_type_id,
-                'is_active' => (bool) $productPrice->is_active,
-            ];
-            $normalizedAfter = [
-                'price' => $attributes['price'],
-                'currency' => $attributes['currency'],
-                'exchange_rate_type_id' => $attributes['exchange_rate_type_id'],
-                'is_active' => $attributes['is_active'],
-            ];
-
-            if ($normalizedBefore === $normalizedAfter) {
+            if ($productPrice && ! $overwrite) {
                 return [
                     'updated' => false,
-                    'reason' => 'Sin cambios necesarios.',
+                    'reason' => 'El producto ya tiene precio para esa lista.',
                 ];
             }
 
-            $productPrice->update($attributes);
-        } else {
-            ProductPrice::create([
-                'product_id' => $product->id,
+            $price = $this->calculatePrice($product, $payload);
+            if ($price === null) {
+                return [
+                    'updated' => false,
+                    'reason' => 'El producto no tiene precio base para calcular el precio.',
+                ];
+            }
+
+            $attributes = [
+                'price' => $price,
+                'currency' => $payload['currency'],
+                'exchange_rate_type_id' => $payload['sale_exchange_rate_type_id'] ?? $product->sale_exchange_rate_type_id,
+                'is_active' => true,
+            ];
+            $before = $productPrice?->only(['price', 'currency', 'exchange_rate_type_id', 'is_active']);
+
+            if ($productPrice) {
+                $normalizedBefore = [
+                    'price' => round((float) $productPrice->price, 4),
+                    'currency' => $productPrice->currency,
+                    'exchange_rate_type_id' => $productPrice->exchange_rate_type_id,
+                    'is_active' => (bool) $productPrice->is_active,
+                ];
+                $normalizedAfter = [
+                    'price' => $attributes['price'],
+                    'currency' => $attributes['currency'],
+                    'exchange_rate_type_id' => $attributes['exchange_rate_type_id'],
+                    'is_active' => $attributes['is_active'],
+                ];
+
+                if ($normalizedBefore === $normalizedAfter) {
+                    return [
+                        'updated' => false,
+                        'reason' => 'Sin cambios necesarios.',
+                    ];
+                }
+
+                $productPrice->update($attributes);
+            } else {
+                ProductPrice::create([
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceListId,
+                    ...$attributes,
+                ]);
+            }
+
+            $after = [
                 'price_list_id' => $priceListId,
                 ...$attributes,
-            ]);
-        }
+            ];
 
-        $after = [
-            'price_list_id' => $priceListId,
-            ...$attributes,
-        ];
-
-        return [
-            'updated' => true,
-            'before' => $before,
-            'price' => $after,
-        ];
+            return [
+                'updated' => true,
+                'before' => $before,
+                'price' => $after,
+            ];
+        }, 150, ['product_id' => $product->id, 'price_list_id' => $payload['price_list_id'] ?? null]);
     }
 
     private function calculatePrice(Product $product, array $payload): ?float

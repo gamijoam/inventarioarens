@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-07-05 - Métricas internas de rendimiento backend para POS e Inventario
+
+### Diagnóstico
+
+- Las mediciones WPF mostraban que algunas APIs tardaban entre 2 y 5 segundos, pero no permitían saber qué paso interno causaba la espera.
+- POS necesitaba separar validación de pagos, venta, caja, stock, cuentas por cobrar y carga de respuesta.
+- Centro de Inventario necesitaba separar resumen, productos, métricas, alertas, detalle, seriales, movimientos, auditorías y acciones masivas.
+
+### Implementado
+
+- Se agregó `App\Support\Performance\PerformanceProbe` como medidor interno reutilizable.
+- Las métricas backend se escriben en el log de Laravel con prefijo `PERF OK BACKEND` o `PERF LENTO BACKEND`.
+- Se instrumentó el checkout POS completo y el flujo de completar órdenes pendientes.
+- Se instrumentó el Centro de Inventario en resumen, exportación, detalle de producto, páginas de seriales, movimientos, auditorías, stock por almacén y acciones masivas.
+- Se creó la documentación `docs/BACKEND_RENDIMIENTO_METRICAS_2026-07-05.md`.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php -l` sobre los archivos PHP modificados.
+- Resultado: sin errores de sintaxis.
+- Se ejecutó `docker compose run --rm app_test ./vendor/bin/pint` sobre los archivos PHP modificados.
+- Resultado: formato aplicado correctamente.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`.
+- Resultado: 36 pruebas pasadas, 265 aserciones.
+
 ## 2026-07-05 - Mejora de medición y caja en cobro POS
 
 ### Diagnóstico

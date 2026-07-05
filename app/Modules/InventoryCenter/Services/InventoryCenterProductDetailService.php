@@ -7,6 +7,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use App\Support\Performance\PerformanceProbe;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,175 +15,212 @@ class InventoryCenterProductDetailService
 {
     public function detail(Product $product): array
     {
-        $product->load(['saleExchangeRateType', 'warrantyPolicy']);
+        return PerformanceProbe::measure('InventoryCenter detalle producto total', function () use ($product): array {
+            $product->load(['saleExchangeRateType', 'warrantyPolicy']);
 
-        return [
-            'product' => $this->product($product),
-            'stock' => [
-                'totals' => $this->stockTotals($product),
-                'by_warehouse' => $this->stockByWarehouse($product),
-            ],
-            'serials' => $this->serials($product),
-            'recent_movements' => $this->recentMovements($product),
-            'recent_audits' => $this->recentAudits($product),
-        ];
+            return [
+                'product' => $this->product($product),
+                'stock' => [
+                    'totals' => PerformanceProbe::measure('InventoryCenter detalle stock total', fn (): array => $this->stockTotals($product), 200, ['product_id' => $product->id]),
+                    'by_warehouse' => PerformanceProbe::measure('InventoryCenter detalle stock almacenes', fn (): array => $this->stockByWarehouse($product), 250, ['product_id' => $product->id]),
+                ],
+                'serials' => PerformanceProbe::measure('InventoryCenter detalle seriales recientes', fn (): array => $this->serials($product), 300, ['product_id' => $product->id]),
+                'recent_movements' => PerformanceProbe::measure('InventoryCenter detalle movimientos recientes', fn (): array => $this->recentMovements($product), 250, ['product_id' => $product->id]),
+                'recent_audits' => PerformanceProbe::measure('InventoryCenter detalle auditorias recientes', fn (): array => $this->recentAudits($product), 250, ['product_id' => $product->id]),
+            ];
+        }, 900, ['product_id' => $product->id]);
     }
 
     public function serialsPage(Product $product, array $filters): array
     {
-        if (! $product->requiresSerializedTracking()) {
+        $startedAt = microtime(true);
+
+        try {
+            if (! $product->requiresSerializedTracking()) {
+                return [
+                    'filters' => $this->pageFilters($filters),
+                    'data' => [],
+                    'pagination' => $this->pagination(1, $this->limit($filters), 0),
+                ];
+            }
+
+            $limit = $this->limit($filters);
+            $page = $this->page($filters);
+            $query = ProductUnit::query()
+                ->where('product_id', $product->id)
+                ->with('warehouse');
+
+            if ($search = $filters['search'] ?? null) {
+                $query->where('serial_number', 'like', "%{$search}%");
+            }
+
+            if (($filters['status'] ?? null) && $filters['status'] !== 'all') {
+                $query->where('status', $filters['status']);
+            }
+
+            if ($warehouseId = $filters['warehouse_id'] ?? null) {
+                $query->where('warehouse_id', $warehouseId);
+            }
+
+            $total = (clone $query)->count();
+            $lastPage = max((int) ceil($total / $limit), 1);
+            $page = min($page, $lastPage);
+
             return [
-                'filters' => $this->pageFilters($filters),
-                'data' => [],
-                'pagination' => $this->pagination(1, $this->limit($filters), 0),
+                'filters' => $this->pageFilters($filters, [
+                    'status' => $filters['status'] ?? 'all',
+                    'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
+                ], $limit, $page),
+                'data' => $query
+                    ->orderBy('status')
+                    ->orderBy('serial_number')
+                    ->forPage($page, $limit)
+                    ->get()
+                    ->map(fn (ProductUnit $unit): array => $this->serialUnit($unit))
+                    ->all(),
+                'pagination' => $this->pagination($page, $limit, $total),
             ];
-        }
-
-        $limit = $this->limit($filters);
-        $page = $this->page($filters);
-        $query = ProductUnit::query()
-            ->where('product_id', $product->id)
-            ->with('warehouse');
-
-        if ($search = $filters['search'] ?? null) {
-            $query->where('serial_number', 'like', "%{$search}%");
-        }
-
-        if (($filters['status'] ?? null) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
-        }
-
-        if ($warehouseId = $filters['warehouse_id'] ?? null) {
-            $query->where('warehouse_id', $warehouseId);
-        }
-
-        $total = (clone $query)->count();
-        $lastPage = max((int) ceil($total / $limit), 1);
-        $page = min($page, $lastPage);
-
-        return [
-            'filters' => $this->pageFilters($filters, [
+        } finally {
+            PerformanceProbe::log('InventoryCenter seriales pagina', $startedAt, 500, [
+                'product_id' => $product->id,
+                'search' => $filters['search'] ?? null,
                 'status' => $filters['status'] ?? 'all',
-                'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
-            ], $limit, $page),
-            'data' => $query
-                ->orderBy('status')
-                ->orderBy('serial_number')
-                ->forPage($page, $limit)
-                ->get()
-                ->map(fn (ProductUnit $unit): array => $this->serialUnit($unit))
-                ->all(),
-            'pagination' => $this->pagination($page, $limit, $total),
-        ];
+            ]);
+        }
     }
 
     public function movementsPage(Product $product, array $filters): array
     {
-        $limit = $this->limit($filters);
-        $page = $this->page($filters);
-        $query = StockMovement::query()
-            ->where('product_id', $product->id)
-            ->with(['warehouse', 'creator']);
+        $startedAt = microtime(true);
 
-        if ($search = $filters['search'] ?? null) {
-            $query->where(function (Builder $query) use ($search): void {
-                $query
-                    ->where('reason', 'like', "%{$search}%")
-                    ->orWhere('reference_type', 'like', "%{$search}%");
-            });
-        }
+        try {
+            $limit = $this->limit($filters);
+            $page = $this->page($filters);
+            $query = StockMovement::query()
+                ->where('product_id', $product->id)
+                ->with(['warehouse', 'creator']);
 
-        if (($filters['type'] ?? null) && $filters['type'] !== 'all') {
-            $query->where('type', $filters['type']);
-        }
+            if ($search = $filters['search'] ?? null) {
+                $query->where(function (Builder $query) use ($search): void {
+                    $query
+                        ->where('reason', 'like', "%{$search}%")
+                        ->orWhere('reference_type', 'like', "%{$search}%");
+                });
+            }
 
-        if ($warehouseId = $filters['warehouse_id'] ?? null) {
-            $query->where('warehouse_id', $warehouseId);
-        }
+            if (($filters['type'] ?? null) && $filters['type'] !== 'all') {
+                $query->where('type', $filters['type']);
+            }
 
-        if ($dateFrom = $filters['date_from'] ?? null) {
-            $query->whereDate('created_at', '>=', $dateFrom);
-        }
+            if ($warehouseId = $filters['warehouse_id'] ?? null) {
+                $query->where('warehouse_id', $warehouseId);
+            }
 
-        if ($dateTo = $filters['date_to'] ?? null) {
-            $query->whereDate('created_at', '<=', $dateTo);
-        }
+            if ($dateFrom = $filters['date_from'] ?? null) {
+                $query->whereDate('created_at', '>=', $dateFrom);
+            }
 
-        $total = (clone $query)->count();
-        $lastPage = max((int) ceil($total / $limit), 1);
-        $page = min($page, $lastPage);
+            if ($dateTo = $filters['date_to'] ?? null) {
+                $query->whereDate('created_at', '<=', $dateTo);
+            }
 
-        return [
-            'filters' => $this->pageFilters($filters, [
+            $total = (clone $query)->count();
+            $lastPage = max((int) ceil($total / $limit), 1);
+            $page = min($page, $lastPage);
+
+            return [
+                'filters' => $this->pageFilters($filters, [
+                    'type' => $filters['type'] ?? 'all',
+                    'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
+                    'date_from' => $filters['date_from'] ?? null,
+                    'date_to' => $filters['date_to'] ?? null,
+                ], $limit, $page),
+                'data' => $query
+                    ->latest('id')
+                    ->forPage($page, $limit)
+                    ->get()
+                    ->map(fn (StockMovement $movement): array => $this->movement($movement))
+                    ->all(),
+                'pagination' => $this->pagination($page, $limit, $total),
+            ];
+        } finally {
+            PerformanceProbe::log('InventoryCenter movimientos pagina', $startedAt, 500, [
+                'product_id' => $product->id,
+                'search' => $filters['search'] ?? null,
                 'type' => $filters['type'] ?? 'all',
-                'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
-                'date_from' => $filters['date_from'] ?? null,
-                'date_to' => $filters['date_to'] ?? null,
-            ], $limit, $page),
-            'data' => $query
-                ->latest('id')
-                ->forPage($page, $limit)
-                ->get()
-                ->map(fn (StockMovement $movement): array => $this->movement($movement))
-                ->all(),
-            'pagination' => $this->pagination($page, $limit, $total),
-        ];
+            ]);
+        }
     }
 
     public function stockByWarehousePage(Product $product): array
     {
-        return [
-            'data' => $this->stockByWarehouse($product),
-        ];
+        return PerformanceProbe::measure(
+            'InventoryCenter stock por almacen pagina',
+            fn (): array => [
+                'data' => $this->stockByWarehouse($product),
+            ],
+            350,
+            ['product_id' => $product->id]
+        );
     }
 
     public function auditsPage(Product $product, array $filters): array
     {
-        $limit = $this->limit($filters);
-        $page = $this->page($filters);
+        $startedAt = microtime(true);
 
-        if (! Schema::hasTable('product_audits')) {
+        try {
+            $limit = $this->limit($filters);
+            $page = $this->page($filters);
+
+            if (! Schema::hasTable('product_audits')) {
+                return [
+                    'filters' => $this->pageFilters($filters, [
+                        'action' => $filters['action'] ?? 'all',
+                    ], $limit, 1),
+                    'data' => [],
+                    'pagination' => $this->pagination(1, $limit, 0),
+                ];
+            }
+
+            $query = ProductAudit::query()
+                ->where('product_id', $product->id)
+                ->with('creator');
+
+            if (($filters['action'] ?? null) && $filters['action'] !== 'all') {
+                $query->where('action', $filters['action']);
+            }
+
+            if ($search = $filters['search'] ?? null) {
+                $query->whereHas('creator', function (Builder $query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            $total = (clone $query)->count();
+            $lastPage = max((int) ceil($total / $limit), 1);
+            $page = min($page, $lastPage);
+
             return [
                 'filters' => $this->pageFilters($filters, [
                     'action' => $filters['action'] ?? 'all',
-                ], $limit, 1),
-                'data' => [],
-                'pagination' => $this->pagination(1, $limit, 0),
+                ], $limit, $page),
+                'data' => $query
+                    ->latest('id')
+                    ->forPage($page, $limit)
+                    ->get()
+                    ->map(fn (ProductAudit $audit): array => $this->audit($audit))
+                    ->all(),
+                'pagination' => $this->pagination($page, $limit, $total),
             ];
-        }
-
-        $query = ProductAudit::query()
-            ->where('product_id', $product->id)
-            ->with('creator');
-
-        if (($filters['action'] ?? null) && $filters['action'] !== 'all') {
-            $query->where('action', $filters['action']);
-        }
-
-        if ($search = $filters['search'] ?? null) {
-            $query->whereHas('creator', function (Builder $query) use ($search): void {
-                $query
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        $total = (clone $query)->count();
-        $lastPage = max((int) ceil($total / $limit), 1);
-        $page = min($page, $lastPage);
-
-        return [
-            'filters' => $this->pageFilters($filters, [
+        } finally {
+            PerformanceProbe::log('InventoryCenter auditorias pagina', $startedAt, 500, [
+                'product_id' => $product->id,
+                'search' => $filters['search'] ?? null,
                 'action' => $filters['action'] ?? 'all',
-            ], $limit, $page),
-            'data' => $query
-                ->latest('id')
-                ->forPage($page, $limit)
-                ->get()
-                ->map(fn (ProductAudit $audit): array => $this->audit($audit))
-                ->all(),
-            'pagination' => $this->pagination($page, $limit, $total),
-        ];
+            ]);
+        }
     }
 
     private function product(Product $product): array
