@@ -300,9 +300,9 @@ public partial class PosPaymentWindow : Window
             MessageBox.Show(
                 this,
                 BuildSuccessMessage(order),
-                order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase) ? "Venta confirmada" : "Orden pendiente",
+                IsPaidOrder(order) ? "Venta confirmada" : "Orden pendiente",
                 MessageBoxButton.OK,
-                order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                IsPaidOrder(order) ? MessageBoxImage.Information : MessageBoxImage.Warning);
             DialogResult = true;
             Close();
         }
@@ -426,12 +426,19 @@ public partial class PosPaymentWindow : Window
 
     private static string BuildSuccessMessage(PosOrderResult order)
     {
-        if (order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase))
+        if (IsPaidOrder(order))
         {
             return $"Venta confirmada correctamente.\nOrden POS #{order.Id}";
         }
 
         return $"Orden POS #{order.Id} registrada como pendiente.\nCompleta el cobro para cerrar la venta.";
+    }
+
+    private static bool IsPaidOrder(PosOrderResult order)
+    {
+        return order.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
+            || order.Status.Equals("closed", StringComparison.OrdinalIgnoreCase)
+            || order.PaymentStatus?.Equals("paid", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private decimal CapturedBaseUsd()

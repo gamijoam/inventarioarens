@@ -74,6 +74,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La ventana muestra vuelto estimado cuando el pago capturado supera el total.
 - El faltante se calcula en USD cuando la app conoce la tasa usada en la cotización.
 - Al confirmar, Laravel vuelve a validar caja, stock, seriales, lista de precio, método de pago, moneda y referencia.
+- Laravel devuelve `paid` cuando la orden queda pagada; WPF lo interpreta como venta confirmada y no como pendiente.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
 
 ## Cliente en POS

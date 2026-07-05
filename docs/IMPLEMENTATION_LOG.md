@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-07-04 - Corrección de estado pagado en cobro POS WPF
+
+### Diagnóstico
+
+- Laravel marca una orden POS completamente pagada con estado `paid`.
+- La ventana WPF de cobro estaba considerando venta confirmada solo cuando el estado era `closed`.
+- Como `closed` no es el estado real del modelo `PosOrder`, WPF mostraba una venta pagada como `Orden pendiente`.
+
+### Implementado
+
+- Se agregó una validación centralizada en WPF para tratar `paid`, `closed` y `payment_status = paid` como venta confirmada.
+- Se ajustó el título y el icono del mensaje final para que una orden `paid` muestre `Venta confirmada`.
+- Se compactó la ventana de cobro para que entre mejor en pantalla y la tabla de pagos sea más legible.
+- Se actualizó la documentación del módulo POS en español.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 11 pruebas pasaron, 75 assertions.
+
+### Notas de seguridad
+
+- El backend sigue siendo quien decide si una orden queda pagada o pendiente.
+- WPF solo corrige la interpretación visual del estado devuelto por Laravel.
+
 ## 2026-07-04 - Tasa correcta al cobrar POS en bolívares
 
 ### Diagnóstico

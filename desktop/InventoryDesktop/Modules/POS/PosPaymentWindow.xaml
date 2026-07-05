@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Cobrar venta"
-        Width="1120"
-        Height="760"
-        MinWidth="1040"
-        MinHeight="700"
+        Width="1000"
+        Height="720"
+        MinWidth="920"
+        MinHeight="680"
         WindowStartupLocation="CenterOwner"
         Background="#F6F8FC">
     <Grid Margin="22">
@@ -40,7 +40,7 @@
                                Margin="0,4,0,0" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="260">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="220">
                     <Grid>
                         <TextBlock Text="Total USD" FontWeight="Black" />
                         <TextBlock x:Name="TotalUsdText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="22" FontWeight="Black" Foreground="{StaticResource AccentStrongBrush}" />
@@ -55,7 +55,7 @@
 
         <Grid Grid.Row="1" Margin="0,18,0,18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="430" />
+                <ColumnDefinition Width="400" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -203,10 +203,10 @@
                               BorderBrush="#E1E7F3"
                               BorderThickness="1">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="METODO" Binding="{Binding MethodName}" Width="160" />
-                            <DataGridTextColumn Header="RECIBIDO" Binding="{Binding AmountLabel}" Width="145" />
-                            <DataGridTextColumn Header="EQUIV." Binding="{Binding EquivalentLabel}" Width="145" />
-                            <DataGridTextColumn Header="ESTADO" Binding="{Binding StatusLabel}" Width="170" />
+                            <DataGridTextColumn Header="METODO" Binding="{Binding MethodName}" Width="130" />
+                            <DataGridTextColumn Header="RECIBIDO" Binding="{Binding AmountLabel}" Width="120" />
+                            <DataGridTextColumn Header="EQUIV." Binding="{Binding EquivalentLabel}" Width="120" />
+                            <DataGridTextColumn Header="ESTADO" Binding="{Binding StatusLabel}" Width="145" />
                             <DataGridTextColumn Header="REFERENCIA" Binding="{Binding ReferenceLabel}" Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>
