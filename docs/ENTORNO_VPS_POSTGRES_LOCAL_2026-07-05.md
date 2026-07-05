@@ -42,6 +42,30 @@ Se crearon y validaron las bases iniciales:
 - `inventory_arens`
 - `inventory_arens_testing`
 
+## Migraciones aplicadas
+
+El 2026-07-05 se aplicaron las migraciones de Laravel sobre la base principal del VPS correcto usando tunel SSH hacia PostgreSQL local:
+
+- Base migrada: `inventory_arens`
+- Host PostgreSQL destino dentro del VPS: `127.0.0.1:5432`
+- Puerto local usado para el tunel: `15434`
+- Resultado validado: `66` tablas base en el esquema `public`
+
+Comprobacion ejecutada:
+
+```sql
+select count(*)
+from information_schema.tables
+where table_schema = 'public'
+  and table_type = 'BASE TABLE';
+```
+
+Resultado esperado:
+
+```text
+66
+```
+
 ## Conexion
 
 El servicio escucha solo localmente:
