@@ -1,0 +1,170 @@
+<Window x:Class="InventoryDesktop.Modules.POS.PosReceiptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Venta confirmada"
+        Width="900"
+        Height="680"
+        MinWidth="820"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        Background="#F6F8FC">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Padding="10,5" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8">
+                            <TextBlock Text="VENTA CONFIRMADA" Foreground="#058561" FontSize="11" FontWeight="Black" />
+                        </Border>
+                        <Border Padding="10,5" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Margin="8,0,0,0">
+                            <TextBlock x:Name="OrderBadgeText" Text="Orden POS" Foreground="#51617F" FontSize="11" FontWeight="Black" />
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Text="Recibo de venta" FontSize="30" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock x:Name="ReceiptContextText"
+                               Text="Venta cerrada correctamente."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" MinWidth="240" VerticalAlignment="Center">
+                    <Grid>
+                        <TextBlock Text="Total USD" FontWeight="Black" />
+                        <TextBlock x:Name="TotalUsdText" Text="USD 0.00" HorizontalAlignment="Right" FontSize="24" FontWeight="Black" Foreground="{StaticResource AccentStrongBrush}" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <TextBlock Text="Equivalente Bs" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
+                        <TextBlock x:Name="TotalVesText" Text="Bs 0.00" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" FontWeight="Black" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <TextBlock Text="Pagado" Foreground="#058561" FontWeight="Black" />
+                        <TextBlock x:Name="PaidText" Text="USD 0.00" HorizontalAlignment="Right" Foreground="#058561" FontWeight="Black" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <TextBlock Text="Vuelto" Foreground="#B45309" FontWeight="Black" />
+                        <TextBlock x:Name="ChangeText" Text="USD 0.00" HorizontalAlignment="Right" Foreground="#B45309" FontWeight="Black" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Productos vendidos" FontSize="20" FontWeight="Black" />
+                        <TextBlock Text="Resumen de las líneas confirmadas por el servidor."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <DataGrid x:Name="ItemsGrid"
+                              Grid.Row="1"
+                              Margin="0,14,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              RowHeight="42"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              BorderBrush="#E1E7F3"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="PRODUCTO" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="CANT." Binding="{Binding QuantityLabel}" Width="70" />
+                            <DataGridTextColumn Header="PRECIO" Binding="{Binding UnitPriceLabel}" Width="110" />
+                            <DataGridTextColumn Header="DESC." Binding="{Binding DiscountLabel}" Width="130" />
+                            <DataGridTextColumn Header="TOTAL" Binding="{Binding TotalLabel}" Width="110" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18" Margin="16,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Datos de la venta" FontSize="20" FontWeight="Black" />
+                        <TextBlock x:Name="CustomerText" Text="Cliente: Consumidor final" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <TextBlock x:Name="PriceListText" Text="Lista: Precio base" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        <TextBlock x:Name="CashRegisterText" Text="Caja: -" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" Margin="0,4,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1" BorderBrush="#E6ECF5" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,14,0,0">
+                        <TextBlock Text="Pagos recibidos" FontSize="18" FontWeight="Black" />
+                    </Border>
+
+                    <DataGrid x:Name="PaymentsGrid"
+                              Grid.Row="2"
+                              Margin="0,12,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              RowHeight="38"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              BorderBrush="#E1E7F3"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MÉTODO" Binding="{Binding MethodName}" Width="*" />
+                            <DataGridTextColumn Header="MONTO" Binding="{Binding AmountLabel}" Width="115" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Impresión, PDF y numeración fiscal quedan para la siguiente fase del recibo."
+                       Foreground="{StaticResource MutedBrush}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="1"
+                    Content="Cerrar"
+                    Width="150"
+                    Height="42"
+                    FontWeight="Black"
+                    Background="#0F766E"
+                    BorderBrush="#0F766E"
+                    Foreground="White"
+                    Click="Close_Click" />
+        </Grid>
+    </Grid>
+</Window>

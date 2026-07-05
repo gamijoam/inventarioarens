@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-07-05 - Recibo visual para ventas POS confirmadas
+
+### Diagnóstico
+
+- Al confirmar una venta pagada, el POS solo mostraba un mensaje simple.
+- El cajero necesitaba una pantalla final clara para verificar productos, pagos, cliente, caja y totales antes de continuar.
+
+### Implementado
+
+- Se agregó una ventana `Venta confirmada` para mostrar el recibo visual de la venta POS.
+- El recibo se abre solo cuando Laravel devuelve la orden como pagada.
+- El recibo muestra orden POS, cliente, lista de precio, caja, productos vendidos, pagos recibidos, total USD, equivalente Bs, pagado y vuelto.
+- Las órdenes pendientes siguen mostrando aviso de pendiente y no reciben recibo final.
+- Se creó un modelo de captura del recibo para conservar productos y pagos antes de que el checkout limpie el carrito.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Aplicación de migración de descuentos en base local
 
 ### Diagnóstico

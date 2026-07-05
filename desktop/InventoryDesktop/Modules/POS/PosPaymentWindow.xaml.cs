@@ -33,6 +33,8 @@ public partial class PosPaymentWindow : Window
 
     public bool WasConfirmed { get; private set; }
 
+    public PosReceiptSnapshot? Receipt { get; private set; }
+
     private void LoadHeader()
     {
         TotalUsdText.Text = viewModel.TotalUsdLabel;
@@ -285,6 +287,12 @@ public partial class PosPaymentWindow : Window
         try
         {
             IsEnabled = false;
+            List<PosReceiptItem> receiptItems = BuildReceiptItems();
+            List<PosReceiptPayment> receiptPayments = BuildReceiptPayments();
+            string totalUsdLabel = viewModel.TotalUsdLabel;
+            string totalVesLabel = viewModel.TotalVesLabel;
+            string paidLabel = PaidText.Text;
+            string changeLabel = ChangeText.Text;
             IReadOnlyList<PosCheckoutPaymentRequest> payload = payments
                 .Select(payment => new PosCheckoutPaymentRequest(
                     payment.PaymentMethodId,
@@ -298,12 +306,25 @@ public partial class PosPaymentWindow : Window
 
             PosOrderResult order = await viewModel.SubmitCheckoutAsync(payload);
             WasConfirmed = true;
-            MessageBox.Show(
-                this,
-                BuildSuccessMessage(order),
-                IsPaidOrder(order) ? "Venta confirmada" : "Orden pendiente",
-                MessageBoxButton.OK,
-                IsPaidOrder(order) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            if (IsPaidOrder(order))
+            {
+                Receipt = BuildReceipt(order, receiptItems, receiptPayments, totalUsdLabel, totalVesLabel, paidLabel, changeLabel);
+                PosReceiptWindow receiptWindow = new(Receipt)
+                {
+                    Owner = this,
+                };
+                receiptWindow.ShowDialog();
+            }
+            else
+            {
+                MessageBox.Show(
+                    this,
+                    BuildSuccessMessage(order),
+                    "Orden pendiente",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
             DialogResult = true;
             Close();
         }
@@ -433,6 +454,58 @@ public partial class PosPaymentWindow : Window
         }
 
         return $"Orden POS #{order.Id} registrada como pendiente.\nCompleta el cobro para cerrar la venta.";
+    }
+
+    private PosReceiptSnapshot BuildReceipt(
+        PosOrderResult order,
+        IReadOnlyList<PosReceiptItem> receiptItems,
+        IReadOnlyList<PosReceiptPayment> receiptPayments,
+        string totalUsdLabel,
+        string totalVesLabel,
+        string paidLabel,
+        string changeLabel)
+    {
+        string listLabel = viewModel.SelectedPriceList is null ? "Precio base" : viewModel.SelectedPriceList.Name;
+        string cashRegister = viewModel.SelectedCashRegisterSession?.DisplayLabel ?? "Sin caja";
+
+        return new PosReceiptSnapshot(
+            order,
+            viewModel.CustomerLabel,
+            listLabel,
+            cashRegister,
+            totalUsdLabel,
+            totalVesLabel,
+            paidLabel,
+            changeLabel,
+            receiptItems,
+            receiptPayments);
+    }
+
+    private List<PosReceiptItem> BuildReceiptItems()
+    {
+        return viewModel.CartItems
+            .Select(item => new PosReceiptItem(
+                item.Name,
+                item.Sku,
+                item.ControlLabel,
+                item.SerialLabel,
+                item.QuantityLabel,
+                item.UnitPriceLabel,
+                item.DiscountLabel,
+                item.TotalLabel))
+            .ToList();
+    }
+
+    private List<PosReceiptPayment> BuildReceiptPayments()
+    {
+        return payments
+            .Select(payment => new PosReceiptPayment(
+                payment.MethodName,
+                payment.AmountLabel,
+                payment.EquivalentLabel,
+                payment.StatusLabel,
+                payment.ReferenceLabel))
+            .ToList();
     }
 
     private static bool IsPaidOrder(PosOrderResult order)

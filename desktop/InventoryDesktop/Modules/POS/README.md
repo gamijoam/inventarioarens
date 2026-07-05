@@ -41,6 +41,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El botón `Cobrar (F12)` abre una ventana separada para no quitar espacio al carrito.
 - El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
 - Cada producto del carrito tiene acción `Descuento` para abrir una ventana pequeña de descuento.
+- Cuando la venta queda pagada, WPF abre una ventana de recibo con resumen de productos, cliente, caja, pagos y totales.
 
 ## Rendimiento del carrito
 
@@ -123,6 +124,15 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Si la lista seleccionada no tiene precio para un producto del carrito, Laravel rechaza el checkout para evitar vender con un precio equivocado.
 - Laravel devuelve `paid` cuando la orden queda pagada; WPF lo interpreta como venta confirmada y no como pendiente.
 - Si el servidor aprueba, se limpia el carrito y se refresca el catálogo.
+
+## Recibo POS
+
+- El recibo se muestra solo cuando Laravel confirma la orden como pagada.
+- La ventana `Venta confirmada` muestra número de orden POS, cliente, lista de precio, caja, total USD, equivalente Bs, pagado, vuelto, productos y pagos.
+- Los productos del recibo se toman del carrito antes de que el checkout limpie la orden local.
+- Los pagos del recibo se toman de los pagos agregados en la ventana de cobro.
+- Si la orden queda pendiente, no se muestra recibo final; se mantiene el aviso de orden pendiente para no confundir reserva con venta cerrada.
+- Impresión, PDF, numeración fiscal y formato de ticket quedan para una fase posterior.
 
 ## Rendimiento de listas de precio
 
