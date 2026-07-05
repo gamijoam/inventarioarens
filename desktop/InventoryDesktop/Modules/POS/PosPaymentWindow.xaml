@@ -273,7 +273,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Al confirmar, Laravel vuelve a validar stock, caja, seriales, método de pago y moneda."
+            <TextBlock Text="Enter agrega pago · F12 confirma venta · Esc cancela. Laravel vuelve a validar stock, caja, seriales, método de pago y moneda."
                        Foreground="{StaticResource MutedBrush}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"

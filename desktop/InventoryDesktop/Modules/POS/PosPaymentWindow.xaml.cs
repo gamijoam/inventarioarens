@@ -29,11 +29,29 @@ public partial class PosPaymentWindow : Window
         LoadPaymentStatuses();
         LoadPaymentMethods();
         UpdateTotals();
+        PreviewKeyDown += PosPaymentWindow_PreviewKeyDown;
     }
 
     public bool WasConfirmed { get; private set; }
 
     public PosReceiptSnapshot? Receipt { get; private set; }
+
+    private void PosPaymentWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            DialogResult = false;
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F12)
+        {
+            Confirm_Click(sender, e);
+            e.Handled = true;
+        }
+    }
 
     private void LoadHeader()
     {
@@ -71,7 +89,9 @@ public partial class PosPaymentWindow : Window
 
         if (choices.Count == 0)
         {
-            SetError("No hay métodos de pago activos para esta lista. Configura métodos de pago antes de cobrar.");
+            const string message = "No hay métodos de pago activos para esta lista. Configura métodos de pago antes de cobrar.";
+            ShowAlert(message, "Métodos de pago requeridos");
+            SetError(message);
         }
     }
 
@@ -254,7 +274,9 @@ public partial class PosPaymentWindow : Window
         ClearError();
         if (payments.Count == 0)
         {
-            SetError("Agrega al menos un pago antes de confirmar.");
+            const string message = "Agrega al menos un pago antes de confirmar.";
+            ShowAlert(message, "Pago requerido");
+            SetError(message);
             return;
         }
 
@@ -273,13 +295,17 @@ public partial class PosPaymentWindow : Window
 
                 if (result != MessageBoxResult.Yes)
                 {
-                    SetError("Agrega un pago capturado o confirma la orden pendiente.");
+                    const string message = "Agrega un pago capturado o confirma la orden pendiente.";
+                    ShowAlert(message, "Cobro incompleto");
+                    SetError(message);
                     return;
                 }
             }
             else
             {
-                SetError("Los pagos capturados todavía no cubren el total.");
+                const string message = "Los pagos capturados todavía no cubren el total.";
+                ShowAlert(message, "Cobro incompleto");
+                SetError(message);
                 return;
             }
         }
@@ -331,12 +357,16 @@ public partial class PosPaymentWindow : Window
         catch (ApiException exception)
         {
             IsEnabled = true;
-            SetError(FriendlyError(exception.Message));
+            string message = FriendlyError(exception.Message);
+            ShowAlert(message, "Venta rechazada");
+            SetError(message);
         }
         catch (InvalidOperationException exception)
         {
             IsEnabled = true;
-            SetError(FriendlyError(exception.Message));
+            string message = FriendlyError(exception.Message);
+            ShowAlert(message, "No se puede confirmar");
+            SetError(message);
         }
     }
 
@@ -596,6 +626,11 @@ public partial class PosPaymentWindow : Window
     private void ClearError()
     {
         StatusText.Text = string.Empty;
+    }
+
+    private void ShowAlert(string message, string title = "Atención", MessageBoxImage icon = MessageBoxImage.Warning)
+    {
+        MessageBox.Show(this, message, title, MessageBoxButton.OK, icon);
     }
 }
 

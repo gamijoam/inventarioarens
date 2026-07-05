@@ -21,6 +21,7 @@ public partial class PosProductSearchWindow : Window
             ProductSearchBox.Focus();
             ProductSearchBox.SelectAll();
         };
+        PreviewKeyDown += PosProductSearchWindow_PreviewKeyDown;
     }
 
     public bool ProductWasAdded { get; private set; }
@@ -44,6 +45,30 @@ public partial class PosProductSearchWindow : Window
         await AddSelectedProductAsync();
     }
 
+    private async void PosProductSearchWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            DialogResult = ProductWasAdded;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F2)
+        {
+            ProductSearchBox.Focus();
+            ProductSearchBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && Keyboard.FocusedElement != ProductSearchBox)
+        {
+            await AddSelectedProductAsync();
+            e.Handled = true;
+        }
+    }
+
     private async void AddSelected_Click(object sender, RoutedEventArgs e)
     {
         await AddSelectedProductAsync();
@@ -64,7 +89,9 @@ public partial class PosProductSearchWindow : Window
     {
         if (ProductsList.SelectedItem is not PosProductCard card)
         {
-            viewModel.SetError("Selecciona un producto para agregar.");
+            const string message = "Selecciona un producto para agregar.";
+            ShowAlert(message, "Producto requerido");
+            viewModel.SetError(message);
             return;
         }
 
@@ -72,7 +99,9 @@ public partial class PosProductSearchWindow : Window
         {
             if (!viewModel.HasStockAvailableForCart(card))
             {
-                viewModel.SetError(viewModel.BuildNoStockMessage(card));
+                string message = viewModel.BuildNoStockMessage(card);
+                ShowAlert(message, "Stock no disponible");
+                viewModel.SetError(message);
                 return;
             }
 
@@ -102,11 +131,19 @@ public partial class PosProductSearchWindow : Window
         }
         catch (ApiException exception)
         {
+            ShowAlert(exception.Message, "No se pudo agregar");
             viewModel.SetError(exception.Message);
         }
         catch (HttpRequestException)
         {
-            viewModel.SetError("No se pudo conectar con la API para agregar el producto.");
+            const string message = "No se pudo conectar con la API para agregar el producto.";
+            ShowAlert(message, "Sin conexión");
+            viewModel.SetError(message);
         }
+    }
+
+    private void ShowAlert(string message, string title = "Atención", MessageBoxImage icon = MessageBoxImage.Warning)
+    {
+        MessageBox.Show(this, message, title, MessageBoxButton.OK, icon);
     }
 }

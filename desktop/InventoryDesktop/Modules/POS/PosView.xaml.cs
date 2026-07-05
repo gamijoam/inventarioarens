@@ -66,9 +66,29 @@ public partial class PosView : UserControl
             return;
         }
 
+        if (e.Key == Key.F5)
+        {
+            _ = RefreshProductsAsync();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F12)
         {
             Pay_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && Keyboard.FocusedElement == SearchBox)
+        {
+            SearchBox.Clear();
+            if (ViewModel is not null)
+            {
+                ViewModel.StatusMessage = "Búsqueda limpia. Escanea o escribe para continuar.";
+                ViewModel.IsStatusError = false;
+            }
+
             e.Handled = true;
         }
     }
@@ -131,7 +151,9 @@ public partial class PosView : UserControl
 
         if (!ViewModel.HasStockAvailableForCart(card))
         {
-            ViewModel.SetError(ViewModel.BuildNoStockMessage(card));
+            string message = ViewModel.BuildNoStockMessage(card);
+            ShowPosAlert(message, "Stock no disponible");
+            ViewModel.SetError(message);
             return;
         }
 
@@ -185,12 +207,28 @@ public partial class PosView : UserControl
         }
         catch (ApiException exception)
         {
+            ShowPosAlert(exception.Message, "No se pudo agregar");
             ViewModel.SetError(exception.Message);
         }
         catch (HttpRequestException)
         {
-            ViewModel.SetError("No se pudo conectar con la API para agregar por código.");
+            string message = "No se pudo conectar con la API para agregar por código.";
+            ShowPosAlert(message, "Sin conexión");
+            ViewModel.SetError(message);
         }
+    }
+
+    private async Task RefreshProductsAsync()
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        searchDebounceTimer.Stop();
+        await ViewModel.SearchAsync();
+        SearchBox.Focus();
+        SearchBox.SelectAll();
     }
 
     private async void ReloadContext_Click(object sender, RoutedEventArgs e)
@@ -207,7 +245,9 @@ public partial class PosView : UserControl
         {
             if (ViewModel.SelectedWarehouse is null)
             {
-                ViewModel.SetError("Selecciona un almacén antes de abrir caja.");
+                string message = "Selecciona un almacén antes de abrir caja.";
+                ShowPosAlert(message, "Falta almacén");
+                ViewModel.SetError(message);
                 return;
             }
 
@@ -358,13 +398,17 @@ public partial class PosView : UserControl
 
         if (ViewModel.SelectedWarehouse is null)
         {
-            ViewModel.SetError("Selecciona un almacén antes de cobrar.");
+            string message = "Selecciona un almacén antes de cobrar.";
+            ShowPosAlert(message, "No se puede cobrar");
+            ViewModel.SetError(message);
             return;
         }
 
         if (ViewModel.CartItems.Count == 0)
         {
-            ViewModel.SetError("Agrega al menos un producto antes de cobrar.");
+            string message = "Agrega al menos un producto antes de cobrar.";
+            ShowPosAlert(message, "Carrito vacío");
+            ViewModel.SetError(message);
             return;
         }
 
@@ -373,7 +417,9 @@ public partial class PosView : UserControl
             await ViewModel.LoadCashRegisterSessionsAsync();
             if (ViewModel.SelectedCashRegisterSession is null)
             {
-                ViewModel.SetError("No tienes una caja abierta asignada a tu usuario. Abre tu caja o recarga el contexto antes de cobrar.");
+                string message = "No tienes una caja abierta asignada a tu usuario. Abre tu caja desde el módulo Caja o recarga el contexto antes de cobrar.";
+                ShowPosAlert(message, "Caja requerida");
+                ViewModel.SetError(message);
                 return;
             }
         }
@@ -404,7 +450,9 @@ public partial class PosView : UserControl
     {
         if (ViewModel?.LastReceipt is not PosReceiptSnapshot receipt)
         {
-            ViewModel?.SetError("No hay un recibo reciente para mostrar.");
+            string message = "No hay un recibo reciente para mostrar en esta sesión.";
+            ShowPosAlert(message, "Sin recibo reciente", MessageBoxImage.Information);
+            ViewModel?.SetError(message);
             return;
         }
 
@@ -414,6 +462,16 @@ public partial class PosView : UserControl
         };
 
         dialog.ShowDialog();
+    }
+
+    private void ShowPosAlert(string message, string title = "Atención", MessageBoxImage icon = MessageBoxImage.Warning)
+    {
+        MessageBox.Show(
+            Window.GetWindow(this),
+            message,
+            title,
+            MessageBoxButton.OK,
+            icon);
     }
 
     private void PendingOrders_Click(object sender, RoutedEventArgs e)

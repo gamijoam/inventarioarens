@@ -59,14 +59,22 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - No se consulta la API en cada tecla; se espera un pequeño intervalo para proteger el rendimiento.
 - El botón `Buscar` abre el selector manual usando el texto escrito en la barra superior.
 - La tecla `F2` abre el selector manual de productos.
+- Dentro del selector manual, `F2` vuelve a enfocar el buscador, `Enter` agrega el producto seleccionado y `Esc` cierra la ventana.
+- La tecla `F5` refresca la búsqueda actual y vuelve a enfocar el campo principal.
 - La tecla `F8` abre la selección de cliente.
+- La tecla `F9` reabre el último recibo confirmado en la sesión actual.
 - La tecla `F12` abre el cobro cuando la orden tiene productos y caja válida.
+- En la ventana de cobro, `Enter` agrega el pago desde monto o referencia, `F12` confirma la venta y `Esc` cancela/cierra la ventana.
+- `Esc` en el buscador principal limpia la búsqueda y permite escanear de nuevo.
 - La búsqueda de productos es insensible a mayúsculas y minúsculas en PostgreSQL.
 - Al presionar Enter, el POS busca y revisa si el texto coincide exactamente con un SKU o nombre único.
 - Si la coincidencia exacta es un producto por cantidad, se agrega directamente al carrito.
 - Si la coincidencia exacta es un producto serializado, el POS intenta usar el IMEI exacto disponible; si no lo encuentra, abre el selector de IMEI.
 - Si no hay coincidencia exacta, el vendedor puede abrir el selector y elegir el producto desde una lista compacta con nombre, SKU, precio, stock y tipo de control.
 - El POS bloquea agregar productos sin stock o productos cuyo stock disponible ya fue consumido por la orden actual.
+- Los bloqueos operativos importantes se muestran como alerta modal y también quedan reflejados en la barra inferior.
+- Se consideran bloqueos importantes: intentar vender sin stock, cobrar sin productos, cobrar sin caja abierta, perder conexión con la API o confirmar una venta rechazada por backend.
+- Los mensajes suaves, como producto agregado, carrito limpiado o búsqueda actualizada, siguen mostrándose solo en la barra inferior.
 - En el selector, `Sin stock` se muestra en rojo para que el cajero no lo confunda con una opción vendible.
 - La lista del selector usa columnas alineadas para que SKU, precio, stock y control no se mezclen visualmente.
 
