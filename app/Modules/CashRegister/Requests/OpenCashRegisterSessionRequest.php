@@ -19,6 +19,11 @@ class OpenCashRegisterSessionRequest extends FormRequest
                 'integer',
                 Rule::exists('branches', 'id')->where('tenant_id', $tenantId),
             ],
+            'cash_register_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('cash_registers', 'id')->where('tenant_id', $tenantId),
+            ],
             'cashier_id' => [
                 'sometimes',
                 'integer',

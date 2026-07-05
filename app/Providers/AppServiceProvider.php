@@ -8,7 +8,9 @@ use App\Modules\AccountsPayable\Policies\AccountsPayablePolicy;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Policies\AccountsReceivablePolicy;
 use App\Modules\Branches\Policies\BranchPolicy;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Policies\CashRegisterPolicy;
 use App\Modules\CashRegister\Policies\CashRegisterSessionPolicy;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Customers\Policies\CustomerPolicy;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(AccountsPayable::class, AccountsPayablePolicy::class);
         Gate::policy(AccountsReceivable::class, AccountsReceivablePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
+        Gate::policy(CashRegister::class, CashRegisterPolicy::class);
         Gate::policy(CashRegisterSession::class, CashRegisterSessionPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);

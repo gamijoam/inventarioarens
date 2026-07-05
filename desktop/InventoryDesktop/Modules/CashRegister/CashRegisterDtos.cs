@@ -8,9 +8,37 @@ public sealed record CashRegisterSessionListResponse(
 public sealed record CashRegisterSessionResponse(
     [property: JsonPropertyName("data")] CashRegisterSessionItem Data);
 
+public sealed record CashRegisterListResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<CashRegisterItem> Data);
+
+public sealed record CashRegisterResponse(
+    [property: JsonPropertyName("data")] CashRegisterItem Data);
+
+public sealed record CashRegisterItem(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("branch")] CashRegisterBranch? Branch,
+    [property: JsonPropertyName("open_session")] CashRegisterSessionItem? OpenSession)
+{
+    public string RegisterLabel => $"{Name} ({Code})";
+
+    public string BranchLabel => Branch?.Name ?? $"Sucursal #{BranchId}";
+
+    public string StatusLabel => Status == "active" ? "Activa" : "Inactiva";
+
+    public string OpenLabel => OpenSession is null
+        ? "Disponible"
+        : $"Abierta por usuario #{OpenSession.CashierId}";
+}
+
 public sealed record CashRegisterSessionItem(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("cash_register_id")] long? CashRegisterId,
     [property: JsonPropertyName("cashier_id")] long? CashierId,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("opening_base_amount")]
@@ -41,9 +69,12 @@ public sealed record CashRegisterSessionItem(
     [property: JsonPropertyName("closed_at")] string? ClosedAt,
     [property: JsonPropertyName("notes")] string? Notes,
     [property: JsonPropertyName("closing_notes")] string? ClosingNotes,
-    [property: JsonPropertyName("branch")] CashRegisterBranch? Branch)
+    [property: JsonPropertyName("branch")] CashRegisterBranch? Branch,
+    [property: JsonPropertyName("cash_register")] CashRegisterItem? CashRegister)
 {
-    public string SessionLabel => $"Caja #{Id}";
+    public string SessionLabel => CashRegister is null
+        ? $"Caja #{Id}"
+        : $"{CashRegister.Name} - Turno #{Id}";
 
     public string BranchLabel => Branch?.Name ?? $"Sucursal #{BranchId}";
 
@@ -78,8 +109,16 @@ public sealed record CashRegisterBranch(
 
 public sealed record OpenCashRegisterRequest(
     [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("cash_register_id")] long? CashRegisterId,
     [property: JsonPropertyName("opening_currency")] string OpeningCurrency,
     [property: JsonPropertyName("opening_amount")] decimal OpeningAmount,
+    [property: JsonPropertyName("notes")] string? Notes);
+
+public sealed record StoreCashRegisterRequest(
+    [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("notes")] string? Notes);
 
 public sealed record CloseCashRegisterRequest(

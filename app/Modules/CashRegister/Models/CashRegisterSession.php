@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'branch_id',
+    'cash_register_id',
     'cashier_id',
     'opened_by',
     'closed_by',
@@ -56,6 +57,11 @@ class CashRegisterSession extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function cashRegister(): BelongsTo
+    {
+        return $this->belongsTo(CashRegister::class);
     }
 
     public function cashier(): BelongsTo

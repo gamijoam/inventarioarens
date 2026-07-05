@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
@@ -171,8 +172,11 @@ class MultiCompanyLoginDemoSeeder extends Seeder
                 );
             }
 
-            $this->openCashRegister($tenant, $branch, $manager);
-            $this->openCashRegister($tenant, $branch, $cashier);
+            $managerRegister = $this->cashRegister($tenant, $branch, "Caja Gerente {$company['branch_code']}", "GER-{$company['branch_code']}");
+            $cashierRegister = $this->cashRegister($tenant, $branch, "Caja Cajero {$company['branch_code']}", "CAJ-{$company['branch_code']}");
+
+            $this->openCashRegister($tenant, $branch, $managerRegister, $manager);
+            $this->openCashRegister($tenant, $branch, $cashierRegister, $cashier);
         }
     }
 
@@ -197,22 +201,50 @@ class MultiCompanyLoginDemoSeeder extends Seeder
         $user->assignRole($role);
     }
 
-    private function openCashRegister(Tenant $tenant, Branch $branch, User $user): void
+    private function cashRegister(Tenant $tenant, Branch $branch, string $name, string $code): CashRegister
     {
         $this->useTenant($tenant);
 
-        $exists = CashRegisterSession::query()
+        return CashRegister::query()->updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'branch_id' => $branch->id,
+                'name' => $name,
+                'status' => CashRegister::STATUS_ACTIVE,
+                'notes' => 'Caja fisica demo para pruebas multiempresa.',
+            ]
+        );
+    }
+
+    private function openCashRegister(Tenant $tenant, Branch $branch, CashRegister $cashRegister, User $user): void
+    {
+        $this->useTenant($tenant);
+
+        $session = CashRegisterSession::query()
             ->where('branch_id', $branch->id)
             ->where('cashier_id', $user->id)
             ->where('status', CashRegisterSession::STATUS_OPEN)
-            ->exists();
+            ->first();
 
-        if ($exists) {
+        if ($session) {
+            if (! $session->cash_register_id) {
+                $physicalRegisterIsFree = ! CashRegisterSession::query()
+                    ->where('cash_register_id', $cashRegister->id)
+                    ->where('status', CashRegisterSession::STATUS_OPEN)
+                    ->whereKeyNot($session->id)
+                    ->exists();
+
+                if ($physicalRegisterIsFree) {
+                    $session->update(['cash_register_id' => $cashRegister->id]);
+                }
+            }
+
             return;
         }
 
         CashRegisterSession::create([
             'branch_id' => $branch->id,
+            'cash_register_id' => $cashRegister->id,
             'cashier_id' => $user->id,
             'opened_by' => $user->id,
             'status' => CashRegisterSession::STATUS_OPEN,

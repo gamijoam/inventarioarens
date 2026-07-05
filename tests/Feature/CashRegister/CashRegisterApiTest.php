@@ -4,6 +4,7 @@ namespace Tests\Feature\CashRegister;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -43,6 +44,72 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonPath('data.opening_base_amount', '50.0000')
             ->assertJsonPath('data.expected_base_amount', '50.0000')
             ->assertJsonPath('data.movements.0.type', CashRegisterMovement::TYPE_OPENING);
+    }
+
+    public function test_user_can_create_physical_cash_register_and_open_it(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.view']);
+
+        $cashRegisterId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/registers', [
+                'branch_id' => $branch->id,
+                'name' => 'Caja Mostrador 1',
+                'code' => 'mostrador-1',
+                'notes' => 'Caja principal de tienda.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Caja Mostrador 1')
+            ->assertJsonPath('data.code', 'MOSTRADOR-1')
+            ->assertJsonPath('data.status', CashRegister::STATUS_ACTIVE)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegisterId,
+                'opening_currency' => Product::CURRENCY_USD,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.cash_register_id', $cashRegisterId)
+            ->assertJsonPath('data.cash_register.name', 'Caja Mostrador 1');
+    }
+
+    public function test_two_cashiers_cannot_open_the_same_physical_cash_register(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $cashRegister = $this->cashRegister($tenant, $branch, 'Caja Mostrador 1', 'CJ-1');
+        $cashierA = $this->userInTenant($tenant);
+        $cashierB = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashierA, 'Cajero A', ['cash_register.open']);
+        $this->grantRole($tenant, $cashierB, 'Cajero B', ['cash_register.open']);
+
+        $payload = [
+            'branch_id' => $branch->id,
+            'cash_register_id' => $cashRegister->id,
+            'opening_amount' => 0,
+        ];
+
+        $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', $payload)
+            ->assertCreated();
+
+        $this
+            ->actingAs($cashierB)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_id']);
     }
 
     public function test_cashier_cannot_open_two_sessions_at_the_same_time(): void
@@ -247,6 +314,18 @@ class CashRegisterApiTest extends TestCase
         return Branch::create([
             'name' => "Sucursal {$suffix}",
             'code' => "BR-CASH-{$suffix}",
+        ]);
+    }
+
+    private function cashRegister(Tenant $tenant, Branch $branch, string $name, string $code): CashRegister
+    {
+        $this->useTenant($tenant);
+
+        return CashRegister::create([
+            'branch_id' => $branch->id,
+            'name' => $name,
+            'code' => $code,
+            'status' => CashRegister::STATUS_ACTIVE,
         ]);
     }
 

@@ -3582,6 +3582,62 @@ Controller:
 App\Modules\CashRegister\Controllers\CashRegisterSessionController
 ```
 
+### Listar cajas fisicas
+
+```txt
+GET /api/cash-register/registers
+```
+
+Permiso requerido:
+
+```txt
+cash_register.view
+```
+
+### Crear caja fisica
+
+```txt
+POST /api/cash-register/registers
+```
+
+Permiso requerido:
+
+```txt
+cash_register.open
+```
+
+Body:
+
+```json
+{
+  "branch_id": 1,
+  "name": "Caja Mostrador 1",
+  "code": "CJ-1",
+  "status": "active",
+  "notes": "Caja principal"
+}
+```
+
+### Actualizar caja fisica
+
+```txt
+PATCH /api/cash-register/registers/{cashRegister}
+```
+
+Permiso requerido:
+
+```txt
+cash_register.open
+```
+
+Body ejemplo:
+
+```json
+{
+  "status": "inactive"
+}
+```
+
 ### Listar sesiones de caja
 
 ```txt
@@ -3611,6 +3667,7 @@ Body:
 ```json
 {
   "branch_id": 1,
+  "cash_register_id": 1,
   "cashier_id": 1,
   "opening_currency": "USD",
   "opening_amount": 50,
@@ -3621,7 +3678,10 @@ Body:
 Reglas:
 
 - `cashier_id` es opcional; si no se envia, se usa el usuario autenticado;
+- `cash_register_id` es opcional por compatibilidad, pero en la operacion normal debe enviarse para abrir una caja fisica especifica;
 - la sucursal debe pertenecer a la empresa actual;
+- la caja fisica debe pertenecer a la misma sucursal y estar activa;
+- una caja fisica no puede tener dos sesiones abiertas al mismo tiempo;
 - un cajero no puede tener dos cajas abiertas al mismo tiempo;
 - si el monto inicial esta en `VES`, debe existir una tasa activa.
 

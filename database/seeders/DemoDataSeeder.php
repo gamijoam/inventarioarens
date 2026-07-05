@@ -1286,6 +1286,7 @@ class DemoDataSeeder extends Seeder
         return app(CashRegisterService::class)->open(
             operator: $cashier,
             branch: $branch,
+            physicalRegister: null,
             cashier: $cashier,
             data: [
                 'opening_currency' => Product::CURRENCY_USD,

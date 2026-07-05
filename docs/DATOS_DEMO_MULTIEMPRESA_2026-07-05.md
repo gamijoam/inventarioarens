@@ -66,15 +66,23 @@ Productos:
 
 ## Caja y POS
 
-Cada empresa queda con una sucursal, un almacen y una caja abierta para el gerente y el cajero demo.
+Cada empresa queda con una sucursal, un almacen, dos cajas fisicas y una caja abierta para el gerente y el cajero demo.
 
 Esto permite entrar al POS sin tener que abrir caja manualmente durante las pruebas de aislamiento.
+
+Las cajas fisicas siguen este patron:
+
+- `Caja Gerente {codigo de sucursal}`.
+- `Caja Cajero {codigo de sucursal}`.
+
+Cada sesion abierta queda asociada a su caja fisica.
 
 ## Reglas de aislamiento
 
 - Cada empresa tiene sus propios productos.
 - Cada empresa tiene su propio almacen.
 - Cada empresa tiene sus propias cajas abiertas.
+- Cada empresa tiene sus propias cajas fisicas.
 - Un producto de Caracas Norte no debe verse en Valencia Centro ni en ninguna otra empresa.
 - El selector de empresas del login debe mostrar solo las empresas activas asociadas al correo escrito.
 

@@ -721,6 +721,7 @@ Regla importante:
 Responsabilidad:
 
 - apertura de caja;
+- administracion de cajas fisicas por sucursal;
 - movimientos manuales de entrada y salida;
 - cierre de caja;
 - arqueo, monto esperado, monto contado y diferencias;
@@ -728,13 +729,19 @@ Responsabilidad:
 
 Archivos principales:
 
+- `app/Modules/CashRegister/Models/CashRegister.php`
 - `app/Modules/CashRegister/Models/CashRegisterSession.php`
 - `app/Modules/CashRegister/Models/CashRegisterMovement.php`
+- `app/Modules/CashRegister/Policies/CashRegisterPolicy.php`
 - `app/Modules/CashRegister/Policies/CashRegisterSessionPolicy.php`
+- `app/Modules/CashRegister/Controllers/CashRegisterController.php`
 - `app/Modules/CashRegister/Controllers/CashRegisterSessionController.php`
+- `app/Modules/CashRegister/Requests/StoreCashRegisterRequest.php`
+- `app/Modules/CashRegister/Requests/UpdateCashRegisterRequest.php`
 - `app/Modules/CashRegister/Requests/OpenCashRegisterSessionRequest.php`
 - `app/Modules/CashRegister/Requests/StoreCashRegisterMovementRequest.php`
 - `app/Modules/CashRegister/Requests/CloseCashRegisterSessionRequest.php`
+- `app/Modules/CashRegister/Resources/CashRegisterResource.php`
 - `app/Modules/CashRegister/Resources/CashRegisterSessionResource.php`
 - `app/Modules/CashRegister/Resources/CashRegisterMovementResource.php`
 - `app/Modules/CashRegister/Services/CashRegisterService.php`
@@ -744,6 +751,8 @@ Regla importante:
 
 - Caja no crea ventas;
 - POS no debe absorber el cierre de caja;
+- una caja fisica pertenece a una sucursal;
+- una caja fisica no puede tener dos sesiones abiertas al mismo tiempo;
 - un cajero no puede tener dos sesiones abiertas al mismo tiempo;
 - una caja cerrada no acepta movimientos;
 - cada movimiento en `VES` debe guardar la tasa exacta usada;

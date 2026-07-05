@@ -26,6 +26,14 @@ public partial class CashRegisterView : UserControl
         }
     }
 
+    private async void CreateRegister_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is CashRegisterViewModel viewModel)
+        {
+            await viewModel.CreateCashRegisterAsync();
+        }
+    }
+
     private async void Close_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not CashRegisterViewModel viewModel)

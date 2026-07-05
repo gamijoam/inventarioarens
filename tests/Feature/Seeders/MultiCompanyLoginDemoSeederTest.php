@@ -3,6 +3,7 @@
 namespace Tests\Feature\Seeders;
 
 use App\Models\User;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
@@ -40,9 +41,11 @@ class MultiCompanyLoginDemoSeederTest extends TestCase
 
             $this->assertSame(2, Product::query()->where('tenant_id', $tenant->id)->count());
             $this->assertSame(2, StockBalance::query()->where('tenant_id', $tenant->id)->count());
+            $this->assertSame(2, CashRegister::query()->where('tenant_id', $tenant->id)->count());
             $this->assertSame(2, CashRegisterSession::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('status', CashRegisterSession::STATUS_OPEN)
+                ->whereNotNull('cash_register_id')
                 ->count());
         }
 
@@ -68,6 +71,7 @@ class MultiCompanyLoginDemoSeederTest extends TestCase
         ])->count());
         $this->assertSame(8, Product::query()->count());
         $this->assertSame(8, StockBalance::query()->count());
+        $this->assertSame(8, CashRegister::query()->count());
 
         $this->assertSame(2, User::query()
             ->where('email', 'gerente.caracas@demo.test')

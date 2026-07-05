@@ -4,6 +4,7 @@ namespace App\Modules\CashRegister\Controllers;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Requests\CloseCashRegisterSessionRequest;
 use App\Modules\CashRegister\Requests\OpenCashRegisterSessionRequest;
@@ -24,7 +25,7 @@ class CashRegisterSessionController extends Controller
 
         return CashRegisterSessionResource::collection(
             CashRegisterSession::query()
-                ->with('branch')
+                ->with(['branch', 'cashRegister'])
                 ->latest()
                 ->paginate(25)
         );
@@ -38,6 +39,7 @@ class CashRegisterSessionController extends Controller
         $session = $cashRegister->open(
             operator: $request->user(),
             branch: Branch::query()->findOrFail($data['branch_id']),
+            physicalRegister: isset($data['cash_register_id']) ? CashRegister::query()->findOrFail($data['cash_register_id']) : null,
             cashier: isset($data['cashier_id']) ? User::query()->findOrFail($data['cashier_id']) : null,
             data: $data,
         );
@@ -51,7 +53,7 @@ class CashRegisterSessionController extends Controller
     {
         Gate::authorize('view', $cashRegisterSession);
 
-        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'movements']));
+        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'cashRegister', 'movements']));
     }
 
     public function movement(

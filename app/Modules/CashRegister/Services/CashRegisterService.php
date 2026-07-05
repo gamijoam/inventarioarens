@@ -4,6 +4,7 @@ namespace App\Modules\CashRegister\Services;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -16,9 +17,9 @@ use Illuminate\Validation\ValidationException;
 
 class CashRegisterService
 {
-    public function open(User $operator, Branch $branch, ?User $cashier, array $data): CashRegisterSession
+    public function open(User $operator, Branch $branch, ?CashRegister $physicalRegister, ?User $cashier, array $data): CashRegisterSession
     {
-        return DB::transaction(function () use ($operator, $branch, $cashier, $data): CashRegisterSession {
+        return DB::transaction(function () use ($operator, $branch, $physicalRegister, $cashier, $data): CashRegisterSession {
             $cashier ??= $operator;
             $tenant = app(TenantManager::class)->require();
 
@@ -26,6 +27,39 @@ class CashRegisterService
                 throw ValidationException::withMessages([
                     'cashier_id' => 'El cajero no pertenece a la empresa actual.',
                 ]);
+            }
+
+            if ($physicalRegister) {
+                $physicalRegister = CashRegister::query()->lockForUpdate()->findOrFail($physicalRegister->id);
+
+                if ((int) $physicalRegister->tenant_id !== (int) $tenant->id) {
+                    throw ValidationException::withMessages([
+                        'cash_register_id' => 'La caja fisica no pertenece a la empresa actual.',
+                    ]);
+                }
+
+                if ((int) $physicalRegister->branch_id !== (int) $branch->id) {
+                    throw ValidationException::withMessages([
+                        'cash_register_id' => 'La caja fisica pertenece a otra sucursal.',
+                    ]);
+                }
+
+                if ($physicalRegister->status !== CashRegister::STATUS_ACTIVE) {
+                    throw ValidationException::withMessages([
+                        'cash_register_id' => 'La caja fisica no esta activa.',
+                    ]);
+                }
+
+                $physicalRegisterOpen = CashRegisterSession::query()
+                    ->where('cash_register_id', $physicalRegister->id)
+                    ->where('status', CashRegisterSession::STATUS_OPEN)
+                    ->exists();
+
+                if ($physicalRegisterOpen) {
+                    throw ValidationException::withMessages([
+                        'cash_register_id' => 'La caja fisica ya esta abierta por otro turno.',
+                    ]);
+                }
             }
 
             $openSessionExists = CashRegisterSession::query()
@@ -47,6 +81,7 @@ class CashRegisterService
 
             $session = CashRegisterSession::create([
                 'branch_id' => $branch->id,
+                'cash_register_id' => $physicalRegister?->id,
                 'cashier_id' => $cashier->id,
                 'opened_by' => $operator->id,
                 'status' => CashRegisterSession::STATUS_OPEN,
@@ -67,7 +102,7 @@ class CashRegisterService
                 ], $operator);
             }
 
-            return $session->refresh()->load(['branch', 'movements']);
+            return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
     }
 
@@ -80,7 +115,7 @@ class CashRegisterService
             $this->createMovement($session, $data['type'], $data['method'], $data, $operator);
             $this->recalculateExpectedTotals($session);
 
-            return $session->refresh()->load(['branch', 'movements']);
+            return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
     }
 
@@ -108,7 +143,7 @@ class CashRegisterService
                 'closing_notes' => $data['closing_notes'] ?? null,
             ]);
 
-            return $session->refresh()->load(['branch', 'movements']);
+            return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
     }
 

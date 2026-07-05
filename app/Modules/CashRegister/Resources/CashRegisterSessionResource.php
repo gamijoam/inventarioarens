@@ -12,6 +12,7 @@ class CashRegisterSessionResource extends JsonResource
         return [
             'id' => $this->id,
             'branch_id' => $this->branch_id,
+            'cash_register_id' => $this->cash_register_id,
             'cashier_id' => $this->cashier_id,
             'opened_by' => $this->opened_by,
             'closed_by' => $this->closed_by,
@@ -29,6 +30,7 @@ class CashRegisterSessionResource extends JsonResource
             'notes' => $this->notes,
             'closing_notes' => $this->closing_notes,
             'branch' => $this->whenLoaded('branch'),
+            'cash_register' => CashRegisterResource::make($this->whenLoaded('cashRegister')),
             'movements' => CashRegisterMovementResource::collection($this->whenLoaded('movements')),
         ];
     }
