@@ -18,8 +18,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="240" />
-                    <ColumnDefinition Width="104" />
-                    <ColumnDefinition Width="138" />
+                    <ColumnDefinition Width="118" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -56,19 +55,12 @@
                         Height="46"
                         VerticalAlignment="Center"
                         FontWeight="Black"
-                        Background="{StaticResource AccentBrush}"
-                        Foreground="White"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        Foreground="#111827"
                         Click="Search_Click" />
 
-                <Button Grid.Column="4"
-                        Content="Selector (F2)"
-                        Height="46"
-                        Margin="10,0,0,0"
-                        VerticalAlignment="Center"
-                        FontWeight="Black"
-                        Click="OpenProductSearch_Click" />
-
-                <WrapPanel Grid.Row="1" Grid.ColumnSpan="5" VerticalAlignment="Top">
+                <WrapPanel Grid.Row="1" Grid.ColumnSpan="4" VerticalAlignment="Top">
                     <TextBlock Text="Almacén" FontWeight="Black" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox ItemsSource="{Binding Warehouses}"
                               SelectedItem="{Binding SelectedWarehouse}"
@@ -79,11 +71,6 @@
                     <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="10,5" Margin="0,0,8,0">
                         <TextBlock Text="{Binding ActiveCashRegisterLabel}" Foreground="#058561" FontWeight="Black" FontSize="11" />
                     </Border>
-                    <Button Content="Pendientes"
-                            Width="104"
-                            Height="30"
-                            FontWeight="Black"
-                            Click="PendingOrders_Click" />
                     <TextBlock Text="{Binding OperationalContextLabel}"
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
@@ -142,8 +129,9 @@
                                     Height="38"
                                     Margin="0,0,8,0"
                                     FontWeight="Black"
-                                    Background="{StaticResource AccentBrush}"
-                                    Foreground="White"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#CBD5E1"
+                                    Foreground="#111827"
                                     Click="OpenProductSearch_Click" />
                             <Button Content="Limpiar"
                                     Width="92"
@@ -246,7 +234,8 @@
                                 Margin="0,16,0,0"
                                 IsEnabled="{Binding CanPay}"
                                 FontWeight="Black"
-                                Background="{StaticResource AccentBrush}"
+                                Background="#0F766E"
+                                BorderBrush="#0F766E"
                                 Foreground="White"
                                 Click="Pay_Click" />
                         <TextBlock Text="{Binding PayHint}" Foreground="{Binding StatusBrush}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,9,0,0" />
@@ -265,7 +254,7 @@
 
                 <Button Content="Volver al panel" Width="132" Height="32" VerticalAlignment="Center" FontWeight="Black" Click="Exit_Click" />
                 <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center" Margin="14,0" />
-                <TextBlock Grid.Column="2" Text="Enter agrega exacto · F2 selector · F8 cliente · F12 cobrar" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="Enter agrega exacto · F2 buscar producto · F8 cliente · F12 cobrar" Foreground="{StaticResource MutedBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
             </Grid>
         </Border>
     </Grid>

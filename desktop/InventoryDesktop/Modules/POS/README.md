@@ -16,6 +16,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Cotizar el producto con `GET /api/products/{product}/price`.
 - El selector de precios incluye `Precio base` como primera opción; esa opción no envía `price_list_id` y usa el precio normal del producto.
 - Al cambiar de `Precio base` a una lista específica, los productos consultados desde el selector se recotizan en segundo plano.
+- Si ya existen productos en el carrito, WPF vuelve a cotizar esas líneas con la lista seleccionada y recalcula el total.
 - Si un producto no tiene precio en la lista seleccionada, el selector muestra `Sin precio en lista`.
 - Si se selecciona una lista de precio y el producto no tiene precio en esa lista, Laravel bloquea la cotización con el mensaje `Este producto no tiene precio en esta lista.`
 - Agregar productos por cantidad a un carrito local.
@@ -35,7 +36,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El carrito ocupa la zona principal de la pantalla.
 - Cada línea del carrito muestra producto, SKU, almacén, control, serial/IMEI si aplica, precio, descuento, cantidad y subtotal.
 - Las herramientas de cliente, caja, búsqueda manual, pendientes y total quedan organizadas a la derecha.
-- El selector manual de productos se abre con el botón `Selector (F2)` o la tecla `F2`.
+- El selector manual de productos se abre con el botón `Buscar`, la herramienta `F2 Buscar producto` o la tecla `F2`.
 - La acción `Volver al panel`, mensajes de estado y atajos se muestran en la barra inferior.
 - El botón `Cobrar (F12)` abre una ventana separada para no quitar espacio al carrito.
 - El botón `Pendientes` abre una ventana separada para completar cobros de órdenes POS abiertas.
@@ -47,13 +48,14 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Después de buscar productos, precarga solo un grupo pequeño de cotizaciones visibles en segundo plano para no saturar la API.
 - Si el vendedor hace click mientras una cotización ya se está preparando, el click reutiliza esa misma consulta.
 - Al cambiar la lista de precio o hacer una nueva búsqueda se limpia la caché para evitar precios mezclados.
+- Al cambiar la lista de precio con productos en el carrito, cada línea se recotiza con la nueva lista y los totales se actualizan.
 - La caché es solo de la pantalla actual; el checkout real deberá volver a validar precios en backend.
 
 ## Búsqueda rápida
 
 - La búsqueda se ejecuta automáticamente con una pausa corta mientras el cajero escribe.
 - No se consulta la API en cada tecla; se espera un pequeño intervalo para proteger el rendimiento.
-- El botón `Buscar` sigue disponible para forzar una búsqueda manual.
+- El botón `Buscar` abre el selector manual usando el texto escrito en la barra superior.
 - La tecla `F2` abre el selector manual de productos.
 - La tecla `F8` abre la selección de cliente.
 - La tecla `F12` abre el cobro cuando la orden tiene productos y caja válida.

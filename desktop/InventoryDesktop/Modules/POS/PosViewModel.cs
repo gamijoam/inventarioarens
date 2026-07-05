@@ -76,6 +76,7 @@ public sealed class PosViewModel : ViewModelBase
                 ResetQuoteCache();
                 RaisePropertyChanged(nameof(PriceListLabel));
                 StartQuoteWarmup();
+                StartCartRequote();
             }
         }
     }
@@ -740,6 +741,48 @@ public sealed class PosViewModel : ViewModelBase
         IsStatusError = false;
     }
 
+    private void StartCartRequote()
+    {
+        if (CartItems.Count == 0)
+        {
+            return;
+        }
+
+        _ = RequoteCartAsync();
+    }
+
+    private async Task RequoteCartAsync()
+    {
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Actualizando precios del carrito...";
+
+            long? priceListId = SelectedPriceListId;
+            foreach (PosCartItem item in CartItems.ToList())
+            {
+                PosPriceQuote quote = await GetQuoteAsync(item.ProductId, priceListId);
+                item.ApplyQuote(quote);
+            }
+
+            RaiseTotalsChanged();
+            StatusMessage = "Precios del carrito actualizados.";
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para actualizar precios del carrito.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public IReadOnlyList<PaymentMethodOption> GetAllowedPaymentMethods()
     {
         PriceListOption? selectedList = SelectedPriceListId is null ? null : SelectedPriceList;
@@ -1177,19 +1220,13 @@ public sealed class PosCartItem : ViewModelBase
         InventoryWarehouseOption warehouse,
         InventoryProductSerial? serial)
     {
+        Product = product;
         ProductId = product.Id;
         Name = product.Name;
         Sku = product.Sku;
         WarehouseId = warehouse.Id;
         WarehouseLabel = warehouse.WarehouseLabel;
-        PriceListId = quote.PriceListId;
-        PriceListLabel = quote.PriceListLabel;
-        UnitPriceUsd = quote.PriceUsd;
-        UnitPriceVes = quote.PriceVes;
-        ExchangeRateTypeId = quote.ExchangeRateTypeId;
-        SaleCurrency = quote.SaleCurrency;
-        SalePrice = quote.SalePrice;
-        RateLabel = quote.RateLabel;
+        ApplyQuote(quote, notify: false);
         ProductUnitIds = serial is null ? [] : [serial.Id];
         SerialNumber = serial?.SerialNumber;
         ControlLabel = serial is null ? "Por cantidad" : "Serializado / IMEI";
@@ -1198,6 +1235,8 @@ public sealed class PosCartItem : ViewModelBase
     }
 
     public event EventHandler? Changed;
+
+    public InventoryProductItem Product { get; }
 
     public long ProductId { get; }
 
@@ -1209,21 +1248,21 @@ public sealed class PosCartItem : ViewModelBase
 
     public string WarehouseLabel { get; }
 
-    public long? PriceListId { get; }
+    public long? PriceListId { get; private set; }
 
-    public string PriceListLabel { get; }
+    public string PriceListLabel { get; private set; } = "";
 
-    public decimal UnitPriceUsd { get; }
+    public decimal UnitPriceUsd { get; private set; }
 
-    public decimal? UnitPriceVes { get; }
+    public decimal? UnitPriceVes { get; private set; }
 
-    public long? ExchangeRateTypeId { get; }
+    public long? ExchangeRateTypeId { get; private set; }
 
-    public string SaleCurrency { get; }
+    public string SaleCurrency { get; private set; } = "USD";
 
-    public decimal SalePrice { get; }
+    public decimal SalePrice { get; private set; }
 
-    public string RateLabel { get; }
+    public string RateLabel { get; private set; } = "";
 
     public IReadOnlyList<long> ProductUnitIds { get; }
 
@@ -1300,6 +1339,40 @@ public sealed class PosCartItem : ViewModelBase
     public string DiscountLabel => HasDiscount
         ? $"Desc. {DiscountDisplayAmountLabel} · {DiscountReason}"
         : "Sin descuento";
+
+    public void ApplyQuote(PosPriceQuote quote)
+    {
+        ApplyQuote(quote, notify: true);
+    }
+
+    private void ApplyQuote(PosPriceQuote quote, bool notify)
+    {
+        PriceListId = quote.PriceListId;
+        PriceListLabel = quote.PriceListLabel;
+        UnitPriceUsd = quote.PriceUsd;
+        UnitPriceVes = quote.PriceVes;
+        ExchangeRateTypeId = quote.ExchangeRateTypeId;
+        SaleCurrency = quote.SaleCurrency;
+        SalePrice = quote.SalePrice;
+        RateLabel = quote.RateLabel;
+
+        if (!notify)
+        {
+            return;
+        }
+
+        RaisePropertyChanged(nameof(PriceListId));
+        RaisePropertyChanged(nameof(PriceListLabel));
+        RaisePropertyChanged(nameof(UnitPriceUsd));
+        RaisePropertyChanged(nameof(UnitPriceVes));
+        RaisePropertyChanged(nameof(ExchangeRateTypeId));
+        RaisePropertyChanged(nameof(SaleCurrency));
+        RaisePropertyChanged(nameof(SalePrice));
+        RaisePropertyChanged(nameof(RateLabel));
+        RaisePropertyChanged(nameof(UnitPriceLabel));
+        RaiseMoneyPropertiesChanged();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public void ApplyDiscount(string type, decimal value, string reason)
     {

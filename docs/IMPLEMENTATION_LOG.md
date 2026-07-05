@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-05 - Ajuste de búsqueda y precios activos en POS
+
+### Diagnóstico
+
+- La barra superior del POS tenía dos entradas para abrir el selector de productos: `Buscar` y `Selector (F2)`.
+- El acceso a `Pendientes` estaba duplicado en la parte superior y en las herramientas laterales.
+- Los botones principales seguían usando azul fuerte y no combinaban con el flujo más sobrio del POS.
+- Al cambiar entre `Precio base` y una lista de precio, los productos que ya estaban en el carrito no actualizaban su precio.
+
+### Implementado
+
+- Se eliminó el botón superior `Selector (F2)`; ahora `Buscar` abre el selector manual usando el texto escrito.
+- Se retiró el botón superior `Pendientes`; queda disponible en `Herramientas POS`.
+- `Buscar` y `+ Buscar producto` usan estilo neutro, y `Cobrar (F12)` usa un estilo verde operativo.
+- Al cambiar la lista de precio, WPF vuelve a cotizar cada línea del carrito y recalcula los totales.
+- La barra inferior ahora indica `F2 buscar producto` para evitar confusión.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+
 ## 2026-07-05 - Limpieza operativa del POS y búsqueda robusta
 
 ### Diagnóstico
