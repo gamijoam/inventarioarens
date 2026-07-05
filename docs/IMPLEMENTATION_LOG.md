@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-07-04 - Migración local pendiente para métodos de pago
+
+### Diagnóstico
+
+- Durante una venta POS, Laravel mostró `relation "payment_methods" does not exist`.
+- La causa fue que la base local `inventory_arens` no tenía aplicada la migración `2026_07_04_235500_create_payment_methods_tables`.
+- El código y las pruebas ya tenían la migración, pero la base de desarrollo estaba atrasada.
+
+### Acción realizada
+
+- Se ejecutó `docker compose run --rm app php artisan migrate`.
+- Se aplicó correctamente `2026_07_04_235500_create_payment_methods_tables`.
+- Se verificó con `docker compose run --rm app php artisan migrate:status`.
+
+### Pruebas
+
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/PaymentMethods/PaymentMethodApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 14 pruebas pasaron, 89 assertions.
+
+### Nota operativa
+
+- Si una estación local muestra errores de tablas faltantes después de actualizar el código, se debe ejecutar `docker compose run --rm app php artisan migrate` contra la base de desarrollo correspondiente.
+
 ## 2026-07-04 - Apertura de caja propia desde POS
 
 ### Implementado
