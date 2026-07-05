@@ -31,6 +31,10 @@ public partial class PosPendingOrdersWindow : Window
             : $"{viewModel.PendingOrders.Count} orden(es) pendiente(s).";
         OrdersGrid.SelectedIndex = viewModel.PendingOrders.Count > 0 ? 0 : -1;
         RefreshSelectedOrder();
+        if (viewModel.PendingOrders.Count == 0)
+        {
+            SetInfo("No hay ordenes pendientes. Si acabas de cobrar una, ya quedo cerrada.");
+        }
     }
 
     private async Task EnsurePaymentMethodsAsync()
@@ -187,15 +191,12 @@ public partial class PosPendingOrdersWindow : Window
             return;
         }
 
-        if (PaymentStatusBox.SelectedItem is not PaymentStatusChoice status)
-        {
-            SetError("Selecciona el estado del pago.");
-            return;
-        }
+        PaymentStatusChoice status = new("captured", "Capturado");
 
         try
         {
-            IsEnabled = false;
+            SubmitPaymentButton.IsEnabled = false;
+            SubmitPaymentButton.Content = "Procesando...";
             PosOrderResult result = await viewModel.AddPaymentsToPendingOrderAsync(
                 order.Id,
                 [
@@ -209,11 +210,13 @@ public partial class PosPendingOrdersWindow : Window
                         reference),
                 ]);
 
+            string resultMessage = result.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
+                ? $"Orden POS #{result.Id} pagada y cerrada correctamente. La venta ya fue confirmada."
+                : $"Pago registrado en la orden POS #{result.Id}. La orden sigue pendiente.";
+
             MessageBox.Show(
                 this,
-                result.Status.Equals("paid", StringComparison.OrdinalIgnoreCase)
-                    ? $"Orden POS #{result.Id} pagada y cerrada correctamente."
-                    : $"Pago registrado en la orden POS #{result.Id}. La orden sigue pendiente.",
+                resultMessage,
                 result.Status.Equals("paid", StringComparison.OrdinalIgnoreCase) ? "Venta confirmada" : "Orden pendiente",
                 MessageBoxButton.OK,
                 result.Status.Equals("paid", StringComparison.OrdinalIgnoreCase) ? MessageBoxImage.Information : MessageBoxImage.Warning);
@@ -221,6 +224,7 @@ public partial class PosPendingOrdersWindow : Window
             AmountBox.Text = string.Empty;
             ReferenceBox.Text = string.Empty;
             await RefreshAsync();
+            SetInfo(resultMessage);
         }
         catch (ApiException exception)
         {
@@ -232,7 +236,8 @@ public partial class PosPendingOrdersWindow : Window
         }
         finally
         {
-            IsEnabled = true;
+            SubmitPaymentButton.IsEnabled = true;
+            SubmitPaymentButton.Content = "Cobrar faltante y cerrar";
         }
     }
 
@@ -250,6 +255,13 @@ public partial class PosPendingOrdersWindow : Window
 
     private void SetError(string message)
     {
+        StatusText.Foreground = System.Windows.Media.Brushes.Crimson;
+        StatusText.Text = message;
+    }
+
+    private void SetInfo(string message)
+    {
+        StatusText.Foreground = System.Windows.Media.Brushes.SeaGreen;
         StatusText.Text = message;
     }
 

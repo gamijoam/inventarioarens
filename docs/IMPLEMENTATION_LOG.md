@@ -1,5 +1,34 @@
 # Registro de implementación
 
+## 2026-07-04 - Claridad visual al completar orden POS pendiente
+
+### Diagnostico
+
+- La ventana de ordenes pendientes era confusa porque mostraba el selector de estado del pago aunque el uso principal era cerrar la orden con un pago capturado.
+- Al registrar el pago, la ventana se deshabilitaba completa durante la llamada al backend y el mensaje de resultado podia no ser evidente.
+- El usuario no tenia una indicacion clara de que, al cubrir el faltante, la orden debia salir de la lista de pendientes.
+
+### Implementado
+
+- Se renombro el boton principal a `Cobrar faltante y cerrar`.
+- La ventana ahora registra el pago como capturado en este flujo, evitando confundir con pagos pendientes.
+- Se dejo visible el mensaje de resultado dentro de la misma ventana.
+- Durante el procesamiento se deshabilita solo el boton principal y se muestra `Procesando...`.
+- Si ya no quedan ordenes pendientes, la ventana muestra un mensaje verde indicando que la orden quedo cerrada.
+- Se actualizo la documentacion del modulo POS en espanol.
+
+### Pruebas
+
+- Se ejecuto `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilacion correcta, 0 advertencias, 0 errores.
+- Se ejecuto `docker compose run --rm app_test php artisan test tests/Feature/POS/PosCheckoutApiTest.php --filter=pending`.
+- Resultado: 2 pruebas pasaron, 21 assertions.
+
+### Notas de seguridad
+
+- El backend sigue validando si el pago realmente cubre el total antes de cerrar la orden.
+- La interfaz solo aclara la accion principal del cajero: cobrar el faltante para cerrar.
+
 ## 2026-07-04 - Ordenes POS pendientes y completar cobro
 
 ### Diagnostico
