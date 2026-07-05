@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-07-04 - Apertura de caja propia desde POS
+
+### Implementado
+
+- Se agregó lectura de `branch_id` en el DTO de almacenes del escritorio.
+- Se agregó botón `Abrir mi caja` en el encabezado del POS.
+- El botón abre una caja propia usando la sucursal del almacén seleccionado.
+- La apertura se realiza con monto inicial `0 USD` y nota `Apertura desde POS de escritorio`.
+- Después de abrir caja, el POS recarga el contexto y selecciona la caja del usuario conectado.
+
+### Pruebas
+
+- Se ejecutó `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore -o .\desktop\InventoryDesktop\build-check`.
+- Resultado: compilación correcta, 0 advertencias, 0 errores.
+- Se ejecutó `docker compose run --rm app_test php artisan test tests/Feature/CashRegister/CashRegisterApiTest.php tests/Feature/POS/PosCheckoutApiTest.php`.
+- Resultado: 17 pruebas pasaron, 106 assertions.
+
+### Notas
+
+- El backend mantiene la regla de una sola caja abierta por cajero.
+- Si el usuario no tiene permiso `cash_register.open`, Laravel rechazará la apertura y WPF mostrará el mensaje del servidor.
+
 ## 2026-07-04 - Mensaje claro al pagar sin caja propia
 
 ### Implementado

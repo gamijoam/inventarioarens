@@ -17,6 +17,15 @@ public sealed record PosCashRegisterSession(
     public string DisplayLabel => $"Caja #{Id} - {StatusLabel}";
 }
 
+public sealed record PosOpenCashRegisterRequest(
+    [property: JsonPropertyName("branch_id")] long BranchId,
+    [property: JsonPropertyName("opening_currency")] string OpeningCurrency,
+    [property: JsonPropertyName("opening_amount")] decimal OpeningAmount,
+    [property: JsonPropertyName("notes")] string? Notes);
+
+public sealed record PosCashRegisterSessionResponse(
+    [property: JsonPropertyName("data")] PosCashRegisterSession Data);
+
 public sealed record PosPriceQuoteResponse(
     [property: JsonPropertyName("data")] PosPriceQuote Data);
 

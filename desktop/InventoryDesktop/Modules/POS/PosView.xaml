@@ -82,11 +82,19 @@
                             Height="30"
                             FontWeight="Black"
                             Click="ReloadContext_Click" />
+                    <Button Content="Abrir mi caja"
+                            Width="118"
+                            Height="30"
+                            Margin="8,0,0,0"
+                            FontWeight="Black"
+                            Background="{StaticResource AccentBrush}"
+                            Foreground="White"
+                            Click="OpenCashRegister_Click" />
                     <TextBlock Text="{Binding OperationalContextLabel}"
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
-                               Margin="16,0,0,0" />
+                               Margin="12,0,0,0" />
                 </StackPanel>
             </Grid>
         </Border>

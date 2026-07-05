@@ -71,6 +71,14 @@ public partial class PosView : UserControl
         }
     }
 
+    private async void OpenCashRegister_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            await ViewModel.OpenOwnCashRegisterAsync();
+        }
+    }
+
     private void IncreaseItem_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not null && sender is FrameworkElement element && element.DataContext is PosCartItem item)

@@ -432,6 +432,7 @@ public sealed record WarehouseListResponse(
 
 public sealed record InventoryWarehouseOption(
     [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("branch_id")] long? BranchId,
     [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("code")] string? Code,
     [property: JsonPropertyName("branch_name")] string? BranchName,
@@ -450,6 +451,7 @@ public sealed record InventoryWarehouseOption(
     {
         return new InventoryWarehouseOption(
             stock.WarehouseId,
+            null,
             stock.WarehouseName,
             stock.WarehouseCode,
             stock.BranchName,

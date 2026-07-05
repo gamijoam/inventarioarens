@@ -291,6 +291,49 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
+    public async Task OpenOwnCashRegisterAsync()
+    {
+        if (SelectedWarehouse?.BranchId is not long branchId)
+        {
+            SetError("Selecciona un almacén con sucursal para abrir caja.");
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Abriendo caja para tu usuario...";
+
+            PosCashRegisterSessionResponse response = await apiClient.PostAsync<PosOpenCashRegisterRequest, PosCashRegisterSessionResponse>(
+                "cash-register/sessions",
+                new PosOpenCashRegisterRequest(branchId, "USD", 0m, "Apertura desde POS de escritorio."));
+
+            CashRegisterSessions.Clear();
+            if (response.Data.Status == "open" && response.Data.CashierId == currentUserId)
+            {
+                CashRegisterSessions.Add(response.Data);
+                SelectedCashRegisterSession = response.Data;
+                StatusMessage = $"Caja #{response.Data.Id} abierta para vender.";
+                IsStatusError = false;
+            }
+
+            await LoadCashRegisterSessionsAsync();
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para abrir caja.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task LoadPaymentMethodsAsync()
     {
         try
