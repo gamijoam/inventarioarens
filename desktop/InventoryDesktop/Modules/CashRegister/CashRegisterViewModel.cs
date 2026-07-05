@@ -16,6 +16,7 @@ public sealed class CashRegisterViewModel : ViewModelBase
     private CashRegisterItem? selectedCashRegister;
     private CashRegisterItem? selectedManagedCashRegister;
     private CashRegisterSessionItem? selectedSession;
+    private CashRegisterSessionItem? selectedSessionDetail;
     private string newCashRegisterName = "Caja Mostrador 1";
     private string newCashRegisterCode = "CJ-1";
     private string newCashRegisterNotes = "Caja creada desde modulo Caja.";
@@ -46,6 +47,8 @@ public sealed class CashRegisterViewModel : ViewModelBase
     public ObservableCollection<CashRegisterItem> ActiveCashRegisters { get; } = new();
 
     public ObservableCollection<CashRegisterSessionItem> Sessions { get; } = new();
+
+    public ObservableCollection<CashRegisterMovementItem> Movements { get; } = new();
 
     public IReadOnlyList<string> CurrencyOptions { get; } = ["USD", "VES"];
 
@@ -102,7 +105,14 @@ public sealed class CashRegisterViewModel : ViewModelBase
             {
                 CountedAmount = value?.ExpectedBaseAmount ?? 0;
                 ClosingCurrency = "USD";
+                selectedSessionDetail = null;
+                Movements.Clear();
                 RaiseClosingProperties();
+
+                if (value is not null)
+                {
+                    _ = LoadSelectedSessionDetailAsync(value.Id);
+                }
             }
         }
     }
@@ -299,7 +309,25 @@ public sealed class CashRegisterViewModel : ViewModelBase
 
     public string ExpectedCloseLabel => SelectedSession is null
         ? "Esperado: USD 0.00 / Bs 0.00"
-        : $"Esperado: USD {SelectedSession.ExpectedBaseAmount:0.00} / Bs {SelectedSession.ExpectedLocalAmount:0.00}";
+        : $"Esperado: USD {ActiveSession.ExpectedBaseAmount:0.00} / Bs {ActiveSession.ExpectedLocalAmount:0.00}";
+
+    public string SessionTotalsLabel => SelectedSession is null
+        ? "Selecciona un turno para ver el resumen."
+        : $"{ActiveSession.SessionLabel} - {Movements.Count} movimiento(s) registrados.";
+
+    public string OpeningSummaryLabel => SelectedSession is null
+        ? "USD 0.00 / Bs 0.00"
+        : $"USD {ActiveSession.OpeningBaseAmount:0.00} / Bs {ActiveSession.OpeningLocalAmount:0.00}";
+
+    public string PosPaymentsSummaryLabel => $"USD {SumMovementsBase("pos_payment"):0.00} / Bs {SumMovementsLocal("pos_payment"):0.00}";
+
+    public string ManualInflowsSummaryLabel => $"USD {SumMovementsBase("inflow"):0.00} / Bs {SumMovementsLocal("inflow"):0.00}";
+
+    public string ManualOutflowsSummaryLabel => $"USD {SumMovementsBase("outflow"):0.00} / Bs {SumMovementsLocal("outflow"):0.00}";
+
+    public string ExpectedSummaryLabel => SelectedSession is null
+        ? "USD 0.00 / Bs 0.00"
+        : $"USD {ActiveSession.ExpectedBaseAmount:0.00} / Bs {ActiveSession.ExpectedLocalAmount:0.00}";
 
     public string CountedHelpLabel => ClosingCurrency == "VES"
         ? "El conteo en bolivares sera convertido por el backend con la tasa vigente."
@@ -319,10 +347,12 @@ public sealed class CashRegisterViewModel : ViewModelBase
                 return "Diferencia estimada: se calculara al cerrar con la tasa vigente.";
             }
 
-            decimal difference = CountedAmount - SelectedSession.ExpectedBaseAmount;
+            decimal difference = CountedAmount - ActiveSession.ExpectedBaseAmount;
             return $"Diferencia estimada: USD {difference:0.00}";
         }
     }
+
+    private CashRegisterSessionItem ActiveSession => selectedSessionDetail ?? SelectedSession!;
 
     public async Task LoadAsync()
     {
@@ -341,6 +371,46 @@ public sealed class CashRegisterViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    public async Task LoadSelectedSessionDetailAsync(long sessionId)
+    {
+        try
+        {
+            CashRegisterSessionResponse response = await apiClient.GetAsync<CashRegisterSessionResponse>($"cash-register/sessions/{sessionId}");
+            if (SelectedSession?.Id != sessionId)
+            {
+                return;
+            }
+
+            selectedSessionDetail = response.Data;
+            Movements.Clear();
+            IEnumerable<CashRegisterMovementItem> movements = response.Data.Movements is null
+                ? Enumerable.Empty<CashRegisterMovementItem>()
+                : response.Data.Movements.OrderByDescending(movement => movement.Id);
+
+            foreach (CashRegisterMovementItem movement in movements)
+            {
+                Movements.Add(movement);
+            }
+
+            CountedAmount = response.Data.ExpectedBaseAmount;
+            RaiseClosingProperties();
+            StatusMessage = $"Detalle cargado para {response.Data.SessionLabel}. Revisa pagos y conteo antes de cerrar.";
+            IsStatusError = false;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (JsonException)
+        {
+            SetError("La API devolvio el detalle de caja con un formato inesperado. Actualiza e intenta nuevamente.");
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar el detalle de caja.");
         }
     }
 
@@ -682,7 +752,27 @@ public sealed class CashRegisterViewModel : ViewModelBase
         RaisePropertyChanged(nameof(CanCloseCashRegister));
         RaisePropertyChanged(nameof(SelectedSessionLabel));
         RaisePropertyChanged(nameof(ExpectedCloseLabel));
+        RaisePropertyChanged(nameof(SessionTotalsLabel));
+        RaisePropertyChanged(nameof(OpeningSummaryLabel));
+        RaisePropertyChanged(nameof(PosPaymentsSummaryLabel));
+        RaisePropertyChanged(nameof(ManualInflowsSummaryLabel));
+        RaisePropertyChanged(nameof(ManualOutflowsSummaryLabel));
+        RaisePropertyChanged(nameof(ExpectedSummaryLabel));
         RaisePropertyChanged(nameof(CountedHelpLabel));
         RaisePropertyChanged(nameof(DifferencePreviewLabel));
+    }
+
+    private decimal SumMovementsBase(string type)
+    {
+        return Movements
+            .Where(movement => movement.Type == type)
+            .Sum(movement => movement.AmountBase);
+    }
+
+    private decimal SumMovementsLocal(string type)
+    {
+        return Movements
+            .Where(movement => movement.Type == type)
+            .Sum(movement => movement.AmountLocal ?? 0);
     }
 }

@@ -70,7 +70,8 @@ public sealed record CashRegisterSessionItem(
     [property: JsonPropertyName("notes")] string? Notes,
     [property: JsonPropertyName("closing_notes")] string? ClosingNotes,
     [property: JsonPropertyName("branch")] CashRegisterBranch? Branch,
-    [property: JsonPropertyName("cash_register")] CashRegisterItem? CashRegister)
+    [property: JsonPropertyName("cash_register")] CashRegisterItem? CashRegister,
+    [property: JsonPropertyName("movements")] IReadOnlyList<CashRegisterMovementItem>? Movements)
 {
     public string SessionLabel => CashRegister is null
         ? $"Caja #{Id}"
@@ -93,6 +94,74 @@ public sealed record CashRegisterSessionItem(
         get
         {
             if (DateTimeOffset.TryParse(OpenedAt, out DateTimeOffset parsed))
+            {
+                return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
+            }
+
+            return "Sin fecha";
+        }
+    }
+}
+
+public sealed record CashRegisterMovementItem(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("method")] string? Method,
+    [property: JsonPropertyName("currency")] string Currency,
+    [property: JsonPropertyName("amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal Amount,
+    [property: JsonPropertyName("amount_base")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal AmountBase,
+    [property: JsonPropertyName("amount_local")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? AmountLocal,
+    [property: JsonPropertyName("exchange_rate_type_code")] string? ExchangeRateTypeCode,
+    [property: JsonPropertyName("exchange_rate")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? ExchangeRate,
+    [property: JsonPropertyName("reference")] string? Reference,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("created_at")] string? CreatedAt)
+{
+    public string TypeLabel => Type switch
+    {
+        "opening" => "Apertura",
+        "inflow" => "Entrada",
+        "outflow" => "Salida",
+        "pos_payment" => "Pago POS",
+        "adjustment" => "Ajuste",
+        _ => Type,
+    };
+
+    public string MethodLabel => Method switch
+    {
+        "cash" => "Efectivo",
+        "card" => "Tarjeta",
+        "mobile_payment" => "Pago movil",
+        "transfer" => "Transferencia",
+        "zelle" => "Zelle",
+        "external_financing" => "Financiadora",
+        "other" => "Otro",
+        _ => Method ?? "Sin metodo",
+    };
+
+    public string AmountLabel => $"{Currency} {Amount:0.00}";
+
+    public string BaseLabel => $"USD {AmountBase:0.00}";
+
+    public string LocalLabel => AmountLocal is null ? "Bs 0.00" : $"Bs {AmountLocal:0.00}";
+
+    public string ReferenceLabel => string.IsNullOrWhiteSpace(Reference) ? "-" : Reference;
+
+    public string NotesLabel => string.IsNullOrWhiteSpace(Notes) ? "-" : Notes;
+
+    public string CreatedAtLabel
+    {
+        get
+        {
+            if (DateTimeOffset.TryParse(CreatedAt, out DateTimeOffset parsed))
             {
                 return parsed.LocalDateTime.ToString("dd/MM/yyyy h:mm tt");
             }

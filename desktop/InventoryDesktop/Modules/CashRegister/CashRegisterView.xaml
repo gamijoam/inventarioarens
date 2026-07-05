@@ -194,16 +194,18 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="190" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <StackPanel>
                         <TextBlock Text="Turnos abiertos" FontSize="22" FontWeight="Black" />
-                        <TextBlock Text="Selecciona un turno para revisar esperado o cerrar caja. Cada cajero mantiene su propio turno."
+                        <TextBlock Text="Selecciona un turno para revisar movimientos, pagos y cerrar con conteo real."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
-                                   Margin="0,5,0,14" />
+                                   Margin="0,5,0,12" />
                     </StackPanel>
 
                     <DataGrid Grid.Row="1"
@@ -215,7 +217,7 @@
                               IsReadOnly="True"
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal"
-                              RowHeight="56">
+                              RowHeight="48">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="CAJA" Binding="{Binding SessionLabel}" Width="230" />
                             <DataGridTextColumn Header="SUCURSAL" Binding="{Binding BranchLabel}" Width="*" />
@@ -224,6 +226,80 @@
                             <DataGridTextColumn Header="ABIERTA" Binding="{Binding OpenedAtLabel}" Width="150" />
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <Border Grid.Row="2" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,14,0,14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="{Binding SessionTotalsLabel}" FontWeight="Black" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+
+                            <UniformGrid Grid.Row="1" Columns="5" Margin="0,12,0,0">
+                                <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="APERTURA" Foreground="{StaticResource MutedBrush}" FontWeight="Black" FontSize="10" />
+                                        <TextBlock Text="{Binding OpeningSummaryLabel}" FontWeight="Black" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#FFFFFF" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="PAGOS POS" Foreground="#047857" FontWeight="Black" FontSize="10" />
+                                        <TextBlock Text="{Binding PosPaymentsSummaryLabel}" FontWeight="Black" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#FFFFFF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="ENTRADAS" Foreground="#1D4ED8" FontWeight="Black" FontSize="10" />
+                                        <TextBlock Text="{Binding ManualInflowsSummaryLabel}" FontWeight="Black" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#FFFFFF" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="SALIDAS" Foreground="#B45309" FontWeight="Black" FontSize="10" />
+                                        <TextBlock Text="{Binding ManualOutflowsSummaryLabel}" FontWeight="Black" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#FFFFFF" BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="10" Padding="10">
+                                    <StackPanel>
+                                        <TextBlock Text="ESPERADO" Foreground="#3B2CF6" FontWeight="Black" FontSize="10" />
+                                        <TextBlock Text="{Binding ExpectedSummaryLabel}" FontWeight="Black" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Movimientos del turno" FontSize="18" FontWeight="Black" Margin="0,0,0,10" />
+
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding Movements}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  RowHeight="46">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="FECHA" Binding="{Binding CreatedAtLabel}" Width="130" />
+                                <DataGridTextColumn Header="TIPO" Binding="{Binding TypeLabel}" Width="95" />
+                                <DataGridTextColumn Header="METODO" Binding="{Binding MethodLabel}" Width="110" />
+                                <DataGridTextColumn Header="RECIBIDO" Binding="{Binding AmountLabel}" Width="105" />
+                                <DataGridTextColumn Header="BASE" Binding="{Binding BaseLabel}" Width="95" />
+                                <DataGridTextColumn Header="LOCAL" Binding="{Binding LocalLabel}" Width="110" />
+                                <DataGridTextColumn Header="REFERENCIA" Binding="{Binding ReferenceLabel}" Width="120" />
+                                <DataGridTextColumn Header="NOTA" Binding="{Binding NotesLabel}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

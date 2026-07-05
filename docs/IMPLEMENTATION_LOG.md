@@ -1,5 +1,18 @@
 # Registro de implementación
-## 2026-07-05 - Ajuste visual de Caja y administracion de cajas
+## 2026-07-05 - Cierre de caja con resumen de turno en WPF
+
+### Implementado
+
+- Al seleccionar un turno abierto, WPF carga el detalle real de la caja desde Laravel.
+- Se agrego resumen visual de apertura, pagos POS, entradas, salidas y total esperado.
+- Se agrego listado de movimientos del turno con fecha, tipo, metodo, recibido, base USD, local Bs, referencia y nota.
+- El cierre de caja ahora se realiza con mayor contexto antes de confirmar el arqueo.
+- La diferencia estimada usa el detalle actualizado del turno seleccionado.
+
+### Pruebas
+
+- Se compilo WPF en `desktop\InventoryDesktop\bin\CodexBuild`.
+- Se ejecuto `CashRegisterApiTest`.## 2026-07-05 - Ajuste visual de Caja y administracion de cajas
 
 ### Implementado
 

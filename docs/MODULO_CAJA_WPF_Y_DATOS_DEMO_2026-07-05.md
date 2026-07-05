@@ -244,3 +244,52 @@ Objetivo operativo:
 - crear cajas nuevas sin mezclarlo con la edicion;
 - editar la caja seleccionada con una pantalla mas clara;
 - mantener la administracion dentro del modulo Caja.
+
+## Cierre de caja con resumen del turno
+
+Se amplio la pantalla principal del modulo **Caja** para que el cajero pueda cerrar turno con informacion operativa visible.
+
+Ahora, al seleccionar un turno abierto, la aplicacion carga el detalle real desde Laravel y muestra:
+
+- apertura del turno;
+- pagos POS registrados;
+- entradas manuales;
+- salidas manuales;
+- total esperado;
+- listado de movimientos con fecha, tipo, metodo, monto recibido, equivalente USD, equivalente Bs, referencia y nota.
+
+El cierre de caja conserva el flujo anterior:
+
+- seleccionar turno abierto;
+- revisar el resumen del turno;
+- ingresar monto contado;
+- elegir moneda del conteo;
+- colocar notas de cierre;
+- presionar **Cerrar turno seleccionado**.
+
+La diferencia se estima en pantalla cuando el conteo es en USD. Cuando el conteo es en bolivares, Laravel calcula la diferencia usando la tasa vigente al cerrar.
+
+## Verificacion del cierre de caja WPF
+
+Compilacion WPF:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore -o desktop\InventoryDesktop\bin\CodexBuild
+```
+
+Resultado:
+
+- Compilacion correcta.
+- 0 advertencias.
+- 0 errores.
+
+Pruebas backend:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests/Feature/CashRegister/CashRegisterApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas.
+- 42 aserciones.
