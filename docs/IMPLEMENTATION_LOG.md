@@ -1,5 +1,17 @@
 # Registro de implementaciÃ³n
-## 2026-07-05 - Cierre de caja con resumen de turno en WPF
+## 2026-07-05 - Ajuste visual de apertura y cierre en Caja
+
+### Implementado
+
+- Se reemplazo la columna izquierda de Caja por pestañas de **Abrir turno** y **Cerrar turno**.
+- El cierre de caja queda visible sin depender de desplazamiento vertical.
+- Los botones principales de abrir y cerrar quedan en el encabezado de cada pestaña.
+- Se compacto el formulario de cierre para mejorar uso en ventanas pequenas.
+
+### Pruebas
+
+- Se compilo WPF en `desktop\InventoryDesktop\bin\CodexBuild`.
+- Se ejecuto `CashRegisterApiTest`.## 2026-07-05 - Cierre de caja con resumen de turno en WPF
 
 ### Implementado
 

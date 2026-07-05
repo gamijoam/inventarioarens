@@ -224,6 +224,24 @@ Resultado:
 - 8 pruebas pasadas.
 - 42 aserciones.
 
+## Ajuste visual de apertura y cierre de turno
+
+Se corrigio la composicion del modulo **Caja** porque el formulario de apertura ocupaba demasiado espacio y el apartado de cierre quedaba fuera de vista en ventanas pequenas.
+
+Cambios realizados:
+
+- La columna izquierda ahora usa pestañas:
+  - **Abrir turno**.
+  - **Cerrar turno**.
+- El cierre de caja ya no queda debajo del formulario de apertura.
+- Los botones principales de abrir y cerrar quedan en el encabezado de cada pestaña.
+- Se compacto el formulario de cierre para que el conteo, la moneda, las notas y la accion principal queden visibles.
+
+Verificacion:
+
+- Compilacion WPF correcta.
+- `CashRegisterApiTest` ejecutado correctamente.
+
 ## Ajuste visual de Caja y administracion de cajas
 
 Se ajusto la experiencia del modulo **Caja** para evitar que acciones importantes queden ocultas en ventanas pequenas.
