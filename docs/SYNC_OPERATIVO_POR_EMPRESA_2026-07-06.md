@@ -376,3 +376,15 @@ Resultado:
 - compilacion correcta;
 - 0 errores;
 - 0 advertencias.
+
+## Ajuste visual del configurador tecnico
+
+Se redisenó la interfaz del instalador externo para que el tecnico no vea comandos ni mensajes internos por defecto.
+
+Cambios principales:
+
+- La pantalla ahora se presenta como `Configurador del Sistema de Inventario`.
+- Los campos quedan organizados por flujo: servidor, administrador, empresa, computadora y frecuencia.
+- El proceso se muestra como pasos claros: validar acceso, obtener empresas, preparar base local, guardar configuracion, sincronizar datos iniciales, activar sincronizacion automatica y finalizar instalacion.
+- Los detalles tecnicos y logs quedan ocultos bajo el boton `Ver detalles tecnicos`.
+- Al finalizar, aparece el boton `Abrir Sistema de Inventario` para iniciar la aplicacion principal.

@@ -4470,3 +4470,38 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## 2026-07-06 - Rediseño del configurador externo de sincronizacion
+
+Implementacion:
+
+- Se rediseño `desktop/InventorySyncInstaller` como herramienta guiada para tecnicos.
+- Se simplifico el lenguaje visible: servidor, correo administrador, empresa, computadora y frecuencia.
+- Se agregaron pasos de progreso visibles y detalles tecnicos ocultos.
+- Se agrego un boton final para abrir el Sistema de Inventario cuando la configuracion termina correctamente.
+
+Pruebas pendientes de esta entrada:
+
+- Compilacion WPF del instalador y del sistema de escritorio.
+- Pruebas backend especificas de sincronizacion.
+
+Verificacion posterior del rediseño:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop.slnx --no-restore
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

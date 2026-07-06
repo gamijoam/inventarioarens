@@ -16,12 +16,14 @@ public partial class MainWindow : Window
     private readonly JsonSerializerOptions jsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string repoRoot;
     private readonly string phpPath;
+    private readonly string dotnetPath;
 
     public MainWindow()
     {
         InitializeComponent();
         repoRoot = FindRepoRoot() ?? Environment.CurrentDirectory;
         phpPath = FindPhpPath();
+        dotnetPath = FindDotnetPath();
         NodeNameBox.Text = $"Local {Environment.MachineName}";
     }
 
@@ -29,7 +31,8 @@ public partial class MainWindow : Window
     {
         await RunUiAsync(async () =>
         {
-            SetState("Buscando", "Consultando empresas", "Estamos buscando las empresas asociadas a este correo en la nube.");
+            OpenMainButton.Visibility = Visibility.Collapsed;
+            SetState("Buscando", "Consultando empresas", "Estamos buscando las empresas asociadas a este correo en la nube.", 1);
             TenantBox.ItemsSource = null;
 
             List<TenantOption> tenants = await SearchTenantsAsync();
@@ -43,7 +46,7 @@ public partial class MainWindow : Window
             }
 
             TenantBox.SelectedIndex = 0;
-            SetState("Empresas listas", "Selecciona la empresa", $"Se encontraron {tenants.Count} empresa(s). Puedes continuar con la preparacion.");
+            SetState("Empresas listas", "Selecciona la empresa", $"Se encontraron {tenants.Count} empresa(s). Puedes continuar con la configuracion.", 1);
             AppendLog($"Empresas encontradas: {tenants.Count}");
         });
     }
@@ -68,25 +71,30 @@ public partial class MainWindow : Window
             string installationCode = BuildInstallationCode(selectedTenant.Slug);
             string nodeCode = installationCode;
 
-            SetState("Preparando", "Autorizando instalacion", "Validando credenciales en la nube y generando un token para esta computadora.");
+            OpenMainButton.Visibility = Visibility.Collapsed;
+            SetState("Validando", "Validando acceso", "Confirmando el usuario administrador en la nube.", 0);
             CloudLogin login = await LoginAsync(cloudUrl, selectedTenant.Slug, email, password);
+
+            SetState("Autorizando", "Preparando token seguro", "Registrando esta computadora para sincronizar con la empresa seleccionada.", 1);
             string syncToken = await IssueSyncTokenAsync(cloudUrl, selectedTenant.Slug, login.Token, nodeName);
 
-            SetState("Preparando", "Aplicando base local", "Ejecutando migraciones locales y creando empresa/usuario minimo.");
+            SetState("Preparando", "Preparando base local", "Creando las tablas necesarias y registrando la empresa en esta computadora.", 2);
             await RunArtisanAsync(["migrate", "--force"]);
             await PrepareLocalTenantAsync(selectedTenant, email, password, nodeName);
 
-            SetState("Preparando", "Guardando configuracion", "Registrando URL, token y datos del worker local.");
+            SetState("Guardando", "Guardando configuracion", "Registrando servidor, empresa y frecuencia de sincronizacion.", 3);
             SaveSyncConfiguration(selectedTenant.Slug, cloudUrl, syncToken, nodeCode, nodeName, installationCode, interval);
 
-            SetState("Sincronizando", "Primera sincronizacion", "Ejecutando un ciclo inicial para descargar cambios disponibles y subir pendientes.");
+            SetState("Sincronizando", "Sincronizando datos iniciales", "Descargando productos, precios, cajas y permisos disponibles para esta empresa.", 4);
             await RunWorkerAsync("run", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 
-            SetState("Activando", "Sincronizacion automatica", $"Dejando el worker activo cada {interval} segundos para esta empresa.");
+            SetState("Activando", "Activando sincronizacion automatica", $"El sistema revisara cambios cada {interval} segundos.", 5);
             await RunWorkerAsync("start", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 
-            SetState("Completado", "Computadora preparada", "Ahora puedes abrir el sistema principal e iniciar sesion con el mismo correo y clave.");
-            AppendLog("Preparacion finalizada correctamente.");
+            SetState("Completado", "Configuracion completada", "Esta computadora ya esta lista para abrir el Sistema de Inventario.", 6);
+            TechnicalSummaryText.Text = $"Empresa: {selectedTenant.Name} | Equipo: {nodeName} | Sincronizacion cada {interval} segundos.";
+            OpenMainButton.Visibility = Visibility.Visible;
+            AppendLog("Configuracion finalizada correctamente.");
         });
     }
 
@@ -328,13 +336,20 @@ public partial class MainWindow : Window
         BusyBar.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         SearchCompaniesButton.IsEnabled = !busy;
         PrepareButton.IsEnabled = !busy;
+        OpenMainButton.IsEnabled = !busy;
     }
 
-    private void SetState(string badge, string title, string detail)
+    private void SetState(string badge, string title, string detail, int? stepIndex = null)
     {
         StateBadge.Text = badge;
         StateTitle.Text = title;
         StateDetail.Text = detail;
+        if (stepIndex is not null)
+        {
+            StepsList.SelectedIndex = stepIndex.Value;
+            StepsList.ScrollIntoView(StepsList.SelectedItem);
+        }
+
         AppendLog($"{title}: {detail}");
     }
 
@@ -482,6 +497,48 @@ public partial class MainWindow : Window
         }
 
         return "php";
+    }
+
+    private static string FindDotnetPath()
+    {
+        string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        string installed = Path.Combine(programFiles, "dotnet", "dotnet.exe");
+        if (File.Exists(installed))
+        {
+            return installed;
+        }
+
+        return "dotnet";
+    }
+
+    private void TechnicalDetails_Click(object sender, RoutedEventArgs e)
+    {
+        bool showDetails = TechnicalDetailsPanel.Visibility != Visibility.Visible;
+        TechnicalDetailsPanel.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
+        TechnicalDetailsButton.Content = showDetails ? "Ocultar detalles tecnicos" : "Ver detalles tecnicos";
+    }
+
+    private void OpenMain_Click(object sender, RoutedEventArgs e)
+    {
+        string projectPath = Path.Combine(repoRoot, "desktop", "InventoryDesktop", "InventoryDesktop.csproj");
+        if (!File.Exists(projectPath))
+        {
+            MessageBox.Show("No se encontro la aplicacion principal.", "Sistema de Inventario", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        ProcessStartInfo info = new()
+        {
+            FileName = dotnetPath,
+            WorkingDirectory = repoRoot,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        info.ArgumentList.Add("run");
+        info.ArgumentList.Add("--project");
+        info.ArgumentList.Add(projectPath);
+
+        Process.Start(info);
     }
 
     private void Close_Click(object sender, RoutedEventArgs e)
