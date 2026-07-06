@@ -87,12 +87,17 @@ class SyncEventApplier
         $payload = $this->decodePayload($event['payload'] ?? []);
 
         $result = match ($event['event_type']) {
+            'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
+            'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
             'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
+            'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
+            'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
             'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
             'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
             'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
             'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
             'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
+            'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
             default => 'ignored',
         };
 
@@ -107,6 +112,42 @@ class SyncEventApplier
             ]);
 
         return $result;
+    }
+
+    private function applyBranch(Tenant $tenant, array $payload): string
+    {
+        $code = mb_strtoupper($this->requiredString($payload, 'code'));
+
+        $this->upsertByKeys(
+            'branches',
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'name' => $this->requiredString($payload, 'name'),
+                'status' => $payload['status'] ?? 'active',
+                'updated_at' => now(),
+            ]
+        );
+
+        return 'applied';
+    }
+
+    private function applyWarehouse(Tenant $tenant, array $payload): string
+    {
+        $code = mb_strtoupper($this->requiredString($payload, 'code'));
+        $branch = $this->branchByCode($tenant, $this->requiredString($payload, 'branch_code'));
+
+        $this->upsertByKeys(
+            'warehouses',
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'branch_id' => $branch->id,
+                'name' => $this->requiredString($payload, 'name'),
+                'status' => $payload['status'] ?? 'active',
+                'updated_at' => now(),
+            ]
+        );
+
+        return 'applied';
     }
 
     private function applyProduct(Tenant $tenant, array $payload): string
@@ -141,6 +182,72 @@ class SyncEventApplier
 
         $after = (array) DB::table('products')->where('tenant_id', $tenant->id)->where('id', $productId)->first();
         $this->recordProductAudit($productId, $before, $after);
+
+        return 'applied';
+    }
+
+    private function applyStockMovement(Tenant $tenant, array $payload): string
+    {
+        $product = $this->productBySku($tenant, $this->requiredString($payload, 'sku'));
+        $warehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'warehouse_code'));
+        $sourceId = (int) ($payload['source_id'] ?? $payload['id'] ?? 0);
+        $now = now();
+        $createdAt = isset($payload['created_at']) ? Carbon::parse($payload['created_at']) : $now;
+
+        $keys = $sourceId > 0
+            ? ['tenant_id' => $tenant->id, 'reference_type' => 'sync_snapshot', 'reference_id' => $sourceId]
+            : [
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'type' => $payload['type'] ?? 'adjustment',
+                'reason' => $payload['reason'] ?? 'Snapshot de sincronizacion',
+            ];
+
+        $this->upsertByKeys(
+            'stock_movements',
+            $keys,
+            [
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'type' => $payload['type'] ?? 'adjustment',
+                'quantity' => $payload['quantity'] ?? 0,
+                'unit_cost' => $payload['unit_cost'] ?? null,
+                'reason' => $payload['reason'] ?? 'Snapshot de sincronizacion',
+                'reference_type' => 'sync_snapshot',
+                'reference_id' => $sourceId > 0 ? $sourceId : null,
+                'created_by' => null,
+                'created_at' => $createdAt,
+                'updated_at' => $now,
+            ]
+        );
+
+        return 'applied';
+    }
+
+    private function applyProductUnit(Tenant $tenant, array $payload): string
+    {
+        $product = $this->productBySku($tenant, $this->requiredString($payload, 'sku'));
+        $warehouse = trim((string) ($payload['warehouse_code'] ?? '')) !== ''
+            ? $this->warehouseByCode($tenant, (string) $payload['warehouse_code'])
+            : null;
+
+        $this->upsertByKeys(
+            'product_units',
+            [
+                'tenant_id' => $tenant->id,
+                'serial_type' => $payload['serial_type'] ?? 'serial',
+                'serial_number' => $this->requiredString($payload, 'serial_number'),
+            ],
+            [
+                'product_id' => $product->id,
+                'warehouse_id' => $warehouse?->id,
+                'status' => $payload['status'] ?? 'available',
+                'acquired_stock_movement_id' => null,
+                'released_stock_movement_id' => null,
+                'updated_at' => now(),
+            ]
+        );
 
         return 'applied';
     }
@@ -293,6 +400,26 @@ class SyncEventApplier
         return 'applied';
     }
 
+    private function applyCashRegister(Tenant $tenant, array $payload): string
+    {
+        $code = mb_strtoupper($this->requiredString($payload, 'code'));
+        $branch = $this->branchByCode($tenant, $this->requiredString($payload, 'branch_code'));
+
+        $this->upsertByKeys(
+            'cash_registers',
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'branch_id' => $branch->id,
+                'name' => $this->requiredString($payload, 'name'),
+                'status' => $payload['status'] ?? 'active',
+                'notes' => $payload['notes'] ?? null,
+                'updated_at' => now(),
+            ]
+        );
+
+        return 'applied';
+    }
+
     private function syncPriceListPaymentMethods(Tenant $tenant, int $priceListId, ?array $paymentMethodCodes): void
     {
         if ($paymentMethodCodes === null) {
@@ -331,6 +458,28 @@ class SyncEventApplier
         }
 
         return $product;
+    }
+
+    private function branchByCode(Tenant $tenant, string $code): object
+    {
+        $branch = DB::table('branches')->where('tenant_id', $tenant->id)->where('code', mb_strtoupper($code))->first();
+
+        if (! $branch) {
+            throw new RuntimeException("No se encontro la sucursal {$code} para aplicar el evento.");
+        }
+
+        return $branch;
+    }
+
+    private function warehouseByCode(Tenant $tenant, string $code): object
+    {
+        $warehouse = DB::table('warehouses')->where('tenant_id', $tenant->id)->where('code', mb_strtoupper($code))->first();
+
+        if (! $warehouse) {
+            throw new RuntimeException("No se encontro el almacen {$code} para aplicar el evento.");
+        }
+
+        return $warehouse;
     }
 
     private function priceListByCode(Tenant $tenant, string $code): object

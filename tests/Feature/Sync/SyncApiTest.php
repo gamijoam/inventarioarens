@@ -42,6 +42,123 @@ class SyncApiTest extends TestCase
         $this->assertSame(1, DB::table('sync_nodes')->where('tenant_id', $tenant->id)->count());
     }
 
+    public function test_registering_node_can_queue_initial_catalog_snapshot(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-snapshot');
+        $now = now();
+
+        $branchId = DB::table('branches')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Principal Valencia',
+            'code' => 'VAL',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $warehouseId = DB::table('warehouses')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'name' => 'Almacen Valencia',
+            'code' => 'VAL-01',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $rateTypeId = DB::table('exchange_rate_types')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'code' => 'BCV',
+            'name' => 'BCV',
+            'is_default' => true,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('exchange_rates')->insert([
+            'tenant_id' => $tenant->id,
+            'exchange_rate_type_id' => $rateTypeId,
+            'base_currency' => 'USD',
+            'quote_currency' => 'VES',
+            'rate' => '500.000000',
+            'effective_at' => $now,
+            'is_active' => true,
+            'source' => 'test',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $productId = DB::table('products')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Samsung A06',
+            'sku' => 'SAM-A06',
+            'tracking_type' => 'serialized',
+            'base_price' => '100.0000',
+            'sale_currency' => 'USD',
+            'sale_exchange_rate_type_id' => $rateTypeId,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('stock_movements')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'type' => 'purchase',
+            'quantity' => '1.0000',
+            'reason' => 'Carga inicial',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('product_units')->insert([
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+            'serial_type' => 'imei',
+            'serial_number' => '860001000001',
+            'status' => 'available',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('cash_registers')->insert([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'name' => 'Caja 1',
+            'code' => 'CJ-1',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sync/nodes', [
+                'code' => 'LOCAL-VAL-01',
+                'name' => 'Local Valencia',
+                'type' => 'local',
+                'metadata' => [
+                    'installation_code' => 'PC-VAL-01',
+                    'initial_snapshot' => true,
+                ],
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_scope' => 'node',
+            'event_type' => 'product.created',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'stock_movement.created',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'cash_register.created',
+            'status' => 'pending',
+        ]);
+        $this->assertGreaterThanOrEqual(7, DB::table('sync_outbox')->where('tenant_id', $tenant->id)->count());
+    }
+
     public function test_it_receives_pushed_events_idempotently(): void
     {
         [$tenant, $user] = $this->tenantUser('empresa-push');

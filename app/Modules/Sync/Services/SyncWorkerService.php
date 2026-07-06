@@ -47,9 +47,11 @@ class SyncWorkerService
                 ],
             ]);
 
+            $shouldRequestInitialSnapshot = $this->shouldRequestInitialSnapshot($tenant, $installationCode);
+
             $this->readiness->markSyncing($tenant, $installationCode, $nodeCode, $nodeName);
 
-            $this->registerCloudNode($tenant, $nodeCode, $nodeName, $cloudUrl, $token);
+            $this->registerCloudNode($tenant, $nodeCode, $nodeName, $cloudUrl, $token, $installationCode, $shouldRequestInitialSnapshot);
 
             $summary = [
                 'node_code' => $nodeCode,
@@ -95,7 +97,33 @@ class SyncWorkerService
         }
     }
 
-    private function registerCloudNode(Tenant $tenant, string $nodeCode, string $nodeName, string $cloudUrl, string $token): void
+    private function shouldRequestInitialSnapshot(Tenant $tenant, string $installationCode): bool
+    {
+        $hasCoreCatalog = DB::table('branches')->where('tenant_id', $tenant->id)->exists()
+            && DB::table('warehouses')->where('tenant_id', $tenant->id)->exists()
+            && DB::table('products')->where('tenant_id', $tenant->id)->exists();
+
+        if (! $hasCoreCatalog) {
+            return true;
+        }
+
+        $readiness = DB::table('sync_tenant_readiness')
+            ->where('tenant_id', $tenant->id)
+            ->where('installation_code', $installationCode)
+            ->first();
+
+        return ! $readiness || ! $readiness->initial_sync_completed_at;
+    }
+
+    private function registerCloudNode(
+        Tenant $tenant,
+        string $nodeCode,
+        string $nodeName,
+        string $cloudUrl,
+        string $token,
+        string $installationCode,
+        bool $initialSnapshot,
+    ): void
     {
         $response = $this->client($tenant, $token)
             ->post($this->url($cloudUrl, 'sync/nodes'), [
@@ -106,6 +134,8 @@ class SyncWorkerService
                 'metadata' => [
                     'worker' => 'artisan',
                     'tenant' => $tenant->slug,
+                    'installation_code' => $installationCode,
+                    'initial_snapshot' => $initialSnapshot,
                 ],
             ]);
 

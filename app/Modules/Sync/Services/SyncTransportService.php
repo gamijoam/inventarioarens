@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\DB;
 
 class SyncTransportService
 {
-    public function __construct(private readonly SyncEventApplier $applier)
-    {
+    public function __construct(
+        private readonly SyncEventApplier $applier,
+        private readonly SyncInitialSnapshotService $initialSnapshot,
+    ) {
     }
 
     public function registerNode(array $data): array
@@ -39,6 +41,11 @@ class SyncTransportService
                 'code' => $data['code'],
                 'created_at' => $now,
             ]));
+        }
+
+        if (($data['metadata']['initial_snapshot'] ?? false) === true) {
+            $installationCode = (string) ($data['metadata']['installation_code'] ?? $data['code']);
+            $this->initialSnapshot->queueForNode($tenant, (int) $nodeId, $installationCode);
         }
 
         return $this->node((int) $nodeId);

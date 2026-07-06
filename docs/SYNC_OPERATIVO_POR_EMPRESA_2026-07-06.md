@@ -443,3 +443,31 @@ Mejora en el worker:
 - El worker automatico ahora se inicia como proceso PHP directo para que el archivo PID corresponda al proceso real.
 - Esto facilita detenerlo correctamente antes de reconfigurar, limpiar la base o reinstalar una empresa.
 - Si la API de nube no esta activa en la URL configurada, el worker no podra descargar productos ni cambios iniciales.
+
+## Foto inicial de catalogo desde la nube
+
+Se corrigio el caso de una computadora local limpia donde la empresa se preparaba, pero solo bajaba la identidad de empresa y no bajaban productos, almacenes, cajas, tasas ni precios.
+
+La sincronizacion sigue siendo por empresa e instalacion local, pero ahora el worker detecta si el catalogo local esta incompleto. Cuando eso ocurre, al registrar el nodo contra la nube solicita una foto inicial.
+
+La nube genera eventos dirigidos a esa computadora para:
+
+- sucursales;
+- almacenes;
+- tipos de tasa;
+- tasas;
+- metodos de pago;
+- listas de precio;
+- productos;
+- precios por producto;
+- movimientos de stock;
+- seriales e IMEI;
+- cajas fisicas.
+
+Punto importante: esto no es un seed local. Los datos salen de la base de datos de la nube y se bajan al local mediante el mismo canal de sincronizacion.
+
+Los movimientos de stock bajados por foto inicial se registran localmente como `sync_snapshot`. Eso permite reconstruir disponibilidad local sin confundirlo con una entrada manual hecha por el operador.
+
+Si una computadora ya estaba marcada como sincronizada pero no tiene catalogo base, el worker vuelve a pedir la foto inicial. Asi evitamos que una base local quede en estado `ready` sin productos.
+
+Documento especifico: `docs/SYNC_FOTO_INICIAL_CATALOGO_2026-07-06.md`.

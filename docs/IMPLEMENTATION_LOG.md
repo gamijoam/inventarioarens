@@ -4611,3 +4611,30 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## 2026-07-06 - Foto inicial de catalogo para instalaciones locales
+
+Problema:
+
+- Al limpiar la base local y configurar una empresa desde la nube, se creaban las identidades de empresa, pero no bajaban productos, almacenes, cajas, tasas, precios ni seriales.
+- La sincronizacion existente era incremental: solo bajaba eventos creados despues. Si la nube ya tenia catalogo antes de configurar el local, ese catalogo no tenia eventos pendientes para el nuevo nodo.
+
+Implementacion:
+
+- Se agrego `SyncInitialSnapshotService` para preparar eventos iniciales dirigidos a un nodo local especifico.
+- Al registrar un nodo, la nube puede recibir `metadata.initial_snapshot=true` y genera la foto inicial del catalogo para esa instalacion.
+- El worker local ahora solicita esa foto si detecta que la empresa local no tiene catalogo base o si la sincronizacion inicial no esta completa.
+- El aplicador de eventos ahora puede crear/actualizar sucursales, almacenes, movimientos de stock, seriales/IMEI y cajas fisicas ademas de productos, precios y tasas.
+- Los movimientos de stock de la foto inicial quedan con `reference_type=sync_snapshot` para diferenciar sincronizacion inicial de operaciones manuales.
+- Se creo `docs/SYNC_FOTO_INICIAL_CATALOGO_2026-07-06.md`.
+
+Pruebas:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncApiTest.php tests\Feature\Sync\SyncEventApplierTest.php tests\Feature\Sync\SyncWorkerCommandTest.php
+```
+
+Resultado:
+
+- 18 pruebas pasadas;
+- 119 aserciones.
