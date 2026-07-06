@@ -29,6 +29,21 @@ $PidFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.pid"
 $CommandFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.cmd"
 $LogFile = Join-Path $RepoRoot "storage\logs\sync-worker-$SafeTenantSlug.log"
 
+function Normalize-ProcessPathEnvironment {
+    $pathValue = [Environment]::GetEnvironmentVariable("Path", "Process")
+    $upperPathValue = [Environment]::GetEnvironmentVariable("PATH", "Process")
+
+    if ([string]::IsNullOrWhiteSpace($pathValue) -and ![string]::IsNullOrWhiteSpace($upperPathValue)) {
+        $pathValue = $upperPathValue
+    }
+
+    if (![string]::IsNullOrWhiteSpace($pathValue)) {
+        [Environment]::SetEnvironmentVariable("Path", $pathValue, "Process")
+    }
+
+    [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
+}
+
 function Write-Step([string] $Message) {
     Write-Host "==> $Message" -ForegroundColor Cyan
 }
@@ -163,6 +178,8 @@ function Start-Worker {
         Fail "Falta Token. Pasalo con -Token o configura SYNC_CLOUD_TOKEN en .env."
     }
 
+    Normalize-ProcessPathEnvironment
+
     $safeInterval = [Math]::Max(5, $Interval)
     $safeLimit = [Math]::Max(1, [Math]::Min(200, $Limit))
     $safeCycles = [Math]::Max(0, $Cycles)
@@ -236,6 +253,8 @@ function Invoke-RunOnce {
     if (!$effectiveToken) {
         Fail "Falta Token. Pasalo con -Token o configura SYNC_CLOUD_TOKEN en .env."
     }
+
+    Normalize-ProcessPathEnvironment
 
     $safeLimit = [Math]::Max(1, [Math]::Min(200, $Limit))
     $extraFlags = @()
