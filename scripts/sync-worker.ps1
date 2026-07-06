@@ -65,6 +65,10 @@ function Add-LogSafe([string] $Value) {
     Write-Host "Aviso: no se pudo escribir en el log porque esta en uso. La sincronizacion continua." -ForegroundColor Yellow
 }
 
+function Quote-ProcessArgument([string] $Value) {
+    '"' + ($Value.Replace('"', '\"')) + '"'
+}
+
 function Ensure-StateDir {
     if (!(Test-Path -LiteralPath $StateDir)) {
         New-Item -ItemType Directory -Path $StateDir | Out-Null
@@ -200,7 +204,8 @@ function Start-Worker {
         "--cycles=$safeCycles"
     ) + $extraFlags
 
-    $commandLine = '"' + $PhpPath + '" ' + (($arguments | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join " ")
+    $argumentLine = ($arguments | ForEach-Object { Quote-ProcessArgument $_ }) -join " "
+    $commandLine = (Quote-ProcessArgument $PhpPath) + " " + $argumentLine
     $cmd = @"
 @echo off
 cd /d "$RepoRoot"
@@ -222,7 +227,7 @@ $commandLine >> "$LogFile" 2>>&1
     try {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $effectiveCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $effectiveToken, "Process")
-        $process = Start-Process -FilePath $PhpPath -ArgumentList $arguments -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
+        $process = Start-Process -FilePath $PhpPath -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
         Set-Content -LiteralPath $PidFile -Value ([string] $process.Id) -Encoding ASCII
     } finally {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $previousCloudUrl, "Process")
