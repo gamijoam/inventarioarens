@@ -4505,3 +4505,36 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## 2026-07-06 - Mensajes claros de conexion en configurador externo
+
+Implementacion:
+
+- Se tradujeron los errores de conexion del instalador externo.
+- Si el servidor de nube no responde, ahora se indica revisar URL, Laravel encendido y puerto abierto.
+- Los detalles internos quedan disponibles solo en `Ver detalles tecnicos`.
+
+Motivo:
+
+- El error generico de Windows/.NET `An error occurred while sending the request` no era entendible para tecnicos ni usuarios finales.
+
+Verificacion del ajuste de mensajes:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj --no-restore -o .build\inventory-sync-installer-build-check
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

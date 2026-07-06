@@ -388,3 +388,7 @@ Cambios principales:
 - El proceso se muestra como pasos claros: validar acceso, obtener empresas, preparar base local, guardar configuracion, sincronizar datos iniciales, activar sincronizacion automatica y finalizar instalacion.
 - Los detalles tecnicos y logs quedan ocultos bajo el boton `Ver detalles tecnicos`.
 - Al finalizar, aparece el boton `Abrir Sistema de Inventario` para iniciar la aplicacion principal.
+
+## Ajuste de mensajes de conexion del configurador
+
+Se mejoro el manejo de errores del configurador externo para que, cuando la API de nube no responda, el tecnico vea un mensaje en español indicando que debe revisar URL, servidor Laravel y puerto abierto. El detalle tecnico queda oculto bajo `Ver detalles tecnicos`.

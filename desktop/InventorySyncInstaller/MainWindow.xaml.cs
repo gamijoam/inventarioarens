@@ -322,7 +322,9 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            SetState("Error", "No se pudo completar", exception.Message);
+            string friendlyMessage = FriendlyException(exception);
+            SetState("Error", "No se pudo completar", friendlyMessage);
+            TechnicalSummaryText.Text = "Abre los detalles tecnicos solo si necesitas soporte.";
             AppendLog(exception.Message);
         }
         finally
@@ -433,6 +435,26 @@ public partial class MainWindow : Window
         }
 
         return fallback;
+    }
+
+    private static string FriendlyException(Exception exception)
+    {
+        if (exception is HttpRequestException)
+        {
+            return "No se pudo conectar con el servidor de la nube. Verifica que la URL este bien escrita, que Laravel este encendido en el VPS y que el puerto este abierto.";
+        }
+
+        if (exception is TaskCanceledException)
+        {
+            return "El servidor de la nube tardo demasiado en responder. Revisa la conexion a internet o intenta nuevamente.";
+        }
+
+        if (exception is JsonException)
+        {
+            return "La nube respondio, pero la respuesta no tiene el formato esperado. Revisa que la URL apunte a la API correcta.";
+        }
+
+        return exception.Message;
     }
 
     private static string FriendlyProcessError(string output)
