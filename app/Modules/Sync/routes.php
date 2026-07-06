@@ -9,4 +9,6 @@ Route::prefix('sync')->group(function (): void {
     Route::get('events/pull', [SyncController::class, 'pull']);
     Route::post('events/{eventUuid}/ack', [SyncController::class, 'acknowledge']);
     Route::get('status', [SyncController::class, 'status']);
+    Route::get('local-readiness', [SyncController::class, 'readiness']);
+    Route::post('local-readiness', [SyncController::class, 'markReadiness']);
 });

@@ -8,13 +8,17 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Models\ProductEntryItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductEntryService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
+    public function __construct(
+        private readonly InventoryMovementService $inventory,
+        private readonly SyncCatalogOutboxService $syncCatalog,
+    )
     {
     }
 
@@ -65,7 +69,10 @@ class ProductEntryService
                 $this->createProductUnits($product, $warehouse, $movement->id, $item['serial_units'] ?? []);
             }
 
-            return $entry->refresh()->load(['items.product', 'items.warehouse']);
+            $entry = $entry->refresh()->load(['items.product', 'items.warehouse']);
+            $this->syncCatalog->productEntryCreated($entry);
+
+            return $entry;
         });
     }
 

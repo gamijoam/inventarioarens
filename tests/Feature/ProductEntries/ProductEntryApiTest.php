@@ -13,6 +13,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -68,6 +69,18 @@ class ProductEntryApiTest extends TestCase
             'quantity' => '20.0000',
             'reference_type' => ProductEntry::class,
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_entry.created',
+            'aggregate_type' => 'product_entry',
+            'status' => 'pending',
+        ]);
+        $payload = json_decode(DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product_entry.created')
+            ->value('payload'), true);
+        $this->assertSame('AUD-ENTRY', $payload['items'][0]['sku']);
+        $this->assertSame($warehouse->code, $payload['items'][0]['warehouse_code']);
     }
 
     public function test_user_can_create_serialized_product_entry_with_thirty_imeis(): void

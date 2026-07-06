@@ -12,6 +12,7 @@ class RunSyncCommand extends Command
         {tenant : Slug de la empresa local}
         {--node=LOCAL-01 : Codigo unico del nodo local}
         {--name= : Nombre visible del nodo local}
+        {--installation= : Codigo estable de la instalacion local}
         {--cloud-url= : URL base del API en la nube, por ejemplo https://dominio.com/api}
         {--token= : Token Bearer del API en la nube}
         {--limit=50 : Cantidad maxima de eventos por ciclo}
@@ -35,6 +36,7 @@ class RunSyncCommand extends Command
         $token = $this->option('token') ?: config('services.sync.token');
         $nodeCode = (string) $this->option('node');
         $nodeName = $this->option('name') ?: $nodeCode;
+        $installationCode = $this->option('installation') ?: $nodeCode;
         $limit = max(1, min(200, (int) $this->option('limit')));
         $push = ! $this->option('pull-only');
         $pull = ! $this->option('push-only');
@@ -56,6 +58,7 @@ class RunSyncCommand extends Command
             push: $push,
             pull: $pull,
             apply: $apply,
+            installationCode: (string) $installationCode,
         );
 
         $this->info('Sincronizacion ejecutada.');

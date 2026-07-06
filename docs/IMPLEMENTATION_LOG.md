@@ -3908,3 +3908,313 @@
 - Las salidas no pueden dejar stock disponible negativo.
 - Las liberaciones no pueden dejar stock reservado negativo.
 - Las operaciones críticas de inventario quedan preparadas para integrarse con permisos, policies y auditoría.
+## 2026-07-05 - Worker continuo de sincronizacion
+
+### Implementado
+
+- Se agrego el comando `php artisan sync:daemon` para ejecutar sincronizacion local-nube por ciclos.
+- El comando soporta `--interval`, `--cycles` y `--once` para operacion continua o pruebas controladas.
+- Se mantuvieron las mismas opciones de `sync:run`: nodo, nombre, URL nube, token, limite, push-only, pull-only y no-apply.
+- Se actualizo la documentacion del modulo Sync y el asistente smoke local-nube.
+
+### Pruebas
+
+- Se agrego prueba especifica para `sync:daemon --once`.
+- Se valida que un ciclo controlado registre nodo, suba eventos locales y marque el outbox como procesado.
+## 2026-07-05 - Controlador Windows para worker Sync
+
+### Implementado
+
+- Se agrego `scripts/sync-worker.ps1` para iniciar, detener y consultar el worker continuo de sincronizacion.
+- Se agrego `scripts/sync-worker.cmd` para ejecutar el controlador sin depender de la politica global de PowerShell.
+- El controlador guarda PID en `storage/app/sync-worker`, logs en `storage/logs/sync-worker.log` y evita abrir workers duplicados.
+- Se agrego opcion `-Cycles` para pruebas controladas y ejecuciones temporales.
+- El token de nube se entrega por `.env`, parametro o variable temporal del proceso, sin guardarlo en el `.cmd` generado.
+- Se documento la operacion en `docs/SYNC_WORKER_WINDOWS_2026-07-05.md`.
+
+### Pruebas
+
+- Se valido la sintaxis de `scripts/sync-worker.ps1`.
+- Se ejecuto `scripts/sync-worker.cmd status`.
+- Se ejecuto `php artisan list sync`.
+- Se ejecuto `tests/Feature/Sync` con PostgreSQL local.
+## 2026-07-05 - Control visual WPF para Sync
+
+Contexto:
+
+- El worker local-nube ya podia ejecutarse por consola, pero necesitaba una forma visual para iniciar, detener y consultar estado desde la aplicacion de escritorio.
+- El flujo debe seguir organizado por modulos, igual que POS, Caja y Centro de Inventario.
+
+Implementacion:
+
+- Se agrego el modulo visual `Sincronizacion` en el centro de modulos WPF.
+- Se creo `SyncWorkerView` para mostrar configuracion local, estado del worker y ultimos eventos del log.
+- Se creo `SyncWorkerViewModel` para ejecutar `scripts/sync-worker.cmd start|stop|status` desde la app.
+- La pantalla permite configurar empresa, nodo, nombre, URL nube, token e intervalo.
+- El estado y los errores quedan visibles en la pantalla sin cerrar la aplicacion.
+
+Documentacion:
+
+- Se creo `docs/SYNC_CONTROL_WPF_2026-07-05.md`.
+- Se actualizo `docs/MODULES.md` con los archivos y comandos del control visual Sync.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Se ejecuto `artisan test tests/Feature/Sync` con PostgreSQL local.
+- Se ejecuto `scripts/sync-worker.cmd status`.
+## 2026-07-06 - Correccion visual y ejecucion del modulo Sync WPF
+
+Contexto:
+
+- La pantalla de Sincronizacion mostraba el error completo de consola porque WPF invocaba `sync-worker.cmd` con una forma que `cmd.exe` interpretaba mal.
+- La configuracion del worker ocupaba demasiada altura y algunos controles quedaban poco claros en ventanas normales.
+
+Implementacion:
+
+- Se corrigio la ejecucion de `scripts/sync-worker.cmd` desde WPF usando `cmd.exe /d /c` con comillas compatibles con rutas de Windows.
+- Se agregaron mensajes amigables para errores comunes de ejecucion, Laravel o red.
+- Se compacto `SyncWorkerView`: botones de inicio/detencion siempre visibles, opciones avanzadas plegadas y log con mejor espacio.
+- Se mantiene el log tecnico disponible sin llenar la pantalla principal con texto crudo.
+
+Pruebas:
+
+- Se valido el comando real `sync-worker.cmd status` con tenant `demo-valencia`.
+- Se ejecuto `artisan test tests/Feature/Sync` con PostgreSQL local.
+- Se compilo WPF en salida temporal porque el ejecutable principal estaba abierto y bloqueado por Windows.
+## 2026-07-06 - Outbox de sincronizacion para inventario y precios
+
+Contexto:
+
+- La sincronizacion local-nube ya tenia transporte, inbox, outbox y worker.
+- Faltaba que las operaciones reales de catalogo e inventario generaran eventos automaticamente para ser subidas a la nube.
+
+Implementacion:
+
+- Se creo `SyncCatalogOutboxService` para centralizar los payloads de sincronizacion del catalogo.
+- La creacion, edicion y desactivacion de productos ahora registra eventos `product.created` y `product.updated`.
+- La creacion, edicion y desactivacion de listas de precio ahora registra eventos `price_list.created` y `price_list.updated`.
+- La creacion y edicion de precios por producto/lista ahora registra eventos `product_price.created` y `product_price.updated`.
+- Las entradas y salidas de inventario ahora registran eventos `product_entry.created` y `product_exit.created`.
+- Los eventos usan claves de negocio como `sku`, `price_list_code` y `warehouse_code` para no depender de IDs locales.
+
+Documentacion:
+
+- Se creo `docs/SYNC_OUTBOX_INVENTARIO_PRECIOS_2026-07-06.md`.
+- Se actualizo `docs/MODULES.md` con el nuevo servicio y reglas de eventos.
+
+Pruebas:
+
+- Se ejecuto la suite especifica de productos, entradas, salidas y sync con PostgreSQL local.
+- Resultado: 41 pruebas pasadas y 244 aserciones.
+## 2026-07-06 - Sincronizacion manual desde WPF
+
+Contexto:
+
+- El modulo de Sincronizacion permitia iniciar, detener y consultar el worker, pero faltaba una accion directa para ejecutar un ciclo puntual y ver el resumen sin depender de consola.
+
+Implementacion:
+
+- Se agrego la accion `run` a `scripts/sync-worker.ps1` y `scripts/sync-worker.cmd` para ejecutar un ciclo inmediato con `sync:run`.
+- Se agrego el boton `Sincronizar ahora` en la pantalla WPF de Sincronizacion.
+- WPF resume el resultado del ciclo manual mostrando eventos subidos, bajados, aplicados, ignorados y fallos.
+- Se limpiaron los errores del script para mostrar mensajes simples en espa�ol cuando falte `SYNC_CLOUD_URL` o `SYNC_CLOUD_TOKEN`.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Se ejecuto `scripts/sync-worker.cmd status`.
+- Se valido `scripts/sync-worker.cmd run` sin configuracion nube y ahora devuelve un error limpio de configuracion.
+- Se ejecuto `artisan test tests/Feature/Sync` con PostgreSQL local.
+## 2026-07-06 - Estado local de eventos Sync en WPF
+
+Contexto:
+
+- El modulo visual de Sincronizacion mostraba el estado del worker y el log, pero faltaba una lectura directa del backend para saber cuantos eventos habia realmente en `sync_outbox` y `sync_inbox`.
+
+Implementacion:
+
+- Se extendio `GET /api/sync/status` para incluir `latest_events` con los ultimos eventos locales de salida y entrada.
+- Se agrego en WPF el panel `Estado local de eventos` con nodos registrados, conteos de outbox/inbox y ultimos eventos.
+- El panel se actualiza al consultar estado, iniciar, detener o ejecutar `Sincronizar ahora`.
+- Se mantiene el log tecnico separado para no mezclar diagnostico operativo con salida de consola.
+
+Documentacion:
+
+- Se actualizo `docs/SYNC_CONTROL_WPF_2026-07-05.md`.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Se ejecuto `artisan test tests/Feature/Sync`.
+- Resultado: 12 pruebas pasadas y 69 aserciones.
+## 2026-07-06 - Sincronizacion operativa por empresa en el centro de modulos
+
+Contexto:
+
+- La sincronizacion estaba visible como un modulo tecnico, pero para el usuario final debe funcionar como estado operativo por empresa.
+- La misma computadora puede abrir varias empresas o sedes, por lo que el estado debe entenderse como instalacion local + empresa seleccionada.
+
+Implementacion:
+
+- Se oculto la tarjeta principal de Sincronizacion del centro de modulos.
+- Se agrego un semaforo de sincronizacion en el encabezado del centro de modulos.
+- Se agrego el boton `Sincronizar ahora` para ejecutar un ciclo manual sin entrar al modulo tecnico.
+- El estado visible se resume como sincronizado, activo, detenido, error, no configurado o sin consultar.
+- La pantalla tecnica de Sync queda disponible internamente para soporte, pero ya no es el flujo principal del operador.
+
+Documentacion:
+
+- Se creo `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md` con fases, criterios y pruebas.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Se ejecuto `artisan test tests/Feature/Sync`.
+- Resultado: 12 pruebas pasadas y 69 aserciones.
+## 2026-07-06 - Sincronizacion por instalacion local y empresa
+
+Contexto:
+
+- La sincronizacion no debe bloquear globalmente a una empresa ni depender solo del tenant.
+- Una misma empresa puede abrirse en varias computadoras y una misma computadora puede abrir varias empresas.
+- El operador debe ver un estado simple de sincronizacion, no detalles tecnicos de outbox, inbox o nodos.
+
+Implementacion:
+
+- Se creo la tabla `sync_tenant_readiness` para guardar el estado por empresa e instalacion local.
+- Se agrego `SyncReadinessService` para marcar estados `pending`, `syncing`, `ready`, `warning` y `error`.
+- Se agregaron las APIs `GET /api/sync/local-readiness` y `POST /api/sync/local-readiness`.
+- El worker `sync:run` y `sync:daemon` ahora aceptan `--installation` y actualizan readiness al iniciar, completar o fallar.
+- El script `scripts/sync-worker.ps1` propaga `InstallationCode` hacia Artisan.
+- WPF genera un codigo estable por computadora y empresa activa, consulta readiness y muestra el semaforo operativo.
+- El semaforo reconoce estados pendientes, sincronizando, advertencia, error y sincronizado.
+
+Documentacion:
+
+- Se actualizo `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`.
+- Se actualizo `docs/MODULES.md`.
+
+Pruebas:
+
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 11 pruebas pasadas y 80 aserciones.
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilacion correcta, 0 errores y 0 advertencias.
+## 2026-07-06 - Sincronizacion inicial guiada en centro de modulos
+
+Contexto:
+
+- El usuario final no debe entrar a una pantalla tecnica para entender si la empresa esta lista en su computadora.
+- La sincronizacion debe ser por empresa e instalacion local, sin bloquear otras computadoras que usen la misma empresa.
+
+Implementacion:
+
+- Se agrego un aviso operativo en el centro de modulos cuando la empresa esta pendiente, sincronizando, con advertencia o con error en esta instalacion.
+- El aviso incluye la accion `Sincronizar empresa`, que ejecuta el ciclo manual del worker para la empresa activa.
+- Cuando el estado queda `ready`, el aviso se oculta y solo queda el semaforo de sincronizacion.
+- Los mensajes aclaran que la preparacion ocurre en esta computadora, no de forma global para toda la empresa.
+
+Documentacion:
+
+- Se actualizo `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`.
+
+Pruebas:
+
+- Pendiente de compilar WPF y ejecutar pruebas especificas de Sync despues del ajuste visual.
+## 2026-07-06 - Confirmacion automatica de sincronizacion inicial
+
+Contexto:
+
+- La app ya mostraba un aviso en el centro de modulos cuando una empresa no estaba lista en una computadora, pero el usuario tenia que decidir manualmente cuando sincronizar.
+
+Implementacion:
+
+- Al abrir el panel principal, WPF consulta el estado de sincronizacion de la empresa en esta instalacion local.
+- Si el estado esta pendiente, sin consultar, no configurado o en error, se muestra una confirmacion para sincronizar ahora.
+- Si el usuario acepta, se ejecuta el ciclo manual del worker para esa empresa.
+- Si el usuario no acepta, el aviso operativo queda visible y puede sincronizar despues.
+- El flujo sigue siendo por empresa e instalacion local; no bloquea otras computadoras.
+
+Documentacion:
+
+- Se actualizo `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilacion correcta, 0 errores y 0 advertencias.
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 11 pruebas pasadas y 80 aserciones.
+## 2026-07-06 - Ventana de progreso y reinicio seguro de readiness local
+
+Contexto:
+
+- Para probar la primera apertura local era necesario limpiar el estado `sync_tenant_readiness` sin tocar productos, ventas, cajas ni eventos reales.
+- La sincronizacion inicial necesitaba una ventana de progreso mas clara para el operador.
+
+Implementacion:
+
+- Se agrego `SyncProgressWindow` en WPF para mostrar progreso mientras se prepara la empresa en esta computadora.
+- El boton `Sincronizar empresa` y la confirmacion inicial abren esta ventana durante el ciclo manual del worker.
+- Se agrego el comando `php artisan sync:reset-readiness` para reiniciar solo el estado local de preparacion.
+- El comando permite limpiar por empresa, por instalacion o todo con `--all`.
+- El comando tolera que la tabla aun no exista y muestra un mensaje claro en espanol.
+- Se aplico la migracion local `2026_07_06_130000_create_sync_tenant_readiness_table`.
+- Se ejecuto `sync:reset-readiness --all`; no habia registros previos, por eso elimino 0.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilacion correcta, 0 errores y 0 advertencias.
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 12 pruebas pasadas y 85 aserciones.
+## 2026-07-06 - Correccion de falso positivo en ventana de sincronizacion
+
+Contexto:
+
+- Al presionar `Sincronizar empresa`, la ventana de progreso podia decir `Sincronizacion completada` aunque el backend todavia devolviera la empresa como pendiente en esta computadora.
+- Esto confundia porque el centro de modulos seguia mostrando `Sincronizacion pendiente`, que era el estado real.
+
+Implementacion:
+
+- WPF ahora valida el estado real despues de ejecutar el worker y refrescar `sync/local-readiness`.
+- La ventana solo muestra `Sincronizacion completada` cuando el estado queda `Sincronizado` o `Activo`.
+- Si el estado queda pendiente, error, advertencia o sin consultar, la ventana muestra `Sincronizacion pendiente` con el mensaje del worker o el detalle del backend.
+- Se evito el falso positivo visual sin cambiar la logica de sincronizacion ni los datos.
+
+Pruebas:
+
+- Se compilo WPF con `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilacion correcta, 0 errores y 0 advertencias.
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 12 pruebas pasadas y 85 aserciones.
+## 2026-07-06 - Preparacion operativa de API nube para Sync
+
+Contexto:
+
+- El worker local necesita una API Laravel nube para subir y bajar eventos de sincronizacion.
+- Se comprobo que el VPS responde con una aplicacion Express existente, por lo que `/api/sync/status` no pertenece a Laravel en ese servidor.
+- No se pudo abrir una sesion root interactiva desde Codex por seguridad; se preparo una alternativa repetible con scripts para ejecutar directamente en el VPS y en la PC local.
+
+Implementacion:
+
+- Se agrego `php artisan sync:issue-token` para emitir tokens Bearer de sincronizacion por empresa y usuario.
+- Se agrego `scripts/cloud-api-bootstrap-vps.sh` para preparar la API Laravel nube en el VPS usando PostgreSQL local y puerto 8010.
+- Se agrego `scripts/configure-sync-cloud-local.ps1` para guardar `SYNC_CLOUD_URL` y `SYNC_CLOUD_TOKEN` en el `.env` local y ejecutar una prueba opcional.
+- Se documento que el worker no debe escribir directo contra PostgreSQL remoto; debe comunicarse con la API Laravel nube.
+
+Documentacion:
+
+- Se creo `docs/SYNC_CONFIGURACION_NUBE_OPERATIVA_2026-07-06.md`.
+
+Pruebas:
+
+- Pendiente de ejecutar suite especifica despues de agregar el comando y scripts.
+Verificacion posterior:
+
+- `php artisan list sync` muestra `sync:issue-token` junto a los comandos existentes.
+- `scripts/configure-sync-cloud-local.ps1` paso validacion sintactica de PowerShell.
+- `scripts/cloud-api-bootstrap-vps.sh` no pudo validarse localmente con `bash -n` porque Windows/WSL no tiene distribucion instalada en esta maquina.
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 13 pruebas pasadas y 90 aserciones.

@@ -40,6 +40,48 @@ SYNC_CLOUD_URL=
 SYNC_CLOUD_TOKEN=
 ```
 
+## Worker continuo
+
+Se agrego tambien un comando para dejar la sincronizacion corriendo por ciclos:
+
+```powershell
+php artisan sync:daemon empresa-demo --node=LOCAL-01 --name="Local principal" --cloud-url=https://dominio.com/api --token=TOKEN
+```
+
+Opciones adicionales:
+
+- `--interval`: segundos entre ciclos. Minimo 5 segundos.
+- `--cycles`: cantidad maxima de ciclos. `0` significa continuo.
+- `--once`: ejecuta un solo ciclo y termina. Sirve para pruebas controladas.
+
+Ejemplo para pruebas:
+
+```powershell
+php artisan sync:daemon empresa-demo --node=LOCAL-01 --cloud-url=https://dominio.com/api --token=TOKEN --once
+```
+
+Ejemplo para operacion local cada 30 segundos:
+
+```powershell
+php artisan sync:daemon empresa-demo --node=LOCAL-01 --cloud-url=https://dominio.com/api --token=TOKEN --interval=30
+```
+
+Este comando todavia no instala un servicio de Windows. La fase siguiente sera envolverlo como proceso de escritorio/servicio para que arranque con la aplicacion o con Windows, segun la decision operativa.
+
+## Controlador local en Windows
+
+Se agrego un controlador operativo para iniciar, detener y revisar el worker sin escribir el comando largo:
+
+```powershell
+.\scripts\sync-worker.cmd start -TenantSlug demo-caracas -NodeCode LOCAL-CCS-01 -Interval 30
+.\scripts\sync-worker.cmd status
+.\scripts\sync-worker.cmd stop
+```
+
+Documentacion especifica:
+
+- `docs/SYNC_WORKER_WINDOWS_2026-07-05.md`
+
 ## Flujo local hacia nube
 
 1. El worker busca eventos `pending` en `sync_outbox` local.
@@ -100,5 +142,16 @@ Casos cubiertos:
 - registra nodo, sube eventos locales, baja eventos de nube y confirma `ack`;
 - aplica eventos de precios por lista sin mezclar empresas;
 - marca eventos invalidos como `failed` con mensaje en espanol;
+- ejecuta `sync:daemon --once` como ciclo controlado de worker continuo;
 - no ejecuta el worker si la empresa no existe;
 - valida que no se hagan llamadas HTTP si el tenant no existe.
+
+## Prueba smoke local-nube
+
+Tambien se agrego el asistente:
+
+```powershell
+.\scripts\sync-smoke-test.ps1 -CloudDbPassword "CLAVE_POSTGRES_DEL_VPS"
+```
+
+Esa prueba valida PostgreSQL local y PostgreSQL nube reales, levanta una API temporal y confirma que un evento local suba y un evento de nube baje y se aplique.

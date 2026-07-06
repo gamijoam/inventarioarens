@@ -12,6 +12,7 @@ use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductPriceListResource;
 use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class ProductController extends Controller
         );
     }
 
-    public function store(StoreProductRequest $request): JsonResponse
+    public function store(StoreProductRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         Gate::authorize('create', Product::class);
 
@@ -54,6 +55,7 @@ class ProductController extends Controller
             ->refresh()
             ->load(['saleExchangeRateType', 'warrantyPolicy']);
         $this->recordAudit($product, ProductAudit::ACTION_CREATED, [], $product->only($this->auditedFields()), $request->user()?->id);
+        $syncCatalog->productCreated($product);
 
         return ProductResource::make($product)
             ->response()
@@ -144,7 +146,7 @@ class ProductController extends Controller
         ]);
     }
 
-    public function syncPrices(SyncProductPricesRequest $request, Product $product): AnonymousResourceCollection
+    public function syncPrices(SyncProductPricesRequest $request, Product $product, SyncCatalogOutboxService $syncCatalog): AnonymousResourceCollection
     {
         Gate::authorize('update', $product);
 
@@ -181,13 +183,16 @@ class ProductController extends Controller
                     ['product_price' => $after],
                     $request->user()?->id
                 );
+                $before === null
+                    ? $syncCatalog->productPriceCreated($productPrice)
+                    : $syncCatalog->productPriceUpdated($productPrice);
             }
         }
 
         return $this->prices($product);
     }
 
-    public function update(UpdateProductRequest $request, Product $product): ProductResource
+    public function update(UpdateProductRequest $request, Product $product, SyncCatalogOutboxService $syncCatalog): ProductResource
     {
         Gate::authorize('update', $product);
 
@@ -210,18 +215,20 @@ class ProductController extends Controller
 
         if ($changes !== []) {
             $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $changes['before'], $changes['after'], $request->user()?->id);
+            $syncCatalog->productUpdated($product);
         }
 
         return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
     }
 
-    public function destroy(Product $product): Response
+    public function destroy(Product $product, SyncCatalogOutboxService $syncCatalog): Response
     {
         Gate::authorize('delete', $product);
 
         $before = ['is_active' => $product->is_active];
         $product->update(['is_active' => false]);
         $this->recordAudit($product, ProductAudit::ACTION_DEACTIVATED, $before, ['is_active' => false], request()->user()?->id);
+        $syncCatalog->productDeactivated($product->refresh());
 
         return response()->noContent();
     }

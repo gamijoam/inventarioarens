@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -111,6 +112,7 @@ class SyncWorkerCommandTest extends TestCase
             '--cloud-url' => 'https://cloud.test/api',
             '--token' => 'token-demo',
             '--limit' => 10,
+            '--installation' => 'LOCAL-WORKER-PC-01',
         ])
             ->expectsOutput('Sincronizacion ejecutada.')
             ->assertExitCode(0);
@@ -147,6 +149,12 @@ class SyncWorkerCommandTest extends TestCase
             'direction' => 'pull',
             'last_event_uuid' => $cloudEventUuid,
         ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenant->id,
+            'installation_code' => 'LOCAL-WORKER-PC-01',
+            'node_code' => 'LOCAL-VAL-01',
+            'status' => 'ready',
+        ]);
 
         Http::assertSentCount(4);
     }
@@ -164,5 +172,165 @@ class SyncWorkerCommandTest extends TestCase
             ->assertExitCode(1);
 
         Http::assertNothingSent();
+    }
+
+    public function test_sync_issue_token_creates_token_for_tenant_user(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Token Sync',
+            'slug' => 'empresa-token-sync',
+        ]);
+        $user = User::factory()->create([
+            'email' => 'sync@example.test',
+            'password' => Hash::make('password'),
+        ]);
+        $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        $this->artisan('sync:issue-token', [
+            'tenant' => $tenant->slug,
+            'email' => $user->email,
+            '--name' => 'worker-prueba',
+            '--days' => 30,
+        ])
+            ->expectsOutput('Token de sincronizacion emitido.')
+            ->expectsOutput('Empresa: empresa-token-sync')
+            ->expectsOutput('Usuario: sync@example.test')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('auth_tokens', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'name' => 'worker-prueba',
+            'ip_address' => 'cli',
+            'user_agent' => 'sync:issue-token',
+        ]);
+    }
+
+    public function test_sync_reset_readiness_removes_only_selected_tenant_state(): void
+    {
+        $tenantA = Tenant::create([
+            'name' => 'Empresa Reset A',
+            'slug' => 'empresa-reset-a',
+        ]);
+        $tenantB = Tenant::create([
+            'name' => 'Empresa Reset B',
+            'slug' => 'empresa-reset-b',
+        ]);
+        $now = now();
+
+        DB::table('sync_tenant_readiness')->insert([
+            [
+                'tenant_id' => $tenantA->id,
+                'installation_code' => 'LOCAL-PC-RESET',
+                'node_code' => 'LOCAL-PC-RESET',
+                'node_name' => 'PC Reset',
+                'status' => 'ready',
+                'metadata' => json_encode([]),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'tenant_id' => $tenantB->id,
+                'installation_code' => 'LOCAL-PC-RESET',
+                'node_code' => 'LOCAL-PC-RESET',
+                'node_name' => 'PC Reset',
+                'status' => 'ready',
+                'metadata' => json_encode([]),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+
+        $this->artisan('sync:reset-readiness', [
+            'tenant' => $tenantA->slug,
+            '--installation' => 'LOCAL-PC-RESET',
+        ])
+            ->expectsOutput('Estado local de sincronizacion reiniciado.')
+            ->expectsOutput('Registros eliminados: 1')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseMissing('sync_tenant_readiness', [
+            'tenant_id' => $tenantA->id,
+            'installation_code' => 'LOCAL-PC-RESET',
+        ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenantB->id,
+            'installation_code' => 'LOCAL-PC-RESET',
+            'status' => 'ready',
+        ]);
+    }
+
+    public function test_sync_daemon_can_run_one_controlled_cycle(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync Daemon',
+            'slug' => 'empresa-sync-daemon',
+        ]);
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'target_scope' => 'tenant',
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => 22,
+            'payload' => json_encode(['order_id' => 22, 'total_base_amount' => '50.0000']),
+            'occurred_at' => $now,
+            'available_at' => $now,
+            'status' => 'pending',
+            'idempotency_key' => 'pos-order-22',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-DAEMON-01'],
+            ], 201),
+            'https://cloud.test/api/sync/events/push' => Http::response([
+                'data' => ['received' => 1, 'duplicated' => 0],
+            ], 202),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [],
+            ], 200),
+        ]);
+
+        $this->artisan('sync:daemon', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-DAEMON-01',
+            '--name' => 'Local Daemon 01',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--once' => true,
+            '--installation' => 'LOCAL-DAEMON-PC-01',
+        ])
+            ->expectsOutput('Worker continuo de sincronizacion iniciado.')
+            ->expectsOutput('Worker continuo detenido por limite de ciclos.')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'status' => 'processed',
+        ]);
+        $this->assertDatabaseHas('sync_nodes', [
+            'tenant_id' => $tenant->id,
+            'code' => 'LOCAL-DAEMON-01',
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenant->id,
+            'installation_code' => 'LOCAL-DAEMON-PC-01',
+            'node_code' => 'LOCAL-DAEMON-01',
+            'status' => 'ready',
+        ]);
+
+        Http::assertSentCount(3);
     }
 }

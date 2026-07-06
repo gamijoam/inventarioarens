@@ -185,6 +185,22 @@ class SyncTransportService
                 ->get()
                 ->map(fn ($state): array => (array) $state)
                 ->all() : [],
+            'latest_events' => [
+                'outbox' => DB::table('sync_outbox')
+                    ->where('tenant_id', $tenant->id)
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+                    ->map(fn ($event): array => $this->formatOutboxEvent((array) $event))
+                    ->all(),
+                'inbox' => DB::table('sync_inbox')
+                    ->where('tenant_id', $tenant->id)
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+                    ->map(fn ($event): array => $this->formatInboxEvent((array) $event))
+                    ->all(),
+            ],
         ];
     }
 
@@ -258,6 +274,15 @@ class SyncTransportService
         $event['occurred_at'] = $this->formatDate($event['occurred_at'] ?? null);
         $event['available_at'] = $this->formatDate($event['available_at'] ?? null);
         $event['processed_at'] = $this->formatDate($event['processed_at'] ?? null);
+
+        return $event;
+    }
+
+    private function formatInboxEvent(array $event): array
+    {
+        $event['payload'] = $this->decodeJson($event['payload'] ?? null);
+        $event['received_at'] = $this->formatDate($event['received_at'] ?? null);
+        $event['applied_at'] = $this->formatDate($event['applied_at'] ?? null);
 
         return $event;
     }

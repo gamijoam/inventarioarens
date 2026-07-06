@@ -15,6 +15,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -108,6 +109,13 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.sale_currency', Product::CURRENCY_VES)
             ->assertJsonPath('data.sale_exchange_rate_type_id', $parallel->id)
             ->assertJsonPath('data.sale_exchange_rate_type.code', 'PARALELO');
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product.created',
+            'aggregate_type' => 'product',
+            'status' => 'pending',
+        ]);
     }
 
     public function test_user_can_manage_product_price_lists_and_quote_selected_price(): void
@@ -136,6 +144,13 @@ class ProductApiTest extends TestCase
             ->assertJsonPath('data.code', 'MAYOR')
             ->assertJsonPath('data.is_default', true)
             ->json('data.id');
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'price_list.created',
+            'aggregate_type' => 'price_list',
+            'status' => 'pending',
+        ]);
 
         $this
             ->actingAs($user)
@@ -195,6 +210,18 @@ class ProductApiTest extends TestCase
             'product_id' => $product->id,
             'price_list_id' => $priceListId,
             'price' => '12.0000',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_price.created',
+            'aggregate_type' => 'product_price',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_price.updated',
+            'aggregate_type' => 'product_price',
+            'status' => 'pending',
         ]);
     }
 
@@ -468,6 +495,14 @@ class ProductApiTest extends TestCase
             'action' => ProductAudit::ACTION_DEACTIVATED,
             'created_by' => $user->id,
         ]);
+        $this->assertSame(
+            2,
+            DB::table('sync_outbox')
+                ->where('tenant_id', $tenant->id)
+                ->where('event_type', 'product.updated')
+                ->where('aggregate_type', 'product')
+                ->count()
+        );
     }
 
     public function test_product_with_serialized_units_cannot_change_tracking_type(): void

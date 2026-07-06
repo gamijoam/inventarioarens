@@ -27,6 +27,7 @@ class SyncSchemaTest extends TestCase
         $this->assertTrue(Schema::hasTable('sync_outbox'));
         $this->assertTrue(Schema::hasTable('sync_inbox'));
         $this->assertTrue(Schema::hasTable('sync_states'));
+        $this->assertTrue(Schema::hasTable('sync_tenant_readiness'));
 
         $nodeId = DB::table('sync_nodes')->insertGetId([
             'tenant_id' => $tenant->id,
@@ -83,6 +84,19 @@ class SyncSchemaTest extends TestCase
             'updated_at' => $now,
         ]);
 
+        DB::table('sync_tenant_readiness')->insert([
+            'tenant_id' => $tenant->id,
+            'installation_code' => 'LOCAL-PC-01',
+            'node_code' => 'LOCAL-CCS-01',
+            'node_name' => 'Local Caracas 01',
+            'status' => 'ready',
+            'last_success_at' => $now,
+            'initial_sync_completed_at' => $now,
+            'metadata' => json_encode(['summary' => ['pushed' => 1]]),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
         $this->assertDatabaseHas('sync_nodes', [
             'tenant_id' => $tenant->id,
             'code' => 'LOCAL-CCS-01',
@@ -101,6 +115,12 @@ class SyncSchemaTest extends TestCase
             'tenant_id' => $tenant->id,
             'node_id' => $nodeId,
             'direction' => 'pull',
+        ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenant->id,
+            'installation_code' => 'LOCAL-PC-01',
+            'node_code' => 'LOCAL-CCS-01',
+            'status' => 'ready',
         ]);
     }
 

@@ -181,6 +181,103 @@ class SyncApiTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_status_returns_local_event_counters_and_latest_events(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-sync-status');
+        $nodeId = $this->node($tenant, 'LOCAL-STATUS-01');
+        $now = now();
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'origin_node_id' => $nodeId,
+            'target_scope' => 'tenant',
+            'event_type' => 'product.price.updated',
+            'aggregate_type' => 'product',
+            'aggregate_id' => 501,
+            'payload' => json_encode(['product_id' => 501, 'price' => '77.7700']),
+            'occurred_at' => $now,
+            'available_at' => $now,
+            'status' => 'pending',
+            'idempotency_key' => 'status-outbox-501',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'origin_node_id' => $nodeId,
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => 901,
+            'payload_hash' => hash('sha256', json_encode(['order_id' => 901])),
+            'payload' => json_encode(['order_id' => 901]),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sync/status')
+            ->assertOk()
+            ->assertJsonPath('data.outbox.pending', 1)
+            ->assertJsonPath('data.inbox.received', 1)
+            ->assertJsonPath('data.latest_events.outbox.0.event_type', 'product.price.updated')
+            ->assertJsonPath('data.latest_events.outbox.0.payload.price', '77.7700')
+            ->assertJsonPath('data.latest_events.inbox.0.event_type', 'pos.order.paid')
+            ->assertJsonPath('data.latest_events.inbox.0.payload.order_id', 901);
+    }
+
+    public function test_local_readiness_is_tracked_by_tenant_and_installation(): void
+    {
+        [$tenantA, $userA] = $this->tenantUser('empresa-readiness-a');
+        [$tenantB, $userB] = $this->tenantUser('empresa-readiness-b');
+        $installationCode = 'LOCAL-MOSTRADOR-01';
+
+        $this->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/sync/local-readiness?installation_code={$installationCode}")
+            ->assertOk()
+            ->assertJsonPath('data.installation_code', $installationCode)
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/sync/local-readiness', [
+                'installation_code' => $installationCode,
+                'node_code' => 'LOCAL-NORTE-01',
+                'node_name' => 'Equipo mostrador norte',
+                'status' => 'ready',
+                'metadata' => ['scope' => 'manual-test'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'ready')
+            ->assertJsonPath('data.node_code', 'LOCAL-NORTE-01')
+            ->assertJsonPath('data.metadata.scope', 'manual-test');
+
+        $this->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->getJson("/api/sync/local-readiness?installation_code={$installationCode}")
+            ->assertOk()
+            ->assertJsonPath('data.installation_code', $installationCode)
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.node_code', null);
+
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenantA->id,
+            'installation_code' => $installationCode,
+            'status' => 'ready',
+        ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenantB->id,
+            'installation_code' => $installationCode,
+            'status' => 'pending',
+        ]);
+    }
+
     private function tenantUser(string $slug): array
     {
         $tenant = Tenant::create([

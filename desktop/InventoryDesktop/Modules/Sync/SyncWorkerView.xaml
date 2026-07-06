@@ -1,0 +1,229 @@
+<UserControl x:Class="InventoryDesktop.Modules.Sync.SyncWorkerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="22" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Padding="9,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7">
+                            <TextBlock Text="SYNC" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
+                        </Border>
+                        <Border Margin="8,0,0,0" Padding="9,5" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="7">
+                            <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Sincronizacion" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="Control del worker que sube cambios a la nube y baja actualizaciones para este local."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Content="Actualizar estado"
+                        Width="150"
+                        Height="44"
+                        FontWeight="Black"
+                        VerticalAlignment="Top"
+                        Click="Refresh_Click" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="430" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
+                <DockPanel LastChildFill="True">
+                    <Grid DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="Iniciar"
+                                Height="46"
+                                Background="{StaticResource AccentBrush}"
+                                Foreground="White"
+                                FontWeight="Black"
+                                Click="Start_Click" />
+                        <Button Grid.Column="2"
+                                Content="Sincronizar ahora"
+                                Height="46"
+                                FontWeight="Black"
+                                Click="RunOnce_Click" />
+                        <Button Grid.Column="4"
+                                Content="Detener"
+                                Height="46"
+                                FontWeight="Black"
+                                Click="Stop_Click" />
+                    </Grid>
+
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="Configuracion local" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Si URL y token estan en el archivo .env, puedes dejarlos vacios aqui."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,5,0,14" />
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,12,6,0">
+                            <TextBlock Text="Empresa" FontWeight="Black" />
+                            <TextBox Text="{Binding TenantSlug, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                            <TextBlock Text="Codigo del nodo" FontWeight="Black" />
+                            <TextBox Text="{Binding NodeCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                            <TextBlock Text="Nombre del nodo" FontWeight="Black" />
+                            <TextBox Text="{Binding NodeName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                            <Expander Header="Opciones avanzadas de nube" FontWeight="Black" Margin="0,2,0,0">
+                                <StackPanel Margin="0,12,0,0">
+                                    <TextBlock Text="URL nube" FontWeight="Black" />
+                                    <TextBox Text="{Binding CloudUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                    <TextBlock Text="Token nube opcional" FontWeight="Black" />
+                                    <PasswordBox x:Name="TokenBox" PasswordChanged="TokenBox_PasswordChanged" Margin="0,4,0,12" />
+
+                                    <TextBlock Text="Intervalo en segundos" FontWeight="Black" />
+                                    <TextBox Text="{Binding Interval, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,6" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="180" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Estado del worker" FontSize="22" FontWeight="Black" />
+                            <TextBlock Text="{Binding StatusDetail}"
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0" />
+                        </StackPanel>
+
+                        <Border Grid.Column="1"
+                                MinWidth="140"
+                                Height="70"
+                                Background="#F8FAFE"
+                                BorderBrush="#DCE4F2"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Margin="18,0,0,0">
+                            <TextBlock Text="{Binding Status}"
+                                       FontSize="18"
+                                       FontWeight="Black"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="14,0" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Estado local de eventos" FontSize="20" FontWeight="Black" />
+                            <TextBlock Text="Conteos reales de outbox/inbox y ultimos eventos registrados por Laravel."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,5,0,10" />
+                        </StackPanel>
+
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding BackendStatus}"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Ultimos eventos del log" FontSize="22" FontWeight="Black" />
+                            <TextBlock Text="Aqui veras ciclos, eventos enviados, eventos recibidos y errores de red."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,5,0,12" />
+                        </StackPanel>
+
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding LastLog}"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Margin="0,14,0,0"
+                Padding="12"
+                Background="#FFF5F7"
+                BorderBrush="#FFD5DF"
+                BorderThickness="1"
+                CornerRadius="8">
+            <TextBlock Text="{Binding Message}"
+                       Foreground="#D9365C"
+                       FontWeight="Black"
+                       TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</UserControl>

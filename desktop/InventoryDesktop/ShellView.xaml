@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cash="clr-namespace:InventoryDesktop.Modules.CashRegister"
              xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter"
-             xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS">
+             xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS"
+             xmlns:sync="clr-namespace:InventoryDesktop.Modules.Sync">
     <UserControl.Resources>
         <Style x:Key="ModuleCardButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="292" />
@@ -87,13 +88,77 @@
                                            TextWrapping="Wrap"
                                            Margin="0,5,0,0" />
                             </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Padding="12,9"
+                                        CornerRadius="10"
+                                        Background="#F8FAFE"
+                                        BorderBrush="#DCE4F2"
+                                        BorderThickness="1"
+                                        Margin="0,0,10,0">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse x:Name="SyncStatusDot"
+                                                 Width="12"
+                                                 Height="12"
+                                                 Fill="#94A3B8"
+                                                 Margin="0,0,8,0" />
+                                        <StackPanel>
+                                            <TextBlock Text="Sincronizacion" FontSize="11" FontWeight="Black" Foreground="#51617F" />
+                                            <TextBlock x:Name="SyncStatusText" Text="Sin consultar" FontWeight="Black" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Button x:Name="RunSyncButton"
+                                        Content="Sincronizar ahora"
+                                        Width="150"
+                                        Height="42"
+                                        Margin="0,0,10,0"
+                                        FontWeight="Black"
+                                        Click="RunSyncNow_Click" />
+                                <Button Grid.Column="1"
+                                        Content="Actualizar"
+                                        Width="120"
+                                        Height="42"
+                                        VerticalAlignment="Center"
+                                        FontWeight="Black"
+                                        Click="RefreshHome_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="InitialSyncNotice"
+                            Visibility="Collapsed"
+                            Margin="0,16,0,0"
+                            Background="#FFF7ED"
+                            BorderBrush="#FDBA74"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="18">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="InitialSyncTitle"
+                                           Text="Esta empresa necesita sincronizacion inicial"
+                                           FontSize="18"
+                                           FontWeight="Black"
+                                           Foreground="#9A3412" />
+                                <TextBlock x:Name="InitialSyncDetail"
+                                           Text="Sincroniza esta instalacion para descargar productos, precios, cajas y permisos antes de operar."
+                                           Margin="0,5,0,0"
+                                           Foreground="#7C2D12"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
                             <Button Grid.Column="1"
-                                    Content="Actualizar"
-                                    Width="120"
+                                    Content="Sincronizar empresa"
+                                    Width="170"
                                     Height="42"
+                                    Margin="18,0,0,0"
                                     VerticalAlignment="Center"
                                     FontWeight="Black"
-                                    Click="RefreshHome_Click" />
+                                    Click="RunSyncNow_Click" />
                         </Grid>
                     </Border>
 
@@ -191,6 +256,19 @@
                             </Border>
                         </Button>
 
+                        <Button x:Name="HomeSyncCard" Style="{StaticResource ModuleCardButtonStyle}" Click="Sync_Click" Visibility="Collapsed">
+                            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                <StackPanel>
+                                    <Border Width="48" Height="48" CornerRadius="14" HorizontalAlignment="Left" Background="#0891B2">
+                                        <TextBlock Text="SY" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Sincronizacion" FontSize="22" FontWeight="Black" Margin="0,15,0,0" />
+                                    <TextBlock Text="Estado, inicio y parada del worker local-nube." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                    <TextBlock Text="Abrir modulo" Foreground="#0E7490" FontWeight="Black" Margin="0,16,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </Button>
+
                         <Button x:Name="HomeReportsCard" Style="{StaticResource ModuleCardButtonStyle}" IsEnabled="False">
                             <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18" Opacity="0.72">
                                 <StackPanel>
@@ -224,6 +302,7 @@
             <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
             <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
             <cash:CashRegisterView x:Name="CashRegisterContent" Visibility="Collapsed" />
+            <sync:SyncWorkerView x:Name="SyncWorkerContent" Visibility="Collapsed" />
         </Grid>
 
         <pos:PosView x:Name="PosContent" Grid.RowSpan="2" Visibility="Collapsed" />

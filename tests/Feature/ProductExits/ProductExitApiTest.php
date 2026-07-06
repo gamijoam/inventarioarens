@@ -14,6 +14,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -61,6 +62,18 @@ class ProductExitApiTest extends TestCase
             'quantity' => '3.0000',
             'reference_type' => ProductExit::class,
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_exit.created',
+            'aggregate_type' => 'product_exit',
+            'status' => 'pending',
+        ]);
+        $payload = json_decode(DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product_exit.created')
+            ->value('payload'), true);
+        $this->assertSame('EXIT-AUD', $payload['items'][0]['sku']);
+        $this->assertSame($warehouse->code, $payload['items'][0]['warehouse_code']);
     }
 
     public function test_damaged_exit_moves_quantity_to_damaged_bucket(): void

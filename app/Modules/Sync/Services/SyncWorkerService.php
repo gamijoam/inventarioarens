@@ -16,6 +16,7 @@ class SyncWorkerService
         private readonly HttpFactory $http,
         private readonly SyncTransportService $transport,
         private readonly SyncEventApplier $applier,
+        private readonly SyncReadinessService $readiness,
     ) {
     }
 
@@ -29,8 +30,10 @@ class SyncWorkerService
         bool $push = true,
         bool $pull = true,
         bool $apply = true,
+        ?string $installationCode = null,
     ): array {
         $this->tenants->set($tenant);
+        $installationCode ??= $nodeCode;
 
         try {
             $localNode = $this->transport->registerNode([
@@ -43,6 +46,8 @@ class SyncWorkerService
                     'tenant' => $tenant->slug,
                 ],
             ]);
+
+            $this->readiness->markSyncing($tenant, $installationCode, $nodeCode, $nodeName);
 
             $this->registerCloudNode($tenant, $nodeCode, $nodeName, $cloudUrl, $token);
 
@@ -78,7 +83,13 @@ class SyncWorkerService
                 $summary['failed'] += $applySummary['failed'];
             }
 
+            $this->readiness->markCompleted($tenant, $installationCode, $nodeCode, $nodeName, $summary);
+
             return $summary;
+        } catch (RuntimeException $exception) {
+            $this->readiness->markFailed($tenant, $installationCode, $nodeCode, $nodeName, $exception->getMessage());
+
+            throw $exception;
         } finally {
             $this->tenants->clear();
         }

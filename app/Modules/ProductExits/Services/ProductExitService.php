@@ -10,13 +10,17 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\ProductExits\Models\ProductExitItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductExitService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
+    public function __construct(
+        private readonly InventoryMovementService $inventory,
+        private readonly SyncCatalogOutboxService $syncCatalog,
+    )
     {
     }
 
@@ -82,7 +86,10 @@ class ProductExitService
                 $this->updateProductUnits($unitIds, $movement->id, $data['reason']);
             }
 
-            return $exit->refresh()->load(['items.product', 'items.warehouse']);
+            $exit = $exit->refresh()->load(['items.product', 'items.warehouse']);
+            $this->syncCatalog->productExitCreated($exit);
+
+            return $exit;
         });
     }
 

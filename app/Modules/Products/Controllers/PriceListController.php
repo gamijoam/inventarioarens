@@ -6,6 +6,7 @@ use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Requests\StorePriceListRequest;
 use App\Modules\Products\Requests\UpdatePriceListRequest;
 use App\Modules\Products\Resources\PriceListResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -29,7 +30,7 @@ class PriceListController extends Controller
         );
     }
 
-    public function store(StorePriceListRequest $request): JsonResponse
+    public function store(StorePriceListRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         $data = $this->normalize($request->validated());
 
@@ -48,13 +49,14 @@ class PriceListController extends Controller
 
             return $priceList;
         });
+        $syncCatalog->priceListCreated($priceList->refresh()->load('paymentMethods'));
 
         return PriceListResource::make($priceList->load('paymentMethods'))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function update(UpdatePriceListRequest $request, PriceList $priceList): PriceListResource
+    public function update(UpdatePriceListRequest $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): PriceListResource
     {
         $data = $this->normalize($request->validated());
 
@@ -73,11 +75,12 @@ class PriceListController extends Controller
                 $priceList->paymentMethods()->sync($this->syncPayload($paymentMethodIds));
             }
         });
+        $syncCatalog->priceListUpdated($priceList->refresh()->load('paymentMethods'));
 
         return PriceListResource::make($priceList->refresh()->load('paymentMethods'));
     }
 
-    public function destroy(Request $request, PriceList $priceList): Response
+    public function destroy(Request $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): Response
     {
         abort_unless($request->user()?->can('products.update'), Response::HTTP_FORBIDDEN);
 
@@ -85,6 +88,7 @@ class PriceListController extends Controller
             'is_active' => false,
             'is_default' => false,
         ]);
+        $syncCatalog->priceListDeactivated($priceList->refresh()->load('paymentMethods'));
 
         return response()->noContent();
     }

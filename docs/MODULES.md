@@ -266,7 +266,7 @@ Responsabilidad:
 - recibir eventos externos en `sync_inbox` sin duplicarlos;
 - entregar eventos pendientes desde `sync_outbox`;
 - registrar acuses de recibo para eventos aplicados o fallidos;
-- exponer estado operativo de sincronizacion por nodo y tenant;
+- exponer estado operativo de sincronizacion por nodo, empresa e instalacion local;
 - servir como base para la futura sincronizacion local-nube y nube-local.
 
 Archivos principales:
@@ -276,12 +276,31 @@ Archivos principales:
 - `app/Modules/Sync/Requests/PushSyncEventsRequest.php`
 - `app/Modules/Sync/Requests/PullSyncEventsRequest.php`
 - `app/Modules/Sync/Requests/AcknowledgeSyncEventRequest.php`
+- `app/Modules/Sync/Requests/SyncReadinessRequest.php`
 - `app/Modules/Sync/Commands/RunSyncCommand.php`
+- `app/Modules/Sync/Commands/RunSyncDaemonCommand.php`
+- `app/Modules/Sync/Commands/IssueSyncTokenCommand.php`
 - `app/Modules/Sync/Services/SyncEventApplier.php`
+- `app/Modules/Sync/Services/SyncCatalogOutboxService.php`
 - `app/Modules/Sync/Services/SyncOutboxService.php`
+- `app/Modules/Sync/Services/SyncReadinessService.php`
 - `app/Modules/Sync/Services/SyncTransportService.php`
 - `app/Modules/Sync/Services/SyncWorkerService.php`
 - `app/Modules/Sync/routes.php`
+- `database/migrations/2026_07_06_130000_create_sync_tenant_readiness_table.php`
+- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml`
+- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml.cs`
+- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs`
+- `scripts/sync-worker.ps1`
+- `scripts/sync-worker.cmd`
+- `scripts/sync-smoke-test.ps1`
+- `scripts/cloud-api-bootstrap-vps.sh`
+- `scripts/configure-sync-cloud-local.ps1`
+- `docs/SYNC_WORKER_WINDOWS_2026-07-05.md`
+- `docs/SYNC_SMOKE_TEST_LOCAL_NUBE_2026-07-05.md`
+- `docs/SYNC_CONTROL_WPF_2026-07-05.md`
+- `docs/SYNC_OUTBOX_INVENTARIO_PRECIOS_2026-07-06.md`
+- `docs/SYNC_CONFIGURACION_NUBE_OPERATIVA_2026-07-06.md`
 
 APIs:
 
@@ -290,17 +309,30 @@ APIs:
 - `GET /api/sync/events/pull`
 - `POST /api/sync/events/{event_uuid}/ack`
 - `GET /api/sync/status`
+- `GET /api/sync/local-readiness`
+- `POST /api/sync/local-readiness`
 - `php artisan sync:run`
+- `php artisan sync:daemon`
+- `php artisan sync:issue-token`
+- `.\scripts\sync-worker.ps1 start|stop|status`
+- `.\scripts\sync-worker.cmd start|stop|status`
+- `.\scripts\sync-smoke-test.ps1 -CloudDbPassword "CLAVE_POSTGRES_DEL_VPS"`
+- `.\scripts\configure-sync-cloud-local.ps1 -CloudUrl "URL_API_NUBE" -Token "TOKEN"`
 
 Regla importante:
 
 - las rutas requieren `api.auth` y `tenant`;
-- el API actual transporta eventos, pero aun no aplica automaticamente reglas de negocio;
+- productos, listas de precio, precios por producto, entradas y salidas ya registran eventos en `sync_outbox`;
+- productos, listas de precio y precios por producto ya pueden aplicarse desde `sync_inbox` usando claves de negocio como `sku` y `price_list_code`;
+- las entradas y salidas se suben como eventos operativos, pero la aplicacion automatica de stock entre nodos queda para una fase posterior con reglas anti-duplicacion;
 - `event_uuid` es obligatorio para evitar doble procesamiento;
 - `sync_inbox` recibe eventos externos y protege contra duplicados;
 - `sync_outbox` entrega eventos pendientes hasta que el receptor confirme con `ack`;
 - un nodo no recibe eventos originados por si mismo;
 - el worker puede aplicar eventos soportados de productos, precios, tasas y metodos de pago;
+- la app WPF muestra un semaforo de sincronizacion por empresa e instalacion local en el centro de modulos;
+- la app WPF permite iniciar, detener y revisar estado/log del worker desde el modulo tecnico `Sincronizacion`;
+- `sync_tenant_readiness` registra si una empresa esta pendiente, sincronizando, lista, con advertencia o error en una instalacion local;
 - ningun evento se comparte entre empresas.
 
 Regla importante:
