@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\DB;
 
 class SyncTransportService
 {
+    public function __construct(private readonly SyncEventApplier $applier)
+    {
+    }
+
     public function registerNode(array $data): array
     {
         $tenant = app(TenantManager::class)->require();
@@ -47,6 +51,10 @@ class SyncTransportService
         $now = now();
         $received = 0;
         $duplicated = 0;
+        $applied = 0;
+        $ignored = 0;
+        $failed = 0;
+        $receivedEvents = [];
 
         foreach ($events as $event) {
             $exists = DB::table('sync_inbox')
@@ -75,7 +83,17 @@ class SyncTransportService
                 'updated_at' => $now,
             ]);
 
+            $receivedEvents[] = $event;
             $received++;
+        }
+
+        if ($received > 0) {
+            $applySummary = $this->applier->applyPending($tenant, $received);
+            $applied = $applySummary['applied'];
+            $ignored = $applySummary['ignored'];
+            $failed = $applySummary['failed'];
+
+            $this->mirrorAppliedEventsToOutbox($receivedEvents, $originNode['id'] ?? null, $now);
         }
 
         if ($originNode) {
@@ -85,6 +103,9 @@ class SyncTransportService
         return [
             'received' => $received,
             'duplicated' => $duplicated,
+            'applied' => $applied,
+            'ignored' => $ignored,
+            'failed' => $failed,
         ];
     }
 
@@ -233,6 +254,61 @@ class SyncTransportService
 
         DB::table('sync_nodes')->where('tenant_id', $tenant->id)->where('id', $nodeId)->update([
             'last_seen_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function mirrorAppliedEventsToOutbox(array $events, ?int $originNodeId, Carbon $now): void
+    {
+        $tenant = app(TenantManager::class)->require();
+        $eventUuids = array_values(array_filter(array_map(
+            fn (array $event): string => (string) ($event['event_uuid'] ?? ''),
+            $events
+        )));
+
+        if ($eventUuids === []) {
+            return;
+        }
+
+        $relayableUuids = DB::table('sync_inbox')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('event_uuid', $eventUuids)
+            ->whereIn('status', ['applied', 'ignored'])
+            ->pluck('event_uuid')
+            ->flip();
+
+        foreach ($events as $event) {
+            if (! $relayableUuids->has((string) $event['event_uuid'])) {
+                continue;
+            }
+
+            $this->mirrorReceivedEventToOutbox($event, $originNodeId, $now);
+        }
+    }
+
+    private function mirrorReceivedEventToOutbox(array $event, ?int $originNodeId, Carbon $now): void
+    {
+        $tenant = app(TenantManager::class)->require();
+
+        if (DB::table('sync_outbox')->where('tenant_id', $tenant->id)->where('event_uuid', $event['event_uuid'])->exists()) {
+            return;
+        }
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $event['event_uuid'],
+            'origin_node_id' => $originNodeId,
+            'target_node_id' => null,
+            'target_scope' => 'tenant',
+            'event_type' => $event['event_type'],
+            'aggregate_type' => $event['aggregate_type'],
+            'aggregate_id' => $event['aggregate_id'] ?? null,
+            'payload' => json_encode($event['payload'] ?? []),
+            'occurred_at' => isset($event['occurred_at']) ? Carbon::parse($event['occurred_at']) : $now,
+            'available_at' => $now,
+            'status' => 'pending',
+            'idempotency_key' => 'relay:'.($event['event_uuid']),
+            'created_at' => $now,
             'updated_at' => $now,
         ]);
     }

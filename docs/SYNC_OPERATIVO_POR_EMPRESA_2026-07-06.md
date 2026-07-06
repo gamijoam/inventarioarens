@@ -124,6 +124,32 @@ Se definiran reglas por tipo de dato:
 - inventario: conciliacion por movimientos, no por reemplazo directo de stock;
 - usuarios/permisos: prioridad nube.
 
+### Fase 6 - Arranque real de una base local vacia
+
+Pendiente.
+
+Una instalacion local vacia no debe depender de seeders demo para operar. El flujo real debe ser:
+
+1. El usuario escribe correo y clave.
+2. La app consulta la nube para saber a que empresas pertenece.
+3. Al seleccionar empresa, se crea una ficha local minima de esa empresa.
+4. El worker descarga catalogo, precios, almacenes, cajas, permisos y datos necesarios.
+5. Cuando termina, se marca la empresa como lista para esa computadora.
+
+Los seeders solo se usan para pruebas y demostraciones. No son el mecanismo de sincronizacion real.
+
+### Fase 7 - Cambios manuales fuera del sistema
+
+Definicion operativa.
+
+Los cambios hechos directamente en HeidiSQL o PostgreSQL no generan eventos de sincronizacion, porque no pasan por Laravel ni por sus reglas de auditoria. Para que un cambio suba a la nube debe hacerse desde:
+
+- una API del sistema;
+- una pantalla del sistema;
+- un comando controlado que cree el evento en `sync_outbox`.
+
+No se recomienda usar triggers SQL para cambios comerciales como precios, porque se perderia contexto de usuario, permisos, motivo, moneda, tasa y reglas de conflicto.
+
 ## Implementacion actual
 
 Archivos modificados:
@@ -143,6 +169,13 @@ Archivos modificados:
 
 El centro de modulos ahora muestra el estado operativo de sincronizacion y permite ejecutar un ciclo manual sin abrir la pantalla tecnica.
 Si la empresa aun no esta lista en esa computadora, muestra un aviso de sincronizacion inicial dentro del centro de modulos.
+
+Actualizacion 2026-07-06:
+
+- Cuando la nube recibe eventos locales por `POST /api/sync/events/push`, ahora los aplica inmediatamente contra su propia base de datos.
+- El mismo evento recibido se espeja en `sync_outbox` de la nube con `origin_node_id`, para que otras computadoras puedan descargarlo sin reenviarlo al nodo que lo origino. Si el evento falla al aplicarse, no se retransmite.
+- Esto corrige el caso donde un precio editado correctamente desde el sistema local quedaba como enviado, pero no cambiaba en la base PostgreSQL del VPS.
+- Si el precio se edita manualmente en la tabla `products` por HeidiSQL, no se genera outbox y por tanto no se sincroniza.
 
 APIs agregadas:
 
@@ -176,5 +209,5 @@ Resultado:
 
 Resultado:
 
-- 11 pruebas pasadas;
-- 80 aserciones.
+- 12 pruebas pasadas;
+- 85 aserciones.

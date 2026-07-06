@@ -4265,3 +4265,28 @@ Verificacion posterior de carga demo opcional:
 - Esto evita que el POS demo falle con la regla actual: la venta requiere caja fisica abierta desde el modulo Caja.
 - Se ejecuto `artisan test tests/Feature/Seeders/DemoDataSeederTest.php tests/Feature/Seeders/MultiCompanyLoginDemoSeederTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
 - Resultado: 8 pruebas pasadas y 132 aserciones.
+
+## 2026-07-06 - Aplicacion inmediata de eventos locales en la nube
+
+Contexto:
+
+- Se detecto que un cambio de precio hecho correctamente desde el sistema local podia quedar como enviado por el worker, pero no reflejarse todavia en la tabla `products` del PostgreSQL del VPS.
+- La causa era que la API nube guardaba los eventos entrantes en `sync_inbox`, pero no los aplicaba en ese mismo ciclo.
+- Tambien se aclaro que los cambios hechos directamente en HeidiSQL no pasan por Laravel y por tanto no generan eventos `sync_outbox`.
+
+Implementacion:
+
+- `SyncTransportService::pushEvents` ahora aplica inmediatamente los eventos recibidos usando `SyncEventApplier`.
+- Cada evento local recibido se replica en el `sync_outbox` de la nube con `origin_node_id`, para que otras computadoras puedan bajarlo sin reenviarlo al nodo que lo origino.
+- La respuesta de `POST /api/sync/events/push` ahora incluye contadores `applied`, `ignored` y `failed`.
+- Se documento que los seeders son solo para pruebas; el arranque real de una base local vacia debe resolverse con descarga inicial desde nube.
+
+Pruebas:
+
+- Se ejecuto `artisan test tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 12 pruebas pasadas y 85 aserciones.
+- Se ejecuto `artisan test tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 17 pruebas pasadas y 107 aserciones.
+- Ajuste posterior: los eventos recibidos solo se retransmiten desde la nube si quedaron `applied` o `ignored`; si fallan, no se publican a otros nodos.
+- Verificacion adicional: `artisan test tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php tests/Feature/Products/ProductApiTest.php`.
+- Resultado: 29 pruebas pasadas y 192 aserciones.

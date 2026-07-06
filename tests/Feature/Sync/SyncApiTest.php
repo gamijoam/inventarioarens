@@ -77,9 +77,80 @@ class SyncApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'origin_node_id' => $nodeId,
             'event_uuid' => $eventUuid,
-            'status' => 'received',
+            'status' => 'ignored',
         ]);
         $this->assertSame(1, DB::table('sync_inbox')->where('tenant_id', $tenant->id)->count());
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => $eventUuid,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_pushed_product_update_is_applied_to_cloud_database_and_relayed(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-push-product');
+        $nodeId = $this->node($tenant, 'LOCAL-VAL-01');
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('products')->insert([
+            'tenant_id' => $tenant->id,
+            'name' => 'Adaptador Bluetooth',
+            'sku' => 'ADP-BT-CCS',
+            'tracking_type' => 'quantity',
+            'base_price' => '20.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $payload = [
+            'origin_node_code' => 'LOCAL-VAL-01',
+            'events' => [[
+                'event_uuid' => $eventUuid,
+                'event_type' => 'product.updated',
+                'aggregate_type' => 'product',
+                'aggregate_id' => 10,
+                'payload' => [
+                    'sku' => 'ADP-BT-CCS',
+                    'name' => 'Adaptador Bluetooth',
+                    'tracking_type' => 'quantity',
+                    'base_price' => '1000.0000',
+                    'sale_currency' => 'USD',
+                    'is_active' => true,
+                ],
+                'occurred_at' => $now->toISOString(),
+            ]],
+        ];
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sync/events/push', $payload)
+            ->assertAccepted()
+            ->assertJsonPath('data.received', 1)
+            ->assertJsonPath('data.applied', 1)
+            ->assertJsonPath('data.failed', 0);
+
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'sku' => 'ADP-BT-CCS',
+            'base_price' => '1000.0000',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => $eventUuid,
+            'status' => 'applied',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => $eventUuid,
+            'status' => 'pending',
+        ]);
     }
 
     public function test_it_pulls_pending_events_and_acknowledges_them(): void
