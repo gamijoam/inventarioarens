@@ -226,6 +226,20 @@ Actualizacion 2026-07-06:
 - Si el VPS ya tenia eventos recibidos antes de este ajuste, se pueden procesar manualmente con `php artisan sync:apply-inbox demo-valencia --limit=200`.
 - La pantalla de sincronizacion ahora permite guardar configuracion local por empresa y el worker usa PID/log separado por empresa.
 
+Actualizacion de interfaz:
+
+- El modulo `Sincronizacion` se reorganizo para uso operativo:
+  - semaforo de estado como primer elemento visible;
+  - acciones rapidas agrupadas: sincronizar ahora, iniciar automatico, detener y asistente tecnico;
+  - configuracion avanzada separada para soporte;
+  - eventos locales y log tecnico en paneles de diagnostico.
+- El asistente tecnico se redisenio como flujo de instalacion:
+  - credenciales del gerente;
+  - empresa a sincronizar;
+  - identificacion local del equipo;
+  - boton principal `Configurar sincronizacion`.
+- El objetivo es que el cliente o tecnico no tenga que copiar tokens ni ejecutar comandos manuales.
+
 APIs agregadas:
 
 - `POST /api/sync/tokens`

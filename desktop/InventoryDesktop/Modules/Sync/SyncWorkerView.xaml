@@ -20,139 +20,83 @@
                         <Border Padding="9,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7">
                             <TextBlock Text="SYNC" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
                         </Border>
-                        <Border Margin="8,0,0,0" Padding="9,5" Background="#F8FAFE" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="7">
-                            <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Black" />
+                        <Border Margin="8,0,0,0" Padding="9,5" Background="#ECFDF5" BorderBrush="#B7F0D5" BorderThickness="1" CornerRadius="7">
+                            <TextBlock Text="Local - nube" Foreground="#00896B" FontSize="10" FontWeight="Black" />
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Sincronizacion" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
-                    <TextBlock Text="Control del worker que sube cambios a la nube y baja actualizaciones para este local."
+                    <TextBlock Text="Sincronizacion" FontSize="30" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="Configura esta computadora, revisa el estado y ejecuta sincronizaciones sin usar consola."
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,6,0,0" />
                 </StackPanel>
 
-                <Button Grid.Column="1"
-                        Content="Actualizar estado"
-                        Width="150"
-                        Height="44"
-                        FontWeight="Black"
-                        VerticalAlignment="Top"
-                        Click="Refresh_Click" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Actualizar estado"
+                            Width="150"
+                            Height="44"
+                            FontWeight="Black"
+                            Click="Refresh_Click" />
+                    <Button Content="Configurar"
+                            Width="135"
+                            Height="44"
+                            Margin="10,0,0,0"
+                            Background="{StaticResource AccentBrush}"
+                            Foreground="White"
+                            FontWeight="Black"
+                            Click="SetupWizard_Click" />
+                </StackPanel>
             </Grid>
         </Border>
 
         <Grid Grid.Row="1" Margin="0,16,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="430" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
-                <DockPanel LastChildFill="True">
-                    <Grid DockPanel.Dock="Bottom" Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Button Content="Asistente tecnico"
-                                Height="46"
-                                FontWeight="Black"
-                                Click="SetupWizard_Click" />
-                        <Button Grid.Column="2"
-                                Content="Sincronizar ahora"
-                                Height="46"
-                                FontWeight="Black"
-                                Click="RunOnce_Click" />
-                        <Button Grid.Column="4"
-                                Content="Iniciar automatico"
-                                Height="46"
-                                Background="{StaticResource AccentBrush}"
-                                Foreground="White"
-                                FontWeight="Black"
-                                Click="Start_Click" />
-                        <Button Grid.Column="6"
-                                Content="Detener"
-                                Height="46"
-                                FontWeight="Black"
-                                Click="Stop_Click" />
-                    </Grid>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.2*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="1.8*" />
+                </Grid.ColumnDefinitions>
 
-                    <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="Configuracion local por empresa" FontSize="22" FontWeight="Black" />
-                        <TextBlock Text="Guarda la conexion de esta empresa para que el tecnico no tenga que usar consola."
+                <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
+                    <StackPanel>
+                        <TextBlock Text="Estado actual" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Semaforo simple para saber si esta computadora esta lista para trabajar con la nube."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
-                                   Margin="0,5,0,14" />
-                        <Border Padding="12"
-                                Background="#F8FAFE"
-                                BorderBrush="#DCE4F2"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="{Binding ConfigurationStatus}"
-                                           FontWeight="Black"
-                                           Foreground="{StaticResource MutedBrush}"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding EffectiveSchedule}"
-                                           Margin="0,4,0,0"
-                                           Foreground="#00896B"
-                                           FontWeight="Black"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
+                                   Margin="0,5,0,16" />
+
+                        <Border Background="#F8FAFE" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="12" Padding="18">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Width="58" Height="58" Background="#ECFDF5" BorderBrush="#B7F0D5" BorderThickness="1" CornerRadius="14">
+                                    <TextBlock Text="●" Foreground="#00896B" FontSize="30" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                    <TextBlock Text="{Binding Status}" FontSize="24" FontWeight="Black" />
+                                    <TextBlock Text="{Binding StatusDetail}"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Margin="0,5,0,0" />
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </StackPanel>
+                </Border>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,12,6,0">
-                            <TextBlock Text="Empresa" FontWeight="Black" />
-                            <TextBox Text="{Binding TenantSlug, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
-
-                            <TextBlock Text="Codigo del nodo" FontWeight="Black" />
-                            <TextBox Text="{Binding NodeCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
-
-                            <TextBlock Text="Nombre del nodo" FontWeight="Black" />
-                            <TextBox Text="{Binding NodeName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
-
-                            <TextBlock Text="URL nube" FontWeight="Black" />
-                            <TextBox Text="{Binding CloudUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
-
-                            <TextBlock Text="Token nube de esta empresa" FontWeight="Black" />
-                            <PasswordBox x:Name="TokenBox" PasswordChanged="TokenBox_PasswordChanged" Margin="0,4,0,4" />
-                            <TextBlock Text="Si ya estaba guardado, no necesitas volver a escribirlo salvo que quieras reemplazarlo."
-                                       Foreground="{StaticResource MutedBrush}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,12" />
-
-                            <TextBlock Text="Cada cuantos segundos sincroniza" FontWeight="Black" />
-                            <TextBox Text="{Binding Interval, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
-
-                            <Button Content="Guardar configuracion"
-                                    Height="44"
-                                    FontWeight="Black"
-                                    Click="SaveConfiguration_Click" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="180" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20">
+                <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -160,87 +104,162 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel>
-                            <TextBlock Text="Estado del worker" FontSize="22" FontWeight="Black" />
-                            <TextBlock Text="{Binding StatusDetail}"
+                            <TextBlock Text="Operacion rapida" FontSize="22" FontWeight="Black" />
+                            <TextBlock Text="{Binding ConfigurationStatus}"
                                        Foreground="{StaticResource MutedBrush}"
                                        FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,5,0,0" />
+                            <TextBlock Text="{Binding EffectiveSchedule}"
+                                       Foreground="#00896B"
+                                       FontWeight="Black"
                                        TextWrapping="Wrap"
                                        Margin="0,8,0,0" />
                         </StackPanel>
 
-                        <Border Grid.Column="1"
-                                MinWidth="140"
-                                Height="70"
-                                Background="#F8FAFE"
-                                BorderBrush="#DCE4F2"
-                                BorderThickness="1"
-                                CornerRadius="12"
-                                Margin="18,0,0,0">
-                            <TextBlock Text="{Binding Status}"
-                                       FontSize="18"
-                                       FontWeight="Black"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Margin="14,0" />
-                        </Border>
+                        <UniformGrid Grid.Column="1" Columns="2" Rows="2" Margin="20,0,0,0">
+                            <Button Content="Sincronizar ahora"
+                                    Width="170"
+                                    Height="44"
+                                    Margin="0,0,8,8"
+                                    FontWeight="Black"
+                                    Click="RunOnce_Click" />
+                            <Button Content="Iniciar automatico"
+                                    Width="170"
+                                    Height="44"
+                                    Margin="0,0,0,8"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    Click="Start_Click" />
+                            <Button Content="Detener"
+                                    Width="170"
+                                    Height="44"
+                                    Margin="0,0,8,0"
+                                    FontWeight="Black"
+                                    Click="Stop_Click" />
+                            <Button Content="Asistente tecnico"
+                                    Width="170"
+                                    Height="44"
+                                    FontWeight="Black"
+                                    Click="SetupWizard_Click" />
+                        </UniformGrid>
                     </Grid>
                 </Border>
+            </Grid>
 
-                <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+            <Grid Grid.Row="1" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="420" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                        <StackPanel>
-                            <TextBlock Text="Estado local de eventos" FontSize="20" FontWeight="Black" />
-                            <TextBlock Text="Conteos reales de outbox/inbox y ultimos eventos registrados por Laravel."
-                                       Foreground="{StaticResource MutedBrush}"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Margin="0,5,0,10" />
-                        </StackPanel>
+                <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
+                    <StackPanel>
+                        <TextBlock Text="Configuracion avanzada" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Solo para soporte tecnico. El asistente llena estos datos automaticamente."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,5,0,14" />
 
-                        <TextBox Grid.Row="1"
-                                 Text="{Binding BackendStatus}"
-                                 FontFamily="Consolas"
-                                 FontSize="12"
-                                 IsReadOnly="True"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto" />
-                    </Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="0,0,6,0">
+                                <TextBlock Text="Empresa" FontWeight="Black" />
+                                <TextBox Text="{Binding TenantSlug, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                <TextBlock Text="Codigo del nodo" FontWeight="Black" />
+                                <TextBox Text="{Binding NodeCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                <TextBlock Text="Nombre del nodo" FontWeight="Black" />
+                                <TextBox Text="{Binding NodeName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                <TextBlock Text="URL nube" FontWeight="Black" />
+                                <TextBox Text="{Binding CloudUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                <TextBlock Text="Token nube de esta empresa" FontWeight="Black" />
+                                <PasswordBox x:Name="TokenBox" PasswordChanged="TokenBox_PasswordChanged" Margin="0,4,0,4" />
+                                <TextBlock Text="No se muestra por seguridad. Reemplazalo solo si soporte lo solicita."
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12" />
+
+                                <TextBlock Text="Intervalo automatico en segundos" FontWeight="Black" />
+                                <TextBox Text="{Binding Interval, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                                <Button Content="Guardar cambios avanzados"
+                                        Height="44"
+                                        FontWeight="Black"
+                                        Click="SaveConfiguration_Click" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </StackPanel>
                 </Border>
 
-                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="210" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                        <StackPanel>
-                            <TextBlock Text="Ultimos eventos del log" FontSize="22" FontWeight="Black" />
-                            <TextBlock Text="Aqui veras ciclos, eventos enviados, eventos recibidos y errores de red."
-                                       Foreground="{StaticResource MutedBrush}"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Margin="0,5,0,12" />
-                        </StackPanel>
+                    <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
 
-                        <TextBox Grid.Row="1"
-                                 Text="{Binding LastLog}"
-                                 FontFamily="Consolas"
-                                 FontSize="12"
-                                 IsReadOnly="True"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto" />
-                    </Grid>
-                </Border>
+                            <StackPanel>
+                                <TextBlock Text="Eventos locales" FontSize="20" FontWeight="Black" />
+                                <TextBlock Text="Conteos reales de cambios pendientes, recibidos y aplicados."
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,5,0,10" />
+                            </StackPanel>
+
+                            <TextBox Grid.Row="1"
+                                     Text="{Binding BackendStatus}"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Log tecnico" FontSize="20" FontWeight="Black" />
+                                <TextBlock Text="Detalle reciente del worker para diagnostico."
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,5,0,12" />
+                            </StackPanel>
+
+                            <TextBox Grid.Row="1"
+                                     Text="{Binding LastLog}"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
 

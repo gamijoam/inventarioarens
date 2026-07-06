@@ -4390,3 +4390,44 @@ Resultado:
 - compilacion correcta;
 - 0 errores;
 - 0 advertencias.
+
+## 2026-07-06 - Redisenio visual del modulo Sincronizacion
+
+Problema:
+
+- La sincronizacion ya funcionaba, pero la pantalla seguia pareciendo una consola tecnica.
+- Los campos de URL, token, nodo y logs tenian demasiado protagonismo para un usuario no programador.
+
+Implementacion:
+
+- Se reorganizo `SyncWorkerView` para mostrar primero el estado operativo con semaforo.
+- Se agruparon las acciones rapidas: sincronizar ahora, iniciar automatico, detener y asistente tecnico.
+- La configuracion manual quedo como seccion avanzada para soporte.
+- Los conteos de eventos y el log tecnico quedaron como paneles de diagnostico.
+- Se redisenio `SyncSetupWizardWindow` como asistente de instalacion: credenciales, empresa, equipo local y boton principal de configuracion.
+- Se elimino el enfoque de copiar token manualmente para instalaciones normales.
+
+Documentacion:
+
+- `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`
+
+Pruebas:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncTokenApiTest.php tests\Feature\Sync\SyncWorkerCommandTest.php
+```
+
+Resultado:
+
+- 7 pruebas pasadas;
+- 39 aserciones.
