@@ -4218,3 +4218,24 @@ Verificacion posterior:
 - `scripts/cloud-api-bootstrap-vps.sh` no pudo validarse localmente con `bash -n` porque Windows/WSL no tiene distribucion instalada en esta maquina.
 - Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
 - Resultado: 13 pruebas pasadas y 90 aserciones.
+## 2026-07-06 - Correccion de seeder de permisos en nube limpia
+
+Contexto:
+
+- Al ejecutar `scripts/cloud-api-bootstrap-vps.sh` en el VPS, Laravel instalo dependencias, genero `APP_KEY`, ejecuto migraciones y fallo durante `db:seed`.
+- El error fue `There is no permission named sales_returns.view for guard web`.
+- La causa era que el seeder de roles asignaba permisos por nombre dentro del contexto multiempresa; en una base nube limpia el catalogo podia no estar resuelto aun para Spatie Permissions.
+
+Implementacion:
+
+- Se robustecio `RolesAndPermissionsSeeder` para garantizar cada permiso antes de sincronizar cada rol.
+- La asignacion de roles ahora usa modelos `Permission` consultados desde la base de datos, evitando fallos por resolucion de nombres en contexto de tenant.
+- No se cambiaron los nombres de permisos ni los roles existentes.
+
+Pruebas:
+
+- Se reinicio solo la base local de pruebas con PostgreSQL porque habia quedado inconsistente por ejecuciones paralelas.
+- Se ejecuto `artisan test tests/Feature/AccessControl/AccessControlApiTest.php --filter=roles_and_permissions_seeder`.
+- Resultado: 1 prueba pasada y 3 aserciones.
+- Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 13 pruebas pasadas y 90 aserciones.

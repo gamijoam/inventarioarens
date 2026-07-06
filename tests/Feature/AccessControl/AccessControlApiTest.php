@@ -7,6 +7,7 @@ use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -275,6 +276,24 @@ class AccessControlApiTest extends TestCase
 
         $this->useTenant($tenant);
         $this->assertTrue($admin->hasRole('Administrador'));
+    }
+
+    public function test_roles_and_permissions_seeder_assigns_sales_returns_permissions_in_clean_database(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Seeder', 'slug' => 'empresa-seeder']);
+
+        Permission::query()->delete();
+
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        setPermissionsTeamId($tenant->id);
+
+        $this->assertDatabaseHas('permissions', [
+            'name' => 'sales_returns.view',
+            'guard_name' => 'web',
+        ]);
+        $this->assertTrue(Role::findByName('Gerente', 'web')->hasPermissionTo('sales_returns.view'));
+        $this->assertTrue(Role::findByName('Vendedor', 'web')->hasPermissionTo('sales_returns.create'));
     }
 
     protected function setUp(): void

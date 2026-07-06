@@ -23,8 +23,17 @@ class RolesAndPermissionsSeeder extends Seeder
             setPermissionsTeamId($tenant->id);
 
             foreach (BasePermissions::ROLE_PERMISSIONS as $roleName => $permissions) {
+                foreach ($permissions as $permission) {
+                    Permission::findOrCreate($permission, 'web');
+                }
+
                 $role = Role::findOrCreate($roleName, 'web');
-                $role->syncPermissions($permissions);
+                $role->syncPermissions(
+                    Permission::query()
+                        ->whereIn('name', $permissions)
+                        ->where('guard_name', 'web')
+                        ->get()
+                );
             }
         });
 
