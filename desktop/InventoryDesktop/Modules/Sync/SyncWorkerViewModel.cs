@@ -548,8 +548,24 @@ public sealed class SyncWorkerViewModel : ViewModelBase
             return;
         }
 
-        string[] lines = File.ReadAllLines(logPath);
-        LastLog = string.Join(Environment.NewLine, lines.TakeLast(80));
+        try
+        {
+            string[] lines = ReadLogLines(logPath);
+            LastLog = string.Join(Environment.NewLine, lines.TakeLast(80));
+        }
+        catch (IOException)
+        {
+            LastLog = "El log del worker esta siendo escrito en este momento. Vuelve a actualizar en unos segundos.";
+        }
+    }
+
+    private static string[] ReadLogLines(string logPath)
+    {
+        using FileStream stream = new(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using StreamReader reader = new(stream);
+
+        return reader.ReadToEnd()
+            .Split([Environment.NewLine, "\n"], StringSplitOptions.None);
     }
 
     private string ResolveScriptPath()
