@@ -194,6 +194,10 @@ $commandLine >> "$LogFile" 2>>&1
 "@
 
     Set-Content -LiteralPath $CommandFile -Value $cmd -Encoding ASCII
+    $ErrorLogFile = [System.IO.Path]::ChangeExtension($LogFile, ".error.log")
+    Add-LogSafe "=================================================="
+    Add-LogSafe "Worker iniciado $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Add-LogSafe "Empresa $TenantSlug"
 
     Write-Step "Iniciando worker de sincronizacion"
     $previousCloudUrl = [Environment]::GetEnvironmentVariable("SYNC_CLOUD_URL", "Process")
@@ -201,7 +205,7 @@ $commandLine >> "$LogFile" 2>>&1
     try {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $effectiveCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $effectiveToken, "Process")
-        $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$CommandFile`"" -WindowStyle Hidden -PassThru
+        $process = Start-Process -FilePath $PhpPath -ArgumentList $arguments -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
         Set-Content -LiteralPath $PidFile -Value ([string] $process.Id) -Encoding ASCII
     } finally {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $previousCloudUrl, "Process")

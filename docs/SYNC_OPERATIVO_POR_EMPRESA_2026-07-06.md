@@ -423,3 +423,23 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## Ajuste de instalacion local por empresa
+
+Se detecto y corrigio un punto importante del configurador externo:
+
+- Antes, el boton de buscar empresas consultaba por correo y podia mostrar empresas aunque la contrasena estuviera mal.
+- Ahora, el configurador valida correo y contrasena contra cada empresa candidata antes de mostrarla.
+- Si la contrasena es incorrecta, no se listan empresas.
+
+Comportamiento actual:
+
+- La instalacion configura una empresa por vez.
+- Si una computadora necesita trabajar con otra empresa, el tecnico debe volver a ejecutar el configurador, buscar con el usuario autorizado y seleccionar la empresa correspondiente.
+- Cada empresa queda guardada con su propio token, nodo e intervalo de sincronizacion.
+
+Mejora en el worker:
+
+- El worker automatico ahora se inicia como proceso PHP directo para que el archivo PID corresponda al proceso real.
+- Esto facilita detenerlo correctamente antes de reconfigurar, limpiar la base o reinstalar una empresa.
+- Si la API de nube no esta activa en la URL configurada, el worker no podra descargar productos ni cambios iniciales.

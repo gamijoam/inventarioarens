@@ -4570,3 +4570,44 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## 2026-07-06 - Validacion de credenciales y worker de sincronizacion
+
+Problemas detectados:
+
+- El configurador consultaba empresas por correo antes de validar la contrasena. Por eso, si se escribia una clave incorrecta, aun se mostraban empresas candidatas.
+- Despues de limpiar la base local, quedo evidencia de un worker anterior intentando sincronizar con un `tenant_id` viejo. Eso generaba errores de llave foranea y evitaba descargar/aplicar datos.
+- La configuracion local solo tenia registrada la empresa `demo-valencia`; las demas empresas deben configurarse de forma individual o se debe ampliar el instalador a modo multiseleccion en una fase posterior.
+
+Implementacion:
+
+- El configurador ahora exige contrasena para buscar empresas.
+- Antes de mostrar empresas, valida correo y contrasena intentando login contra cada empresa candidata.
+- Si la clave es incorrecta, no muestra empresas y devuelve un mensaje claro.
+- El worker automatico ahora se inicia apuntando el PID al proceso real de PHP, no a un `cmd` intermedio. Esto evita que queden procesos hijos fuera de control cuando se detiene la sincronizacion.
+
+Notas operativas:
+
+- En una base local limpia, primero debe existir la empresa local preparada por el configurador.
+- Si el servidor de nube no esta activo en la URL configurada, la sincronizacion no puede bajar productos aunque la base local este correcta.
+
+Verificacion:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj --no-restore -o .build\inventory-sync-installer-build-check
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

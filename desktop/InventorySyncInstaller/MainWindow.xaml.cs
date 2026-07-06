@@ -105,10 +105,16 @@ public partial class MainWindow : Window
     {
         string cloudUrl = NormalizeCloudUrl(CloudUrlBox.Text);
         string email = EmailBox.Text.Trim();
+        string password = PasswordBox.Password;
 
         if (string.IsNullOrWhiteSpace(email))
         {
             throw new InvalidOperationException("Escribe el correo del usuario.");
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException("Escribe la contrasena antes de buscar empresas.");
         }
 
         using HttpResponseMessage response = await http.PostAsJsonAsync($"{cloudUrl}/auth/tenants", new
@@ -123,7 +129,43 @@ public partial class MainWindow : Window
         }
 
         TenantLookupResponse? payload = JsonSerializer.Deserialize<TenantLookupResponse>(body, jsonOptions);
-        return payload?.Data?.Where(item => !string.IsNullOrWhiteSpace(item.Slug)).ToList() ?? [];
+        List<TenantOption> candidates = payload?.Data?.Where(item => !string.IsNullOrWhiteSpace(item.Slug)).ToList() ?? [];
+
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        List<TenantOption> validated = [];
+        foreach (TenantOption candidate in candidates)
+        {
+            if (await ValidateTenantAccessAsync(cloudUrl, candidate.Slug, email, password))
+            {
+                validated.Add(candidate);
+            }
+        }
+
+        if (validated.Count == 0)
+        {
+            throw new InvalidOperationException("Correo o contrasena invalidos para las empresas encontradas.");
+        }
+
+        return validated;
+    }
+
+    private async Task<bool> ValidateTenantAccessAsync(string cloudUrl, string tenantSlug, string email, string password)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, $"{cloudUrl}/auth/login");
+        request.Headers.Add("X-Tenant", tenantSlug);
+        request.Content = JsonContent.Create(new
+        {
+            email,
+            password,
+            device_name = $"instalador-validacion-{Environment.MachineName}",
+        }, options: jsonOptions);
+
+        using HttpResponseMessage response = await http.SendAsync(request);
+        return response.IsSuccessStatusCode;
     }
 
     private async Task<CloudLogin> LoginAsync(string cloudUrl, string tenantSlug, string email, string password)
