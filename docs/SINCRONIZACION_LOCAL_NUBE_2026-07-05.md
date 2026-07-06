@@ -93,6 +93,7 @@ Guarda el ultimo punto de sincronizacion por nodo y direccion.
 
 ## APIs previstas
 
+- `POST /api/sync/nodes`: registra o actualiza un nodo local, nube o worker.
 - `POST /api/sync/events/push`: el local envia eventos a la nube.
 - `GET /api/sync/events/pull`: el local pide eventos pendientes desde la nube.
 - `POST /api/sync/events/{event_uuid}/ack`: el receptor confirma que aplico un evento.
@@ -123,3 +124,31 @@ Eventos iniciales:
 - `cash.session.closed`
 
 Detalle documentado en `docs/SYNC_OUTBOX_EVENTOS_POS_CAJA_2026-07-05.md`.
+
+## Tercer alcance implementado
+
+Se agrego el primer API de transporte de sincronizacion. Esta fase no aplica todavia cambios de negocio automaticamente; prepara el canal confiable para que un worker local o nube pueda mover eventos con idempotencia y acuse de recibo.
+
+Endpoints implementados:
+
+- `POST /api/sync/nodes`
+- `POST /api/sync/events/push`
+- `GET /api/sync/events/pull`
+- `POST /api/sync/events/{event_uuid}/ack`
+- `GET /api/sync/status`
+
+Reglas implementadas:
+
+- Todas las rutas usan `api.auth` y `tenant`.
+- Cada nodo se identifica por `code` dentro de la empresa actual.
+- `push` guarda eventos recibidos en `sync_inbox` y evita duplicados por `event_uuid`.
+- `pull` entrega eventos `pending` desde `sync_outbox` que pertenecen al tenant y no fueron originados por el mismo nodo.
+- `ack` marca el evento como `processed` o `failed` y actualiza `sync_states`.
+- `status` resume nodos, outbox, inbox y estados del nodo solicitado.
+
+Pruebas ejecutadas:
+
+- `tests/Feature/Sync/SyncSchemaTest.php`
+- `tests/Feature/Sync/SyncApiTest.php`
+- `tests/Feature/POS/PosCheckoutApiTest.php`
+- `tests/Feature/CashRegister/CashRegisterApiTest.php`

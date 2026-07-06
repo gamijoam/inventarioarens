@@ -258,6 +258,46 @@ Archivos principales:
 - `app/Modules/PaymentMethods/Resources/PaymentMethodResource.php`
 - `app/Modules/PaymentMethods/routes.php`
 
+### Sync
+
+Responsabilidad:
+
+- registrar nodos de sincronizacion por empresa;
+- recibir eventos externos en `sync_inbox` sin duplicarlos;
+- entregar eventos pendientes desde `sync_outbox`;
+- registrar acuses de recibo para eventos aplicados o fallidos;
+- exponer estado operativo de sincronizacion por nodo y tenant;
+- servir como base para la futura sincronizacion local-nube y nube-local.
+
+Archivos principales:
+
+- `app/Modules/Sync/Controllers/SyncController.php`
+- `app/Modules/Sync/Requests/RegisterSyncNodeRequest.php`
+- `app/Modules/Sync/Requests/PushSyncEventsRequest.php`
+- `app/Modules/Sync/Requests/PullSyncEventsRequest.php`
+- `app/Modules/Sync/Requests/AcknowledgeSyncEventRequest.php`
+- `app/Modules/Sync/Services/SyncOutboxService.php`
+- `app/Modules/Sync/Services/SyncTransportService.php`
+- `app/Modules/Sync/routes.php`
+
+APIs:
+
+- `POST /api/sync/nodes`
+- `POST /api/sync/events/push`
+- `GET /api/sync/events/pull`
+- `POST /api/sync/events/{event_uuid}/ack`
+- `GET /api/sync/status`
+
+Regla importante:
+
+- las rutas requieren `api.auth` y `tenant`;
+- el API actual transporta eventos, pero aun no aplica automaticamente reglas de negocio;
+- `event_uuid` es obligatorio para evitar doble procesamiento;
+- `sync_inbox` recibe eventos externos y protege contra duplicados;
+- `sync_outbox` entrega eventos pendientes hasta que el receptor confirme con `ack`;
+- un nodo no recibe eventos originados por si mismo;
+- ningun evento se comparte entre empresas.
+
 Regla importante:
 
 - cada método pertenece a una empresa;

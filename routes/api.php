@@ -86,6 +86,9 @@ Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/CashRegister/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Sync/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/AccessControl/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
