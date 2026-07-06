@@ -34,6 +34,11 @@ public partial class SyncWorkerView : UserControl
         await viewModel.RunOnceAsync();
     }
 
+    public async Task EnsureAutomaticWorkerAsync()
+    {
+        await viewModel.EnsureAutomaticWorkerAsync();
+    }
+
     public string Status => viewModel.Status;
 
     public string StatusDetail => viewModel.StatusDetail;

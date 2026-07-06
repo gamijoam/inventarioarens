@@ -160,6 +160,32 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         LoadLogTail();
     }
 
+    public async Task EnsureAutomaticWorkerAsync()
+    {
+        if (session is null)
+        {
+            return;
+        }
+
+        if (!HasRunnableLocalConfiguration())
+        {
+            Message = "Sincronizacion automatica pendiente: esta empresa no tiene configuracion local completa.";
+            return;
+        }
+
+        await ExecuteWorkerAsync("status");
+
+        if (Status.Equals("Detenido", StringComparison.OrdinalIgnoreCase) ||
+            Status.Equals("No configurado", StringComparison.OrdinalIgnoreCase) ||
+            Status.Equals("Error", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExecuteWorkerAsync("start");
+        }
+
+        await LoadBackendStatusAsync();
+        LoadLogTail();
+    }
+
     public void SaveConfiguration(bool showMessage = true)
     {
         try
@@ -651,6 +677,20 @@ public sealed class SyncWorkerViewModel : ViewModelBase
     {
         SyncWorkerConfigurationFile file = LoadConfigurationFile();
         return file.Tenants.TryGetValue(TenantSlug, out SyncTenantConfiguration? config) ? config.Token ?? "" : "";
+    }
+
+    private bool HasRunnableLocalConfiguration()
+    {
+        SyncWorkerConfigurationFile file = LoadConfigurationFile();
+        if (!file.Tenants.TryGetValue(TenantSlug, out SyncTenantConfiguration? config))
+        {
+            return false;
+        }
+
+        bool hasCloudUrl = !string.IsNullOrWhiteSpace(config.CloudUrl) || !string.IsNullOrWhiteSpace(CloudUrl);
+        bool hasToken = !string.IsNullOrWhiteSpace(config.Token) || !string.IsNullOrWhiteSpace(Token);
+
+        return hasCloudUrl && hasToken;
     }
 
     private void UpdateEffectiveSchedule()

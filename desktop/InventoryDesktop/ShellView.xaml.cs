@@ -40,6 +40,7 @@ public partial class ShellView : UserControl
         {
             ConfigureModulePermissions();
             ShowHome();
+            await SyncWorkerContent.EnsureAutomaticWorkerAsync();
             await RefreshSyncIndicatorAsync();
             await PromptInitialSyncIfNeededAsync();
         };
