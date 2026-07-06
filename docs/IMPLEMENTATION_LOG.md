@@ -4538,3 +4538,35 @@ Resultado:
 
 - 8 pruebas pasadas;
 - 47 aserciones.
+
+## 2026-07-06 - Correccion de bloqueo de log en sincronizacion inicial
+
+Problema:
+
+- Al reconfigurar una empresa, la sincronizacion inicial podia fallar si el archivo de log del worker estaba siendo usado por otro proceso.
+
+Implementacion:
+
+- El configurador externo detiene el worker anterior antes de ejecutar la primera sincronizacion.
+- El script `scripts/sync-worker.ps1` ahora escribe el log de forma tolerante y no aborta la sincronizacion si el log esta bloqueado.
+
+Pruebas:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj --no-restore -o .build\inventory-sync-installer-build-check
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

@@ -85,6 +85,9 @@ public partial class MainWindow : Window
             SetState("Guardando", "Guardando configuracion", "Registrando servidor, empresa y frecuencia de sincronizacion.", 3);
             SaveSyncConfiguration(selectedTenant.Slug, cloudUrl, syncToken, nodeCode, nodeName, installationCode, interval);
 
+            SetState("Preparando", "Deteniendo sincronizacion anterior", "Si esta empresa tenia un worker abierto, se detendra antes de continuar.", 4);
+            await RunWorkerAsync("stop", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
+
             SetState("Sincronizando", "Sincronizando datos iniciales", "Descargando productos, precios, cajas y permisos disponibles para esta empresa.", 4);
             await RunWorkerAsync("run", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 

@@ -392,3 +392,34 @@ Cambios principales:
 ## Ajuste de mensajes de conexion del configurador
 
 Se mejoro el manejo de errores del configurador externo para que, cuando la API de nube no responda, el tecnico vea un mensaje en español indicando que debe revisar URL, servidor Laravel y puerto abierto. El detalle tecnico queda oculto bajo `Ver detalles tecnicos`.
+
+## Ajuste contra bloqueo de log del worker
+
+Se corrigio el caso donde el configurador podia fallar durante la sincronizacion inicial si el archivo `storage/logs/sync-worker-{empresa}.log` estaba en uso por otro proceso.
+
+Cambios:
+
+- El configurador detiene cualquier worker previo de la empresa antes de ejecutar la sincronizacion inicial.
+- El worker escribe logs de forma tolerante: si el archivo esta ocupado, muestra un aviso y la sincronizacion continua.
+- Esto evita errores de reinstalacion o reconfiguracion cuando una sincronizacion automatica anterior quedo activa.
+
+Verificacion:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj --no-restore -o .build\inventory-sync-installer-build-check
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

@@ -37,6 +37,19 @@ function Fail([string] $Message) {
     throw "[SYNC-WORKER] $Message"
 }
 
+function Add-LogSafe([string] $Value) {
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value $Value
+            return
+        } catch {
+            Start-Sleep -Milliseconds 250
+        }
+    }
+
+    Write-Host "Aviso: no se pudo escribir en el log porque esta en uso. La sincronizacion continua." -ForegroundColor Yellow
+}
+
 function Ensure-StateDir {
     if (!(Test-Path -LiteralPath $StateDir)) {
         New-Item -ItemType Directory -Path $StateDir | Out-Null
@@ -253,9 +266,9 @@ function Invoke-RunOnce {
         }
 
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value "=================================================="
-        Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value "Sincronizacion manual $timestamp"
-        Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value ($output | Out-String)
+        Add-LogSafe "=================================================="
+        Add-LogSafe "Sincronizacion manual $timestamp"
+        Add-LogSafe ($output | Out-String)
 
         $output
 
