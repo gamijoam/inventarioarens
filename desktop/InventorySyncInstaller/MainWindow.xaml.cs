@@ -101,6 +101,44 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void ValidateRequirements_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiAsync(async () =>
+        {
+            RequirementsList.Items.Clear();
+            SetState("Validando", "Revisando requisitos", "Comprobando PHP, PostgreSQL local, .env, .NET y servidor nube.");
+
+            List<RequirementCheck> checks =
+            [
+                CheckFile("Proyecto Laravel", Path.Combine(repoRoot, "artisan"), "No se encontro el archivo artisan. Ejecuta el configurador desde la carpeta del sistema."),
+                CheckFile("Archivo .env", Path.Combine(repoRoot, ".env"), "No existe .env. Copia o configura el archivo de entorno local."),
+                await CheckProcessAsync("PHP disponible", phpPath, ["-v"], "PHP no esta disponible. Revisa Laragon o la variable PHP_EXE."),
+                await CheckPhpPgsqlAsync(),
+                await CheckProcessAsync(".NET disponible", dotnetPath, ["--version"], ".NET no esta disponible. Instala .NET Desktop Runtime o SDK."),
+                CheckEnvironmentFile(),
+                await CheckLocalDatabaseAsync(),
+                await CheckCloudAsync(),
+            ];
+
+            foreach (RequirementCheck check in checks)
+            {
+                RequirementsList.Items.Add($"{(check.Ok ? "OK" : "FALTA")} - {check.Name}: {check.Message}");
+                AppendLog($"{check.Name}: {check.Message}");
+            }
+
+            int failed = checks.Count(check => !check.Ok);
+            if (failed == 0)
+            {
+                SetState("Requisitos OK", "Computadora lista", "Los requisitos basicos estan correctos. Puedes configurar o sincronizar la empresa.");
+                TechnicalSummaryText.Text = "Requisitos validados correctamente.";
+                return;
+            }
+
+            SetState("Revisar", "Faltan requisitos", $"Hay {failed} punto(s) que debes corregir antes de instalar en cliente.");
+            TechnicalSummaryText.Text = $"Faltan {failed} requisito(s). Revisa la lista de requisitos para corregirlos.";
+        });
+    }
+
     private async void InstallTask_Click(object sender, RoutedEventArgs e)
     {
         await RunTaskButtonAsync("install", "Instalando", "Instalando sincronizacion automatica", "Windows revisara cada pocos minutos que el worker este activo.");
@@ -365,7 +403,159 @@ public partial class MainWindow : Window
         await RunProcessAsync(info);
     }
 
+    private async Task<RequirementCheck> CheckProcessAsync(string name, string fileName, IReadOnlyList<string> arguments, string failureMessage)
+    {
+        try
+        {
+            ProcessStartInfo info = new()
+            {
+                FileName = fileName,
+                WorkingDirectory = repoRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+
+            foreach (string argument in arguments)
+            {
+                info.ArgumentList.Add(argument);
+            }
+
+            ProcessResult result = await RunProcessCaptureAsync(info);
+            if (result.ExitCode == 0)
+            {
+                string firstLine = result.Output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Disponible.";
+                return RequirementCheck.Pass(name, firstLine);
+            }
+
+            return RequirementCheck.Fail(name, failureMessage);
+        }
+        catch
+        {
+            return RequirementCheck.Fail(name, failureMessage);
+        }
+    }
+
+    private async Task<RequirementCheck> CheckPhpPgsqlAsync()
+    {
+        try
+        {
+            ProcessStartInfo info = new()
+            {
+                FileName = phpPath,
+                WorkingDirectory = repoRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            info.ArgumentList.Add("-m");
+
+            ProcessResult result = await RunProcessCaptureAsync(info);
+            bool hasDriver = result.Output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+                .Any(module => module.Equals("pdo_pgsql", StringComparison.OrdinalIgnoreCase));
+
+            return hasDriver
+                ? RequirementCheck.Pass("Driver PostgreSQL de PHP", "pdo_pgsql activo.")
+                : RequirementCheck.Fail("Driver PostgreSQL de PHP", "PHP no tiene pdo_pgsql activo. Activalo en Laragon/php.ini.");
+        }
+        catch
+        {
+            return RequirementCheck.Fail("Driver PostgreSQL de PHP", "No se pudo revisar pdo_pgsql porque PHP no respondio.");
+        }
+    }
+
+    private RequirementCheck CheckEnvironmentFile()
+    {
+        string envPath = Path.Combine(repoRoot, ".env");
+        if (!File.Exists(envPath))
+        {
+            return RequirementCheck.Fail("Configuracion de base local", "No existe .env.");
+        }
+
+        Dictionary<string, string> values = ReadEnvFile(envPath);
+        string[] required = ["DB_HOST", "DB_PORT", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD"];
+        List<string> missing = required.Where(key => !values.ContainsKey(key) || string.IsNullOrWhiteSpace(values[key])).ToList();
+        if (missing.Count > 0)
+        {
+            return RequirementCheck.Fail("Configuracion de base local", $"Faltan valores en .env: {string.Join(", ", missing)}.");
+        }
+
+        return RequirementCheck.Pass("Configuracion de base local", $"{values["DB_HOST"]}:{values["DB_PORT"]} / {values["DB_DATABASE"]}.");
+    }
+
+    private async Task<RequirementCheck> CheckLocalDatabaseAsync()
+    {
+        if (!File.Exists(Path.Combine(repoRoot, "artisan")))
+        {
+            return RequirementCheck.Fail("Base local PostgreSQL", "No se puede validar sin artisan.");
+        }
+
+        ProcessStartInfo info = new()
+        {
+            FileName = phpPath,
+            WorkingDirectory = repoRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        info.ArgumentList.Add("artisan");
+        info.ArgumentList.Add("migrate:status");
+        info.ArgumentList.Add("--no-interaction");
+
+        try
+        {
+            ProcessResult result = await RunProcessCaptureAsync(info);
+            return result.ExitCode == 0
+                ? RequirementCheck.Pass("Base local PostgreSQL", "Conexion local correcta.")
+                : RequirementCheck.Fail("Base local PostgreSQL", FriendlyProcessError(result.CombinedOutput));
+        }
+        catch (Exception exception)
+        {
+            return RequirementCheck.Fail("Base local PostgreSQL", FriendlyException(exception));
+        }
+    }
+
+    private async Task<RequirementCheck> CheckCloudAsync()
+    {
+        try
+        {
+            string cloudUrl = NormalizeCloudUrl(CloudUrlBox.Text);
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(8));
+            using HttpResponseMessage response = await http.GetAsync(cloudUrl, timeout.Token);
+            return RequirementCheck.Pass("Servidor nube", $"Responde HTTP {(int)response.StatusCode}.");
+        }
+        catch (Exception exception)
+        {
+            return RequirementCheck.Fail("Servidor nube", FriendlyException(exception));
+        }
+    }
+
+    private static RequirementCheck CheckFile(string name, string path, string failureMessage)
+    {
+        return File.Exists(path)
+            ? RequirementCheck.Pass(name, "Encontrado.")
+            : RequirementCheck.Fail(name, failureMessage);
+    }
+
     private async Task RunProcessAsync(ProcessStartInfo info)
+    {
+        ProcessResult result = await RunProcessCaptureAsync(info);
+        string combined = result.CombinedOutput;
+        if (!string.IsNullOrWhiteSpace(combined))
+        {
+            AppendLog(combined);
+        }
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(FriendlyProcessError(combined));
+        }
+    }
+
+    private static async Task<ProcessResult> RunProcessCaptureAsync(ProcessStartInfo info)
     {
         using Process process = Process.Start(info) ?? throw new InvalidOperationException("No se pudo iniciar el proceso.");
         string output = await process.StandardOutput.ReadToEndAsync();
@@ -373,15 +563,7 @@ public partial class MainWindow : Window
         await process.WaitForExitAsync();
 
         string combined = string.Join(Environment.NewLine, new[] { output.Trim(), error.Trim() }.Where(value => !string.IsNullOrWhiteSpace(value)));
-        if (!string.IsNullOrWhiteSpace(combined))
-        {
-            AppendLog(combined);
-        }
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(FriendlyProcessError(combined));
-        }
+        return new ProcessResult(process.ExitCode, output.Trim(), error.Trim(), combined);
     }
 
     private void SaveSyncConfiguration(string tenantSlug, string cloudUrl, string token, string nodeCode, string nodeName, string installationCode, int interval)
@@ -437,6 +619,7 @@ public partial class MainWindow : Window
     {
         BusyBar.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         SearchCompaniesButton.IsEnabled = !busy;
+        ValidateRequirementsButton.IsEnabled = !busy;
         PrepareButton.IsEnabled = !busy;
         OpenMainButton.IsEnabled = !busy;
         InstallTaskButton.IsEnabled = !busy;
@@ -527,6 +710,30 @@ public partial class MainWindow : Window
             char.IsLetterOrDigit(character) ? char.ToUpperInvariant(character) : '-').ToArray());
 
         return string.Join("-", clean.Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static Dictionary<string, string> ReadEnvFile(string path)
+    {
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string line in File.ReadLines(path))
+        {
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#") || !trimmed.Contains('='))
+            {
+                continue;
+            }
+
+            string[] parts = trimmed.Split('=', 2);
+            string value = parts[1].Trim();
+            if (value.StartsWith('"') && value.EndsWith('"') && value.Length >= 2)
+            {
+                value = value[1..^1];
+            }
+
+            values[parts[0].Trim()] = value;
+        }
+
+        return values;
     }
 
     private static string Quote(string value)
@@ -710,6 +917,21 @@ public sealed record SyncTokenResponse(
 
 public sealed record SyncTokenData(
     [property: JsonPropertyName("token")] string Token);
+
+public sealed record RequirementCheck(string Name, bool Ok, string Message)
+{
+    public static RequirementCheck Pass(string name, string message)
+    {
+        return new RequirementCheck(name, true, message);
+    }
+
+    public static RequirementCheck Fail(string name, string message)
+    {
+        return new RequirementCheck(name, false, message);
+    }
+}
+
+public sealed record ProcessResult(int ExitCode, string Output, string Error, string CombinedOutput);
 
 public sealed class SyncWorkerConfigurationFile
 {

@@ -68,6 +68,7 @@
                             <ComboBoxItem Content="Cada 60 segundos" Tag="60" />
                         </ComboBox>
 
+                        <Button x:Name="ValidateRequirementsButton" Content="Validar requisitos de esta PC" Margin="0,18,0,0" Click="ValidateRequirements_Click" />
                         <Button x:Name="PrepareButton" Content="Configurar esta computadora" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,22,0,0" Click="Prepare_Click" />
 
                         <Border Background="#F8FAFE" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,18,0,0">
@@ -123,15 +124,33 @@
                             <TextBlock Text="El configurador hace todo en orden. Si algo falla, se mostrara un mensaje claro." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" Margin="0,4,0,0" />
                         </StackPanel>
 
-                        <ListBox x:Name="StepsList" Grid.Row="1" Margin="0,18,0,18" BorderBrush="#E2E8F4" Height="250">
-                            <ListBoxItem Content="1. Validar acceso del administrador" />
-                            <ListBoxItem Content="2. Obtener empresas disponibles" />
-                            <ListBoxItem Content="3. Preparar base local" />
-                            <ListBoxItem Content="4. Guardar configuracion" />
-                            <ListBoxItem Content="5. Sincronizar datos iniciales" />
-                            <ListBoxItem Content="6. Activar sincronizacion automatica" />
-                            <ListBoxItem Content="7. Finalizar instalacion" />
-                        </ListBox>
+                        <Grid Grid.Row="1" Margin="0,18,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Requisitos" FontWeight="Black" Foreground="#07142F" Margin="0,0,0,8" />
+                                <ListBox x:Name="RequirementsList" BorderBrush="#E2E8F4" Height="210">
+                                    <ListBoxItem Content="Aun no se han validado los requisitos." />
+                                </ListBox>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Proceso" FontWeight="Black" Foreground="#07142F" Margin="0,0,0,8" />
+                                <ListBox x:Name="StepsList" BorderBrush="#E2E8F4" Height="210">
+                                    <ListBoxItem Content="1. Validar acceso del administrador" />
+                                    <ListBoxItem Content="2. Obtener empresas disponibles" />
+                                    <ListBoxItem Content="3. Preparar base local" />
+                                    <ListBoxItem Content="4. Guardar configuracion" />
+                                    <ListBoxItem Content="5. Sincronizar datos iniciales" />
+                                    <ListBoxItem Content="6. Activar sincronizacion automatica" />
+                                    <ListBoxItem Content="7. Finalizar instalacion" />
+                                </ListBox>
+                            </StackPanel>
+                        </Grid>
 
                         <Border Grid.Row="2" Background="#F8FAFE" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14">
                             <StackPanel>
