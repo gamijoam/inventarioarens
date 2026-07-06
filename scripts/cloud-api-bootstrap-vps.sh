@@ -8,6 +8,7 @@ DB_USER="${DB_USER:-postgres}"
 PHP_BIN="${PHP_BIN:-php}"
 SERVICE_NAME="${SERVICE_NAME:-inventarioarens-cloud-api}"
 RUN_USER="${RUN_USER:-www-data}"
+CLOUD_SEED_DEMO="${CLOUD_SEED_DEMO:-0}"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Ejecuta este script como root en el VPS."
@@ -71,6 +72,11 @@ if ! grep -q "^APP_KEY=base64:" .env; then
 fi
 "$PHP_BIN" artisan migrate --force
 "$PHP_BIN" artisan db:seed --force
+if [[ "$CLOUD_SEED_DEMO" == "1" || "$CLOUD_SEED_DEMO" == "true" || "$CLOUD_SEED_DEMO" == "TRUE" ]]; then
+    echo "==> Cargando datos demo de empresas, usuarios, productos y cajas"
+    "$PHP_BIN" artisan db:seed --class=DemoDataSeeder --force
+    "$PHP_BIN" artisan db:seed --class=MultiCompanyLoginDemoSeeder --force
+fi
 "$PHP_BIN" artisan optimize:clear
 "$PHP_BIN" artisan config:cache
 

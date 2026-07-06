@@ -10,6 +10,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
@@ -1274,19 +1275,41 @@ class DemoDataSeeder extends Seeder
     {
         $this->useTenant($tenant);
 
+        $physicalRegister = CashRegister::query()->updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => "DEMO-{$branch->code}"],
+            [
+                'branch_id' => $branch->id,
+                'name' => "Caja Mostrador {$branch->code}",
+                'status' => CashRegister::STATUS_ACTIVE,
+                'notes' => 'Caja fisica demo para POS y pruebas de cierre.',
+            ]
+        );
+
         $existing = CashRegisterSession::query()
             ->where('cashier_id', $cashier->id)
             ->where('status', CashRegisterSession::STATUS_OPEN)
             ->first();
 
         if ($existing) {
+            if (! $existing->cash_register_id) {
+                $physicalRegisterIsFree = ! CashRegisterSession::query()
+                    ->where('cash_register_id', $physicalRegister->id)
+                    ->where('status', CashRegisterSession::STATUS_OPEN)
+                    ->whereKeyNot($existing->id)
+                    ->exists();
+
+                if ($physicalRegisterIsFree) {
+                    $existing->update(['cash_register_id' => $physicalRegister->id]);
+                }
+            }
+
             return $existing;
         }
 
         return app(CashRegisterService::class)->open(
             operator: $cashier,
             branch: $branch,
-            physicalRegister: null,
+            physicalRegister: $physicalRegister,
             cashier: $cashier,
             data: [
                 'opening_currency' => Product::CURRENCY_USD,

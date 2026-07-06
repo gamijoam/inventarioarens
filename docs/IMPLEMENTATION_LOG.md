@@ -4239,3 +4239,29 @@ Pruebas:
 - Resultado: 1 prueba pasada y 3 aserciones.
 - Se ejecuto `artisan test tests/Feature/Sync/SyncSchemaTest.php tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
 - Resultado: 13 pruebas pasadas y 90 aserciones.
+
+## 2026-07-06 - Carga demo opcional para API nube
+
+Contexto:
+
+- En una base de nube limpia, `php artisan sync:issue-token demo-valencia gerente.valencia@demo.test` puede responder `Empresa no encontrada`.
+- La razon es que `DatabaseSeeder` solo prepara datos base del sistema, pero no carga empresas demo, productos, almacenes ni cajas de prueba.
+- Para produccion no conviene cargar datos demo automaticamente, pero para pruebas operativas si debe existir una forma clara de hacerlo.
+
+Implementacion:
+
+- `scripts/cloud-api-bootstrap-vps.sh` ahora acepta `CLOUD_SEED_DEMO=1`.
+- Cuando esa bandera esta activa, el bootstrap ejecuta `DemoDataSeeder` y `MultiCompanyLoginDemoSeeder` despues del seeder base.
+- La guia operativa de nube documenta como instalar sin demos, como instalar con demos y como cargar solo los datos demo si la nube ya estaba migrada.
+- La documentacion ahora incluye ejemplos de token para `demo-valencia`, `demo-valencia-centro` y `demo-valencia-norte`.
+
+Pruebas:
+
+- Pendiente de ejecutar pruebas especificas despues de actualizar el bootstrap y la documentacion.
+
+Verificacion posterior de carga demo opcional:
+
+- Se ajusto `DemoDataSeeder` para crear/reusar una caja fisica demo por sucursal antes de abrir el turno POS.
+- Esto evita que el POS demo falle con la regla actual: la venta requiere caja fisica abierta desde el modulo Caja.
+- Se ejecuto `artisan test tests/Feature/Seeders/DemoDataSeederTest.php tests/Feature/Seeders/MultiCompanyLoginDemoSeederTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 8 pruebas pasadas y 132 aserciones.

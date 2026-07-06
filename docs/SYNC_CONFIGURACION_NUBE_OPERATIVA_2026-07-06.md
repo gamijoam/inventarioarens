@@ -61,7 +61,8 @@ El script:
 - crea la base `inventory_arens` si falta;
 - prepara `.env` de produccion;
 - ejecuta `composer install`;
-- ejecuta migraciones y seeders;
+- ejecuta migraciones y seeders base;
+- opcionalmente carga empresas demo para pruebas;
 - crea un servicio systemd llamado `inventarioarens-cloud-api`;
 - levanta Laravel en `0.0.0.0:8010`;
 - abre el puerto 8010 si `ufw` esta disponible.
@@ -71,6 +72,21 @@ Comando en el VPS:
 ```bash
 cd /opt/inventarioarens-cloud
 DB_PASSWORD='CLAVE_POSTGRES' bash scripts/cloud-api-bootstrap-vps.sh
+```
+
+Si la nube es de pruebas y necesitas las empresas demo (`demo-caracas`, `demo-valencia` y empresas multiempresa), ejecuta:
+
+```bash
+cd /opt/inventarioarens-cloud
+CLOUD_SEED_DEMO=1 DB_PASSWORD='CLAVE_POSTGRES' bash scripts/cloud-api-bootstrap-vps.sh
+```
+
+Si el VPS ya esta instalado y solo falta cargar los datos demo, ejecuta:
+
+```bash
+cd /opt/inventarioarens-cloud
+php artisan db:seed --class=DemoDataSeeder --force
+php artisan db:seed --class=MultiCompanyLoginDemoSeeder --force
 ```
 
 ## Emitir token de sincronizacion
@@ -87,7 +103,16 @@ Comando en el VPS:
 php artisan sync:issue-token demo-valencia gerente.valencia@demo.test --name=worker-valencia --days=365
 ```
 
+Para las empresas multiempresa del demo, usa el slug exacto de la empresa:
+
+```bash
+php artisan sync:issue-token demo-valencia-centro gerente.valencia@demo.test --name=worker-valencia-centro --days=365
+php artisan sync:issue-token demo-valencia-norte gerente.valencia@demo.test --name=worker-valencia-norte --days=365
+```
+
 El token se muestra una sola vez. Ese valor se configura en la computadora local.
+
+Si el comando responde `Empresa no encontrada`, significa que ese `slug` no existe en la base de nube. En ese caso primero carga el seeder demo o revisa los slugs existentes en PostgreSQL.
 
 ## Configurar la PC local
 
