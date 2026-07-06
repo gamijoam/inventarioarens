@@ -150,6 +150,36 @@ Los cambios hechos directamente en HeidiSQL o PostgreSQL no generan eventos de s
 
 No se recomienda usar triggers SQL para cambios comerciales como precios, porque se perderia contexto de usuario, permisos, motivo, moneda, tasa y reglas de conflicto.
 
+### Fase 8 - Configuracion para tecnicos y automatizacion
+
+Implementada como primera version operativa.
+
+La sincronizacion automatica existe mediante el worker local. Cuando se inicia, ejecuta ciclos continuos cada 30 segundos por defecto. Ese intervalo puede cambiarse en la pantalla de sincronizacion.
+
+Puntos importantes:
+
+- La sincronizacion manual ejecuta un solo ciclo.
+- La sincronizacion automatica queda corriendo en segundo plano hasta detenerla.
+- Cada empresa puede tener su propia URL de nube, token, nodo e intervalo.
+- El token global del `.env` queda como respaldo, pero para operacion real se recomienda guardar token por empresa.
+- El worker ya no usa un unico proceso global para todas las empresas; ahora el PID y el log se separan por empresa.
+
+Archivos locales usados:
+
+- `storage/app/sync-worker/sync-config.json`: configuracion local por empresa.
+- `storage/app/sync-worker/sync-worker-{empresa}.pid`: proceso activo por empresa.
+- `storage/logs/sync-worker-{empresa}.log`: log por empresa.
+
+Objetivo para la siguiente fase:
+
+- Crear una experiencia mas guiada tipo asistente tecnico:
+  1. probar conexion local;
+  2. probar conexion nube;
+  3. pegar token o solicitarlo;
+  4. guardar configuracion;
+  5. iniciar sincronizacion automatica;
+  6. mostrar estado con semaforo simple.
+
 ## Implementacion actual
 
 Archivos modificados:
@@ -165,7 +195,9 @@ Archivos modificados:
 - `scripts/sync-worker.ps1`
 - `desktop/InventoryDesktop/ShellView.xaml`
 - `desktop/InventoryDesktop/ShellView.xaml.cs`
+- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml`
 - `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml.cs`
+- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs`
 
 El centro de modulos ahora muestra el estado operativo de sincronizacion y permite ejecutar un ciclo manual sin abrir la pantalla tecnica.
 Si la empresa aun no esta lista en esa computadora, muestra un aviso de sincronizacion inicial dentro del centro de modulos.
@@ -178,6 +210,7 @@ Actualizacion 2026-07-06:
 - Si el precio se edita manualmente en la tabla `products` por HeidiSQL, no se genera outbox y por tanto no se sincroniza.
 - Ajuste posterior: la nube aplica por UUID los eventos que acaba de recibir. Esto evita que eventos antiguos en `sync_inbox` bloqueen un cambio nuevo, como un `product.updated` de precio.
 - Si el VPS ya tenia eventos recibidos antes de este ajuste, se pueden procesar manualmente con `php artisan sync:apply-inbox demo-valencia --limit=200`.
+- La pantalla de sincronizacion ahora permite guardar configuracion local por empresa y el worker usa PID/log separado por empresa.
 
 APIs agregadas:
 
@@ -224,3 +257,25 @@ Resultado:
 
 - 14 pruebas pasadas;
 - 100 aserciones.
+
+Verificacion de automatizacion por empresa:
+
+```powershell
+scripts\sync-worker.cmd status -TenantSlug demo-valencia
+```
+
+Resultado:
+
+- el controlador responde correctamente;
+- muestra estado por empresa;
+- usa log especifico `storage/logs/sync-worker-demo-valencia.log`.
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.

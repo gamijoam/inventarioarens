@@ -21,9 +21,13 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $StateDir = Join-Path $RepoRoot "storage\app\sync-worker"
-$PidFile = Join-Path $StateDir "sync-worker.pid"
-$CommandFile = Join-Path $StateDir "sync-worker.cmd"
-$LogFile = Join-Path $RepoRoot "storage\logs\sync-worker.log"
+$SafeTenantSlug = ($TenantSlug.ToLowerInvariant() -replace '[^a-z0-9_-]', '-')
+if (!$SafeTenantSlug) {
+    $SafeTenantSlug = "default"
+}
+$PidFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.pid"
+$CommandFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.cmd"
+$LogFile = Join-Path $RepoRoot "storage\logs\sync-worker-$SafeTenantSlug.log"
 
 function Write-Step([string] $Message) {
     Write-Host "==> $Message" -ForegroundColor Cyan
@@ -83,6 +87,7 @@ function Show-Status {
     $process = Get-WorkerProcess
     if ($process) {
         Write-Host "Worker de sincronizacion: ACTIVO" -ForegroundColor Green
+        Write-Host "Empresa: $TenantSlug"
         Write-Host "PID: $($process.Id)"
         Write-Host "Log: $LogFile"
         return
@@ -93,6 +98,7 @@ function Show-Status {
     }
 
     Write-Host "Worker de sincronizacion: DETENIDO" -ForegroundColor Yellow
+    Write-Host "Empresa: $TenantSlug"
     Write-Host "Log: $LogFile"
 }
 
@@ -170,6 +176,7 @@ function Start-Worker {
 cd /d "$RepoRoot"
 echo ==================================================>> "$LogFile"
 echo Worker iniciado %date% %time%>> "$LogFile"
+echo Empresa $TenantSlug>> "$LogFile"
 $commandLine >> "$LogFile" 2>>&1
 "@
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.Security;
@@ -23,6 +24,8 @@ public sealed class SyncWorkerViewModel : ViewModelBase
     private string backendStatus = "Sin consultar.";
     private string lastLog = "Sin log disponible.";
     private string message = "";
+    private string configurationStatus = "Configuracion no guardada para esta empresa.";
+    private string effectiveSchedule = "Automatico: detenido. Al iniciar, sincroniza cada 30 segundos.";
     private bool isBusy;
 
     public string TenantSlug
@@ -97,6 +100,18 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         set => SetProperty(ref message, value);
     }
 
+    public string ConfigurationStatus
+    {
+        get => configurationStatus;
+        set => SetProperty(ref configurationStatus, value);
+    }
+
+    public string EffectiveSchedule
+    {
+        get => effectiveSchedule;
+        set => SetProperty(ref effectiveSchedule, value);
+    }
+
     public bool IsBusy
     {
         get => isBusy;
@@ -111,6 +126,8 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         InstallationCode = BuildInstallationCode();
         NodeCode = InstallationCode;
         NodeName = $"{Environment.MachineName} - {activeSession.TenantName}";
+        LoadLocalConfiguration();
+        UpdateEffectiveSchedule();
     }
 
     public async Task RefreshAsync()
@@ -122,6 +139,7 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
     public async Task StartAsync()
     {
+        SaveConfiguration(showMessage: false);
         await ExecuteWorkerAsync("start");
         await LoadBackendStatusAsync();
         LoadLogTail();
@@ -136,9 +154,63 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
     public async Task RunOnceAsync()
     {
+        SaveConfiguration(showMessage: false);
         await ExecuteWorkerAsync("run");
         await LoadBackendStatusAsync();
         LoadLogTail();
+    }
+
+    public void SaveConfiguration(bool showMessage = true)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(TenantSlug))
+            {
+                Message = "Selecciona una empresa antes de guardar la sincronizacion.";
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(CloudUrl) &&
+                !Uri.TryCreate(CloudUrl, UriKind.Absolute, out _))
+            {
+                Message = "La URL de la nube no parece valida. Debe verse como http://servidor:puerto/api.";
+                return;
+            }
+
+            if (!int.TryParse(Interval, out int parsedInterval) || parsedInterval < 5)
+            {
+                Interval = "30";
+                parsedInterval = 30;
+            }
+
+            SyncWorkerConfigurationFile file = LoadConfigurationFile();
+            file.Tenants[TenantSlug] = new SyncTenantConfiguration
+            {
+                TenantSlug = TenantSlug,
+                InstallationCode = InstallationCode,
+                NodeCode = NodeCode,
+                NodeName = NodeName,
+                CloudUrl = CloudUrl,
+                Token = Token,
+                Interval = parsedInterval,
+                UpdatedAt = DateTimeOffset.Now,
+            };
+
+            SaveConfigurationFile(file);
+            ConfigurationStatus = string.IsNullOrWhiteSpace(Token)
+                ? "Configuracion guardada. Esta empresa usara el token del .env si existe."
+                : "Configuracion guardada con token propio para esta empresa.";
+            UpdateEffectiveSchedule();
+
+            if (showMessage)
+            {
+                Message = "Configuracion de sincronizacion guardada para esta empresa.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Message = $"No se pudo guardar la configuracion local. {exception.Message}";
+        }
     }
 
     private async Task LoadBackendStatusAsync()
@@ -250,6 +322,9 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
         try
         {
+            string effectiveCloudUrl = string.IsNullOrWhiteSpace(CloudUrl) ? LoadConfiguredCloudUrl() : CloudUrl;
+            string effectiveToken = string.IsNullOrWhiteSpace(Token) ? LoadConfiguredToken() : Token;
+
             List<string> commandArguments = new()
             {
                 action,
@@ -265,16 +340,16 @@ public sealed class SyncWorkerViewModel : ViewModelBase
                 Interval,
             };
 
-            if (!string.IsNullOrWhiteSpace(CloudUrl))
+            if (!string.IsNullOrWhiteSpace(effectiveCloudUrl))
             {
                 commandArguments.Add("-CloudUrl");
-                commandArguments.Add(CloudUrl);
+                commandArguments.Add(effectiveCloudUrl);
             }
 
-            if (!string.IsNullOrWhiteSpace(Token))
+            if (!string.IsNullOrWhiteSpace(effectiveToken))
             {
                 commandArguments.Add("-Token");
-                commandArguments.Add(Token);
+                commandArguments.Add(effectiveToken);
             }
 
             string command = $"{QuoteForCmd(scriptPath)} {string.Join(" ", commandArguments.Select(QuoteForCmd))}";
@@ -305,6 +380,7 @@ public sealed class SyncWorkerViewModel : ViewModelBase
             else if (action == "start")
             {
                 Message = "Worker iniciado o ya estaba activo.";
+                UpdateEffectiveSchedule();
             }
             else if (action == "stop")
             {
@@ -339,7 +415,7 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         if (output.Contains("ACTIVO", StringComparison.OrdinalIgnoreCase))
         {
             Status = "Activo";
-            StatusDetail = "La sincronizacion esta activa y ejecutandose en segundo plano.";
+            StatusDetail = $"La sincronizacion esta activa en segundo plano. {BuildIntervalMessage()}";
             return;
         }
 
@@ -353,7 +429,7 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         if (output.Contains("Worker iniciado", StringComparison.OrdinalIgnoreCase))
         {
             Status = "Activo";
-            StatusDetail = "Worker iniciado correctamente. La sincronizacion queda trabajando en segundo plano.";
+            StatusDetail = $"Worker iniciado correctamente. {BuildIntervalMessage()}";
             return;
         }
 
@@ -413,7 +489,13 @@ public sealed class SyncWorkerViewModel : ViewModelBase
             return;
         }
 
-        string logPath = Path.Combine(root, "storage", "logs", "sync-worker.log");
+        string tenantLogName = $"sync-worker-{SafeFilePart(TenantSlug)}.log";
+        string logPath = Path.Combine(root, "storage", "logs", tenantLogName);
+        if (!File.Exists(logPath))
+        {
+            logPath = Path.Combine(root, "storage", "logs", "sync-worker.log");
+        }
+
         if (!File.Exists(logPath))
         {
             LastLog = "Aun no existe log del worker.";
@@ -480,6 +562,14 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         return $"LOCAL-{new string(clean)}";
     }
 
+    private static string SafeFilePart(string value)
+    {
+        string safe = new(value.ToLowerInvariant().Select(character =>
+            char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-').ToArray());
+
+        return string.IsNullOrWhiteSpace(safe) ? "default" : safe;
+    }
+
     private static string FriendlyError(string output)
     {
         if (output.Contains("is not recognized as an internal or external command", StringComparison.OrdinalIgnoreCase))
@@ -499,7 +589,7 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
         if (output.Contains("Falta Token", StringComparison.OrdinalIgnoreCase))
         {
-            return "Falta configurar el token de la nube. Escribelo en opciones avanzadas o define SYNC_CLOUD_TOKEN en el .env.";
+            return "Falta configurar el token de la nube para esta empresa. Entra a Sincronizacion, pega el token, guarda la configuracion y vuelve a sincronizar.";
         }
 
         if (output.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
@@ -510,6 +600,136 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
         return output;
     }
+
+    private void LoadLocalConfiguration()
+    {
+        SyncWorkerConfigurationFile file = LoadConfigurationFile();
+        if (!file.Tenants.TryGetValue(TenantSlug, out SyncTenantConfiguration? config))
+        {
+            ConfigurationStatus = "Esta empresa aun no tiene configuracion local guardada.";
+            return;
+        }
+
+        InstallationCode = string.IsNullOrWhiteSpace(config.InstallationCode) ? InstallationCode : config.InstallationCode;
+        NodeCode = string.IsNullOrWhiteSpace(config.NodeCode) ? NodeCode : config.NodeCode;
+        NodeName = string.IsNullOrWhiteSpace(config.NodeName) ? NodeName : config.NodeName;
+        CloudUrl = config.CloudUrl ?? "";
+        Token = config.Token ?? "";
+        Interval = config.Interval >= 5 ? config.Interval.ToString() : "30";
+        ConfigurationStatus = string.IsNullOrWhiteSpace(Token)
+            ? "Configuracion local encontrada. Token pendiente o tomado desde .env."
+            : "Configuracion local encontrada. Esta empresa tiene token propio.";
+    }
+
+    private string LoadConfiguredCloudUrl()
+    {
+        SyncWorkerConfigurationFile file = LoadConfigurationFile();
+        return file.Tenants.TryGetValue(TenantSlug, out SyncTenantConfiguration? config) ? config.CloudUrl ?? "" : "";
+    }
+
+    private string LoadConfiguredToken()
+    {
+        SyncWorkerConfigurationFile file = LoadConfigurationFile();
+        return file.Tenants.TryGetValue(TenantSlug, out SyncTenantConfiguration? config) ? config.Token ?? "" : "";
+    }
+
+    private void UpdateEffectiveSchedule()
+    {
+        EffectiveSchedule = $"Automatico: al iniciar, sincroniza cada {NormalizeInterval()} segundos.";
+    }
+
+    private string BuildIntervalMessage()
+    {
+        return $"Ciclo automatico cada {NormalizeInterval()} segundos.";
+    }
+
+    private int NormalizeInterval()
+    {
+        if (!int.TryParse(Interval, out int parsed) || parsed < 5)
+        {
+            return 30;
+        }
+
+        return parsed;
+    }
+
+    private static SyncWorkerConfigurationFile LoadConfigurationFile()
+    {
+        string? root = FindRepoRoot();
+        if (root is null)
+        {
+            return new SyncWorkerConfigurationFile();
+        }
+
+        string path = ConfigurationPath(root);
+        if (!File.Exists(path))
+        {
+            return new SyncWorkerConfigurationFile();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<SyncWorkerConfigurationFile>(File.ReadAllText(path)) ?? new SyncWorkerConfigurationFile();
+        }
+        catch
+        {
+            return new SyncWorkerConfigurationFile();
+        }
+    }
+
+    private static void SaveConfigurationFile(SyncWorkerConfigurationFile file)
+    {
+        string? root = FindRepoRoot();
+        if (root is null)
+        {
+            throw new InvalidOperationException("No se encontro la raiz del proyecto.");
+        }
+
+        string path = ConfigurationPath(root);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(file, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        }));
+    }
+
+    private static string ConfigurationPath(string root)
+    {
+        return Path.Combine(root, "storage", "app", "sync-worker", "sync-config.json");
+    }
+}
+
+public sealed class SyncWorkerConfigurationFile
+{
+    [JsonPropertyName("tenants")]
+    public Dictionary<string, SyncTenantConfiguration> Tenants { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class SyncTenantConfiguration
+{
+    [JsonPropertyName("tenant_slug")]
+    public string TenantSlug { get; set; } = "";
+
+    [JsonPropertyName("installation_code")]
+    public string InstallationCode { get; set; } = "";
+
+    [JsonPropertyName("node_code")]
+    public string NodeCode { get; set; } = "";
+
+    [JsonPropertyName("node_name")]
+    public string NodeName { get; set; } = "";
+
+    [JsonPropertyName("cloud_url")]
+    public string CloudUrl { get; set; } = "";
+
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = "";
+
+    [JsonPropertyName("interval")]
+    public int Interval { get; set; } = 30;
+
+    [JsonPropertyName("updated_at")]
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed record SyncStatusResponse(

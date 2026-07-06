@@ -59,7 +59,7 @@
                             <ColumnDefinition Width="8" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Button Content="Iniciar"
+                        <Button Content="Iniciar automatico"
                                 Height="46"
                                 Background="{StaticResource AccentBrush}"
                                 Foreground="White"
@@ -78,12 +78,30 @@
                     </Grid>
 
                     <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="Configuracion local" FontSize="22" FontWeight="Black" />
-                        <TextBlock Text="Si URL y token estan en el archivo .env, puedes dejarlos vacios aqui."
+                        <TextBlock Text="Configuracion local por empresa" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Guarda la conexion de esta empresa para que el tecnico no tenga que usar consola."
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
                                    Margin="0,5,0,14" />
+                        <Border Padding="12"
+                                Background="#F8FAFE"
+                                BorderBrush="#DCE4F2"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ConfigurationStatus}"
+                                           FontWeight="Black"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding EffectiveSchedule}"
+                                           Margin="0,4,0,0"
+                                           Foreground="#00896B"
+                                           FontWeight="Black"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -97,18 +115,24 @@
                             <TextBlock Text="Nombre del nodo" FontWeight="Black" />
                             <TextBox Text="{Binding NodeName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
 
-                            <Expander Header="Opciones avanzadas de nube" FontWeight="Black" Margin="0,2,0,0">
-                                <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="URL nube" FontWeight="Black" />
-                                    <TextBox Text="{Binding CloudUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+                            <TextBlock Text="URL nube" FontWeight="Black" />
+                            <TextBox Text="{Binding CloudUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
 
-                                    <TextBlock Text="Token nube opcional" FontWeight="Black" />
-                                    <PasswordBox x:Name="TokenBox" PasswordChanged="TokenBox_PasswordChanged" Margin="0,4,0,12" />
+                            <TextBlock Text="Token nube de esta empresa" FontWeight="Black" />
+                            <PasswordBox x:Name="TokenBox" PasswordChanged="TokenBox_PasswordChanged" Margin="0,4,0,4" />
+                            <TextBlock Text="Si ya estaba guardado, no necesitas volver a escribirlo salvo que quieras reemplazarlo."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,12" />
 
-                                    <TextBlock Text="Intervalo en segundos" FontWeight="Black" />
-                                    <TextBox Text="{Binding Interval, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,6" />
-                                </StackPanel>
-                            </Expander>
+                            <TextBlock Text="Cada cuantos segundos sincroniza" FontWeight="Black" />
+                            <TextBox Text="{Binding Interval, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                            <Button Content="Guardar configuracion"
+                                    Height="44"
+                                    FontWeight="Black"
+                                    Click="SaveConfiguration_Click" />
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>

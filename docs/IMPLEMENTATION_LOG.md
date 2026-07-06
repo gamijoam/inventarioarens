@@ -4317,3 +4317,32 @@ Pruebas:
 
 - Se ejecuto `artisan test tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncApplyInboxCommandTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
 - Resultado: 14 pruebas pasadas y 100 aserciones.
+
+## 2026-07-06 - Configuracion local por empresa para sincronizacion automatica
+
+Contexto:
+
+- La sincronizacion automatica ya existia con `sync:daemon`, pero dependia de un token global en `.env` o de pasarlo manualmente.
+- Al abrir otra empresa, podia aparecer `Falta Token` porque esa empresa no tenia credencial propia configurada.
+- El worker tambien usaba un PID global, por lo que una empresa podia bloquear o confundir el estado de otra.
+
+Implementacion:
+
+- La pantalla de sincronizacion de escritorio ahora guarda configuracion local por empresa en `storage/app/sync-worker/sync-config.json`.
+- Cada empresa puede tener URL nube, token, nodo, instalacion e intervalo propio.
+- `Iniciar automatico` guarda la configuracion y arranca el worker continuo.
+- `Sincronizar ahora` usa la configuracion guardada si el usuario no escribe token en pantalla.
+- El script `scripts/sync-worker.ps1` separa PID, comando temporal y log por empresa.
+
+Operacion:
+
+- El intervalo automatico por defecto es de 30 segundos.
+- El tecnico debe configurar una vez cada empresa en esa computadora.
+- Si una empresa no tiene token propio, puede usar el token global del `.env` como respaldo, pero no es lo recomendado para multiempresa.
+
+Pruebas:
+
+- Se ejecuto `dotnet build desktop/InventoryDesktop/InventoryDesktop.csproj --no-restore`.
+- Resultado: compilacion correcta, 0 errores, 0 advertencias.
+- Se ejecuto `scripts\\sync-worker.cmd status -TenantSlug demo-valencia`.
+- Resultado: el controlador responde por empresa y apunta a `storage/logs/sync-worker-demo-valencia.log`.

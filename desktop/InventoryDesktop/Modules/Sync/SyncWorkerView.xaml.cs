@@ -60,6 +60,11 @@ public partial class SyncWorkerView : UserControl
         await viewModel.RunOnceAsync();
     }
 
+    private void SaveConfiguration_Click(object sender, RoutedEventArgs e)
+    {
+        viewModel.SaveConfiguration();
+    }
+
     private void TokenBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         viewModel.Token = TokenBox.Password;
