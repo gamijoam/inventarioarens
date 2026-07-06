@@ -106,6 +106,45 @@ Payload fallido:
 
 Devuelve conteos de nodos, outbox, inbox y estados del nodo.
 
+### Emitir token de sincronizacion
+
+`POST /api/sync/tokens`
+
+Permite generar un token Bearer de sincronizacion para la empresa activa sin entrar al VPS. La solicitud debe ir autenticada con el token normal del gerente y con el encabezado `X-Tenant` de la empresa seleccionada.
+
+Payload:
+
+```json
+{
+  "name": "Sync PC Valencia",
+  "days": 365
+}
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "token": "TOKEN_GENERADO_SOLO_SE_MUESTRA_UNA_VEZ",
+    "token_type": "Bearer",
+    "name": "Sync PC Valencia",
+    "tenant": {
+      "id": 1,
+      "name": "Demo Valencia",
+      "slug": "demo-valencia"
+    },
+    "expires_at": "2027-07-06T00:00:00.000000Z"
+  }
+}
+```
+
+Uso recomendado:
+
+- La app de escritorio lo consume desde el asistente tecnico.
+- El token queda guardado localmente por empresa en `storage/app/sync-worker/sync-config.json`.
+- En la base de datos solo se guarda el hash del token, no el token en texto plano.
+
 ## Alcance actual
 
 Este API solo mueve eventos y registra estado de entrega. La aplicacion concreta de cambios como precios, tasas, productos o permisos se implementara por fases para no mezclar reglas de negocio.

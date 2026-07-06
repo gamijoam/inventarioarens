@@ -1,0 +1,175 @@
+<Window x:Class="InventoryDesktop.Modules.Sync.SyncSetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Configurar sincronizacion"
+        Width="980"
+        Height="760"
+        MinWidth="880"
+        MinHeight="680"
+        WindowStartupLocation="CenterOwner"
+        Background="#F3F7FC">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="22" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Padding="9,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7">
+                            <TextBlock Text="SYNC" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
+                        </Border>
+                        <Border Margin="8,0,0,0" Padding="9,5" Background="#ECFDF5" BorderBrush="#B7F0D5" BorderThickness="1" CornerRadius="7">
+                            <TextBlock Text="Asistente tecnico" Foreground="#00896B" FontSize="10" FontWeight="Black" />
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Text="Configurar sincronizacion" FontSize="30" FontWeight="Black" Margin="0,14,0,0" />
+                    <TextBlock Text="Conecta esta computadora con la nube sin entrar al VPS ni copiar comandos. El gerente autoriza y la app guarda el token por empresa."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Content="Cerrar"
+                        Width="130"
+                        Height="46"
+                        FontWeight="Black"
+                        VerticalAlignment="Top"
+                        Click="Close_Click" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="430" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
+                <StackPanel>
+                    <TextBlock Text="1. Acceso nube" FontSize="22" FontWeight="Black" />
+                    <TextBlock Text="Escribe la URL de la API nube y el usuario administrativo. Al buscar, se mostraran las empresas asociadas a ese correo."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,16" />
+
+                    <TextBlock Text="URL nube" FontWeight="Black" />
+                    <TextBox x:Name="CloudUrlBox" Margin="0,5,0,12" />
+
+                    <TextBlock Text="Correo del gerente" FontWeight="Black" />
+                    <TextBox x:Name="EmailBox" Margin="0,5,0,12" />
+
+                    <TextBlock Text="Contrasena" FontWeight="Black" />
+                    <PasswordBox x:Name="PasswordBox" Margin="0,5,0,14" />
+
+                    <Button Content="Buscar empresas"
+                            Height="46"
+                            FontWeight="Black"
+                            Click="SearchCompanies_Click" />
+
+                    <Border Margin="0,18,0,0"
+                            Padding="14"
+                            Background="#F8FAFE"
+                            BorderBrush="#DCE4F2"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                        <StackPanel>
+                            <TextBlock Text="Empresa encontrada" FontWeight="Black" />
+                            <ComboBox x:Name="TenantBox"
+                                      DisplayMemberPath="Name"
+                                      Margin="0,6,0,0"
+                                      Height="40" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12" Padding="22">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="2. Datos de esta computadora" FontSize="22" FontWeight="Black" />
+                        <TextBlock Text="Estos datos identifican esta instalacion para que la nube sepa que cambios entregar y cuales ya fueron aplicados."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,16" />
+
+                        <TextBlock Text="Codigo del nodo" FontWeight="Black" />
+                        <TextBox x:Name="NodeCodeBox" Margin="0,5,0,12" />
+
+                        <TextBlock Text="Nombre visible" FontWeight="Black" />
+                        <TextBox x:Name="NodeNameBox" Margin="0,5,0,12" />
+
+                        <TextBlock Text="Sincronizar cada segundos" FontWeight="Black" />
+                        <TextBox x:Name="IntervalBox" Text="30" Margin="0,5,0,16" />
+
+                        <Border Padding="14"
+                                Background="#FFF9F0"
+                                BorderBrush="#FFD39B"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                            <TextBlock Text="Recomendado: 30 segundos. El sistema sigue trabajando local aunque internet falle; al volver la conexion, el worker se pone al dia."
+                                       Foreground="#B85000"
+                                       FontWeight="Black"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Margin="0,18,0,0">
+                        <TextBlock x:Name="MessageText"
+                                   Text="Pendiente de configurar."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   FontWeight="Black"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button Content="Generar token y guardar"
+                                    Height="50"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="White"
+                                    FontWeight="Black"
+                                    Click="GenerateAndSave_Click" />
+                            <Button Grid.Column="2"
+                                    Content="Cerrar"
+                                    Height="50"
+                                    FontWeight="Black"
+                                    Click="Close_Click" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Margin="0,14,0,0"
+                   Text="Flujo tecnico: buscar empresas por correo, iniciar sesion en la empresa seleccionada, emitir token de sincronizacion y guardarlo solo en esta instalacion local."
+                   Foreground="{StaticResource MutedBrush}"
+                   FontWeight="SemiBold"
+                   TextWrapping="Wrap" />
+    </Grid>
+</Window>

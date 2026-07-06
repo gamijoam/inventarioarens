@@ -65,6 +65,15 @@ public partial class SyncWorkerView : UserControl
         viewModel.SaveConfiguration();
     }
 
+    private void SetupWizard_Click(object sender, RoutedEventArgs e)
+    {
+        SyncSetupWizardWindow window = new(viewModel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        window.ShowDialog();
+    }
+
     private void TokenBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         viewModel.Token = TokenBox.Password;

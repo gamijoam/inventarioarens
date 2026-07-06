@@ -4346,3 +4346,47 @@ Pruebas:
 - Resultado: compilacion correcta, 0 errores, 0 advertencias.
 - Se ejecuto `scripts\\sync-worker.cmd status -TenantSlug demo-valencia`.
 - Resultado: el controlador responde por empresa y apunta a `storage/logs/sync-worker-demo-valencia.log`.
+
+## 2026-07-06 - Asistente tecnico para tokens de sincronizacion
+
+Problema:
+
+- La sincronizacion por empresa ya funcionaba, pero el token de nube se generaba desde el VPS con `php artisan sync:issue-token`.
+- Ese flujo no es adecuado para clientes o tecnicos no programadores, porque obliga a entrar al servidor, copiar tokens manualmente y configurar archivos.
+
+Implementacion:
+
+- Se creo `SyncTokenService` para centralizar la emision de tokens de sincronizacion.
+- El comando `sync:issue-token` ahora reutiliza ese servicio y queda como herramienta administrativa avanzada.
+- Se agrego la API `POST /api/sync/tokens`, protegida por login y por empresa activa.
+- La API devuelve el token una sola vez y guarda en base de datos solo el hash.
+- Se agrego la ventana WPF `SyncSetupWizardWindow` como asistente tecnico.
+- El asistente permite escribir URL nube, buscar empresas por correo, iniciar sesion, generar token y guardar URL, token, nodo e intervalo en la configuracion local por empresa.
+- La pantalla de Sincronizacion ahora conserva acciones claras: asistente tecnico, sincronizar ahora, iniciar automatico y detener.
+
+Documentacion:
+
+- `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`
+- `docs/SYNC_API_TRANSPORTE_2026-07-05.md`
+- `docs/MODULES.md`
+
+Pruebas:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncTokenApiTest.php tests\Feature\Sync\SyncWorkerCommandTest.php
+```
+
+Resultado:
+
+- 7 pruebas pasadas;
+- 39 aserciones.
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.

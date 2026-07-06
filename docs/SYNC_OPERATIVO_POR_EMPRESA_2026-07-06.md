@@ -180,6 +180,20 @@ Objetivo para la siguiente fase:
   5. iniciar sincronizacion automatica;
   6. mostrar estado con semaforo simple.
 
+Actualizacion posterior:
+
+- Se agrego el asistente tecnico dentro del modulo `Sincronizacion`.
+- El tecnico ya no necesita entrar al VPS para emitir tokens en una instalacion normal.
+- Flujo del asistente:
+  1. escribe URL de la API nube;
+  2. escribe correo y contrasena del gerente;
+  3. consulta empresas activas asociadas a ese correo;
+  4. selecciona la empresa;
+  5. genera un token de sincronizacion para esa empresa;
+  6. guarda URL, token, nodo e intervalo en `storage/app/sync-worker/sync-config.json`.
+- Si un mismo correo pertenece a varias empresas, el selector muestra todas las empresas activas que devuelve `POST /api/auth/tenants`.
+- El comando `php artisan sync:issue-token` sigue existiendo como herramienta administrativa, pero para uso de campo se recomienda el asistente.
+
 ## Implementacion actual
 
 Archivos modificados:
@@ -214,6 +228,7 @@ Actualizacion 2026-07-06:
 
 APIs agregadas:
 
+- `POST /api/sync/tokens`
 - `GET /api/sync/local-readiness?installation_code=LOCAL-PC-01`
 - `POST /api/sync/local-readiness`
 
@@ -269,6 +284,27 @@ Resultado:
 - el controlador responde correctamente;
 - muestra estado por empresa;
 - usa log especifico `storage/logs/sync-worker-demo-valencia.log`.
+
+Verificacion del asistente tecnico:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncTokenApiTest.php tests\Feature\Sync\SyncWorkerCommandTest.php
+```
+
+Resultado:
+
+- 7 pruebas pasadas;
+- 39 aserciones.
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
 
 ```powershell
 & 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore

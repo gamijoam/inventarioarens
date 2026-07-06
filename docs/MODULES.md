@@ -309,6 +309,7 @@ APIs:
 - `GET /api/sync/events/pull`
 - `POST /api/sync/events/{event_uuid}/ack`
 - `GET /api/sync/status`
+- `POST /api/sync/tokens`
 - `GET /api/sync/local-readiness`
 - `POST /api/sync/local-readiness`
 - `php artisan sync:run`

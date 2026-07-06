@@ -213,6 +213,26 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         }
     }
 
+    public void ApplyInstallerConfiguration(
+        string selectedTenantSlug,
+        string selectedCloudUrl,
+        string generatedToken,
+        string selectedNodeCode,
+        string selectedNodeName,
+        int selectedInterval)
+    {
+        TenantSlug = selectedTenantSlug;
+        CloudUrl = selectedCloudUrl;
+        Token = generatedToken;
+        NodeCode = string.IsNullOrWhiteSpace(selectedNodeCode) ? InstallationCode : selectedNodeCode;
+        NodeName = string.IsNullOrWhiteSpace(selectedNodeName) ? NodeName : selectedNodeName;
+        Interval = selectedInterval >= 5 ? selectedInterval.ToString() : "30";
+
+        SaveConfiguration(showMessage: false);
+        ConfigurationStatus = "Configuracion creada por el asistente tecnico. Esta empresa ya tiene token propio.";
+        Message = "Asistente completado. Puedes iniciar automatico o sincronizar ahora.";
+    }
+
     private async Task LoadBackendStatusAsync()
     {
         if (apiClient is null)

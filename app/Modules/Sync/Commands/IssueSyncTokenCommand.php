@@ -3,7 +3,7 @@
 namespace App\Modules\Sync\Commands;
 
 use App\Models\User;
-use App\Modules\Auth\Models\AuthToken;
+use App\Modules\Sync\Services\SyncTokenService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -41,25 +41,21 @@ class IssueSyncTokenCommand extends Command
         }
 
         $days = max(1, (int) $this->option('days'));
-        $plainToken = Str::random(80);
-
-        AuthToken::create([
-            'tenant_id' => $tenant->id,
-            'user_id' => $user->id,
-            'name' => (string) $this->option('name'),
-            'token_hash' => hash('sha256', $plainToken),
-            'abilities' => ['*'],
-            'expires_at' => now()->addDays($days),
-            'ip_address' => 'cli',
-            'user_agent' => 'sync:issue-token',
-        ]);
+        $session = app(SyncTokenService::class)->issue(
+            tenant: $tenant,
+            user: $user,
+            name: (string) $this->option('name'),
+            days: $days,
+            ipAddress: 'cli',
+            userAgent: 'sync:issue-token',
+        );
 
         $this->info('Token de sincronizacion emitido.');
         $this->line('Empresa: '.$tenant->slug);
         $this->line('Usuario: '.$user->email);
         $this->line('Vence en dias: '.$days);
         $this->warn('Copia este token ahora. No se volvera a mostrar.');
-        $this->line($plainToken);
+        $this->line($session['token']);
 
         return self::SUCCESS;
     }
