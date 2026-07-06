@@ -4290,3 +4290,30 @@ Pruebas:
 - Ajuste posterior: los eventos recibidos solo se retransmiten desde la nube si quedaron `applied` o `ignored`; si fallan, no se publican a otros nodos.
 - Verificacion adicional: `artisan test tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncWorkerCommandTest.php tests/Feature/Products/ProductApiTest.php`.
 - Resultado: 29 pruebas pasadas y 192 aserciones.
+
+## 2026-07-06 - Correccion de cola recibida en nube para cambios de precio
+
+Contexto:
+
+- Se valido que el cambio local de `Adaptador Bluetooth` a USD 2000 si generaba evento `product.updated` y quedaba como `processed` en el `sync_outbox` local.
+- En la nube el evento llegaba a `sync_inbox`, pero quedaba en estado `received` y por eso el precio no cambiaba en PostgreSQL del VPS.
+- La causa era que la nube intentaba aplicar los primeros eventos pendientes de `sync_inbox` por orden de llegada. Si habia eventos antiguos no aplicados por delante, el evento nuevo de precio podia quedar esperando aunque el worker local ya lo hubiera enviado correctamente.
+
+Implementacion:
+
+- `SyncEventApplier` ahora permite aplicar eventos recibidos por `event_uuid`.
+- `SyncTransportService::pushEvents` ya no aplica "los primeros N pendientes"; ahora aplica exactamente los UUID que acaba de recibir en ese `push`.
+- Se agrego el comando `sync:apply-inbox` para procesar eventos antiguos que ya estaban recibidos en una base antes de esta correccion.
+
+Comando operativo para el VPS:
+
+```bash
+php artisan sync:apply-inbox demo-valencia --limit=200
+```
+
+Este comando es util despues de hacer `pull` en el VPS cuando ya existian eventos `received` sin aplicar.
+
+Pruebas:
+
+- Se ejecuto `artisan test tests/Feature/Sync/SyncApiTest.php tests/Feature/Sync/SyncApplyInboxCommandTest.php tests/Feature/Sync/SyncWorkerCommandTest.php`.
+- Resultado: 14 pruebas pasadas y 100 aserciones.

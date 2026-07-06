@@ -20,6 +20,36 @@ class SyncEventApplier
             ->limit($limit)
             ->get();
 
+        return $this->applyEvents($tenant, $events);
+    }
+
+    public function applyEventUuids(Tenant $tenant, array $eventUuids): array
+    {
+        $eventUuids = array_values(array_filter(array_map(
+            fn (mixed $eventUuid): string => (string) $eventUuid,
+            $eventUuids
+        )));
+
+        if ($eventUuids === []) {
+            return [
+                'applied' => 0,
+                'failed' => 0,
+                'ignored' => 0,
+            ];
+        }
+
+        $events = DB::table('sync_inbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'received')
+            ->whereIn('event_uuid', $eventUuids)
+            ->orderBy('id')
+            ->get();
+
+        return $this->applyEvents($tenant, $events);
+    }
+
+    private function applyEvents(Tenant $tenant, iterable $events): array
+    {
         $summary = [
             'applied' => 0,
             'failed' => 0,

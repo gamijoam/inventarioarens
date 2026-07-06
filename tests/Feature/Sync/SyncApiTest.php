@@ -153,6 +153,83 @@ class SyncApiTest extends TestCase
         ]);
     }
 
+    public function test_pushed_product_update_is_applied_even_when_older_inbox_events_are_pending(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-push-product-backlog');
+        $nodeId = $this->node($tenant, 'LOCAL-VAL-01');
+        $oldEventUuid = (string) Str::uuid();
+        $newEventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('products')->insert([
+            'tenant_id' => $tenant->id,
+            'name' => 'Adaptador Bluetooth',
+            'sku' => 'ADP-BT-VAL',
+            'tracking_type' => 'quantity',
+            'base_price' => '20.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $oldEventUuid,
+            'origin_node_id' => $nodeId,
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => 99,
+            'payload_hash' => hash('sha256', json_encode(['order_id' => 99])),
+            'payload' => json_encode(['order_id' => 99]),
+            'status' => 'received',
+            'received_at' => $now->copy()->subMinute(),
+            'created_at' => $now->copy()->subMinute(),
+            'updated_at' => $now->copy()->subMinute(),
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sync/events/push', [
+                'origin_node_code' => 'LOCAL-VAL-01',
+                'events' => [[
+                    'event_uuid' => $newEventUuid,
+                    'event_type' => 'product.updated',
+                    'aggregate_type' => 'product',
+                    'aggregate_id' => 67,
+                    'payload' => [
+                        'sku' => 'ADP-BT-VAL',
+                        'name' => 'Adaptador Bluetooth',
+                        'tracking_type' => 'quantity',
+                        'base_price' => '2000.0000',
+                        'sale_currency' => 'USD',
+                        'is_active' => true,
+                    ],
+                    'occurred_at' => $now->toISOString(),
+                ]],
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('data.received', 1)
+            ->assertJsonPath('data.applied', 1)
+            ->assertJsonPath('data.failed', 0);
+
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'sku' => 'ADP-BT-VAL',
+            'base_price' => '2000.0000',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $oldEventUuid,
+            'status' => 'received',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $newEventUuid,
+            'status' => 'applied',
+        ]);
+    }
+
     public function test_it_pulls_pending_events_and_acknowledges_them(): void
     {
         [$tenant, $user] = $this->tenantUser('empresa-pull');

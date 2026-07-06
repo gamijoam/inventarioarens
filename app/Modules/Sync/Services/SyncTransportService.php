@@ -88,7 +88,10 @@ class SyncTransportService
         }
 
         if ($received > 0) {
-            $applySummary = $this->applier->applyPending($tenant, $received);
+            $applySummary = $this->applier->applyEventUuids(
+                $tenant,
+                array_map(fn (array $event): string => (string) $event['event_uuid'], $receivedEvents)
+            );
             $applied = $applySummary['applied'];
             $ignored = $applySummary['ignored'];
             $failed = $applySummary['failed'];

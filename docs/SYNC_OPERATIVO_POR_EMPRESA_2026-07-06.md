@@ -176,6 +176,8 @@ Actualizacion 2026-07-06:
 - El mismo evento recibido se espeja en `sync_outbox` de la nube con `origin_node_id`, para que otras computadoras puedan descargarlo sin reenviarlo al nodo que lo origino. Si el evento falla al aplicarse, no se retransmite.
 - Esto corrige el caso donde un precio editado correctamente desde el sistema local quedaba como enviado, pero no cambiaba en la base PostgreSQL del VPS.
 - Si el precio se edita manualmente en la tabla `products` por HeidiSQL, no se genera outbox y por tanto no se sincroniza.
+- Ajuste posterior: la nube aplica por UUID los eventos que acaba de recibir. Esto evita que eventos antiguos en `sync_inbox` bloqueen un cambio nuevo, como un `product.updated` de precio.
+- Si el VPS ya tenia eventos recibidos antes de este ajuste, se pueden procesar manualmente con `php artisan sync:apply-inbox demo-valencia --limit=200`.
 
 APIs agregadas:
 
@@ -211,3 +213,14 @@ Resultado:
 
 - 12 pruebas pasadas;
 - 85 aserciones.
+
+Verificacion posterior:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncApiTest.php tests\Feature\Sync\SyncApplyInboxCommandTest.php tests\Feature\Sync\SyncWorkerCommandTest.php
+```
+
+Resultado:
+
+- 14 pruebas pasadas;
+- 100 aserciones.
