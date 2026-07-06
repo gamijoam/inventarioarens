@@ -276,8 +276,10 @@ Archivos principales:
 - `app/Modules/Sync/Requests/PushSyncEventsRequest.php`
 - `app/Modules/Sync/Requests/PullSyncEventsRequest.php`
 - `app/Modules/Sync/Requests/AcknowledgeSyncEventRequest.php`
+- `app/Modules/Sync/Commands/RunSyncCommand.php`
 - `app/Modules/Sync/Services/SyncOutboxService.php`
 - `app/Modules/Sync/Services/SyncTransportService.php`
+- `app/Modules/Sync/Services/SyncWorkerService.php`
 - `app/Modules/Sync/routes.php`
 
 APIs:
@@ -287,6 +289,7 @@ APIs:
 - `GET /api/sync/events/pull`
 - `POST /api/sync/events/{event_uuid}/ack`
 - `GET /api/sync/status`
+- `php artisan sync:run`
 
 Regla importante:
 

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'sync' => [
+        'cloud_url' => env('SYNC_CLOUD_URL'),
+        'token' => env('SYNC_CLOUD_TOKEN'),
+    ],
+
 ];

@@ -152,3 +152,22 @@ Pruebas ejecutadas:
 - `tests/Feature/Sync/SyncApiTest.php`
 - `tests/Feature/POS/PosCheckoutApiTest.php`
 - `tests/Feature/CashRegister/CashRegisterApiTest.php`
+
+## Cuarto alcance implementado
+
+Se agrego el primer worker local ejecutable por comando Artisan.
+
+Comando:
+
+- `php artisan sync:run {tenant} --node=LOCAL-01 --cloud-url=https://dominio.com/api --token=TOKEN`
+
+Responsabilidades:
+
+- registrar el nodo local;
+- registrar el nodo en la nube;
+- subir eventos locales desde `sync_outbox`;
+- bajar eventos de la nube hacia `sync_inbox`;
+- confirmar eventos recibidos con `ack`;
+- actualizar `sync_states`.
+
+Detalle documentado en `docs/SYNC_WORKER_LOCAL_NUBE_2026-07-05.md`.
