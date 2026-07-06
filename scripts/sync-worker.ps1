@@ -97,6 +97,67 @@ function Read-EnvValue([string] $Name) {
     return $value
 }
 
+function Read-WorkerConfig {
+    $configPath = Join-Path $StateDir "sync-config.json"
+    if (!(Test-Path -LiteralPath $configPath)) {
+        return $null
+    }
+
+    try {
+        $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        if (!$config.tenants) {
+            return $null
+        }
+
+        $tenantProperty = $config.tenants.PSObject.Properties[$TenantSlug]
+        if (!$tenantProperty) {
+            return $null
+        }
+
+        return $tenantProperty.Value
+    } catch {
+        Write-Host "Aviso: no se pudo leer sync-config.json. Se usaran argumentos o .env." -ForegroundColor Yellow
+        return $null
+    }
+}
+
+function Get-ConfigValue($Config, [string] $Name, [string] $Fallback = "") {
+    if (!$Config) {
+        return $Fallback
+    }
+
+    $property = $Config.PSObject.Properties[$Name]
+    if (!$property -or $null -eq $property.Value) {
+        return $Fallback
+    }
+
+    $value = [string] $property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $Fallback
+    }
+
+    return $value
+}
+
+function Resolve-WorkerSettings {
+    $savedConfig = Read-WorkerConfig
+    $resolvedNodeCode = if ($NodeCode -and $NodeCode -ne "LOCAL-01") { $NodeCode } else { Get-ConfigValue $savedConfig "node_code" $NodeCode }
+    $resolvedNodeName = if ($NodeName) { $NodeName } else { Get-ConfigValue $savedConfig "node_name" $resolvedNodeCode }
+    $resolvedInstallation = if ($InstallationCode) { $InstallationCode } else { Get-ConfigValue $savedConfig "installation_code" $resolvedNodeCode }
+    $resolvedCloudUrl = if ($CloudUrl) { $CloudUrl } else { Get-ConfigValue $savedConfig "cloud_url" (Read-EnvValue "SYNC_CLOUD_URL") }
+    $resolvedToken = if ($Token) { $Token } else { Get-ConfigValue $savedConfig "token" (Read-EnvValue "SYNC_CLOUD_TOKEN") }
+    $resolvedInterval = if ($Interval -ne 30) { $Interval } elseif ($savedConfig -and $savedConfig.PSObject.Properties["interval"]) { [int] $savedConfig.interval } else { $Interval }
+
+    return [pscustomobject]@{
+        NodeCode = $resolvedNodeCode
+        NodeName = $resolvedNodeName
+        InstallationCode = $resolvedInstallation
+        CloudUrl = $resolvedCloudUrl
+        Token = $resolvedToken
+        Interval = $resolvedInterval
+    }
+}
+
 function Get-WorkerProcess {
     if (!(Test-Path -LiteralPath $PidFile)) {
         return $null
@@ -169,10 +230,12 @@ function Start-Worker {
         return
     }
 
-    $effectiveCloudUrl = if ($CloudUrl) { $CloudUrl } else { Read-EnvValue "SYNC_CLOUD_URL" }
-    $effectiveToken = if ($Token) { $Token } else { Read-EnvValue "SYNC_CLOUD_TOKEN" }
-    $effectiveNodeName = if ($NodeName) { $NodeName } else { $NodeCode }
-    $effectiveInstallationCode = if ($InstallationCode) { $InstallationCode } else { $NodeCode }
+    $settings = Resolve-WorkerSettings
+    $effectiveCloudUrl = $settings.CloudUrl
+    $effectiveToken = $settings.Token
+    $effectiveNodeCode = $settings.NodeCode
+    $effectiveNodeName = $settings.NodeName
+    $effectiveInstallationCode = $settings.InstallationCode
 
     if (!$effectiveCloudUrl) {
         Fail "Falta CloudUrl. Pasalo con -CloudUrl o configura SYNC_CLOUD_URL en .env."
@@ -184,7 +247,7 @@ function Start-Worker {
 
     Normalize-ProcessPathEnvironment
 
-    $safeInterval = [Math]::Max(5, $Interval)
+    $safeInterval = [Math]::Max(5, $settings.Interval)
     $safeLimit = [Math]::Max(1, [Math]::Min(200, $Limit))
     $safeCycles = [Math]::Max(0, $Cycles)
     $extraFlags = @()
@@ -196,7 +259,7 @@ function Start-Worker {
         "artisan",
         "sync:daemon",
         $TenantSlug,
-        "--node=$NodeCode",
+        "--node=$effectiveNodeCode",
         "--name=$effectiveNodeName",
         "--installation=$effectiveInstallationCode",
         "--interval=$safeInterval",
@@ -246,10 +309,12 @@ function Invoke-RunOnce {
         Fail "No se encontro PHP en: $PhpPath"
     }
 
-    $effectiveCloudUrl = if ($CloudUrl) { $CloudUrl } else { Read-EnvValue "SYNC_CLOUD_URL" }
-    $effectiveToken = if ($Token) { $Token } else { Read-EnvValue "SYNC_CLOUD_TOKEN" }
-    $effectiveNodeName = if ($NodeName) { $NodeName } else { $NodeCode }
-    $effectiveInstallationCode = if ($InstallationCode) { $InstallationCode } else { $NodeCode }
+    $settings = Resolve-WorkerSettings
+    $effectiveCloudUrl = $settings.CloudUrl
+    $effectiveToken = $settings.Token
+    $effectiveNodeCode = $settings.NodeCode
+    $effectiveNodeName = $settings.NodeName
+    $effectiveInstallationCode = $settings.InstallationCode
 
     if (!$effectiveCloudUrl) {
         Fail "Falta CloudUrl. Pasalo con -CloudUrl o configura SYNC_CLOUD_URL en .env."
@@ -279,7 +344,7 @@ function Invoke-RunOnce {
             "artisan",
             "sync:run",
             $TenantSlug,
-            "--node=$NodeCode",
+            "--node=$effectiveNodeCode",
             "--name=$effectiveNodeName",
             "--installation=$effectiveInstallationCode",
             "--limit=$safeLimit"

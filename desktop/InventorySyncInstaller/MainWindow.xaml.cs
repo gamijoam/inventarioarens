@@ -91,13 +91,44 @@ public partial class MainWindow : Window
             SetState("Sincronizando", "Sincronizando datos iniciales", "Descargando productos, precios, cajas y permisos disponibles para esta empresa.", 4);
             await RunWorkerAsync("run", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 
-            SetState("Activando", "Activando sincronizacion automatica", $"El sistema revisara cambios cada {interval} segundos.", 5);
-            await RunWorkerAsync("start", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
+            SetState("Activando", "Activando sincronizacion automatica", $"Windows mantendra activo el worker de esta empresa.", 5);
+            await RunWorkerTaskAsync("install", selectedTenant.Slug);
 
             SetState("Completado", "Configuracion completada", "Esta computadora ya esta lista para abrir el Sistema de Inventario.", 6);
             TechnicalSummaryText.Text = $"Empresa: {selectedTenant.Name} | Equipo: {nodeName} | Sincronizacion cada {interval} segundos.";
             OpenMainButton.Visibility = Visibility.Visible;
             AppendLog("Configuracion finalizada correctamente.");
+        });
+    }
+
+    private async void InstallTask_Click(object sender, RoutedEventArgs e)
+    {
+        await RunTaskButtonAsync("install", "Instalando", "Instalando sincronizacion automatica", "Windows revisara cada pocos minutos que el worker este activo.");
+    }
+
+    private async void StartTask_Click(object sender, RoutedEventArgs e)
+    {
+        await RunTaskButtonAsync("start", "Iniciando", "Iniciando sincronizacion", "Se levantara el worker de la empresa seleccionada.");
+    }
+
+    private async void StopTask_Click(object sender, RoutedEventArgs e)
+    {
+        await RunTaskButtonAsync("stop", "Deteniendo", "Deteniendo sincronizacion", "El worker se detendra para esta empresa.");
+    }
+
+    private async void TaskStatus_Click(object sender, RoutedEventArgs e)
+    {
+        await RunTaskButtonAsync("status", "Consultando", "Consultando estado", "Revisando la tarea de Windows y el worker activo.");
+    }
+
+    private async Task RunTaskButtonAsync(string action, string badge, string title, string detail)
+    {
+        await RunUiAsync(async () =>
+        {
+            string tenantSlug = SelectedTenantSlug();
+            SetState(badge, title, detail);
+            await RunWorkerTaskAsync(action, tenantSlug);
+            SetState("Listo", "Operacion completada", "La sincronizacion automatica fue actualizada correctamente.");
         });
     }
 
@@ -310,6 +341,30 @@ public partial class MainWindow : Window
         await RunProcessAsync(info);
     }
 
+    private async Task RunWorkerTaskAsync(string action, string tenantSlug)
+    {
+        string taskScript = Path.Combine(repoRoot, "scripts", "sync-worker-task.cmd");
+        if (!File.Exists(taskScript))
+        {
+            throw new InvalidOperationException("No se encontro scripts\\sync-worker-task.cmd.");
+        }
+
+        string command = $"{Quote(taskScript)} {action} -TenantSlug {Quote(tenantSlug)}";
+
+        ProcessStartInfo info = new()
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/d /c \"{command}\"",
+            WorkingDirectory = repoRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        await RunProcessAsync(info);
+    }
+
     private async Task RunProcessAsync(ProcessStartInfo info)
     {
         using Process process = Process.Start(info) ?? throw new InvalidOperationException("No se pudo iniciar el proceso.");
@@ -384,6 +439,10 @@ public partial class MainWindow : Window
         SearchCompaniesButton.IsEnabled = !busy;
         PrepareButton.IsEnabled = !busy;
         OpenMainButton.IsEnabled = !busy;
+        InstallTaskButton.IsEnabled = !busy;
+        StartTaskButton.IsEnabled = !busy;
+        StopTaskButton.IsEnabled = !busy;
+        TaskStatusButton.IsEnabled = !busy;
     }
 
     private void SetState(string badge, string title, string detail, int? stepIndex = null)
@@ -420,6 +479,22 @@ public partial class MainWindow : Window
         }
 
         return 30;
+    }
+
+    private string SelectedTenantSlug()
+    {
+        if (TenantBox.SelectedItem is TenantOption selectedTenant)
+        {
+            return selectedTenant.Slug;
+        }
+
+        string? selectedValue = TenantBox.SelectedValue?.ToString();
+        if (!string.IsNullOrWhiteSpace(selectedValue))
+        {
+            return selectedValue;
+        }
+
+        throw new InvalidOperationException("Selecciona una empresa antes de usar la sincronizacion automatica.");
     }
 
     private static string NormalizeCloudUrl(string value)
