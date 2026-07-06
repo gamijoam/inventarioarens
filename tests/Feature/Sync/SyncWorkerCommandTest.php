@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class SyncWorkerCommandTest extends TestCase
@@ -204,6 +205,46 @@ class SyncWorkerCommandTest extends TestCase
             'ip_address' => 'cli',
             'user_agent' => 'sync:issue-token',
         ]);
+    }
+
+    public function test_sync_prepare_local_creates_tenant_user_and_admin_role(): void
+    {
+        putenv('SYNC_BOOTSTRAP_PASSWORD=clave-local-segura');
+
+        try {
+            $this->artisan('sync:prepare-local', [
+                'tenant_slug' => 'Demo Instalador',
+                'tenant_name' => 'Demo Instalador',
+                'email' => 'tecnico.instalador@example.test',
+                '--user-name' => 'Tecnico Instalador',
+            ])
+                ->expectsOutput('Empresa local preparada para sincronizacion.')
+                ->expectsOutput('Empresa: demo-instalador')
+                ->expectsOutput('Usuario: tecnico.instalador@example.test')
+                ->assertExitCode(0);
+        } finally {
+            putenv('SYNC_BOOTSTRAP_PASSWORD');
+        }
+
+        $tenant = Tenant::query()->where('slug', 'demo-instalador')->firstOrFail();
+        $user = User::query()->where('email', 'tecnico.instalador@example.test')->firstOrFail();
+
+        $this->assertTrue(Hash::check('clave-local-segura', $user->password));
+        $this->assertDatabaseHas('tenant_user', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
+
+        setPermissionsTeamId($tenant->id);
+
+        $this->assertTrue($user->hasRole('Administrador local'));
+        $this->assertGreaterThan(0, Role::query()
+            ->where('name', 'Administrador local')
+            ->where('tenant_id', $tenant->id)
+            ->firstOrFail()
+            ->permissions()
+            ->count());
     }
 
     public function test_sync_reset_readiness_removes_only_selected_tenant_state(): void

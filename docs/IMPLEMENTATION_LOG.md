@@ -4431,3 +4431,42 @@ Resultado:
 
 - 7 pruebas pasadas;
 - 39 aserciones.
+
+## 2026-07-06 - Instalador externo de sincronizacion inicial
+
+Problema:
+
+- El asistente de sincronizacion dentro del programa principal no resuelve una instalacion totalmente vacia.
+- Si la BD local no tiene empresa ni usuario, el usuario no puede iniciar sesion para abrir el modulo de sincronizacion.
+
+Implementacion:
+
+- Se agrego el comando `php artisan sync:prepare-local`.
+- El comando crea o actualiza la empresa local, el usuario local y un rol `Administrador local` con permisos base.
+- Se creo el ejecutable WPF independiente `desktop/InventorySyncInstaller`.
+- El instalador externo consulta empresas en la nube, inicia sesion, genera token, corre migraciones, prepara empresa/usuario local, guarda la configuracion, ejecuta una primera sincronizacion e inicia el worker automatico.
+
+Documentacion:
+
+- `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`
+
+Pruebas:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.

@@ -1,0 +1,131 @@
+<Window x:Class="InventorySyncInstaller.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Instalador de sincronización"
+        Width="1180"
+        Height="760"
+        MinWidth="980"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="#F4F7FC">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="White" BorderBrush="#E2E8F4" BorderThickness="0,0,0,1" Padding="28,22">
+            <DockPanel LastChildFill="True">
+                <Border DockPanel.Dock="Left" Width="54" Height="54" CornerRadius="14" Background="{StaticResource AccentBrush}" Margin="0,0,18,0">
+                    <TextBlock Text="SI" Foreground="White" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="Instalador de sincronización" FontSize="30" FontWeight="Black" Foreground="#07142F" />
+                    <TextBlock Text="Prepara esta computadora antes de abrir el sistema principal." FontSize="15" FontWeight="SemiBold" Foreground="#5B6B8A" Margin="0,4,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="28">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="420" />
+                <ColumnDefinition Width="24" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="White" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="12" Padding="24">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Background="{StaticResource AccentSoftBrush}" BorderBrush="#D8DEFF" BorderThickness="1" CornerRadius="8" Padding="12,7" HorizontalAlignment="Left">
+                            <TextBlock Text="CONFIGURACIÓN" Foreground="#2E22E8" FontWeight="Bold" />
+                        </Border>
+
+                        <TextBlock Text="Datos de nube" FontSize="24" FontWeight="Black" Foreground="#07142F" Margin="0,20,0,4" />
+                        <TextBlock Text="El técnico conecta con la nube y prepara esta computadora sin entrar al sistema principal." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" />
+
+                        <TextBlock Text="URL de la nube" FontWeight="Bold" Margin="0,22,0,5" />
+                        <TextBox x:Name="CloudUrlBox" Text="http://217.216.80.158:8000/api" />
+
+                        <TextBlock Text="Correo del usuario" FontWeight="Bold" Margin="0,14,0,5" />
+                        <TextBox x:Name="EmailBox" />
+
+                        <TextBlock Text="Contraseña" FontWeight="Bold" Margin="0,14,0,5" />
+                        <PasswordBox x:Name="PasswordBox" />
+
+                        <Button x:Name="SearchCompaniesButton" Content="Buscar empresas" Margin="0,18,0,0" Click="SearchCompanies_Click" />
+
+                        <TextBlock Text="Empresa a instalar" FontWeight="Bold" Margin="0,18,0,5" />
+                        <ComboBox x:Name="TenantBox" DisplayMemberPath="Name" SelectedValuePath="Slug" />
+
+                        <TextBlock Text="Nombre del equipo" FontWeight="Bold" Margin="0,18,0,5" />
+                        <TextBox x:Name="NodeNameBox" />
+
+                        <TextBlock Text="Intervalo automático" FontWeight="Bold" Margin="0,14,0,5" />
+                        <ComboBox x:Name="IntervalBox" SelectedIndex="1">
+                            <ComboBoxItem Content="15 segundos" Tag="15" />
+                            <ComboBoxItem Content="30 segundos" Tag="30" />
+                            <ComboBoxItem Content="60 segundos" Tag="60" />
+                        </ComboBox>
+
+                        <Button x:Name="PrepareButton" Content="Preparar esta computadora" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,22,0,0" Click="Prepare_Click" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="White" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="12" Padding="24">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <Border Background="#EAFBF3" BorderBrush="#B9EBD0" BorderThickness="1" CornerRadius="8" Padding="12,7" HorizontalAlignment="Left">
+                                <TextBlock x:Name="StateBadge" Text="Pendiente" Foreground="#008659" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock x:Name="StateTitle" Text="Lista para comenzar" FontSize="32" FontWeight="Black" Foreground="#07142F" Margin="0,18,0,6" />
+                            <TextBlock x:Name="StateDetail" Text="Busca las empresas del usuario y luego prepara esta computadora para sincronizar." TextWrapping="Wrap" Foreground="#5B6B8A" FontSize="15" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <ProgressBar x:Name="BusyBar" Grid.Column="1" IsIndeterminate="True" Visibility="Collapsed" Height="12" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Background="White" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="12" Padding="24" Margin="0,24,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Proceso" FontSize="24" FontWeight="Black" Foreground="#07142F" />
+
+                        <ListBox x:Name="StepsList" Grid.Row="1" Margin="0,16,0,16" BorderBrush="#E2E8F4">
+                            <ListBoxItem Content="1. Buscar empresas en la nube" />
+                            <ListBoxItem Content="2. Generar token seguro de sincronización" />
+                            <ListBoxItem Content="3. Aplicar migraciones locales" />
+                            <ListBoxItem Content="4. Crear empresa y usuario local" />
+                            <ListBoxItem Content="5. Guardar configuración del worker" />
+                            <ListBoxItem Content="6. Ejecutar primera sincronización" />
+                        </ListBox>
+
+                        <TextBox x:Name="LogBox" Grid.Row="2" Height="170" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F4" BorderThickness="0,1,0,0" Padding="28,14">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Después de preparar, abre el sistema principal e inicia sesión con el mismo correo y contraseña." Foreground="#5B6B8A" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Cerrar" Width="120" Click="Close_Click" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

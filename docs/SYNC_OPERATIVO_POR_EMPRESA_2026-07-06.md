@@ -126,7 +126,7 @@ Se definiran reglas por tipo de dato:
 
 ### Fase 6 - Arranque real de una base local vacia
 
-Pendiente.
+Implementada como primera version operativa con instalador externo.
 
 Una instalacion local vacia no debe depender de seeders demo para operar. El flujo real debe ser:
 
@@ -137,6 +137,25 @@ Una instalacion local vacia no debe depender de seeders demo para operar. El flu
 5. Cuando termina, se marca la empresa como lista para esa computadora.
 
 Los seeders solo se usan para pruebas y demostraciones. No son el mecanismo de sincronizacion real.
+
+Actualizacion 2026-07-06:
+
+- Se creo una herramienta WPF independiente del programa principal: `desktop/InventorySyncInstaller`.
+- Esta herramienta se ejecuta antes del sistema principal y no requiere que la BD local ya tenga empresas o usuarios.
+- Flujo del instalador:
+  1. el tecnico escribe URL de nube, correo y clave;
+  2. el instalador consulta `POST /api/auth/tenants`;
+  3. el tecnico selecciona la empresa;
+  4. el instalador inicia sesion contra la nube;
+  5. solicita un token con `POST /api/sync/tokens`;
+  6. corre migraciones locales;
+  7. prepara la empresa y usuario local con `php artisan sync:prepare-local`;
+  8. guarda la configuracion en `storage/app/sync-worker/sync-config.json`;
+  9. ejecuta una primera sincronizacion;
+  10. deja activo el worker automatico para esa empresa.
+- El sistema principal queda para operacion diaria. La preparacion inicial queda fuera del login normal.
+- El instalador no crea productos demo. Solo crea empresa, usuario y permisos locales minimos para permitir el primer acceso.
+- Los datos comerciales deben venir de la nube mediante eventos de sincronizacion.
 
 ### Fase 7 - Cambios manuales fuera del sistema
 
@@ -198,6 +217,7 @@ Actualizacion posterior:
 
 Archivos modificados:
 
+- `app/Modules/Sync/Commands/PrepareLocalTenantCommand.php`
 - `database/migrations/2026_07_06_130000_create_sync_tenant_readiness_table.php`
 - `app/Modules/Sync/Services/SyncReadinessService.php`
 - `app/Modules/Sync/Requests/SyncReadinessRequest.php`
@@ -212,6 +232,12 @@ Archivos modificados:
 - `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml`
 - `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml.cs`
 - `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs`
+- `desktop/InventoryDesktop.slnx`
+- `desktop/InventorySyncInstaller/InventorySyncInstaller.csproj`
+- `desktop/InventorySyncInstaller/App.xaml`
+- `desktop/InventorySyncInstaller/App.xaml.cs`
+- `desktop/InventorySyncInstaller/MainWindow.xaml`
+- `desktop/InventorySyncInstaller/MainWindow.xaml.cs`
 
 El centro de modulos ahora muestra el estado operativo de sincronizacion y permite ejecutar un ciclo manual sin abrir la pantalla tecnica.
 Si la empresa aun no esta lista en esa computadora, muestra un aviso de sincronizacion inicial dentro del centro de modulos.
@@ -319,6 +345,27 @@ Resultado:
 - compilacion correcta;
 - 0 errores;
 - 0 advertencias.
+
+Verificacion del instalador externo:
+
+```powershell
+& 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventorySyncInstaller\InventorySyncInstaller.csproj
+```
+
+Resultado:
+
+- compilacion correcta;
+- 0 errores;
+- 0 advertencias.
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\Sync\SyncWorkerCommandTest.php tests\Feature\Sync\SyncTokenApiTest.php
+```
+
+Resultado:
+
+- 8 pruebas pasadas;
+- 47 aserciones.
 
 ```powershell
 & 'C:\Program Files\dotnet\dotnet.exe' build desktop\InventoryDesktop\InventoryDesktop.csproj --no-restore
