@@ -13,6 +13,7 @@ Esta fase se enfoca en transporte confiable:
 - bajar eventos pendientes de la nube hacia `sync_inbox` local;
 - confirmar a la nube los eventos recibidos;
 - mantener `sync_states` para saber el ultimo intento por nodo y direccion.
+- aplicar automaticamente eventos de configuracion comercial soportados.
 
 ## Comando agregado
 
@@ -30,6 +31,7 @@ Opciones:
 - `--limit`: cantidad maxima de eventos por ciclo. Maximo 200.
 - `--push-only`: solo envia eventos locales.
 - `--pull-only`: solo recibe eventos desde la nube.
+- `--no-apply`: recibe eventos pero no los aplica automaticamente.
 
 Tambien se puede configurar:
 
@@ -58,8 +60,34 @@ SYNC_CLOUD_TOKEN=
 - El worker siempre trabaja dentro de una empresa especifica.
 - No comparte eventos entre empresas.
 - El `event_uuid` mantiene idempotencia.
-- Los eventos bajados desde la nube quedan como `received`.
-- Todavia no se aplican automaticamente reglas como cambiar precios, crear productos o actualizar configuraciones. Esa sera la siguiente fase por tipo de evento.
+- Los eventos bajados desde la nube primero quedan en `sync_inbox`.
+- Si el evento es soportado, se aplica y queda como `applied`.
+- Si el evento no es soportado, queda como `ignored`.
+- Si falta informacion o una relacion local no existe, queda como `failed` con mensaje en espanol.
+
+## Eventos aplicados en esta fase
+
+- `product.created`
+- `product.updated`
+- `price_list.created`
+- `price_list.updated`
+- `product_price.created`
+- `product_price.updated`
+- `price.updated`
+- `exchange_rate_type.created`
+- `exchange_rate_type.updated`
+- `exchange_rate.created`
+- `exchange_rate.updated`
+- `payment_method.created`
+- `payment_method.updated`
+
+## Eventos que aun quedan para fases siguientes
+
+- movimientos de stock entre sedes;
+- ventas completas desde local hacia nube con conciliacion avanzada;
+- clientes y cuentas por cobrar;
+- garantias;
+- permisos y usuarios.
 
 ## Pruebas
 
@@ -70,6 +98,7 @@ Se agrego:
 Casos cubiertos:
 
 - registra nodo, sube eventos locales, baja eventos de nube y confirma `ack`;
+- aplica eventos de precios por lista sin mezclar empresas;
+- marca eventos invalidos como `failed` con mensaje en espanol;
 - no ejecuta el worker si la empresa no existe;
 - valida que no se hagan llamadas HTTP si el tenant no existe.
-

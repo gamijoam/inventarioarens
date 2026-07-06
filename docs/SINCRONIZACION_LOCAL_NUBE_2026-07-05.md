@@ -168,6 +168,23 @@ Responsabilidades:
 - subir eventos locales desde `sync_outbox`;
 - bajar eventos de la nube hacia `sync_inbox`;
 - confirmar eventos recibidos con `ack`;
+- aplicar eventos soportados de productos, listas, precios, tasas y metodos de pago;
 - actualizar `sync_states`.
 
 Detalle documentado en `docs/SYNC_WORKER_LOCAL_NUBE_2026-07-05.md`.
+
+Eventos aplicados en esta fase:
+
+- `product.created`
+- `product.updated`
+- `price_list.created`
+- `price_list.updated`
+- `product_price.created`
+- `product_price.updated`
+- `price.updated`
+- `exchange_rate_type.created`
+- `exchange_rate_type.updated`
+- `exchange_rate.created`
+- `exchange_rate.updated`
+- `payment_method.created`
+- `payment_method.updated`

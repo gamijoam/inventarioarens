@@ -43,6 +43,39 @@ class SyncWorkerCommandTest extends TestCase
             'updated_at' => $now,
         ]);
 
+        $productId = DB::table('products')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Adaptador Bluetooth',
+            'sku' => 'ADP-BT-CCS',
+            'tracking_type' => 'quantity',
+            'base_price' => '20.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $priceListId = DB::table('price_lists')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Detal',
+            'code' => 'DETAL',
+            'description' => null,
+            'is_default' => true,
+            'is_active' => true,
+            'sort_order' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('product_prices')->insert([
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'price_list_id' => $priceListId,
+            'price' => '20.0000',
+            'currency' => 'USD',
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
         Http::fake([
             'https://cloud.test/api/sync/nodes' => Http::response([
                 'data' => ['code' => 'LOCAL-VAL-01'],
@@ -54,10 +87,16 @@ class SyncWorkerCommandTest extends TestCase
                 'data' => [[
                     'id' => 99,
                     'event_uuid' => $cloudEventUuid,
-                    'event_type' => 'price.updated',
+                    'event_type' => 'product_price.updated',
                     'aggregate_type' => 'product_price',
                     'aggregate_id' => 44,
-                    'payload' => ['product_id' => 44, 'price' => '30.0000'],
+                    'payload' => [
+                        'sku' => 'ADP-BT-CCS',
+                        'price_list_code' => 'DETAL',
+                        'price' => '30.0000',
+                        'currency' => 'USD',
+                        'is_active' => true,
+                    ],
                 ]],
             ], 200),
             "https://cloud.test/api/sync/events/{$cloudEventUuid}/ack" => Http::response([
@@ -84,8 +123,14 @@ class SyncWorkerCommandTest extends TestCase
         $this->assertDatabaseHas('sync_inbox', [
             'tenant_id' => $tenant->id,
             'event_uuid' => $cloudEventUuid,
-            'event_type' => 'price.updated',
-            'status' => 'received',
+            'event_type' => 'product_price.updated',
+            'status' => 'applied',
+        ]);
+        $this->assertDatabaseHas('product_prices', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'price_list_id' => $priceListId,
+            'price' => '30.0000',
         ]);
         $this->assertDatabaseHas('sync_nodes', [
             'tenant_id' => $tenant->id,

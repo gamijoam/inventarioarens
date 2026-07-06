@@ -15,6 +15,7 @@ class SyncWorkerService
         private readonly TenantManager $tenants,
         private readonly HttpFactory $http,
         private readonly SyncTransportService $transport,
+        private readonly SyncEventApplier $applier,
     ) {
     }
 
@@ -27,6 +28,7 @@ class SyncWorkerService
         int $limit = 50,
         bool $push = true,
         bool $pull = true,
+        bool $apply = true,
     ): array {
         $this->tenants->set($tenant);
 
@@ -50,6 +52,8 @@ class SyncWorkerService
                 'duplicated_on_cloud' => 0,
                 'pulled' => 0,
                 'acknowledged' => 0,
+                'applied' => 0,
+                'ignored' => 0,
                 'failed' => 0,
             ];
 
@@ -65,6 +69,13 @@ class SyncWorkerService
                 $summary['pulled'] = $pullSummary['pulled'];
                 $summary['acknowledged'] = $pullSummary['acknowledged'];
                 $summary['failed'] += $pullSummary['failed'];
+            }
+
+            if ($apply) {
+                $applySummary = $this->applier->applyPending($tenant, $limit);
+                $summary['applied'] = $applySummary['applied'];
+                $summary['ignored'] = $applySummary['ignored'];
+                $summary['failed'] += $applySummary['failed'];
             }
 
             return $summary;

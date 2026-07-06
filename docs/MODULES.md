@@ -277,6 +277,7 @@ Archivos principales:
 - `app/Modules/Sync/Requests/PullSyncEventsRequest.php`
 - `app/Modules/Sync/Requests/AcknowledgeSyncEventRequest.php`
 - `app/Modules/Sync/Commands/RunSyncCommand.php`
+- `app/Modules/Sync/Services/SyncEventApplier.php`
 - `app/Modules/Sync/Services/SyncOutboxService.php`
 - `app/Modules/Sync/Services/SyncTransportService.php`
 - `app/Modules/Sync/Services/SyncWorkerService.php`
@@ -299,6 +300,7 @@ Regla importante:
 - `sync_inbox` recibe eventos externos y protege contra duplicados;
 - `sync_outbox` entrega eventos pendientes hasta que el receptor confirme con `ack`;
 - un nodo no recibe eventos originados por si mismo;
+- el worker puede aplicar eventos soportados de productos, precios, tasas y metodos de pago;
 - ningun evento se comparte entre empresas.
 
 Regla importante:
