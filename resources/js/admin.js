@@ -11,6 +11,14 @@ const state = {
         loaded: false,
         selectedProduct: null,
     },
+    access: {
+        loaded: false,
+        users: [],
+        roles: [],
+        permissions: [],
+        selectedUser: null,
+        selectedRole: null,
+    },
 };
 
 const elements = {
@@ -56,6 +64,26 @@ const elements = {
     inventoryCurrency: document.querySelector('#admin-inventory-currency'),
     inventorySave: document.querySelector('#admin-inventory-save'),
     inventoryCancel: document.querySelector('#admin-inventory-cancel'),
+    accessModule: document.querySelector('#admin-users-module'),
+    accessRefresh: document.querySelector('#admin-access-refresh'),
+    accessStatus: document.querySelector('#admin-access-status'),
+    accessUsersCount: document.querySelector('#admin-access-users-count'),
+    accessUsersTable: document.querySelector('#admin-access-users-table'),
+    accessRolesTable: document.querySelector('#admin-access-roles-table'),
+    accessPermissionsGrid: document.querySelector('#admin-access-permissions-grid'),
+    accessUserName: document.querySelector('#admin-access-user-name'),
+    accessUserEmail: document.querySelector('#admin-access-user-email'),
+    accessUserPassword: document.querySelector('#admin-access-user-password'),
+    accessUserRoles: document.querySelector('#admin-access-user-roles'),
+    accessCreateUser: document.querySelector('#admin-access-create-user'),
+    accessSelectedUserTitle: document.querySelector('#admin-access-selected-user-title'),
+    accessSelectedUserRoles: document.querySelector('#admin-access-selected-user-roles'),
+    accessSaveUserRoles: document.querySelector('#admin-access-save-user-roles'),
+    accessToggleUserStatus: document.querySelector('#admin-access-toggle-user-status'),
+    accessRoleName: document.querySelector('#admin-access-role-name'),
+    accessCreateRole: document.querySelector('#admin-access-create-role'),
+    accessSelectedRoleTitle: document.querySelector('#admin-access-selected-role-title'),
+    accessSaveRolePermissions: document.querySelector('#admin-access-save-role-permissions'),
 };
 
 const portalSections = {
@@ -311,6 +339,7 @@ function activatePortalSection(section) {
     const selectedSection = portalSections[section] ? section : 'overview';
     const isOverview = selectedSection === 'overview';
     const isInventory = selectedSection === 'inventory';
+    const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
 
@@ -330,19 +359,27 @@ function activatePortalSection(section) {
         elements.inventoryModule.hidden = !isInventory;
     }
 
+    if (elements.accessModule) {
+        elements.accessModule.hidden = !isAccess;
+    }
+
     if (!elements.modulePlaceholder) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isAccess;
 
-    if (!isOverview && !isInventory) {
+    if (!isOverview && !isInventory && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
 
     if (isInventory && !state.inventory.loaded) {
         loadInventory();
+    }
+
+    if (isAccess && !state.access.loaded) {
+        loadAccessControl();
     }
 }
 
@@ -576,6 +613,409 @@ async function saveInventoryProductPrice() {
     }
 }
 
+async function loadAccessControl() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.accessStatus, 'Cargando usuarios, roles y permisos...');
+    setButtonLoading(elements.accessRefresh, true, 'Actualizando...');
+
+    try {
+        const [users, roles, permissions] = await Promise.all([
+            api('/api/users', { headers: authHeaders(session) }),
+            api('/api/roles', { headers: authHeaders(session) }),
+            api('/api/permissions', { headers: authHeaders(session) }),
+        ]);
+
+        state.access.users = Array.isArray(users) ? users : [];
+        state.access.roles = Array.isArray(roles) ? roles : [];
+        state.access.permissions = Array.isArray(permissions) ? permissions : [];
+        state.access.loaded = true;
+
+        renderAccessControl();
+        setStatus(elements.accessStatus, 'Usuarios y permisos actualizados.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessRefresh, false);
+    }
+}
+
+function renderAccessControl() {
+    renderAccessUsers();
+    renderAccessRoleOptions(elements.accessUserRoles, []);
+    renderAccessRoleOptions(elements.accessSelectedUserRoles, state.access.selectedUser?.roles?.map((role) => role.name) || []);
+    renderAccessRoles();
+    renderPermissionCatalog();
+    applyAccessPermissions();
+}
+
+function renderAccessUsers() {
+    const users = state.access.users;
+
+    if (elements.accessUsersCount) {
+        elements.accessUsersCount.textContent = `${users.length} usuario(s)`;
+        elements.accessUsersCount.dataset.tone = users.length > 0 ? 'success' : 'warning';
+    }
+
+    if (!users.length) {
+        elements.accessUsersTable.innerHTML = '<tr><td colspan="4"><strong>Sin usuarios</strong><small>Esta empresa aun no tiene usuarios cargados.</small></td></tr>';
+        return;
+    }
+
+    elements.accessUsersTable.replaceChildren(...users.map(accessUserRow));
+}
+
+function accessUserRow(user) {
+    const row = document.createElement('tr');
+    const roles = (user.roles || []).map((role) => role.name);
+    const isSelected = state.access.selectedUser?.id === user.id;
+
+    row.className = isSelected ? 'is-selected' : '';
+    row.innerHTML = `
+        <td><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></td>
+        <td><span class="status-pill" data-tone="${user.status === 'active' ? 'success' : 'warning'}">${user.status === 'active' ? 'Activo' : 'Inactivo'}</span></td>
+        <td>${roles.length ? roles.map((role) => `<span class="access-chip">${escapeHtml(role)}</span>`).join('') : '<small>Sin roles</small>'}</td>
+        <td><button class="ghost-button" type="button" data-access-user="${user.id}">Seleccionar</button></td>
+    `;
+
+    row.querySelector('[data-access-user]')?.addEventListener('click', () => selectAccessUser(user));
+
+    return row;
+}
+
+function renderAccessRoleOptions(select, selectedRoles = []) {
+    if (!select) {
+        return;
+    }
+
+    const selected = new Set(selectedRoles);
+    select.replaceChildren(
+        ...state.access.roles.map((role) => {
+            const option = document.createElement('option');
+            option.value = role.name;
+            option.textContent = role.name;
+            option.selected = selected.has(role.name);
+            return option;
+        }),
+    );
+}
+
+function selectAccessUser(user) {
+    state.access.selectedUser = user;
+    elements.accessSelectedUserTitle.textContent = user.name;
+    renderAccessRoleOptions(elements.accessSelectedUserRoles, (user.roles || []).map((role) => role.name));
+    elements.accessToggleUserStatus.textContent = user.status === 'active' ? 'Inactivar usuario' : 'Activar usuario';
+    renderAccessUsers();
+    setStatus(elements.accessStatus, `Usuario seleccionado: ${user.email}.`, 'neutral');
+}
+
+async function createAccessUser() {
+    const session = state.session;
+    const name = elements.accessUserName.value.trim();
+    const email = elements.accessUserEmail.value.trim();
+    const password = elements.accessUserPassword.value;
+    const roles = selectedValues(elements.accessUserRoles);
+
+    if (!session) {
+        return;
+    }
+
+    if (!name || !email) {
+        setStatus(elements.accessStatus, 'Nombre y correo son obligatorios.', 'error');
+        return;
+    }
+
+    if (password && password.length < 8) {
+        setStatus(elements.accessStatus, 'La clave debe tener al menos 8 caracteres.', 'error');
+        return;
+    }
+
+    setStatus(elements.accessStatus, 'Creando o vinculando usuario...');
+    setButtonLoading(elements.accessCreateUser, true, 'Creando...');
+
+    try {
+        const body = { name, email, roles };
+
+        if (password) {
+            body.password = password;
+        }
+
+        const user = await api('/api/users', {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(body),
+        });
+
+        elements.accessUserName.value = '';
+        elements.accessUserEmail.value = '';
+        elements.accessUserPassword.value = '';
+        state.access.selectedUser = user;
+        await loadAccessControl();
+        setStatus(elements.accessStatus, 'Usuario guardado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessCreateUser, false);
+    }
+}
+
+async function saveAccessUserRoles() {
+    const user = state.access.selectedUser;
+    const session = state.session;
+
+    if (!user || !session) {
+        setStatus(elements.accessStatus, 'Selecciona un usuario antes de guardar roles.', 'error');
+        return;
+    }
+
+    setStatus(elements.accessStatus, 'Actualizando roles del usuario...');
+    setButtonLoading(elements.accessSaveUserRoles, true, 'Guardando...');
+
+    try {
+        const updated = await api(`/api/users/${user.id}/roles`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify({ roles: selectedValues(elements.accessSelectedUserRoles) }),
+        });
+
+        state.access.selectedUser = updated;
+        await loadAccessControl();
+        setStatus(elements.accessStatus, 'Roles del usuario actualizados.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessSaveUserRoles, false);
+    }
+}
+
+async function toggleAccessUserStatus() {
+    const user = state.access.selectedUser;
+    const session = state.session;
+
+    if (!user || !session) {
+        setStatus(elements.accessStatus, 'Selecciona un usuario antes de cambiar su estado.', 'error');
+        return;
+    }
+
+    const nextStatus = user.status === 'active' ? 'inactive' : 'active';
+    setStatus(elements.accessStatus, `${nextStatus === 'active' ? 'Activando' : 'Inactivando'} usuario...`);
+    setButtonLoading(elements.accessToggleUserStatus, true, 'Procesando...');
+
+    try {
+        const updated = await api(`/api/users/${user.id}/status`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify({ status: nextStatus }),
+        });
+
+        state.access.selectedUser = updated;
+        await loadAccessControl();
+        setStatus(elements.accessStatus, 'Estado del usuario actualizado.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessToggleUserStatus, false);
+    }
+}
+
+function renderAccessRoles() {
+    const roles = state.access.roles;
+
+    if (!roles.length) {
+        elements.accessRolesTable.innerHTML = '<tr><td colspan="4"><strong>Sin roles</strong><small>No hay roles disponibles para esta empresa.</small></td></tr>';
+        return;
+    }
+
+    elements.accessRolesTable.replaceChildren(...roles.map(accessRoleRow));
+}
+
+function accessRoleRow(role) {
+    const row = document.createElement('tr');
+    const isSelected = state.access.selectedRole?.id === role.id;
+
+    row.className = isSelected ? 'is-selected' : '';
+    row.innerHTML = `
+        <td><strong>${escapeHtml(role.name)}</strong></td>
+        <td>${number((role.permissions || []).length)}</td>
+        <td>${role.is_protected ? '<span class="access-chip access-chip--locked">Base</span>' : '<span class="access-chip">Personalizado</span>'}</td>
+        <td><button class="ghost-button" type="button" data-access-role="${role.id}">Permisos</button></td>
+    `;
+
+    row.querySelector('[data-access-role]')?.addEventListener('click', () => selectAccessRole(role));
+
+    return row;
+}
+
+function selectAccessRole(role) {
+    state.access.selectedRole = role;
+    renderAccessRoles();
+    renderPermissionCatalog();
+    setStatus(elements.accessStatus, `Rol seleccionado: ${role.name}.`, 'neutral');
+}
+
+async function createAccessRole() {
+    const session = state.session;
+    const name = elements.accessRoleName.value.trim();
+
+    if (!session) {
+        return;
+    }
+
+    if (!name) {
+        setStatus(elements.accessStatus, 'Escribe el nombre del nuevo rol.', 'error');
+        return;
+    }
+
+    setStatus(elements.accessStatus, 'Creando rol...');
+    setButtonLoading(elements.accessCreateRole, true, 'Creando...');
+
+    try {
+        const role = await api('/api/roles', {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify({ name, permissions: [] }),
+        });
+
+        elements.accessRoleName.value = '';
+        state.access.selectedRole = role;
+        await loadAccessControl();
+        setStatus(elements.accessStatus, 'Rol creado. Ahora puedes asignar permisos.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessCreateRole, false);
+    }
+}
+
+function renderPermissionCatalog() {
+    if (!elements.accessPermissionsGrid) {
+        return;
+    }
+
+    const role = state.access.selectedRole;
+    const selectedPermissions = new Set(role?.permissions || []);
+
+    elements.accessSelectedRoleTitle.textContent = role ? `Permisos: ${role.name}` : 'Permisos del rol';
+
+    if (!role) {
+        elements.accessPermissionsGrid.innerHTML = '<p class="access-empty">Selecciona un rol para revisar sus permisos.</p>';
+        return;
+    }
+
+    elements.accessPermissionsGrid.replaceChildren(
+        ...state.access.permissions.map((group) => {
+            const section = document.createElement('section');
+            section.className = 'permission-group';
+            section.innerHTML = `<h5>${permissionModuleLabel(group.module)}</h5>`;
+
+            const list = document.createElement('div');
+            list.className = 'permission-list';
+            (group.permissions || []).forEach((permission) => {
+                const label = document.createElement('label');
+                label.className = 'permission-check';
+                label.innerHTML = `
+                    <input type="checkbox" value="${escapeHtml(permission)}" data-access-permission ${selectedPermissions.has(permission) ? 'checked' : ''}>
+                    <span>${permissionLabel(permission)}</span>
+                `;
+                list.append(label);
+            });
+            section.append(list);
+
+            return section;
+        }),
+    );
+}
+
+async function saveAccessRolePermissions() {
+    const role = state.access.selectedRole;
+    const session = state.session;
+
+    if (!role || !session) {
+        setStatus(elements.accessStatus, 'Selecciona un rol antes de guardar permisos.', 'error');
+        return;
+    }
+
+    const permissions = Array.from(elements.accessPermissionsGrid.querySelectorAll('[data-access-permission]:checked'))
+        .map((checkbox) => checkbox.value);
+
+    setStatus(elements.accessStatus, 'Guardando permisos del rol...');
+    setButtonLoading(elements.accessSaveRolePermissions, true, 'Guardando...');
+
+    try {
+        const updated = await api(`/api/roles/${role.id}/permissions`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify({ permissions }),
+        });
+
+        state.access.selectedRole = updated;
+        await loadAccessControl();
+        setStatus(elements.accessStatus, 'Permisos del rol actualizados.', 'success');
+    } catch (error) {
+        setStatus(elements.accessStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessSaveRolePermissions, false);
+    }
+}
+
+function applyAccessPermissions() {
+    const canCreateUser = can('users.create');
+    const canUpdateUser = can('users.update');
+    const canCreateRole = can('roles.create');
+    const canUpdateRole = can('roles.update');
+
+    elements.accessCreateUser.disabled = !canCreateUser;
+    elements.accessSaveUserRoles.disabled = !canUpdateUser || !state.access.selectedUser;
+    elements.accessToggleUserStatus.disabled = !canUpdateUser || !state.access.selectedUser;
+    elements.accessCreateRole.disabled = !canCreateRole;
+    elements.accessSaveRolePermissions.disabled = !canUpdateRole || !state.access.selectedRole;
+}
+
+function selectedValues(select) {
+    return Array.from(select?.selectedOptions || []).map((option) => option.value);
+}
+
+function can(permission) {
+    return state.session?.permissions?.includes(permission) ?? false;
+}
+
+function permissionModuleLabel(module) {
+    return {
+        users: 'Usuarios',
+        roles: 'Roles',
+        products: 'Productos',
+        inventory: 'Inventario',
+        pos: 'POS',
+        cash_register: 'Caja',
+        reports: 'Reportes',
+        kardex: 'Kardex',
+        settings: 'Configuracion',
+        sync: 'Sincronizacion',
+    }[module] ?? module.replaceAll('_', ' ');
+}
+
+function permissionLabel(permission) {
+    const action = permission.split('.').pop();
+    const labels = {
+        view: 'Ver',
+        create: 'Crear',
+        update: 'Editar',
+        delete: 'Eliminar',
+        checkout: 'Cobrar',
+        close: 'Cerrar',
+        open: 'Abrir',
+        export: 'Exportar',
+        receive: 'Recibir',
+        approve: 'Aprobar',
+    };
+
+    return `${labels[action] || action} (${permission})`;
+}
+
 function alertLabel(type) {
     return {
         without_stock: 'Productos sin stock',
@@ -610,7 +1050,7 @@ function formatDateTime(value) {
 }
 
 function canUpdateProducts() {
-    return state.session?.permissions?.includes('products.update') ?? false;
+    return can('products.update');
 }
 
 function trackingLabel(type) {
@@ -675,6 +1115,12 @@ elements.inventoryCancel?.addEventListener('click', () => {
     state.inventory.selectedProduct = null;
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
+elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
+elements.accessCreateUser?.addEventListener('click', createAccessUser);
+elements.accessSaveUserRoles?.addEventListener('click', saveAccessUserRoles);
+elements.accessToggleUserStatus?.addEventListener('click', toggleAccessUserStatus);
+elements.accessCreateRole?.addEventListener('click', createAccessRole);
+elements.accessSaveRolePermissions?.addEventListener('click', saveAccessRolePermissions);
 elements.tenant?.addEventListener('change', () => {
     state.selectedTenant = state.tenants.find((tenant) => tenant.slug === elements.tenant.value) ?? null;
 });

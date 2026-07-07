@@ -16,6 +16,11 @@ class AdminPortalWebTest extends TestCase
             ->assertSee('Productos y precios')
             ->assertSee('admin-inventory-module')
             ->assertSee('admin-inventory-search')
-            ->assertSee('admin-inventory-table');
+            ->assertSee('admin-inventory-table')
+            ->assertSee('Usuarios y permisos')
+            ->assertSee('admin-users-module')
+            ->assertSee('admin-access-users-table')
+            ->assertSee('admin-access-roles-table')
+            ->assertSee('admin-access-permissions-grid');
     }
 }

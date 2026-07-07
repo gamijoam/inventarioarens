@@ -702,6 +702,146 @@ button {
     margin: 0;
 }
 
+.access-admin__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.access-panel {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-soft);
+}
+
+.access-panel--wide {
+    grid-column: span 1;
+}
+
+.access-panel h4 {
+    margin: 0 0 4px;
+    font-size: 21px;
+}
+
+.access-panel .panel-heading {
+    margin-bottom: 12px;
+}
+
+.access-panel .field {
+    margin-bottom: 12px;
+}
+
+.access-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-table-wrap--compact {
+    max-height: 320px;
+    margin-top: 0;
+}
+
+.admin-data-table--compact {
+    min-width: 680px;
+}
+
+.admin-data-table tr.is-selected td {
+    background: #f0f2ff;
+}
+
+.access-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    margin: 2px 4px 2px 0;
+    padding: 4px 8px;
+    border-radius: 999px;
+    color: var(--primary);
+    background: #f0f2ff;
+    border: 1px solid #d8dcff;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.access-chip--locked {
+    color: var(--muted);
+    background: #eef2f7;
+    border-color: var(--line);
+}
+
+.roles-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 12px;
+}
+
+.role-create-box {
+    align-self: start;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.primary-button--fit {
+    width: auto;
+}
+
+.permission-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    max-height: 430px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.permission-group {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.permission-group h5 {
+    margin: 0 0 10px;
+    color: var(--ink);
+    font-size: 14px;
+    text-transform: capitalize;
+}
+
+.permission-list {
+    display: grid;
+    gap: 7px;
+}
+
+.permission-check {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.permission-check input {
+    width: 16px;
+    height: 16px;
+    margin: 1px 0 0;
+}
+
+.access-empty {
+    margin: 0;
+    color: var(--muted);
+    font-weight: 800;
+}
+
 .dashboard-status {
     margin: 0;
 }
@@ -717,6 +857,11 @@ button {
     }
 
     .inventory-admin__layout {
+        grid-template-columns: 1fr;
+    }
+
+    .access-admin__grid,
+    .roles-layout {
         grid-template-columns: 1fr;
     }
 
@@ -758,6 +903,14 @@ button {
     }
 
     .inventory-admin__filters {
+        grid-template-columns: 1fr;
+    }
+
+    .permission-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .access-actions {
         grid-template-columns: 1fr;
     }
 }

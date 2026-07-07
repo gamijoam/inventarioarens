@@ -272,6 +272,133 @@
                             <p class="dashboard-status" id="admin-inventory-status" role="status" aria-live="polite"></p>
                         </section>
 
+                        <section class="admin-module-panel access-admin" id="admin-users-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Accesos</span>
+                                    <h3>Usuarios y permisos</h3>
+                                    <p>Administra usuarios por empresa, asigna roles y controla permisos por modulo.</p>
+                                </div>
+                                <button class="ghost-button" type="button" id="admin-access-refresh">Actualizar accesos</button>
+                            </div>
+
+                            <div class="access-admin__grid">
+                                <section class="access-panel access-panel--wide" aria-label="Usuarios de la empresa">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Usuarios</h4>
+                                            <p>Solo se muestran usuarios vinculados a la empresa activa.</p>
+                                        </div>
+                                        <span class="status-pill" id="admin-access-users-count">Sin cargar</span>
+                                    </div>
+
+                                    <div class="admin-table-wrap admin-table-wrap--compact">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Usuario</th>
+                                                    <th>Estado</th>
+                                                    <th>Roles</th>
+                                                    <th>Accion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-access-users-table"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <aside class="access-panel">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Nuevo usuario</h4>
+                                            <p>Crea o vincula un usuario existente a esta empresa.</p>
+                                        </div>
+                                    </div>
+
+                                    <label class="field">
+                                        <span>Nombre</span>
+                                        <input id="admin-access-user-name" type="text" autocomplete="name" placeholder="Ej. Cajero principal">
+                                    </label>
+                                    <label class="field">
+                                        <span>Correo</span>
+                                        <input id="admin-access-user-email" type="email" autocomplete="email" placeholder="usuario@empresa.com">
+                                    </label>
+                                    <label class="field">
+                                        <span>Clave inicial</span>
+                                        <input id="admin-access-user-password" type="password" autocomplete="new-password" placeholder="Minimo 8 caracteres">
+                                    </label>
+                                    <label class="field">
+                                        <span>Roles iniciales</span>
+                                        <select id="admin-access-user-roles" multiple size="5"></select>
+                                    </label>
+                                    <button class="primary-button" type="button" id="admin-access-create-user">Crear usuario</button>
+                                </aside>
+
+                                <section class="access-panel">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4 id="admin-access-selected-user-title">Usuario seleccionado</h4>
+                                            <p>Selecciona un usuario para cambiar sus roles o estado.</p>
+                                        </div>
+                                    </div>
+                                    <label class="field">
+                                        <span>Roles asignados</span>
+                                        <select id="admin-access-selected-user-roles" multiple size="7"></select>
+                                    </label>
+                                    <div class="access-actions">
+                                        <button class="primary-button" type="button" id="admin-access-save-user-roles">Guardar roles</button>
+                                        <button class="ghost-button" type="button" id="admin-access-toggle-user-status">Activar / inactivar</button>
+                                    </div>
+                                </section>
+
+                                <section class="access-panel access-panel--wide">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Roles</h4>
+                                            <p>Los roles base estan protegidos. Puedes crear roles operativos nuevos.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="roles-layout">
+                                        <div class="admin-table-wrap admin-table-wrap--compact">
+                                            <table class="admin-data-table admin-data-table--compact">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Rol</th>
+                                                        <th>Permisos</th>
+                                                        <th>Tipo</th>
+                                                        <th>Accion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="admin-access-roles-table"></tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="role-create-box">
+                                            <label class="field">
+                                                <span>Nuevo rol</span>
+                                                <input id="admin-access-role-name" type="text" placeholder="Ej. Supervisor tienda">
+                                            </label>
+                                            <button class="primary-button" type="button" id="admin-access-create-role">Crear rol</button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section class="access-panel access-panel--wide">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4 id="admin-access-selected-role-title">Permisos del rol</h4>
+                                            <p>Selecciona un rol y marca lo que puede ver o ejecutar.</p>
+                                        </div>
+                                        <button class="primary-button primary-button--fit" type="button" id="admin-access-save-role-permissions">Guardar permisos</button>
+                                    </div>
+                                    <div class="permission-grid" id="admin-access-permissions-grid"></div>
+                                </section>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-access-status" role="status" aria-live="polite"></p>
+                        </section>
+
                         <section class="module-placeholder" id="module-placeholder" hidden>
                             <span class="soft-badge">Herramienta en preparación</span>
                             <h3 id="module-placeholder-title">Módulo</h3>
