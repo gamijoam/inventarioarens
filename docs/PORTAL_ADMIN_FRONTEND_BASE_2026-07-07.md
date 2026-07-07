@@ -11,6 +11,7 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - Inicio de sesion por empresa usando `POST /api/auth/login`.
 - Dashboard administrativo usando `GET /api/admin-portal/dashboard`.
 - Manejo visible de errores y tiempo maximo de espera para evitar que el login quede cargando indefinidamente.
+- Cambio limpio entre login y dashboard: al iniciar sesion el portal vuelve al inicio de la pantalla y enfoca el panel principal.
 - Selector de periodo: hoy, semana y mes.
 - Metricas iniciales:
   - ventas confirmadas;
@@ -40,6 +41,7 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - Los permisos reales siguen siendo responsabilidad del backend.
 - Esta fase es de lectura gerencial; no crea productos, usuarios, precios ni cajas.
 - Si el backend no responde, el portal debe mostrar un mensaje claro en pantalla y reactivar los botones.
+- El login y el dashboard no deben verse mezclados ni conservar la posicion de scroll anterior.
 
 ## Pruebas
 

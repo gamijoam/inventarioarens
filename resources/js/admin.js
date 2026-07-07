@@ -119,11 +119,17 @@ function saveSession(session) {
     renderDashboardShell(session);
 }
 
+function resetViewport() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+}
+
 function clearSession() {
     localStorage.removeItem(storageKey);
     state.session = null;
     elements.dashboardView.hidden = true;
     elements.loginView.hidden = false;
+    document.body.classList.remove('is-dashboard');
+    resetViewport();
     setStatus(elements.loginStatus, 'Sesión cerrada.', 'success');
 }
 
@@ -237,7 +243,10 @@ function renderDashboardShell(session) {
     state.session = session;
     elements.loginView.hidden = true;
     elements.dashboardView.hidden = false;
+    document.body.classList.add('is-dashboard');
     elements.tenantTitle.textContent = session.tenant.name;
+    resetViewport();
+    elements.dashboardView.focus({ preventScroll: true });
 }
 
 async function loadDashboard() {

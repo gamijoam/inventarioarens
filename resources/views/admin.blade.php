@@ -53,7 +53,7 @@
                 </form>
             </section>
 
-            <section class="admin-shell" data-view="dashboard" hidden>
+            <section class="admin-shell" data-view="dashboard" tabindex="-1" hidden>
                 <header class="admin-topbar">
                     <div class="topbar-title">
                         <div class="brand-orb brand-orb--small" aria-hidden="true">SI</div>
