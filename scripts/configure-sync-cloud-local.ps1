@@ -1,5 +1,5 @@
 param(
-    [string] $CloudUrl = "http://217.216.80.158:8010/api",
+    [string] $CloudUrl = "https://app.miinventariofacil.com/api",
     [Parameter(Mandatory = $true)]
     [string] $Token,
     [string] $TenantSlug = "demo-valencia",

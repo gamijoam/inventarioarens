@@ -50,7 +50,7 @@ set_env() {
 
 set_env "APP_ENV" "production"
 set_env "APP_DEBUG" "false"
-set_env "APP_URL" "http://217.216.80.158:${APP_PORT}"
+set_env "APP_URL" "${APP_URL:-https://app.miinventariofacil.com}"
 set_env "DB_CONNECTION" "pgsql"
 set_env "DB_HOST" "127.0.0.1"
 set_env "DB_PORT" "5432"

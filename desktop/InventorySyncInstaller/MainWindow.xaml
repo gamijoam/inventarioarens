@@ -45,7 +45,7 @@
                         <TextBlock Text="Usa esta herramienta solo en instalaciones nuevas, cambios de empresa o soporte tecnico." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" />
 
                         <TextBlock Text="URL del servidor" FontWeight="Bold" Margin="0,22,0,5" />
-                        <TextBox x:Name="CloudUrlBox" Text="http://217.216.80.158:8000/api" />
+                        <TextBox x:Name="CloudUrlBox" Text="https://app.miinventariofacil.com/api" />
 
                         <TextBlock Text="Correo del administrador" FontWeight="Bold" Margin="0,14,0,5" />
                         <TextBox x:Name="EmailBox" />

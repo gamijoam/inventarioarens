@@ -4638,3 +4638,24 @@ Resultado:
 
 - 18 pruebas pasadas;
 - 119 aserciones.
+
+## 2026-07-07 - Dominio HTTPS para API nube
+
+Objetivo:
+
+- Usar `https://app.miinventariofacil.com/api` como URL operativa de la API nube.
+- Dejar de depender de IP y puerto visible para configuracion local y sincronizacion.
+
+Implementacion:
+
+- Se configuro Nginx en el VPS `217.216.80.158` para servir Laravel desde `/opt/inventarioarens-cloud/public`.
+- Se activo HTTPS con Let's Encrypt para `app.miinventariofacil.com`.
+- Se agrego `scripts/vps_configure_app_domain.py` para repetir la configuracion del dominio en el VPS si hace falta.
+- Se actualizaron los valores sugeridos del configurador, asistente de sincronizacion y scripts locales para usar `https://app.miinventariofacil.com/api`.
+- Se documento el procedimiento en `docs/DOMINIO_APP_MIINVENTARIOFACIL_VPS_2026-07-07.md`.
+
+Validacion:
+
+- `app.miinventariofacil.com` resuelve a `217.216.80.158`.
+- HTTPS quedo activo.
+- La API Laravel responde por el dominio. Una ruta protegida devolvio `401`, que es correcto cuando no se envia token.

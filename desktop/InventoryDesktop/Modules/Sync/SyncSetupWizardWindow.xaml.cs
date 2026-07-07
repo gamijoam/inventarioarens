@@ -17,7 +17,7 @@ public partial class SyncSetupWizardWindow : Window
         this.viewModel = viewModel;
         InitializeComponent();
 
-        CloudUrlBox.Text = string.IsNullOrWhiteSpace(viewModel.CloudUrl) ? "http://217.216.80.158:8000/api" : viewModel.CloudUrl;
+        CloudUrlBox.Text = string.IsNullOrWhiteSpace(viewModel.CloudUrl) ? "https://app.miinventariofacil.com/api" : viewModel.CloudUrl;
         EmailBox.Text = "";
         NodeCodeBox.Text = viewModel.NodeCode;
         NodeNameBox.Text = viewModel.NodeName;
