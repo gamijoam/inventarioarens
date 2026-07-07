@@ -27,6 +27,18 @@ const state = {
         loaded: false,
         selectedSupplier: null,
     },
+    purchases: {
+        page: 1,
+        loaded: false,
+        selectedPurchase: null,
+        suppliersLoaded: false,
+        productsLoaded: false,
+        warehousesLoaded: false,
+        suppliers: [],
+        products: [],
+        warehouses: [],
+        items: [],
+    },
     access: {
         loaded: false,
         users: [],
@@ -149,6 +161,39 @@ const elements = {
     supplierSave: document.querySelector('#admin-supplier-save'),
     supplierDeactivate: document.querySelector('#admin-supplier-deactivate'),
     supplierCancel: document.querySelector('#admin-supplier-cancel'),
+    purchasesModule: document.querySelector('#admin-purchases-module'),
+    purchasesRefresh: document.querySelector('#admin-purchases-refresh'),
+    purchaseNew: document.querySelector('#admin-purchase-new'),
+    purchasesSearch: document.querySelector('#admin-purchases-search'),
+    purchasesStatusFilter: document.querySelector('#admin-purchases-status-filter'),
+    purchasesSupplierFilter: document.querySelector('#admin-purchases-supplier-filter'),
+    purchasesApply: document.querySelector('#admin-purchases-apply'),
+    purchasesClear: document.querySelector('#admin-purchases-clear'),
+    purchasesTable: document.querySelector('#admin-purchases-table'),
+    purchasesCount: document.querySelector('#admin-purchases-count'),
+    purchasesPrev: document.querySelector('#admin-purchases-prev'),
+    purchasesNext: document.querySelector('#admin-purchases-next'),
+    purchasesStatus: document.querySelector('#admin-purchases-status'),
+    purchaseEditor: document.querySelector('#admin-purchase-editor'),
+    purchaseEditorTitle: document.querySelector('#admin-purchase-editor-title'),
+    purchaseEditorSubtitle: document.querySelector('#admin-purchase-editor-subtitle'),
+    purchaseSupplier: document.querySelector('#admin-purchase-supplier'),
+    purchaseDocument: document.querySelector('#admin-purchase-document'),
+    purchaseIssuedAt: document.querySelector('#admin-purchase-issued-at'),
+    purchaseDueDate: document.querySelector('#admin-purchase-due-date'),
+    purchaseCurrency: document.querySelector('#admin-purchase-currency'),
+    purchaseProduct: document.querySelector('#admin-purchase-product'),
+    purchaseWarehouse: document.querySelector('#admin-purchase-warehouse'),
+    purchaseQuantity: document.querySelector('#admin-purchase-quantity'),
+    purchaseUnitCost: document.querySelector('#admin-purchase-unit-cost'),
+    purchaseAddItem: document.querySelector('#admin-purchase-add-item'),
+    purchaseItemsTotal: document.querySelector('#admin-purchase-items-total'),
+    purchaseItemsTable: document.querySelector('#admin-purchase-items-table'),
+    purchaseSummary: document.querySelector('#admin-purchase-summary'),
+    purchaseSave: document.querySelector('#admin-purchase-save'),
+    purchaseReceive: document.querySelector('#admin-purchase-receive'),
+    purchaseCancelOrder: document.querySelector('#admin-purchase-cancel-order'),
+    purchaseClear: document.querySelector('#admin-purchase-clear'),
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
@@ -266,6 +311,10 @@ const portalSections = {
     suppliers: {
         title: 'Proveedores',
         copy: 'Gestion de proveedores, documentos fiscales, contactos y estado operativo para compras.',
+    },
+    purchases: {
+        title: 'Compras',
+        copy: 'Ordenes de compra, recepcion de mercancia y costos que alimentan inventario.',
     },
     cash: {
         title: 'Caja',
@@ -561,6 +610,17 @@ function resetTenantScopedState() {
     state.suppliers.loaded = false;
     state.suppliers.selectedSupplier = null;
 
+    state.purchases.page = 1;
+    state.purchases.loaded = false;
+    state.purchases.selectedPurchase = null;
+    state.purchases.suppliersLoaded = false;
+    state.purchases.productsLoaded = false;
+    state.purchases.warehousesLoaded = false;
+    state.purchases.suppliers = [];
+    state.purchases.products = [];
+    state.purchases.warehouses = [];
+    state.purchases.items = [];
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -582,6 +642,14 @@ function resetTenantScopedState() {
 
     if (elements.suppliersTable) {
         elements.suppliersTable.innerHTML = '';
+    }
+
+    if (elements.purchasesTable) {
+        elements.purchasesTable.innerHTML = '';
+    }
+
+    if (elements.purchaseItemsTable) {
+        elements.purchaseItemsTable.innerHTML = '';
     }
 
     if (elements.accessUsersTable) {
@@ -642,6 +710,7 @@ function activatePortalSection(section) {
     const isInventory = selectedSection === 'inventory';
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
+    const isPurchases = selectedSection === 'purchases';
     const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
@@ -670,6 +739,10 @@ function activatePortalSection(section) {
         elements.suppliersModule.hidden = !isSuppliers;
     }
 
+    if (elements.purchasesModule) {
+        elements.purchasesModule.hidden = !isPurchases;
+    }
+
     if (elements.accessModule) {
         elements.accessModule.hidden = !isAccess;
     }
@@ -678,9 +751,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isAccess;
 
-    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isAccess) {
+    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -698,6 +771,10 @@ function activatePortalSection(section) {
 
     if (isSuppliers && !state.suppliers.loaded) {
         loadSuppliers();
+    }
+
+    if (isPurchases && !state.purchases.loaded) {
+        loadPurchases();
     }
 
     if (isAccess && !state.access.loaded) {
@@ -1291,6 +1368,476 @@ function clearSupplierFilters() {
     }
 
     loadSuppliers(1);
+}
+
+async function loadPurchaseOptions() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    const requests = [];
+
+    if (!state.purchases.suppliersLoaded && can('suppliers.view')) {
+        requests.push(api('/api/suppliers?active_status=active&limit=100', {
+            headers: authHeaders(session),
+        }, true).then((payload) => {
+            state.purchases.suppliers = collectionData(payload);
+            state.purchases.suppliersLoaded = true;
+        }));
+    }
+
+    if (!state.purchases.productsLoaded && can('products.view')) {
+        requests.push(api('/api/products?limit=100', {
+            headers: authHeaders(session),
+        }, true).then((payload) => {
+            state.purchases.products = collectionData(payload).filter((product) => product.is_active !== false);
+            state.purchases.productsLoaded = true;
+        }));
+    }
+
+    if (!state.purchases.warehousesLoaded && can('warehouses.view')) {
+        requests.push(api('/api/warehouses?per_page=100', {
+            headers: authHeaders(session),
+        }, true).then((payload) => {
+            state.purchases.warehouses = collectionData(payload).filter((warehouse) => warehouse.status !== 'inactive');
+            state.purchases.warehousesLoaded = true;
+        }));
+    }
+
+    await Promise.all(requests);
+    renderPurchaseOptions();
+}
+
+function renderPurchaseOptions() {
+    const supplierOptions = [new Option('Todos', '')];
+    const supplierFormOptions = [new Option('Sin proveedor', '')];
+
+    state.purchases.suppliers.forEach((supplier) => {
+        const documentLabel = [supplier.document_type, supplier.document_number].filter(Boolean).join('-');
+        const label = documentLabel ? `${supplier.name} (${documentLabel})` : supplier.name;
+        supplierOptions.push(new Option(label, String(supplier.id)));
+        supplierFormOptions.push(new Option(label, String(supplier.id)));
+    });
+
+    elements.purchasesSupplierFilter?.replaceChildren(...supplierOptions);
+    elements.purchaseSupplier?.replaceChildren(...supplierFormOptions);
+
+    const productOptions = state.purchases.products.map((product) => {
+        const option = new Option(`${product.name} (${product.sku})`, String(product.id));
+        option.dataset.trackingType = product.tracking_type;
+        return option;
+    });
+    elements.purchaseProduct?.replaceChildren(...productOptions);
+
+    const warehouseOptions = state.purchases.warehouses.map((warehouse) => {
+        const label = `${warehouse.name}${warehouse.code ? ` (${warehouse.code})` : ''}`;
+        return new Option(label, String(warehouse.id));
+    });
+    elements.purchaseWarehouse?.replaceChildren(...warehouseOptions);
+}
+
+async function loadPurchases(page = state.purchases.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.purchases.page = page;
+    setStatus(elements.purchasesStatus, 'Cargando compras...');
+    setButtonLoading(elements.purchasesRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.purchasesApply, true, 'Aplicando...');
+
+    try {
+        await loadPurchaseOptions();
+
+        const query = new URLSearchParams({
+            status: elements.purchasesStatusFilter?.value || 'all',
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.purchasesSearch?.value.trim();
+        const supplierId = elements.purchasesSupplierFilter?.value;
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        if (supplierId) {
+            query.set('supplier_id', supplierId);
+        }
+
+        const pageData = await api(`/api/purchases?${query}`, {
+            headers: authHeaders(session),
+        }, true);
+
+        state.purchases.loaded = true;
+        renderPurchases(pageData);
+        setStatus(elements.purchasesStatus, `Compras actualizadas. ${pageData.meta?.total || 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.purchasesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.purchasesRefresh, false);
+        setButtonLoading(elements.purchasesApply, false);
+    }
+}
+
+function renderPurchases(pageData = {}) {
+    const purchases = pageData.data || [];
+    const meta = pageData.meta || {};
+
+    if (!purchases.length) {
+        elements.purchasesTable.innerHTML = '<tr><td colspan="7"><strong>Sin compras</strong><small>No hay ordenes con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.purchasesTable.replaceChildren(...purchases.map(purchaseRow));
+    }
+
+    elements.purchasesCount.textContent = (meta.total || 0) === 0
+        ? 'Sin compras para mostrar.'
+        : `${meta.from || 1}-${meta.to || purchases.length} de ${meta.total} compra(s).`;
+    elements.purchasesPrev.disabled = !meta.current_page || meta.current_page <= 1;
+    elements.purchasesNext.disabled = !meta.current_page || meta.current_page >= meta.last_page;
+    state.purchases.page = meta.current_page || 1;
+}
+
+function purchaseRow(purchase) {
+    const row = document.createElement('tr');
+    row.dataset.purchaseId = String(purchase.id);
+    row.classList.toggle('is-selected', state.purchases.selectedPurchase?.id === purchase.id);
+    const supplierName = purchase.supplier?.name || 'Sin proveedor';
+    const status = purchaseStatusLabel(purchase.status);
+    const tone = purchaseStatusTone(purchase.status);
+
+    row.innerHTML = `
+        <td><strong>#${purchase.id} ${escapeHtml(purchase.document_number || 'Sin documento')}</strong><small>${escapeHtml(purchase.issued_at || 'sin emision')} / vence ${escapeHtml(purchase.due_date || 'sin fecha')}</small></td>
+        <td><strong>${escapeHtml(supplierName)}</strong><small>${escapeHtml(purchase.supplier?.document_number || '')}</small></td>
+        <td><span class="status-pill" data-tone="${tone}">${escapeHtml(status)}</span></td>
+        <td><strong>${purchase.purchase_currency} ${number(purchase.purchase_currency === 'USD' ? purchase.total_base_amount : purchase.total_local_amount)}</strong><small>Base ${money(purchase.total_base_amount)}</small></td>
+        <td><strong>${money(purchase.received_base_amount)}</strong><small>${number(purchase.received_local_amount)} Bs</small></td>
+        <td>${number(purchase.items_count || purchase.items?.length || 0)}</td>
+        <td><button class="ghost-button ghost-button--compact" type="button" data-admin-purchase-select="${purchase.id}">Ver</button></td>
+    `;
+
+    row.querySelector('[data-admin-purchase-select]')?.addEventListener('click', () => selectPurchaseById(purchase.id));
+    row.addEventListener('dblclick', () => selectPurchaseById(purchase.id));
+
+    return row;
+}
+
+async function selectPurchaseById(purchaseId) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.purchasesStatus, 'Cargando detalle de compra...');
+
+    try {
+        const purchase = await api(`/api/purchases/${purchaseId}`, {
+            headers: authHeaders(session),
+        });
+        selectPurchase(purchase);
+    } catch (error) {
+        setStatus(elements.purchasesStatus, normalizeError(error), 'error');
+    }
+}
+
+function selectPurchase(purchase) {
+    state.purchases.selectedPurchase = purchase;
+    state.purchases.items = (purchase.items || []).map((item) => ({
+        id: item.id,
+        product_id: item.product_id,
+        product_name: item.product?.name || `Producto #${item.product_id}`,
+        warehouse_id: item.warehouse_id,
+        warehouse_name: item.warehouse?.name || `Almacen #${item.warehouse_id}`,
+        quantity: Number(item.quantity || 0),
+        unit_cost: Number(item.unit_cost || 0),
+        received_quantity: Number(item.received_quantity || 0),
+    }));
+
+    elements.purchaseEditorTitle.textContent = `Compra #${purchase.id}`;
+    elements.purchaseEditorSubtitle.textContent = `${purchaseStatusLabel(purchase.status)} - ${purchase.items_count || state.purchases.items.length} item(s).`;
+    elements.purchaseSupplier.value = purchase.supplier_id ? String(purchase.supplier_id) : '';
+    elements.purchaseDocument.value = purchase.document_number || '';
+    elements.purchaseIssuedAt.value = purchase.issued_at || '';
+    elements.purchaseDueDate.value = purchase.due_date || '';
+    elements.purchaseCurrency.value = purchase.purchase_currency || 'USD';
+    renderPurchaseItems();
+    updatePurchaseActionState();
+
+    elements.purchasesTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    elements.purchasesTable?.querySelector(`[data-purchase-id="${purchase.id}"]`)?.classList.add('is-selected');
+    setStatus(elements.purchasesStatus, `Compra seleccionada: #${purchase.id}.`, 'neutral');
+}
+
+function clearPurchaseForm() {
+    state.purchases.selectedPurchase = null;
+    state.purchases.items = [];
+    elements.purchaseEditorTitle.textContent = 'Nueva compra';
+    elements.purchaseEditorSubtitle.textContent = 'Agrega proveedor, documento e items. Recibir mueve stock al inventario.';
+    elements.purchaseSupplier.value = '';
+    elements.purchaseDocument.value = '';
+    elements.purchaseIssuedAt.valueAsDate = new Date();
+    elements.purchaseDueDate.value = '';
+    elements.purchaseCurrency.value = 'USD';
+    elements.purchaseQuantity.value = '1';
+    elements.purchaseUnitCost.value = '0';
+    elements.purchasesTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    renderPurchaseItems();
+    updatePurchaseActionState();
+    setStatus(elements.purchasesStatus, 'Formulario listo para crear compra.', 'neutral');
+}
+
+function addPurchaseItem() {
+    const productId = Number(elements.purchaseProduct?.value || 0);
+    const warehouseId = Number(elements.purchaseWarehouse?.value || 0);
+    const quantity = Number(elements.purchaseQuantity?.value || 0);
+    const unitCost = Number(elements.purchaseUnitCost?.value || 0);
+    const product = state.purchases.products.find((item) => item.id === productId);
+    const warehouse = state.purchases.warehouses.find((item) => item.id === warehouseId);
+
+    if (!product || !warehouse) {
+        setStatus(elements.purchasesStatus, 'Selecciona producto y almacen para agregar el item.', 'error');
+        return;
+    }
+
+    if (product.tracking_type === 'serialized') {
+        setStatus(elements.purchasesStatus, 'Los productos serializados se recibiran en la fase de IMEI web. Por ahora usa el escritorio.', 'error');
+        return;
+    }
+
+    if (quantity <= 0 || Number.isNaN(quantity)) {
+        setStatus(elements.purchasesStatus, 'La cantidad debe ser mayor que cero.', 'error');
+        return;
+    }
+
+    if (unitCost < 0 || Number.isNaN(unitCost)) {
+        setStatus(elements.purchasesStatus, 'El costo no puede ser negativo.', 'error');
+        return;
+    }
+
+    state.purchases.items.push({
+        product_id: product.id,
+        product_name: product.name,
+        warehouse_id: warehouse.id,
+        warehouse_name: warehouse.name,
+        quantity,
+        unit_cost: unitCost,
+        received_quantity: 0,
+    });
+
+    renderPurchaseItems();
+    setStatus(elements.purchasesStatus, `${product.name} agregado a la compra.`, 'success');
+}
+
+function removePurchaseItem(index) {
+    state.purchases.items.splice(index, 1);
+    renderPurchaseItems();
+}
+
+function renderPurchaseItems() {
+    const items = state.purchases.items;
+    const currency = elements.purchaseCurrency?.value || 'USD';
+    const total = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unit_cost || 0)), 0);
+
+    if (!items.length) {
+        elements.purchaseItemsTable.innerHTML = '<tr><td colspan="5"><strong>Sin items</strong><small>Agrega productos para guardar la compra.</small></td></tr>';
+    } else {
+        elements.purchaseItemsTable.replaceChildren(...items.map((item, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(item.product_name)}</strong><small>${escapeHtml(item.id ? `Recibido: ${number(item.received_quantity || 0)}` : 'Nuevo item')}</small></td>
+                <td>${escapeHtml(item.warehouse_name)}</td>
+                <td>${number(item.quantity)}</td>
+                <td>${currency} ${number(item.unit_cost)}</td>
+                <td><button class="ghost-button ghost-button--compact" type="button" data-purchase-item-remove="${index}">Quitar</button></td>
+            `;
+            row.querySelector('[data-purchase-item-remove]')?.addEventListener('click', () => removePurchaseItem(index));
+            return row;
+        }));
+    }
+
+    elements.purchaseItemsTotal.textContent = `${items.length} item(s)`;
+    elements.purchaseSummary.innerHTML = `<span>Total estimado</span><strong>${currency} ${number(total)}</strong>`;
+}
+
+function purchasePayload() {
+    return {
+        supplier_id: elements.purchaseSupplier.value ? Number(elements.purchaseSupplier.value) : null,
+        document_number: elements.purchaseDocument.value.trim() || null,
+        issued_at: elements.purchaseIssuedAt.value || null,
+        due_date: elements.purchaseDueDate.value || null,
+        purchase_currency: elements.purchaseCurrency.value || 'USD',
+        items: state.purchases.items.map((item) => ({
+            warehouse_id: Number(item.warehouse_id),
+            product_id: Number(item.product_id),
+            quantity: Number(item.quantity),
+            unit_cost: Number(item.unit_cost),
+        })),
+    };
+}
+
+async function savePurchase() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    if (!can('purchases.create')) {
+        setStatus(elements.purchasesStatus, 'Tu usuario no tiene permiso para crear compras.', 'error');
+        return;
+    }
+
+    const payload = purchasePayload();
+
+    if (!payload.items.length) {
+        setStatus(elements.purchasesStatus, 'Agrega al menos un item antes de guardar la compra.', 'error');
+        return;
+    }
+
+    setStatus(elements.purchasesStatus, 'Guardando compra...');
+    setButtonLoading(elements.purchaseSave, true, 'Guardando...');
+
+    try {
+        const purchase = await api('/api/purchases', {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+        await loadPurchases(1);
+        selectPurchase(purchase);
+        setStatus(elements.purchasesStatus, 'Compra guardada como pendiente de recepcion.', 'success');
+    } catch (error) {
+        setStatus(elements.purchasesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.purchaseSave, false);
+    }
+}
+
+async function receivePurchase() {
+    const session = state.session;
+    const purchase = state.purchases.selectedPurchase;
+
+    if (!session || !purchase) {
+        setStatus(elements.purchasesStatus, 'Selecciona una compra pendiente para recibir.', 'error');
+        return;
+    }
+
+    if (!can('purchases.approve')) {
+        setStatus(elements.purchasesStatus, 'Tu usuario no tiene permiso para recibir compras.', 'error');
+        return;
+    }
+
+    setStatus(elements.purchasesStatus, 'Recibiendo compra y actualizando inventario...');
+    setButtonLoading(elements.purchaseReceive, true, 'Recibiendo...');
+
+    try {
+        const received = await api(`/api/purchases/${purchase.id}/receive`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+        });
+        await loadPurchases(state.purchases.page);
+        selectPurchase(received);
+        await loadDashboard();
+        setStatus(elements.purchasesStatus, 'Compra recibida. El inventario fue actualizado.', 'success');
+    } catch (error) {
+        setStatus(elements.purchasesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.purchaseReceive, false);
+    }
+}
+
+async function cancelPurchaseOrder() {
+    const session = state.session;
+    const purchase = state.purchases.selectedPurchase;
+
+    if (!session || !purchase) {
+        setStatus(elements.purchasesStatus, 'Selecciona una compra en borrador para anular.', 'error');
+        return;
+    }
+
+    if (!can('purchases.create')) {
+        setStatus(elements.purchasesStatus, 'Tu usuario no tiene permiso para anular compras.', 'error');
+        return;
+    }
+
+    if (!window.confirm(`Anular compra #${purchase.id}? Solo se permite si aun no fue recibida.`)) {
+        return;
+    }
+
+    setStatus(elements.purchasesStatus, 'Anulando compra...');
+    setButtonLoading(elements.purchaseCancelOrder, true, 'Anulando...');
+
+    try {
+        const cancelled = await api(`/api/purchases/${purchase.id}/cancel`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+        });
+        await loadPurchases(state.purchases.page);
+        selectPurchase(cancelled);
+        setStatus(elements.purchasesStatus, 'Compra anulada correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.purchasesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.purchaseCancelOrder, false);
+    }
+}
+
+function clearPurchaseFilters() {
+    if (elements.purchasesSearch) {
+        elements.purchasesSearch.value = '';
+    }
+
+    if (elements.purchasesStatusFilter) {
+        elements.purchasesStatusFilter.value = 'all';
+    }
+
+    if (elements.purchasesSupplierFilter) {
+        elements.purchasesSupplierFilter.value = '';
+    }
+
+    loadPurchases(1);
+}
+
+function updatePurchaseActionState() {
+    const purchase = state.purchases.selectedPurchase;
+    const status = purchase?.status;
+    const canReceive = Boolean(purchase && ['draft', 'partially_received'].includes(status) && can('purchases.approve'));
+    const canCancel = Boolean(purchase && status === 'draft' && can('purchases.create'));
+
+    if (elements.purchaseReceive) {
+        elements.purchaseReceive.disabled = !canReceive;
+    }
+
+    if (elements.purchaseCancelOrder) {
+        elements.purchaseCancelOrder.disabled = !canCancel;
+    }
+
+    if (elements.purchaseSave) {
+        elements.purchaseSave.disabled = !can('purchases.create') || Boolean(purchase);
+    }
+}
+
+function purchaseStatusLabel(status) {
+    return {
+        draft: 'Pendiente',
+        partially_received: 'Parcial',
+        received: 'Recibida',
+        cancelled: 'Anulada',
+    }[status] || status || 'Sin estado';
+}
+
+function purchaseStatusTone(status) {
+    return {
+        draft: 'warning',
+        partially_received: 'warning',
+        received: 'success',
+        cancelled: 'danger',
+    }[status] || 'neutral';
 }
 
 function inventoryRow(product) {
@@ -2632,6 +3179,26 @@ elements.suppliersSearch?.addEventListener('keydown', (event) => {
 elements.supplierSave?.addEventListener('click', saveSupplier);
 elements.supplierDeactivate?.addEventListener('click', toggleSupplierActive);
 elements.supplierCancel?.addEventListener('click', clearSupplierForm);
+elements.purchasesRefresh?.addEventListener('click', () => loadPurchases());
+elements.purchaseNew?.addEventListener('click', () => {
+    loadPurchaseOptions().then(clearPurchaseForm).catch((error) => setStatus(elements.purchasesStatus, normalizeError(error), 'error'));
+});
+elements.purchasesApply?.addEventListener('click', () => loadPurchases(1));
+elements.purchasesClear?.addEventListener('click', clearPurchaseFilters);
+elements.purchasesPrev?.addEventListener('click', () => loadPurchases(Math.max(state.purchases.page - 1, 1)));
+elements.purchasesNext?.addEventListener('click', () => loadPurchases(state.purchases.page + 1));
+elements.purchasesSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadPurchases(1);
+    }
+});
+elements.purchaseCurrency?.addEventListener('change', renderPurchaseItems);
+elements.purchaseAddItem?.addEventListener('click', addPurchaseItem);
+elements.purchaseSave?.addEventListener('click', savePurchase);
+elements.purchaseReceive?.addEventListener('click', receivePurchase);
+elements.purchaseCancelOrder?.addEventListener('click', cancelPurchaseOrder);
+elements.purchaseClear?.addEventListener('click', clearPurchaseForm);
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
 elements.accessTabs.forEach((button) => {
     button.addEventListener('click', () => setAccessTab(button.dataset.accessTab));

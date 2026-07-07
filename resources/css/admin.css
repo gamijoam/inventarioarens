@@ -674,6 +674,36 @@ button {
     max-height: 560px;
 }
 
+.purchases-admin__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.purchases-admin__main {
+    min-width: 0;
+}
+
+.purchases-admin__filters {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 130px 200px auto auto;
+    gap: 6px;
+    align-items: end;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-soft);
+}
+
+.purchases-admin__filters .field {
+    margin: 0;
+}
+
+.purchases-admin__table {
+    max-height: 590px;
+}
+
 .inventory-admin__quickbar {
     display: flex;
     align-items: center;
@@ -1040,6 +1070,119 @@ button {
     grid-column: 1 / -1;
 }
 
+.purchase-editor {
+    align-self: start;
+    position: sticky;
+    top: 64px;
+    display: grid;
+    gap: 8px;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-soft);
+}
+
+.purchase-editor h4 {
+    margin: 0;
+    font-size: 17px;
+}
+
+.purchase-editor p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.purchase-editor .field {
+    margin: 0;
+}
+
+.purchase-editor__grid,
+.purchase-item-form {
+    display: grid;
+    gap: 6px;
+}
+
+.purchase-editor__grid--two {
+    grid-template-columns: minmax(0, 1fr) 130px;
+}
+
+.purchase-editor__grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.purchase-items-editor {
+    display: grid;
+    gap: 7px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+}
+
+.purchase-items-editor__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.purchase-items-editor__head strong {
+    font-size: 13px;
+}
+
+.purchase-items-editor__head small {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+}
+
+.purchase-item-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px 82px auto;
+    align-items: end;
+}
+
+.purchase-items-editor__table {
+    max-height: 180px;
+    margin-top: 0;
+}
+
+.purchase-items-editor__table .admin-data-table {
+    min-width: 520px;
+}
+
+.purchase-editor__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #fed7aa;
+    border-radius: 7px;
+    color: var(--amber);
+    background: #fff7ed;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.purchase-editor__summary strong {
+    color: var(--ink);
+    font-size: 15px;
+}
+
+.purchase-editor__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.purchase-editor__actions .primary-button {
+    grid-column: 1 / -1;
+}
+
 .ghost-button--compact {
     min-height: 28px;
     padding: 0 8px;
@@ -1326,7 +1469,8 @@ button {
     }
 
     .inventory-admin__layout,
-    .suppliers-admin__layout {
+    .suppliers-admin__layout,
+    .purchases-admin__layout {
         grid-template-columns: 1fr;
     }
 
@@ -1337,7 +1481,8 @@ button {
 
     .inventory-editor,
     .inventory-detail,
-    .supplier-editor {
+    .supplier-editor,
+    .purchase-editor {
         position: static;
     }
 }
@@ -1383,7 +1528,11 @@ button {
     .inventory-admin__filters,
     .movements-admin__filters,
     .suppliers-admin__filters,
-    .supplier-editor__grid {
+    .purchases-admin__filters,
+    .supplier-editor__grid,
+    .purchase-editor__grid--two,
+    .purchase-editor__grid--three,
+    .purchase-item-form {
         grid-template-columns: 1fr;
     }
 

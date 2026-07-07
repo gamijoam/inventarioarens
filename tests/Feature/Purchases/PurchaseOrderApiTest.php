@@ -303,6 +303,58 @@ class PurchaseOrderApiTest extends TestCase
             ->assertJsonValidationErrors(['items.0.product_id']);
     }
 
+    public function test_purchase_index_can_filter_by_search_status_and_supplier(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'AUD-FILTRO');
+        $supplierA = $this->supplier($tenant, 'Proveedor Filtros', '300');
+        $supplierB = $this->supplier($tenant, 'Proveedor Oculto', '301');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplierA->id,
+                'document_number' => 'FAC-FILTRO-001',
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 12,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplierB->id,
+                'document_number' => 'FAC-OTRA-001',
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_cost' => 20,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/purchases?search=filtro&status=draft&supplier_id={$supplierA->id}&limit=10")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.document_number', 'FAC-FILTRO-001')
+            ->assertJsonPath('data.0.supplier.name', 'Proveedor Filtros')
+            ->assertJsonPath('data.0.items_count', 1);
+    }
+
     public function test_purchase_api_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

@@ -99,6 +99,10 @@
                             <span>Movimientos</span>
                             <small>Entradas y salidas</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="purchases">
+                            <span>Compras</span>
+                            <small>Recepciones</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="suppliers">
                             <span>Proveedores</span>
                             <small>Compras y cuentas</small>
@@ -495,6 +499,167 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-movements-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel purchases-admin" id="admin-purchases-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Compras</span>
+                                    <h3>Ordenes de compra</h3>
+                                    <p>Registra compras de proveedor, revisa pendientes y recibe mercancia para alimentar inventario.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="primary-button primary-button--fit" type="button" id="admin-purchase-new">Nueva compra</button>
+                                    <button class="ghost-button" type="button" id="admin-purchases-refresh">Actualizar compras</button>
+                                </div>
+                            </div>
+
+                            <div class="purchases-admin__layout">
+                                <div class="purchases-admin__main">
+                                    <div class="purchases-admin__filters" role="search">
+                                        <label class="field">
+                                            <span>Buscar</span>
+                                            <input id="admin-purchases-search" type="search" placeholder="Factura, proveedor o documento">
+                                        </label>
+                                        <label class="field">
+                                            <span>Estado</span>
+                                            <select id="admin-purchases-status-filter">
+                                                <option value="all">Todos</option>
+                                                <option value="draft">Pendiente</option>
+                                                <option value="partially_received">Parcial</option>
+                                                <option value="received">Recibida</option>
+                                                <option value="cancelled">Anulada</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Proveedor</span>
+                                            <select id="admin-purchases-supplier-filter">
+                                                <option value="">Todos</option>
+                                            </select>
+                                        </label>
+                                        <button class="primary-button primary-button--fit" type="button" id="admin-purchases-apply">Aplicar</button>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-purchases-clear">Limpiar</button>
+                                    </div>
+
+                                    <div class="admin-table-wrap purchases-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Compra</th>
+                                                    <th>Proveedor</th>
+                                                    <th>Estado</th>
+                                                    <th>Total</th>
+                                                    <th>Recibido</th>
+                                                    <th>Items</th>
+                                                    <th>Accion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-purchases-table"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="table-footer">
+                                        <span id="admin-purchases-count">Sin compras cargadas.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-purchases-prev">Anterior</button>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-purchases-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="purchase-editor" id="admin-purchase-editor">
+                                    <span class="soft-badge">Registro rapido</span>
+                                    <h4 id="admin-purchase-editor-title">Nueva compra</h4>
+                                    <p id="admin-purchase-editor-subtitle">Agrega proveedor, documento e items. Recibir mueve stock al inventario.</p>
+
+                                    <div class="purchase-editor__grid purchase-editor__grid--two">
+                                        <label class="field">
+                                            <span>Proveedor</span>
+                                            <select id="admin-purchase-supplier">
+                                                <option value="">Sin proveedor</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Documento</span>
+                                            <input id="admin-purchase-document" type="text" maxlength="80" placeholder="FAC-0001">
+                                        </label>
+                                    </div>
+
+                                    <div class="purchase-editor__grid purchase-editor__grid--three">
+                                        <label class="field">
+                                            <span>Emision</span>
+                                            <input id="admin-purchase-issued-at" type="date">
+                                        </label>
+                                        <label class="field">
+                                            <span>Vence</span>
+                                            <input id="admin-purchase-due-date" type="date">
+                                        </label>
+                                        <label class="field">
+                                            <span>Moneda</span>
+                                            <select id="admin-purchase-currency">
+                                                <option value="USD">USD</option>
+                                                <option value="VES">VES</option>
+                                            </select>
+                                        </label>
+                                    </div>
+
+                                    <section class="purchase-items-editor" aria-label="Items de compra">
+                                        <div class="purchase-items-editor__head">
+                                            <strong>Items</strong>
+                                            <small id="admin-purchase-items-total">0 items</small>
+                                        </div>
+
+                                        <div class="purchase-item-form">
+                                            <label class="field">
+                                                <span>Producto</span>
+                                                <select id="admin-purchase-product"></select>
+                                            </label>
+                                            <label class="field">
+                                                <span>Almacen</span>
+                                                <select id="admin-purchase-warehouse"></select>
+                                            </label>
+                                            <label class="field">
+                                                <span>Cant.</span>
+                                                <input id="admin-purchase-quantity" type="number" min="0.0001" step="0.0001" value="1">
+                                            </label>
+                                            <label class="field">
+                                                <span>Costo</span>
+                                                <input id="admin-purchase-unit-cost" type="number" min="0" step="0.01" value="0">
+                                            </label>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-purchase-add-item">Agregar item</button>
+                                        </div>
+
+                                        <div class="admin-table-wrap admin-table-wrap--compact purchase-items-editor__table">
+                                            <table class="admin-data-table admin-data-table--compact">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Producto</th>
+                                                        <th>Almacen</th>
+                                                        <th>Cant.</th>
+                                                        <th>Costo</th>
+                                                        <th></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="admin-purchase-items-table"></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+
+                                    <div class="purchase-editor__summary" id="admin-purchase-summary">
+                                        <span>Total estimado</span>
+                                        <strong>USD 0.00</strong>
+                                    </div>
+
+                                    <div class="purchase-editor__actions">
+                                        <button class="primary-button" type="button" id="admin-purchase-save">Guardar compra</button>
+                                        <button class="ghost-button" type="button" id="admin-purchase-receive">Recibir</button>
+                                        <button class="danger-button" type="button" id="admin-purchase-cancel-order">Anular</button>
+                                        <button class="ghost-button" type="button" id="admin-purchase-clear">Limpiar</button>
+                                    </div>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-purchases-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel suppliers-admin" id="admin-suppliers-module" hidden>

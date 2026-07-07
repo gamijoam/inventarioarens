@@ -4734,3 +4734,27 @@ Regla:
 - Tablas densas y controles compactos.
 - Menos padding, menos margen y menos scroll.
 - El portal debe sentirse como herramienta de trabajo, no como pagina comercial.
+## 2026-07-07 - Compras en portal administrativo web
+
+### Implementado
+
+- Se agrego la seccion **Compras** al portal administrativo web con estilo de alta densidad.
+- Se agregaron filtros por busqueda, estado y proveedor.
+- Se agrego formulario compacto para crear compras en borrador desde la web.
+- Se agrego recepcion completa de compras para mover inventario desde el backend.
+- Se agrego anulacion de compras en borrador.
+- Se amplio `GET /api/purchases` con filtros, paginacion y conteo de items.
+- Se documento el avance en `docs/PORTAL_ADMIN_COMPRAS_WEB_2026-07-07.md`, `docs/API.md` y `docs/MODULES.md`.
+
+### Pruebas
+
+- Pendiente de ejecutar pruebas especificas del modulo Compras y del portal administrativo.
+
+### Notas
+
+- La recepcion web de productos serializados/IMEI queda pendiente para una fase posterior; por ahora se bloquea desde la interfaz web para evitar ingresos incompletos.## 2026-07-07 - Verificacion de compras web
+
+### Pruebas ejecutadas
+
+- `PurchaseOrderApiTest` y `AdminPortalWebTest` pasaron correctamente.
+- `pnpm build` compilo los assets del portal administrativo sin errores.

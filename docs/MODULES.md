@@ -526,6 +526,7 @@ Responsabilidad:
 - costos en `USD` o `VES` con snapshot de tasa;
 - generacion de movimientos `purchase` al recibir;
 - creacion de unidades serializadas, como IMEIs, al recibir productos serializados.
+- vista web compacta en el portal administrativo para listar compras, crear borradores, recibir mercancia y anular compras no recibidas.
 
 Archivos principales:
 
@@ -550,6 +551,7 @@ Regla importante:
 - compras recibidas no se cancelan directamente en esta fase;
 - productos serializados requieren un serial o IMEI por unidad comprada;
 - los seriales recibidos se crean en `product_units` como disponibles y enlazados al movimiento de compra.
+- la primera pantalla web de compras no recibe seriales/IMEI; esos productos deben entrar por el flujo especializado hasta cerrar la fase web de seriales.
 
 ### PurchaseReturns
 

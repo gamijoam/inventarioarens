@@ -1932,6 +1932,25 @@ Permiso requerido:
 purchases.view
 ```
 
+Filtros opcionales:
+
+```txt
+search=filtro
+status=all|draft|partially_received|received|cancelled
+supplier_id=1
+date_from=2026-07-01
+date_to=2026-07-31
+limit=50
+page=1
+```
+
+Notas:
+
+- `search` busca por numero de documento de compra y datos del proveedor;
+- `status=all` muestra todos los estados;
+- `supplier_id` limita el listado a un proveedor de la empresa actual;
+- `limit` permite paginar la vista web compacta sin cargar demasiados registros.
+
 ### Crear compra en borrador
 
 ```txt
