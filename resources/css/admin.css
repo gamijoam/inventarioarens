@@ -154,6 +154,7 @@ button {
 
 .field input,
 .field select,
+.tenant-switcher select,
 .period-control select {
     width: 100%;
     min-height: 46px;
@@ -166,6 +167,7 @@ button {
 
 .field input:focus,
 .field select:focus,
+.tenant-switcher select:focus,
 .period-control select:focus {
     outline: 3px solid rgba(62, 53, 242, 0.15);
     border-color: var(--primary);
@@ -278,6 +280,19 @@ button {
     font-size: 12px;
     font-weight: 900;
     text-transform: uppercase;
+}
+
+.tenant-switcher {
+    display: grid;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.tenant-switcher select {
+    width: min(280px, 24vw);
 }
 
 .period-control select {
@@ -1023,6 +1038,7 @@ button {
         flex-direction: column;
     }
 
+    .tenant-switcher select,
     .period-control select,
     .topbar-actions button {
         width: 100%;

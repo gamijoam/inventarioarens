@@ -41,6 +41,16 @@ class AuthService
     {
         $user = $this->validateCredentials($email, $password);
 
+        return $this->issueSessionForTenant($user, $tenant, $request);
+    }
+
+    public function switchTenant(User $user, Tenant $tenant, Request $request): array
+    {
+        return $this->issueSessionForTenant($user, $tenant, $request);
+    }
+
+    private function issueSessionForTenant(User $user, Tenant $tenant, Request $request): array
+    {
         if (! $user->belongsToTenant($tenant)) {
             throw ValidationException::withMessages([
                 'tenant' => 'El usuario no pertenece a esta empresa o esta inactivo.',

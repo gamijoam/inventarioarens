@@ -3,9 +3,11 @@
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Requests\LoginRequest;
+use App\Modules\Auth\Requests\SwitchTenantRequest;
 use App\Modules\Auth\Requests\TenantLookupRequest;
 use App\Modules\Auth\Resources\AuthSessionResource;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,6 +58,30 @@ class AuthController extends Controller
                 app(TenantManager::class)->require()
             )
         );
+    }
+
+    public function switchTenant(SwitchTenantRequest $request): JsonResponse
+    {
+        $tenant = Tenant::query()
+            ->where('slug', $request->validated('tenant_slug'))
+            ->firstOrFail();
+
+        $session = $this->auth->switchTenant(
+            $request->user(),
+            $tenant,
+            $request
+        );
+
+        return response()->json([
+            'data' => array_merge(
+                AuthSessionResource::make($session)->resolve($request),
+                [
+                    'token' => $session['token'],
+                    'token_type' => $session['token_type'],
+                    'expires_at' => $session['expires_at'],
+                ]
+            ),
+        ], Response::HTTP_CREATED);
     }
 
     public function logout(Request $request): JsonResponse

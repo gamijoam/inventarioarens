@@ -14,3 +14,7 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::post('auth/logout-all', [AuthController::class, 'logoutAll']);
 });
+
+Route::middleware('api.auth')->group(function (): void {
+    Route::post('auth/switch-tenant', [AuthController::class, 'switchTenant']);
+});

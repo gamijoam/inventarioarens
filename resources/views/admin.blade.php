@@ -64,6 +64,10 @@
                     </div>
 
                     <div class="topbar-actions">
+                        <label class="tenant-switcher" id="admin-tenant-switcher-field" hidden>
+                            <span>Empresa activa</span>
+                            <select id="admin-tenant-switcher" aria-label="Cambiar empresa activa"></select>
+                        </label>
                         <label class="period-control">
                             <span>Periodo</span>
                             <select id="dashboard-period" aria-label="Periodo del dashboard">

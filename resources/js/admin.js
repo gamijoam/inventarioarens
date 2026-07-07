@@ -37,6 +37,8 @@ const elements = {
     logout: document.querySelector('#admin-logout'),
     refresh: document.querySelector('#dashboard-refresh'),
     period: document.querySelector('#dashboard-period'),
+    tenantSwitcherField: document.querySelector('#admin-tenant-switcher-field'),
+    tenantSwitcher: document.querySelector('#admin-tenant-switcher'),
     dashboardStatus: document.querySelector('#dashboard-status'),
     tenantTitle: document.querySelector('#dashboard-tenant'),
     periodLabel: document.querySelector('#dashboard-period-label'),
@@ -288,9 +290,18 @@ function authHeaders(session) {
     };
 }
 
-function saveSession(session) {
-    localStorage.setItem(storageKey, JSON.stringify(session));
-    renderDashboardShell(session);
+function sessionTenants(session) {
+    return session?.available_tenants?.length ? session.available_tenants : state.tenants;
+}
+
+function saveSession(session, tenants = state.tenants) {
+    const sessionWithTenants = {
+        ...session,
+        available_tenants: tenants.length ? tenants : session.available_tenants || [session.tenant],
+    };
+
+    localStorage.setItem(storageKey, JSON.stringify(sessionWithTenants));
+    renderDashboardShell(sessionWithTenants);
 }
 
 function resetViewport() {
@@ -316,13 +327,14 @@ function restoreSession() {
 
     try {
         const session = JSON.parse(raw);
+        state.tenants = sessionTenants(session);
         renderDashboardShell(session);
     } catch {
         clearSession();
     }
 }
 
-function renderTenantOptions(tenants) {
+function renderTenantOptions(tenants, { showLoginSelector = true } = {}) {
     state.tenants = tenants;
     state.selectedTenant = tenants[0] ?? null;
     elements.tenant.replaceChildren(
@@ -333,10 +345,10 @@ function renderTenantOptions(tenants) {
             return option;
         }),
     );
-    elements.tenantField.hidden = tenants.length === 0;
+    elements.tenantField.hidden = !showLoginSelector || tenants.length === 0;
 }
 
-async function loadTenants() {
+async function loadTenants(showLoginSelector = true) {
     const email = elements.email.value.trim();
 
     if (!email) {
@@ -353,7 +365,7 @@ async function loadTenants() {
             body: JSON.stringify({ email }),
         });
 
-        renderTenantOptions(tenants);
+        renderTenantOptions(tenants, { showLoginSelector });
 
         if (tenants.length === 0) {
             setStatus(elements.loginStatus, 'Este correo no tiene empresas activas asociadas.', 'error');
@@ -374,7 +386,7 @@ async function login(event) {
     event.preventDefault();
 
     if (state.tenants.length === 0) {
-        const tenantsLoaded = await loadTenants();
+        const tenantsLoaded = await loadTenants(false);
 
         if (!tenantsLoaded) {
             return;
@@ -404,7 +416,7 @@ async function login(event) {
             }),
         });
 
-        saveSession(session);
+        saveSession(session, state.tenants);
         await loadDashboard();
     } catch (error) {
         setStatus(elements.loginStatus, normalizeError(error), 'error');
@@ -415,13 +427,110 @@ async function login(event) {
 
 function renderDashboardShell(session) {
     state.session = session;
+    state.tenants = sessionTenants(session);
     elements.loginView.hidden = true;
     elements.dashboardView.hidden = false;
     document.body.classList.add('is-dashboard');
     elements.tenantTitle.textContent = session.tenant.name;
+    renderDashboardTenantSwitcher(session);
     activatePortalSection('overview');
     resetViewport();
     elements.dashboardView.focus({ preventScroll: true });
+}
+
+function renderDashboardTenantSwitcher(session) {
+    if (!elements.tenantSwitcher || !elements.tenantSwitcherField) {
+        return;
+    }
+
+    const tenants = sessionTenants(session);
+    elements.tenantSwitcher.replaceChildren(
+        ...tenants.map((tenant) => {
+            const option = document.createElement('option');
+            option.value = tenant.slug;
+            option.textContent = tenant.name;
+            option.selected = tenant.slug === session.tenant.slug;
+
+            return option;
+        }),
+    );
+
+    elements.tenantSwitcherField.hidden = tenants.length <= 1;
+    elements.tenantSwitcher.disabled = tenants.length <= 1;
+}
+
+function resetTenantScopedState() {
+    state.inventory.page = 1;
+    state.inventory.loaded = false;
+    state.inventory.selectedProduct = null;
+    state.inventory.priceLists = [];
+    state.inventory.productPrices = [];
+
+    state.access.loaded = false;
+    state.access.users = [];
+    state.access.roles = [];
+    state.access.permissions = [];
+    state.access.selectedUser = null;
+    state.access.selectedRole = null;
+
+    if (elements.inventoryEditor) {
+        elements.inventoryEditor.hidden = true;
+    }
+
+    if (elements.inventoryTable) {
+        elements.inventoryTable.innerHTML = '';
+    }
+
+    if (elements.accessUsersTable) {
+        elements.accessUsersTable.innerHTML = '';
+    }
+
+    if (elements.accessRolesTable) {
+        elements.accessRolesTable.innerHTML = '';
+    }
+
+    if (elements.accessPermissionsGrid) {
+        elements.accessPermissionsGrid.innerHTML = '';
+    }
+}
+
+async function switchTenant() {
+    const session = state.session;
+    const tenantSlug = elements.tenantSwitcher?.value;
+
+    if (!session || !tenantSlug || tenantSlug === session.tenant.slug) {
+        return;
+    }
+
+    setStatus(elements.dashboardStatus, 'Cambiando empresa activa...');
+    if (elements.tenantSwitcher) {
+        elements.tenantSwitcher.disabled = true;
+    }
+
+    try {
+        const switchedSession = await api('/api/auth/switch-tenant', {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify({
+                tenant_slug: tenantSlug,
+                device_name: 'Portal administrativo web',
+            }),
+        });
+
+        resetTenantScopedState();
+        saveSession(switchedSession, sessionTenants(session));
+        await loadDashboard();
+        setStatus(elements.dashboardStatus, `Empresa activa: ${switchedSession.tenant.name}.`, 'success');
+    } catch (error) {
+        if (elements.tenantSwitcher) {
+            elements.tenantSwitcher.value = session.tenant.slug;
+        }
+        setStatus(elements.dashboardStatus, normalizeError(error), 'error');
+    } finally {
+        if (elements.tenantSwitcher) {
+            elements.tenantSwitcher.disabled = sessionTenants(state.session).length <= 1;
+        }
+    }
 }
 
 function activatePortalSection(section) {
@@ -1423,6 +1532,7 @@ elements.loadTenants?.addEventListener('click', loadTenants);
 elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
 elements.period?.addEventListener('change', loadDashboard);
+elements.tenantSwitcher?.addEventListener('change', switchTenant);
 elements.logout?.addEventListener('click', clearSession);
 elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));

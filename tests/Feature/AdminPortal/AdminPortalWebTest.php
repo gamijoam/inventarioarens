@@ -13,6 +13,7 @@ class AdminPortalWebTest extends TestCase
             ->assertOk()
             ->assertSee('Portal administrativo')
             ->assertSee('admin-login-form')
+            ->assertSee('admin-tenant-switcher')
             ->assertSee('Productos y precios')
             ->assertSee('admin-inventory-module')
             ->assertSee('admin-inventory-search')

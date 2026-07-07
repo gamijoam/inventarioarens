@@ -153,6 +153,39 @@ class AuthApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_authenticated_user_can_switch_to_another_active_company(): void
+    {
+        [$tenantA, $tenantB] = [
+            Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']),
+            Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']),
+        ];
+        $user = User::factory()->create(['password' => 'secret123']);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+        $this->grantRole($tenantA, $user, 'Empresa A', ['products.view']);
+        $this->grantRole($tenantB, $user, 'Empresa B', ['pos.view']);
+
+        $tokenA = $this->loginToken($tenantA, $user);
+
+        $tokenB = $this
+            ->withHeader('Authorization', "Bearer {$tokenA}")
+            ->postJson('/api/auth/switch-tenant', [
+                'tenant_slug' => $tenantB->slug,
+                'device_name' => 'portal-web',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.tenant.slug', $tenantB->slug)
+            ->assertJsonPath('data.permissions.0', 'pos.view')
+            ->json('data.token');
+
+        $this
+            ->withHeader('Authorization', "Bearer {$tokenB}")
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.tenant.slug', $tenantB->slug);
+    }
+
     public function test_login_rejects_inactive_or_unrelated_company(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
