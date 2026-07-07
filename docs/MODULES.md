@@ -298,7 +298,7 @@ Responsabilidad:
 - registrar nodos de sincronizacion por empresa;
 - recibir eventos externos en `sync_inbox` sin duplicarlos;
 - entregar eventos pendientes desde `sync_outbox`;
-- registrar acuses de recibo para eventos aplicados o fallidos;
+- confirmar a la nube solo eventos que ya quedaron aplicados o ignorados localmente;
 - exponer estado operativo de sincronizacion por nodo, empresa e instalacion local;
 - servir como base para la futura sincronizacion local-nube y nube-local.
 
@@ -334,6 +334,7 @@ Archivos principales:
 - `docs/SYNC_CONTROL_WPF_2026-07-05.md`
 - `docs/SYNC_OUTBOX_INVENTARIO_PRECIOS_2026-07-06.md`
 - `docs/SYNC_CONFIGURACION_NUBE_OPERATIVA_2026-07-06.md`
+- `docs/SYNC_PRODUCTOS_WEB_GARANTIAS_ACK_2026-07-07.md`
 
 APIs:
 

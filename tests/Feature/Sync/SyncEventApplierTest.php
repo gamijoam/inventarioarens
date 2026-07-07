@@ -118,6 +118,61 @@ class SyncEventApplierTest extends TestCase
         $this->assertStringContainsString('No se encontro el producto', DB::table('sync_inbox')->where('tenant_id', $tenant->id)->value('last_error'));
     }
 
+    public function test_it_resolves_product_warranty_policy_by_name_instead_of_cloud_id(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Garantia Sync', 'slug' => 'empresa-garantia-sync']);
+        app(TenantManager::class)->set($tenant);
+
+        $now = now();
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.created',
+            'aggregate_type' => 'product',
+            'payload_hash' => 'hash',
+            'payload' => json_encode([
+                'sku' => 'PROD-GAR-001',
+                'name' => 'Producto con garantia nube',
+                'tracking_type' => 'quantity',
+                'base_price' => '77.7700',
+                'sale_currency' => 'USD',
+                'warranty_policy_id' => 999,
+                'warranty_policy_name' => 'Garantia prueba 7 dias',
+                'warranty_policy_duration_days' => 7,
+                'warranty_policy_coverage_type' => 'store',
+                'warranty_policy_conditions' => 'Cambio por defecto de fabrica.',
+                'warranty_policy_is_active' => true,
+                'is_active' => true,
+            ]),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+        $policyId = DB::table('warranty_policies')
+            ->where('tenant_id', $tenant->id)
+            ->where('name', 'Garantia prueba 7 dias')
+            ->value('id');
+
+        $this->assertSame(1, $summary['applied']);
+        $this->assertNotNull($policyId);
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'sku' => 'PROD-GAR-001',
+            'name' => 'Producto con garantia nube',
+            'warranty_policy_id' => $policyId,
+        ]);
+        $this->assertDatabaseHas('warranty_policies', [
+            'tenant_id' => $tenant->id,
+            'name' => 'Garantia prueba 7 dias',
+            'duration_days' => 7,
+            'coverage_type' => 'store',
+        ]);
+    }
+
     public function test_it_applies_initial_catalog_snapshot_events_in_order(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Snapshot Local', 'slug' => 'empresa-snapshot-local']);

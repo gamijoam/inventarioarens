@@ -162,7 +162,7 @@ class SyncEventApplier
             'base_price' => $payload['base_price'] ?? null,
             'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
             'sale_exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['sale_exchange_rate_type_code'] ?? null, $payload['sale_exchange_rate_type_id'] ?? null),
-            'warranty_policy_id' => $payload['warranty_policy_id'] ?? null,
+            'warranty_policy_id' => $this->warrantyPolicyId($tenant, $payload),
             'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
             'updated_at' => $now,
         ];
@@ -503,6 +503,54 @@ class SyncEventApplier
         }
 
         return $fallbackId ? (int) $fallbackId : null;
+    }
+
+    private function warrantyPolicyId(Tenant $tenant, array $payload): ?int
+    {
+        $name = trim((string) ($payload['warranty_policy_name'] ?? ''));
+        $fallbackId = $payload['warranty_policy_id'] ?? null;
+
+        if ($name === '') {
+            if (! $fallbackId) {
+                return null;
+            }
+
+            $localId = DB::table('warranty_policies')
+                ->where('tenant_id', $tenant->id)
+                ->where('id', (int) $fallbackId)
+                ->value('id');
+
+            return $localId ? (int) $localId : null;
+        }
+
+        $now = now();
+        $fields = [
+            'duration_days' => (int) ($payload['warranty_policy_duration_days'] ?? 0),
+            'coverage_type' => $payload['warranty_policy_coverage_type'] ?? 'store',
+            'conditions' => $payload['warranty_policy_conditions'] ?? null,
+            'is_active' => array_key_exists('warranty_policy_is_active', $payload) ? (bool) $payload['warranty_policy_is_active'] : true,
+            'updated_at' => $now,
+        ];
+
+        $existing = DB::table('warranty_policies')
+            ->where('tenant_id', $tenant->id)
+            ->where('name', $name)
+            ->first();
+
+        if ($existing) {
+            DB::table('warranty_policies')
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $existing->id)
+                ->update($fields);
+
+            return (int) $existing->id;
+        }
+
+        return (int) DB::table('warranty_policies')->insertGetId(array_merge($fields, [
+            'tenant_id' => $tenant->id,
+            'name' => $name,
+            'created_at' => $now,
+        ]));
     }
 
     private function requiredString(array $payload, string $key): string

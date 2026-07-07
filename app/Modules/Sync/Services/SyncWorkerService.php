@@ -74,7 +74,6 @@ class SyncWorkerService
             if ($pull) {
                 $pullSummary = $this->pullCloudEvents($tenant, (int) $localNode['id'], $nodeCode, $cloudUrl, $token, $limit);
                 $summary['pulled'] = $pullSummary['pulled'];
-                $summary['acknowledged'] = $pullSummary['acknowledged'];
                 $summary['failed'] += $pullSummary['failed'];
             }
 
@@ -83,6 +82,12 @@ class SyncWorkerService
                 $summary['applied'] = $applySummary['applied'];
                 $summary['ignored'] = $applySummary['ignored'];
                 $summary['failed'] += $applySummary['failed'];
+
+                if ($pull && ($pullSummary['event_uuids'] ?? []) !== []) {
+                    $ackSummary = $this->acknowledgeAppliedCloudEvents($tenant, $nodeCode, $cloudUrl, $token, $pullSummary['event_uuids']);
+                    $summary['acknowledged'] = $ackSummary['acknowledged'];
+                    $summary['failed'] += $ackSummary['failed'];
+                }
             }
 
             $this->readiness->markCompleted($tenant, $installationCode, $nodeCode, $nodeName, $summary);
@@ -211,10 +216,10 @@ class SyncWorkerService
 
         $events = $response->json('data') ?? [];
         $pulled = 0;
-        $acknowledged = 0;
         $failed = 0;
         $lastEventId = null;
         $lastEventUuid = null;
+        $eventUuids = [];
 
         foreach ($events as $event) {
             $eventUuid = (string) ($event['event_uuid'] ?? '');
@@ -229,9 +234,43 @@ class SyncWorkerService
             $pulled += $stored ? 1 : 0;
             $lastEventId = isset($event['id']) ? (int) $event['id'] : null;
             $lastEventUuid = $eventUuid;
+            $eventUuids[] = $eventUuid;
+        }
 
+        if ($lastEventUuid) {
+            $this->touchState($tenant, $nodeCode, 'pull', $lastEventId, $lastEventUuid, $failed > 0 ? 'Hay eventos invalidos recibidos desde la nube.' : null);
+        }
+
+        return [
+            'pulled' => $pulled,
+            'failed' => $failed,
+            'event_uuids' => array_values(array_unique($eventUuids)),
+        ];
+    }
+
+    private function acknowledgeAppliedCloudEvents(Tenant $tenant, string $nodeCode, string $cloudUrl, string $token, array $eventUuids): array
+    {
+        $eventUuids = array_values(array_unique(array_filter(array_map(
+            fn (mixed $eventUuid): string => (string) $eventUuid,
+            $eventUuids
+        ))));
+
+        if ($eventUuids === []) {
+            return ['acknowledged' => 0, 'failed' => 0];
+        }
+
+        $events = DB::table('sync_inbox')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('event_uuid', $eventUuids)
+            ->whereIn('status', ['applied', 'ignored'])
+            ->get(['event_uuid']);
+
+        $acknowledged = 0;
+        $failed = 0;
+
+        foreach ($events as $event) {
             $ack = $this->client($tenant, $token)
-                ->post($this->url($cloudUrl, "sync/events/{$eventUuid}/ack"), [
+                ->post($this->url($cloudUrl, "sync/events/{$event->event_uuid}/ack"), [
                     'node_code' => $nodeCode,
                     'status' => 'applied',
                 ]);
@@ -243,15 +282,11 @@ class SyncWorkerService
             }
         }
 
-        if ($lastEventUuid) {
-            $this->touchState($tenant, $nodeCode, 'pull', $lastEventId, $lastEventUuid, $failed > 0 ? 'Hay eventos sin confirmar en la nube.' : null);
+        if ($acknowledged < count($eventUuids)) {
+            $this->touchState($tenant, $nodeCode, 'pull', null, end($eventUuids) ?: null, 'Hay eventos recibidos que aun no se aplicaron localmente.');
         }
 
-        return [
-            'pulled' => $pulled,
-            'acknowledged' => $acknowledged,
-            'failed' => $failed,
-        ];
+        return ['acknowledged' => $acknowledged, 'failed' => max(0, $failed)];
     }
 
     private function storeInboxEvent(Tenant $tenant, int $nodeId, array $event): bool

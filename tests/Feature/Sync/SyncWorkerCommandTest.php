@@ -160,6 +160,61 @@ class SyncWorkerCommandTest extends TestCase
         Http::assertSentCount(4);
     }
 
+    public function test_sync_worker_does_not_acknowledge_cloud_events_that_fail_locally(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync Worker Falla',
+            'slug' => 'empresa-sync-worker-falla',
+        ]);
+        $cloudEventUuid = (string) Str::uuid();
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-VAL-FAIL'],
+            ], 201),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [[
+                    'id' => 101,
+                    'event_uuid' => $cloudEventUuid,
+                    'event_type' => 'product_price.updated',
+                    'aggregate_type' => 'product_price',
+                    'aggregate_id' => 77,
+                    'payload' => [
+                        'sku' => 'NO-EXISTE',
+                        'price_list_code' => 'DETAL',
+                        'price' => '30.0000',
+                        'currency' => 'USD',
+                        'is_active' => true,
+                    ],
+                ]],
+            ], 200),
+            "https://cloud.test/api/sync/events/{$cloudEventUuid}/ack" => Http::response([
+                'data' => ['event_uuid' => $cloudEventUuid, 'status' => 'processed'],
+            ], 200),
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-VAL-FAIL',
+            '--name' => 'Local Valencia Fallo',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--pull-only' => true,
+            '--installation' => 'LOCAL-WORKER-FAIL-01',
+        ])
+            ->expectsOutput('Sincronizacion ejecutada.')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $cloudEventUuid,
+            'status' => 'failed',
+        ]);
+
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), "/sync/events/{$cloudEventUuid}/ack"));
+    }
+
     public function test_sync_worker_does_not_run_for_unknown_tenant(): void
     {
         Http::fake();
