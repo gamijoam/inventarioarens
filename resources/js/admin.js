@@ -60,6 +60,8 @@ const elements = {
     inventoryTracking: document.querySelector('#admin-inventory-tracking'),
     inventoryStock: document.querySelector('#admin-inventory-stock'),
     inventoryActive: document.querySelector('#admin-inventory-active'),
+    inventoryQuickStatus: document.querySelector('#admin-inventory-quick-status'),
+    inventoryFilterSummary: document.querySelector('#admin-inventory-filter-summary'),
     inventoryApply: document.querySelector('#admin-inventory-apply'),
     inventoryTable: document.querySelector('#admin-inventory-table'),
     inventoryCount: document.querySelector('#admin-inventory-count'),
@@ -738,6 +740,8 @@ async function loadInventory(page = state.inventory.page) {
 
 function renderInventory(summary) {
     const products = summary.products || [];
+    renderInventoryQuickFilters();
+    renderInventoryFilterSummary(summary);
 
     if (!products.length) {
         elements.inventoryTable.innerHTML = '<tr><td colspan="8"><strong>Sin productos</strong><small>No hay productos con los filtros seleccionados.</small></td></tr>';
@@ -754,8 +758,54 @@ function renderInventory(summary) {
     state.inventory.page = pagination.page || 1;
 }
 
+function renderInventoryQuickFilters() {
+    const activeStatus = elements.inventoryActive?.value || 'all';
+
+    elements.inventoryQuickStatus?.querySelectorAll('[data-inventory-active-filter]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.inventoryActiveFilter === activeStatus);
+    });
+}
+
+function renderInventoryFilterSummary(summary = {}) {
+    if (!elements.inventoryFilterSummary) {
+        return;
+    }
+
+    const filters = [];
+    const activeStatus = elements.inventoryActive?.value || 'all';
+    const stockStatus = elements.inventoryStock?.value || 'all';
+    const tracking = elements.inventoryTracking?.value || '';
+    const search = elements.inventorySearch?.value.trim() || '';
+    const pagination = summary.pagination || {};
+
+    if (activeStatus !== 'all') {
+        filters.push(activeStatus === 'active' ? 'solo activos' : 'solo inactivos');
+    }
+
+    if (stockStatus !== 'all') {
+        filters.push(`stock: ${stockStatusLabel(stockStatus).toLowerCase()}`);
+    }
+
+    if (tracking) {
+        filters.push(`control: ${trackingLabel(tracking).toLowerCase()}`);
+    }
+
+    if (search) {
+        filters.push(`busqueda: "${search}"`);
+    }
+
+    const totalLabel = Number.isFinite(Number(pagination.total))
+        ? `${pagination.total} producto(s)`
+        : 'catalogo';
+
+    elements.inventoryFilterSummary.textContent = filters.length
+        ? `${totalLabel} con ${filters.join(', ')}.`
+        : `${totalLabel} en vista completa del catalogo.`;
+}
+
 function inventoryRow(product) {
     const row = document.createElement('tr');
+    row.className = product.is_active ? '' : 'admin-data-table__row--inactive';
     const canEdit = canUpdateProducts();
     const canDeactivate = canDeleteProducts() && product.is_active;
     const canReactivate = canUpdateProducts() && !product.is_active;
@@ -1788,6 +1838,16 @@ elements.inventoryNew?.addEventListener('click', () => {
     });
 });
 elements.inventoryApply?.addEventListener('click', () => loadInventory(1));
+elements.inventoryQuickStatus?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-inventory-active-filter]');
+
+    if (!button || !elements.inventoryActive) {
+        return;
+    }
+
+    elements.inventoryActive.value = button.dataset.inventoryActiveFilter || 'all';
+    loadInventory(1);
+});
 elements.inventorySearch?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
         event.preventDefault();

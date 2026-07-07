@@ -235,6 +235,15 @@
                                         <button class="primary-button" type="button" id="admin-inventory-apply">Aplicar</button>
                                     </div>
 
+                                    <div class="inventory-admin__quickbar" aria-label="Filtros rapidos de inventario">
+                                        <div class="inventory-admin__quickfilters" id="admin-inventory-quick-status">
+                                            <button class="filter-chip is-active" type="button" data-inventory-active-filter="all">Todos</button>
+                                            <button class="filter-chip" type="button" data-inventory-active-filter="active">Activos</button>
+                                            <button class="filter-chip" type="button" data-inventory-active-filter="inactive">Inactivos</button>
+                                        </div>
+                                        <span class="inventory-admin__filter-summary" id="admin-inventory-filter-summary">Vista completa del catalogo.</span>
+                                    </div>
+
                                     <div class="admin-table-wrap">
                                         <table class="admin-data-table">
                                             <thead>

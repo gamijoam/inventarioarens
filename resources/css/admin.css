@@ -624,6 +624,50 @@ button {
     margin: 0;
 }
 
+.inventory-admin__quickbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+}
+
+.inventory-admin__quickfilters {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.filter-chip {
+    min-height: 26px;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: #fff;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.filter-chip.is-active {
+    color: var(--primary);
+    background: #f0f2ff;
+    border-color: #d8dcff;
+}
+
+.inventory-admin__filter-summary {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+    text-align: right;
+}
+
 .admin-table-wrap {
     max-height: 560px;
     margin-top: 8px;
@@ -668,6 +712,19 @@ button {
     margin-top: 1px;
     color: var(--muted);
     font-weight: 750;
+}
+
+.admin-data-table__row--inactive {
+    background: #fbfcff;
+}
+
+.admin-data-table__row--inactive td:first-child strong {
+    color: var(--muted);
+}
+
+.admin-data-table__row--inactive td:first-child small::after {
+    content: " · inactivo";
+    color: var(--amber);
 }
 
 .stock-pill {
@@ -1078,9 +1135,14 @@ button {
     }
 
     .module-head,
-    .table-footer {
+    .table-footer,
+    .inventory-admin__quickbar {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .inventory-admin__filter-summary {
+        text-align: left;
     }
 
     .inventory-admin__filters {
