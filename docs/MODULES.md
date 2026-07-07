@@ -157,7 +157,8 @@ Responsabilidad:
 - resumir ventas, POS, caja, inventario y sincronizacion por empresa;
 - servir como contrato de datos para metricas gerenciales en la nube;
 - evitar que la web consulte PostgreSQL directamente;
-- entregar alertas operativas sin cargar listas completas.
+- entregar alertas operativas sin cargar listas completas;
+- administrar productos, precios y permisos usando las APIs protegidas del backend.
 
 Archivos principales:
 
@@ -171,7 +172,7 @@ Archivos principales:
 
 Regla importante:
 
-- el modulo es solo lectura;
+- el modulo no consulta PostgreSQL directamente; lee y escribe mediante APIs protegidas;
 - requiere permisos de lectura gerencial u operativa como `reports.view`, `finance_reports.view`, `sales.view`, `products.view` o `cash_register.view`;
 - todas las consultas filtran por tenant actual;
 - usa agregados SQL para evitar N+1 y no enviar catalogos completos al portal web.
@@ -268,6 +269,8 @@ Regla importante:
 - el POS debe enviar `price_list_id` por item cuando quiera usar una lista concreta;
 - las ventas copian historicamente la lista, precio, moneda y tasa usada.
 - la respuesta del producto puede incluir `sale_exchange_rate_type` y `warranty_policy` cuando el controller los carga para formularios o detalle.
+- crear o actualizar un producto desde web genera eventos de sincronizacion en `sync_outbox`.
+- eliminar un producto en web es borrado logico: `DELETE /api/products/{product}` cambia `is_active=false`, conserva historico y tambien genera evento para locales.
 
 ### PaymentMethods
 

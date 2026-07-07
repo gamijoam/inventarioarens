@@ -590,9 +590,17 @@ button {
     font-weight: 750;
 }
 
+.module-head__actions,
+.table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 5px;
+}
+
 .inventory-admin__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: 8px;
     margin-top: 8px;
 }
@@ -709,6 +717,8 @@ button {
     top: 64px;
     display: grid;
     gap: 8px;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
     padding: 10px;
     border: 1px solid var(--line);
     border-radius: 7px;
@@ -733,7 +743,12 @@ button {
 
 .inventory-editor__actions {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+}
+
+.inventory-editor__actions .primary-button {
+    grid-column: 1 / -1;
 }
 
 .ghost-button--compact {

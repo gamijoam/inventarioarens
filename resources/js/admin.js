@@ -9,9 +9,12 @@ const state = {
     inventory: {
         page: 1,
         loaded: false,
+        mode: 'edit',
         selectedProduct: null,
         priceLists: [],
         productPrices: [],
+        rateTypes: [],
+        warrantyPolicies: [],
     },
     access: {
         loaded: false,
@@ -51,6 +54,7 @@ const elements = {
     modulePlaceholderTitle: document.querySelector('#module-placeholder-title'),
     modulePlaceholderCopy: document.querySelector('#module-placeholder-copy'),
     inventoryModule: document.querySelector('#admin-inventory-module'),
+    inventoryNew: document.querySelector('#admin-inventory-new'),
     inventoryRefresh: document.querySelector('#admin-inventory-refresh'),
     inventorySearch: document.querySelector('#admin-inventory-search'),
     inventoryTracking: document.querySelector('#admin-inventory-tracking'),
@@ -65,10 +69,16 @@ const elements = {
     inventoryEditor: document.querySelector('#admin-inventory-editor'),
     inventoryEditorTitle: document.querySelector('#admin-inventory-editor-title'),
     inventoryEditorSubtitle: document.querySelector('#admin-inventory-editor-subtitle'),
+    inventoryName: document.querySelector('#admin-inventory-name'),
+    inventorySku: document.querySelector('#admin-inventory-sku'),
+    inventoryTrackingEdit: document.querySelector('#admin-inventory-tracking-edit'),
     inventoryPrice: document.querySelector('#admin-inventory-price'),
     inventoryCurrency: document.querySelector('#admin-inventory-currency'),
+    inventoryRateType: document.querySelector('#admin-inventory-rate-type'),
+    inventoryWarranty: document.querySelector('#admin-inventory-warranty'),
     inventoryActiveEdit: document.querySelector('#admin-inventory-active-edit'),
     inventorySave: document.querySelector('#admin-inventory-save'),
+    inventoryDeactivate: document.querySelector('#admin-inventory-deactivate'),
     inventoryCancel: document.querySelector('#admin-inventory-cancel'),
     priceListRows: document.querySelector('#admin-price-list-rows'),
     priceListSave: document.querySelector('#admin-price-list-save'),
@@ -462,9 +472,12 @@ function renderDashboardTenantSwitcher(session) {
 function resetTenantScopedState() {
     state.inventory.page = 1;
     state.inventory.loaded = false;
+    state.inventory.mode = 'edit';
     state.inventory.selectedProduct = null;
     state.inventory.priceLists = [];
     state.inventory.productPrices = [];
+    state.inventory.rateTypes = [];
+    state.inventory.warrantyPolicies = [];
 
     state.access.loaded = false;
     state.access.users = [];
@@ -744,6 +757,7 @@ function renderInventory(summary) {
 function inventoryRow(product) {
     const row = document.createElement('tr');
     const canEdit = canUpdateProducts();
+    const canDeactivate = canDeleteProducts() && product.is_active;
 
     row.innerHTML = `
         <td><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.sku)}</small></td>
@@ -754,9 +768,10 @@ function inventoryRow(product) {
         <td><span class="stock-pill stock-pill--${escapeHtml(product.stock?.status || 'available')}">${stockStatusLabel(product.stock?.status)}</span></td>
         <td><span class="status-pill" data-tone="${product.is_active ? 'success' : 'warning'}">${product.is_active ? 'Activo' : 'Inactivo'}</span></td>
         <td>
-            <button class="ghost-button" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>
-                Editar
-            </button>
+            <div class="table-actions">
+                <button class="ghost-button ghost-button--compact" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>Editar</button>
+                <button class="danger-button ghost-button--compact" type="button" data-admin-product-deactivate="${product.id}" ${canDeactivate ? '' : 'disabled'}>Desactivar</button>
+            </div>
         </td>
     `;
 
@@ -766,22 +781,57 @@ function inventoryRow(product) {
             setStatus(elements.inventoryStatus, normalizeError(error), 'error');
         });
     });
+    row.querySelector('[data-admin-product-deactivate]')?.addEventListener('click', () => {
+        deactivateInventoryProduct(product);
+    });
 
     return row;
 }
 
+async function openNewInventoryProduct() {
+    if (!can('products.create')) {
+        setStatus(elements.inventoryStatus, 'Tu usuario no tiene permiso para crear productos.', 'error');
+        return;
+    }
+
+    state.inventory.mode = 'create';
+    state.inventory.selectedProduct = null;
+    elements.inventoryEditor.hidden = false;
+    elements.inventoryEditorTitle.textContent = 'Nuevo producto';
+    elements.inventoryEditorSubtitle.textContent = 'Se creara en esta empresa y quedara listo para sincronizar locales.';
+    fillInventoryProductForm({
+        name: '',
+        sku: '',
+        tracking_type: 'quantity',
+        base_price: '',
+        sale_currency: 'USD',
+        sale_exchange_rate_type_id: '',
+        warranty_policy_id: '',
+        is_active: true,
+        can_change_tracking_type: true,
+    });
+    elements.inventoryDeactivate.hidden = true;
+    renderProductPriceListRows([]);
+    await loadInventoryCatalogOptions();
+    setStatus(elements.inventoryStatus, 'Completa nombre, SKU y precio base. El stock se carga luego por entradas.', 'neutral');
+}
+
 async function selectInventoryProduct(product) {
+    state.inventory.mode = 'edit';
     state.inventory.selectedProduct = product;
     elements.inventoryEditor.hidden = false;
     elements.inventoryEditorTitle.textContent = product.name;
-    elements.inventoryEditorSubtitle.textContent = `${product.sku} · ${trackingLabel(product.tracking_type)}`;
-    elements.inventoryPrice.value = product.base_price ?? '';
-    elements.inventoryCurrency.value = product.sale_currency || 'USD';
-    elements.inventoryActiveEdit.value = product.is_active ? '1' : '0';
+    elements.inventoryEditorSubtitle.textContent = `${product.sku} - ${trackingLabel(product.tracking_type)}`;
+    fillInventoryProductForm(product);
+    elements.inventoryDeactivate.hidden = !product.is_active || !canDeleteProducts();
     renderProductPriceListRows([], true);
     setStatus(elements.inventoryStatus, 'Cargando precios por lista del producto...', 'neutral');
 
-    await Promise.all([
+    const [detail] = await Promise.all([
+        api(`/api/products/${product.id}`, {
+            headers: authHeaders(state.session),
+        }),
+        loadInventoryCatalogOptions(),
         loadInventoryPriceLists(),
         loadProductPriceLists(product),
     ]);
@@ -790,48 +840,197 @@ async function selectInventoryProduct(product) {
         return;
     }
 
+    state.inventory.selectedProduct = { ...product, ...detail };
+    elements.inventoryEditorTitle.textContent = state.inventory.selectedProduct.name;
+    elements.inventoryEditorSubtitle.textContent = `${state.inventory.selectedProduct.sku} - ${trackingLabel(state.inventory.selectedProduct.tracking_type)}`;
+    fillInventoryProductForm(state.inventory.selectedProduct);
+    elements.inventoryDeactivate.hidden = !state.inventory.selectedProduct.is_active || !canDeleteProducts();
     renderProductPriceListRows();
-    setStatus(elements.inventoryStatus, 'Edita precio base, moneda, estado o precios por lista. Todo quedará listo para sincronizarse.', 'neutral');
+    setStatus(elements.inventoryStatus, 'Edita precio base, moneda, estado o precios por lista. Todo queda listo para sincronizarse.', 'neutral');
+}
+
+function fillInventoryProductForm(product) {
+    elements.inventoryName.value = product.name || '';
+    elements.inventorySku.value = product.sku || '';
+    elements.inventoryTrackingEdit.value = product.tracking_type || 'quantity';
+    elements.inventoryTrackingEdit.disabled = product.can_change_tracking_type === false;
+    elements.inventoryPrice.value = product.base_price ?? '';
+    elements.inventoryCurrency.value = product.sale_currency || 'USD';
+    elements.inventoryActiveEdit.value = product.is_active === false ? '0' : '1';
+    renderInventoryCatalogOptions(product);
+}
+
+function renderInventoryCatalogOptions(product = {}) {
+    renderSelectOptions(
+        elements.inventoryRateType,
+        state.inventory.rateTypes,
+        'Sin tasa asignada',
+        product.sale_exchange_rate_type_id,
+        (item) => `${item.name}${item.code ? ` (${item.code})` : ''}${item.is_default ? ' - predeterminada' : ''}`,
+    );
+
+    renderSelectOptions(
+        elements.inventoryWarranty,
+        state.inventory.warrantyPolicies,
+        'Sin politica asignada',
+        product.warranty_policy_id,
+        (item) => `${item.name}${item.days ? ` - ${item.days} dias` : ''}`,
+    );
+}
+
+function renderSelectOptions(select, items, emptyLabel, selectedValue, labelCallback) {
+    if (!select) {
+        return;
+    }
+
+    const normalizedSelected = selectedValue === null || selectedValue === undefined ? '' : String(selectedValue);
+    select.replaceChildren(new Option(emptyLabel, ''));
+    items.forEach((item) => {
+        const option = new Option(labelCallback(item), String(item.id));
+        option.selected = String(item.id) === normalizedSelected;
+        select.add(option);
+    });
+}
+
+async function loadInventoryCatalogOptions() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    const requests = [];
+
+    if (!state.inventory.rateTypes.length && can('currency.view')) {
+        requests.push(api('/api/currency/rate-types', {
+            headers: authHeaders(session),
+        }).then((rateTypes) => {
+            state.inventory.rateTypes = collectionData(rateTypes).filter((rateType) => rateType.is_active !== false);
+        }));
+    }
+
+    if (!state.inventory.warrantyPolicies.length && can('warranty_policies.view')) {
+        requests.push(api('/api/warranty-policies', {
+            headers: authHeaders(session),
+        }).then((policies) => {
+            state.inventory.warrantyPolicies = collectionData(policies).filter((policy) => policy.is_active !== false);
+        }));
+    }
+
+    await Promise.all(requests);
+    renderInventoryCatalogOptions(state.inventory.selectedProduct || {});
+}
+
+function inventoryProductPayload() {
+    const rateType = elements.inventoryRateType.value;
+    const warranty = elements.inventoryWarranty.value;
+
+    return {
+        name: elements.inventoryName.value.trim(),
+        sku: elements.inventorySku.value.trim(),
+        tracking_type: elements.inventoryTrackingEdit.value || 'quantity',
+        base_price: elements.inventoryPrice.value === '' ? 0 : Number(elements.inventoryPrice.value),
+        sale_currency: elements.inventoryCurrency.value || 'USD',
+        sale_exchange_rate_type_id: rateType ? Number(rateType) : null,
+        warranty_policy_id: warranty ? Number(warranty) : null,
+        is_active: elements.inventoryActiveEdit.value === '1',
+    };
+}
+
+function validateInventoryProductPayload(payload) {
+    if (!payload.name) {
+        return 'El nombre del producto es obligatorio.';
+    }
+
+    if (!payload.sku) {
+        return 'El SKU del producto es obligatorio.';
+    }
+
+    if (Number.isNaN(payload.base_price) || payload.base_price < 0) {
+        return 'El precio base debe ser mayor o igual a cero.';
+    }
+
+    return null;
 }
 
 async function saveInventoryProductPrice() {
     const product = state.inventory.selectedProduct;
     const session = state.session;
+    const isCreate = state.inventory.mode === 'create';
 
-    if (!product || !session) {
+    if ((!product && !isCreate) || !session) {
         setStatus(elements.inventoryStatus, 'Selecciona un producto antes de guardar.', 'error');
         return;
     }
 
-    if (elements.inventoryPrice.value === '' || Number(elements.inventoryPrice.value) < 0) {
-        setStatus(elements.inventoryStatus, 'El precio base debe ser mayor o igual a cero.', 'error');
+    const payload = inventoryProductPayload();
+    const validationError = validateInventoryProductPayload(payload);
+
+    if (validationError) {
+        setStatus(elements.inventoryStatus, validationError, 'error');
         return;
     }
 
-    setStatus(elements.inventoryStatus, 'Guardando precio y preparando sincronización...');
+    setStatus(elements.inventoryStatus, 'Guardando producto y preparando sincronizacion...');
     setButtonLoading(elements.inventorySave, true, 'Guardando...');
 
     try {
-        await api(`/api/products/${product.id}`, {
-            method: 'PUT',
+        await api(isCreate ? '/api/products' : `/api/products/${product.id}`, {
+            method: isCreate ? 'POST' : 'PUT',
             headers: authHeaders(session),
-            body: JSON.stringify({
-                base_price: Number(elements.inventoryPrice.value),
-                sale_currency: elements.inventoryCurrency.value,
-                is_active: elements.inventoryActiveEdit.value === '1',
-            }),
+            body: JSON.stringify(payload),
         });
 
         elements.inventoryEditor.hidden = true;
+        state.inventory.mode = 'edit';
         state.inventory.selectedProduct = null;
         state.inventory.loaded = false;
         await loadInventory();
         await loadDashboard();
-        setStatus(elements.inventoryStatus, 'Precio actualizado. El cambio quedó listo para sincronizarse.', 'success');
+        setStatus(elements.inventoryStatus, isCreate ? 'Producto creado. El cambio quedo listo para sincronizarse.' : 'Producto actualizado. El cambio quedo listo para sincronizarse.', 'success');
     } catch (error) {
         setStatus(elements.inventoryStatus, normalizeError(error), 'error');
     } finally {
         setButtonLoading(elements.inventorySave, false);
+    }
+}
+
+async function deactivateInventoryProduct(product) {
+    const session = state.session;
+
+    if (!product || !session) {
+        return;
+    }
+
+    if (!canDeleteProducts()) {
+        setStatus(elements.inventoryStatus, 'Tu usuario no tiene permiso para desactivar productos.', 'error');
+        return;
+    }
+
+    const confirmed = window.confirm(`Desactivar ${product.name}? No se eliminara historico ni movimientos.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    setStatus(elements.inventoryStatus, 'Desactivando producto y preparando sincronizacion...');
+
+    try {
+        await api(`/api/products/${product.id}`, {
+            method: 'DELETE',
+            headers: authHeaders(session),
+        });
+
+        elements.inventoryEditor.hidden = true;
+        state.inventory.mode = 'edit';
+        state.inventory.selectedProduct = null;
+        state.inventory.productPrices = [];
+        state.inventory.loaded = false;
+        await loadInventory();
+        await loadDashboard();
+        setStatus(elements.inventoryStatus, 'Producto desactivado. El cambio quedo listo para sincronizarse.', 'success');
+    } catch (error) {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
     }
 }
 
@@ -1490,6 +1689,10 @@ function canUpdateProducts() {
     return can('products.update');
 }
 
+function canDeleteProducts() {
+    return can('products.delete');
+}
+
 function trackingLabel(type) {
     return type === 'serialized' ? 'Serializado / IMEI' : 'Por cantidad';
 }
@@ -1538,6 +1741,11 @@ elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
 });
 elements.inventoryRefresh?.addEventListener('click', () => loadInventory());
+elements.inventoryNew?.addEventListener('click', () => {
+    openNewInventoryProduct().catch((error) => {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    });
+});
 elements.inventoryApply?.addEventListener('click', () => loadInventory(1));
 elements.inventorySearch?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -1548,12 +1756,15 @@ elements.inventorySearch?.addEventListener('keydown', (event) => {
 elements.inventoryPrev?.addEventListener('click', () => loadInventory(Math.max(state.inventory.page - 1, 1)));
 elements.inventoryNext?.addEventListener('click', () => loadInventory(state.inventory.page + 1));
 elements.inventorySave?.addEventListener('click', saveInventoryProductPrice);
+elements.inventoryDeactivate?.addEventListener('click', () => deactivateInventoryProduct(state.inventory.selectedProduct));
 elements.priceListSave?.addEventListener('click', saveProductPriceLists);
 elements.priceCopyBase?.addEventListener('click', copyBasePriceToEmptyLists);
 elements.inventoryCancel?.addEventListener('click', () => {
     elements.inventoryEditor.hidden = true;
+    state.inventory.mode = 'edit';
     state.inventory.selectedProduct = null;
     state.inventory.productPrices = [];
+    elements.inventoryDeactivate.hidden = true;
     renderProductPriceListRows([]);
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
@@ -1575,3 +1786,4 @@ restoreSession();
 if (state.session) {
     loadDashboard();
 }
+

@@ -194,7 +194,10 @@
                                     <h3>Productos y precios</h3>
                                     <p>Consulta stock, filtra productos y actualiza precios base para sincronizarlos con las sedes.</p>
                                 </div>
-                                <button class="ghost-button" type="button" id="admin-inventory-refresh">Actualizar inventario</button>
+                                <div class="module-head__actions">
+                                    <button class="primary-button primary-button--fit" type="button" id="admin-inventory-new">Nuevo producto</button>
+                                    <button class="ghost-button" type="button" id="admin-inventory-refresh">Actualizar inventario</button>
+                                </div>
                             </div>
 
                             <div class="inventory-admin__layout">
@@ -265,6 +268,24 @@
                                     <p id="admin-inventory-editor-subtitle">Selecciona un producto para editar su precio base.</p>
 
                                     <label class="field">
+                                        <span>Nombre</span>
+                                        <input id="admin-inventory-name" type="text" maxlength="255" placeholder="Nombre comercial">
+                                    </label>
+
+                                    <label class="field">
+                                        <span>SKU</span>
+                                        <input id="admin-inventory-sku" type="text" maxlength="255" placeholder="SKU unico por empresa">
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Tipo de control</span>
+                                        <select id="admin-inventory-tracking-edit">
+                                            <option value="quantity">Por cantidad</option>
+                                            <option value="serialized">Serializado / IMEI</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field">
                                         <span>Precio base</span>
                                         <input id="admin-inventory-price" type="number" min="0" step="0.01" placeholder="0.00">
                                     </label>
@@ -278,6 +299,20 @@
                                     </label>
 
                                     <label class="field">
+                                        <span>Tasa de venta</span>
+                                        <select id="admin-inventory-rate-type">
+                                            <option value="">Sin tasa asignada</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Garantia</span>
+                                        <select id="admin-inventory-warranty">
+                                            <option value="">Sin politica asignada</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="field">
                                         <span>Estado comercial</span>
                                         <select id="admin-inventory-active-edit">
                                             <option value="1">Activo para venta</option>
@@ -286,7 +321,8 @@
                                     </label>
 
                                     <div class="inventory-editor__actions">
-                                        <button class="primary-button" type="button" id="admin-inventory-save">Guardar cambios</button>
+                                        <button class="primary-button" type="button" id="admin-inventory-save">Guardar producto</button>
+                                        <button class="danger-button" type="button" id="admin-inventory-deactivate">Desactivar</button>
                                         <button class="ghost-button" type="button" id="admin-inventory-cancel">Cancelar</button>
                                     </div>
 
