@@ -6,6 +6,11 @@ const state = {
     selectedTenant: null,
     session: null,
     activeSection: 'overview',
+    reports: {
+        title: 'Reportes operativos',
+        copy: 'Ventas POS, metodos de pago, cajas y productos mas vendidos por periodo.',
+        loaded: false,
+    },
     inventory: {
         page: 1,
         loaded: false,
@@ -90,6 +95,21 @@ const elements = {
     modulePlaceholder: document.querySelector('#module-placeholder'),
     modulePlaceholderTitle: document.querySelector('#module-placeholder-title'),
     modulePlaceholderCopy: document.querySelector('#module-placeholder-copy'),
+    reportsModule: document.querySelector('#admin-reports-module'),
+    reportsRefresh: document.querySelector('#admin-reports-refresh'),
+    reportsStatus: document.querySelector('#admin-reports-status'),
+    reportsPeriod: document.querySelector('#admin-reports-period'),
+    reportsPosTotal: document.querySelector('#admin-reports-pos-total'),
+    reportsPosCount: document.querySelector('#admin-reports-pos-count'),
+    reportsTicket: document.querySelector('#admin-reports-ticket'),
+    reportsPending: document.querySelector('#admin-reports-pending'),
+    reportsPendingTotal: document.querySelector('#admin-reports-pending-total'),
+    reportsOpenCash: document.querySelector('#admin-reports-open-cash'),
+    reportsCashExpected: document.querySelector('#admin-reports-cash-expected'),
+    reportsOrdersTable: document.querySelector('#admin-reports-orders-table'),
+    reportsPaymentsTable: document.querySelector('#admin-reports-payments-table'),
+    reportsProductsTable: document.querySelector('#admin-reports-products-table'),
+    reportsCashTable: document.querySelector('#admin-reports-cash-table'),
     inventoryModule: document.querySelector('#admin-inventory-module'),
     inventoryNew: document.querySelector('#admin-inventory-new'),
     inventoryRefresh: document.querySelector('#admin-inventory-refresh'),
@@ -713,6 +733,8 @@ function resetTenantScopedState() {
     state.receivables.customersLoaded = false;
     state.receivables.customers = [];
 
+    state.reports.loaded = false;
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -815,6 +837,7 @@ async function switchTenant() {
 function activatePortalSection(section) {
     const selectedSection = portalSections[section] ? section : 'overview';
     const isOverview = selectedSection === 'overview';
+    const isReports = selectedSection === 'reports';
     const isInventory = selectedSection === 'inventory';
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
@@ -835,6 +858,10 @@ function activatePortalSection(section) {
 
     if (elements.toolGrid) {
         elements.toolGrid.hidden = !isOverview;
+    }
+
+    if (elements.reportsModule) {
+        elements.reportsModule.hidden = !isReports;
     }
 
     if (elements.inventoryModule) {
@@ -869,11 +896,15 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isReports || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
+    if (!isOverview && !isReports && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
+    }
+
+    if (isReports && !state.reports.loaded) {
+        loadOperationalReports();
     }
 
     if (isInventory && !state.inventory.loaded) {
@@ -999,6 +1030,145 @@ function renderAlerts(alerts) {
             return item;
         }),
     );
+}
+
+async function loadOperationalReports() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.reportsStatus, 'Cargando reportes operativos...');
+    setButtonLoading(elements.reportsRefresh, true, 'Actualizando...');
+
+    try {
+        const query = new URLSearchParams({
+            period: elements.period.value,
+        });
+        const report = await api(`/api/admin-portal/operational-reports?${query}`, {
+            headers: authHeaders(session),
+        });
+
+        renderOperationalReports(report);
+        state.reports.loaded = true;
+        setStatus(elements.reportsStatus, `Reportes actualizados: ${formatDateTime(report.generated_at)}.`, 'success');
+    } catch (error) {
+        setStatus(elements.reportsStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.reportsRefresh, false);
+    }
+}
+
+function renderOperationalReports(report) {
+    const sales = report.sales || {};
+    const cash = report.cash_register || {};
+
+    elements.reportsPeriod.textContent = `Periodo ${report.period.from} a ${report.period.to}.`;
+    elements.reportsPosTotal.textContent = money(sales.pos_paid_base_amount);
+    elements.reportsPosCount.textContent = `${number(sales.pos_paid_count)} venta(s) POS`;
+    elements.reportsTicket.textContent = money(sales.average_ticket_base_amount);
+    elements.reportsPending.textContent = number(sales.pending_pos_count);
+    elements.reportsPendingTotal.textContent = `${money(sales.pending_pos_base_amount)} por cerrar`;
+    elements.reportsOpenCash.textContent = number(cash.open_count);
+    elements.reportsCashExpected.textContent = `${money(cash.expected_base_amount)} esperado`;
+
+    renderReportOrders(report.recent_orders || []);
+    renderReportPaymentMethods(report.payment_methods || []);
+    renderReportTopProducts(report.top_products || []);
+    renderReportCashSessions(cash.sessions || []);
+}
+
+function renderReportOrders(orders) {
+    if (!orders.length) {
+        renderEmptyTable(elements.reportsOrdersTable, 'No hay ordenes POS en el periodo.', 7);
+        return;
+    }
+
+    elements.reportsOrdersTable.replaceChildren(
+        ...orders.map((order) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>#${escapeHtml(order.id)}</strong><small>${escapeHtml(formatDateTime(order.opened_at))}</small></td>
+                <td>${escapeHtml(order.customer_name || 'Consumidor final')}</td>
+                <td>${escapeHtml(order.cash_register_name || 'Sin caja')}</td>
+                <td><span class="status-pill" data-tone="${order.status === 'paid' ? 'success' : 'warning'}">${escapeHtml(posOrderStatusLabel(order.status))}</span></td>
+                <td><strong>${money(order.total_base_amount)}</strong></td>
+                <td><strong>${money(order.paid_base_amount)}</strong><small>Saldo ${money(order.balance_base_amount)}</small></td>
+                <td>${escapeHtml(formatDateTime(order.paid_at || order.opened_at))}</td>
+            `;
+            return row;
+        }),
+    );
+}
+
+function renderReportPaymentMethods(methods) {
+    if (!methods.length) {
+        renderEmptyTable(elements.reportsPaymentsTable, 'Sin pagos capturados.', 3);
+        return;
+    }
+
+    elements.reportsPaymentsTable.replaceChildren(
+        ...methods.map((method) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(method.name || 'Metodo')}</strong><small>${escapeHtml(method.currency || 'USD')}</small></td>
+                <td>${number(method.payments_count)}</td>
+                <td><strong>${money(method.amount_base)}</strong><small>Bs ${number(method.amount_local)}</small></td>
+            `;
+            return row;
+        }),
+    );
+}
+
+function renderReportTopProducts(products) {
+    if (!products.length) {
+        renderEmptyTable(elements.reportsProductsTable, 'Sin productos vendidos.', 3);
+        return;
+    }
+
+    elements.reportsProductsTable.replaceChildren(
+        ...products.map((product) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(product.product_name)}</strong><small>${escapeHtml(product.product_sku || '')}</small></td>
+                <td>${number(product.quantity)}</td>
+                <td><strong>${money(product.total_base_amount)}</strong></td>
+            `;
+            return row;
+        }),
+    );
+}
+
+function renderReportCashSessions(sessions) {
+    if (!sessions.length) {
+        renderEmptyTable(elements.reportsCashTable, 'Sin turnos de caja en el periodo.', 7);
+        return;
+    }
+
+    elements.reportsCashTable.replaceChildren(
+        ...sessions.map((session) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(session.cash_register_name)}</strong><small>#${escapeHtml(session.id)}</small></td>
+                <td>${escapeHtml(session.branch_name)}</td>
+                <td>${escapeHtml(session.cashier_name)}</td>
+                <td><span class="status-pill" data-tone="${session.status === 'open' ? 'warning' : 'success'}">${escapeHtml(cashSessionStatusLabel(session.status))}</span></td>
+                <td><strong>${money(session.expected_base_amount)}</strong></td>
+                <td><strong>${money(session.difference_base_amount)}</strong></td>
+                <td>${escapeHtml(formatDateTime(session.opened_at))}</td>
+            `;
+            return row;
+        }),
+    );
+}
+
+function renderEmptyTable(table, message, colspan) {
+    if (!table) {
+        return;
+    }
+
+    table.innerHTML = `<tr><td colspan="${colspan}"><small>${escapeHtml(message)}</small></td></tr>`;
 }
 
 async function loadInventory(page = state.inventory.page) {
@@ -3765,6 +3935,22 @@ function alertLabel(type) {
     }[type] ?? 'Alerta';
 }
 
+function posOrderStatusLabel(status) {
+    return {
+        paid: 'Pagada',
+        open: 'Pendiente',
+        cancelled: 'Cancelada',
+    }[status] ?? status;
+}
+
+function cashSessionStatusLabel(status) {
+    return {
+        open: 'Abierta',
+        closed: 'Cerrada',
+        cancelled: 'Cancelada',
+    }[status] ?? status;
+}
+
 function money(value) {
     return `USD ${Number(value || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,
@@ -3880,12 +4066,20 @@ function escapeHtml(value) {
 elements.loadTenants?.addEventListener('click', loadTenants);
 elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
-elements.period?.addEventListener('change', loadDashboard);
+elements.period?.addEventListener('change', () => {
+    state.reports.loaded = false;
+    loadDashboard();
+
+    if (state.activeSection === 'reports') {
+        loadOperationalReports();
+    }
+});
 elements.tenantSwitcher?.addEventListener('change', switchTenant);
 elements.logout?.addEventListener('click', clearSession);
 elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
 });
+elements.reportsRefresh?.addEventListener('click', loadOperationalReports);
 elements.inventoryRefresh?.addEventListener('click', () => loadInventory());
 elements.inventoryNew?.addEventListener('click', () => {
     openNewInventoryProduct().catch((error) => {

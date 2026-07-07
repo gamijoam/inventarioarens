@@ -90,6 +90,14 @@ class AdminPortalWebTest extends TestCase
             ->assertSee('data-access-tab="permissions"', false)
             ->assertSee('Perfil Cajero')
             ->assertSee('Perfil Inventario')
-            ->assertSee('Perfil Gerente');
+            ->assertSee('Perfil Gerente')
+            ->assertSee('Reportes operativos')
+            ->assertSee('data-portal-section="reports"', false)
+            ->assertSee('admin-reports-module')
+            ->assertSee('admin-reports-refresh')
+            ->assertSee('admin-reports-orders-table')
+            ->assertSee('admin-reports-payments-table')
+            ->assertSee('admin-reports-products-table')
+            ->assertSee('admin-reports-cash-table');
     }
 }

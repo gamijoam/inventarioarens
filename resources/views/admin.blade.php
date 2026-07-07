@@ -91,6 +91,10 @@
                             <span>Ventas</span>
                             <small>POS y órdenes</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="reports">
+                            <span>Reportes</span>
+                            <small>Operacion</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="inventory">
                             <span>Inventario</span>
                             <small>Stock y productos</small>
@@ -205,6 +209,138 @@
                                 </div>
                                 <div class="alert-list" id="alert-list"></div>
                             </article>
+                        </section>
+
+                        <section class="admin-module-panel reports-admin" id="admin-reports-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Reportes</span>
+                                    <h3>Reportes operativos</h3>
+                                    <p>Ventas POS, caja, metodos de pago y productos mas vendidos de la empresa activa.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-reports-refresh">Actualizar reportes</button>
+                                </div>
+                            </div>
+
+                            <div class="reports-admin__summary" aria-label="Resumen operativo">
+                                <article>
+                                    <span>Ventas POS</span>
+                                    <strong id="admin-reports-pos-total">USD 0.00</strong>
+                                    <small id="admin-reports-pos-count">0 ventas</small>
+                                </article>
+                                <article>
+                                    <span>Ticket promedio</span>
+                                    <strong id="admin-reports-ticket">USD 0.00</strong>
+                                    <small>Promedio por venta POS</small>
+                                </article>
+                                <article>
+                                    <span>Pendientes POS</span>
+                                    <strong id="admin-reports-pending">0</strong>
+                                    <small id="admin-reports-pending-total">USD 0.00 por cerrar</small>
+                                </article>
+                                <article>
+                                    <span>Cajas abiertas</span>
+                                    <strong id="admin-reports-open-cash">0</strong>
+                                    <small id="admin-reports-cash-expected">USD 0.00 esperado</small>
+                                </article>
+                            </div>
+
+                            <div class="reports-admin__grid">
+                                <section class="content-panel reports-admin__panel reports-admin__panel--wide">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Ventas recientes</h4>
+                                            <p id="admin-reports-period">Periodo actual.</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Orden</th>
+                                                    <th>Cliente</th>
+                                                    <th>Caja</th>
+                                                    <th>Estado</th>
+                                                    <th>Total</th>
+                                                    <th>Pagado</th>
+                                                    <th>Fecha</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-reports-orders-table"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <section class="content-panel reports-admin__panel">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Metodos de pago</h4>
+                                            <p>Pagos capturados por moneda y metodo.</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table reports-admin__table--short">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Metodo</th>
+                                                    <th>Pagos</th>
+                                                    <th>Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-reports-payments-table"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <section class="content-panel reports-admin__panel">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Productos vendidos</h4>
+                                            <p>Ranking por monto facturado.</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table reports-admin__table--short">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Producto</th>
+                                                    <th>Cant.</th>
+                                                    <th>Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-reports-products-table"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <section class="content-panel reports-admin__panel reports-admin__panel--wide">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Actividad de caja</h4>
+                                            <p>Turnos abiertos o cerrados dentro del periodo.</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Caja</th>
+                                                    <th>Sucursal</th>
+                                                    <th>Cajero</th>
+                                                    <th>Estado</th>
+                                                    <th>Esperado</th>
+                                                    <th>Diferencia</th>
+                                                    <th>Apertura</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-reports-cash-table"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-reports-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel inventory-admin" id="admin-inventory-module" hidden>

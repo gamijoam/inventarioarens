@@ -4569,6 +4569,77 @@ Reglas:
 - esta pensada para el dashboard inicial del portal web administrativo;
 - las alertas iniciales cubren productos sin stock, stock bajo, errores de sincronizacion y eventos pendientes por subir.
 
+### Reportes operativos
+
+```txt
+GET /api/admin-portal/operational-reports
+```
+
+Permisos aceptados:
+
+```txt
+reports.view
+finance_reports.view
+sales.view
+cash_register.view
+```
+
+Query opcional:
+
+```txt
+period=today|week|month
+date_from=2026-07-01
+date_to=2026-07-07
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "tenant": {
+      "id": 1,
+      "name": "Demo Valencia",
+      "slug": "demo-valencia"
+    },
+    "period": {
+      "from": "2026-07-07",
+      "to": "2026-07-07"
+    },
+    "currency": "USD",
+    "sales": {
+      "confirmed_count": 1,
+      "confirmed_base_amount": 120.5,
+      "pos_paid_count": 1,
+      "pos_paid_base_amount": 120.5,
+      "average_ticket_base_amount": 120.5,
+      "pending_pos_count": 1,
+      "pending_pos_base_amount": 35
+    },
+    "cash_register": {
+      "opened_count": 1,
+      "open_count": 1,
+      "closed_count": 0,
+      "expected_base_amount": 30,
+      "difference_base_amount": 0,
+      "sessions": []
+    },
+    "payment_methods": [],
+    "top_products": [],
+    "recent_orders": [],
+    "generated_at": "2026-07-07T10:00:00.000000Z"
+  }
+}
+```
+
+Reglas:
+
+- es una API solo lectura;
+- todas las consultas se filtran por el tenant activo;
+- las uniones con ventas, pagos y cajas tambien validan tenant para evitar cruces entre empresas;
+- sirve para la pantalla compacta de reportes operativos del portal web;
+- no reemplaza los reportes financieros detallados.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion
