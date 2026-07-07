@@ -76,6 +76,33 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 pnpm build
 ```
 
+## Despliegue en VPS
+
+El portal web usa Vite. Despues de hacer `git pull` en el VPS, si cambiaron archivos de `resources/js`, `resources/css`, `resources/views` o `vite.config.js`, se deben recompilar los assets publicos.
+
+El VPS debe tener Node.js 20.19+ o 22.12+. El error `Vite manifest not found at public/build/manifest.json` indica que el frontend no fue compilado despues del despliegue.
+
+Comandos recomendados en `/opt/inventarioarens-cloud`:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:clear
+systemctl restart php8.4-fpm
+systemctl reload nginx
+```
+
+Validacion:
+
+```bash
+curl -I https://app.miinventariofacil.com/admin
+```
+
+Debe responder `200`.
+
 ## Siguiente fase sugerida
 
 - Agregar detalle por modulo dentro del portal:
