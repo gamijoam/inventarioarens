@@ -4,6 +4,7 @@
 
 - `docs/MODULES.md`: mapa modular del proyecto, responsabilidades actuales y modulos planificados.
 - `docs/API.md`: catalogo de APIs actuales, clasificado por modulo.
+- `docs/ARQUITECTURA_ESCRITORIO_WEB_SYNC_2026-07-07.md`: decision sobre la separacion entre aplicacion de escritorio, portal web administrativo y sincronizacion local-nube.
 
 Regla actual de rutas:
 
@@ -18,6 +19,13 @@ Regla actual de rutas:
 ## Cliente de escritorio WPF
 
 El sistema tendra una aplicacion de escritorio en C# con WPF como cliente principal.
+
+Decision complementaria:
+
+- la aplicacion de escritorio es el area operativa del negocio;
+- el portal web es el area administrativa y gerencial;
+- la sincronizacion local-nube conecta ambos mundos sin obligar al local a depender de internet para vender;
+- la referencia completa vive en `docs/ARQUITECTURA_ESCRITORIO_WEB_SYNC_2026-07-07.md`.
 
 Decision:
 
