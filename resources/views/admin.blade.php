@@ -282,7 +282,13 @@
                                 <button class="ghost-button" type="button" id="admin-access-refresh">Actualizar accesos</button>
                             </div>
 
-                            <div class="access-admin__grid">
+                            <div class="access-tabs" role="tablist" aria-label="Usuarios y permisos">
+                                <button class="access-tab is-active" type="button" data-access-tab="users">Usuarios</button>
+                                <button class="access-tab" type="button" data-access-tab="profiles">Perfiles</button>
+                                <button class="access-tab" type="button" data-access-tab="permissions">Permisos</button>
+                            </div>
+
+                            <div class="access-admin__grid is-active" data-access-panel="users">
                                 <section class="access-panel access-panel--wide" aria-label="Usuarios de la empresa">
                                     <div class="panel-heading">
                                         <div>
@@ -350,7 +356,9 @@
                                         <button class="ghost-button" type="button" id="admin-access-toggle-user-status">Activar / inactivar</button>
                                     </div>
                                 </section>
+                            </div>
 
+                            <div class="access-admin__grid access-admin__grid--single" data-access-panel="profiles">
                                 <section class="access-panel access-panel--wide">
                                     <div class="panel-heading">
                                         <div>
@@ -392,7 +400,9 @@
                                         </div>
                                     </div>
                                 </section>
+                            </div>
 
+                            <div class="access-admin__grid access-admin__grid--single" data-access-panel="permissions">
                                 <section class="access-panel access-panel--wide">
                                     <div class="panel-heading">
                                         <div>

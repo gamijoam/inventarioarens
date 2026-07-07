@@ -8,6 +8,10 @@ Se habilito el modulo web de usuarios y permisos dentro del portal administrativ
 
 - Se agrego una seccion real en `/admin` para `Usuarios`.
 - La pantalla carga usuarios, roles y catalogo de permisos desde el backend.
+- La interfaz se organizo en tres pestañas para reducir carga visual:
+  - Usuarios.
+  - Perfiles.
+  - Permisos.
 - Permite crear o vincular usuarios a la empresa activa.
 - Permite asignar perfiles de permisos a un usuario seleccionado.
 - Permite activar o inactivar usuarios por empresa.
@@ -39,6 +43,12 @@ Se habilito el modulo web de usuarios y permisos dentro del portal administrativ
 - Un mismo correo puede pertenecer a varias empresas, pero sus perfiles se manejan por empresa.
 - En backend se mantiene el concepto tecnico `roles`, pero en la interfaz se presenta como `perfiles de permisos` porque es mas claro para usuarios no tecnicos.
 - Los perfiles base del sistema siguen protegidos por backend.
+- Los errores del portal ahora muestran mensajes mas concretos por estado HTTP:
+  - sesion expirada;
+  - falta de permisos;
+  - datos invalidos;
+  - registro no encontrado;
+  - error interno del servidor.
 - Los cambios quedan auditados por el modulo de control de acceso.
 - Esta fase prepara el portal para administrar permisos desde la nube y luego sincronizarlos a los equipos locales.
 

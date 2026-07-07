@@ -67,6 +67,8 @@ const elements = {
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
+    accessTabs: Array.from(document.querySelectorAll('[data-access-tab]')),
+    accessPanels: Array.from(document.querySelectorAll('[data-access-panel]')),
     accessUsersCount: document.querySelector('#admin-access-users-count'),
     accessUsersTable: document.querySelector('#admin-access-users-table'),
     accessRolesTable: document.querySelector('#admin-access-roles-table'),
@@ -233,7 +235,7 @@ function normalizeError(error) {
         return 'La solicitud tardó demasiado. Verifica que el servidor esté activo e intenta nuevamente.';
     }
 
-    return error.message || 'No se pudo completar la operación.';
+    return error.message || 'No se pudo realizar esta acción. Revisa permisos, datos obligatorios o conexión.';
 }
 
 async function api(path, options = {}, returnPayload = false) {
@@ -256,7 +258,14 @@ async function api(path, options = {}, returnPayload = false) {
 
         if (!response.ok) {
             const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
-            throw new Error(firstError || payload.message || 'No se pudo completar la operación.');
+            const fallbackByStatus = {
+                401: 'La sesión expiró. Vuelve a iniciar sesión.',
+                403: 'Tu usuario no tiene permiso para realizar esta acción.',
+                404: 'No se encontró el registro solicitado.',
+                422: 'Hay datos incompletos o inválidos. Revisa el formulario.',
+                500: 'El servidor tuvo un error interno. Revisa el log del backend.',
+            };
+            throw new Error(firstError || payload.message || fallbackByStatus[response.status] || 'No se pudo realizar esta acción.');
         }
 
         return returnPayload ? payload : payload.data;
@@ -720,12 +729,23 @@ async function loadAccessControl() {
 }
 
 function renderAccessControl() {
+    setAccessTab('users');
     renderAccessUsers();
     renderAccessRoleOptions(elements.accessUserRoles, []);
     renderAccessRoleOptions(elements.accessSelectedUserRoles, state.access.selectedUser?.roles?.map((role) => role.name) || []);
     renderAccessRoles();
     renderPermissionCatalog();
     applyAccessPermissions();
+}
+
+function setAccessTab(tab) {
+    elements.accessTabs.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.accessTab === tab);
+    });
+
+    elements.accessPanels.forEach((panel) => {
+        panel.classList.toggle('is-active', panel.dataset.accessPanel === tab);
+    });
 }
 
 function renderAccessUsers() {
@@ -929,6 +949,7 @@ function selectAccessRole(role) {
     state.access.selectedRole = role;
     renderAccessRoles();
     renderPermissionCatalog();
+    setAccessTab('permissions');
     setStatus(elements.accessStatus, `Perfil seleccionado: ${role.name}.`, 'neutral');
 }
 
@@ -960,6 +981,7 @@ async function createAccessRole() {
         elements.accessRoleTemplate.value = '';
         state.access.selectedRole = role;
         await loadAccessControl();
+        setAccessTab('profiles');
         setStatus(elements.accessStatus, 'Perfil creado. Ahora puedes ajustar permisos.', 'success');
     } catch (error) {
         setStatus(elements.accessStatus, normalizeError(error), 'error');
@@ -1217,6 +1239,9 @@ elements.inventoryCancel?.addEventListener('click', () => {
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
+elements.accessTabs.forEach((button) => {
+    button.addEventListener('click', () => setAccessTab(button.dataset.accessTab));
+});
 elements.accessCreateUser?.addEventListener('click', createAccessUser);
 elements.accessSaveUserRoles?.addEventListener('click', saveAccessUserRoles);
 elements.accessToggleUserStatus?.addEventListener('click', toggleAccessUserStatus);

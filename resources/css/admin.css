@@ -702,11 +702,48 @@ button {
     margin: 0;
 }
 
+.access-tabs {
+    display: inline-flex;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+}
+
+.access-tab {
+    min-height: 34px;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 999px;
+    color: var(--muted);
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.access-tab.is-active {
+    color: var(--primary);
+    background: #f0f2ff;
+    box-shadow: inset 0 0 0 1px #d8dcff;
+}
+
 .access-admin__grid {
+    display: none;
+}
+
+.access-admin__grid.is-active {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
     gap: 14px;
     margin-top: 14px;
+}
+
+.access-admin__grid--single.is-active {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .access-panel {
@@ -793,9 +830,9 @@ button {
 
 .permission-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-    max-height: 430px;
+    max-height: 520px;
     overflow: auto;
     padding-right: 4px;
 }

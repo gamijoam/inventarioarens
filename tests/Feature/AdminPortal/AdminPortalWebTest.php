@@ -22,6 +22,9 @@ class AdminPortalWebTest extends TestCase
             ->assertSee('admin-access-users-table')
             ->assertSee('admin-access-roles-table')
             ->assertSee('admin-access-permissions-grid')
+            ->assertSee('data-access-tab="users"', false)
+            ->assertSee('data-access-tab="profiles"', false)
+            ->assertSee('data-access-tab="permissions"', false)
             ->assertSee('Perfil Cajero')
             ->assertSee('Perfil Inventario')
             ->assertSee('Perfil Gerente');
