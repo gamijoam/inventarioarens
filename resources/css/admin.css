@@ -11,10 +11,13 @@
     --green: #008a61;
     --amber: #b45d00;
     --red: #d72f5e;
-    --shadow: 0 10px 30px rgba(23, 35, 69, 0.08);
-    --radius: 12px;
+    --shadow: 0 6px 18px rgba(23, 35, 69, 0.06);
+    --radius: 8px;
+    --compact-gap: 8px;
+    --compact-pad: 10px;
     --ease: cubic-bezier(.2, .8, .2, 1);
     font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px;
 }
 
 * {
@@ -33,8 +36,9 @@ body {
 body {
     margin: 0;
     color: var(--ink);
+    font-size: 13px;
     background:
-        linear-gradient(180deg, rgba(62, 53, 242, 0.05), transparent 280px),
+        linear-gradient(180deg, rgba(62, 53, 242, 0.03), transparent 180px),
         var(--bg);
 }
 
@@ -55,16 +59,16 @@ button {
 .admin-login {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: minmax(0, .95fr) minmax(360px, 460px);
-    gap: clamp(32px, 5vw, 72px);
+    grid-template-columns: minmax(0, .9fr) minmax(340px, 420px);
+    gap: clamp(24px, 4vw, 52px);
     align-items: center;
-    padding: clamp(28px, 5vw, 72px);
+    padding: clamp(22px, 4vw, 56px);
 }
 
 .admin-login__brand h1 {
     max-width: 640px;
-    margin: 18px 0 12px;
-    font-size: clamp(40px, 5vw, 66px);
+    margin: 12px 0 8px;
+    font-size: clamp(34px, 4vw, 52px);
     line-height: 1;
 }
 
@@ -81,16 +85,16 @@ button {
     display: block;
     max-width: 540px;
     color: var(--muted);
-    font-size: 18px;
-    line-height: 1.55;
+    font-size: 15px;
+    line-height: 1.45;
 }
 
 .brand-orb {
-    width: 60px;
-    height: 60px;
+    width: 48px;
+    height: 48px;
     display: grid;
     place-items: center;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--primary);
     color: #fff;
     font-weight: 900;
@@ -98,9 +102,10 @@ button {
 }
 
 .brand-orb--small {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 13px;
 }
 
 .admin-login__card,
@@ -116,17 +121,17 @@ button {
 }
 
 .admin-login__card {
-    padding: 32px;
+    padding: 22px;
 }
 
 .admin-login__card h2 {
-    margin: 16px 0 8px;
-    font-size: 34px;
-    line-height: 1.08;
+    margin: 12px 0 6px;
+    font-size: 28px;
+    line-height: 1.1;
 }
 
 .admin-login__card p {
-    margin: 0 0 24px;
+    margin: 0 0 16px;
     color: var(--muted);
     line-height: 1.5;
 }
@@ -134,21 +139,21 @@ button {
 .soft-badge {
     display: inline-flex;
     align-items: center;
-    min-height: 30px;
-    padding: 6px 10px;
+    min-height: 24px;
+    padding: 4px 8px;
     border: 1px solid #d8dcff;
-    border-radius: 8px;
+    border-radius: 6px;
     color: var(--primary);
     background: #f0f2ff;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
 }
 
 .field {
     display: grid;
-    gap: 7px;
-    margin-bottom: 16px;
-    font-size: 14px;
+    gap: 4px;
+    margin-bottom: 10px;
+    font-size: 12px;
     font-weight: 850;
 }
 
@@ -157,10 +162,10 @@ button {
 .tenant-switcher select,
 .period-control select {
     width: 100%;
-    min-height: 46px;
+    min-height: 32px;
     border: 1px solid var(--line-strong);
-    border-radius: 8px;
-    padding: 0 12px;
+    border-radius: 6px;
+    padding: 0 8px;
     color: var(--ink);
     background: #fff;
 }
@@ -176,10 +181,11 @@ button {
 .primary-button,
 .ghost-button,
 .danger-button {
-    min-height: 46px;
+    min-height: 32px;
     border: 1px solid var(--line-strong);
-    border-radius: 8px;
-    padding: 0 16px;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 12px;
     font-weight: 900;
     cursor: pointer;
     transition: transform 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
@@ -220,9 +226,9 @@ button {
 
 .form-status,
 .dashboard-status {
-    min-height: 22px;
+    min-height: 18px;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 800;
 }
 
@@ -242,12 +248,12 @@ button {
 }
 
 .admin-topbar {
-    min-height: 78px;
+    min-height: 54px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
-    padding: 16px clamp(20px, 4vw, 44px);
+    gap: 12px;
+    padding: 8px clamp(14px, 2.5vw, 24px);
     border-bottom: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(16px);
@@ -259,18 +265,18 @@ button {
 .topbar-title {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
 }
 
 .topbar-title h1 {
-    margin: 2px 0 0;
-    font-size: 24px;
+    margin: 0;
+    font-size: 18px;
 }
 
 .topbar-actions {
     display: flex;
     align-items: end;
-    gap: 10px;
+    gap: 8px;
 }
 
 .period-control {
@@ -301,18 +307,18 @@ button {
 
 .portal-layout {
     display: grid;
-    grid-template-columns: 230px minmax(0, 1fr);
-    gap: 18px;
-    padding: 18px clamp(20px, 4vw, 44px) 28px;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px clamp(14px, 2.5vw, 24px) 16px;
 }
 
 .portal-nav {
     align-self: start;
     position: sticky;
-    top: 96px;
+    top: 64px;
     display: grid;
-    gap: 8px;
-    padding: 10px;
+    gap: 4px;
+    padding: 6px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: rgba(255, 255, 255, 0.78);
@@ -321,10 +327,10 @@ button {
 .portal-nav__item {
     width: 100%;
     display: grid;
-    gap: 2px;
+    gap: 1px;
     border: 1px solid transparent;
-    border-radius: 9px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 7px 8px;
     text-align: left;
     background: transparent;
     color: var(--ink);
@@ -337,6 +343,7 @@ button {
 
 .portal-nav__item small {
     color: var(--muted);
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -349,33 +356,34 @@ button {
 
 .portal-workspace {
     display: grid;
-    gap: 14px;
+    gap: 8px;
     min-width: 0;
 }
 
 .workspace-head {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 220px;
+    grid-template-columns: minmax(0, 1fr) 180px;
     align-items: center;
-    gap: 18px;
-    padding: 20px;
+    gap: 10px;
+    padding: 10px;
 }
 
 .workspace-head h2 {
-    margin: 10px 0 6px;
-    font-size: clamp(28px, 3vw, 42px);
-    line-height: 1.04;
+    margin: 5px 0 2px;
+    font-size: 22px;
+    line-height: 1.1;
 }
 
 .workspace-head p {
     margin: 0;
     color: var(--muted);
+    font-size: 12px;
     font-weight: 750;
 }
 
 .hero-total {
-    padding: 16px;
-    border-radius: 10px;
+    padding: 10px;
+    border-radius: 8px;
     background: var(--panel-soft);
     border: 1px solid var(--line);
 }
@@ -393,26 +401,26 @@ button {
 
 .hero-total strong {
     display: block;
-    margin-top: 8px;
+    margin-top: 4px;
     color: var(--primary);
-    font-size: 28px;
+    font-size: 20px;
 }
 
 .metric-board {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    gap: 8px;
 }
 
 .metric-card {
-    padding: 16px;
+    padding: 10px;
     box-shadow: none;
 }
 
 .metric-card strong {
     display: block;
-    margin: 8px 0 4px;
-    font-size: 26px;
+    margin: 4px 0 2px;
+    font-size: 20px;
 }
 
 .metric-card small {
@@ -435,13 +443,13 @@ button {
 .tool-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 8px;
 }
 
 .content-panel,
 .module-placeholder,
 .admin-module-panel {
-    padding: 18px;
+    padding: 10px;
 }
 
 .content-panel--wide {
@@ -452,27 +460,28 @@ button {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .panel-heading h3,
 .module-placeholder h3 {
-    margin: 0 0 5px;
-    font-size: 22px;
+    margin: 0 0 2px;
+    font-size: 16px;
 }
 
 .panel-heading p,
 .module-placeholder p {
     margin: 0;
     color: var(--muted);
+    font-size: 12px;
     font-weight: 750;
 }
 
 .inventory-strip,
 .sync-list {
     display: grid;
-    gap: 10px;
+    gap: 6px;
 }
 
 .inventory-strip {
@@ -485,29 +494,29 @@ button {
 
 .inventory-strip div,
 .sync-list div {
-    padding: 14px;
+    padding: 8px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--panel-soft);
 }
 
 .inventory-strip strong,
 .sync-list strong {
     display: block;
-    margin-top: 8px;
-    font-size: 24px;
+    margin-top: 3px;
+    font-size: 17px;
 }
 
 .status-pill {
     display: inline-flex;
     align-items: center;
-    min-height: 30px;
-    padding: 6px 10px;
+    min-height: 24px;
+    padding: 3px 8px;
     border-radius: 999px;
     color: var(--muted);
     background: var(--panel-soft);
     border: 1px solid var(--line);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 900;
 }
 
@@ -532,13 +541,13 @@ button {
 .alert-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 6px;
 }
 
 .alert-item {
-    padding: 14px;
+    padding: 8px;
     border: 1px solid #fed7aa;
-    border-radius: 10px;
+    border-radius: 7px;
     background: #fffaf2;
 }
 
@@ -554,8 +563,8 @@ button {
 
 .module-placeholder {
     display: grid;
-    gap: 10px;
-    min-height: 180px;
+    gap: 6px;
+    min-height: 120px;
     align-content: center;
 }
 
@@ -563,28 +572,29 @@ button {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 18px;
-    padding-bottom: 14px;
+    gap: 10px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--line);
 }
 
 .module-head h3 {
-    margin: 10px 0 5px;
-    font-size: 26px;
+    margin: 5px 0 2px;
+    font-size: 20px;
 }
 
 .module-head p {
     max-width: 760px;
     margin: 0;
     color: var(--muted);
+    font-size: 12px;
     font-weight: 750;
 }
 
 .inventory-admin__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 14px;
-    margin-top: 14px;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
 .inventory-admin__main {
@@ -593,12 +603,12 @@ button {
 
 .inventory-admin__filters {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 160px 140px 140px 118px;
-    gap: 10px;
+    grid-template-columns: minmax(220px, 1fr) 140px 120px 120px 90px;
+    gap: 6px;
     align-items: end;
-    padding: 12px;
+    padding: 8px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--panel-soft);
 }
 
@@ -607,11 +617,11 @@ button {
 }
 
 .admin-table-wrap {
-    max-height: 430px;
-    margin-top: 12px;
+    max-height: 560px;
+    margin-top: 8px;
     overflow: auto;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: #fff;
 }
 
@@ -619,22 +629,24 @@ button {
     width: 100%;
     min-width: 880px;
     border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.25;
 }
 
 .admin-data-table th {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 12px;
+    padding: 6px 8px;
     color: var(--muted);
     background: #f3f6fb;
-    font-size: 12px;
+    font-size: 11px;
     text-align: left;
     text-transform: uppercase;
 }
 
 .admin-data-table td {
-    padding: 12px;
+    padding: 5px 8px;
     border-top: 1px solid var(--line);
     vertical-align: middle;
 }
@@ -645,7 +657,7 @@ button {
 
 .admin-data-table td small {
     display: block;
-    margin-top: 3px;
+    margin-top: 1px;
     color: var(--muted);
     font-weight: 750;
 }
@@ -653,13 +665,13 @@ button {
 .stock-pill {
     display: inline-flex;
     align-items: center;
-    min-height: 28px;
-    padding: 5px 9px;
+    min-height: 22px;
+    padding: 3px 7px;
     border-radius: 999px;
     color: var(--green);
     background: #ecfff8;
     border: 1px solid #bdf4dd;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
 }
 
@@ -679,37 +691,39 @@ button {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
     color: var(--muted);
     font-weight: 850;
 }
 
 .table-footer__actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .inventory-editor {
     align-self: start;
     position: sticky;
-    top: 96px;
+    top: 64px;
     display: grid;
-    gap: 12px;
-    padding: 16px;
+    gap: 8px;
+    padding: 10px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--panel-soft);
 }
 
 .inventory-editor h4 {
     margin: 0;
-    font-size: 22px;
+    font-size: 17px;
 }
 
 .inventory-editor p {
     margin: 0;
     color: var(--muted);
+    font-size: 12px;
     font-weight: 750;
 }
 
@@ -719,19 +733,19 @@ button {
 
 .inventory-editor__actions {
     display: grid;
-    gap: 8px;
+    gap: 6px;
 }
 
 .ghost-button--compact {
-    min-height: 34px;
-    padding: 0 10px;
-    font-size: 12px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
 }
 
 .price-list-editor {
     display: grid;
-    gap: 12px;
-    padding-top: 14px;
+    gap: 8px;
+    padding-top: 8px;
     border-top: 1px solid var(--line);
 }
 
@@ -739,12 +753,12 @@ button {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 6px;
 }
 
 .price-list-editor__head h5 {
-    margin: 8px 0 4px;
-    font-size: 17px;
+    margin: 4px 0 2px;
+    font-size: 14px;
 }
 
 .price-list-editor__head p {
@@ -753,8 +767,8 @@ button {
 
 .price-list-rows {
     display: grid;
-    gap: 8px;
-    max-height: 360px;
+    gap: 6px;
+    max-height: 430px;
     overflow: auto;
     padding-right: 3px;
 }
@@ -762,16 +776,16 @@ button {
 .price-list-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-    padding: 10px;
+    gap: 6px;
+    padding: 8px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: #fff;
 }
 
 .price-list-row__title strong {
     display: block;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 .price-list-row__title small {
@@ -787,16 +801,16 @@ button {
 
 .price-list-row .field input,
 .price-list-row .field select {
-    min-height: 38px;
+    min-height: 30px;
 }
 
 .price-list-row__active {
     display: inline-grid;
     grid-template-columns: 18px auto;
     align-items: center;
-    gap: 7px;
+    gap: 5px;
     color: var(--muted);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
 }
 
@@ -808,9 +822,9 @@ button {
 
 .price-list-empty {
     margin: 0;
-    padding: 12px;
+    padding: 8px;
     border: 1px dashed var(--line-strong);
-    border-radius: 10px;
+    border-radius: 7px;
     color: var(--muted);
     background: #fff;
     font-weight: 800;
@@ -818,23 +832,23 @@ button {
 
 .access-tabs {
     display: inline-flex;
-    gap: 6px;
-    margin-top: 14px;
-    padding: 4px;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 3px;
     border: 1px solid var(--line);
     border-radius: 999px;
     background: #fff;
 }
 
 .access-tab {
-    min-height: 34px;
-    padding: 7px 14px;
+    min-height: 28px;
+    padding: 5px 10px;
     border: 0;
     border-radius: 999px;
     color: var(--muted);
     background: transparent;
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
     cursor: pointer;
 }
@@ -852,8 +866,8 @@ button {
 .access-admin__grid.is-active {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-    gap: 14px;
-    margin-top: 14px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
 .access-admin__grid--single.is-active {
@@ -862,9 +876,9 @@ button {
 
 .access-panel {
     min-width: 0;
-    padding: 16px;
+    padding: 10px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--panel-soft);
 }
 
@@ -873,26 +887,26 @@ button {
 }
 
 .access-panel h4 {
-    margin: 0 0 4px;
-    font-size: 21px;
+    margin: 0 0 2px;
+    font-size: 16px;
 }
 
 .access-panel .panel-heading {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .access-panel .field {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .access-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 6px;
 }
 
 .admin-table-wrap--compact {
-    max-height: 320px;
+    max-height: 430px;
     margin-top: 0;
 }
 
@@ -907,14 +921,14 @@ button {
 .access-chip {
     display: inline-flex;
     align-items: center;
-    min-height: 24px;
-    margin: 2px 4px 2px 0;
-    padding: 4px 8px;
+    min-height: 20px;
+    margin: 1px 3px 1px 0;
+    padding: 2px 6px;
     border-radius: 999px;
     color: var(--primary);
     background: #f0f2ff;
     border: 1px solid #d8dcff;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
 }
 
@@ -927,14 +941,14 @@ button {
 .roles-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 12px;
+    gap: 8px;
 }
 
 .role-create-box {
     align-self: start;
-    padding: 14px;
+    padding: 10px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: #fff;
 }
 
@@ -945,40 +959,40 @@ button {
 .permission-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    max-height: 520px;
+    gap: 6px;
+    max-height: 600px;
     overflow: auto;
-    padding-right: 4px;
+    padding-right: 2px;
 }
 
 .permission-group {
-    padding: 12px;
+    padding: 8px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 7px;
     background: #fff;
 }
 
 .permission-group h5 {
-    margin: 0 0 10px;
+    margin: 0 0 6px;
     color: var(--ink);
-    font-size: 14px;
+    font-size: 12px;
     text-transform: capitalize;
 }
 
 .permission-list {
     display: grid;
-    gap: 7px;
+    gap: 4px;
 }
 
 .permission-check {
     display: grid;
     grid-template-columns: 18px minmax(0, 1fr);
-    gap: 8px;
+    gap: 5px;
     align-items: start;
     color: var(--muted);
     font-size: 12px;
     font-weight: 800;
-    line-height: 1.35;
+    line-height: 1.2;
 }
 
 .permission-check input {
