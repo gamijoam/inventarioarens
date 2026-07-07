@@ -176,6 +176,7 @@ Regla importante:
 - todas las consultas filtran por tenant actual;
 - usa agregados SQL para evitar N+1 y no enviar catalogos completos al portal web.
 - la interfaz web consume APIs protegidas; no consulta PostgreSQL directamente ni reemplaza permisos del backend.
+- el portal administrativo debe seguir la guia de alta densidad documentada en `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`: textos de 12px a 14px, tablas compactas, controles delgados y minimo espacio vacio.
 
 ### InventoryCenter
 

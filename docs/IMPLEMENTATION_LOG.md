@@ -4714,3 +4714,23 @@ Resultado:
 
 - 3 pruebas pasadas;
 - 27 aserciones.
+
+## 2026-07-07 - Regla permanente de UI de alta densidad para portal administrativo
+
+Objetivo:
+
+- Fijar como estandar del portal administrativo una interfaz compacta, productiva y orientada a sistemas de gestion.
+- Evitar que futuras pantallas web vuelvan a un estilo amplio, con mucho espacio vacio o textos demasiado grandes.
+
+Implementacion:
+
+- Se amplio `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md` como regla permanente para `/admin`.
+- Se enlazo la regla desde `docs/MODULES.md` dentro del modulo `AdminPortal`.
+- Se agrego la decision en `docs/ARCHITECTURE.md` para que aplique a futuras pantallas administrativas.
+
+Regla:
+
+- Texto general entre 12px y 14px.
+- Tablas densas y controles compactos.
+- Menos padding, menos margen y menos scroll.
+- El portal debe sentirse como herramienta de trabajo, no como pagina comercial.

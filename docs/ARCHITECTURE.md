@@ -338,6 +338,19 @@ Reglas arquitectonicas:
 - el frontend filtra opciones visibles segun permisos efectivos, pero no sustituye validaciones del backend;
 - el backend sigue validando token, tenant, roles, permisos y policies en cada peticion protegida.
 
+## Portal administrativo web
+
+El portal administrativo web vive en `/admin` y consume APIs protegidas de Laravel. Su objetivo es monitoreo, gestion y operacion gerencial por empresa, no presentacion comercial.
+
+Reglas de interfaz:
+
+- debe seguir la guia `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`;
+- la UI se diseña como herramienta administrativa de alta densidad;
+- textos generales entre 12px y 14px;
+- tablas, filtros, botones, inputs y selects compactos;
+- se evita hero grande, tarjetas infladas y exceso de espacio vacio;
+- cada modulo nuevo del portal debe probarse visualmente al 100% de zoom antes de cerrarse.
+
 ## Pruebas de seguridad actuales
 
 La suite de pruebas debe ejecutarse contra PostgreSQL mediante Docker Compose. No se debe usar SQLite como base de confianza para pruebas de multitenancy, integridad referencial, decimales o claves compuestas.
