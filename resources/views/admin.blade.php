@@ -103,6 +103,10 @@
                             <span>Compras</span>
                             <small>Recepciones</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="receivables">
+                            <span>CxC</span>
+                            <small>Cobros cliente</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="payables">
                             <span>CxP</span>
                             <small>Pagos proveedor</small>
@@ -664,6 +668,151 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-purchases-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel receivables-admin" id="admin-receivables-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Finanzas</span>
+                                    <h3>Cuentas por cobrar</h3>
+                                    <p>Consulta saldos de clientes, vencimientos y registra cobros parciales o totales.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-receivables-refresh">Actualizar cuentas</button>
+                                </div>
+                            </div>
+
+                            <div class="receivables-admin__layout">
+                                <div class="receivables-admin__main">
+                                    <div class="receivables-admin__filters" role="search">
+                                        <label class="field">
+                                            <span>Buscar</span>
+                                            <input id="admin-receivables-search" type="search" placeholder="Documento o cliente">
+                                        </label>
+                                        <label class="field">
+                                            <span>Estado</span>
+                                            <select id="admin-receivables-status-filter">
+                                                <option value="all">Todos</option>
+                                                <option value="pending">Pendiente</option>
+                                                <option value="partial">Parcial</option>
+                                                <option value="overdue">Vencida</option>
+                                                <option value="paid">Cobrada</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Cliente</span>
+                                            <select id="admin-receivables-customer-filter">
+                                                <option value="">Todos</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Desde</span>
+                                            <input id="admin-receivables-due-from" type="date">
+                                        </label>
+                                        <label class="field">
+                                            <span>Hasta</span>
+                                            <input id="admin-receivables-due-to" type="date">
+                                        </label>
+                                        <button class="primary-button primary-button--fit" type="button" id="admin-receivables-apply">Aplicar</button>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-receivables-clear">Limpiar</button>
+                                    </div>
+
+                                    <div class="admin-table-wrap receivables-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Cuenta</th>
+                                                    <th>Cliente</th>
+                                                    <th>Estado</th>
+                                                    <th>Total</th>
+                                                    <th>Cobrado</th>
+                                                    <th>Saldo</th>
+                                                    <th>Accion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-receivables-table"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="table-footer">
+                                        <span id="admin-receivables-count">Sin cuentas cargadas.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-receivables-prev">Anterior</button>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-receivables-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="receivable-editor" id="admin-receivable-editor">
+                                    <span class="soft-badge">Cobro a cliente</span>
+                                    <h4 id="admin-receivable-title">Selecciona una cuenta</h4>
+                                    <p id="admin-receivable-subtitle">El cobro se registra contra la cuenta seleccionada.</p>
+
+                                    <div class="receivable-summary" id="admin-receivable-summary">
+                                        <div><span>Total</span><strong>USD 0.00</strong></div>
+                                        <div><span>Cobrado</span><strong>USD 0.00</strong></div>
+                                        <div><span>Saldo</span><strong>USD 0.00</strong></div>
+                                    </div>
+
+                                    <section class="receivable-payments">
+                                        <div class="purchase-items-editor__head">
+                                            <strong>Cobros registrados</strong>
+                                            <small id="admin-receivable-payments-count">0 cobros</small>
+                                        </div>
+                                        <div class="admin-table-wrap admin-table-wrap--compact receivable-payments__table">
+                                            <table class="admin-data-table admin-data-table--compact">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fecha</th>
+                                                        <th>Monto</th>
+                                                        <th>Metodo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="admin-receivable-payments-table"></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+
+                                    <section class="receivable-payment-form" aria-label="Registrar cobro">
+                                        <div class="purchase-editor__grid purchase-editor__grid--two">
+                                            <label class="field">
+                                                <span>Moneda</span>
+                                                <select id="admin-receivable-payment-currency">
+                                                    <option value="USD">USD</option>
+                                                    <option value="VES">VES</option>
+                                                </select>
+                                            </label>
+                                            <label class="field">
+                                                <span>Monto</span>
+                                                <input id="admin-receivable-payment-amount" type="number" min="0.01" step="0.01" placeholder="0.00">
+                                            </label>
+                                        </div>
+
+                                        <div class="purchase-editor__grid purchase-editor__grid--two">
+                                            <label class="field">
+                                                <span>Metodo</span>
+                                                <input id="admin-receivable-payment-method" type="text" maxlength="100" placeholder="Transferencia, efectivo...">
+                                            </label>
+                                            <label class="field">
+                                                <span>Referencia</span>
+                                                <input id="admin-receivable-payment-reference" type="text" maxlength="150" placeholder="Operacion bancaria">
+                                            </label>
+                                        </div>
+
+                                        <label class="field">
+                                            <span>Notas</span>
+                                            <textarea id="admin-receivable-payment-notes" rows="2" maxlength="1000" placeholder="Observacion opcional"></textarea>
+                                        </label>
+
+                                        <div class="purchase-editor__actions">
+                                            <button class="primary-button" type="button" id="admin-receivable-collect">Registrar cobro</button>
+                                            <button class="ghost-button" type="button" id="admin-receivable-fill-balance">Usar saldo</button>
+                                        </div>
+                                    </section>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-receivables-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel payables-admin" id="admin-payables-module" hidden>

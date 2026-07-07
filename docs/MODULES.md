@@ -660,6 +660,7 @@ Responsabilidad:
 - cuentas por cobrar por cliente y venta confirmada;
 - creacion automatica de deuda al confirmar ventas;
 - registro de cobros parciales o totales;
+- gestion web compacta de saldos de clientes en el portal administrativo;
 - saldo principal en `USD` base con snapshot local en `VES` cuando aplica;
 - rebaja automatica de saldo por devoluciones de venta;
 - control de estados `pending`, `partial`, `paid` y `overdue`.
@@ -683,6 +684,7 @@ Regla importante:
 - una devolucion de venta reduce `returned_base_amount` y el saldo;
 - los cobros no pueden superar el saldo pendiente;
 - los cobros en bolivares guardan tasa exacta usada;
+- la pantalla web permite filtrar por cliente, estado, busqueda y vencimiento;
 - toda cuenta y cobro debe respetar tenant y permisos.
 
 ### FinanceReports

@@ -675,6 +675,7 @@ button {
 }
 
 .purchases-admin__layout,
+.receivables-admin__layout,
 .payables-admin__layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 390px;
@@ -683,11 +684,13 @@ button {
 }
 
 .purchases-admin__main,
+.receivables-admin__main,
 .payables-admin__main {
     min-width: 0;
 }
 
 .purchases-admin__filters,
+.receivables-admin__filters,
 .payables-admin__filters {
     display: grid;
     grid-template-columns: minmax(240px, 1fr) 130px 200px auto auto;
@@ -699,16 +702,19 @@ button {
     background: var(--panel-soft);
 }
 
+.receivables-admin__filters,
 .payables-admin__filters {
     grid-template-columns: minmax(220px, 1fr) 130px minmax(180px, 0.8fr) 130px 130px auto auto;
 }
 
 .purchases-admin__filters .field,
+.receivables-admin__filters .field,
 .payables-admin__filters .field {
     margin: 0;
 }
 
 .purchases-admin__table,
+.receivables-admin__table,
 .payables-admin__table {
     max-height: 590px;
 }
@@ -1080,6 +1086,7 @@ button {
 }
 
 .purchase-editor,
+.receivable-editor,
 .payable-editor {
     align-self: start;
     position: sticky;
@@ -1095,12 +1102,14 @@ button {
 }
 
 .purchase-editor h4,
+.receivable-editor h4,
 .payable-editor h4 {
     margin: 0;
     font-size: 17px;
 }
 
 .purchase-editor p,
+.receivable-editor p,
 .payable-editor p {
     margin: 0;
     color: var(--muted);
@@ -1109,6 +1118,7 @@ button {
 }
 
 .purchase-editor .field,
+.receivable-editor .field,
 .payable-editor .field {
     margin: 0;
 }
@@ -1196,12 +1206,14 @@ button {
     grid-column: 1 / -1;
 }
 
+.receivable-summary,
 .payable-summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
 }
 
+.receivable-summary div,
 .payable-summary div {
     min-width: 0;
     padding: 7px;
@@ -1211,6 +1223,8 @@ button {
 }
 
 .payable-summary span,
+.receivable-summary span,
+.receivable-payments__head small,
 .payable-payments__head small {
     display: block;
     color: var(--muted);
@@ -1219,6 +1233,7 @@ button {
     text-transform: uppercase;
 }
 
+.receivable-summary strong,
 .payable-summary strong {
     display: block;
     margin-top: 2px;
@@ -1227,6 +1242,8 @@ button {
 }
 
 .payable-payments,
+.receivable-payments,
+.receivable-payment-form,
 .payable-payment-form {
     display: grid;
     gap: 7px;
@@ -1236,6 +1253,7 @@ button {
     background: #fff;
 }
 
+.receivable-payments__head,
 .payable-payments__head {
     display: flex;
     align-items: center;
@@ -1243,31 +1261,37 @@ button {
     gap: 8px;
 }
 
+.receivable-payments__head strong,
 .payable-payments__head strong {
     font-size: 13px;
 }
 
+.receivable-payments__table,
 .payable-payments__table {
     max-height: 190px;
     margin-top: 0;
 }
 
+.receivable-payments__table .admin-data-table,
 .payable-payments__table .admin-data-table {
     min-width: 520px;
 }
 
+.receivable-payment-form__grid,
 .payable-payment-form__grid {
     display: grid;
     grid-template-columns: 100px minmax(0, 1fr);
     gap: 6px;
 }
 
+.receivable-payment-form__actions,
 .payable-payment-form__actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px;
 }
 
+.receivable-payment-form__actions .primary-button,
 .payable-payment-form__actions .primary-button {
     grid-column: 1 / -1;
 }
@@ -1560,6 +1584,7 @@ button {
     .inventory-admin__layout,
     .suppliers-admin__layout,
     .purchases-admin__layout,
+    .receivables-admin__layout,
     .payables-admin__layout {
         grid-template-columns: 1fr;
     }
@@ -1573,6 +1598,7 @@ button {
     .inventory-detail,
     .supplier-editor,
     .purchase-editor,
+    .receivable-editor,
     .payable-editor {
         position: static;
     }
@@ -1620,11 +1646,14 @@ button {
     .movements-admin__filters,
     .suppliers-admin__filters,
     .purchases-admin__filters,
+    .receivables-admin__filters,
     .payables-admin__filters,
     .supplier-editor__grid,
     .purchase-editor__grid--two,
     .purchase-editor__grid--three,
     .purchase-item-form,
+    .receivable-summary,
+    .receivable-payment-form__grid,
     .payable-summary,
     .payable-payment-form__grid {
         grid-template-columns: 1fr;

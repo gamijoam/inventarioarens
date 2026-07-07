@@ -2295,6 +2295,18 @@ App\Modules\AccountsReceivable\Controllers\AccountsReceivableController
 GET /api/accounts-receivable
 ```
 
+Filtros opcionales:
+
+```txt
+search=texto
+status=all|pending|partial|paid|overdue
+customer_id=1
+due_from=2026-07-01
+due_to=2026-07-31
+limit=50
+page=1
+```
+
 Permiso requerido:
 
 ```txt
@@ -2309,6 +2321,7 @@ Reglas:
 - el saldo principal se guarda en `USD` base;
 - si el cobro usa `VES`, se guarda el snapshot de tasa usado;
 - las devoluciones de venta reducen el saldo pendiente sin borrar la venta.
+- el portal administrativo usa este endpoint para listar, filtrar y seleccionar cuentas por cobrar.
 
 ### Ver cuenta por cobrar
 
@@ -2352,6 +2365,7 @@ Reglas:
 - `payment_currency` puede ser `USD` o `VES`;
 - los cobros en `VES` requieren una tasa activa o `exchange_rate` explicito;
 - el cobro guarda tipo de tasa, codigo y valor exacto usado;
+- el portal administrativo permite llenar automaticamente el saldo pendiente en `USD` o `VES`;
 - no se permite cobrar mas que el saldo pendiente;
 - una cuenta pagada no acepta nuevos cobros;
 - todos los ids deben pertenecer a la empresa actual.

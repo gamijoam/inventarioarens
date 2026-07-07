@@ -7,6 +7,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
@@ -89,6 +90,39 @@ class AccountsReceivableApiTest extends TestCase
             'status' => AccountsReceivable::STATUS_PAID,
             'balance_base_amount' => '0.0000',
         ]);
+    }
+
+    public function test_accounts_receivable_index_filters_by_customer_status_search_and_due_date(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseA, $productA] = $this->product($tenant, 'AR-FLT-A');
+        [$warehouseB, $productB] = $this->product($tenant, 'AR-FLT-B');
+        $customerA = Customer::create(['name' => 'Cliente Caracas', 'document_type' => 'V', 'document_number' => '123']);
+        $customerB = Customer::create(['name' => 'Cliente Valencia', 'document_type' => 'V', 'document_number' => '456']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.view']);
+        $saleA = $this->confirmedSale($tenant, $user, $warehouseA, $productA, 1, $customerA->id);
+        $saleB = $this->confirmedSale($tenant, $user, $warehouseB, $productB, 1, $customerB->id);
+        $accountA = AccountsReceivable::query()->where('sale_id', $saleA->id)->firstOrFail();
+        $accountB = AccountsReceivable::query()->where('sale_id', $saleB->id)->firstOrFail();
+
+        $accountA->forceFill([
+            'document_number' => 'COB-VAL-001',
+            'due_date' => '2026-07-20',
+        ])->save();
+        $accountB->forceFill([
+            'document_number' => 'COB-VAL-002',
+            'due_date' => '2026-08-20',
+        ])->save();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/accounts-receivable?search=COB-VAL-001&status=pending&customer_id={$customerA->id}&due_from=2026-07-01&due_to=2026-07-31&limit=10")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $accountA->id)
+            ->assertJsonMissing(['id' => $accountB->id]);
     }
 
     public function test_ves_collection_uses_rate_snapshot(): void
@@ -236,7 +270,7 @@ class AccountsReceivableApiTest extends TestCase
         }
     }
 
-    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity): Sale
+    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity, ?int $customerId = null): Sale
     {
         $this->useTenant($tenant);
 
@@ -246,7 +280,7 @@ class AccountsReceivableApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity' => $quantity,
-        ]]);
+        ]], $customerId);
 
         return app(SaleService::class)->confirm($sale, $user);
     }

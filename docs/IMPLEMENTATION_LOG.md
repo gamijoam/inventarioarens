@@ -4766,3 +4766,10 @@ Regla:
 - Pruebas objetivo: AccountsPayableApiTest y AdminPortalWebTest.
 
 
+## 2026-07-07 - Portal web: Cuentas por cobrar
+
+- Se agrego la seccion web compacta de Cuentas por cobrar para listar saldos de clientes, filtrar por cliente/estado/vencimiento y registrar cobros.
+- Se amplio GET /api/accounts-receivable con filtros para uso administrativo web.
+- Se integraron permisos accounts_receivable.view y accounts_receivable.collect en la gestion visual de perfiles.
+- Se documento el avance en docs/PORTAL_ADMIN_CUENTAS_POR_COBRAR_WEB_2026-07-07.md, docs/API.md y docs/MODULES.md.
+- Pruebas objetivo: AccountsReceivableApiTest y AdminPortalWebTest.

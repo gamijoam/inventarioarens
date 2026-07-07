@@ -39,6 +39,13 @@ const state = {
         warehouses: [],
         items: [],
     },
+    receivables: {
+        page: 1,
+        loaded: false,
+        selectedReceivable: null,
+        customersLoaded: false,
+        customers: [],
+    },
     payables: {
         page: 1,
         loaded: false,
@@ -201,6 +208,33 @@ const elements = {
     purchaseReceive: document.querySelector('#admin-purchase-receive'),
     purchaseCancelOrder: document.querySelector('#admin-purchase-cancel-order'),
     purchaseClear: document.querySelector('#admin-purchase-clear'),
+    receivablesModule: document.querySelector('#admin-receivables-module'),
+    receivablesRefresh: document.querySelector('#admin-receivables-refresh'),
+    receivablesSearch: document.querySelector('#admin-receivables-search'),
+    receivablesStatusFilter: document.querySelector('#admin-receivables-status-filter'),
+    receivablesCustomerFilter: document.querySelector('#admin-receivables-customer-filter'),
+    receivablesDueFrom: document.querySelector('#admin-receivables-due-from'),
+    receivablesDueTo: document.querySelector('#admin-receivables-due-to'),
+    receivablesApply: document.querySelector('#admin-receivables-apply'),
+    receivablesClear: document.querySelector('#admin-receivables-clear'),
+    receivablesTable: document.querySelector('#admin-receivables-table'),
+    receivablesCount: document.querySelector('#admin-receivables-count'),
+    receivablesPrev: document.querySelector('#admin-receivables-prev'),
+    receivablesNext: document.querySelector('#admin-receivables-next'),
+    receivablesStatus: document.querySelector('#admin-receivables-status'),
+    receivableEditor: document.querySelector('#admin-receivable-editor'),
+    receivableTitle: document.querySelector('#admin-receivable-title'),
+    receivableSubtitle: document.querySelector('#admin-receivable-subtitle'),
+    receivableSummary: document.querySelector('#admin-receivable-summary'),
+    receivablePaymentsCount: document.querySelector('#admin-receivable-payments-count'),
+    receivablePaymentsTable: document.querySelector('#admin-receivable-payments-table'),
+    receivablePaymentCurrency: document.querySelector('#admin-receivable-payment-currency'),
+    receivablePaymentAmount: document.querySelector('#admin-receivable-payment-amount'),
+    receivablePaymentMethod: document.querySelector('#admin-receivable-payment-method'),
+    receivablePaymentReference: document.querySelector('#admin-receivable-payment-reference'),
+    receivablePaymentNotes: document.querySelector('#admin-receivable-payment-notes'),
+    receivableCollect: document.querySelector('#admin-receivable-collect'),
+    receivableFillBalance: document.querySelector('#admin-receivable-fill-balance'),
     payablesModule: document.querySelector('#admin-payables-module'),
     payablesRefresh: document.querySelector('#admin-payables-refresh'),
     payablesSearch: document.querySelector('#admin-payables-search'),
@@ -310,6 +344,8 @@ const permissionProfiles = {
         'product_exits.view',
         'inventory_transfers.view',
         'purchases.view',
+        'accounts_receivable.view',
+        'accounts_receivable.collect',
         'accounts_payable.view',
         'accounts_payable.pay',
         'sales.view',
@@ -351,6 +387,10 @@ const portalSections = {
     purchases: {
         title: 'Compras',
         copy: 'Ordenes de compra, recepcion de mercancia y costos que alimentan inventario.',
+    },
+    receivables: {
+        title: 'Cuentas por cobrar',
+        copy: 'Saldos de clientes, vencimientos y registro de abonos parciales o totales.',
     },
     payables: {
         title: 'Cuentas por pagar',
@@ -667,6 +707,12 @@ function resetTenantScopedState() {
     state.payables.suppliersLoaded = false;
     state.payables.suppliers = [];
 
+    state.receivables.page = 1;
+    state.receivables.loaded = false;
+    state.receivables.selectedReceivable = null;
+    state.receivables.customersLoaded = false;
+    state.receivables.customers = [];
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -704,6 +750,14 @@ function resetTenantScopedState() {
 
     if (elements.payablePaymentsTable) {
         elements.payablePaymentsTable.innerHTML = '';
+    }
+
+    if (elements.receivablesTable) {
+        elements.receivablesTable.innerHTML = '';
+    }
+
+    if (elements.receivablePaymentsTable) {
+        elements.receivablePaymentsTable.innerHTML = '';
     }
 
     if (elements.accessUsersTable) {
@@ -765,6 +819,7 @@ function activatePortalSection(section) {
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
     const isPurchases = selectedSection === 'purchases';
+    const isReceivables = selectedSection === 'receivables';
     const isPayables = selectedSection === 'payables';
     const isAccess = selectedSection === 'users';
 
@@ -798,6 +853,10 @@ function activatePortalSection(section) {
         elements.purchasesModule.hidden = !isPurchases;
     }
 
+    if (elements.receivablesModule) {
+        elements.receivablesModule.hidden = !isReceivables;
+    }
+
     if (elements.payablesModule) {
         elements.payablesModule.hidden = !isPayables;
     }
@@ -810,9 +869,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isPayables && !isAccess) {
+    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -834,6 +893,10 @@ function activatePortalSection(section) {
 
     if (isPurchases && !state.purchases.loaded) {
         loadPurchases();
+    }
+
+    if (isReceivables && !state.receivables.loaded) {
+        loadReceivables();
     }
 
     if (isPayables && !state.payables.loaded) {
@@ -2238,6 +2301,341 @@ function payableStatusTone(status) {
     }[status] || 'neutral';
 }
 
+async function loadReceivableOptions() {
+    const session = state.session;
+
+    if (!session || state.receivables.customersLoaded || !can('customers.view')) {
+        return;
+    }
+
+    const customers = await api('/api/customers?active_only=1&limit=100', {
+        headers: authHeaders(session),
+    }, true);
+
+    state.receivables.customers = collectionData(customers);
+    state.receivables.customersLoaded = true;
+    renderReceivableCustomerOptions();
+}
+
+function renderReceivableCustomerOptions() {
+    const options = [new Option('Todos', '')];
+
+    state.receivables.customers.forEach((customer) => {
+        const documentLabel = [customer.document_type, customer.document_number].filter(Boolean).join('-');
+        const label = documentLabel ? `${customer.name} (${documentLabel})` : customer.name;
+        options.push(new Option(label, String(customer.id)));
+    });
+
+    elements.receivablesCustomerFilter?.replaceChildren(...options);
+}
+
+async function loadReceivables(page = state.receivables.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.receivables.page = page;
+    setStatus(elements.receivablesStatus, 'Cargando cuentas por cobrar...');
+    setButtonLoading(elements.receivablesRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.receivablesApply, true, 'Aplicando...');
+
+    try {
+        await loadReceivableOptions();
+
+        const query = new URLSearchParams({
+            status: elements.receivablesStatusFilter?.value || 'all',
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.receivablesSearch?.value.trim();
+        const customerId = elements.receivablesCustomerFilter?.value;
+        const dueFrom = elements.receivablesDueFrom?.value;
+        const dueTo = elements.receivablesDueTo?.value;
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        if (customerId) {
+            query.set('customer_id', customerId);
+        }
+
+        if (dueFrom) {
+            query.set('due_from', dueFrom);
+        }
+
+        if (dueTo) {
+            query.set('due_to', dueTo);
+        }
+
+        const pageData = await api(`/api/accounts-receivable?${query}`, {
+            headers: authHeaders(session),
+        }, true);
+
+        state.receivables.loaded = true;
+        renderReceivables(pageData);
+        setStatus(elements.receivablesStatus, `Cuentas actualizadas. ${pageData.meta?.total || 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.receivablesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.receivablesRefresh, false);
+        setButtonLoading(elements.receivablesApply, false);
+    }
+}
+
+function renderReceivables(pageData = {}) {
+    const receivables = pageData.data || [];
+    const meta = pageData.meta || {};
+
+    if (!receivables.length) {
+        if (elements.receivablesTable) {
+            elements.receivablesTable.innerHTML = '<tr><td colspan="7"><strong>Sin cuentas por cobrar</strong><small>No hay saldos con los filtros seleccionados.</small></td></tr>';
+        }
+    } else {
+        elements.receivablesTable?.replaceChildren(...receivables.map(receivableRow));
+    }
+
+    if (elements.receivablesCount) {
+        elements.receivablesCount.textContent = (meta.total || 0) === 0
+            ? 'Sin cuentas para mostrar.'
+            : `${meta.from || 1}-${meta.to || receivables.length} de ${meta.total} cuenta(s).`;
+    }
+
+    if (elements.receivablesPrev) {
+        elements.receivablesPrev.disabled = !meta.current_page || meta.current_page <= 1;
+    }
+
+    if (elements.receivablesNext) {
+        elements.receivablesNext.disabled = !meta.current_page || meta.current_page >= meta.last_page;
+    }
+
+    state.receivables.page = meta.current_page || 1;
+}
+
+function receivableRow(receivable) {
+    const row = document.createElement('tr');
+    row.dataset.receivableId = String(receivable.id);
+    row.classList.toggle('is-selected', state.receivables.selectedReceivable?.id === receivable.id);
+    const customerName = receivable.customer?.name || 'Consumidor final';
+    const tone = receivableStatusTone(receivable.status);
+
+    row.innerHTML = `
+        <td><strong>#${receivable.id} ${escapeHtml(receivable.document_number || 'Sin documento')}</strong><small>Vence ${escapeHtml(receivable.due_date || 'sin fecha')}</small></td>
+        <td><strong>${escapeHtml(customerName)}</strong><small>${escapeHtml(receivable.customer?.document_number || '')}</small></td>
+        <td><span class="status-pill" data-tone="${tone}">${escapeHtml(receivableStatusLabel(receivable.status))}</span></td>
+        <td><strong>${money(receivable.original_base_amount)}</strong><small>${number(receivable.original_local_amount)} Bs</small></td>
+        <td><strong>${money(receivable.paid_base_amount)}</strong><small>${number(receivable.paid_local_amount)} Bs</small></td>
+        <td><strong>${money(receivable.balance_base_amount)}</strong><small>${number(receivable.balance_local_amount)} Bs</small></td>
+        <td><button class="ghost-button ghost-button--compact" type="button" data-admin-receivable-select="${receivable.id}">Ver</button></td>
+    `;
+
+    row.querySelector('[data-admin-receivable-select]')?.addEventListener('click', () => selectReceivableById(receivable.id));
+    row.addEventListener('dblclick', () => selectReceivableById(receivable.id));
+
+    return row;
+}
+
+async function selectReceivableById(receivableId) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.receivablesStatus, 'Cargando detalle de cuenta...');
+
+    try {
+        const receivable = await api(`/api/accounts-receivable/${receivableId}`, {
+            headers: authHeaders(session),
+        });
+        selectReceivable(receivable);
+    } catch (error) {
+        setStatus(elements.receivablesStatus, normalizeError(error), 'error');
+    }
+}
+
+function selectReceivable(receivable) {
+    state.receivables.selectedReceivable = receivable;
+    elements.receivableTitle.textContent = `Cuenta #${receivable.id}`;
+    elements.receivableSubtitle.textContent = `${receivable.customer?.name || 'Consumidor final'} - ${receivableStatusLabel(receivable.status)} - ${receivable.document_number || 'sin documento'}.`;
+    elements.receivableSummary.innerHTML = `
+        <div><span>Total</span><strong>${money(receivable.original_base_amount)}</strong></div>
+        <div><span>Cobrado</span><strong>${money(receivable.paid_base_amount)}</strong></div>
+        <div><span>Saldo</span><strong>${money(receivable.balance_base_amount)}</strong></div>
+    `;
+    elements.receivablePaymentCurrency.value = receivable.currency || 'USD';
+    clearReceivablePaymentForm(false);
+    renderReceivablePayments(receivable.payments || []);
+    updateReceivablePaymentState();
+    elements.receivablesTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    elements.receivablesTable?.querySelector(`[data-receivable-id="${receivable.id}"]`)?.classList.add('is-selected');
+    setStatus(elements.receivablesStatus, `Cuenta seleccionada: #${receivable.id}.`, 'neutral');
+}
+
+function renderReceivablePayments(payments) {
+    if (!payments.length) {
+        elements.receivablePaymentsTable.innerHTML = '<tr><td colspan="3"><strong>Sin cobros</strong><small>Registra el primer abono desde el formulario.</small></td></tr>';
+    } else {
+        elements.receivablePaymentsTable.replaceChildren(...payments.map((payment) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(formatDateTime(payment.paid_at || payment.created_at))}</strong><small>${escapeHtml(payment.reference || 'Sin referencia')}</small></td>
+                <td><strong>${payment.payment_currency} ${number(payment.amount)}</strong><small>Base ${money(payment.amount_base)}</small></td>
+                <td><strong>${escapeHtml(payment.method || 'Sin metodo')}</strong><small>${escapeHtml(payment.notes || '')}</small></td>
+            `;
+            return row;
+        }));
+    }
+
+    elements.receivablePaymentsCount.textContent = `${payments.length} cobro(s)`;
+}
+
+function clearReceivablePaymentForm(clearStatus = true) {
+    if (elements.receivablePaymentAmount) {
+        elements.receivablePaymentAmount.value = '';
+    }
+
+    if (elements.receivablePaymentMethod) {
+        elements.receivablePaymentMethod.value = '';
+    }
+
+    if (elements.receivablePaymentReference) {
+        elements.receivablePaymentReference.value = '';
+    }
+
+    if (elements.receivablePaymentNotes) {
+        elements.receivablePaymentNotes.value = '';
+    }
+
+    if (clearStatus) {
+        setStatus(elements.receivablesStatus, 'Formulario de cobro limpio.', 'neutral');
+    }
+}
+
+function fillReceivableBalance() {
+    const receivable = state.receivables.selectedReceivable;
+
+    if (!receivable) {
+        setStatus(elements.receivablesStatus, 'Selecciona una cuenta por cobrar primero.', 'error');
+        return;
+    }
+
+    const currency = elements.receivablePaymentCurrency?.value || 'USD';
+    const amount = currency === 'VES' ? receivable.balance_local_amount : receivable.balance_base_amount;
+    if (elements.receivablePaymentAmount) {
+        elements.receivablePaymentAmount.value = Number(amount || 0).toFixed(2);
+    }
+}
+
+async function registerReceivablePayment() {
+    const session = state.session;
+    const receivable = state.receivables.selectedReceivable;
+
+    if (!session || !receivable) {
+        setStatus(elements.receivablesStatus, 'Selecciona una cuenta por cobrar antes de registrar cobro.', 'error');
+        return;
+    }
+
+    if (!can('accounts_receivable.collect')) {
+        setStatus(elements.receivablesStatus, 'Tu usuario no tiene permiso para cobrar cuentas.', 'error');
+        return;
+    }
+
+    const amount = Number(elements.receivablePaymentAmount?.value || 0);
+
+    if (amount <= 0 || Number.isNaN(amount)) {
+        setStatus(elements.receivablesStatus, 'El monto del cobro debe ser mayor que cero.', 'error');
+        return;
+    }
+
+    const payload = {
+        payment_currency: elements.receivablePaymentCurrency?.value || 'USD',
+        amount,
+        method: elements.receivablePaymentMethod?.value.trim() || null,
+        reference: elements.receivablePaymentReference?.value.trim() || null,
+        notes: elements.receivablePaymentNotes?.value.trim() || null,
+    };
+
+    setStatus(elements.receivablesStatus, 'Registrando cobro a cliente...');
+    setButtonLoading(elements.receivableCollect, true, 'Registrando...');
+
+    try {
+        await api(`/api/accounts-receivable/${receivable.id}/payments`, {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+        const updated = await api(`/api/accounts-receivable/${receivable.id}`, {
+            headers: authHeaders(session),
+        });
+        await loadReceivables(state.receivables.page);
+        selectReceivable(updated);
+        await loadDashboard();
+        setStatus(elements.receivablesStatus, 'Cobro registrado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.receivablesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.receivableCollect, false);
+    }
+}
+
+function updateReceivablePaymentState() {
+    const receivable = state.receivables.selectedReceivable;
+    const canCollect = Boolean(receivable && receivable.status !== 'paid' && Number(receivable.balance_base_amount || 0) > 0 && can('accounts_receivable.collect'));
+
+    if (elements.receivableCollect) {
+        elements.receivableCollect.disabled = !canCollect;
+    }
+
+    if (elements.receivableFillBalance) {
+        elements.receivableFillBalance.disabled = !receivable;
+    }
+}
+
+function clearReceivableFilters() {
+    if (elements.receivablesSearch) {
+        elements.receivablesSearch.value = '';
+    }
+
+    if (elements.receivablesStatusFilter) {
+        elements.receivablesStatusFilter.value = 'all';
+    }
+
+    if (elements.receivablesCustomerFilter) {
+        elements.receivablesCustomerFilter.value = '';
+    }
+
+    if (elements.receivablesDueFrom) {
+        elements.receivablesDueFrom.value = '';
+    }
+
+    if (elements.receivablesDueTo) {
+        elements.receivablesDueTo.value = '';
+    }
+
+    loadReceivables(1);
+}
+
+function receivableStatusLabel(status) {
+    return {
+        pending: 'Pendiente',
+        partial: 'Parcial',
+        paid: 'Cobrada',
+        overdue: 'Vencida',
+    }[status] || status || 'Sin estado';
+}
+
+function receivableStatusTone(status) {
+    return {
+        pending: 'warning',
+        partial: 'warning',
+        paid: 'success',
+        overdue: 'error',
+    }[status] || 'neutral';
+}
+
 function inventoryRow(product) {
     const row = document.createElement('tr');
     row.className = product.is_active ? '' : 'admin-data-table__row--inactive';
@@ -3333,6 +3731,8 @@ function permissionModuleLabel(module) {
         suppliers: 'Proveedores',
         settings: 'Configuracion',
         sync: 'Sincronizacion',
+        accounts_receivable: 'Cuentas por cobrar',
+        accounts_payable: 'Cuentas por pagar',
     }[module] ?? module.replaceAll('_', ' ');
 }
 
@@ -3349,6 +3749,8 @@ function permissionLabel(permission) {
         export: 'Exportar',
         receive: 'Recibir',
         approve: 'Aprobar',
+        collect: 'Cobrar',
+        pay: 'Pagar',
     };
 
     return `${labels[action] || action} (${permission})`;
@@ -3597,6 +3999,24 @@ elements.purchaseSave?.addEventListener('click', savePurchase);
 elements.purchaseReceive?.addEventListener('click', receivePurchase);
 elements.purchaseCancelOrder?.addEventListener('click', cancelPurchaseOrder);
 elements.purchaseClear?.addEventListener('click', clearPurchaseForm);
+elements.receivablesRefresh?.addEventListener('click', () => loadReceivables());
+elements.receivablesApply?.addEventListener('click', () => loadReceivables(1));
+elements.receivablesClear?.addEventListener('click', clearReceivableFilters);
+elements.receivablesPrev?.addEventListener('click', () => loadReceivables(Math.max(state.receivables.page - 1, 1)));
+elements.receivablesNext?.addEventListener('click', () => loadReceivables(state.receivables.page + 1));
+elements.receivablesSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadReceivables(1);
+    }
+});
+elements.receivableFillBalance?.addEventListener('click', fillReceivableBalance);
+elements.receivableCollect?.addEventListener('click', registerReceivablePayment);
+elements.receivablePaymentCurrency?.addEventListener('change', () => {
+    if (elements.receivablePaymentAmount?.value) {
+        fillReceivableBalance();
+    }
+});
 elements.payablesRefresh?.addEventListener('click', () => loadPayables());
 elements.payablesApply?.addEventListener('click', () => loadPayables(1));
 elements.payablesClear?.addEventListener('click', clearPayableFilters);
