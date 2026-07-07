@@ -285,6 +285,27 @@
                                         <button class="primary-button" type="button" id="admin-inventory-save">Guardar cambios</button>
                                         <button class="ghost-button" type="button" id="admin-inventory-cancel">Cancelar</button>
                                     </div>
+
+                                    <section class="price-list-editor" aria-labelledby="admin-price-list-title">
+                                        <div class="price-list-editor__head">
+                                            <div>
+                                                <span class="soft-badge">Listas</span>
+                                                <h5 id="admin-price-list-title">Precios por lista</h5>
+                                                <p>Completa precios faltantes para POS y sincronización.</p>
+                                            </div>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-price-copy-base">
+                                                Copiar base
+                                            </button>
+                                        </div>
+
+                                        <div class="price-list-rows" id="admin-price-list-rows">
+                                            <p class="price-list-empty">Selecciona un producto para cargar sus listas.</p>
+                                        </div>
+
+                                        <button class="primary-button" type="button" id="admin-price-list-save">
+                                            Guardar listas de precio
+                                        </button>
+                                    </section>
                                 </aside>
                             </div>
 

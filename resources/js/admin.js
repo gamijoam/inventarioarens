@@ -10,6 +10,8 @@ const state = {
         page: 1,
         loaded: false,
         selectedProduct: null,
+        priceLists: [],
+        productPrices: [],
     },
     access: {
         loaded: false,
@@ -66,6 +68,9 @@ const elements = {
     inventoryActiveEdit: document.querySelector('#admin-inventory-active-edit'),
     inventorySave: document.querySelector('#admin-inventory-save'),
     inventoryCancel: document.querySelector('#admin-inventory-cancel'),
+    priceListRows: document.querySelector('#admin-price-list-rows'),
+    priceListSave: document.querySelector('#admin-price-list-save'),
+    priceCopyBase: document.querySelector('#admin-price-copy-base'),
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
@@ -460,6 +465,9 @@ function activatePortalSection(section) {
 
     if (isInventory && !state.inventory.loaded) {
         loadInventory();
+        loadInventoryPriceLists().catch((error) => {
+            setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+        });
     }
 
     if (isAccess && !state.access.loaded) {
@@ -644,12 +652,16 @@ function inventoryRow(product) {
     `;
 
     const button = row.querySelector('[data-admin-product-edit]');
-    button?.addEventListener('click', () => selectInventoryProduct(product));
+    button?.addEventListener('click', () => {
+        selectInventoryProduct(product).catch((error) => {
+            setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+        });
+    });
 
     return row;
 }
 
-function selectInventoryProduct(product) {
+async function selectInventoryProduct(product) {
     state.inventory.selectedProduct = product;
     elements.inventoryEditor.hidden = false;
     elements.inventoryEditorTitle.textContent = product.name;
@@ -657,7 +669,20 @@ function selectInventoryProduct(product) {
     elements.inventoryPrice.value = product.base_price ?? '';
     elements.inventoryCurrency.value = product.sale_currency || 'USD';
     elements.inventoryActiveEdit.value = product.is_active ? '1' : '0';
-    setStatus(elements.inventoryStatus, 'Edita precio, moneda o estado. Al guardar, el cambio queda listo para sincronizarse.', 'neutral');
+    renderProductPriceListRows([], true);
+    setStatus(elements.inventoryStatus, 'Cargando precios por lista del producto...', 'neutral');
+
+    await Promise.all([
+        loadInventoryPriceLists(),
+        loadProductPriceLists(product),
+    ]);
+
+    if (state.inventory.selectedProduct?.id !== product.id) {
+        return;
+    }
+
+    renderProductPriceListRows();
+    setStatus(elements.inventoryStatus, 'Edita precio base, moneda, estado o precios por lista. Todo quedará listo para sincronizarse.', 'neutral');
 }
 
 async function saveInventoryProductPrice() {
@@ -698,6 +723,180 @@ async function saveInventoryProductPrice() {
         setStatus(elements.inventoryStatus, normalizeError(error), 'error');
     } finally {
         setButtonLoading(elements.inventorySave, false);
+    }
+}
+
+async function loadInventoryPriceLists() {
+    const session = state.session;
+
+    if (!session || state.inventory.priceLists.length > 0) {
+        return;
+    }
+
+    const lists = await api('/api/price-lists?active_only=1', {
+        headers: authHeaders(session),
+    });
+
+    state.inventory.priceLists = collectionData(lists);
+}
+
+async function loadProductPriceLists(product) {
+    const session = state.session;
+
+    if (!session || !product) {
+        state.inventory.productPrices = [];
+        return;
+    }
+
+    const prices = await api(`/api/products/${product.id}/prices`, {
+        headers: authHeaders(session),
+    });
+
+    state.inventory.productPrices = collectionData(prices);
+}
+
+function renderProductPriceListRows(rows = null, isLoading = false) {
+    if (!elements.priceListRows) {
+        return;
+    }
+
+    if (isLoading) {
+        elements.priceListRows.innerHTML = '<p class="price-list-empty">Cargando listas de precio...</p>';
+        return;
+    }
+
+    const priceLists = rows ?? state.inventory.priceLists;
+
+    if (!priceLists.length) {
+        elements.priceListRows.innerHTML = '<p class="price-list-empty">No hay listas activas para esta empresa.</p>';
+        return;
+    }
+
+    const pricesByList = new Map(state.inventory.productPrices.map((price) => [Number(price.price_list_id), price]));
+
+    elements.priceListRows.replaceChildren(...priceLists.map((priceList) => {
+        const productPrice = pricesByList.get(Number(priceList.id));
+        const selectedCurrency = productPrice?.currency || state.inventory.selectedProduct?.sale_currency || 'USD';
+        const row = document.createElement('article');
+        row.className = 'price-list-row';
+        row.dataset.priceListId = priceList.id;
+        row.dataset.exchangeRateTypeId = productPrice?.exchange_rate_type_id ?? '';
+
+        row.innerHTML = `
+            <div class="price-list-row__title">
+                <strong>${escapeHtml(priceList.name)}</strong>
+                <small>${escapeHtml(priceList.code)}${priceList.is_default ? ' - Predeterminada' : ''}</small>
+            </div>
+            <label class="field">
+                <span>Precio</span>
+                <input data-price-list-price type="number" min="0" step="0.01" placeholder="Sin precio" value="${productPrice ? Number(productPrice.price).toFixed(2) : ''}">
+            </label>
+            <label class="field">
+                <span>Moneda</span>
+                <select data-price-list-currency>
+                    <option value="USD" ${selectedCurrency === 'USD' ? 'selected' : ''}>USD</option>
+                    <option value="VES" ${selectedCurrency === 'VES' ? 'selected' : ''}>VES</option>
+                </select>
+            </label>
+            <label class="price-list-row__active">
+                <input data-price-list-active type="checkbox" ${productPrice?.is_active === false ? '' : 'checked'}>
+                <span>Activa</span>
+            </label>
+            <span class="status-pill" data-tone="${productPrice ? 'success' : 'warning'}">${productPrice ? 'Configurada' : 'Falta precio'}</span>
+        `;
+
+        return row;
+    }));
+}
+
+function copyBasePriceToEmptyLists() {
+    if (!state.inventory.selectedProduct) {
+        setStatus(elements.inventoryStatus, 'Selecciona un producto antes de copiar el precio base.', 'error');
+        return;
+    }
+
+    const basePrice = elements.inventoryPrice.value;
+    const baseCurrency = elements.inventoryCurrency.value || 'USD';
+
+    if (basePrice === '' || Number(basePrice) < 0) {
+        setStatus(elements.inventoryStatus, 'Coloca un precio base válido antes de copiarlo.', 'error');
+        return;
+    }
+
+    elements.priceListRows?.querySelectorAll('.price-list-row').forEach((row) => {
+        const priceInput = row.querySelector('[data-price-list-price]');
+        const currencySelect = row.querySelector('[data-price-list-currency]');
+
+        if (priceInput && priceInput.value === '') {
+            priceInput.value = Number(basePrice).toFixed(2);
+        }
+
+        if (currencySelect) {
+            currencySelect.value = baseCurrency;
+        }
+    });
+
+    setStatus(elements.inventoryStatus, 'Precio base copiado en listas sin precio.', 'success');
+}
+
+async function saveProductPriceLists() {
+    const product = state.inventory.selectedProduct;
+    const session = state.session;
+
+    if (!product || !session) {
+        setStatus(elements.inventoryStatus, 'Selecciona un producto antes de guardar listas.', 'error');
+        return;
+    }
+
+    const prices = Array.from(elements.priceListRows?.querySelectorAll('.price-list-row') || [])
+        .map((row) => {
+            const priceInput = row.querySelector('[data-price-list-price]');
+            const currencySelect = row.querySelector('[data-price-list-currency]');
+            const activeInput = row.querySelector('[data-price-list-active]');
+            const price = priceInput?.value;
+
+            if (price === '') {
+                return null;
+            }
+
+            return {
+                price_list_id: Number(row.dataset.priceListId),
+                price: Number(price),
+                currency: currencySelect?.value || 'USD',
+                exchange_rate_type_id: row.dataset.exchangeRateTypeId ? Number(row.dataset.exchangeRateTypeId) : null,
+                is_active: Boolean(activeInput?.checked),
+            };
+        })
+        .filter(Boolean);
+
+    if (!prices.length) {
+        setStatus(elements.inventoryStatus, 'Completa al menos un precio por lista antes de guardar.', 'error');
+        return;
+    }
+
+    if (prices.some((price) => Number.isNaN(price.price) || price.price < 0)) {
+        setStatus(elements.inventoryStatus, 'Los precios por lista deben ser números mayores o iguales a cero.', 'error');
+        return;
+    }
+
+    setStatus(elements.inventoryStatus, 'Guardando precios por lista y preparando sincronización...');
+    setButtonLoading(elements.priceListSave, true, 'Guardando...');
+
+    try {
+        const updated = await api(`/api/products/${product.id}/prices`, {
+            method: 'PUT',
+            headers: authHeaders(session),
+            body: JSON.stringify({ prices }),
+        });
+
+        state.inventory.productPrices = collectionData(updated);
+        renderProductPriceListRows();
+        await loadDashboard();
+        setStatus(elements.inventoryStatus, 'Precios por lista actualizados. Los cambios quedaron listos para sincronizarse.', 'success');
+    } catch (error) {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.priceListSave, false);
     }
 }
 
@@ -1239,9 +1438,13 @@ elements.inventorySearch?.addEventListener('keydown', (event) => {
 elements.inventoryPrev?.addEventListener('click', () => loadInventory(Math.max(state.inventory.page - 1, 1)));
 elements.inventoryNext?.addEventListener('click', () => loadInventory(state.inventory.page + 1));
 elements.inventorySave?.addEventListener('click', saveInventoryProductPrice);
+elements.priceListSave?.addEventListener('click', saveProductPriceLists);
+elements.priceCopyBase?.addEventListener('click', copyBasePriceToEmptyLists);
 elements.inventoryCancel?.addEventListener('click', () => {
     elements.inventoryEditor.hidden = true;
     state.inventory.selectedProduct = null;
+    state.inventory.productPrices = [];
+    renderProductPriceListRows([]);
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());

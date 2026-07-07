@@ -567,7 +567,7 @@ button {
 
 .inventory-admin__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 340px;
     gap: 14px;
     margin-top: 14px;
 }
@@ -705,6 +705,100 @@ button {
 .inventory-editor__actions {
     display: grid;
     gap: 8px;
+}
+
+.ghost-button--compact {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.price-list-editor {
+    display: grid;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.price-list-editor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.price-list-editor__head h5 {
+    margin: 8px 0 4px;
+    font-size: 17px;
+}
+
+.price-list-editor__head p {
+    max-width: 220px;
+}
+
+.price-list-rows {
+    display: grid;
+    gap: 8px;
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 3px;
+}
+
+.price-list-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.price-list-row__title strong {
+    display: block;
+    font-size: 14px;
+}
+
+.price-list-row__title small {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.price-list-row .field {
+    margin: 0;
+}
+
+.price-list-row .field input,
+.price-list-row .field select {
+    min-height: 38px;
+}
+
+.price-list-row__active {
+    display: inline-grid;
+    grid-template-columns: 18px auto;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.price-list-row__active input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.price-list-empty {
+    margin: 0;
+    padding: 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    color: var(--muted);
+    background: #fff;
+    font-weight: 800;
 }
 
 .access-tabs {
