@@ -4686,3 +4686,31 @@ Validacion:
 Nota:
 
 - La prueba profunda que valida PostgreSQL nube directo depende de permisos/red hacia el puerto 5432. La operacion real del sistema debe pasar por API HTTPS.
+
+## 2026-07-07 - API base del portal administrativo web
+
+Objetivo:
+
+- Comenzar la base backend del futuro portal web administrativo.
+- Permitir que la web consulte metricas por API, sin conectarse directo a PostgreSQL.
+- Preparar un resumen gerencial por empresa con ventas, POS, caja, inventario y sincronizacion.
+
+Implementacion:
+
+- Se agrego el modulo `AdminPortal`.
+- Se agrego la ruta `GET /api/admin-portal/dashboard`.
+- La API devuelve metricas agregadas del tenant activo y alertas operativas.
+- La autorizacion acepta permisos de lectura gerencial u operativa: `reports.view`, `finance_reports.view`, `sales.view`, `products.view` o `cash_register.view`.
+- Las consultas usan agregados SQL y filtros por tenant para evitar N+1 y mezcla entre empresas.
+- Se documento el contrato en `docs/API.md`, `docs/MODULES.md` y `docs/PORTAL_ADMIN_BACKEND_DASHBOARD_2026-07-07.md`.
+
+Pruebas:
+
+```powershell
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\AdminPortal\AdminDashboardApiTest.php
+```
+
+Resultado:
+
+- 3 pruebas pasadas;
+- 27 aserciones.

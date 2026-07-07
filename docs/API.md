@@ -4331,6 +4331,94 @@ Regla:
 
 - solo se pueden entregar casos `approved` o `rejected`.
 
+## Portal administrativo web
+
+Estas APIs preparan la futura web administrativa en `app.miinventariofacil.com`. La web debe consumir Laravel por HTTPS y no conectarse directo a PostgreSQL.
+
+### Resumen gerencial
+
+```txt
+GET /api/admin-portal/dashboard
+```
+
+Permisos aceptados:
+
+```txt
+reports.view
+finance_reports.view
+sales.view
+products.view
+cash_register.view
+```
+
+Query opcional:
+
+```txt
+period=today|week|month
+date_from=2026-07-01
+date_to=2026-07-07
+low_stock_threshold=3
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "tenant": {
+      "id": 1,
+      "name": "Demo Valencia",
+      "slug": "demo-valencia"
+    },
+    "period": {
+      "from": "2026-07-07",
+      "to": "2026-07-07"
+    },
+    "currency": "USD",
+    "sales": {
+      "confirmed_count": 4,
+      "confirmed_base_amount": 1200,
+      "pos_paid_count": 4,
+      "pos_paid_base_amount": 1200,
+      "pending_pos_count": 1
+    },
+    "cash_register": {
+      "physical_registers_count": 2,
+      "open_sessions_count": 1,
+      "expected_base_amount": 300
+    },
+    "inventory": {
+      "active_products_count": 62,
+      "available_quantity": 100,
+      "reserved_quantity": 0,
+      "damaged_quantity": 0,
+      "low_stock_count": 10,
+      "without_stock_count": 5,
+      "low_stock_threshold": 3
+    },
+    "sync": {
+      "nodes_count": 1,
+      "pending_outbox_count": 0,
+      "failed_outbox_count": 0,
+      "failed_inbox_count": 0,
+      "readiness_status": "ready",
+      "last_success_at": "2026-07-07 10:00:00",
+      "last_error": null
+    },
+    "alerts": [],
+    "generated_at": "2026-07-07T10:00:00.000000Z"
+  }
+}
+```
+
+Reglas:
+
+- es una API solo lectura;
+- todas las metricas pertenecen al tenant activo del token;
+- no devuelve listados completos de productos, ventas ni pagos;
+- esta pensada para el dashboard inicial del portal web administrativo;
+- las alertas iniciales cubren productos sin stock, stock bajo, errores de sincronizacion y eventos pendientes por subir.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion

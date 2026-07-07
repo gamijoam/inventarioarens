@@ -148,6 +148,30 @@ Regla importante:
 - no debe cargar colecciones completas para la portada;
 - la autorizacion acepta permisos de lectura operativos como `finance_reports.view`, `reports.view`, `sales.view`, `pos.view`, `products.view` o `cash_register.view`.
 
+### AdminPortal
+
+Responsabilidad:
+
+- exponer APIs de lectura para el futuro portal web administrativo;
+- resumir ventas, POS, caja, inventario y sincronizacion por empresa;
+- servir como contrato de datos para metricas gerenciales en la nube;
+- evitar que la web consulte PostgreSQL directamente;
+- entregar alertas operativas sin cargar listas completas.
+
+Archivos principales:
+
+- `app/Modules/AdminPortal/Controllers/AdminDashboardController.php`
+- `app/Modules/AdminPortal/Requests/AdminDashboardRequest.php`
+- `app/Modules/AdminPortal/Services/AdminDashboardService.php`
+- `app/Modules/AdminPortal/routes.php`
+
+Regla importante:
+
+- el modulo es solo lectura;
+- requiere permisos de lectura gerencial u operativa como `reports.view`, `finance_reports.view`, `sales.view`, `products.view` o `cash_register.view`;
+- todas las consultas filtran por tenant actual;
+- usa agregados SQL para evitar N+1 y no enviar catalogos completos al portal web.
+
 ### InventoryCenter
 
 Responsabilidad:
