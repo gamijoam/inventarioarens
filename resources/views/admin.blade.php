@@ -97,7 +97,7 @@
                         </button>
                         <button class="portal-nav__item" type="button" data-portal-section="users">
                             <span>Usuarios</span>
-                            <small>Roles y permisos</small>
+                            <small>Perfiles y permisos</small>
                         </button>
                         <button class="portal-nav__item" type="button" data-portal-section="sync">
                             <span>Sincronización</span>
@@ -277,7 +277,7 @@
                                 <div>
                                     <span class="soft-badge">Accesos</span>
                                     <h3>Usuarios y permisos</h3>
-                                    <p>Administra usuarios por empresa, asigna roles y controla permisos por modulo.</p>
+                                    <p>Administra usuarios por empresa, asigna perfiles reutilizables y controla permisos por modulo.</p>
                                 </div>
                                 <button class="ghost-button" type="button" id="admin-access-refresh">Actualizar accesos</button>
                             </div>
@@ -298,7 +298,7 @@
                                                 <tr>
                                                     <th>Usuario</th>
                                                     <th>Estado</th>
-                                                    <th>Roles</th>
+                                                    <th>Perfiles</th>
                                                     <th>Accion</th>
                                                 </tr>
                                             </thead>
@@ -328,7 +328,7 @@
                                         <input id="admin-access-user-password" type="password" autocomplete="new-password" placeholder="Minimo 8 caracteres">
                                     </label>
                                     <label class="field">
-                                        <span>Roles iniciales</span>
+                                        <span>Perfiles iniciales</span>
                                         <select id="admin-access-user-roles" multiple size="5"></select>
                                     </label>
                                     <button class="primary-button" type="button" id="admin-access-create-user">Crear usuario</button>
@@ -338,15 +338,15 @@
                                     <div class="panel-heading">
                                         <div>
                                             <h4 id="admin-access-selected-user-title">Usuario seleccionado</h4>
-                                            <p>Selecciona un usuario para cambiar sus roles o estado.</p>
+                                            <p>Selecciona un usuario para cambiar sus perfiles o estado.</p>
                                         </div>
                                     </div>
                                     <label class="field">
-                                        <span>Roles asignados</span>
+                                        <span>Perfiles asignados</span>
                                         <select id="admin-access-selected-user-roles" multiple size="7"></select>
                                     </label>
                                     <div class="access-actions">
-                                        <button class="primary-button" type="button" id="admin-access-save-user-roles">Guardar roles</button>
+                                        <button class="primary-button" type="button" id="admin-access-save-user-roles">Guardar perfiles</button>
                                         <button class="ghost-button" type="button" id="admin-access-toggle-user-status">Activar / inactivar</button>
                                     </div>
                                 </section>
@@ -354,8 +354,8 @@
                                 <section class="access-panel access-panel--wide">
                                     <div class="panel-heading">
                                         <div>
-                                            <h4>Roles</h4>
-                                            <p>Los roles base estan protegidos. Puedes crear roles operativos nuevos.</p>
+                                            <h4>Perfiles de permisos</h4>
+                                            <p>Un perfil agrupa permisos, por ejemplo Cajero, Almacen o Supervisor. Luego se asigna a varios usuarios.</p>
                                         </div>
                                     </div>
 
@@ -364,7 +364,7 @@
                                             <table class="admin-data-table admin-data-table--compact">
                                                 <thead>
                                                     <tr>
-                                                        <th>Rol</th>
+                                                        <th>Perfil</th>
                                                         <th>Permisos</th>
                                                         <th>Tipo</th>
                                                         <th>Accion</th>
@@ -376,10 +376,19 @@
 
                                         <div class="role-create-box">
                                             <label class="field">
-                                                <span>Nuevo rol</span>
-                                                <input id="admin-access-role-name" type="text" placeholder="Ej. Supervisor tienda">
+                                                <span>Nuevo perfil</span>
+                                                <input id="admin-access-role-name" type="text" placeholder="Ej. Cajero Norte">
                                             </label>
-                                            <button class="primary-button" type="button" id="admin-access-create-role">Crear rol</button>
+                                            <label class="field">
+                                                <span>Plantilla de permisos</span>
+                                                <select id="admin-access-role-template">
+                                                    <option value="">Sin plantilla</option>
+                                                    <option value="cashier">Perfil Cajero</option>
+                                                    <option value="inventory">Perfil Inventario</option>
+                                                    <option value="manager">Perfil Gerente</option>
+                                                </select>
+                                            </label>
+                                            <button class="primary-button" type="button" id="admin-access-create-role">Crear perfil</button>
                                         </div>
                                     </div>
                                 </section>
@@ -387,8 +396,8 @@
                                 <section class="access-panel access-panel--wide">
                                     <div class="panel-heading">
                                         <div>
-                                            <h4 id="admin-access-selected-role-title">Permisos del rol</h4>
-                                            <p>Selecciona un rol y marca lo que puede ver o ejecutar.</p>
+                                            <h4 id="admin-access-selected-role-title">Permisos del perfil</h4>
+                                            <p>Selecciona un perfil y marca lo que puede ver o ejecutar.</p>
                                         </div>
                                         <button class="primary-button primary-button--fit" type="button" id="admin-access-save-role-permissions">Guardar permisos</button>
                                     </div>

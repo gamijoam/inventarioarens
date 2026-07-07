@@ -52,6 +52,37 @@ class AccessControlApiTest extends TestCase
         ]);
     }
 
+    public function test_current_administrator_is_listed_with_profiles_and_permissions_are_available(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Administrador', BasePermissions::PERMISSIONS);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/users')
+            ->assertOk()
+            ->assertJsonFragment(['email' => $admin->email])
+            ->assertJsonFragment(['name' => 'Administrador']);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/roles')
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Administrador'])
+            ->assertJsonFragment(['permissions' => collect(BasePermissions::PERMISSIONS)->sort()->values()->all()]);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/permissions')
+            ->assertOk()
+            ->assertJsonFragment(['module' => 'users'])
+            ->assertJsonFragment(['module' => 'roles']);
+    }
+
     public function test_users_and_roles_are_isolated_between_companies(): void
     {
         [$tenantA, $tenantB] = [

@@ -81,9 +81,82 @@ const elements = {
     accessSaveUserRoles: document.querySelector('#admin-access-save-user-roles'),
     accessToggleUserStatus: document.querySelector('#admin-access-toggle-user-status'),
     accessRoleName: document.querySelector('#admin-access-role-name'),
+    accessRoleTemplate: document.querySelector('#admin-access-role-template'),
     accessCreateRole: document.querySelector('#admin-access-create-role'),
     accessSelectedRoleTitle: document.querySelector('#admin-access-selected-role-title'),
     accessSaveRolePermissions: document.querySelector('#admin-access-save-role-permissions'),
+};
+
+const permissionProfiles = {
+    cashier: [
+        'products.view',
+        'customers.view',
+        'customers.create',
+        'customers.update',
+        'currency.view',
+        'inventory.view',
+        'sales.view',
+        'sales.create',
+        'sales_returns.view',
+        'sales_returns.create',
+        'pos.view',
+        'pos.checkout',
+        'pos.cancel',
+        'cash_register.view',
+        'cash_register.open',
+        'cash_register.move',
+        'payment_methods.view',
+        'payment_receipts.view',
+        'kardex.view',
+    ],
+    inventory: [
+        'products.view',
+        'products.create',
+        'products.update',
+        'branches.view',
+        'warehouses.view',
+        'inventory.view',
+        'inventory.adjust',
+        'inventory.transfer',
+        'product_entries.view',
+        'product_entries.create',
+        'product_exits.view',
+        'product_exits.create',
+        'inventory_transfers.view',
+        'inventory_transfers.create',
+        'inventory_transfer_requests.view',
+        'inventory_transfer_requests.create',
+        'inventory_transfer_requests.respond',
+        'inventory_transfer_requests.cancel',
+        'kardex.view',
+    ],
+    manager: [
+        'products.view',
+        'products.create',
+        'products.update',
+        'customers.view',
+        'customers.create',
+        'customers.update',
+        'suppliers.view',
+        'currency.view',
+        'inventory.view',
+        'product_entries.view',
+        'product_exits.view',
+        'inventory_transfers.view',
+        'purchases.view',
+        'sales.view',
+        'sales.create',
+        'pos.view',
+        'pos.checkout',
+        'cash_register.view',
+        'cash_register.open',
+        'cash_register.move',
+        'cash_register.close',
+        'reports.view',
+        'finance_reports.view',
+        'kardex.view',
+        'users.view',
+    ],
 };
 
 const portalSections = {
@@ -105,7 +178,7 @@ const portalSections = {
     },
     users: {
         title: 'Usuarios y permisos',
-        copy: 'Esta sección permitirá administrar usuarios, roles, permisos por módulo y accesos por empresa.',
+        copy: 'Esta sección permitirá administrar usuarios, perfiles reutilizables, permisos por módulo y accesos por empresa.',
     },
     sync: {
         title: 'Sincronización',
@@ -630,13 +703,15 @@ async function loadAccessControl() {
             api('/api/permissions', { headers: authHeaders(session) }),
         ]);
 
-        state.access.users = Array.isArray(users) ? users : [];
-        state.access.roles = Array.isArray(roles) ? roles : [];
-        state.access.permissions = Array.isArray(permissions) ? permissions : [];
+        state.access.users = collectionData(users);
+        state.access.roles = collectionData(roles);
+        state.access.permissions = collectionData(permissions);
+        state.access.selectedUser = keepSelectedOrFirst(state.access.users, state.access.selectedUser);
+        state.access.selectedRole = keepSelectedOrFirst(state.access.roles, state.access.selectedRole);
         state.access.loaded = true;
 
         renderAccessControl();
-        setStatus(elements.accessStatus, 'Usuarios y permisos actualizados.', 'success');
+        setStatus(elements.accessStatus, 'Usuarios y perfiles actualizados.', 'success');
     } catch (error) {
         setStatus(elements.accessStatus, normalizeError(error), 'error');
     } finally {
@@ -662,7 +737,7 @@ function renderAccessUsers() {
     }
 
     if (!users.length) {
-        elements.accessUsersTable.innerHTML = '<tr><td colspan="4"><strong>Sin usuarios</strong><small>Esta empresa aun no tiene usuarios cargados.</small></td></tr>';
+        elements.accessUsersTable.innerHTML = '<tr><td colspan="4"><strong>Sin usuarios visibles</strong><small>No hay usuarios cargados o tu usuario no tiene permiso para verlos.</small></td></tr>';
         return;
     }
 
@@ -678,7 +753,7 @@ function accessUserRow(user) {
     row.innerHTML = `
         <td><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></td>
         <td><span class="status-pill" data-tone="${user.status === 'active' ? 'success' : 'warning'}">${user.status === 'active' ? 'Activo' : 'Inactivo'}</span></td>
-        <td>${roles.length ? roles.map((role) => `<span class="access-chip">${escapeHtml(role)}</span>`).join('') : '<small>Sin roles</small>'}</td>
+        <td>${roles.length ? roles.map((role) => `<span class="access-chip">${escapeHtml(role)}</span>`).join('') : '<small>Sin perfiles</small>'}</td>
         <td><button class="ghost-button" type="button" data-access-user="${user.id}">Seleccionar</button></td>
     `;
 
@@ -768,11 +843,11 @@ async function saveAccessUserRoles() {
     const session = state.session;
 
     if (!user || !session) {
-        setStatus(elements.accessStatus, 'Selecciona un usuario antes de guardar roles.', 'error');
+        setStatus(elements.accessStatus, 'Selecciona un usuario antes de guardar perfiles.', 'error');
         return;
     }
 
-    setStatus(elements.accessStatus, 'Actualizando roles del usuario...');
+    setStatus(elements.accessStatus, 'Actualizando perfiles del usuario...');
     setButtonLoading(elements.accessSaveUserRoles, true, 'Guardando...');
 
     try {
@@ -784,7 +859,7 @@ async function saveAccessUserRoles() {
 
         state.access.selectedUser = updated;
         await loadAccessControl();
-        setStatus(elements.accessStatus, 'Roles del usuario actualizados.', 'success');
+        setStatus(elements.accessStatus, 'Perfiles del usuario actualizados.', 'success');
     } catch (error) {
         setStatus(elements.accessStatus, normalizeError(error), 'error');
     } finally {
@@ -826,7 +901,7 @@ function renderAccessRoles() {
     const roles = state.access.roles;
 
     if (!roles.length) {
-        elements.accessRolesTable.innerHTML = '<tr><td colspan="4"><strong>Sin roles</strong><small>No hay roles disponibles para esta empresa.</small></td></tr>';
+        elements.accessRolesTable.innerHTML = '<tr><td colspan="4"><strong>Sin perfiles</strong><small>No hay perfiles disponibles para esta empresa o no tienes permiso para verlos.</small></td></tr>';
         return;
     }
 
@@ -854,36 +929,38 @@ function selectAccessRole(role) {
     state.access.selectedRole = role;
     renderAccessRoles();
     renderPermissionCatalog();
-    setStatus(elements.accessStatus, `Rol seleccionado: ${role.name}.`, 'neutral');
+    setStatus(elements.accessStatus, `Perfil seleccionado: ${role.name}.`, 'neutral');
 }
 
 async function createAccessRole() {
     const session = state.session;
     const name = elements.accessRoleName.value.trim();
+    const template = elements.accessRoleTemplate.value;
 
     if (!session) {
         return;
     }
 
     if (!name) {
-        setStatus(elements.accessStatus, 'Escribe el nombre del nuevo rol.', 'error');
+        setStatus(elements.accessStatus, 'Escribe el nombre del nuevo perfil.', 'error');
         return;
     }
 
-    setStatus(elements.accessStatus, 'Creando rol...');
+    setStatus(elements.accessStatus, 'Creando perfil...');
     setButtonLoading(elements.accessCreateRole, true, 'Creando...');
 
     try {
         const role = await api('/api/roles', {
             method: 'POST',
             headers: authHeaders(session),
-            body: JSON.stringify({ name, permissions: [] }),
+            body: JSON.stringify({ name, permissions: permissionProfiles[template] || [] }),
         });
 
         elements.accessRoleName.value = '';
+        elements.accessRoleTemplate.value = '';
         state.access.selectedRole = role;
         await loadAccessControl();
-        setStatus(elements.accessStatus, 'Rol creado. Ahora puedes asignar permisos.', 'success');
+        setStatus(elements.accessStatus, 'Perfil creado. Ahora puedes ajustar permisos.', 'success');
     } catch (error) {
         setStatus(elements.accessStatus, normalizeError(error), 'error');
     } finally {
@@ -899,10 +976,10 @@ function renderPermissionCatalog() {
     const role = state.access.selectedRole;
     const selectedPermissions = new Set(role?.permissions || []);
 
-    elements.accessSelectedRoleTitle.textContent = role ? `Permisos: ${role.name}` : 'Permisos del rol';
+    elements.accessSelectedRoleTitle.textContent = role ? `Permisos: ${role.name}` : 'Permisos del perfil';
 
     if (!role) {
-        elements.accessPermissionsGrid.innerHTML = '<p class="access-empty">Selecciona un rol para revisar sus permisos.</p>';
+        elements.accessPermissionsGrid.innerHTML = '<p class="access-empty">Selecciona un perfil para revisar sus permisos.</p>';
         return;
     }
 
@@ -935,14 +1012,14 @@ async function saveAccessRolePermissions() {
     const session = state.session;
 
     if (!role || !session) {
-        setStatus(elements.accessStatus, 'Selecciona un rol antes de guardar permisos.', 'error');
+        setStatus(elements.accessStatus, 'Selecciona un perfil antes de guardar permisos.', 'error');
         return;
     }
 
     const permissions = Array.from(elements.accessPermissionsGrid.querySelectorAll('[data-access-permission]:checked'))
         .map((checkbox) => checkbox.value);
 
-    setStatus(elements.accessStatus, 'Guardando permisos del rol...');
+    setStatus(elements.accessStatus, 'Guardando permisos del perfil...');
     setButtonLoading(elements.accessSaveRolePermissions, true, 'Guardando...');
 
     try {
@@ -954,7 +1031,7 @@ async function saveAccessRolePermissions() {
 
         state.access.selectedRole = updated;
         await loadAccessControl();
-        setStatus(elements.accessStatus, 'Permisos del rol actualizados.', 'success');
+        setStatus(elements.accessStatus, 'Permisos del perfil actualizados.', 'success');
     } catch (error) {
         setStatus(elements.accessStatus, normalizeError(error), 'error');
     } finally {
@@ -973,6 +1050,30 @@ function applyAccessPermissions() {
     elements.accessToggleUserStatus.disabled = !canUpdateUser || !state.access.selectedUser;
     elements.accessCreateRole.disabled = !canCreateRole;
     elements.accessSaveRolePermissions.disabled = !canUpdateRole || !state.access.selectedRole;
+}
+
+function collectionData(payload) {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (Array.isArray(payload?.data)) {
+        return payload.data;
+    }
+
+    return [];
+}
+
+function keepSelectedOrFirst(items, selected) {
+    if (!items.length) {
+        return null;
+    }
+
+    if (!selected) {
+        return items[0];
+    }
+
+    return items.find((item) => item.id === selected.id) || items[0];
 }
 
 function selectedValues(select) {
