@@ -89,6 +89,39 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.products.0.name', 'Samsung A06');
     }
 
+    public function test_inventory_center_can_include_inactive_products_for_admin_catalog_management(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $this->useTenant($tenant);
+        Product::where('sku', 'AUD-0')->update(['is_active' => false]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?stock_status=all')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 2);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?active_status=inactive&stock_status=all')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.products.0.name', 'Audifonos Tipo C')
+            ->assertJsonPath('data.products.0.is_active', false);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?active_status=all&stock_status=all')
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 3);
+    }
+
     public function test_inventory_center_exports_filtered_inventory_as_csv(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

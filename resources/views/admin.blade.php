@@ -217,6 +217,14 @@
                                                 <option value="out">Sin stock</option>
                                             </select>
                                         </label>
+                                        <label class="field">
+                                            <span>Estado</span>
+                                            <select id="admin-inventory-active">
+                                                <option value="all">Todos</option>
+                                                <option value="active">Activos</option>
+                                                <option value="inactive">Inactivos</option>
+                                            </select>
+                                        </label>
                                         <button class="primary-button" type="button" id="admin-inventory-apply">Aplicar</button>
                                     </div>
 
@@ -230,6 +238,7 @@
                                                     <th>Disponible</th>
                                                     <th>Reservado</th>
                                                     <th>Estado</th>
+                                                    <th>Venta</th>
                                                     <th>Acción</th>
                                                 </tr>
                                             </thead>
@@ -264,8 +273,18 @@
                                         </select>
                                     </label>
 
-                                    <button class="primary-button" type="button" id="admin-inventory-save">Guardar cambios</button>
-                                    <button class="ghost-button" type="button" id="admin-inventory-cancel">Cancelar</button>
+                                    <label class="field">
+                                        <span>Estado comercial</span>
+                                        <select id="admin-inventory-active-edit">
+                                            <option value="1">Activo para venta</option>
+                                            <option value="0">Inactivo</option>
+                                        </select>
+                                    </label>
+
+                                    <div class="inventory-editor__actions">
+                                        <button class="primary-button" type="button" id="admin-inventory-save">Guardar cambios</button>
+                                        <button class="ghost-button" type="button" id="admin-inventory-cancel">Cancelar</button>
+                                    </div>
                                 </aside>
                             </div>
 

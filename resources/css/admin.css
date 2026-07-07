@@ -578,7 +578,7 @@ button {
 
 .inventory-admin__filters {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 170px 150px 118px;
+    grid-template-columns: minmax(220px, 1fr) 160px 140px 140px 118px;
     gap: 10px;
     align-items: end;
     padding: 12px;
@@ -700,6 +700,11 @@ button {
 
 .inventory-editor .field {
     margin: 0;
+}
+
+.inventory-editor__actions {
+    display: grid;
+    gap: 8px;
 }
 
 .access-tabs {

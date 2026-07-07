@@ -212,8 +212,13 @@ class InventoryCenterSummaryService
             ])
             ->selectRaw('COALESCE(stock_totals.quantity_available, 0) as quantity_available')
             ->selectRaw('COALESCE(stock_totals.quantity_reserved, 0) as quantity_reserved')
-            ->selectRaw('COALESCE(stock_totals.quantity_damaged, 0) as quantity_damaged')
-            ->where('products.is_active', true);
+            ->selectRaw('COALESCE(stock_totals.quantity_damaged, 0) as quantity_damaged');
+
+        match ($filters['active_status'] ?? 'active') {
+            'all' => null,
+            'inactive' => $query->where('products.is_active', false),
+            default => $query->where('products.is_active', true),
+        };
 
         if ($search = $filters['search'] ?? null) {
             $normalizedSearch = mb_strtolower(trim((string) $search));
@@ -249,6 +254,7 @@ class InventoryCenterSummaryService
             'tracking_type' => $product->tracking_type,
             'base_price' => $product->base_price === null ? null : (float) $product->base_price,
             'sale_currency' => $product->sale_currency,
+            'is_active' => (bool) $product->is_active,
             'stock' => [
                 'available' => $this->roundStock((float) $product->quantity_available),
                 'reserved' => $this->roundStock((float) $product->quantity_reserved),

@@ -51,6 +51,7 @@ const elements = {
     inventorySearch: document.querySelector('#admin-inventory-search'),
     inventoryTracking: document.querySelector('#admin-inventory-tracking'),
     inventoryStock: document.querySelector('#admin-inventory-stock'),
+    inventoryActive: document.querySelector('#admin-inventory-active'),
     inventoryApply: document.querySelector('#admin-inventory-apply'),
     inventoryTable: document.querySelector('#admin-inventory-table'),
     inventoryCount: document.querySelector('#admin-inventory-count'),
@@ -62,6 +63,7 @@ const elements = {
     inventoryEditorSubtitle: document.querySelector('#admin-inventory-editor-subtitle'),
     inventoryPrice: document.querySelector('#admin-inventory-price'),
     inventoryCurrency: document.querySelector('#admin-inventory-currency'),
+    inventoryActiveEdit: document.querySelector('#admin-inventory-active-edit'),
     inventorySave: document.querySelector('#admin-inventory-save'),
     inventoryCancel: document.querySelector('#admin-inventory-cancel'),
     accessModule: document.querySelector('#admin-users-module'),
@@ -573,6 +575,7 @@ async function loadInventory(page = state.inventory.page) {
     try {
         const query = new URLSearchParams({
             stock_status: elements.inventoryStock.value || 'all',
+            active_status: elements.inventoryActive?.value || 'all',
             low_stock_threshold: '3',
             limit: '24',
             page: String(page),
@@ -607,7 +610,7 @@ function renderInventory(summary) {
     const products = summary.products || [];
 
     if (!products.length) {
-        elements.inventoryTable.innerHTML = '<tr><td colspan="7"><strong>Sin productos</strong><small>No hay productos con los filtros seleccionados.</small></td></tr>';
+        elements.inventoryTable.innerHTML = '<tr><td colspan="8"><strong>Sin productos</strong><small>No hay productos con los filtros seleccionados.</small></td></tr>';
     } else {
         elements.inventoryTable.replaceChildren(...products.map(inventoryRow));
     }
@@ -632,9 +635,10 @@ function inventoryRow(product) {
         <td>${stockNumber(product.stock?.available)}</td>
         <td>${stockNumber(product.stock?.reserved)}</td>
         <td><span class="stock-pill stock-pill--${escapeHtml(product.stock?.status || 'available')}">${stockStatusLabel(product.stock?.status)}</span></td>
+        <td><span class="status-pill" data-tone="${product.is_active ? 'success' : 'warning'}">${product.is_active ? 'Activo' : 'Inactivo'}</span></td>
         <td>
             <button class="ghost-button" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>
-                Editar precio
+                Editar
             </button>
         </td>
     `;
@@ -652,7 +656,8 @@ function selectInventoryProduct(product) {
     elements.inventoryEditorSubtitle.textContent = `${product.sku} · ${trackingLabel(product.tracking_type)}`;
     elements.inventoryPrice.value = product.base_price ?? '';
     elements.inventoryCurrency.value = product.sale_currency || 'USD';
-    setStatus(elements.inventoryStatus, 'Edita el precio base y guarda para sincronizar el cambio.', 'neutral');
+    elements.inventoryActiveEdit.value = product.is_active ? '1' : '0';
+    setStatus(elements.inventoryStatus, 'Edita precio, moneda o estado. Al guardar, el cambio queda listo para sincronizarse.', 'neutral');
 }
 
 async function saveInventoryProductPrice() {
@@ -679,6 +684,7 @@ async function saveInventoryProductPrice() {
             body: JSON.stringify({
                 base_price: Number(elements.inventoryPrice.value),
                 sale_currency: elements.inventoryCurrency.value,
+                is_active: elements.inventoryActiveEdit.value === '1',
             }),
         });
 
