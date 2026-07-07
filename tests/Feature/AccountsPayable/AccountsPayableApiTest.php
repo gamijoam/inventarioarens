@@ -92,6 +92,31 @@ class AccountsPayableApiTest extends TestCase
         ]);
     }
 
+    public function test_accounts_payable_index_can_filter_by_search_status_supplier_and_due_date(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseA, $productA] = $this->product($tenant, 'AP-FILT-A');
+        [$warehouseB, $productB] = $this->product($tenant, 'AP-FILT-B');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve', 'accounts_payable.view']);
+
+        $purchaseA = $this->receivedPurchase($tenant, $user, $warehouseA, $productA, 2, 10);
+        $purchaseB = $this->receivedPurchase($tenant, $user, $warehouseB, $productB, 2, 20);
+        $accountA = AccountsPayable::query()->where('purchase_order_id', $purchaseA->id)->firstOrFail();
+        $accountB = AccountsPayable::query()->where('purchase_order_id', $purchaseB->id)->firstOrFail();
+        $accountA->forceFill(['document_number' => 'FACT-FILT-A', 'due_date' => '2026-07-10'])->save();
+        $accountB->forceFill(['document_number' => 'FACT-FILT-B', 'due_date' => '2026-08-10'])->save();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/accounts-payable?search=FILT-A&status=pending&supplier_id={$accountA->supplier_id}&due_from=2026-07-01&due_to=2026-07-31&limit=10")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $accountA->id)
+            ->assertJsonMissing(['id' => $accountB->id]);
+    }
+
     public function test_ves_payment_uses_rate_snapshot(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

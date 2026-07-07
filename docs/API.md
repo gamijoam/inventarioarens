@@ -2201,6 +2201,24 @@ Reglas:
 - si la compra o el pago usan `VES`, se guarda el snapshot de tasa usado;
 - las devoluciones a proveedor reducen el saldo pendiente sin borrar la compra.
 
+Filtros disponibles:
+
+```txt
+search       nombre/documento de proveedor, documento de cuenta o documento de compra
+status       all | pending | partial | paid | overdue
+supplier_id  proveedor especifico
+due_from     fecha minima de vencimiento
+due_to       fecha maxima de vencimiento
+limit        registros por pagina, maximo 100
+```
+
+Uso en portal web:
+
+- el modulo `Cuentas por pagar` lista saldos por proveedor;
+- permite filtrar por estado, proveedor, busqueda y rango de vencimiento;
+- permite seleccionar una cuenta, revisar pagos historicos y registrar pagos parciales o totales;
+- el pago se valida contra permisos y saldo pendiente en el backend.
+
 ### Ver cuenta por pagar
 
 ```txt

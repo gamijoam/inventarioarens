@@ -4758,3 +4758,11 @@ Regla:
 
 - `PurchaseOrderApiTest` y `AdminPortalWebTest` pasaron correctamente.
 - `pnpm build` compilo los assets del portal administrativo sin errores.
+## 2026-07-07 - Portal web: Cuentas por pagar
+
+- Se agrego la seccion web compacta de Cuentas por pagar para listar saldos, filtrar por proveedor/estado/vencimiento y registrar pagos.
+- Se ampliaron filtros del endpoint GET /api/accounts-payable para uso administrativo web.
+- Se documentaron API, modulo y nota especifica en docs/PORTAL_ADMIN_CUENTAS_POR_PAGAR_WEB_2026-07-07.md.
+- Pruebas objetivo: AccountsPayableApiTest y AdminPortalWebTest.
+
+

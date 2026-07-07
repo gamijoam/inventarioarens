@@ -39,6 +39,13 @@ const state = {
         warehouses: [],
         items: [],
     },
+    payables: {
+        page: 1,
+        loaded: false,
+        selectedPayable: null,
+        suppliersLoaded: false,
+        suppliers: [],
+    },
     access: {
         loaded: false,
         users: [],
@@ -194,6 +201,33 @@ const elements = {
     purchaseReceive: document.querySelector('#admin-purchase-receive'),
     purchaseCancelOrder: document.querySelector('#admin-purchase-cancel-order'),
     purchaseClear: document.querySelector('#admin-purchase-clear'),
+    payablesModule: document.querySelector('#admin-payables-module'),
+    payablesRefresh: document.querySelector('#admin-payables-refresh'),
+    payablesSearch: document.querySelector('#admin-payables-search'),
+    payablesStatusFilter: document.querySelector('#admin-payables-status-filter'),
+    payablesSupplierFilter: document.querySelector('#admin-payables-supplier-filter'),
+    payablesDueFrom: document.querySelector('#admin-payables-due-from'),
+    payablesDueTo: document.querySelector('#admin-payables-due-to'),
+    payablesApply: document.querySelector('#admin-payables-apply'),
+    payablesClear: document.querySelector('#admin-payables-clear'),
+    payablesTable: document.querySelector('#admin-payables-table'),
+    payablesCount: document.querySelector('#admin-payables-count'),
+    payablesPrev: document.querySelector('#admin-payables-prev'),
+    payablesNext: document.querySelector('#admin-payables-next'),
+    payablesStatus: document.querySelector('#admin-payables-status'),
+    payableEditor: document.querySelector('#admin-payable-editor'),
+    payableTitle: document.querySelector('#admin-payable-title'),
+    payableSubtitle: document.querySelector('#admin-payable-subtitle'),
+    payableSummary: document.querySelector('#admin-payable-summary'),
+    payablePaymentsCount: document.querySelector('#admin-payable-payments-count'),
+    payablePaymentsTable: document.querySelector('#admin-payable-payments-table'),
+    payablePaymentCurrency: document.querySelector('#admin-payable-payment-currency'),
+    payablePaymentAmount: document.querySelector('#admin-payable-payment-amount'),
+    payablePaymentMethod: document.querySelector('#admin-payable-payment-method'),
+    payablePaymentReference: document.querySelector('#admin-payable-payment-reference'),
+    payablePaymentNotes: document.querySelector('#admin-payable-payment-notes'),
+    payablePay: document.querySelector('#admin-payable-pay'),
+    payableFillBalance: document.querySelector('#admin-payable-fill-balance'),
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
@@ -276,6 +310,8 @@ const permissionProfiles = {
         'product_exits.view',
         'inventory_transfers.view',
         'purchases.view',
+        'accounts_payable.view',
+        'accounts_payable.pay',
         'sales.view',
         'sales.create',
         'pos.view',
@@ -315,6 +351,10 @@ const portalSections = {
     purchases: {
         title: 'Compras',
         copy: 'Ordenes de compra, recepcion de mercancia y costos que alimentan inventario.',
+    },
+    payables: {
+        title: 'Cuentas por pagar',
+        copy: 'Saldos de proveedores, vencimientos y registro de pagos parciales o totales.',
     },
     cash: {
         title: 'Caja',
@@ -621,6 +661,12 @@ function resetTenantScopedState() {
     state.purchases.warehouses = [];
     state.purchases.items = [];
 
+    state.payables.page = 1;
+    state.payables.loaded = false;
+    state.payables.selectedPayable = null;
+    state.payables.suppliersLoaded = false;
+    state.payables.suppliers = [];
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -650,6 +696,14 @@ function resetTenantScopedState() {
 
     if (elements.purchaseItemsTable) {
         elements.purchaseItemsTable.innerHTML = '';
+    }
+
+    if (elements.payablesTable) {
+        elements.payablesTable.innerHTML = '';
+    }
+
+    if (elements.payablePaymentsTable) {
+        elements.payablePaymentsTable.innerHTML = '';
     }
 
     if (elements.accessUsersTable) {
@@ -711,6 +765,7 @@ function activatePortalSection(section) {
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
     const isPurchases = selectedSection === 'purchases';
+    const isPayables = selectedSection === 'payables';
     const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
@@ -743,6 +798,10 @@ function activatePortalSection(section) {
         elements.purchasesModule.hidden = !isPurchases;
     }
 
+    if (elements.payablesModule) {
+        elements.payablesModule.hidden = !isPayables;
+    }
+
     if (elements.accessModule) {
         elements.accessModule.hidden = !isAccess;
     }
@@ -751,9 +810,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isPurchases || isPayables || isAccess;
 
-    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isAccess) {
+    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -775,6 +834,10 @@ function activatePortalSection(section) {
 
     if (isPurchases && !state.purchases.loaded) {
         loadPurchases();
+    }
+
+    if (isPayables && !state.payables.loaded) {
+        loadPayables();
     }
 
     if (isAccess && !state.access.loaded) {
@@ -1837,6 +1900,341 @@ function purchaseStatusTone(status) {
         partially_received: 'warning',
         received: 'success',
         cancelled: 'danger',
+    }[status] || 'neutral';
+}
+
+async function loadPayableOptions() {
+    const session = state.session;
+
+    if (!session || state.payables.suppliersLoaded || !can('suppliers.view')) {
+        return;
+    }
+
+    const suppliers = await api('/api/suppliers?active_status=active&limit=100', {
+        headers: authHeaders(session),
+    }, true);
+
+    state.payables.suppliers = collectionData(suppliers);
+    state.payables.suppliersLoaded = true;
+    renderPayableSupplierOptions();
+}
+
+function renderPayableSupplierOptions() {
+    const options = [new Option('Todos', '')];
+
+    state.payables.suppliers.forEach((supplier) => {
+        const documentLabel = [supplier.document_type, supplier.document_number].filter(Boolean).join('-');
+        const label = documentLabel ? `${supplier.name} (${documentLabel})` : supplier.name;
+        options.push(new Option(label, String(supplier.id)));
+    });
+
+    elements.payablesSupplierFilter?.replaceChildren(...options);
+}
+
+async function loadPayables(page = state.payables.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.payables.page = page;
+    setStatus(elements.payablesStatus, 'Cargando cuentas por pagar...');
+    setButtonLoading(elements.payablesRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.payablesApply, true, 'Aplicando...');
+
+    try {
+        await loadPayableOptions();
+
+        const query = new URLSearchParams({
+            status: elements.payablesStatusFilter?.value || 'all',
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.payablesSearch?.value.trim();
+        const supplierId = elements.payablesSupplierFilter?.value;
+        const dueFrom = elements.payablesDueFrom?.value;
+        const dueTo = elements.payablesDueTo?.value;
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        if (supplierId) {
+            query.set('supplier_id', supplierId);
+        }
+
+        if (dueFrom) {
+            query.set('due_from', dueFrom);
+        }
+
+        if (dueTo) {
+            query.set('due_to', dueTo);
+        }
+
+        const pageData = await api(`/api/accounts-payable?${query}`, {
+            headers: authHeaders(session),
+        }, true);
+
+        state.payables.loaded = true;
+        renderPayables(pageData);
+        setStatus(elements.payablesStatus, `Cuentas actualizadas. ${pageData.meta?.total || 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.payablesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.payablesRefresh, false);
+        setButtonLoading(elements.payablesApply, false);
+    }
+}
+
+function renderPayables(pageData = {}) {
+    const payables = pageData.data || [];
+    const meta = pageData.meta || {};
+
+    if (!payables.length) {
+        if (elements.payablesTable) {
+            elements.payablesTable.innerHTML = '<tr><td colspan="7"><strong>Sin cuentas por pagar</strong><small>No hay saldos con los filtros seleccionados.</small></td></tr>';
+        }
+    } else {
+        elements.payablesTable?.replaceChildren(...payables.map(payableRow));
+    }
+
+    if (elements.payablesCount) {
+        elements.payablesCount.textContent = (meta.total || 0) === 0
+            ? 'Sin cuentas para mostrar.'
+            : `${meta.from || 1}-${meta.to || payables.length} de ${meta.total} cuenta(s).`;
+    }
+
+    if (elements.payablesPrev) {
+        elements.payablesPrev.disabled = !meta.current_page || meta.current_page <= 1;
+    }
+
+    if (elements.payablesNext) {
+        elements.payablesNext.disabled = !meta.current_page || meta.current_page >= meta.last_page;
+    }
+
+    state.payables.page = meta.current_page || 1;
+}
+
+function payableRow(payable) {
+    const row = document.createElement('tr');
+    row.dataset.payableId = String(payable.id);
+    row.classList.toggle('is-selected', state.payables.selectedPayable?.id === payable.id);
+    const supplierName = payable.supplier?.name || 'Sin proveedor';
+    const tone = payableStatusTone(payable.status);
+
+    row.innerHTML = `
+        <td><strong>#${payable.id} ${escapeHtml(payable.document_number || 'Sin documento')}</strong><small>Vence ${escapeHtml(payable.due_date || 'sin fecha')}</small></td>
+        <td><strong>${escapeHtml(supplierName)}</strong><small>${escapeHtml(payable.supplier?.document_number || '')}</small></td>
+        <td><span class="status-pill" data-tone="${tone}">${escapeHtml(payableStatusLabel(payable.status))}</span></td>
+        <td><strong>${money(payable.original_base_amount)}</strong><small>${number(payable.original_local_amount)} Bs</small></td>
+        <td><strong>${money(payable.paid_base_amount)}</strong><small>${number(payable.paid_local_amount)} Bs</small></td>
+        <td><strong>${money(payable.balance_base_amount)}</strong><small>${number(payable.balance_local_amount)} Bs</small></td>
+        <td><button class="ghost-button ghost-button--compact" type="button" data-admin-payable-select="${payable.id}">Ver</button></td>
+    `;
+
+    row.querySelector('[data-admin-payable-select]')?.addEventListener('click', () => selectPayableById(payable.id));
+    row.addEventListener('dblclick', () => selectPayableById(payable.id));
+
+    return row;
+}
+
+async function selectPayableById(payableId) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.payablesStatus, 'Cargando detalle de cuenta...');
+
+    try {
+        const payable = await api(`/api/accounts-payable/${payableId}`, {
+            headers: authHeaders(session),
+        });
+        selectPayable(payable);
+    } catch (error) {
+        setStatus(elements.payablesStatus, normalizeError(error), 'error');
+    }
+}
+
+function selectPayable(payable) {
+    state.payables.selectedPayable = payable;
+    elements.payableTitle.textContent = `Cuenta #${payable.id}`;
+    elements.payableSubtitle.textContent = `${payable.supplier?.name || 'Sin proveedor'} - ${payableStatusLabel(payable.status)} - ${payable.document_number || 'sin documento'}.`;
+    elements.payableSummary.innerHTML = `
+        <div><span>Total</span><strong>${money(payable.original_base_amount)}</strong></div>
+        <div><span>Pagado</span><strong>${money(payable.paid_base_amount)}</strong></div>
+        <div><span>Saldo</span><strong>${money(payable.balance_base_amount)}</strong></div>
+    `;
+    elements.payablePaymentCurrency.value = payable.currency || 'USD';
+    clearPayablePaymentForm(false);
+    renderPayablePayments(payable.payments || []);
+    updatePayablePaymentState();
+    elements.payablesTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    elements.payablesTable?.querySelector(`[data-payable-id="${payable.id}"]`)?.classList.add('is-selected');
+    setStatus(elements.payablesStatus, `Cuenta seleccionada: #${payable.id}.`, 'neutral');
+}
+
+function renderPayablePayments(payments) {
+    if (!payments.length) {
+        elements.payablePaymentsTable.innerHTML = '<tr><td colspan="3"><strong>Sin pagos</strong><small>Registra el primer abono desde el formulario.</small></td></tr>';
+    } else {
+        elements.payablePaymentsTable.replaceChildren(...payments.map((payment) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${escapeHtml(formatDateTime(payment.paid_at || payment.created_at))}</strong><small>${escapeHtml(payment.reference || 'Sin referencia')}</small></td>
+                <td><strong>${payment.payment_currency} ${number(payment.amount)}</strong><small>Base ${money(payment.amount_base)}</small></td>
+                <td><strong>${escapeHtml(payment.method || 'Sin metodo')}</strong><small>${escapeHtml(payment.notes || '')}</small></td>
+            `;
+            return row;
+        }));
+    }
+
+    elements.payablePaymentsCount.textContent = `${payments.length} pago(s)`;
+}
+
+function clearPayablePaymentForm(clearStatus = true) {
+    if (elements.payablePaymentAmount) {
+        elements.payablePaymentAmount.value = '';
+    }
+
+    if (elements.payablePaymentMethod) {
+        elements.payablePaymentMethod.value = '';
+    }
+
+    if (elements.payablePaymentReference) {
+        elements.payablePaymentReference.value = '';
+    }
+
+    if (elements.payablePaymentNotes) {
+        elements.payablePaymentNotes.value = '';
+    }
+
+    if (clearStatus) {
+        setStatus(elements.payablesStatus, 'Formulario de pago limpio.', 'neutral');
+    }
+}
+
+function fillPayableBalance() {
+    const payable = state.payables.selectedPayable;
+
+    if (!payable) {
+        setStatus(elements.payablesStatus, 'Selecciona una cuenta por pagar primero.', 'error');
+        return;
+    }
+
+    const currency = elements.payablePaymentCurrency?.value || 'USD';
+    const amount = currency === 'VES' ? payable.balance_local_amount : payable.balance_base_amount;
+    if (elements.payablePaymentAmount) {
+        elements.payablePaymentAmount.value = Number(amount || 0).toFixed(2);
+    }
+}
+
+async function registerPayablePayment() {
+    const session = state.session;
+    const payable = state.payables.selectedPayable;
+
+    if (!session || !payable) {
+        setStatus(elements.payablesStatus, 'Selecciona una cuenta por pagar antes de registrar pago.', 'error');
+        return;
+    }
+
+    if (!can('accounts_payable.pay')) {
+        setStatus(elements.payablesStatus, 'Tu usuario no tiene permiso para pagar cuentas.', 'error');
+        return;
+    }
+
+    const amount = Number(elements.payablePaymentAmount?.value || 0);
+
+    if (amount <= 0 || Number.isNaN(amount)) {
+        setStatus(elements.payablesStatus, 'El monto del pago debe ser mayor que cero.', 'error');
+        return;
+    }
+
+    const payload = {
+        payment_currency: elements.payablePaymentCurrency?.value || 'USD',
+        amount,
+        method: elements.payablePaymentMethod?.value.trim() || null,
+        reference: elements.payablePaymentReference?.value.trim() || null,
+        notes: elements.payablePaymentNotes?.value.trim() || null,
+    };
+
+    setStatus(elements.payablesStatus, 'Registrando pago a proveedor...');
+    setButtonLoading(elements.payablePay, true, 'Registrando...');
+
+    try {
+        await api(`/api/accounts-payable/${payable.id}/payments`, {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+        const updated = await api(`/api/accounts-payable/${payable.id}`, {
+            headers: authHeaders(session),
+        });
+        await loadPayables(state.payables.page);
+        selectPayable(updated);
+        await loadDashboard();
+        setStatus(elements.payablesStatus, 'Pago registrado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.payablesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.payablePay, false);
+    }
+}
+
+function updatePayablePaymentState() {
+    const payable = state.payables.selectedPayable;
+    const canPay = Boolean(payable && payable.status !== 'paid' && Number(payable.balance_base_amount || 0) > 0 && can('accounts_payable.pay'));
+
+    if (elements.payablePay) {
+        elements.payablePay.disabled = !canPay;
+    }
+
+    if (elements.payableFillBalance) {
+        elements.payableFillBalance.disabled = !payable;
+    }
+}
+
+function clearPayableFilters() {
+    if (elements.payablesSearch) {
+        elements.payablesSearch.value = '';
+    }
+
+    if (elements.payablesStatusFilter) {
+        elements.payablesStatusFilter.value = 'all';
+    }
+
+    if (elements.payablesSupplierFilter) {
+        elements.payablesSupplierFilter.value = '';
+    }
+
+    if (elements.payablesDueFrom) {
+        elements.payablesDueFrom.value = '';
+    }
+
+    if (elements.payablesDueTo) {
+        elements.payablesDueTo.value = '';
+    }
+
+    loadPayables(1);
+}
+
+function payableStatusLabel(status) {
+    return {
+        pending: 'Pendiente',
+        partial: 'Parcial',
+        paid: 'Pagada',
+        overdue: 'Vencida',
+    }[status] || status || 'Sin estado';
+}
+
+function payableStatusTone(status) {
+    return {
+        pending: 'warning',
+        partial: 'warning',
+        paid: 'success',
+        overdue: 'error',
     }[status] || 'neutral';
 }
 
@@ -3199,6 +3597,24 @@ elements.purchaseSave?.addEventListener('click', savePurchase);
 elements.purchaseReceive?.addEventListener('click', receivePurchase);
 elements.purchaseCancelOrder?.addEventListener('click', cancelPurchaseOrder);
 elements.purchaseClear?.addEventListener('click', clearPurchaseForm);
+elements.payablesRefresh?.addEventListener('click', () => loadPayables());
+elements.payablesApply?.addEventListener('click', () => loadPayables(1));
+elements.payablesClear?.addEventListener('click', clearPayableFilters);
+elements.payablesPrev?.addEventListener('click', () => loadPayables(Math.max(state.payables.page - 1, 1)));
+elements.payablesNext?.addEventListener('click', () => loadPayables(state.payables.page + 1));
+elements.payablesSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadPayables(1);
+    }
+});
+elements.payableFillBalance?.addEventListener('click', fillPayableBalance);
+elements.payablePay?.addEventListener('click', registerPayablePayment);
+elements.payablePaymentCurrency?.addEventListener('change', () => {
+    if (elements.payablePaymentAmount?.value) {
+        fillPayableBalance();
+    }
+});
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
 elements.accessTabs.forEach((button) => {
     button.addEventListener('click', () => setAccessTab(button.dataset.accessTab));

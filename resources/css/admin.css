@@ -674,18 +674,21 @@ button {
     max-height: 560px;
 }
 
-.purchases-admin__layout {
+.purchases-admin__layout,
+.payables-admin__layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 390px;
     gap: 8px;
     margin-top: 8px;
 }
 
-.purchases-admin__main {
+.purchases-admin__main,
+.payables-admin__main {
     min-width: 0;
 }
 
-.purchases-admin__filters {
+.purchases-admin__filters,
+.payables-admin__filters {
     display: grid;
     grid-template-columns: minmax(240px, 1fr) 130px 200px auto auto;
     gap: 6px;
@@ -696,11 +699,17 @@ button {
     background: var(--panel-soft);
 }
 
-.purchases-admin__filters .field {
+.payables-admin__filters {
+    grid-template-columns: minmax(220px, 1fr) 130px minmax(180px, 0.8fr) 130px 130px auto auto;
+}
+
+.purchases-admin__filters .field,
+.payables-admin__filters .field {
     margin: 0;
 }
 
-.purchases-admin__table {
+.purchases-admin__table,
+.payables-admin__table {
     max-height: 590px;
 }
 
@@ -1070,7 +1079,8 @@ button {
     grid-column: 1 / -1;
 }
 
-.purchase-editor {
+.purchase-editor,
+.payable-editor {
     align-self: start;
     position: sticky;
     top: 64px;
@@ -1084,19 +1094,22 @@ button {
     background: var(--panel-soft);
 }
 
-.purchase-editor h4 {
+.purchase-editor h4,
+.payable-editor h4 {
     margin: 0;
     font-size: 17px;
 }
 
-.purchase-editor p {
+.purchase-editor p,
+.payable-editor p {
     margin: 0;
     color: var(--muted);
     font-size: 12px;
     font-weight: 750;
 }
 
-.purchase-editor .field {
+.purchase-editor .field,
+.payable-editor .field {
     margin: 0;
 }
 
@@ -1180,6 +1193,82 @@ button {
 }
 
 .purchase-editor__actions .primary-button {
+    grid-column: 1 / -1;
+}
+
+.payable-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.payable-summary div {
+    min-width: 0;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+}
+
+.payable-summary span,
+.payable-payments__head small {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.payable-summary strong {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.payable-payments,
+.payable-payment-form {
+    display: grid;
+    gap: 7px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+}
+
+.payable-payments__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.payable-payments__head strong {
+    font-size: 13px;
+}
+
+.payable-payments__table {
+    max-height: 190px;
+    margin-top: 0;
+}
+
+.payable-payments__table .admin-data-table {
+    min-width: 520px;
+}
+
+.payable-payment-form__grid {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 6px;
+}
+
+.payable-payment-form__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.payable-payment-form__actions .primary-button {
     grid-column: 1 / -1;
 }
 
@@ -1470,7 +1559,8 @@ button {
 
     .inventory-admin__layout,
     .suppliers-admin__layout,
-    .purchases-admin__layout {
+    .purchases-admin__layout,
+    .payables-admin__layout {
         grid-template-columns: 1fr;
     }
 
@@ -1482,7 +1572,8 @@ button {
     .inventory-editor,
     .inventory-detail,
     .supplier-editor,
-    .purchase-editor {
+    .purchase-editor,
+    .payable-editor {
         position: static;
     }
 }
@@ -1529,10 +1620,13 @@ button {
     .movements-admin__filters,
     .suppliers-admin__filters,
     .purchases-admin__filters,
+    .payables-admin__filters,
     .supplier-editor__grid,
     .purchase-editor__grid--two,
     .purchase-editor__grid--three,
-    .purchase-item-form {
+    .purchase-item-form,
+    .payable-summary,
+    .payable-payment-form__grid {
         grid-template-columns: 1fr;
     }
 

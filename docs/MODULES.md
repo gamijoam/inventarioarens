@@ -595,6 +595,7 @@ Responsabilidad:
 - saldo principal en `USD` base con snapshot local en `VES` cuando aplica;
 - rebaja automatica de saldo por devoluciones a proveedor;
 - control de estados `pending`, `partial`, `paid` y `overdue`.
+- portal web administrativo para filtrar saldos, revisar pagos y registrar abonos a proveedor.
 
 Archivos principales:
 
@@ -615,7 +616,8 @@ Regla importante:
 - una devolucion a proveedor reduce `returned_base_amount` y el saldo;
 - los pagos no pueden superar el saldo pendiente;
 - los pagos en bolivares guardan tasa exacta usada;
-- toda cuenta y pago debe respetar tenant y permisos.
+- toda cuenta y pago debe respetar tenant y permisos;
+- la vista web no crea deuda manual: solo opera cuentas nacidas desde compras recibidas.
 
 ### Sales
 
