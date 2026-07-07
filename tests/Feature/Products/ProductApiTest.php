@@ -495,8 +495,24 @@ class ProductApiTest extends TestCase
             'action' => ProductAudit::ACTION_DEACTIVATED,
             'created_by' => $user->id,
         ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/products/{$product->id}", [
+                'is_active' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.is_active', true);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->id,
+            'tenant_id' => $tenant->id,
+            'is_active' => true,
+        ]);
+
         $this->assertSame(
-            2,
+            3,
             DB::table('sync_outbox')
                 ->where('tenant_id', $tenant->id)
                 ->where('event_type', 'product.updated')

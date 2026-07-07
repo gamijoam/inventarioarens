@@ -11,12 +11,14 @@ Permitir que un administrador gestione productos desde el portal web sin tocar l
 - `Guardar producto` usa `POST /api/products` cuando el producto es nuevo.
 - `Guardar producto` usa `PUT /api/products/{product}` cuando el producto ya existe.
 - `Desactivar` usa `DELETE /api/products/{product}` y no borra registros fisicos.
+- `Activar` usa `PATCH /api/products/{product}` con `is_active=true` para devolver el producto al catalogo comercial.
 
 ## Sincronizacion
 
 - Crear producto genera evento `product.created` en `sync_outbox`.
 - Editar producto genera evento `product.updated`.
 - Desactivar producto tambien genera `product.updated` con `is_active=false`.
+- Reactivar producto tambien genera `product.updated` con `is_active=true`.
 - Los locales aplican esos eventos por SKU y empresa, sin mezclar datos entre tenants.
 
 ## Reglas operativas
@@ -24,6 +26,7 @@ Permitir que un administrador gestione productos desde el portal web sin tocar l
 - El stock no se carga desde la creacion del producto; se carga por Entradas y Salidas.
 - No se debe borrar fisicamente un producto con historico, ventas, movimientos o seriales.
 - Si el producto queda inactivo, no debe estar disponible para POS ni operaciones nuevas.
+- Si un producto fue desactivado por error o vuelve a venderse, se reactiva desde la tabla o desde el editor sin crear un SKU duplicado.
 - La web mantiene la UI de alta densidad definida en `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`.
 
 ## Pruebas realizadas

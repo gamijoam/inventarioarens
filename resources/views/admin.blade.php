@@ -274,7 +274,7 @@
 
                                     <label class="field">
                                         <span>SKU</span>
-                                        <input id="admin-inventory-sku" type="text" maxlength="255" placeholder="SKU unico por empresa">
+                                        <input id="admin-inventory-sku" type="text" maxlength="255" placeholder="SKU único por empresa">
                                     </label>
 
                                     <label class="field">
@@ -308,7 +308,7 @@
                                     <label class="field">
                                         <span>Garantia</span>
                                         <select id="admin-inventory-warranty">
-                                            <option value="">Sin politica asignada</option>
+                                            <option value="">Sin política asignada</option>
                                         </select>
                                     </label>
 
@@ -385,7 +385,7 @@
                                                     <th>Usuario</th>
                                                     <th>Estado</th>
                                                     <th>Perfiles</th>
-                                                    <th>Accion</th>
+                                                    <th>Acción</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="admin-access-users-table"></tbody>
@@ -455,7 +455,7 @@
                                                         <th>Perfil</th>
                                                         <th>Permisos</th>
                                                         <th>Tipo</th>
-                                                        <th>Accion</th>
+                                                        <th>Acción</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="admin-access-roles-table"></tbody>

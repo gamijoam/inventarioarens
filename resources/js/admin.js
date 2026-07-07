@@ -758,6 +758,10 @@ function inventoryRow(product) {
     const row = document.createElement('tr');
     const canEdit = canUpdateProducts();
     const canDeactivate = canDeleteProducts() && product.is_active;
+    const canReactivate = canUpdateProducts() && !product.is_active;
+    const toggleButton = product.is_active
+        ? `<button class="danger-button ghost-button--compact" type="button" data-admin-product-deactivate="${product.id}" ${canDeactivate ? '' : 'disabled'}>Desactivar</button>`
+        : `<button class="ghost-button ghost-button--compact" type="button" data-admin-product-activate="${product.id}" ${canReactivate ? '' : 'disabled'}>Activar</button>`;
 
     row.innerHTML = `
         <td><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.sku)}</small></td>
@@ -770,7 +774,7 @@ function inventoryRow(product) {
         <td>
             <div class="table-actions">
                 <button class="ghost-button ghost-button--compact" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>Editar</button>
-                <button class="danger-button ghost-button--compact" type="button" data-admin-product-deactivate="${product.id}" ${canDeactivate ? '' : 'disabled'}>Desactivar</button>
+                ${toggleButton}
             </div>
         </td>
     `;
@@ -783,6 +787,9 @@ function inventoryRow(product) {
     });
     row.querySelector('[data-admin-product-deactivate]')?.addEventListener('click', () => {
         deactivateInventoryProduct(product);
+    });
+    row.querySelector('[data-admin-product-activate]')?.addEventListener('click', () => {
+        activateInventoryProduct(product);
     });
 
     return row;
@@ -872,9 +879,9 @@ function renderInventoryCatalogOptions(product = {}) {
     renderSelectOptions(
         elements.inventoryWarranty,
         state.inventory.warrantyPolicies,
-        'Sin politica asignada',
+        'Sin política asignada',
         product.warranty_policy_id,
-        (item) => `${item.name}${item.days ? ` - ${item.days} dias` : ''}`,
+        (item) => `${item.name}${item.days ? ` - ${item.days} días` : ''}`,
     );
 }
 
@@ -971,7 +978,7 @@ async function saveInventoryProductPrice() {
         return;
     }
 
-    setStatus(elements.inventoryStatus, 'Guardando producto y preparando sincronizacion...');
+    setStatus(elements.inventoryStatus, 'Guardando producto y preparando sincronización...');
     setButtonLoading(elements.inventorySave, true, 'Guardando...');
 
     try {
@@ -1007,13 +1014,13 @@ async function deactivateInventoryProduct(product) {
         return;
     }
 
-    const confirmed = window.confirm(`Desactivar ${product.name}? No se eliminara historico ni movimientos.`);
+    const confirmed = window.confirm(`¿Desactivar ${product.name}? No se eliminará histórico ni movimientos.`);
 
     if (!confirmed) {
         return;
     }
 
-    setStatus(elements.inventoryStatus, 'Desactivando producto y preparando sincronizacion...');
+    setStatus(elements.inventoryStatus, 'Desactivando producto y preparando sincronización...');
 
     try {
         await api(`/api/products/${product.id}`, {
@@ -1029,6 +1036,40 @@ async function deactivateInventoryProduct(product) {
         await loadInventory();
         await loadDashboard();
         setStatus(elements.inventoryStatus, 'Producto desactivado. El cambio quedo listo para sincronizarse.', 'success');
+    } catch (error) {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    }
+}
+
+async function activateInventoryProduct(product) {
+    const session = state.session;
+
+    if (!product || !session) {
+        return;
+    }
+
+    if (!canUpdateProducts()) {
+        setStatus(elements.inventoryStatus, 'Tu usuario no tiene permiso para activar productos.', 'error');
+        return;
+    }
+
+    setStatus(elements.inventoryStatus, 'Activando producto y preparando sincronización...');
+
+    try {
+        await api(`/api/products/${product.id}`, {
+            method: 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify({ is_active: true }),
+        });
+
+        elements.inventoryEditor.hidden = true;
+        state.inventory.mode = 'edit';
+        state.inventory.selectedProduct = null;
+        state.inventory.productPrices = [];
+        state.inventory.loaded = false;
+        await loadInventory();
+        await loadDashboard();
+        setStatus(elements.inventoryStatus, 'Producto activado. El cambio quedó listo para sincronizarse.', 'success');
     } catch (error) {
         setStatus(elements.inventoryStatus, normalizeError(error), 'error');
     }

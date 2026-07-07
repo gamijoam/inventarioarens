@@ -271,6 +271,7 @@ Regla importante:
 - la respuesta del producto puede incluir `sale_exchange_rate_type` y `warranty_policy` cuando el controller los carga para formularios o detalle.
 - crear o actualizar un producto desde web genera eventos de sincronizacion en `sync_outbox`.
 - eliminar un producto en web es borrado logico: `DELETE /api/products/{product}` cambia `is_active=false`, conserva historico y tambien genera evento para locales.
+- reactivar un producto en web usa `PATCH /api/products/{product}` con `is_active=true` y genera evento para locales.
 
 ### PaymentMethods
 
