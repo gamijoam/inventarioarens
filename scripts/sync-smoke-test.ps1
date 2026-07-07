@@ -14,6 +14,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $CloudDbPassword,
     [int] $CloudApiPort = 8010,
+    [string] $CloudApiUrl = "",
     [switch] $KeepCloudApi
 )
 
@@ -22,7 +23,10 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $TempDir = Join-Path $RepoRoot "storage\app\sync-smoke"
-$CloudApiUrl = "http://127.0.0.1:$CloudApiPort/api"
+if ([string]::IsNullOrWhiteSpace($CloudApiUrl)) {
+    $CloudApiUrl = "http://127.0.0.1:$CloudApiPort/api"
+}
+$UseExternalCloudApi = $CloudApiUrl -notlike "http://127.0.0.1:*" -and $CloudApiUrl -notlike "http://localhost:*"
 
 function Write-Step([string] $Message) {
     Write-Host ""
@@ -160,7 +164,7 @@ $env:SMOKE_CLOUD_PASSWORD = $CloudDbPassword
 $probe = @'
 <?php
 $dsn = sprintf(
-    'pgsql:host=%s;port=%s;dbname=%s',
+    'pgsql:host=%s;port=%s;dbname=%s;connect_timeout=15;sslmode=disable',
     getenv('SMOKE_CLOUD_HOST'),
     getenv('SMOKE_CLOUD_PORT'),
     getenv('SMOKE_CLOUD_DB')
@@ -196,7 +200,7 @@ $fixture = @'
 <?php
 function pdo_from_env(string $prefix): PDO {
     $dsn = sprintf(
-        'pgsql:host=%s;port=%s;dbname=%s',
+        'pgsql:host=%s;port=%s;dbname=%s;connect_timeout=15;sslmode=disable',
         getenv($prefix.'_HOST'),
         getenv($prefix.'_PORT'),
         getenv($prefix.'_DB')
@@ -417,15 +421,21 @@ $fixtureJson = Invoke-PhpTemp "prepare-fixture.php" $fixture
 $fixtureData = ($fixtureJson -join "`n") | ConvertFrom-Json
 $CloudToken = [string] $fixtureData.cloud_token
 
-Write-Step "Levantando API nube temporal en $CloudApiUrl"
 Invoke-CloudArtisan @("config:clear")
 
-if (Test-PortOpen $CloudApiPort) {
-    Fail "El puerto $CloudApiPort ya esta ocupado. Cierra ese proceso o ejecuta el script con -CloudApiPort otro_puerto."
-}
-
 $cmdFile = Join-Path $TempDir "cloud-api.cmd"
-$cmd = @"
+$apiProcess = $null
+
+if ($UseExternalCloudApi) {
+    Write-Step "Usando API nube externa en $CloudApiUrl"
+} else {
+    Write-Step "Levantando API nube temporal en $CloudApiUrl"
+
+    if (Test-PortOpen $CloudApiPort) {
+        Fail "El puerto $CloudApiPort ya esta ocupado. Cierra ese proceso o ejecuta el script con -CloudApiPort otro_puerto."
+    }
+
+    $cmd = @"
 @echo off
 cd /d "$RepoRoot"
 set "APP_ENV=cloudtest"
@@ -437,15 +447,17 @@ set "DB_USERNAME=$CloudDbUser"
 set "DB_PASSWORD=$CloudDbPassword"
 "$PhpPath" artisan serve --host=127.0.0.1 --port=$CloudApiPort
 "@
-Set-Content -LiteralPath $cmdFile -Value $cmd -Encoding ASCII
+    Set-Content -LiteralPath $cmdFile -Value $cmd -Encoding ASCII
 
-$apiProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$cmdFile`"" -WindowStyle Hidden -PassThru
+    $apiProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$cmdFile`"" -WindowStyle Hidden -PassThru
+}
+
 try {
-    if (!(Wait-Port $CloudApiPort 25)) {
+    if (!$UseExternalCloudApi -and !(Wait-Port $CloudApiPort 25)) {
         Fail "No se pudo levantar la API nube temporal en el puerto $CloudApiPort."
     }
 
-    Write-Step "Ejecutando worker local contra la API nube temporal"
+    Write-Step "Ejecutando worker local contra la API nube"
     Push-Location $RepoRoot
     try {
         & $PhpPath "artisan" "sync:run" $TenantSlug "--node=$NodeCode" "--name=Prueba smoke local" "--cloud-url=$CloudApiUrl" "--token=$CloudToken" "--limit=20"
@@ -537,7 +549,7 @@ if (!$ok) {
         Stop-Process -Id $apiProcess.Id -Force
     }
 
-    if (!$KeepCloudApi) {
+    if (!$KeepCloudApi -and !$UseExternalCloudApi) {
         Stop-PortOwner $CloudApiPort
     }
 

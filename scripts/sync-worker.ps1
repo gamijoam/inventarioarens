@@ -55,7 +55,24 @@ function Fail([string] $Message) {
 function Add-LogSafe([string] $Value) {
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         try {
-            Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value $Value
+            $directory = Split-Path -Parent $LogFile
+            if (!(Test-Path -LiteralPath $directory)) {
+                New-Item -ItemType Directory -Path $directory | Out-Null
+            }
+
+            $stream = [System.IO.File]::Open($LogFile, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+            try {
+                $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
+                try {
+                    $writer.WriteLine($Value)
+                    $writer.Flush()
+                } finally {
+                    $writer.Dispose()
+                }
+            } finally {
+                $stream.Dispose()
+            }
+
             return
         } catch {
             Start-Sleep -Milliseconds 250

@@ -4659,3 +4659,30 @@ Validacion:
 - `app.miinventariofacil.com` resuelve a `217.216.80.158`.
 - HTTPS quedo activo.
 - La API Laravel responde por el dominio. Una ruta protegida devolvio `401`, que es correcto cuando no se envia token.
+
+## 2026-07-07 - API nube permanente y worker por dominio
+
+Objetivo:
+
+- Confirmar que la nube opere por `https://app.miinventariofacil.com/api`.
+- Validar que el worker local pueda sincronizar contra el dominio HTTPS.
+- Evitar avisos de log en uso cuando el panel lee el log del worker.
+
+Implementacion:
+
+- Se verifico que `nginx`, `php8.4-fpm` y `postgresql` estan activos y habilitados en el VPS.
+- Se actualizo `APP_URL` de la nube a `https://app.miinventariofacil.com` y se refresco la cache de Laravel.
+- Se reforzo `scripts/vps_configure_app_domain.py` para actualizar `APP_URL` al dominio y reiniciar PHP-FPM.
+- Se ajusto `scripts/sync-worker.ps1` para escribir logs con lectura/escritura compartida.
+- Se adapto `scripts/sync-smoke-test.ps1` para aceptar `-CloudApiUrl` y probar contra una API externa como el dominio productivo.
+- Se documento en `docs/API_NUBE_PERMANENTE_Y_PRUEBA_DOMINIO_2026-07-07.md`.
+
+Validacion:
+
+- `Test-NetConnection app.miinventariofacil.com -Port 443` respondio correctamente con red real.
+- La API respondio `401` en una ruta protegida, esperado sin token.
+- El worker local ejecuto sincronizacion contra `https://app.miinventariofacil.com/api` con 0 fallos.
+
+Nota:
+
+- La prueba profunda que valida PostgreSQL nube directo depende de permisos/red hacia el puerto 5432. La operacion real del sistema debe pasar por API HTTPS.

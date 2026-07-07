@@ -105,6 +105,39 @@ def main() -> int:
             fail(err or out)
         print("OK Nginx recargado")
 
+        env_path = posixpath.join(args.project_path, ".env")
+        sftp = client.open_sftp()
+        try:
+            with sftp.file(env_path, "r") as fh:
+                env_content = fh.read().decode(errors="replace")
+
+            lines = []
+            found_app_url = False
+            for line in env_content.splitlines():
+                if line.startswith("APP_URL="):
+                    lines.append(f"APP_URL=https://{args.domain}")
+                    found_app_url = True
+                else:
+                    lines.append(line)
+
+            if not found_app_url:
+                lines.append(f"APP_URL=https://{args.domain}")
+
+            with sftp.file(env_path, "w") as fh:
+                fh.write("\n".join(lines) + "\n")
+        finally:
+            sftp.close()
+
+        code, out, err = run(
+            client,
+            f"cd {args.project_path} && php artisan optimize:clear && php artisan config:cache && systemctl restart php8.4-fpm",
+            timeout=120,
+        )
+        print(out)
+        if code != 0:
+            fail(err or out)
+        print("OK Laravel actualizado con APP_URL HTTPS")
+
         if not args.skip_certbot:
             email_part = f"--email {args.email}" if args.email else "--register-unsafely-without-email"
             certbot_command = (
