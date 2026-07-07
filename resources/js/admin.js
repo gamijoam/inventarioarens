@@ -1,4 +1,5 @@
 const storageKey = 'inventory_admin_session';
+const requestTimeoutMs = 20000;
 
 const state = {
     tenants: [],
@@ -45,30 +46,65 @@ const metricElements = {
 };
 
 function setStatus(element, message, tone = 'neutral') {
+    if (!element) {
+        return;
+    }
+
     element.textContent = message;
     element.dataset.tone = tone;
 }
 
-async function api(path, options = {}, returnPayload = false) {
-    const { headers = {}, ...requestOptions } = options;
-
-    const response = await fetch(path, {
-        ...requestOptions,
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...headers,
-        },
-    });
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-        const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
-        throw new Error(firstError || payload.message || 'No se pudo completar la operación.');
+function setButtonLoading(button, isLoading, loadingText = 'Procesando...') {
+    if (!button) {
+        return;
     }
 
-    return returnPayload ? payload : payload.data;
+    if (isLoading) {
+        button.dataset.originalText = button.textContent;
+        button.textContent = loadingText;
+        button.disabled = true;
+        return;
+    }
+
+    button.textContent = button.dataset.originalText || button.textContent;
+    button.disabled = false;
+}
+
+function normalizeError(error) {
+    if (error.name === 'AbortError') {
+        return 'La solicitud tardó demasiado. Verifica que el servidor esté activo e intenta nuevamente.';
+    }
+
+    return error.message || 'No se pudo completar la operación.';
+}
+
+async function api(path, options = {}, returnPayload = false) {
+    const { headers = {}, ...requestOptions } = options;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+
+    try {
+        const response = await fetch(path, {
+            ...requestOptions,
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                ...headers,
+            },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+            throw new Error(firstError || payload.message || 'No se pudo completar la operación.');
+        }
+
+        return returnPayload ? payload : payload.data;
+    } finally {
+        window.clearTimeout(timeout);
+    }
 }
 
 function authHeaders(session) {
@@ -88,6 +124,7 @@ function clearSession() {
     state.session = null;
     elements.dashboardView.hidden = true;
     elements.loginView.hidden = false;
+    setStatus(elements.loginStatus, 'Sesión cerrada.', 'success');
 }
 
 function restoreSession() {
@@ -124,11 +161,11 @@ async function loadTenants() {
 
     if (!email) {
         setStatus(elements.loginStatus, 'Escribe el correo para buscar empresas.', 'error');
-        return;
+        return false;
     }
 
     setStatus(elements.loginStatus, 'Buscando empresas disponibles...');
-    elements.loadTenants.disabled = true;
+    setButtonLoading(elements.loadTenants, true, 'Buscando...');
 
     try {
         const tenants = await api('/api/auth/tenants', {
@@ -140,14 +177,16 @@ async function loadTenants() {
 
         if (tenants.length === 0) {
             setStatus(elements.loginStatus, 'Este correo no tiene empresas activas asociadas.', 'error');
-            return;
+            return false;
         }
 
         setStatus(elements.loginStatus, `${tenants.length} empresa(s) disponible(s). Ahora ingresa la contraseña.`, 'success');
+        return true;
     } catch (error) {
-        setStatus(elements.loginStatus, error.message, 'error');
+        setStatus(elements.loginStatus, normalizeError(error), 'error');
+        return false;
     } finally {
-        elements.loadTenants.disabled = false;
+        setButtonLoading(elements.loadTenants, false);
     }
 }
 
@@ -155,7 +194,11 @@ async function login(event) {
     event.preventDefault();
 
     if (state.tenants.length === 0) {
-        await loadTenants();
+        const tenantsLoaded = await loadTenants();
+
+        if (!tenantsLoaded) {
+            return;
+        }
     }
 
     const tenantSlug = elements.tenant.value || state.selectedTenant?.slug;
@@ -166,7 +209,7 @@ async function login(event) {
     }
 
     setStatus(elements.loginStatus, 'Validando acceso...');
-    elements.submit.disabled = true;
+    setButtonLoading(elements.submit, true, 'Entrando...');
 
     try {
         const session = await api('/api/auth/login', {
@@ -177,15 +220,16 @@ async function login(event) {
             body: JSON.stringify({
                 email: elements.email.value.trim(),
                 password: elements.password.value,
+                device_name: 'Portal administrativo web',
             }),
         });
 
         saveSession(session);
         await loadDashboard();
     } catch (error) {
-        setStatus(elements.loginStatus, error.message, 'error');
+        setStatus(elements.loginStatus, normalizeError(error), 'error');
     } finally {
-        elements.submit.disabled = false;
+        setButtonLoading(elements.submit, false);
     }
 }
 
@@ -204,7 +248,7 @@ async function loadDashboard() {
     }
 
     setStatus(elements.dashboardStatus, 'Cargando métricas administrativas...');
-    elements.refresh.disabled = true;
+    setButtonLoading(elements.refresh, true, 'Actualizando...');
 
     try {
         const query = new URLSearchParams({
@@ -218,9 +262,9 @@ async function loadDashboard() {
         renderSummary(summary);
         setStatus(elements.dashboardStatus, `Dashboard actualizado: ${formatDateTime(summary.generated_at)}.`, 'success');
     } catch (error) {
-        setStatus(elements.dashboardStatus, error.message, 'error');
+        setStatus(elements.dashboardStatus, normalizeError(error), 'error');
     } finally {
-        elements.refresh.disabled = false;
+        setButtonLoading(elements.refresh, false);
     }
 }
 

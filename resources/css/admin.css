@@ -178,6 +178,13 @@ select {
     background: var(--primary-dark);
 }
 
+.primary-button:disabled,
+.ghost-button:disabled,
+.danger-button:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
 .ghost-button {
     background: #fff;
     color: var(--ink);

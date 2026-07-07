@@ -10,6 +10,7 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - Busqueda de empresas por correo usando `POST /api/auth/tenants`.
 - Inicio de sesion por empresa usando `POST /api/auth/login`.
 - Dashboard administrativo usando `GET /api/admin-portal/dashboard`.
+- Manejo visible de errores y tiempo maximo de espera para evitar que el login quede cargando indefinidamente.
 - Selector de periodo: hoy, semana y mes.
 - Metricas iniciales:
   - ventas confirmadas;
@@ -38,6 +39,7 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - Toda la informacion se obtiene desde APIs protegidas.
 - Los permisos reales siguen siendo responsabilidad del backend.
 - Esta fase es de lectura gerencial; no crea productos, usuarios, precios ni cajas.
+- Si el backend no responde, el portal debe mostrar un mensaje claro en pantalla y reactivar los botones.
 
 ## Pruebas
 
