@@ -13,6 +13,7 @@ const state = {
         selectedProduct: null,
         priceLists: [],
         productPrices: [],
+        detailProduct: null,
         rateTypes: [],
         warrantyPolicies: [],
     },
@@ -82,6 +83,19 @@ const elements = {
     inventorySave: document.querySelector('#admin-inventory-save'),
     inventoryDeactivate: document.querySelector('#admin-inventory-deactivate'),
     inventoryCancel: document.querySelector('#admin-inventory-cancel'),
+    inventoryDetail: document.querySelector('#admin-inventory-detail'),
+    inventoryDetailTitle: document.querySelector('#admin-inventory-detail-title'),
+    inventoryDetailSubtitle: document.querySelector('#admin-inventory-detail-subtitle'),
+    inventoryDetailClose: document.querySelector('#admin-inventory-detail-close'),
+    inventoryDetailEdit: document.querySelector('#admin-inventory-detail-edit'),
+    inventoryDetailToggle: document.querySelector('#admin-inventory-detail-toggle'),
+    inventoryDetailMeta: document.querySelector('#admin-inventory-detail-meta'),
+    inventoryDetailStockTotal: document.querySelector('#admin-inventory-detail-stock-total'),
+    inventoryDetailStock: document.querySelector('#admin-inventory-detail-stock'),
+    inventoryDetailPriceCount: document.querySelector('#admin-inventory-detail-price-count'),
+    inventoryDetailPrices: document.querySelector('#admin-inventory-detail-prices'),
+    inventoryDetailChangeCount: document.querySelector('#admin-inventory-detail-change-count'),
+    inventoryDetailChanges: document.querySelector('#admin-inventory-detail-changes'),
     priceListRows: document.querySelector('#admin-price-list-rows'),
     priceListSave: document.querySelector('#admin-price-list-save'),
     priceCopyBase: document.querySelector('#admin-price-copy-base'),
@@ -823,11 +837,18 @@ function inventoryRow(product) {
         <td><span class="status-pill" data-tone="${product.is_active ? 'success' : 'warning'}">${product.is_active ? 'Activo' : 'Inactivo'}</span></td>
         <td>
             <div class="table-actions">
+                <button class="ghost-button ghost-button--compact" type="button" data-admin-product-detail="${product.id}">Detalle</button>
                 <button class="ghost-button ghost-button--compact" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>Editar</button>
                 ${toggleButton}
             </div>
         </td>
     `;
+
+    row.querySelector('[data-admin-product-detail]')?.addEventListener('click', () => {
+        openInventoryProductDetail(product).catch((error) => {
+            setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+        });
+    });
 
     const button = row.querySelector('[data-admin-product-edit]');
     button?.addEventListener('click', () => {
@@ -853,6 +874,7 @@ async function openNewInventoryProduct() {
 
     state.inventory.mode = 'create';
     state.inventory.selectedProduct = null;
+    hideInventoryDetail();
     elements.inventoryEditor.hidden = false;
     elements.inventoryEditorTitle.textContent = 'Nuevo producto';
     elements.inventoryEditorSubtitle.textContent = 'Se creara en esta empresa y quedara listo para sincronizar locales.';
@@ -876,6 +898,7 @@ async function openNewInventoryProduct() {
 async function selectInventoryProduct(product) {
     state.inventory.mode = 'edit';
     state.inventory.selectedProduct = product;
+    hideInventoryDetail();
     elements.inventoryEditor.hidden = false;
     elements.inventoryEditorTitle.textContent = product.name;
     elements.inventoryEditorSubtitle.textContent = `${product.sku} - ${trackingLabel(product.tracking_type)}`;
@@ -904,6 +927,169 @@ async function selectInventoryProduct(product) {
     elements.inventoryDeactivate.hidden = !state.inventory.selectedProduct.is_active || !canDeleteProducts();
     renderProductPriceListRows();
     setStatus(elements.inventoryStatus, 'Edita precio base, moneda, estado o precios por lista. Todo queda listo para sincronizarse.', 'neutral');
+}
+
+async function openInventoryProductDetail(product) {
+    const session = state.session;
+
+    if (!session || !product) {
+        return;
+    }
+
+    elements.inventoryEditor.hidden = true;
+    elements.inventoryDetail.hidden = false;
+    state.inventory.selectedProduct = null;
+    state.inventory.productPrices = [];
+    state.inventory.detailProduct = product;
+
+    renderInventoryDetailLoading(product);
+    setStatus(elements.inventoryStatus, `Cargando detalle de ${product.name}...`, 'neutral');
+
+    const [detail, prices] = await Promise.all([
+        api(`/api/inventory-center/products/${product.id}`, {
+            headers: authHeaders(session),
+        }),
+        api(`/api/products/${product.id}/prices`, {
+            headers: authHeaders(session),
+        }).catch(() => []),
+    ]);
+
+    if (state.inventory.detailProduct?.id !== product.id) {
+        return;
+    }
+
+    const productDetail = {
+        ...product,
+        ...(detail.product || {}),
+    };
+
+    state.inventory.detailProduct = productDetail;
+    renderInventoryDetail(productDetail, detail, collectionData(prices));
+    setStatus(elements.inventoryStatus, `Detalle cargado para ${productDetail.name}.`, 'success');
+}
+
+function renderInventoryDetailLoading(product) {
+    elements.inventoryDetailTitle.textContent = product.name;
+    elements.inventoryDetailSubtitle.textContent = `${product.sku} - cargando detalle operativo...`;
+    elements.inventoryDetailMeta.innerHTML = '<span>Cargando datos...</span>';
+    elements.inventoryDetailStockTotal.textContent = '...';
+    elements.inventoryDetailStock.innerHTML = '<p class="inventory-detail__empty">Cargando stock por almacen...</p>';
+    elements.inventoryDetailPriceCount.textContent = '...';
+    elements.inventoryDetailPrices.innerHTML = '<p class="inventory-detail__empty">Cargando precios por lista...</p>';
+    elements.inventoryDetailChangeCount.textContent = '...';
+    elements.inventoryDetailChanges.innerHTML = '<p class="inventory-detail__empty">Cargando actividad reciente...</p>';
+}
+
+function renderInventoryDetail(product, detail = {}, prices = []) {
+    const stock = detail.stock || {};
+    const totals = stock.totals || {};
+    const warehouses = stock.by_warehouse || [];
+    const movements = detail.recent_movements || [];
+    const audits = detail.recent_audits || [];
+    const changes = [...movements.map((item) => ({ ...item, detail_type: 'movement' })), ...audits.map((item) => ({ ...item, detail_type: 'audit' }))]
+        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+        .slice(0, 8);
+
+    elements.inventoryDetailTitle.textContent = product.name;
+    elements.inventoryDetailSubtitle.textContent = `${product.sku} - ${trackingLabel(product.tracking_type)}`;
+    elements.inventoryDetailEdit.disabled = !canUpdateProducts();
+    elements.inventoryDetailToggle.disabled = product.is_active ? !canDeleteProducts() : !canUpdateProducts();
+    elements.inventoryDetailToggle.textContent = product.is_active ? 'Desactivar' : 'Activar';
+    elements.inventoryDetailToggle.className = product.is_active ? 'danger-button' : 'ghost-button';
+
+    elements.inventoryDetailMeta.replaceChildren(
+        detailMetric('Precio base', priceLabel(product)),
+        detailMetric('Estado', product.is_active ? 'Activo' : 'Inactivo'),
+        detailMetric('Tasa', product.sale_exchange_rate_type?.name || 'Sin tasa'),
+        detailMetric('Garantia', warrantyLabel(product.warranty_policy)),
+        detailMetric('Actualizado', formatDateTime(product.updated_at)),
+    );
+
+    elements.inventoryDetailStockTotal.textContent = `${stockNumber(totals.available)} disp.`;
+    renderInventoryDetailStock(warehouses);
+    renderInventoryDetailPrices(prices);
+    renderInventoryDetailChanges(changes);
+}
+
+function detailMetric(label, value) {
+    const item = document.createElement('article');
+    item.className = 'inventory-detail__metric';
+    item.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
+    return item;
+}
+
+function renderInventoryDetailStock(warehouses) {
+    if (!warehouses.length) {
+        elements.inventoryDetailStock.innerHTML = '<p class="inventory-detail__empty">Sin stock por almacen.</p>';
+        return;
+    }
+
+    elements.inventoryDetailStock.replaceChildren(...warehouses.map((warehouse) => {
+        const item = document.createElement('article');
+        item.className = 'inventory-detail__line';
+        item.innerHTML = `
+            <div>
+                <strong>${escapeHtml(warehouse.warehouse_name || 'Almacen')}</strong>
+                <small>${escapeHtml(warehouse.branch_name || 'Sin sucursal')} ${warehouse.warehouse_code ? `- ${escapeHtml(warehouse.warehouse_code)}` : ''}</small>
+            </div>
+            <span>${stockNumber(warehouse.available)} / ${stockNumber(warehouse.reserved)} / ${stockNumber(warehouse.damaged)}</span>
+        `;
+        return item;
+    }));
+}
+
+function renderInventoryDetailPrices(prices) {
+    elements.inventoryDetailPriceCount.textContent = `${prices.length}`;
+
+    if (!prices.length) {
+        elements.inventoryDetailPrices.innerHTML = '<p class="inventory-detail__empty">Sin precios por lista configurados.</p>';
+        return;
+    }
+
+    elements.inventoryDetailPrices.replaceChildren(...prices.map((price) => {
+        const item = document.createElement('article');
+        item.className = 'inventory-detail__line';
+        item.innerHTML = `
+            <div>
+                <strong>${escapeHtml(price.price_list?.name || 'Lista')}</strong>
+                <small>${escapeHtml(price.price_list?.code || '')}${price.is_active === false ? ' - inactiva' : ''}</small>
+            </div>
+            <span>${escapeHtml(price.currency || 'USD')} ${Number(price.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        `;
+        return item;
+    }));
+}
+
+function renderInventoryDetailChanges(changes) {
+    elements.inventoryDetailChangeCount.textContent = `${changes.length}`;
+
+    if (!changes.length) {
+        elements.inventoryDetailChanges.innerHTML = '<p class="inventory-detail__empty">Sin movimientos recientes.</p>';
+        return;
+    }
+
+    elements.inventoryDetailChanges.replaceChildren(...changes.map((change) => {
+        const isAudit = change.detail_type === 'audit';
+        const item = document.createElement('article');
+        item.className = 'inventory-detail__line';
+        item.innerHTML = `
+            <div>
+                <strong>${escapeHtml(isAudit ? auditActionLabel(change.action) : movementTypeLabel(change.type))}</strong>
+                <small>${escapeHtml(change.reason || change.created_by_name || 'Actividad')} - ${formatDateTime(change.created_at)}</small>
+            </div>
+            <span>${isAudit ? 'Auditoria' : stockNumber(change.quantity)}</span>
+        `;
+        return item;
+    }));
+}
+
+function hideInventoryDetail() {
+    if (!elements.inventoryDetail) {
+        return;
+    }
+
+    elements.inventoryDetail.hidden = true;
+    state.inventory.detailProduct = null;
 }
 
 function fillInventoryProductForm(product) {
@@ -1041,6 +1227,7 @@ async function saveInventoryProductPrice() {
         elements.inventoryEditor.hidden = true;
         state.inventory.mode = 'edit';
         state.inventory.selectedProduct = null;
+        hideInventoryDetail();
         state.inventory.loaded = false;
         await loadInventory();
         await loadDashboard();
@@ -1082,6 +1269,7 @@ async function deactivateInventoryProduct(product) {
         state.inventory.mode = 'edit';
         state.inventory.selectedProduct = null;
         state.inventory.productPrices = [];
+        hideInventoryDetail();
         state.inventory.loaded = false;
         await loadInventory();
         await loadDashboard();
@@ -1116,6 +1304,7 @@ async function activateInventoryProduct(product) {
         state.inventory.mode = 'edit';
         state.inventory.selectedProduct = null;
         state.inventory.productPrices = [];
+        hideInventoryDetail();
         state.inventory.loaded = false;
         await loadInventory();
         await loadDashboard();
@@ -1788,6 +1977,38 @@ function trackingLabel(type) {
     return type === 'serialized' ? 'Serializado / IMEI' : 'Por cantidad';
 }
 
+function warrantyLabel(policy) {
+    if (!policy) {
+        return 'Sin garantia';
+    }
+
+    const days = policy.duration_days ? `${policy.duration_days} dias` : 'sin dias';
+
+    return `${policy.name} - ${days}`;
+}
+
+function movementTypeLabel(type) {
+    return {
+        in: 'Entrada',
+        out: 'Salida',
+        sale: 'Venta',
+        return: 'Devolucion',
+        transfer_in: 'Traslado entrada',
+        transfer_out: 'Traslado salida',
+        adjustment: 'Ajuste',
+    }[type] ?? (type || 'Movimiento');
+}
+
+function auditActionLabel(action) {
+    return {
+        created: 'Producto creado',
+        updated: 'Producto actualizado',
+        deleted: 'Producto desactivado',
+        activated: 'Producto activado',
+        price_lists_updated: 'Listas actualizadas',
+    }[action] ?? (action || 'Auditoria');
+}
+
 function priceLabel(product) {
     if (product.base_price === null || product.base_price === undefined) {
         return 'Sin precio';
@@ -1858,6 +2079,35 @@ elements.inventoryPrev?.addEventListener('click', () => loadInventory(Math.max(s
 elements.inventoryNext?.addEventListener('click', () => loadInventory(state.inventory.page + 1));
 elements.inventorySave?.addEventListener('click', saveInventoryProductPrice);
 elements.inventoryDeactivate?.addEventListener('click', () => deactivateInventoryProduct(state.inventory.selectedProduct));
+elements.inventoryDetailClose?.addEventListener('click', () => {
+    hideInventoryDetail();
+    setStatus(elements.inventoryStatus, 'Detalle cerrado.');
+});
+elements.inventoryDetailEdit?.addEventListener('click', () => {
+    const product = state.inventory.detailProduct;
+
+    if (!product) {
+        return;
+    }
+
+    selectInventoryProduct(product).catch((error) => {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    });
+});
+elements.inventoryDetailToggle?.addEventListener('click', () => {
+    const product = state.inventory.detailProduct;
+
+    if (!product) {
+        return;
+    }
+
+    if (product.is_active) {
+        deactivateInventoryProduct(product);
+        return;
+    }
+
+    activateInventoryProduct(product);
+});
 elements.priceListSave?.addEventListener('click', saveProductPriceLists);
 elements.priceCopyBase?.addEventListener('click', copyBasePriceToEmptyLists);
 elements.inventoryCancel?.addEventListener('click', () => {

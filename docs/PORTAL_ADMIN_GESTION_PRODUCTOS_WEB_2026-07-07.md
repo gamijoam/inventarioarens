@@ -9,11 +9,13 @@ Permitir que un administrador gestione productos desde el portal web sin tocar l
 - `Nuevo producto` abre el editor compacto del Centro de Inventario web.
 - La tabla incluye filtros rapidos `Todos`, `Activos` e `Inactivos` para administrar el catalogo sin perder densidad visual.
 - La vista muestra un resumen de filtros aplicados para saber si se esta viendo todo el catalogo o solo una parte.
+- `Detalle` abre un panel lateral compacto con precio base, estado, tasa, garantia, stock por almacen, precios por lista y actividad reciente.
 - El administrador puede definir nombre, SKU, tipo de control, precio base, moneda, tasa, garantia y estado.
 - `Guardar producto` usa `POST /api/products` cuando el producto es nuevo.
 - `Guardar producto` usa `PUT /api/products/{product}` cuando el producto ya existe.
 - `Desactivar` usa `DELETE /api/products/{product}` y no borra registros fisicos.
 - `Activar` usa `PATCH /api/products/{product}` con `is_active=true` para devolver el producto al catalogo comercial.
+- Desde el panel `Detalle` se puede saltar a `Editar` o cambiar estado sin abandonar la tabla.
 
 ## Sincronizacion
 
@@ -30,9 +32,10 @@ Permitir que un administrador gestione productos desde el portal web sin tocar l
 - Si el producto queda inactivo, no debe estar disponible para POS ni operaciones nuevas.
 - Si un producto fue desactivado por error o vuelve a venderse, se reactiva desde la tabla o desde el editor sin crear un SKU duplicado.
 - La revision de inactivos debe hacerse desde el filtro rapido para recuperar productos ya existentes antes de crear uno nuevo.
+- El detalle operativo es de solo lectura, salvo acciones explicitas de editar o activar/desactivar.
 - La web mantiene la UI de alta densidad definida en `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`.
 
 ## Pruebas realizadas
 
 - `pnpm build`
-- `php artisan test tests/Feature/AdminPortal/AdminPortalWebTest.php tests/Feature/Products/ProductApiTest.php`
+- `php artisan test tests/Feature/AdminPortal/AdminPortalWebTest.php tests/Feature/Products/ProductApiTest.php tests/Feature/InventoryCenter/InventoryCenterSummaryApiTest.php`

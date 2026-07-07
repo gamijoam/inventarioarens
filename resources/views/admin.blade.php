@@ -356,6 +356,54 @@
                                         </button>
                                     </section>
                                 </aside>
+
+                                <aside class="inventory-detail" id="admin-inventory-detail" hidden>
+                                    <div class="inventory-detail__head">
+                                        <div>
+                                            <span class="soft-badge">Detalle operativo</span>
+                                            <h4 id="admin-inventory-detail-title">Producto</h4>
+                                            <p id="admin-inventory-detail-subtitle">Selecciona un producto para revisar stock, listas y actividad.</p>
+                                        </div>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-inventory-detail-close">Cerrar</button>
+                                    </div>
+
+                                    <div class="inventory-detail__actions">
+                                        <button class="primary-button" type="button" id="admin-inventory-detail-edit">Editar</button>
+                                        <button class="ghost-button" type="button" id="admin-inventory-detail-toggle">Cambiar estado</button>
+                                    </div>
+
+                                    <div class="inventory-detail__meta" id="admin-inventory-detail-meta"></div>
+
+                                    <section class="inventory-detail__section">
+                                        <div class="inventory-detail__section-head">
+                                            <h5>Stock por almacen</h5>
+                                            <span id="admin-inventory-detail-stock-total">0 disp.</span>
+                                        </div>
+                                        <div class="inventory-detail__list" id="admin-inventory-detail-stock">
+                                            <p class="inventory-detail__empty">Sin stock cargado.</p>
+                                        </div>
+                                    </section>
+
+                                    <section class="inventory-detail__section">
+                                        <div class="inventory-detail__section-head">
+                                            <h5>Precios por lista</h5>
+                                            <span id="admin-inventory-detail-price-count">0</span>
+                                        </div>
+                                        <div class="inventory-detail__list" id="admin-inventory-detail-prices">
+                                            <p class="inventory-detail__empty">Sin precios por lista.</p>
+                                        </div>
+                                    </section>
+
+                                    <section class="inventory-detail__section">
+                                        <div class="inventory-detail__section-head">
+                                            <h5>Actividad reciente</h5>
+                                            <span id="admin-inventory-detail-change-count">0</span>
+                                        </div>
+                                        <div class="inventory-detail__list" id="admin-inventory-detail-changes">
+                                            <p class="inventory-detail__empty">Sin movimientos recientes.</p>
+                                        </div>
+                                    </section>
+                                </aside>
                             </div>
 
                             <p class="dashboard-status" id="admin-inventory-status" role="status" aria-live="polite"></p>

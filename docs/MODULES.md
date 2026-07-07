@@ -273,6 +273,7 @@ Regla importante:
 - eliminar un producto en web es borrado logico: `DELETE /api/products/{product}` cambia `is_active=false`, conserva historico y tambien genera evento para locales.
 - reactivar un producto en web usa `PATCH /api/products/{product}` con `is_active=true` y genera evento para locales.
 - el portal web debe exponer filtros rapidos de productos activos/inactivos para evitar duplicar SKU cuando un producto solo estaba desactivado.
+- el portal web incluye un detalle operativo compacto por producto para revisar stock por almacen, precios por lista y actividad reciente sin salir de la tabla.
 
 ### PaymentMethods
 
