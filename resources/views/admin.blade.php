@@ -183,6 +183,95 @@
                             </article>
                         </section>
 
+                        <section class="admin-module-panel inventory-admin" id="admin-inventory-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Inventario</span>
+                                    <h3>Productos y precios</h3>
+                                    <p>Consulta stock, filtra productos y actualiza precios base para sincronizarlos con las sedes.</p>
+                                </div>
+                                <button class="ghost-button" type="button" id="admin-inventory-refresh">Actualizar inventario</button>
+                            </div>
+
+                            <div class="inventory-admin__layout">
+                                <div class="inventory-admin__main">
+                                    <div class="inventory-admin__filters" role="search">
+                                        <label class="field">
+                                            <span>Buscar</span>
+                                            <input id="admin-inventory-search" type="search" placeholder="Nombre o SKU">
+                                        </label>
+                                        <label class="field">
+                                            <span>Control</span>
+                                            <select id="admin-inventory-tracking">
+                                                <option value="">Todos</option>
+                                                <option value="quantity">Por cantidad</option>
+                                                <option value="serialized">Serializado / IMEI</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Stock</span>
+                                            <select id="admin-inventory-stock">
+                                                <option value="all">Todos</option>
+                                                <option value="available">Disponible</option>
+                                                <option value="low">Stock bajo</option>
+                                                <option value="out">Sin stock</option>
+                                            </select>
+                                        </label>
+                                        <button class="primary-button" type="button" id="admin-inventory-apply">Aplicar</button>
+                                    </div>
+
+                                    <div class="admin-table-wrap">
+                                        <table class="admin-data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Producto</th>
+                                                    <th>Control</th>
+                                                    <th>Precio base</th>
+                                                    <th>Disponible</th>
+                                                    <th>Reservado</th>
+                                                    <th>Estado</th>
+                                                    <th>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-inventory-table"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="table-footer">
+                                        <span id="admin-inventory-count">Sin productos cargados.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button" type="button" id="admin-inventory-prev">Anterior</button>
+                                            <button class="ghost-button" type="button" id="admin-inventory-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="inventory-editor" id="admin-inventory-editor" hidden>
+                                    <span class="soft-badge">Edición rápida</span>
+                                    <h4 id="admin-inventory-editor-title">Producto</h4>
+                                    <p id="admin-inventory-editor-subtitle">Selecciona un producto para editar su precio base.</p>
+
+                                    <label class="field">
+                                        <span>Precio base</span>
+                                        <input id="admin-inventory-price" type="number" min="0" step="0.01" placeholder="0.00">
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Moneda</span>
+                                        <select id="admin-inventory-currency">
+                                            <option value="USD">USD</option>
+                                            <option value="VES">VES</option>
+                                        </select>
+                                    </label>
+
+                                    <button class="primary-button" type="button" id="admin-inventory-save">Guardar cambios</button>
+                                    <button class="ghost-button" type="button" id="admin-inventory-cancel">Cancelar</button>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-inventory-status" role="status" aria-live="polite"></p>
+                        </section>
+
                         <section class="module-placeholder" id="module-placeholder" hidden>
                             <span class="soft-badge">Herramienta en preparación</span>
                             <h3 id="module-placeholder-title">Módulo</h3>

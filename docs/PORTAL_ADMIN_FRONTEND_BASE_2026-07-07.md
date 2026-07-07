@@ -33,6 +33,14 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
   - productos sin stock;
   - estado de sincronizacion.
 - Alertas operativas basicas.
+- Modulo web de inventario dentro del portal administrativo:
+  - busqueda por nombre o SKU;
+  - filtros por tipo de control y estado de stock;
+  - tabla paginada para revisar productos;
+  - editor rapido de precio base y moneda;
+  - actualizacion mediante `PUT /api/products/{product}`;
+  - consulta mediante `GET /api/inventory-center/summary`.
+- La edicion de precio desde el portal usa la API existente de productos, por lo que el backend registra auditoria y prepara el evento de sincronizacion correspondiente.
 
 ## Criterio visual
 
@@ -56,14 +64,15 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - El portal web no se conecta directo a PostgreSQL.
 - Toda la informacion se obtiene desde APIs protegidas.
 - Los permisos reales siguen siendo responsabilidad del backend.
-- Esta fase es de lectura gerencial; no crea productos, usuarios, precios ni cajas.
+- Esta fase permite lectura gerencial y edicion controlada de precio base en inventario.
+- La creacion completa de productos, usuarios, cajas y permisos sigue quedando para fases posteriores del portal.
 - Si el backend no responde, el portal debe mostrar un mensaje claro en pantalla y reactivar los botones.
 - El login y el dashboard no deben verse mezclados ni conservar la posicion de scroll anterior.
 
 ## Pruebas
 
 ```powershell
-& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\AdminPortal\AdminPortalWebTest.php tests\Feature\AdminPortal\AdminDashboardApiTest.php
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan test tests\Feature\AdminPortal\AdminPortalWebTest.php tests\Feature\AdminPortal\AdminDashboardApiTest.php tests\Feature\InventoryCenter\InventoryCenterSummaryApiTest.php
 pnpm build
 ```
 

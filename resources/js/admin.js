@@ -5,6 +5,12 @@ const state = {
     tenants: [],
     selectedTenant: null,
     session: null,
+    activeSection: 'overview',
+    inventory: {
+        page: 1,
+        loaded: false,
+        selectedProduct: null,
+    },
 };
 
 const elements = {
@@ -32,6 +38,24 @@ const elements = {
     modulePlaceholder: document.querySelector('#module-placeholder'),
     modulePlaceholderTitle: document.querySelector('#module-placeholder-title'),
     modulePlaceholderCopy: document.querySelector('#module-placeholder-copy'),
+    inventoryModule: document.querySelector('#admin-inventory-module'),
+    inventoryRefresh: document.querySelector('#admin-inventory-refresh'),
+    inventorySearch: document.querySelector('#admin-inventory-search'),
+    inventoryTracking: document.querySelector('#admin-inventory-tracking'),
+    inventoryStock: document.querySelector('#admin-inventory-stock'),
+    inventoryApply: document.querySelector('#admin-inventory-apply'),
+    inventoryTable: document.querySelector('#admin-inventory-table'),
+    inventoryCount: document.querySelector('#admin-inventory-count'),
+    inventoryPrev: document.querySelector('#admin-inventory-prev'),
+    inventoryNext: document.querySelector('#admin-inventory-next'),
+    inventoryStatus: document.querySelector('#admin-inventory-status'),
+    inventoryEditor: document.querySelector('#admin-inventory-editor'),
+    inventoryEditorTitle: document.querySelector('#admin-inventory-editor-title'),
+    inventoryEditorSubtitle: document.querySelector('#admin-inventory-editor-subtitle'),
+    inventoryPrice: document.querySelector('#admin-inventory-price'),
+    inventoryCurrency: document.querySelector('#admin-inventory-currency'),
+    inventorySave: document.querySelector('#admin-inventory-save'),
+    inventoryCancel: document.querySelector('#admin-inventory-cancel'),
 };
 
 const portalSections = {
@@ -286,6 +310,9 @@ function renderDashboardShell(session) {
 function activatePortalSection(section) {
     const selectedSection = portalSections[section] ? section : 'overview';
     const isOverview = selectedSection === 'overview';
+    const isInventory = selectedSection === 'inventory';
+
+    state.activeSection = selectedSection;
 
     elements.portalNavItems.forEach((item) => {
         item.classList.toggle('is-active', item.dataset.portalSection === selectedSection);
@@ -299,15 +326,23 @@ function activatePortalSection(section) {
         elements.toolGrid.hidden = !isOverview;
     }
 
+    if (elements.inventoryModule) {
+        elements.inventoryModule.hidden = !isInventory;
+    }
+
     if (!elements.modulePlaceholder) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview;
+    elements.modulePlaceholder.hidden = isOverview || isInventory;
 
-    if (!isOverview) {
+    if (!isOverview && !isInventory) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
+    }
+
+    if (isInventory && !state.inventory.loaded) {
+        loadInventory();
     }
 }
 
@@ -404,6 +439,143 @@ function renderAlerts(alerts) {
     );
 }
 
+async function loadInventory(page = state.inventory.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.inventory.page = page;
+    setStatus(elements.inventoryStatus, 'Cargando inventario...');
+    setButtonLoading(elements.inventoryRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.inventoryApply, true, 'Aplicando...');
+
+    try {
+        const query = new URLSearchParams({
+            stock_status: elements.inventoryStock.value || 'all',
+            low_stock_threshold: '3',
+            limit: '24',
+            page: String(page),
+        });
+        const search = elements.inventorySearch.value.trim();
+        const tracking = elements.inventoryTracking.value;
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        if (tracking) {
+            query.set('tracking_type', tracking);
+        }
+
+        const summary = await api(`/api/inventory-center/summary?${query}`, {
+            headers: authHeaders(session),
+        });
+
+        state.inventory.loaded = true;
+        renderInventory(summary);
+        setStatus(elements.inventoryStatus, `Inventario actualizado. ${summary.products.length} producto(s) en vista.`, 'success');
+    } catch (error) {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.inventoryRefresh, false);
+        setButtonLoading(elements.inventoryApply, false);
+    }
+}
+
+function renderInventory(summary) {
+    const products = summary.products || [];
+
+    if (!products.length) {
+        elements.inventoryTable.innerHTML = '<tr><td colspan="7"><strong>Sin productos</strong><small>No hay productos con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.inventoryTable.replaceChildren(...products.map(inventoryRow));
+    }
+
+    const pagination = summary.pagination || {};
+    elements.inventoryCount.textContent = pagination.total === 0
+        ? 'Sin productos para mostrar.'
+        : `${pagination.from}-${pagination.to} de ${pagination.total} productos.`;
+    elements.inventoryPrev.disabled = !pagination.has_previous;
+    elements.inventoryNext.disabled = !pagination.has_next;
+    state.inventory.page = pagination.page || 1;
+}
+
+function inventoryRow(product) {
+    const row = document.createElement('tr');
+    const canEdit = canUpdateProducts();
+
+    row.innerHTML = `
+        <td><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.sku)}</small></td>
+        <td>${trackingLabel(product.tracking_type)}</td>
+        <td><strong>${priceLabel(product)}</strong><small>${escapeHtml(product.sale_currency || 'USD')}</small></td>
+        <td>${stockNumber(product.stock?.available)}</td>
+        <td>${stockNumber(product.stock?.reserved)}</td>
+        <td><span class="stock-pill stock-pill--${escapeHtml(product.stock?.status || 'available')}">${stockStatusLabel(product.stock?.status)}</span></td>
+        <td>
+            <button class="ghost-button" type="button" data-admin-product-edit="${product.id}" ${canEdit ? '' : 'disabled'}>
+                Editar precio
+            </button>
+        </td>
+    `;
+
+    const button = row.querySelector('[data-admin-product-edit]');
+    button?.addEventListener('click', () => selectInventoryProduct(product));
+
+    return row;
+}
+
+function selectInventoryProduct(product) {
+    state.inventory.selectedProduct = product;
+    elements.inventoryEditor.hidden = false;
+    elements.inventoryEditorTitle.textContent = product.name;
+    elements.inventoryEditorSubtitle.textContent = `${product.sku} · ${trackingLabel(product.tracking_type)}`;
+    elements.inventoryPrice.value = product.base_price ?? '';
+    elements.inventoryCurrency.value = product.sale_currency || 'USD';
+    setStatus(elements.inventoryStatus, 'Edita el precio base y guarda para sincronizar el cambio.', 'neutral');
+}
+
+async function saveInventoryProductPrice() {
+    const product = state.inventory.selectedProduct;
+    const session = state.session;
+
+    if (!product || !session) {
+        setStatus(elements.inventoryStatus, 'Selecciona un producto antes de guardar.', 'error');
+        return;
+    }
+
+    if (elements.inventoryPrice.value === '' || Number(elements.inventoryPrice.value) < 0) {
+        setStatus(elements.inventoryStatus, 'El precio base debe ser mayor o igual a cero.', 'error');
+        return;
+    }
+
+    setStatus(elements.inventoryStatus, 'Guardando precio y preparando sincronización...');
+    setButtonLoading(elements.inventorySave, true, 'Guardando...');
+
+    try {
+        await api(`/api/products/${product.id}`, {
+            method: 'PUT',
+            headers: authHeaders(session),
+            body: JSON.stringify({
+                base_price: Number(elements.inventoryPrice.value),
+                sale_currency: elements.inventoryCurrency.value,
+            }),
+        });
+
+        elements.inventoryEditor.hidden = true;
+        state.inventory.selectedProduct = null;
+        state.inventory.loaded = false;
+        await loadInventory();
+        await loadDashboard();
+        setStatus(elements.inventoryStatus, 'Precio actualizado. El cambio quedó listo para sincronizarse.', 'success');
+    } catch (error) {
+        setStatus(elements.inventoryStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.inventorySave, false);
+    }
+}
+
 function alertLabel(type) {
     return {
         without_stock: 'Productos sin stock',
@@ -437,6 +609,48 @@ function formatDateTime(value) {
     });
 }
 
+function canUpdateProducts() {
+    return state.session?.permissions?.includes('products.update') ?? false;
+}
+
+function trackingLabel(type) {
+    return type === 'serialized' ? 'Serializado / IMEI' : 'Por cantidad';
+}
+
+function priceLabel(product) {
+    if (product.base_price === null || product.base_price === undefined) {
+        return 'Sin precio';
+    }
+
+    return `${product.sale_currency || 'USD'} ${Number(product.base_price || 0).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+}
+
+function stockNumber(value) {
+    return Number(value || 0).toLocaleString('en-US', {
+        maximumFractionDigits: 4,
+    });
+}
+
+function stockStatusLabel(status) {
+    return {
+        available: 'Disponible',
+        low: 'Stock bajo',
+        out: 'Sin stock',
+    }[status] ?? 'Disponible';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
 elements.loadTenants?.addEventListener('click', loadTenants);
 elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
@@ -444,6 +658,22 @@ elements.period?.addEventListener('change', loadDashboard);
 elements.logout?.addEventListener('click', clearSession);
 elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
+});
+elements.inventoryRefresh?.addEventListener('click', () => loadInventory());
+elements.inventoryApply?.addEventListener('click', () => loadInventory(1));
+elements.inventorySearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadInventory(1);
+    }
+});
+elements.inventoryPrev?.addEventListener('click', () => loadInventory(Math.max(state.inventory.page - 1, 1)));
+elements.inventoryNext?.addEventListener('click', () => loadInventory(state.inventory.page + 1));
+elements.inventorySave?.addEventListener('click', saveInventoryProductPrice);
+elements.inventoryCancel?.addEventListener('click', () => {
+    elements.inventoryEditor.hidden = true;
+    state.inventory.selectedProduct = null;
+    setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
 elements.tenant?.addEventListener('change', () => {
     state.selectedTenant = state.tenants.find((tenant) => tenant.slug === elements.tenant.value) ?? null;
