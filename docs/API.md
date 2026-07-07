@@ -1816,6 +1816,21 @@ Permiso requerido:
 suppliers.view
 ```
 
+Query params opcionales:
+
+```txt
+search=texto
+active_status=active|inactive|all
+limit=1..100
+page=1
+```
+
+Notas:
+
+- `search` busca por nombre, documento, correo o telefono;
+- `active_status=all` mantiene compatibilidad y muestra activos e inactivos;
+- el listado siempre queda filtrado por la empresa activa (`X-Tenant`).
+
 ### Crear proveedor
 
 ```txt

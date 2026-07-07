@@ -644,6 +644,36 @@ button {
     max-height: 560px;
 }
 
+.suppliers-admin__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.suppliers-admin__main {
+    min-width: 0;
+}
+
+.suppliers-admin__filters {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 130px auto auto;
+    gap: 6px;
+    align-items: end;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-soft);
+}
+
+.suppliers-admin__filters .field {
+    margin: 0;
+}
+
+.suppliers-admin__table {
+    max-height: 560px;
+}
+
 .inventory-admin__quickbar {
     display: flex;
     align-items: center;
@@ -948,6 +978,68 @@ button {
     grid-column: 1 / -1;
 }
 
+.supplier-editor {
+    align-self: start;
+    position: sticky;
+    top: 64px;
+    display: grid;
+    gap: 8px;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-soft);
+}
+
+.supplier-editor h4 {
+    margin: 0;
+    font-size: 17px;
+}
+
+.supplier-editor p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.supplier-editor .field {
+    margin: 0;
+}
+
+.supplier-editor__grid {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.35fr) minmax(0, 1fr);
+    gap: 6px;
+}
+
+.supplier-editor__active {
+    display: inline-grid;
+    grid-template-columns: 18px auto;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.supplier-editor__active input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.supplier-editor__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.supplier-editor__actions .primary-button {
+    grid-column: 1 / -1;
+}
+
 .ghost-button--compact {
     min-height: 28px;
     padding: 0 8px;
@@ -1233,7 +1325,8 @@ button {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .inventory-admin__layout {
+    .inventory-admin__layout,
+    .suppliers-admin__layout {
         grid-template-columns: 1fr;
     }
 
@@ -1243,7 +1336,8 @@ button {
     }
 
     .inventory-editor,
-    .inventory-detail {
+    .inventory-detail,
+    .supplier-editor {
         position: static;
     }
 }
@@ -1287,7 +1381,9 @@ button {
     }
 
     .inventory-admin__filters,
-    .movements-admin__filters {
+    .movements-admin__filters,
+    .suppliers-admin__filters,
+    .supplier-editor__grid {
         grid-template-columns: 1fr;
     }
 

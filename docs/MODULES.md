@@ -511,7 +511,9 @@ Regla importante:
 
 - `document_type + document_number` es unico por tenant, no global;
 - un proveedor de una empresa no puede usarse en compras de otra empresa;
-- la eliminacion API desactiva al proveedor con `is_active = false`.
+- la eliminacion API desactiva al proveedor con `is_active = false`;
+- el portal administrativo permite buscar por nombre, documento, telefono o correo;
+- el portal administrativo permite crear, editar, desactivar y reactivar proveedores sin borrar historicos.
 
 ### Purchases
 

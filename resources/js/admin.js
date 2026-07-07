@@ -22,6 +22,11 @@ const state = {
         loaded: false,
         warehousesLoaded: false,
     },
+    suppliers: {
+        page: 1,
+        loaded: false,
+        selectedSupplier: null,
+    },
     access: {
         loaded: false,
         users: [],
@@ -118,6 +123,32 @@ const elements = {
     movementsPrev: document.querySelector('#admin-movements-prev'),
     movementsNext: document.querySelector('#admin-movements-next'),
     movementsStatus: document.querySelector('#admin-movements-status'),
+    suppliersModule: document.querySelector('#admin-suppliers-module'),
+    suppliersRefresh: document.querySelector('#admin-suppliers-refresh'),
+    suppliersSearch: document.querySelector('#admin-suppliers-search'),
+    suppliersActive: document.querySelector('#admin-suppliers-active'),
+    suppliersApply: document.querySelector('#admin-suppliers-apply'),
+    suppliersClear: document.querySelector('#admin-suppliers-clear'),
+    suppliersTable: document.querySelector('#admin-suppliers-table'),
+    suppliersCount: document.querySelector('#admin-suppliers-count'),
+    suppliersPrev: document.querySelector('#admin-suppliers-prev'),
+    suppliersNext: document.querySelector('#admin-suppliers-next'),
+    suppliersStatus: document.querySelector('#admin-suppliers-status'),
+    supplierNew: document.querySelector('#admin-supplier-new'),
+    supplierEditor: document.querySelector('#admin-supplier-editor'),
+    supplierEditorTitle: document.querySelector('#admin-supplier-editor-title'),
+    supplierEditorSubtitle: document.querySelector('#admin-supplier-editor-subtitle'),
+    supplierName: document.querySelector('#admin-supplier-name'),
+    supplierDocumentType: document.querySelector('#admin-supplier-document-type'),
+    supplierDocumentNumber: document.querySelector('#admin-supplier-document-number'),
+    supplierPhone: document.querySelector('#admin-supplier-phone'),
+    supplierEmail: document.querySelector('#admin-supplier-email'),
+    supplierAddress: document.querySelector('#admin-supplier-address'),
+    supplierNotes: document.querySelector('#admin-supplier-notes'),
+    supplierActiveEdit: document.querySelector('#admin-supplier-active-edit'),
+    supplierSave: document.querySelector('#admin-supplier-save'),
+    supplierDeactivate: document.querySelector('#admin-supplier-deactivate'),
+    supplierCancel: document.querySelector('#admin-supplier-cancel'),
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
@@ -231,6 +262,10 @@ const portalSections = {
     movements: {
         title: 'Movimientos de inventario',
         copy: 'Historial de entradas, salidas, ventas, ajustes, devoluciones y traslados de la empresa activa.',
+    },
+    suppliers: {
+        title: 'Proveedores',
+        copy: 'Gestion de proveedores, documentos fiscales, contactos y estado operativo para compras.',
     },
     cash: {
         title: 'Caja',
@@ -522,6 +557,10 @@ function resetTenantScopedState() {
     state.movements.loaded = false;
     state.movements.warehousesLoaded = false;
 
+    state.suppliers.page = 1;
+    state.suppliers.loaded = false;
+    state.suppliers.selectedSupplier = null;
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -539,6 +578,10 @@ function resetTenantScopedState() {
 
     if (elements.movementsTable) {
         elements.movementsTable.innerHTML = '';
+    }
+
+    if (elements.suppliersTable) {
+        elements.suppliersTable.innerHTML = '';
     }
 
     if (elements.accessUsersTable) {
@@ -598,6 +641,7 @@ function activatePortalSection(section) {
     const isOverview = selectedSection === 'overview';
     const isInventory = selectedSection === 'inventory';
     const isMovements = selectedSection === 'movements';
+    const isSuppliers = selectedSection === 'suppliers';
     const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
@@ -622,6 +666,10 @@ function activatePortalSection(section) {
         elements.movementsModule.hidden = !isMovements;
     }
 
+    if (elements.suppliersModule) {
+        elements.suppliersModule.hidden = !isSuppliers;
+    }
+
     if (elements.accessModule) {
         elements.accessModule.hidden = !isAccess;
     }
@@ -630,9 +678,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isSuppliers || isAccess;
 
-    if (!isOverview && !isInventory && !isMovements && !isAccess) {
+    if (!isOverview && !isInventory && !isMovements && !isSuppliers && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -646,6 +694,10 @@ function activatePortalSection(section) {
 
     if (isMovements && !state.movements.loaded) {
         loadMovements();
+    }
+
+    if (isSuppliers && !state.suppliers.loaded) {
+        loadSuppliers();
     }
 
     if (isAccess && !state.access.loaded) {
@@ -1004,6 +1056,241 @@ function clearMovementFilters() {
     }
 
     loadMovements(1);
+}
+
+async function loadSuppliers(page = state.suppliers.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.suppliers.page = page;
+    setStatus(elements.suppliersStatus, 'Cargando proveedores...');
+    setButtonLoading(elements.suppliersRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.suppliersApply, true, 'Aplicando...');
+
+    try {
+        const query = new URLSearchParams({
+            active_status: elements.suppliersActive?.value || 'all',
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.suppliersSearch?.value.trim();
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        const pageData = await api(`/api/suppliers?${query}`, {
+            headers: authHeaders(session),
+        }, true);
+
+        state.suppliers.loaded = true;
+        renderSuppliers(pageData);
+        setStatus(elements.suppliersStatus, `Proveedores actualizados. ${pageData.meta?.total || 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.suppliersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.suppliersRefresh, false);
+        setButtonLoading(elements.suppliersApply, false);
+    }
+}
+
+function renderSuppliers(pageData = {}) {
+    const suppliers = pageData.data || [];
+    const meta = pageData.meta || {};
+
+    if (!suppliers.length) {
+        elements.suppliersTable.innerHTML = '<tr><td colspan="6"><strong>Sin proveedores</strong><small>No hay proveedores con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.suppliersTable.replaceChildren(...suppliers.map(supplierRow));
+    }
+
+    elements.suppliersCount.textContent = (meta.total || 0) === 0
+        ? 'Sin proveedores para mostrar.'
+        : `${meta.from || 1}-${meta.to || suppliers.length} de ${meta.total} proveedor(es).`;
+    elements.suppliersPrev.disabled = !meta.current_page || meta.current_page <= 1;
+    elements.suppliersNext.disabled = !meta.current_page || meta.current_page >= meta.last_page;
+    state.suppliers.page = meta.current_page || 1;
+}
+
+function supplierRow(supplier) {
+    const row = document.createElement('tr');
+    row.className = supplier.is_active ? '' : 'admin-data-table__row--inactive';
+    row.dataset.supplierId = String(supplier.id);
+    row.classList.toggle('is-selected', state.suppliers.selectedSupplier?.id === supplier.id);
+    const documentLabel = [supplier.document_type, supplier.document_number].filter(Boolean).join('-') || 'Sin documento';
+    const contact = [supplier.phone, supplier.email].filter(Boolean).join(' / ') || 'Sin contacto';
+
+    row.innerHTML = `
+        <td><strong>${escapeHtml(supplier.name)}</strong><small>${escapeHtml(supplier.fiscal_address || 'Sin direccion fiscal')}</small></td>
+        <td><strong>${escapeHtml(documentLabel)}</strong><small>${escapeHtml(supplier.notes || '')}</small></td>
+        <td><strong>${escapeHtml(contact)}</strong><small>${escapeHtml(supplier.email && supplier.phone ? 'Telefono y correo' : '')}</small></td>
+        <td><span class="status-pill" data-tone="${supplier.is_active ? 'success' : 'warning'}">${supplier.is_active ? 'Activo' : 'Inactivo'}</span></td>
+        <td>${escapeHtml(formatDateTime(supplier.updated_at))}</td>
+        <td><button class="ghost-button ghost-button--compact" type="button" data-admin-supplier-edit="${supplier.id}">Editar</button></td>
+    `;
+
+    row.querySelector('[data-admin-supplier-edit]')?.addEventListener('click', () => {
+        selectSupplier(supplier);
+    });
+
+    row.addEventListener('dblclick', () => selectSupplier(supplier));
+
+    return row;
+}
+
+function selectSupplier(supplier) {
+    state.suppliers.selectedSupplier = supplier;
+    fillSupplierForm(supplier);
+    elements.supplierEditorTitle.textContent = supplier.name;
+    elements.supplierEditorSubtitle.textContent = 'Edita datos de contacto, documento fiscal o estado operativo.';
+    elements.supplierDeactivate.textContent = supplier.is_active ? 'Desactivar' : 'Reactivar';
+    elements.supplierDeactivate.classList.toggle('danger-button', supplier.is_active);
+    elements.supplierDeactivate.classList.toggle('ghost-button', !supplier.is_active);
+    elements.suppliersTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    elements.suppliersTable?.querySelector(`[data-supplier-id="${supplier.id}"]`)?.classList.add('is-selected');
+    setStatus(elements.suppliersStatus, `Proveedor seleccionado: ${supplier.name}.`, 'neutral');
+}
+
+function fillSupplierForm(supplier = {}) {
+    elements.supplierName.value = supplier.name || '';
+    elements.supplierDocumentType.value = supplier.document_type || 'J';
+    elements.supplierDocumentNumber.value = supplier.document_number || '';
+    elements.supplierPhone.value = supplier.phone || '';
+    elements.supplierEmail.value = supplier.email || '';
+    elements.supplierAddress.value = supplier.fiscal_address || '';
+    elements.supplierNotes.value = supplier.notes || '';
+    elements.supplierActiveEdit.checked = supplier.is_active !== false;
+}
+
+function clearSupplierForm() {
+    state.suppliers.selectedSupplier = null;
+    fillSupplierForm({
+        document_type: 'J',
+        is_active: true,
+    });
+    elements.supplierEditorTitle.textContent = 'Nuevo proveedor';
+    elements.supplierEditorSubtitle.textContent = 'Completa los datos principales. El documento es unico por empresa.';
+    elements.supplierDeactivate.textContent = 'Desactivar';
+    elements.supplierDeactivate.classList.add('danger-button');
+    elements.supplierDeactivate.classList.remove('ghost-button');
+    elements.suppliersTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    setStatus(elements.suppliersStatus, 'Formulario listo para crear proveedor.', 'neutral');
+}
+
+async function saveSupplier() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    const supplier = state.suppliers.selectedSupplier;
+    const isCreate = !supplier;
+    const permission = isCreate ? 'suppliers.create' : 'suppliers.update';
+
+    if (!can(permission)) {
+        setStatus(elements.suppliersStatus, 'Tu usuario no tiene permiso para guardar proveedores.', 'error');
+        return;
+    }
+
+    const payload = {
+        name: elements.supplierName.value.trim(),
+        document_type: elements.supplierDocumentType.value,
+        document_number: elements.supplierDocumentNumber.value.trim(),
+        phone: elements.supplierPhone.value.trim(),
+        email: elements.supplierEmail.value.trim(),
+        fiscal_address: elements.supplierAddress.value.trim(),
+        notes: elements.supplierNotes.value.trim(),
+        is_active: elements.supplierActiveEdit.checked,
+    };
+
+    if (!payload.name) {
+        setStatus(elements.suppliersStatus, 'El nombre del proveedor es obligatorio.', 'error');
+        return;
+    }
+
+    setStatus(elements.suppliersStatus, 'Guardando proveedor...');
+    setButtonLoading(elements.supplierSave, true, 'Guardando...');
+
+    try {
+        const saved = await api(isCreate ? '/api/suppliers' : `/api/suppliers/${supplier.id}`, {
+            method: isCreate ? 'POST' : 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+
+        state.suppliers.selectedSupplier = saved;
+        await loadSuppliers(isCreate ? 1 : state.suppliers.page);
+        selectSupplier(saved);
+        setStatus(elements.suppliersStatus, isCreate ? 'Proveedor creado correctamente.' : 'Proveedor actualizado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.suppliersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.supplierSave, false);
+    }
+}
+
+async function toggleSupplierActive() {
+    const session = state.session;
+    const supplier = state.suppliers.selectedSupplier;
+
+    if (!session || !supplier) {
+        setStatus(elements.suppliersStatus, 'Selecciona un proveedor antes de cambiar su estado.', 'error');
+        return;
+    }
+
+    const reactivating = !supplier.is_active;
+    const permission = reactivating ? 'suppliers.update' : 'suppliers.delete';
+
+    if (!can(permission)) {
+        setStatus(elements.suppliersStatus, 'Tu usuario no tiene permiso para cambiar el estado del proveedor.', 'error');
+        return;
+    }
+
+    setStatus(elements.suppliersStatus, reactivating ? 'Reactivando proveedor...' : 'Desactivando proveedor...');
+    setButtonLoading(elements.supplierDeactivate, true, reactivating ? 'Reactivando...' : 'Desactivando...');
+
+    try {
+        if (reactivating) {
+            const updated = await api(`/api/suppliers/${supplier.id}`, {
+                method: 'PATCH',
+                headers: authHeaders(session),
+                body: JSON.stringify({ is_active: true }),
+            });
+            state.suppliers.selectedSupplier = updated;
+        } else {
+            await api(`/api/suppliers/${supplier.id}`, {
+                method: 'DELETE',
+                headers: authHeaders(session),
+            });
+            state.suppliers.selectedSupplier = { ...supplier, is_active: false };
+        }
+
+        await loadSuppliers(state.suppliers.page);
+        if (state.suppliers.selectedSupplier) {
+            selectSupplier(state.suppliers.selectedSupplier);
+        }
+        setStatus(elements.suppliersStatus, reactivating ? 'Proveedor reactivado.' : 'Proveedor desactivado.', 'success');
+    } catch (error) {
+        setStatus(elements.suppliersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.supplierDeactivate, false);
+    }
+}
+
+function clearSupplierFilters() {
+    if (elements.suppliersSearch) {
+        elements.suppliersSearch.value = '';
+    }
+
+    if (elements.suppliersActive) {
+        elements.suppliersActive.value = 'all';
+    }
+
+    loadSuppliers(1);
 }
 
 function inventoryRow(product) {
@@ -2098,6 +2385,7 @@ function permissionModuleLabel(module) {
         cash_register: 'Caja',
         reports: 'Reportes',
         kardex: 'Kardex',
+        suppliers: 'Proveedores',
         settings: 'Configuracion',
         sync: 'Sincronizacion',
     }[module] ?? module.replaceAll('_', ' ');
@@ -2329,6 +2617,21 @@ elements.movementsSearch?.addEventListener('keydown', (event) => {
         loadMovements(1);
     }
 });
+elements.suppliersRefresh?.addEventListener('click', () => loadSuppliers());
+elements.supplierNew?.addEventListener('click', clearSupplierForm);
+elements.suppliersApply?.addEventListener('click', () => loadSuppliers(1));
+elements.suppliersClear?.addEventListener('click', clearSupplierFilters);
+elements.suppliersPrev?.addEventListener('click', () => loadSuppliers(Math.max(state.suppliers.page - 1, 1)));
+elements.suppliersNext?.addEventListener('click', () => loadSuppliers(state.suppliers.page + 1));
+elements.suppliersSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadSuppliers(1);
+    }
+});
+elements.supplierSave?.addEventListener('click', saveSupplier);
+elements.supplierDeactivate?.addEventListener('click', toggleSupplierActive);
+elements.supplierCancel?.addEventListener('click', clearSupplierForm);
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
 elements.accessTabs.forEach((button) => {
     button.addEventListener('click', () => setAccessTab(button.dataset.accessTab));

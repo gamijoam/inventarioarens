@@ -99,6 +99,10 @@
                             <span>Movimientos</span>
                             <small>Entradas y salidas</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="suppliers">
+                            <span>Proveedores</span>
+                            <small>Compras y cuentas</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="cash">
                             <span>Caja</span>
                             <small>Turnos y cierres</small>
@@ -491,6 +495,127 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-movements-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel suppliers-admin" id="admin-suppliers-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Compras</span>
+                                    <h3>Proveedores</h3>
+                                    <p>Gestiona proveedores por empresa para compras, cuentas por pagar y reportes financieros.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="primary-button primary-button--fit" type="button" id="admin-supplier-new">Nuevo proveedor</button>
+                                    <button class="ghost-button" type="button" id="admin-suppliers-refresh">Actualizar proveedores</button>
+                                </div>
+                            </div>
+
+                            <div class="suppliers-admin__layout">
+                                <div class="suppliers-admin__main">
+                                    <div class="suppliers-admin__filters" role="search">
+                                        <label class="field">
+                                            <span>Buscar</span>
+                                            <input id="admin-suppliers-search" type="search" placeholder="Nombre, RIF, correo o teléfono">
+                                        </label>
+                                        <label class="field">
+                                            <span>Estado</span>
+                                            <select id="admin-suppliers-active">
+                                                <option value="all">Todos</option>
+                                                <option value="active">Activos</option>
+                                                <option value="inactive">Inactivos</option>
+                                            </select>
+                                        </label>
+                                        <button class="primary-button primary-button--fit" type="button" id="admin-suppliers-apply">Aplicar</button>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-suppliers-clear">Limpiar</button>
+                                    </div>
+
+                                    <div class="admin-table-wrap suppliers-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Proveedor</th>
+                                                    <th>Documento</th>
+                                                    <th>Contacto</th>
+                                                    <th>Estado</th>
+                                                    <th>Actualizado</th>
+                                                    <th>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-suppliers-table"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="table-footer">
+                                        <span id="admin-suppliers-count">Sin proveedores cargados.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-suppliers-prev">Anterior</button>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-suppliers-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="supplier-editor" id="admin-supplier-editor">
+                                    <span class="soft-badge">Edición rápida</span>
+                                    <h4 id="admin-supplier-editor-title">Nuevo proveedor</h4>
+                                    <p id="admin-supplier-editor-subtitle">Completa los datos principales. El documento es único por empresa.</p>
+
+                                    <label class="field">
+                                        <span>Nombre</span>
+                                        <input id="admin-supplier-name" type="text" maxlength="255" placeholder="Nombre comercial">
+                                    </label>
+
+                                    <div class="supplier-editor__grid">
+                                        <label class="field">
+                                            <span>Tipo</span>
+                                            <select id="admin-supplier-document-type">
+                                                <option value="J">J</option>
+                                                <option value="V">V</option>
+                                                <option value="E">E</option>
+                                                <option value="G">G</option>
+                                                <option value="P">P</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Documento</span>
+                                            <input id="admin-supplier-document-number" type="text" maxlength="50" placeholder="RIF o cédula">
+                                        </label>
+                                    </div>
+
+                                    <div class="supplier-editor__grid">
+                                        <label class="field">
+                                            <span>Teléfono</span>
+                                            <input id="admin-supplier-phone" type="text" maxlength="50" placeholder="Teléfono">
+                                        </label>
+                                        <label class="field">
+                                            <span>Correo</span>
+                                            <input id="admin-supplier-email" type="email" maxlength="255" placeholder="compras@proveedor.com">
+                                        </label>
+                                    </div>
+
+                                    <label class="field">
+                                        <span>Dirección fiscal</span>
+                                        <textarea id="admin-supplier-address" rows="2" maxlength="500" placeholder="Dirección fiscal"></textarea>
+                                    </label>
+
+                                    <label class="field">
+                                        <span>Notas</span>
+                                        <textarea id="admin-supplier-notes" rows="2" maxlength="1000" placeholder="Condiciones, contacto o detalle interno"></textarea>
+                                    </label>
+
+                                    <label class="supplier-editor__active">
+                                        <input id="admin-supplier-active-edit" type="checkbox" checked>
+                                        <span>Proveedor activo</span>
+                                    </label>
+
+                                    <div class="supplier-editor__actions">
+                                        <button class="primary-button" type="button" id="admin-supplier-save">Guardar proveedor</button>
+                                        <button class="danger-button" type="button" id="admin-supplier-deactivate">Desactivar</button>
+                                        <button class="ghost-button" type="button" id="admin-supplier-cancel">Limpiar</button>
+                                    </div>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-suppliers-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel access-admin" id="admin-users-module" hidden>

@@ -104,6 +104,33 @@ class SupplierApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_user_can_filter_suppliers_by_search_and_status(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['suppliers.view']);
+
+        $active = $this->supplier($tenant, 'Distribuidora Norte', Supplier::DOCUMENT_J, '111');
+        $inactive = $this->supplier($tenant, 'Servicio Inactivo', Supplier::DOCUMENT_J, '222');
+        $inactive->update(['is_active' => false]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/suppliers?search=norte&active_status=active&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $active->id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/suppliers?active_status=inactive&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $inactive->id);
+    }
+
     public function test_supplier_api_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
