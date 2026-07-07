@@ -112,7 +112,7 @@ class MultiCompanyLoginDemoSeeder extends Seeder
             );
 
             $this->useTenant($tenant);
-            $this->attachUser($tenant, $manager, 'Gerente');
+            $this->attachUser($tenant, $manager, 'Administrador');
             $this->attachUser($tenant, $cashier, 'Vendedor');
 
             $branch = Branch::query()->updateOrCreate(

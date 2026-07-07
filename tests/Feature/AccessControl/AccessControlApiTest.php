@@ -327,6 +327,35 @@ class AccessControlApiTest extends TestCase
         $this->assertTrue(Role::findByName('Vendedor', 'web')->hasPermissionTo('sales_returns.create'));
     }
 
+    public function test_promote_admin_command_repairs_user_access_in_all_companies(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $manager = User::factory()->create(['email' => 'gerente@example.test']);
+        $manager->tenants()->attach($tenantA, ['status' => 'active']);
+        $manager->tenants()->attach($tenantB, ['status' => 'active']);
+
+        $this->grantRole($tenantA, $manager, 'Gerente', ['users.view']);
+        $this->grantRole($tenantB, $manager, 'Gerente', ['users.view']);
+
+        $this
+            ->artisan('access:promote-admin', ['email' => 'gerente@example.test'])
+            ->assertExitCode(0);
+
+        foreach ([$tenantA, $tenantB] as $tenant) {
+            $this->useTenant($tenant);
+            $this->assertTrue($manager->fresh()->hasRole('Administrador'));
+            $this->assertTrue($manager->fresh()->can('roles.view'));
+            $this->assertTrue($manager->fresh()->can('users.update'));
+
+            $this
+                ->actingAs($manager)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->getJson('/api/roles')
+                ->assertOk();
+        }
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

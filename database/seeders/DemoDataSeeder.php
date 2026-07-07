@@ -127,7 +127,7 @@ class DemoDataSeeder extends Seeder
         $this->attachUser($tenant, $cashier);
         $this->attachUser($tenant, $manager);
         $this->assignRole($tenant, $cashier, 'Vendedor');
-        $this->assignRole($tenant, $manager, 'Gerente');
+        $this->assignRole($tenant, $manager, 'Administrador');
 
         $branch = Branch::query()->firstOrCreate(
             ['tenant_id' => $tenant->id, 'code' => $data['branch_code']],
