@@ -223,6 +223,45 @@
                                 </div>
                             </div>
 
+                            <div class="reports-admin__filters" aria-label="Filtros de reportes operativos">
+                                <label>
+                                    Desde
+                                    <input type="date" id="admin-reports-date-from">
+                                </label>
+                                <label>
+                                    Hasta
+                                    <input type="date" id="admin-reports-date-to">
+                                </label>
+                                <label>
+                                    Sucursal
+                                    <select id="admin-reports-branch">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Caja
+                                    <select id="admin-reports-cash-register">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Cajero
+                                    <select id="admin-reports-cashier">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Estado POS
+                                    <select id="admin-reports-order-status">
+                                        <option value="all">Todos</option>
+                                        <option value="paid">Pagadas</option>
+                                        <option value="open">Pendientes</option>
+                                        <option value="cancelled">Canceladas</option>
+                                    </select>
+                                </label>
+                                <button class="ghost-button ghost-button--compact" type="button" id="admin-reports-clear-filters">Limpiar</button>
+                            </div>
+
                             <div class="reports-admin__summary" aria-label="Resumen operativo">
                                 <article>
                                     <span>Ventas POS</span>
@@ -253,6 +292,7 @@
                                             <h4>Ventas recientes</h4>
                                             <p id="admin-reports-period">Periodo actual.</p>
                                         </div>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-reports-export-orders">CSV</button>
                                     </div>
                                     <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table">
                                         <table class="admin-data-table admin-data-table--compact">
@@ -278,6 +318,7 @@
                                             <h4>Metodos de pago</h4>
                                             <p>Pagos capturados por moneda y metodo.</p>
                                         </div>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-reports-export-payments">CSV</button>
                                     </div>
                                     <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table reports-admin__table--short">
                                         <table class="admin-data-table admin-data-table--compact">
@@ -299,6 +340,7 @@
                                             <h4>Productos vendidos</h4>
                                             <p>Ranking por monto facturado.</p>
                                         </div>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-reports-export-products">CSV</button>
                                     </div>
                                     <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table reports-admin__table--short">
                                         <table class="admin-data-table admin-data-table--compact">
@@ -320,6 +362,7 @@
                                             <h4>Actividad de caja</h4>
                                             <p>Turnos abiertos o cerrados dentro del periodo.</p>
                                         </div>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-reports-export-cash">CSV</button>
                                     </div>
                                     <div class="admin-table-wrap admin-table-wrap--compact reports-admin__table">
                                         <table class="admin-data-table admin-data-table--compact">

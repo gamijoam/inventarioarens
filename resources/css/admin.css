@@ -575,6 +575,37 @@ button {
     margin-top: 8px;
 }
 
+.reports-admin__filters {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(120px, 1fr)) auto;
+    gap: 6px;
+    align-items: end;
+    margin-top: 8px;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+}
+
+.reports-admin__filters label {
+    display: grid;
+    gap: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+}
+
+.reports-admin__filters input,
+.reports-admin__filters select {
+    min-height: 30px;
+    padding: 5px 7px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    color: var(--ink);
+}
+
 .reports-admin__summary article {
     padding: 8px;
     border: 1px solid var(--line);

@@ -81,6 +81,51 @@ class AdminOperationalReportApiTest extends TestCase
             ->assertJsonPath('data.top_products.0.product_sku', 'TOP-A');
     }
 
+    public function test_operational_reports_can_be_filtered_by_branch(): void
+    {
+        Carbon::setTestNow('2026-07-07 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.view']);
+        $this->seedOperationalData($tenant, $user, 120.5, 'A');
+        $this->seedOperationalData($tenant, $user, 500, 'B');
+
+        $branchA = Branch::where('tenant_id', $tenant->id)->where('code', 'BR-A')->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/admin-portal/operational-reports?period=today&branch_id='.$branchA->id)
+            ->assertOk()
+            ->assertJsonPath('data.filters.selected.branch_id', $branchA->id)
+            ->assertJsonPath('data.sales.pos_paid_count', 1)
+            ->assertJsonPath('data.sales.pos_paid_base_amount', 120.5)
+            ->assertJsonPath('data.top_products.0.product_sku', 'TOP-A')
+            ->assertJsonPath('data.cash_register.sessions.0.branch_name', 'Principal A');
+    }
+
+    public function test_operational_reports_can_export_recent_orders_csv(): void
+    {
+        Carbon::setTestNow('2026-07-07 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.view']);
+        $this->seedOperationalData($tenant, $user, 120.5);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/admin-portal/operational-reports?period=today&export=csv&section=recent_orders');
+
+        $response->assertOk();
+
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('Orden,Cliente,Caja,Cajero,Estado', $csv);
+        $this->assertStringContainsString('Cliente Reporte', $csv);
+        $this->assertStringContainsString('Pagada', $csv);
+    }
+
     public function test_operational_reports_require_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

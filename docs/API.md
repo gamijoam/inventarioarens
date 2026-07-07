@@ -4590,6 +4590,19 @@ Query opcional:
 period=today|week|month
 date_from=2026-07-01
 date_to=2026-07-07
+branch_id=1
+cash_register_id=2
+cashier_id=4
+status=all|paid|open|cancelled
+```
+
+Exportacion CSV:
+
+```txt
+GET /api/admin-portal/operational-reports?period=today&export=csv&section=recent_orders
+GET /api/admin-portal/operational-reports?period=today&export=csv&section=payment_methods
+GET /api/admin-portal/operational-reports?period=today&export=csv&section=top_products
+GET /api/admin-portal/operational-reports?period=today&export=csv&section=cash_sessions
 ```
 
 Respuesta:
@@ -4607,6 +4620,19 @@ Respuesta:
       "to": "2026-07-07"
     },
     "currency": "USD",
+    "filters": {
+      "selected": {
+        "branch_id": null,
+        "cash_register_id": null,
+        "cashier_id": null,
+        "status": "all"
+      },
+      "options": {
+        "branches": [],
+        "cash_registers": [],
+        "cashiers": []
+      }
+    },
     "sales": {
       "confirmed_count": 1,
       "confirmed_base_amount": 120.5,
@@ -4637,6 +4663,8 @@ Reglas:
 - es una API solo lectura;
 - todas las consultas se filtran por el tenant activo;
 - las uniones con ventas, pagos y cajas tambien validan tenant para evitar cruces entre empresas;
+- los filtros de sucursal, caja y cajero se aplican sobre la sesion de caja asociada a la orden POS;
+- `export=csv` devuelve un archivo descargable y respeta los mismos filtros del JSON;
 - sirve para la pantalla compacta de reportes operativos del portal web;
 - no reemplaza los reportes financieros detallados.
 

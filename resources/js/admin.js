@@ -10,6 +10,7 @@ const state = {
         title: 'Reportes operativos',
         copy: 'Ventas POS, metodos de pago, cajas y productos mas vendidos por periodo.',
         loaded: false,
+        filterOptionsLoaded: false,
     },
     inventory: {
         page: 1,
@@ -99,6 +100,17 @@ const elements = {
     reportsRefresh: document.querySelector('#admin-reports-refresh'),
     reportsStatus: document.querySelector('#admin-reports-status'),
     reportsPeriod: document.querySelector('#admin-reports-period'),
+    reportsDateFrom: document.querySelector('#admin-reports-date-from'),
+    reportsDateTo: document.querySelector('#admin-reports-date-to'),
+    reportsBranch: document.querySelector('#admin-reports-branch'),
+    reportsCashRegister: document.querySelector('#admin-reports-cash-register'),
+    reportsCashier: document.querySelector('#admin-reports-cashier'),
+    reportsOrderStatus: document.querySelector('#admin-reports-order-status'),
+    reportsClearFilters: document.querySelector('#admin-reports-clear-filters'),
+    reportsExportOrders: document.querySelector('#admin-reports-export-orders'),
+    reportsExportPayments: document.querySelector('#admin-reports-export-payments'),
+    reportsExportProducts: document.querySelector('#admin-reports-export-products'),
+    reportsExportCash: document.querySelector('#admin-reports-export-cash'),
     reportsPosTotal: document.querySelector('#admin-reports-pos-total'),
     reportsPosCount: document.querySelector('#admin-reports-pos-count'),
     reportsTicket: document.querySelector('#admin-reports-ticket'),
@@ -734,6 +746,7 @@ function resetTenantScopedState() {
     state.receivables.customers = [];
 
     state.reports.loaded = false;
+    state.reports.filterOptionsLoaded = false;
 
     state.access.loaded = false;
     state.access.users = [];
@@ -1043,9 +1056,7 @@ async function loadOperationalReports() {
     setButtonLoading(elements.reportsRefresh, true, 'Actualizando...');
 
     try {
-        const query = new URLSearchParams({
-            period: elements.period.value,
-        });
+        const query = buildOperationalReportQuery();
         const report = await api(`/api/admin-portal/operational-reports?${query}`, {
             headers: authHeaders(session),
         });
@@ -1064,6 +1075,16 @@ function renderOperationalReports(report) {
     const sales = report.sales || {};
     const cash = report.cash_register || {};
 
+    if (elements.reportsDateFrom && !elements.reportsDateFrom.value) {
+        elements.reportsDateFrom.value = report.period.from;
+    }
+
+    if (elements.reportsDateTo && !elements.reportsDateTo.value) {
+        elements.reportsDateTo.value = report.period.to;
+    }
+
+    renderOperationalReportFilters(report.filters || {});
+
     elements.reportsPeriod.textContent = `Periodo ${report.period.from} a ${report.period.to}.`;
     elements.reportsPosTotal.textContent = money(sales.pos_paid_base_amount);
     elements.reportsPosCount.textContent = `${number(sales.pos_paid_count)} venta(s) POS`;
@@ -1077,6 +1098,130 @@ function renderOperationalReports(report) {
     renderReportPaymentMethods(report.payment_methods || []);
     renderReportTopProducts(report.top_products || []);
     renderReportCashSessions(cash.sessions || []);
+}
+
+function buildOperationalReportQuery(extra = {}) {
+    const query = new URLSearchParams({
+        period: elements.period.value,
+        ...extra,
+    });
+    const filters = {
+        date_from: elements.reportsDateFrom?.value,
+        date_to: elements.reportsDateTo?.value,
+        branch_id: elements.reportsBranch?.value,
+        cash_register_id: elements.reportsCashRegister?.value,
+        cashier_id: elements.reportsCashier?.value,
+        status: elements.reportsOrderStatus?.value || 'all',
+    };
+
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+            query.set(key, value);
+        }
+    });
+
+    return query;
+}
+
+function renderOperationalReportFilters(filters) {
+    const options = filters.options || {};
+
+    fillSelect(elements.reportsBranch, options.branches || [], 'Todas', (branch) => branch.id, (branch) => `${branch.name} (${branch.code})`);
+    fillSelect(elements.reportsCashier, options.cashiers || [], 'Todos', (cashier) => cashier.id, (cashier) => `${cashier.name} - ${cashier.email}`);
+
+    const selectedBranch = elements.reportsBranch?.value || '';
+    const cashRegisters = selectedBranch
+        ? (options.cash_registers || []).filter((register) => String(register.branch_id) === String(selectedBranch))
+        : (options.cash_registers || []);
+    fillSelect(elements.reportsCashRegister, cashRegisters, 'Todas', (register) => register.id, (register) => `${register.name} (${register.code})`);
+
+    state.reports.filterOptionsLoaded = true;
+}
+
+function fillSelect(select, items, emptyLabel, valueGetter, labelGetter) {
+    if (!select) {
+        return;
+    }
+
+    const currentValue = select.value;
+    select.replaceChildren(new Option(emptyLabel, ''));
+
+    items.forEach((item) => {
+        select.appendChild(new Option(labelGetter(item), valueGetter(item)));
+    });
+
+    select.value = [...select.options].some((option) => option.value === currentValue) ? currentValue : '';
+}
+
+async function exportOperationalReport(section, button) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.reportsStatus, 'Preparando archivo CSV...');
+    setButtonLoading(button, true, 'Exportando...');
+
+    try {
+        const query = buildOperationalReportQuery({
+            export: 'csv',
+            section,
+        });
+        const response = await fetch(`/api/admin-portal/operational-reports?${query}`, {
+            headers: {
+                Accept: 'text/csv',
+                ...authHeaders(session),
+            },
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.message || 'No se pudo exportar el reporte.');
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = csvFilenameFromResponse(response, `reporte-${section}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        setStatus(elements.reportsStatus, 'Archivo CSV generado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.reportsStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+function csvFilenameFromResponse(response, fallback) {
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+
+    return match ? match[1] : fallback;
+}
+
+function clearOperationalReportFilters() {
+    [
+        elements.reportsDateFrom,
+        elements.reportsDateTo,
+        elements.reportsBranch,
+        elements.reportsCashRegister,
+        elements.reportsCashier,
+    ].forEach((field) => {
+        if (field) {
+            field.value = '';
+        }
+    });
+
+    if (elements.reportsOrderStatus) {
+        elements.reportsOrderStatus.value = 'all';
+    }
+
+    loadOperationalReports();
 }
 
 function renderReportOrders(orders) {
@@ -4068,6 +4213,12 @@ elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
 elements.period?.addEventListener('change', () => {
     state.reports.loaded = false;
+    if (elements.reportsDateFrom) {
+        elements.reportsDateFrom.value = '';
+    }
+    if (elements.reportsDateTo) {
+        elements.reportsDateTo.value = '';
+    }
     loadDashboard();
 
     if (state.activeSection === 'reports') {
@@ -4080,6 +4231,32 @@ elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
 });
 elements.reportsRefresh?.addEventListener('click', loadOperationalReports);
+[
+    elements.reportsBranch,
+    elements.reportsCashRegister,
+    elements.reportsCashier,
+    elements.reportsOrderStatus,
+].forEach((filter) => {
+    filter?.addEventListener('change', () => {
+        if (filter === elements.reportsBranch && elements.reportsCashRegister) {
+            elements.reportsCashRegister.value = '';
+        }
+
+        state.reports.loaded = false;
+        loadOperationalReports();
+    });
+});
+elements.reportsDateFrom?.addEventListener('change', () => {
+    state.reports.loaded = false;
+});
+elements.reportsDateTo?.addEventListener('change', () => {
+    state.reports.loaded = false;
+});
+elements.reportsClearFilters?.addEventListener('click', clearOperationalReportFilters);
+elements.reportsExportOrders?.addEventListener('click', () => exportOperationalReport('recent_orders', elements.reportsExportOrders));
+elements.reportsExportPayments?.addEventListener('click', () => exportOperationalReport('payment_methods', elements.reportsExportPayments));
+elements.reportsExportProducts?.addEventListener('click', () => exportOperationalReport('top_products', elements.reportsExportProducts));
+elements.reportsExportCash?.addEventListener('click', () => exportOperationalReport('cash_sessions', elements.reportsExportCash));
 elements.inventoryRefresh?.addEventListener('click', () => loadInventory());
 elements.inventoryNew?.addEventListener('click', () => {
     openNewInventoryProduct().catch((error) => {
