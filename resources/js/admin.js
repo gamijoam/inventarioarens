@@ -26,6 +26,39 @@ const elements = {
     periodLabel: document.querySelector('#dashboard-period-label'),
     alertList: document.querySelector('#alert-list'),
     syncStatus: document.querySelector('#sync-status'),
+    portalNavItems: document.querySelectorAll('[data-portal-section]'),
+    metricBoard: document.querySelector('.metric-board'),
+    toolGrid: document.querySelector('.tool-grid'),
+    modulePlaceholder: document.querySelector('#module-placeholder'),
+    modulePlaceholderTitle: document.querySelector('#module-placeholder-title'),
+    modulePlaceholderCopy: document.querySelector('#module-placeholder-copy'),
+};
+
+const portalSections = {
+    overview: {
+        title: 'Vista gerencial',
+        copy: 'Resumen operativo de ventas, inventario, caja y sincronización.',
+    },
+    sales: {
+        title: 'Ventas',
+        copy: 'Aquí se integrarán indicadores, órdenes POS, ventas confirmadas, pendientes de cobro y comparativos por periodo.',
+    },
+    inventory: {
+        title: 'Inventario',
+        copy: 'Esta sección reunirá productos, listas de precio, stock bajo, seriales/IMEI y movimientos críticos.',
+    },
+    cash: {
+        title: 'Caja',
+        copy: 'Aquí se revisarán cajas abiertas, cierres, diferencias, arqueos y actividad por cajero.',
+    },
+    users: {
+        title: 'Usuarios y permisos',
+        copy: 'Esta sección permitirá administrar usuarios, roles, permisos por módulo y accesos por empresa.',
+    },
+    sync: {
+        title: 'Sincronización',
+        copy: 'Aquí se mostrarán nodos locales, eventos pendientes, errores y estado de sincronización por sede.',
+    },
 };
 
 const metricElements = {
@@ -245,8 +278,37 @@ function renderDashboardShell(session) {
     elements.dashboardView.hidden = false;
     document.body.classList.add('is-dashboard');
     elements.tenantTitle.textContent = session.tenant.name;
+    activatePortalSection('overview');
     resetViewport();
     elements.dashboardView.focus({ preventScroll: true });
+}
+
+function activatePortalSection(section) {
+    const selectedSection = portalSections[section] ? section : 'overview';
+    const isOverview = selectedSection === 'overview';
+
+    elements.portalNavItems.forEach((item) => {
+        item.classList.toggle('is-active', item.dataset.portalSection === selectedSection);
+    });
+
+    if (elements.metricBoard) {
+        elements.metricBoard.hidden = !isOverview;
+    }
+
+    if (elements.toolGrid) {
+        elements.toolGrid.hidden = !isOverview;
+    }
+
+    if (!elements.modulePlaceholder) {
+        return;
+    }
+
+    elements.modulePlaceholder.hidden = isOverview;
+
+    if (!isOverview) {
+        elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
+        elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
+    }
 }
 
 async function loadDashboard() {
@@ -380,6 +442,9 @@ elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
 elements.period?.addEventListener('change', loadDashboard);
 elements.logout?.addEventListener('click', clearSession);
+elements.portalNavItems.forEach((item) => {
+    item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
+});
 elements.tenant?.addEventListener('change', () => {
     state.selectedTenant = state.tenants.find((tenant) => tenant.slug === elements.tenant.value) ?? null;
 });

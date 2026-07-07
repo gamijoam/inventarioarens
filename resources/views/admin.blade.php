@@ -18,13 +18,13 @@
                     <div class="brand-orb" aria-hidden="true">SI</div>
                     <p>Portal administrativo</p>
                     <h1 id="admin-login-title">{{ $appName }}</h1>
-                    <span>Métricas, inventario, caja y sincronización por empresa.</span>
+                    <span>Control gerencial de ventas, inventario, caja y sincronización por empresa.</span>
                 </div>
 
                 <form class="admin-login__card" id="admin-login-form">
                     <span class="soft-badge">Acceso gerencial</span>
                     <h2>Iniciar sesión</h2>
-                    <p>Usa tu correo para ver las empresas disponibles y entrar al panel web.</p>
+                    <p>Busca tus empresas por correo, selecciona una y entra al panel de administración.</p>
 
                     <label class="field">
                         <span>Correo</span>
@@ -64,94 +64,134 @@
                     </div>
 
                     <div class="topbar-actions">
-                        <select id="dashboard-period" aria-label="Periodo del dashboard">
-                            <option value="today">Hoy</option>
-                            <option value="week">Semana</option>
-                            <option value="month">Mes</option>
-                        </select>
+                        <label class="period-control">
+                            <span>Periodo</span>
+                            <select id="dashboard-period" aria-label="Periodo del dashboard">
+                                <option value="today">Hoy</option>
+                                <option value="week">Semana</option>
+                                <option value="month">Mes</option>
+                            </select>
+                        </label>
                         <button class="ghost-button" type="button" id="dashboard-refresh">Actualizar</button>
                         <button class="danger-button" type="button" id="admin-logout">Salir</button>
                     </div>
                 </header>
 
-                <main class="dashboard-grid" id="admin-main">
-                    <section class="hero-panel">
-                        <div>
-                            <span class="soft-badge">Resumen ejecutivo</span>
-                            <h2>Estado operativo del negocio</h2>
-                            <p id="dashboard-period-label">Datos cargados desde el backend.</p>
-                        </div>
-                        <div class="hero-total">
-                            <span>Ventas POS</span>
-                            <strong id="metric-pos-total">USD 0.00</strong>
-                        </div>
-                    </section>
+                <main class="portal-layout" id="admin-main">
+                    <aside class="portal-nav" aria-label="Módulos administrativos">
+                        <button class="portal-nav__item is-active" type="button" data-portal-section="overview">
+                            <span>Resumen</span>
+                            <small>Indicadores</small>
+                        </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="sales">
+                            <span>Ventas</span>
+                            <small>POS y órdenes</small>
+                        </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="inventory">
+                            <span>Inventario</span>
+                            <small>Stock y productos</small>
+                        </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="cash">
+                            <span>Caja</span>
+                            <small>Turnos y cierres</small>
+                        </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="users">
+                            <span>Usuarios</span>
+                            <small>Roles y permisos</small>
+                        </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="sync">
+                            <span>Sincronización</span>
+                            <small>Nodos y eventos</small>
+                        </button>
+                    </aside>
 
-                    <section class="metric-board" aria-label="Métricas principales">
-                        <article class="metric-card">
-                            <span>Ventas confirmadas</span>
-                            <strong id="metric-sales-total">USD 0.00</strong>
-                            <small id="metric-sales-count">0 ventas</small>
-                        </article>
-                        <article class="metric-card metric-card--green">
-                            <span>Disponible</span>
-                            <strong id="metric-stock-available">0</strong>
-                            <small>Unidades vendibles</small>
-                        </article>
-                        <article class="metric-card metric-card--amber">
-                            <span>Cajas abiertas</span>
-                            <strong id="metric-open-cash">0</strong>
-                            <small id="metric-cash-expected">USD 0.00 esperado</small>
-                        </article>
-                        <article class="metric-card metric-card--red">
-                            <span>Pendientes POS</span>
-                            <strong id="metric-pending-pos">0</strong>
-                            <small>Órdenes por cerrar</small>
-                        </article>
-                    </section>
-
-                    <section class="content-panel">
-                        <div class="panel-heading">
+                    <section class="portal-workspace">
+                        <section class="workspace-head">
                             <div>
-                                <h3>Inventario</h3>
-                                <p>Productos, stock bajo y disponibilidad.</p>
+                                <span class="soft-badge">Resumen ejecutivo</span>
+                                <h2>Vista gerencial</h2>
+                                <p id="dashboard-period-label">Datos cargados desde el backend.</p>
                             </div>
-                        </div>
-                        <div class="inventory-strip">
-                            <div><span>Productos activos</span><strong id="metric-products">0</strong></div>
-                            <div><span>Stock bajo</span><strong id="metric-low-stock">0</strong></div>
-                            <div><span>Sin stock</span><strong id="metric-without-stock">0</strong></div>
-                            <div><span>Reservado</span><strong id="metric-reserved">0</strong></div>
-                        </div>
-                    </section>
+                            <div class="hero-total">
+                                <span>Ventas POS</span>
+                                <strong id="metric-pos-total">USD 0.00</strong>
+                            </div>
+                        </section>
 
-                    <section class="content-panel">
-                        <div class="panel-heading">
-                            <div>
-                                <h3>Sincronización</h3>
-                                <p>Estado de nodos y eventos pendientes.</p>
-                            </div>
-                            <span class="status-pill" id="sync-status">Sin datos</span>
-                        </div>
-                        <div class="sync-list">
-                            <div><span>Nodos activos</span><strong id="metric-sync-nodes">0</strong></div>
-                            <div><span>Pendientes por subir</span><strong id="metric-sync-pending">0</strong></div>
-                            <div><span>Errores</span><strong id="metric-sync-errors">0</strong></div>
-                        </div>
-                    </section>
+                        <section class="metric-board" aria-label="Métricas principales">
+                            <article class="metric-card">
+                                <span>Ventas confirmadas</span>
+                                <strong id="metric-sales-total">USD 0.00</strong>
+                                <small id="metric-sales-count">0 ventas</small>
+                            </article>
+                            <article class="metric-card metric-card--green">
+                                <span>Disponible</span>
+                                <strong id="metric-stock-available">0</strong>
+                                <small>Unidades vendibles</small>
+                            </article>
+                            <article class="metric-card metric-card--amber">
+                                <span>Cajas abiertas</span>
+                                <strong id="metric-open-cash">0</strong>
+                                <small id="metric-cash-expected">USD 0.00 esperado</small>
+                            </article>
+                            <article class="metric-card metric-card--red">
+                                <span>Pendientes POS</span>
+                                <strong id="metric-pending-pos">0</strong>
+                                <small>Órdenes por cerrar</small>
+                            </article>
+                        </section>
 
-                    <section class="content-panel content-panel--wide">
-                        <div class="panel-heading">
-                            <div>
-                                <h3>Alertas operativas</h3>
-                                <p>Prioridades que requieren revision.</p>
-                            </div>
-                        </div>
-                        <div class="alert-list" id="alert-list"></div>
+                        <section class="tool-grid">
+                            <article class="content-panel">
+                                <div class="panel-heading">
+                                    <div>
+                                        <h3>Inventario</h3>
+                                        <p>Productos, stock bajo y disponibilidad.</p>
+                                    </div>
+                                </div>
+                                <div class="inventory-strip">
+                                    <div><span>Productos activos</span><strong id="metric-products">0</strong></div>
+                                    <div><span>Stock bajo</span><strong id="metric-low-stock">0</strong></div>
+                                    <div><span>Sin stock</span><strong id="metric-without-stock">0</strong></div>
+                                    <div><span>Reservado</span><strong id="metric-reserved">0</strong></div>
+                                </div>
+                            </article>
+
+                            <article class="content-panel">
+                                <div class="panel-heading">
+                                    <div>
+                                        <h3>Sincronización</h3>
+                                        <p>Estado de nodos y eventos pendientes.</p>
+                                    </div>
+                                    <span class="status-pill" id="sync-status">Sin datos</span>
+                                </div>
+                                <div class="sync-list">
+                                    <div><span>Nodos activos</span><strong id="metric-sync-nodes">0</strong></div>
+                                    <div><span>Pendientes por subir</span><strong id="metric-sync-pending">0</strong></div>
+                                    <div><span>Errores</span><strong id="metric-sync-errors">0</strong></div>
+                                </div>
+                            </article>
+
+                            <article class="content-panel content-panel--wide">
+                                <div class="panel-heading">
+                                    <div>
+                                        <h3>Alertas operativas</h3>
+                                        <p>Prioridades que requieren revisión.</p>
+                                    </div>
+                                </div>
+                                <div class="alert-list" id="alert-list"></div>
+                            </article>
+                        </section>
+
+                        <section class="module-placeholder" id="module-placeholder" hidden>
+                            <span class="soft-badge">Herramienta en preparación</span>
+                            <h3 id="module-placeholder-title">Módulo</h3>
+                            <p id="module-placeholder-copy">Esta sección se conectará a sus APIs específicas en la siguiente fase.</p>
+                        </section>
+
+                        <p class="dashboard-status" id="dashboard-status" role="status" aria-live="polite"></p>
                     </section>
                 </main>
-
-                <p class="dashboard-status" id="dashboard-status" role="status" aria-live="polite"></p>
             </section>
         </div>
     </body>

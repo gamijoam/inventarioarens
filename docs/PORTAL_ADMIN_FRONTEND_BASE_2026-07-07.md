@@ -12,6 +12,15 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
 - Dashboard administrativo usando `GET /api/admin-portal/dashboard`.
 - Manejo visible de errores y tiempo maximo de espera para evitar que el login quede cargando indefinidamente.
 - Cambio limpio entre login y dashboard: al iniciar sesion el portal vuelve al inicio de la pantalla y enfoca el panel principal.
+- Rediseño compacto tipo consola administrativa, evitando una pantalla gigante con poco contenido util.
+- Navegacion interna por modulos:
+  - resumen;
+  - ventas;
+  - inventario;
+  - caja;
+  - usuarios;
+  - sincronizacion.
+- Las secciones que aun no tienen herramientas completas muestran un panel de preparacion, para que el crecimiento del portal sea ordenado.
 - Selector de periodo: hoy, semana y mes.
 - Metricas iniciales:
   - ventas confirmadas;
@@ -24,6 +33,14 @@ Crear una primera interfaz web para administradores en `GET /admin`, conectada a
   - productos sin stock;
   - estado de sincronizacion.
 - Alertas operativas basicas.
+
+## Criterio visual
+
+- El portal no debe comportarse como pagina publicitaria.
+- La primera pantalla debe priorizar lectura rapida, densidad profesional y controles claros.
+- Las metricas deben verse sin obligar al administrador a bajar mucho.
+- Las futuras herramientas deben vivir dentro de modulos, no mezcladas en un solo dashboard enorme.
+- Los mensajes visibles para el usuario deben mantenerse en español.
 
 ## Archivos
 
