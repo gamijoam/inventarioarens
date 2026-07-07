@@ -153,6 +153,7 @@ Regla importante:
 Responsabilidad:
 
 - exponer APIs de lectura para el futuro portal web administrativo;
+- servir la primera interfaz web del portal administrativo en `/admin`;
 - resumir ventas, POS, caja, inventario y sincronizacion por empresa;
 - servir como contrato de datos para metricas gerenciales en la nube;
 - evitar que la web consulte PostgreSQL directamente;
@@ -164,6 +165,9 @@ Archivos principales:
 - `app/Modules/AdminPortal/Requests/AdminDashboardRequest.php`
 - `app/Modules/AdminPortal/Services/AdminDashboardService.php`
 - `app/Modules/AdminPortal/routes.php`
+- `resources/views/admin.blade.php`
+- `resources/css/admin.css`
+- `resources/js/admin.js`
 
 Regla importante:
 
@@ -171,6 +175,7 @@ Regla importante:
 - requiere permisos de lectura gerencial u operativa como `reports.view`, `finance_reports.view`, `sales.view`, `products.view` o `cash_register.view`;
 - todas las consultas filtran por tenant actual;
 - usa agregados SQL para evitar N+1 y no enviar catalogos completos al portal web.
+- la interfaz web consume APIs protegidas; no consulta PostgreSQL directamente ni reemplaza permisos del backend.
 
 ### InventoryCenter
 
