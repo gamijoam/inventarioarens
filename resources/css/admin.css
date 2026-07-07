@@ -624,6 +624,26 @@ button {
     margin: 0;
 }
 
+.movements-admin__filters {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 150px 170px 120px 120px auto auto;
+    gap: 6px;
+    align-items: end;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-soft);
+}
+
+.movements-admin__filters .field {
+    margin: 0;
+}
+
+.movements-admin__table {
+    max-height: 560px;
+}
+
 .inventory-admin__quickbar {
     display: flex;
     align-items: center;
@@ -1266,7 +1286,8 @@ button {
         text-align: left;
     }
 
-    .inventory-admin__filters {
+    .inventory-admin__filters,
+    .movements-admin__filters {
         grid-template-columns: 1fr;
     }
 

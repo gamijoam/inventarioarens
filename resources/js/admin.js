@@ -17,6 +17,11 @@ const state = {
         rateTypes: [],
         warrantyPolicies: [],
     },
+    movements: {
+        page: 1,
+        loaded: false,
+        warehousesLoaded: false,
+    },
     access: {
         loaded: false,
         users: [],
@@ -99,6 +104,20 @@ const elements = {
     priceListRows: document.querySelector('#admin-price-list-rows'),
     priceListSave: document.querySelector('#admin-price-list-save'),
     priceCopyBase: document.querySelector('#admin-price-copy-base'),
+    movementsModule: document.querySelector('#admin-movements-module'),
+    movementsRefresh: document.querySelector('#admin-movements-refresh'),
+    movementsSearch: document.querySelector('#admin-movements-search'),
+    movementsType: document.querySelector('#admin-movements-type'),
+    movementsWarehouse: document.querySelector('#admin-movements-warehouse'),
+    movementsFrom: document.querySelector('#admin-movements-from'),
+    movementsTo: document.querySelector('#admin-movements-to'),
+    movementsApply: document.querySelector('#admin-movements-apply'),
+    movementsClear: document.querySelector('#admin-movements-clear'),
+    movementsTable: document.querySelector('#admin-movements-table'),
+    movementsCount: document.querySelector('#admin-movements-count'),
+    movementsPrev: document.querySelector('#admin-movements-prev'),
+    movementsNext: document.querySelector('#admin-movements-next'),
+    movementsStatus: document.querySelector('#admin-movements-status'),
     accessModule: document.querySelector('#admin-users-module'),
     accessRefresh: document.querySelector('#admin-access-refresh'),
     accessStatus: document.querySelector('#admin-access-status'),
@@ -208,6 +227,10 @@ const portalSections = {
     inventory: {
         title: 'Inventario',
         copy: 'Esta sección reunirá productos, listas de precio, stock bajo, seriales/IMEI y movimientos críticos.',
+    },
+    movements: {
+        title: 'Movimientos de inventario',
+        copy: 'Historial de entradas, salidas, ventas, ajustes, devoluciones y traslados de la empresa activa.',
     },
     cash: {
         title: 'Caja',
@@ -495,6 +518,10 @@ function resetTenantScopedState() {
     state.inventory.rateTypes = [];
     state.inventory.warrantyPolicies = [];
 
+    state.movements.page = 1;
+    state.movements.loaded = false;
+    state.movements.warehousesLoaded = false;
+
     state.access.loaded = false;
     state.access.users = [];
     state.access.roles = [];
@@ -508,6 +535,10 @@ function resetTenantScopedState() {
 
     if (elements.inventoryTable) {
         elements.inventoryTable.innerHTML = '';
+    }
+
+    if (elements.movementsTable) {
+        elements.movementsTable.innerHTML = '';
     }
 
     if (elements.accessUsersTable) {
@@ -566,6 +597,7 @@ function activatePortalSection(section) {
     const selectedSection = portalSections[section] ? section : 'overview';
     const isOverview = selectedSection === 'overview';
     const isInventory = selectedSection === 'inventory';
+    const isMovements = selectedSection === 'movements';
     const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
@@ -586,6 +618,10 @@ function activatePortalSection(section) {
         elements.inventoryModule.hidden = !isInventory;
     }
 
+    if (elements.movementsModule) {
+        elements.movementsModule.hidden = !isMovements;
+    }
+
     if (elements.accessModule) {
         elements.accessModule.hidden = !isAccess;
     }
@@ -594,9 +630,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isInventory || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isInventory || isMovements || isAccess;
 
-    if (!isOverview && !isInventory && !isAccess) {
+    if (!isOverview && !isInventory && !isMovements && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -606,6 +642,10 @@ function activatePortalSection(section) {
         loadInventoryPriceLists().catch((error) => {
             setStatus(elements.inventoryStatus, normalizeError(error), 'error');
         });
+    }
+
+    if (isMovements && !state.movements.loaded) {
+        loadMovements();
     }
 
     if (isAccess && !state.access.loaded) {
@@ -815,6 +855,155 @@ function renderInventoryFilterSummary(summary = {}) {
     elements.inventoryFilterSummary.textContent = filters.length
         ? `${totalLabel} con ${filters.join(', ')}.`
         : `${totalLabel} en vista completa del catalogo.`;
+}
+
+async function loadMovements(page = state.movements.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.movements.page = page;
+    setStatus(elements.movementsStatus, 'Cargando movimientos...');
+    setButtonLoading(elements.movementsRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.movementsApply, true, 'Aplicando...');
+
+    try {
+        await loadMovementWarehouses();
+
+        const query = new URLSearchParams({
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.movementsSearch?.value.trim();
+        const type = elements.movementsType?.value || 'all';
+        const warehouseId = elements.movementsWarehouse?.value;
+        const dateFrom = elements.movementsFrom?.value;
+        const dateTo = elements.movementsTo?.value;
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        if (type && type !== 'all') {
+            query.set('type', type);
+        }
+
+        if (warehouseId) {
+            query.set('warehouse_id', warehouseId);
+        }
+
+        if (dateFrom) {
+            query.set('date_from', dateFrom);
+        }
+
+        if (dateTo) {
+            query.set('date_to', dateTo);
+        }
+
+        const pageData = await api(`/api/inventory-center/movements?${query}`, {
+            headers: authHeaders(session),
+        });
+
+        state.movements.loaded = true;
+        renderMovements(pageData);
+        setStatus(elements.movementsStatus, `Movimientos actualizados. ${pageData.pagination?.total || 0} registro(s) encontrados.`, 'success');
+    } catch (error) {
+        setStatus(elements.movementsStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.movementsRefresh, false);
+        setButtonLoading(elements.movementsApply, false);
+    }
+}
+
+async function loadMovementWarehouses() {
+    const session = state.session;
+
+    if (!session || state.movements.warehousesLoaded || !elements.movementsWarehouse) {
+        return;
+    }
+
+    try {
+        const warehouses = await api('/api/warehouses?per_page=100', {
+            headers: authHeaders(session),
+        });
+        const options = [new Option('Todos', '')];
+
+        collectionData(warehouses).forEach((warehouse) => {
+            const label = `${warehouse.name}${warehouse.code ? ` (${warehouse.code})` : ''}`;
+            options.push(new Option(label, String(warehouse.id)));
+        });
+
+        elements.movementsWarehouse.replaceChildren(...options);
+    } catch {
+        elements.movementsWarehouse.replaceChildren(new Option('Todos', ''));
+    } finally {
+        state.movements.warehousesLoaded = true;
+    }
+}
+
+function renderMovements(pageData = {}) {
+    const movements = pageData.data || [];
+    const pagination = pageData.pagination || {};
+
+    if (!movements.length) {
+        elements.movementsTable.innerHTML = '<tr><td colspan="7"><strong>Sin movimientos</strong><small>No hay actividad con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.movementsTable.replaceChildren(...movements.map(movementRow));
+    }
+
+    elements.movementsCount.textContent = pagination.total === 0
+        ? 'Sin movimientos para mostrar.'
+        : `${pagination.from}-${pagination.to} de ${pagination.total} movimiento(s).`;
+    elements.movementsPrev.disabled = !pagination.has_previous;
+    elements.movementsNext.disabled = !pagination.has_next;
+    state.movements.page = pagination.page || 1;
+}
+
+function movementRow(movement) {
+    const row = document.createElement('tr');
+    const reference = [movement.reference_type, movement.reference_id].filter(Boolean).join(' #');
+    const warehouse = [
+        movement.warehouse_name || 'Sin almacen',
+        movement.warehouse_code ? `(${movement.warehouse_code})` : '',
+    ].filter(Boolean).join(' ');
+
+    row.innerHTML = `
+        <td><strong>${escapeHtml(formatDateTime(movement.created_at))}</strong><small>#${escapeHtml(movement.id)}</small></td>
+        <td><strong>${escapeHtml(movement.product_name || 'Producto eliminado')}</strong><small>${escapeHtml(movement.product_sku || '')}</small></td>
+        <td><span class="status-pill" data-tone="neutral">${escapeHtml(movementTypeLabel(movement.type))}</span></td>
+        <td><strong>${stockNumber(movement.quantity)}</strong><small>${movement.unit_cost === null ? '' : `Costo ${escapeHtml(money(movement.unit_cost))}`}</small></td>
+        <td><strong>${escapeHtml(warehouse)}</strong><small>${escapeHtml(movement.branch_name || '')}</small></td>
+        <td><strong>${escapeHtml(movement.reason || 'Sin motivo')}</strong><small>${escapeHtml(reference || 'Sin referencia')}</small></td>
+        <td><strong>${escapeHtml(movement.created_by_name || 'Sistema')}</strong><small>${escapeHtml(movement.created_by_email || '')}</small></td>
+    `;
+
+    return row;
+}
+
+function clearMovementFilters() {
+    if (elements.movementsSearch) {
+        elements.movementsSearch.value = '';
+    }
+
+    if (elements.movementsType) {
+        elements.movementsType.value = 'all';
+    }
+
+    if (elements.movementsWarehouse) {
+        elements.movementsWarehouse.value = '';
+    }
+
+    if (elements.movementsFrom) {
+        elements.movementsFrom.value = '';
+    }
+
+    if (elements.movementsTo) {
+        elements.movementsTo.value = '';
+    }
+
+    loadMovements(1);
 }
 
 function inventoryRow(product) {
@@ -1989,12 +2178,22 @@ function warrantyLabel(policy) {
 
 function movementTypeLabel(type) {
     return {
-        in: 'Entrada',
-        out: 'Salida',
+        purchase: 'Entrada compra',
+        purchase_return: 'Dev. proveedor',
         sale: 'Venta',
-        return: 'Devolucion',
+        sale_return: 'Dev. venta',
+        adjustment_in: 'Ajuste entrada',
+        adjustment_out: 'Ajuste salida',
         transfer_in: 'Traslado entrada',
         transfer_out: 'Traslado salida',
+        return_in: 'Retorno entrada',
+        return_out: 'Retorno salida',
+        damaged: 'Danado',
+        reserved: 'Reservado',
+        released: 'Liberado',
+        in: 'Entrada',
+        out: 'Salida',
+        return: 'Devolucion',
         adjustment: 'Ajuste',
     }[type] ?? (type || 'Movimiento');
 }
@@ -2118,6 +2317,17 @@ elements.inventoryCancel?.addEventListener('click', () => {
     elements.inventoryDeactivate.hidden = true;
     renderProductPriceListRows([]);
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
+});
+elements.movementsRefresh?.addEventListener('click', () => loadMovements());
+elements.movementsApply?.addEventListener('click', () => loadMovements(1));
+elements.movementsClear?.addEventListener('click', clearMovementFilters);
+elements.movementsPrev?.addEventListener('click', () => loadMovements(Math.max(state.movements.page - 1, 1)));
+elements.movementsNext?.addEventListener('click', () => loadMovements(state.movements.page + 1));
+elements.movementsSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadMovements(1);
+    }
 });
 elements.accessRefresh?.addEventListener('click', () => loadAccessControl());
 elements.accessTabs.forEach((button) => {

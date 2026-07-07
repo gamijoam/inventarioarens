@@ -8,6 +8,7 @@ use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductSerialsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
 use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
+use App\Modules\InventoryCenter\Services\InventoryCenterMovementService;
 use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\Products\Models\Product;
@@ -39,6 +40,13 @@ class InventoryCenterController extends Controller
     {
         return response()->json([
             'data' => $service->apply($request->validated(), $request->user()?->id),
+        ]);
+    }
+
+    public function movements(InventoryCenterProductMovementsRequest $request, InventoryCenterMovementService $service): JsonResponse
+    {
+        return response()->json([
+            'data' => $service->page($request->validated()),
         ]);
     }
 

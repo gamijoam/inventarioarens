@@ -187,6 +187,7 @@ Responsabilidad:
 - entregar metricas de productos activos, serializados, stock disponible, reservado, danado, bajo y sin stock;
 - entregar un listado limitado de productos con stock agregado por producto;
 - entregar el detalle operativo de un producto con stock por almacen, seriales/IMEIs y movimientos recientes;
+- entregar historial global paginado de movimientos de inventario para el portal administrativo;
 - permitir busqueda por nombre o SKU y filtros por tipo de control o estado de stock;
 - devolver paginacion real para catalogos grandes;
 - evitar que el frontend haga multiples consultas pequenas o caiga en problemas N+1.
@@ -196,6 +197,8 @@ Archivos principales:
 
 - `app/Modules/InventoryCenter/Controllers/InventoryCenterController.php`
 - `app/Modules/InventoryCenter/Requests/InventoryCenterSummaryRequest.php`
+- `app/Modules/InventoryCenter/Requests/InventoryCenterProductMovementsRequest.php`
+- `app/Modules/InventoryCenter/Services/InventoryCenterMovementService.php`
 - `app/Modules/InventoryCenter/Services/InventoryCenterProductDetailService.php`
 - `app/Modules/InventoryCenter/Services/InventoryCenterSummaryService.php`
 - `app/Modules/InventoryCenter/routes.php`
@@ -210,6 +213,7 @@ Regla importante:
 - no mezcla productos ni saldos entre empresas.
 - no escribe productos directamente; las altas y modificaciones se hacen por `Products`.
 - el detalle de producto limita seriales a 50 y movimientos a 10 para evitar cargas grandes en inventarios reales.
+- el historial global de movimientos usa paginacion, filtros y relaciones precargadas para evitar N+1 en el portal web.
 
 ### Tenancy
 

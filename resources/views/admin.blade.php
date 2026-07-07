@@ -95,6 +95,10 @@
                             <span>Inventario</span>
                             <small>Stock y productos</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="movements">
+                            <span>Movimientos</span>
+                            <small>Entradas y salidas</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="cash">
                             <span>Caja</span>
                             <small>Turnos y cierres</small>
@@ -407,6 +411,86 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-inventory-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel movements-admin" id="admin-movements-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Inventario</span>
+                                    <h3>Historial de movimientos</h3>
+                                    <p>Consulta entradas, salidas, ventas, devoluciones, ajustes y traslados por empresa.</p>
+                                </div>
+                                <button class="ghost-button" type="button" id="admin-movements-refresh">Actualizar movimientos</button>
+                            </div>
+
+                            <div class="movements-admin__filters" role="search">
+                                <label class="field">
+                                    <span>Buscar</span>
+                                    <input id="admin-movements-search" type="search" placeholder="Producto, SKU, motivo o referencia">
+                                </label>
+                                <label class="field">
+                                    <span>Tipo</span>
+                                    <select id="admin-movements-type">
+                                        <option value="all">Todos</option>
+                                        <option value="purchase">Entrada compra</option>
+                                        <option value="purchase_return">Dev. proveedor</option>
+                                        <option value="sale">Venta</option>
+                                        <option value="sale_return">Dev. venta</option>
+                                        <option value="adjustment_in">Ajuste entrada</option>
+                                        <option value="adjustment_out">Ajuste salida</option>
+                                        <option value="transfer_in">Traslado entrada</option>
+                                        <option value="transfer_out">Traslado salida</option>
+                                        <option value="return_in">Retorno entrada</option>
+                                        <option value="return_out">Retorno salida</option>
+                                        <option value="damaged">Danado</option>
+                                        <option value="reserved">Reservado</option>
+                                        <option value="released">Liberado</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span>Almacen</span>
+                                    <select id="admin-movements-warehouse">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span>Desde</span>
+                                    <input id="admin-movements-from" type="date">
+                                </label>
+                                <label class="field">
+                                    <span>Hasta</span>
+                                    <input id="admin-movements-to" type="date">
+                                </label>
+                                <button class="primary-button primary-button--fit" type="button" id="admin-movements-apply">Aplicar</button>
+                                <button class="ghost-button ghost-button--compact" type="button" id="admin-movements-clear">Limpiar</button>
+                            </div>
+
+                            <div class="admin-table-wrap movements-admin__table">
+                                <table class="admin-data-table admin-data-table--compact">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Producto</th>
+                                            <th>Tipo</th>
+                                            <th>Cant.</th>
+                                            <th>Almacen</th>
+                                            <th>Motivo / referencia</th>
+                                            <th>Usuario</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-movements-table"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="inventory-admin__quickbar">
+                                <span class="inventory-admin__filter-summary" id="admin-movements-count">Sin movimientos cargados.</span>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button ghost-button--compact" type="button" id="admin-movements-prev">Anterior</button>
+                                    <button class="ghost-button ghost-button--compact" type="button" id="admin-movements-next">Siguiente</button>
+                                </div>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-movements-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel access-admin" id="admin-users-module" hidden>

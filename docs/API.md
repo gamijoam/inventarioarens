@@ -441,6 +441,90 @@ Reglas:
 - cada producto modificado genera un registro en `product_audits`;
 - las acciones se ejecutan en transacción y bloquean los productos seleccionados durante la actualización.
 
+### Historial global de movimientos en Centro de Inventario
+
+```txt
+GET /api/inventory-center/movements
+```
+
+Permiso requerido:
+
+```txt
+products.view
+```
+
+Query params:
+
+```txt
+search=Cable
+type=all|purchase|purchase_return|sale|sale_return|adjustment_in|adjustment_out|transfer_in|transfer_out|return_in|return_out|damaged|reserved|released
+warehouse_id=1
+date_from=2026-07-01
+date_to=2026-07-07
+limit=50
+page=1
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "filters": {
+      "search": "Cable",
+      "type": "all",
+      "warehouse_id": null,
+      "date_from": null,
+      "date_to": null,
+      "limit": 50,
+      "page": 1
+    },
+    "data": [
+      {
+        "id": 20,
+        "type": "sale",
+        "quantity": 1,
+        "unit_cost": 4,
+        "reason": "Venta mostrador",
+        "reference_type": "sale",
+        "reference_id": 9,
+        "product_id": 12,
+        "product_name": "Cable USB",
+        "product_sku": "CBL-USB",
+        "warehouse_id": 3,
+        "warehouse_name": "Almacen principal",
+        "warehouse_code": "CCS-01",
+        "branch_id": 1,
+        "branch_name": "Principal",
+        "created_by": 5,
+        "created_by_name": "Gerente",
+        "created_by_email": "gerente@demo.test",
+        "created_at": "2026-07-07T12:00:00.000000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total": 1,
+      "last_page": 1,
+      "from": 1,
+      "to": 1,
+      "has_previous": false,
+      "has_next": false
+    }
+  }
+}
+```
+
+Reglas:
+
+- requiere `api.auth`, `tenant` y permiso `products.view`;
+- no modifica datos;
+- permite auditar movimientos de todos los productos de la empresa activa;
+- filtra por producto, SKU, motivo, tipo, almacen y fechas;
+- precarga producto, almacen, sucursal y usuario para evitar N+1;
+- no devuelve movimientos de otra empresa.
+
 ### Detalle de producto en Centro de Inventario
 
 ```txt
