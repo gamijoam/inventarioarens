@@ -111,6 +111,10 @@
                             <span>CxC</span>
                             <small>Cobros cliente</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="customers">
+                            <span>Clientes</span>
+                            <small>Datos y cartera</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="payables">
                             <span>CxP</span>
                             <small>Pagos proveedor</small>
@@ -1325,6 +1329,137 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-payables-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel customers-admin" id="admin-customers-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Cartera</span>
+                                    <h3>Clientes</h3>
+                                    <p>Administra clientes por empresa para ventas POS, cuentas por cobrar, reportes y sincronizacion.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="primary-button primary-button--fit" type="button" id="admin-customer-new">Nuevo cliente</button>
+                                    <button class="ghost-button" type="button" id="admin-customers-refresh">Actualizar clientes</button>
+                                </div>
+                            </div>
+
+                            <div class="customers-admin__layout">
+                                <div class="customers-admin__main">
+                                    <div class="customers-admin__filters" role="search">
+                                        <label class="field">
+                                            <span>Buscar</span>
+                                            <input id="admin-customers-search" type="search" placeholder="Nombre, documento, correo o telefono">
+                                        </label>
+                                        <label class="field">
+                                            <span>Estado</span>
+                                            <select id="admin-customers-active">
+                                                <option value="all">Todos</option>
+                                                <option value="active">Activos</option>
+                                                <option value="inactive">Inactivos</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Tipo</span>
+                                            <select id="admin-customers-type">
+                                                <option value="all">Todos</option>
+                                                <option value="regular">Clientes</option>
+                                                <option value="generic">Consumidor final</option>
+                                            </select>
+                                        </label>
+                                        <button class="primary-button primary-button--fit" type="button" id="admin-customers-apply">Aplicar</button>
+                                        <button class="ghost-button ghost-button--compact" type="button" id="admin-customers-clear">Limpiar</button>
+                                    </div>
+
+                                    <div class="admin-table-wrap customers-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Cliente</th>
+                                                    <th>Documento</th>
+                                                    <th>Contacto</th>
+                                                    <th>Tipo</th>
+                                                    <th>Estado</th>
+                                                    <th>Actualizado</th>
+                                                    <th>Accion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-customers-table"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="table-footer">
+                                        <span id="admin-customers-count">Sin clientes cargados.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-customers-prev">Anterior</button>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-customers-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="customer-editor" id="admin-customer-editor">
+                                    <span class="soft-badge">Registro rapido</span>
+                                    <h4 id="admin-customer-editor-title">Nuevo cliente</h4>
+                                    <p id="admin-customer-editor-subtitle">Completa datos de identificacion y contacto. El documento es unico por empresa.</p>
+
+                                    <label class="field">
+                                        <span>Nombre</span>
+                                        <input id="admin-customer-name" type="text" maxlength="255" placeholder="Nombre o razon social">
+                                    </label>
+
+                                    <div class="customer-editor__grid">
+                                        <label class="field">
+                                            <span>Tipo</span>
+                                            <select id="admin-customer-document-type">
+                                                <option value="V">V</option>
+                                                <option value="J">J</option>
+                                                <option value="E">E</option>
+                                                <option value="G">G</option>
+                                                <option value="P">P</option>
+                                            </select>
+                                        </label>
+                                        <label class="field">
+                                            <span>Documento</span>
+                                            <input id="admin-customer-document-number" type="text" maxlength="50" placeholder="Cedula, RIF o pasaporte">
+                                        </label>
+                                    </div>
+
+                                    <div class="customer-editor__grid">
+                                        <label class="field">
+                                            <span>Telefono</span>
+                                            <input id="admin-customer-phone" type="text" maxlength="50" placeholder="Telefono">
+                                        </label>
+                                        <label class="field">
+                                            <span>Correo</span>
+                                            <input id="admin-customer-email" type="email" maxlength="255" placeholder="cliente@correo.com">
+                                        </label>
+                                    </div>
+
+                                    <label class="field">
+                                        <span>Direccion fiscal</span>
+                                        <textarea id="admin-customer-address" rows="2" maxlength="500" placeholder="Direccion fiscal"></textarea>
+                                    </label>
+
+                                    <div class="customer-editor__checks">
+                                        <label class="customer-editor__check">
+                                            <input id="admin-customer-generic-edit" type="checkbox">
+                                            <span>Consumidor final</span>
+                                        </label>
+                                        <label class="customer-editor__check">
+                                            <input id="admin-customer-active-edit" type="checkbox" checked>
+                                            <span>Cliente activo</span>
+                                        </label>
+                                    </div>
+
+                                    <div class="customer-editor__actions">
+                                        <button class="primary-button" type="button" id="admin-customer-save">Guardar cliente</button>
+                                        <button class="danger-button" type="button" id="admin-customer-deactivate">Desactivar</button>
+                                        <button class="ghost-button" type="button" id="admin-customer-cancel">Limpiar</button>
+                                    </div>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-customers-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel suppliers-admin" id="admin-suppliers-module" hidden>

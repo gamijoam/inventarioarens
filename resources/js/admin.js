@@ -39,6 +39,11 @@ const state = {
         loaded: false,
         selectedSupplier: null,
     },
+    customers: {
+        page: 1,
+        loaded: false,
+        selectedCustomer: null,
+    },
     purchases: {
         page: 1,
         loaded: false,
@@ -246,6 +251,33 @@ const elements = {
     supplierSave: document.querySelector('#admin-supplier-save'),
     supplierDeactivate: document.querySelector('#admin-supplier-deactivate'),
     supplierCancel: document.querySelector('#admin-supplier-cancel'),
+    customersModule: document.querySelector('#admin-customers-module'),
+    customersRefresh: document.querySelector('#admin-customers-refresh'),
+    customersSearch: document.querySelector('#admin-customers-search'),
+    customersActive: document.querySelector('#admin-customers-active'),
+    customersType: document.querySelector('#admin-customers-type'),
+    customersApply: document.querySelector('#admin-customers-apply'),
+    customersClear: document.querySelector('#admin-customers-clear'),
+    customersTable: document.querySelector('#admin-customers-table'),
+    customersCount: document.querySelector('#admin-customers-count'),
+    customersPrev: document.querySelector('#admin-customers-prev'),
+    customersNext: document.querySelector('#admin-customers-next'),
+    customersStatus: document.querySelector('#admin-customers-status'),
+    customerNew: document.querySelector('#admin-customer-new'),
+    customerEditor: document.querySelector('#admin-customer-editor'),
+    customerEditorTitle: document.querySelector('#admin-customer-editor-title'),
+    customerEditorSubtitle: document.querySelector('#admin-customer-editor-subtitle'),
+    customerName: document.querySelector('#admin-customer-name'),
+    customerDocumentType: document.querySelector('#admin-customer-document-type'),
+    customerDocumentNumber: document.querySelector('#admin-customer-document-number'),
+    customerPhone: document.querySelector('#admin-customer-phone'),
+    customerEmail: document.querySelector('#admin-customer-email'),
+    customerAddress: document.querySelector('#admin-customer-address'),
+    customerGenericEdit: document.querySelector('#admin-customer-generic-edit'),
+    customerActiveEdit: document.querySelector('#admin-customer-active-edit'),
+    customerSave: document.querySelector('#admin-customer-save'),
+    customerDeactivate: document.querySelector('#admin-customer-deactivate'),
+    customerCancel: document.querySelector('#admin-customer-cancel'),
     purchasesModule: document.querySelector('#admin-purchases-module'),
     purchasesRefresh: document.querySelector('#admin-purchases-refresh'),
     purchaseNew: document.querySelector('#admin-purchase-new'),
@@ -454,6 +486,10 @@ const portalSections = {
     suppliers: {
         title: 'Proveedores',
         copy: 'Gestion de proveedores, documentos fiscales, contactos y estado operativo para compras.',
+    },
+    customers: {
+        title: 'Clientes',
+        copy: 'Gestion de clientes, documentos, contacto y estado para ventas POS, cartera y reportes.',
     },
     purchases: {
         title: 'Compras',
@@ -766,6 +802,10 @@ function resetTenantScopedState() {
     state.suppliers.loaded = false;
     state.suppliers.selectedSupplier = null;
 
+    state.customers.page = 1;
+    state.customers.loaded = false;
+    state.customers.selectedCustomer = null;
+
     state.purchases.page = 1;
     state.purchases.loaded = false;
     state.purchases.selectedPurchase = null;
@@ -906,6 +946,7 @@ function activatePortalSection(section) {
     const isInventory = selectedSection === 'inventory';
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
+    const isCustomers = selectedSection === 'customers';
     const isPurchases = selectedSection === 'purchases';
     const isReceivables = selectedSection === 'receivables';
     const isPayables = selectedSection === 'payables';
@@ -945,6 +986,10 @@ function activatePortalSection(section) {
         elements.suppliersModule.hidden = !isSuppliers;
     }
 
+    if (elements.customersModule) {
+        elements.customersModule.hidden = !isCustomers;
+    }
+
     if (elements.purchasesModule) {
         elements.purchasesModule.hidden = !isPurchases;
     }
@@ -965,9 +1010,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isMovements || isSuppliers || isCustomers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isSales && !isReports && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
+    if (!isOverview && !isSales && !isReports && !isInventory && !isMovements && !isSuppliers && !isCustomers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -993,6 +1038,10 @@ function activatePortalSection(section) {
 
     if (isSuppliers && !state.suppliers.loaded) {
         loadSuppliers();
+    }
+
+    if (isCustomers && !state.customers.loaded) {
+        loadCustomers();
     }
 
     if (isPurchases && !state.purchases.loaded) {
@@ -2228,6 +2277,273 @@ function clearSupplierFilters() {
     }
 
     loadSuppliers(1);
+}
+
+async function loadCustomers(page = state.customers.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    if (!can('customers.view')) {
+        setStatus(elements.customersStatus, 'Tu usuario no tiene permiso para ver clientes.', 'error');
+        return;
+    }
+
+    state.customers.page = page;
+    setStatus(elements.customersStatus, 'Cargando clientes...');
+    setButtonLoading(elements.customersRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.customersApply, true, 'Aplicando...');
+
+    try {
+        const query = new URLSearchParams({
+            active_status: elements.customersActive?.value || 'all',
+            limit: '50',
+            page: String(page),
+        });
+        const search = elements.customersSearch?.value.trim();
+
+        if (search) {
+            query.set('search', search);
+        }
+
+        const pageData = await api(`/api/customers?${query}`, {
+            headers: authHeaders(session),
+        }, true);
+
+        state.customers.loaded = true;
+        renderCustomers(pageData);
+        setStatus(elements.customersStatus, `Clientes actualizados. ${pageData.meta?.total || 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.customersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.customersRefresh, false);
+        setButtonLoading(elements.customersApply, false);
+    }
+}
+
+function renderCustomers(pageData = {}) {
+    const typeFilter = elements.customersType?.value || 'all';
+    const customers = (pageData.data || []).filter((customer) => {
+        if (typeFilter === 'generic') {
+            return customer.is_generic === true;
+        }
+
+        if (typeFilter === 'regular') {
+            return customer.is_generic !== true;
+        }
+
+        return true;
+    });
+    const meta = pageData.meta || {};
+
+    if (!elements.customersTable) {
+        return;
+    }
+
+    if (!customers.length) {
+        elements.customersTable.innerHTML = '<tr><td colspan="7"><strong>Sin clientes</strong><small>No hay clientes con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.customersTable.replaceChildren(...customers.map(customerRow));
+    }
+
+    elements.customersCount.textContent = (meta.total || 0) === 0
+        ? 'Sin clientes para mostrar.'
+        : `${meta.from || 1}-${meta.to || customers.length} de ${meta.total} cliente(s).`;
+    elements.customersPrev.disabled = !meta.current_page || meta.current_page <= 1;
+    elements.customersNext.disabled = !meta.current_page || meta.current_page >= meta.last_page;
+    state.customers.page = meta.current_page || 1;
+}
+
+function customerRow(customer) {
+    const row = document.createElement('tr');
+    row.className = customer.is_active ? '' : 'admin-data-table__row--inactive';
+    row.dataset.customerId = String(customer.id);
+    row.classList.toggle('is-selected', state.customers.selectedCustomer?.id === customer.id);
+    const documentLabel = [customer.document_type, customer.document_number].filter(Boolean).join('-') || 'Sin documento';
+    const contact = [customer.phone, customer.email].filter(Boolean).join(' / ') || 'Sin contacto';
+    const customerType = customer.is_generic ? 'Consumidor final' : 'Cliente';
+
+    row.innerHTML = `
+        <td><strong>${escapeHtml(customer.name)}</strong><small>${escapeHtml(customer.fiscal_address || 'Sin direccion fiscal')}</small></td>
+        <td><strong>${escapeHtml(documentLabel)}</strong><small>${escapeHtml(customer.document_type || '')}</small></td>
+        <td><strong>${escapeHtml(contact)}</strong><small>${escapeHtml(customer.email && customer.phone ? 'Telefono y correo' : '')}</small></td>
+        <td><span class="status-pill" data-tone="${customer.is_generic ? 'warning' : 'info'}">${customerType}</span></td>
+        <td><span class="status-pill" data-tone="${customer.is_active ? 'success' : 'warning'}">${customer.is_active ? 'Activo' : 'Inactivo'}</span></td>
+        <td>${escapeHtml(formatDateTime(customer.updated_at))}</td>
+        <td><button class="ghost-button ghost-button--compact" type="button" data-admin-customer-edit="${customer.id}">Editar</button></td>
+    `;
+
+    row.querySelector('[data-admin-customer-edit]')?.addEventListener('click', () => {
+        selectCustomer(customer);
+    });
+
+    row.addEventListener('dblclick', () => selectCustomer(customer));
+
+    return row;
+}
+
+function selectCustomer(customer) {
+    state.customers.selectedCustomer = customer;
+    fillCustomerForm(customer);
+    elements.customerEditorTitle.textContent = customer.name;
+    elements.customerEditorSubtitle.textContent = 'Edita datos de contacto, documento fiscal o estado del cliente.';
+    elements.customerDeactivate.textContent = customer.is_active ? 'Desactivar' : 'Reactivar';
+    elements.customerDeactivate.classList.toggle('danger-button', customer.is_active);
+    elements.customerDeactivate.classList.toggle('ghost-button', !customer.is_active);
+    elements.customersTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    elements.customersTable?.querySelector(`[data-customer-id="${customer.id}"]`)?.classList.add('is-selected');
+    setStatus(elements.customersStatus, `Cliente seleccionado: ${customer.name}.`, 'neutral');
+}
+
+function fillCustomerForm(customer = {}) {
+    elements.customerName.value = customer.name || '';
+    elements.customerDocumentType.value = customer.document_type || 'V';
+    elements.customerDocumentNumber.value = customer.document_number || '';
+    elements.customerPhone.value = customer.phone || '';
+    elements.customerEmail.value = customer.email || '';
+    elements.customerAddress.value = customer.fiscal_address || '';
+    elements.customerGenericEdit.checked = customer.is_generic === true;
+    elements.customerActiveEdit.checked = customer.is_active !== false;
+}
+
+function clearCustomerForm() {
+    state.customers.selectedCustomer = null;
+    fillCustomerForm({
+        document_type: 'V',
+        is_active: true,
+        is_generic: false,
+    });
+    elements.customerEditorTitle.textContent = 'Nuevo cliente';
+    elements.customerEditorSubtitle.textContent = 'Completa datos de identificacion y contacto. El documento es unico por empresa.';
+    elements.customerDeactivate.textContent = 'Desactivar';
+    elements.customerDeactivate.classList.add('danger-button');
+    elements.customerDeactivate.classList.remove('ghost-button');
+    elements.customersTable?.querySelectorAll('tr').forEach((row) => row.classList.remove('is-selected'));
+    setStatus(elements.customersStatus, 'Formulario listo para crear cliente.', 'neutral');
+}
+
+async function saveCustomer() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    const customer = state.customers.selectedCustomer;
+    const isCreate = !customer;
+    const permission = isCreate ? 'customers.create' : 'customers.update';
+
+    if (!can(permission)) {
+        setStatus(elements.customersStatus, 'Tu usuario no tiene permiso para guardar clientes.', 'error');
+        return;
+    }
+
+    const payload = {
+        name: elements.customerName.value.trim(),
+        document_type: elements.customerDocumentType.value,
+        document_number: elements.customerDocumentNumber.value.trim(),
+        phone: elements.customerPhone.value.trim(),
+        email: elements.customerEmail.value.trim(),
+        fiscal_address: elements.customerAddress.value.trim(),
+        is_generic: elements.customerGenericEdit.checked,
+        is_active: elements.customerActiveEdit.checked,
+    };
+
+    if (!payload.name) {
+        setStatus(elements.customersStatus, 'El nombre del cliente es obligatorio.', 'error');
+        return;
+    }
+
+    if (!payload.document_number) {
+        setStatus(elements.customersStatus, 'El documento del cliente es obligatorio.', 'error');
+        return;
+    }
+
+    setStatus(elements.customersStatus, 'Guardando cliente...');
+    setButtonLoading(elements.customerSave, true, 'Guardando...');
+
+    try {
+        const saved = await api(isCreate ? '/api/customers' : `/api/customers/${customer.id}`, {
+            method: isCreate ? 'POST' : 'PATCH',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+
+        state.customers.selectedCustomer = saved;
+        await loadCustomers(isCreate ? 1 : state.customers.page);
+        selectCustomer(saved);
+        setStatus(elements.customersStatus, isCreate ? 'Cliente creado. El cambio quedo listo para sincronizarse.' : 'Cliente actualizado. El cambio quedo listo para sincronizarse.', 'success');
+    } catch (error) {
+        setStatus(elements.customersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.customerSave, false);
+    }
+}
+
+async function toggleCustomerActive() {
+    const session = state.session;
+    const customer = state.customers.selectedCustomer;
+
+    if (!session || !customer) {
+        setStatus(elements.customersStatus, 'Selecciona un cliente antes de cambiar su estado.', 'error');
+        return;
+    }
+
+    const reactivating = !customer.is_active;
+    const permission = reactivating ? 'customers.update' : 'customers.delete';
+
+    if (!can(permission)) {
+        setStatus(elements.customersStatus, 'Tu usuario no tiene permiso para cambiar el estado del cliente.', 'error');
+        return;
+    }
+
+    setStatus(elements.customersStatus, reactivating ? 'Reactivando cliente...' : 'Desactivando cliente...');
+    setButtonLoading(elements.customerDeactivate, true, reactivating ? 'Reactivando...' : 'Desactivando...');
+
+    try {
+        if (reactivating) {
+            const updated = await api(`/api/customers/${customer.id}`, {
+                method: 'PATCH',
+                headers: authHeaders(session),
+                body: JSON.stringify({ is_active: true }),
+            });
+            state.customers.selectedCustomer = updated;
+        } else {
+            await api(`/api/customers/${customer.id}`, {
+                method: 'DELETE',
+                headers: authHeaders(session),
+            });
+            state.customers.selectedCustomer = { ...customer, is_active: false };
+        }
+
+        await loadCustomers(state.customers.page);
+        if (state.customers.selectedCustomer) {
+            selectCustomer(state.customers.selectedCustomer);
+        }
+        setStatus(elements.customersStatus, reactivating ? 'Cliente reactivado.' : 'Cliente desactivado.', 'success');
+    } catch (error) {
+        setStatus(elements.customersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.customerDeactivate, false);
+    }
+}
+
+function clearCustomerFilters() {
+    if (elements.customersSearch) {
+        elements.customersSearch.value = '';
+    }
+
+    if (elements.customersActive) {
+        elements.customersActive.value = 'all';
+    }
+
+    if (elements.customersType) {
+        elements.customersType.value = 'all';
+    }
+
+    loadCustomers(1);
 }
 
 async function loadPurchaseOptions() {
@@ -4463,6 +4779,7 @@ function permissionModuleLabel(module) {
         reports: 'Reportes',
         kardex: 'Kardex',
         suppliers: 'Proveedores',
+        customers: 'Clientes',
         settings: 'Configuracion',
         sync: 'Sincronizacion',
         accounts_receivable: 'Cuentas por cobrar',
@@ -4816,6 +5133,21 @@ elements.suppliersSearch?.addEventListener('keydown', (event) => {
 elements.supplierSave?.addEventListener('click', saveSupplier);
 elements.supplierDeactivate?.addEventListener('click', toggleSupplierActive);
 elements.supplierCancel?.addEventListener('click', clearSupplierForm);
+elements.customersRefresh?.addEventListener('click', () => loadCustomers());
+elements.customerNew?.addEventListener('click', clearCustomerForm);
+elements.customersApply?.addEventListener('click', () => loadCustomers(1));
+elements.customersClear?.addEventListener('click', clearCustomerFilters);
+elements.customersPrev?.addEventListener('click', () => loadCustomers(Math.max(state.customers.page - 1, 1)));
+elements.customersNext?.addEventListener('click', () => loadCustomers(state.customers.page + 1));
+elements.customersSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadCustomers(1);
+    }
+});
+elements.customerSave?.addEventListener('click', saveCustomer);
+elements.customerDeactivate?.addEventListener('click', toggleCustomerActive);
+elements.customerCancel?.addEventListener('click', clearCustomerForm);
 elements.purchasesRefresh?.addEventListener('click', () => loadPurchases());
 elements.purchaseNew?.addEventListener('click', () => {
     loadPurchaseOptions().then(clearPurchaseForm).catch((error) => setStatus(elements.purchasesStatus, normalizeError(error), 'error'));

@@ -974,18 +974,21 @@ button {
     max-height: 560px;
 }
 
-.suppliers-admin__layout {
+.suppliers-admin__layout,
+.customers-admin__layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
     gap: 8px;
     margin-top: 8px;
 }
 
-.suppliers-admin__main {
+.suppliers-admin__main,
+.customers-admin__main {
     min-width: 0;
 }
 
-.suppliers-admin__filters {
+.suppliers-admin__filters,
+.customers-admin__filters {
     display: grid;
     grid-template-columns: minmax(240px, 1fr) 130px auto auto;
     gap: 6px;
@@ -996,11 +999,17 @@ button {
     background: var(--panel-soft);
 }
 
-.suppliers-admin__filters .field {
+.customers-admin__filters {
+    grid-template-columns: minmax(240px, 1fr) 120px 140px auto auto;
+}
+
+.suppliers-admin__filters .field,
+.customers-admin__filters .field {
     margin: 0;
 }
 
-.suppliers-admin__table {
+.suppliers-admin__table,
+.customers-admin__table {
     max-height: 560px;
 }
 
@@ -1353,7 +1362,8 @@ button {
     grid-column: 1 / -1;
 }
 
-.supplier-editor {
+.supplier-editor,
+.customer-editor {
     align-self: start;
     position: sticky;
     top: 64px;
@@ -1367,29 +1377,35 @@ button {
     background: var(--panel-soft);
 }
 
-.supplier-editor h4 {
+.supplier-editor h4,
+.customer-editor h4 {
     margin: 0;
     font-size: 17px;
 }
 
-.supplier-editor p {
+.supplier-editor p,
+.customer-editor p {
     margin: 0;
     color: var(--muted);
     font-size: 12px;
     font-weight: 750;
 }
 
-.supplier-editor .field {
+.supplier-editor .field,
+.customer-editor .field {
     margin: 0;
 }
 
-.supplier-editor__grid {
+.supplier-editor__grid,
+.customer-editor__grid {
     display: grid;
     grid-template-columns: minmax(72px, 0.35fr) minmax(0, 1fr);
     gap: 6px;
 }
 
-.supplier-editor__active {
+.supplier-editor__active,
+.customer-editor__checks,
+.customer-editor__check {
     display: inline-grid;
     grid-template-columns: 18px auto;
     align-items: center;
@@ -1399,19 +1415,26 @@ button {
     font-weight: 900;
 }
 
-.supplier-editor__active input {
+.customer-editor__checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.supplier-editor__active input,
+.customer-editor__check input {
     width: 16px;
     height: 16px;
     margin: 0;
 }
 
-.supplier-editor__actions {
+.supplier-editor__actions,
+.customer-editor__actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
 }
 
-.supplier-editor__actions .primary-button {
+.supplier-editor__actions .primary-button,
+.customer-editor__actions .primary-button {
     grid-column: 1 / -1;
 }
 
@@ -1913,6 +1936,7 @@ button {
 
     .inventory-admin__layout,
     .suppliers-admin__layout,
+    .customers-admin__layout,
     .purchases-admin__layout,
     .receivables-admin__layout,
     .payables-admin__layout,
@@ -1932,6 +1956,7 @@ button {
     .inventory-editor,
     .inventory-detail,
     .supplier-editor,
+    .customer-editor,
     .purchase-editor,
     .receivable-editor,
     .payable-editor {
@@ -1980,12 +2005,15 @@ button {
     .inventory-admin__filters,
     .movements-admin__filters,
     .suppliers-admin__filters,
+    .customers-admin__filters,
     .purchases-admin__filters,
     .receivables-admin__filters,
     .payables-admin__filters,
     .sales-admin__filters,
     .sales-admin__analytics,
     .supplier-editor__grid,
+    .customer-editor__grid,
+    .customer-editor__checks,
     .purchase-editor__grid--two,
     .purchase-editor__grid--three,
     .purchase-item-form,

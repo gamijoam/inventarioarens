@@ -186,6 +186,35 @@ class CustomerApiTest extends TestCase
             ->assertJsonPath('data.1.name', 'Pedro Accesorios');
     }
 
+    public function test_user_can_filter_customers_by_active_status_for_admin(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador Clientes', ['customers.view']);
+
+        $this->customer($tenant, 'Cliente Activo', Customer::DOCUMENT_V, '101');
+        $inactive = $this->customer($tenant, 'Cliente Inactivo', Customer::DOCUMENT_V, '202');
+        $inactive->update(['is_active' => false]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/customers?active_status=inactive&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Cliente Inactivo')
+            ->assertJsonPath('data.0.is_active', false);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/customers?active_status=active&limit=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Cliente Activo')
+            ->assertJsonPath('data.0.is_active', true);
+    }
+
     public function test_customer_detail_can_include_pos_history(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

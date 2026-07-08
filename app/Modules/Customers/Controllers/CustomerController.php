@@ -24,10 +24,13 @@ class CustomerController extends Controller
         $search = trim((string) $request->query('search', ''));
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
         $activeOnly = $request->boolean('active_only');
+        $activeStatus = (string) $request->query('active_status', 'all');
 
         return CustomerResource::collection(
             Customer::query()
                 ->when($activeOnly, fn ($query) => $query->where('is_active', true))
+                ->when(! $activeOnly && $activeStatus === 'active', fn ($query) => $query->where('is_active', true))
+                ->when(! $activeOnly && $activeStatus === 'inactive', fn ($query) => $query->where('is_active', false))
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($query) use ($search): void {
                         $like = "%{$search}%";
