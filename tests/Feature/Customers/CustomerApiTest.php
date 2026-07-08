@@ -10,6 +10,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -41,6 +42,14 @@ class CustomerApiTest extends TestCase
             ->assertJsonPath('data.document_type', Customer::DOCUMENT_V)
             ->json('data.id');
 
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'customer.created',
+            'aggregate_type' => 'customer',
+            'aggregate_id' => $customerId,
+            'status' => 'pending',
+        ]);
+
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -51,6 +60,14 @@ class CustomerApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.phone', '04147654321')
             ->assertJsonPath('data.fiscal_address', 'Valencia');
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'customer.updated',
+            'aggregate_type' => 'customer',
+            'aggregate_id' => $customerId,
+            'status' => 'pending',
+        ]);
 
         $this
             ->actingAs($user)
@@ -63,6 +80,16 @@ class CustomerApiTest extends TestCase
             'id' => $customerId,
             'is_active' => false,
         ]);
+
+        $this->assertSame(
+            2,
+            DB::table('sync_outbox')
+                ->where('tenant_id', $tenant->id)
+                ->where('event_type', 'customer.updated')
+                ->where('aggregate_type', 'customer')
+                ->where('aggregate_id', $customerId)
+                ->count()
+        );
     }
 
     public function test_customer_document_is_unique_inside_company_but_can_repeat_between_companies(): void

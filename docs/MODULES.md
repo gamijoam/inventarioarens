@@ -486,7 +486,9 @@ Regla importante:
 - `document_type + document_number` es unico por tenant, no global;
 - un cliente de una empresa no puede usarse en ventas o POS de otra empresa;
 - la eliminacion API desactiva al cliente con `is_active = false`;
-- `customer_id` en ventas y POS es opcional para permitir ventas rapidas y cliente generico.
+- `customer_id` en ventas y POS es opcional para permitir ventas rapidas y cliente generico;
+- crear, actualizar o desactivar clientes desde API genera eventos `customer.created` o `customer.updated` para sincronizacion local-nube;
+- la foto inicial de sincronizacion incluye clientes existentes.
 
 ### Suppliers
 

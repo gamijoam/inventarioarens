@@ -7,6 +7,7 @@ use App\Modules\Customers\Requests\StoreCustomerRequest;
 use App\Modules\Customers\Requests\UpdateCustomerRequest;
 use App\Modules\Customers\Resources\CustomerResource;
 use App\Modules\POS\Models\PosOrder;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -43,11 +44,12 @@ class CustomerController extends Controller
         );
     }
 
-    public function store(StoreCustomerRequest $request): JsonResponse
+    public function store(StoreCustomerRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         Gate::authorize('create', Customer::class);
 
         $customer = Customer::create($request->validated())->refresh();
+        $syncCatalog->customerCreated($customer);
 
         return CustomerResource::make($customer)
             ->response()
@@ -65,20 +67,23 @@ class CustomerController extends Controller
         return CustomerResource::make($customer);
     }
 
-    public function update(UpdateCustomerRequest $request, Customer $customer): CustomerResource
+    public function update(UpdateCustomerRequest $request, Customer $customer, SyncCatalogOutboxService $syncCatalog): CustomerResource
     {
         Gate::authorize('update', $customer);
 
         $customer->update($request->validated());
+        $customer = $customer->refresh();
+        $syncCatalog->customerUpdated($customer);
 
-        return CustomerResource::make($customer->refresh());
+        return CustomerResource::make($customer);
     }
 
-    public function destroy(Customer $customer): Response
+    public function destroy(Customer $customer, SyncCatalogOutboxService $syncCatalog): Response
     {
         Gate::authorize('delete', $customer);
 
         $customer->update(['is_active' => false]);
+        $syncCatalog->customerDeactivated($customer->refresh());
 
         return response()->noContent();
     }

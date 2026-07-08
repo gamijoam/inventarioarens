@@ -90,6 +90,7 @@ class SyncEventApplier
             'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
             'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
             'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
+            'customer.updated', 'customer.created' => $this->applyCustomer($tenant, $payload),
             'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
             'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
             'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
@@ -182,6 +183,33 @@ class SyncEventApplier
 
         $after = (array) DB::table('products')->where('tenant_id', $tenant->id)->where('id', $productId)->first();
         $this->recordProductAudit($productId, $before, $after);
+
+        return 'applied';
+    }
+
+    private function applyCustomer(Tenant $tenant, array $payload): string
+    {
+        $documentType = mb_strtoupper($this->requiredString($payload, 'document_type'));
+        $documentNumber = $this->requiredString($payload, 'document_number');
+        $now = now();
+
+        $this->upsertByKeys(
+            'customers',
+            [
+                'tenant_id' => $tenant->id,
+                'document_type' => $documentType,
+                'document_number' => $documentNumber,
+            ],
+            [
+                'name' => $this->requiredString($payload, 'name'),
+                'phone' => $this->nullableString($payload['phone'] ?? null),
+                'email' => $this->nullableLowerString($payload['email'] ?? null),
+                'fiscal_address' => $payload['fiscal_address'] ?? null,
+                'is_generic' => array_key_exists('is_generic', $payload) ? (bool) $payload['is_generic'] : false,
+                'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+                'updated_at' => $now,
+            ]
+        );
 
         return 'applied';
     }
@@ -562,6 +590,20 @@ class SyncEventApplier
         }
 
         return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : $value;
+    }
+
+    private function nullableLowerString(mixed $value): ?string
+    {
+        $value = $this->nullableString($value);
+
+        return $value === null ? null : mb_strtolower($value);
     }
 
     private function upsertByKeys(string $table, array $keys, array $values): void

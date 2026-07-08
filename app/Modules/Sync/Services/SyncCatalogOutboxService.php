@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Modules\Customers\Models\Customer;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
@@ -53,6 +54,21 @@ class SyncCatalogOutboxService
     public function productPriceUpdated(ProductPrice $productPrice): void
     {
         $this->recordProductPrice('product_price.updated', $productPrice);
+    }
+
+    public function customerCreated(Customer $customer): void
+    {
+        $this->recordCustomer('customer.created', $customer);
+    }
+
+    public function customerUpdated(Customer $customer): void
+    {
+        $this->recordCustomer('customer.updated', $customer);
+    }
+
+    public function customerDeactivated(Customer $customer): void
+    {
+        $this->recordCustomer('customer.updated', $customer);
     }
 
     public function productEntryCreated(ProductEntry $entry): void
@@ -179,6 +195,26 @@ class SyncCatalogOutboxService
                 'is_active' => (bool) $productPrice->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'product_price', $productPrice->id),
+        );
+    }
+
+    private function recordCustomer(string $eventType, Customer $customer): void
+    {
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'customer',
+            aggregateId: $customer->id,
+            payload: [
+                'name' => $customer->name,
+                'document_type' => $customer->document_type,
+                'document_number' => $customer->document_number,
+                'phone' => $customer->phone,
+                'email' => $customer->email,
+                'fiscal_address' => $customer->fiscal_address,
+                'is_generic' => (bool) $customer->is_generic,
+                'is_active' => (bool) $customer->is_active,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'customer', $customer->id),
         );
     }
 

@@ -126,6 +126,18 @@ class SyncApiTest extends TestCase
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        DB::table('customers')->insert([
+            'tenant_id' => $tenant->id,
+            'name' => 'Cliente Snapshot',
+            'document_type' => 'V',
+            'document_number' => '12345678',
+            'phone' => '04141234567',
+            'email' => 'snapshot@example.com',
+            'is_generic' => false,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         $this->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -154,6 +166,12 @@ class SyncApiTest extends TestCase
         $this->assertDatabaseHas('sync_outbox', [
             'tenant_id' => $tenant->id,
             'event_type' => 'cash_register.created',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'customer.created',
+            'aggregate_type' => 'customer',
             'status' => 'pending',
         ]);
         $this->assertGreaterThanOrEqual(7, DB::table('sync_outbox')->where('tenant_id', $tenant->id)->count());
@@ -255,6 +273,65 @@ class SyncApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'sku' => 'ADP-BT-CCS',
             'base_price' => '1000.0000',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => $eventUuid,
+            'status' => 'applied',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => $eventUuid,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_pushed_customer_update_is_applied_to_cloud_database_and_relayed(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-push-customer');
+        $nodeId = $this->node($tenant, 'LOCAL-VAL-01');
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        $payload = [
+            'origin_node_code' => 'LOCAL-VAL-01',
+            'events' => [[
+                'event_uuid' => $eventUuid,
+                'event_type' => 'customer.created',
+                'aggregate_type' => 'customer',
+                'aggregate_id' => 15,
+                'payload' => [
+                    'name' => 'Cliente Local Nuevo',
+                    'document_type' => 'V',
+                    'document_number' => '30303030',
+                    'phone' => '04143030303',
+                    'email' => 'cliente.local@example.com',
+                    'fiscal_address' => 'Valencia',
+                    'is_generic' => false,
+                    'is_active' => true,
+                ],
+                'occurred_at' => $now->toISOString(),
+            ]],
+        ];
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sync/events/push', $payload)
+            ->assertAccepted()
+            ->assertJsonPath('data.received', 1)
+            ->assertJsonPath('data.applied', 1)
+            ->assertJsonPath('data.failed', 0);
+
+        $this->assertDatabaseHas('customers', [
+            'tenant_id' => $tenant->id,
+            'document_type' => 'V',
+            'document_number' => '30303030',
+            'name' => 'Cliente Local Nuevo',
+            'phone' => '04143030303',
+            'email' => 'cliente.local@example.com',
+            'is_active' => true,
         ]);
         $this->assertDatabaseHas('sync_inbox', [
             'tenant_id' => $tenant->id,

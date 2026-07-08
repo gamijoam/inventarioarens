@@ -23,6 +23,7 @@ class SyncInitialSnapshotService
             'price_list.created' => $this->queuePriceLists($tenant, $targetNodeId, $installationCode),
             'product.created' => $this->queueProducts($tenant, $targetNodeId, $installationCode),
             'product_price.created' => $this->queueProductPrices($tenant, $targetNodeId, $installationCode),
+            'customer.created' => $this->queueCustomers($tenant, $targetNodeId, $installationCode),
             'stock_movement.created' => $this->queueStockMovements($tenant, $targetNodeId, $installationCode),
             'product_unit.created' => $this->queueProductUnits($tenant, $targetNodeId, $installationCode),
             'cash_register.created' => $this->queueCashRegisters($tenant, $targetNodeId, $installationCode),
@@ -268,6 +269,32 @@ class SyncInitialSnapshotService
                     $count++;
                 }
             }, 'product_prices.id', 'id');
+
+        return $count;
+    }
+
+    private function queueCustomers(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+
+        DB::table('customers')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('id')
+            ->chunkById(200, function ($customers) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($customers as $customer) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'customer.created', 'customer', (int) $customer->id, [
+                        'name' => $customer->name,
+                        'document_type' => $customer->document_type,
+                        'document_number' => $customer->document_number,
+                        'phone' => $customer->phone,
+                        'email' => $customer->email,
+                        'fiscal_address' => $customer->fiscal_address,
+                        'is_generic' => (bool) $customer->is_generic,
+                        'is_active' => (bool) $customer->is_active,
+                    ]);
+                    $count++;
+                }
+            });
 
         return $count;
     }
