@@ -20,7 +20,7 @@ public partial class PosView : UserControl
             Interval = TimeSpan.FromMilliseconds(450),
         };
         searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
-        Loaded += (_, _) => SearchBox.Focus();
+        Loaded += (_, _) => FocusSearchBox();
         PreviewKeyDown += PosView_PreviewKeyDown;
     }
 
@@ -40,6 +40,7 @@ public partial class PosView : UserControl
             searchDebounceTimer.Stop();
             await ViewModel.SearchAsync();
             OpenProductSearchDialog();
+            FocusSearchBox(selectAll: true);
         }
     }
 
@@ -90,6 +91,7 @@ public partial class PosView : UserControl
             }
 
             e.Handled = true;
+            FocusSearchBox();
         }
     }
 
@@ -154,6 +156,7 @@ public partial class PosView : UserControl
             string message = ViewModel.BuildNoStockMessage(card);
             ShowPosAlert(message, "Stock no disponible");
             ViewModel.SetError(message);
+            FocusSearchBox(selectAll: true);
             return;
         }
 
@@ -167,14 +170,17 @@ public partial class PosView : UserControl
             bool? result = dialog.ShowDialog();
             if (result != true || dialog.SelectedSerial is null)
             {
+                FocusSearchBox(selectAll: true);
                 return;
             }
 
             await ViewModel.AddProductAsync(card, dialog.SelectedSerial);
+            FocusSearchBox(selectAll: true);
             return;
         }
 
         await ViewModel.AddProductAsync(card, selectedSerial);
+        FocusSearchBox(selectAll: true);
     }
 
     private async Task TryAddExactSearchMatchAsync()
@@ -196,8 +202,7 @@ public partial class PosView : UserControl
                 }
 
                 await AddCardToCartAsync(serialMatch.Card, serialMatch.Serial);
-                SearchBox.Focus();
-                SearchBox.SelectAll();
+                FocusSearchBox(selectAll: true);
                 return;
             }
 
@@ -211,13 +216,13 @@ public partial class PosView : UserControl
                 await AddCardToCartAsync(card);
             }
 
-            SearchBox.Focus();
-            SearchBox.SelectAll();
+            FocusSearchBox(selectAll: true);
         }
         catch (ApiException exception)
         {
             ShowPosAlert(exception.Message, "No se pudo agregar");
             ViewModel.SetError(exception.Message);
+            FocusSearchBox(selectAll: true);
         }
         catch (HttpRequestException)
         {
@@ -236,8 +241,7 @@ public partial class PosView : UserControl
 
         searchDebounceTimer.Stop();
         await ViewModel.SearchAsync();
-        SearchBox.Focus();
-        SearchBox.SelectAll();
+        FocusSearchBox(selectAll: true);
     }
 
     private async void ReloadContext_Click(object sender, RoutedEventArgs e)
@@ -245,6 +249,7 @@ public partial class PosView : UserControl
         if (ViewModel is not null)
         {
             await ViewModel.LoadOperationalContextAsync(forceStaticRefresh: true);
+            FocusSearchBox(selectAll: true);
         }
     }
 
@@ -269,10 +274,12 @@ public partial class PosView : UserControl
 
             if (result != MessageBoxResult.Yes)
             {
+                FocusSearchBox(selectAll: true);
                 return;
             }
 
             await ViewModel.OpenOwnCashRegisterAsync();
+            FocusSearchBox(selectAll: true);
         }
     }
 
@@ -281,6 +288,7 @@ public partial class PosView : UserControl
         if (ViewModel is not null && sender is FrameworkElement element && element.DataContext is PosCartItem item)
         {
             ViewModel.Increase(item);
+            FocusSearchBox();
         }
     }
 
@@ -289,6 +297,7 @@ public partial class PosView : UserControl
         if (ViewModel is not null && sender is FrameworkElement element && element.DataContext is PosCartItem item)
         {
             ViewModel.Decrease(item);
+            FocusSearchBox();
         }
     }
 
@@ -297,6 +306,7 @@ public partial class PosView : UserControl
         if (ViewModel is not null && sender is FrameworkElement element && element.DataContext is PosCartItem item)
         {
             ViewModel.RemoveItem(item);
+            FocusSearchBox();
         }
     }
 
@@ -315,6 +325,7 @@ public partial class PosView : UserControl
         bool? result = dialog.ShowDialog();
         if (result != true)
         {
+            FocusSearchBox(selectAll: true);
             return;
         }
 
@@ -323,17 +334,20 @@ public partial class PosView : UserControl
             item.ClearDiscount();
             ViewModel.StatusMessage = "Descuento retirado.";
             ViewModel.IsStatusError = false;
+            FocusSearchBox(selectAll: true);
             return;
         }
 
         item.ApplyDiscount(dialog.DiscountType, dialog.DiscountValue, dialog.DiscountReason);
         ViewModel.StatusMessage = "Descuento aplicado al producto.";
         ViewModel.IsStatusError = false;
+        FocusSearchBox(selectAll: true);
     }
 
     private void ClearCart_Click(object sender, RoutedEventArgs e)
     {
         ViewModel?.ClearCart();
+        FocusSearchBox();
     }
 
     private void SelectCustomer_Click(object sender, RoutedEventArgs e)
@@ -356,12 +370,14 @@ public partial class PosView : UserControl
         bool? result = dialog.ShowDialog();
         if (result != true)
         {
+            FocusSearchBox(selectAll: true);
             return;
         }
 
         if (dialog.UseWalkInCustomer)
         {
             ViewModel.ClearCustomer();
+            FocusSearchBox(selectAll: true);
             return;
         }
 
@@ -370,6 +386,7 @@ public partial class PosView : UserControl
             ViewModel.SelectedCustomer = dialog.SelectedCustomer;
             ViewModel.StatusMessage = $"Cliente seleccionado: {dialog.SelectedCustomer.Name}.";
             ViewModel.IsStatusError = false;
+            FocusSearchBox(selectAll: true);
         }
     }
 
@@ -391,13 +408,13 @@ public partial class PosView : UserControl
         };
 
         dialog.ShowDialog();
-        SearchBox.Focus();
-        SearchBox.SelectAll();
+        FocusSearchBox(selectAll: true);
     }
 
     private void ClearCustomer_Click(object sender, RoutedEventArgs e)
     {
         ViewModel?.ClearCustomer();
+        FocusSearchBox();
     }
 
     private async void Pay_Click(object sender, RoutedEventArgs e)
@@ -450,6 +467,8 @@ public partial class PosView : UserControl
         {
             ViewModel.StoreLastReceipt(dialog.Receipt);
         }
+
+        FocusSearchBox(selectAll: true);
     }
 
     private void LastReceipt_Click(object sender, RoutedEventArgs e)
@@ -473,6 +492,7 @@ public partial class PosView : UserControl
         };
 
         dialog.ShowDialog();
+        FocusSearchBox(selectAll: true);
     }
 
     private void ShowPosAlert(string message, string title = "Atención", MessageBoxImage icon = MessageBoxImage.Warning)
@@ -483,6 +503,7 @@ public partial class PosView : UserControl
             title,
             MessageBoxButton.OK,
             icon);
+        FocusSearchBox(selectAll: true);
     }
 
     private void PendingOrders_Click(object sender, RoutedEventArgs e)
@@ -498,5 +519,31 @@ public partial class PosView : UserControl
         };
 
         dialog.ShowDialog();
+        FocusSearchBox(selectAll: true);
+    }
+
+    private void PosContext_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        FocusSearchBox();
+    }
+
+    private void FocusSearchBox(bool selectAll = false)
+    {
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                if (!IsVisible)
+                {
+                    return;
+                }
+
+                SearchBox.Focus();
+                Keyboard.Focus(SearchBox);
+                if (selectAll)
+                {
+                    SearchBox.SelectAll();
+                }
+            },
+            DispatcherPriority.Input);
     }
 }

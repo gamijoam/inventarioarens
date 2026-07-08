@@ -66,6 +66,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 
 - La búsqueda se ejecuta automáticamente con una pausa corta mientras el cajero escribe.
 - No se consulta la API en cada tecla; se espera un pequeño intervalo para proteger el rendimiento.
+- El POS debe mantener el foco operativo en el buscador principal para que el cajero pueda pistolear sin hacer click entre ventas.
+- Al agregar productos, cerrar selectores, cambiar lista/almacén, limpiar carrito, seleccionar cliente, aplicar descuentos, cerrar cobro, ver recibos o completar pendientes, WPF vuelve a enfocar el buscador.
 - El botón `Buscar` abre el selector manual usando el texto escrito en la barra superior.
 - La tecla `F2` abre el selector manual de productos.
 - Dentro del selector manual, `F2` vuelve a enfocar el buscador, `Enter` agrega el producto seleccionado y `Esc` cierra la ventana.
