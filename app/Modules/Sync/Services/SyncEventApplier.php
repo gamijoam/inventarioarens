@@ -11,11 +11,47 @@ use RuntimeException;
 
 class SyncEventApplier
 {
+    private const REPROCESSABLE_EVENT_TYPES = [
+        'branch.updated',
+        'branch.created',
+        'warehouse.updated',
+        'warehouse.created',
+        'product.updated',
+        'product.created',
+        'customer.updated',
+        'customer.created',
+        'stock_movement.updated',
+        'stock_movement.created',
+        'product_unit.updated',
+        'product_unit.created',
+        'price_list.updated',
+        'price_list.created',
+        'product_price.updated',
+        'product_price.created',
+        'price.updated',
+        'exchange_rate_type.updated',
+        'exchange_rate_type.created',
+        'exchange_rate.updated',
+        'exchange_rate.created',
+        'payment_method.updated',
+        'payment_method.created',
+        'cash_register.updated',
+        'cash_register.created',
+    ];
+
     public function applyPending(Tenant $tenant, int $limit = 50): array
     {
         $events = DB::table('sync_inbox')
             ->where('tenant_id', $tenant->id)
-            ->where('status', 'received')
+            ->where(function ($query): void {
+                $query
+                    ->where('status', 'received')
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('status', 'ignored')
+                            ->whereIn('event_type', self::REPROCESSABLE_EVENT_TYPES);
+                    });
+            })
             ->orderBy('id')
             ->limit($limit)
             ->get();
@@ -40,8 +76,16 @@ class SyncEventApplier
 
         $events = DB::table('sync_inbox')
             ->where('tenant_id', $tenant->id)
-            ->where('status', 'received')
             ->whereIn('event_uuid', $eventUuids)
+            ->where(function ($query): void {
+                $query
+                    ->where('status', 'received')
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('status', 'ignored')
+                            ->whereIn('event_type', self::REPROCESSABLE_EVENT_TYPES);
+                    });
+            })
             ->orderBy('id')
             ->get();
 

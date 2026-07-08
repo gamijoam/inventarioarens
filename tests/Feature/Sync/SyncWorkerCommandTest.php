@@ -227,6 +227,71 @@ class SyncWorkerCommandTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), "/sync/events/{$cloudEventUuid}/ack"));
     }
 
+    public function test_sync_apply_inbox_recovers_ignored_customer_events(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync Cliente Ignorado',
+            'slug' => 'empresa-sync-cliente-ignorado',
+        ]);
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'origin_node_id' => null,
+            'event_type' => 'customer.created',
+            'aggregate_type' => 'customer',
+            'aggregate_id' => 90,
+            'payload_hash' => hash('sha256', json_encode([
+                'name' => 'Soledad',
+                'document_type' => 'V',
+                'document_number' => '333333',
+                'phone' => '00000',
+                'email' => 'cliente@gmail.com',
+                'fiscal_address' => 'Sin direccion',
+                'is_generic' => false,
+                'is_active' => true,
+            ])),
+            'payload' => json_encode([
+                'name' => 'Soledad',
+                'document_type' => 'V',
+                'document_number' => '333333',
+                'phone' => '00000',
+                'email' => 'cliente@gmail.com',
+                'fiscal_address' => 'Sin direccion',
+                'is_generic' => false,
+                'is_active' => true,
+            ]),
+            'status' => 'ignored',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->artisan('sync:apply-inbox', [
+            'tenant' => $tenant->slug,
+            '--limit' => 10,
+        ])
+            ->expectsOutput('Eventos recibidos procesados.')
+            ->expectsOutput('Aplicados: 1')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('customers', [
+            'tenant_id' => $tenant->id,
+            'document_type' => 'V',
+            'document_number' => '333333',
+            'name' => 'Soledad',
+            'email' => 'cliente@gmail.com',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'status' => 'applied',
+        ]);
+    }
+
     public function test_sync_worker_does_not_acknowledge_cloud_events_that_fail_locally(): void
     {
         $tenant = Tenant::create([
