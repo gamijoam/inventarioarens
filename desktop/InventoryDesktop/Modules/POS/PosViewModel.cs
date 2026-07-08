@@ -755,6 +755,33 @@ public sealed class PosViewModel : ViewModelBase
         return serials.FirstOrDefault(serial => NormalizeExactSearch(serial.SerialNumber) == search);
     }
 
+    public async Task<ExactSerialSearchMatch?> FindExactSerialSearchMatchAsync()
+    {
+        string search = NormalizeExactSearch(SearchText);
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return null;
+        }
+
+        List<ExactSerialSearchMatch> matches = [];
+        foreach (PosProductCard card in Products.Where(card => card.Product.TrackingType == "serialized").Take(8))
+        {
+            InventoryProductSerial? serial = await FindExactAvailableSerialAsync(card, SearchText);
+            if (serial is not null)
+            {
+                matches.Add(new ExactSerialSearchMatch(card, serial));
+            }
+        }
+
+        if (matches.Count > 1)
+        {
+            SetError("El IMEI escaneado aparece en mas de un resultado. Abre el selector y confirma el producto.");
+            return null;
+        }
+
+        return matches.FirstOrDefault();
+    }
+
     public async Task<IReadOnlyList<InventoryProductSerial>> LoadAvailableSerialsAsync(long productId, string search = "")
     {
         if (SelectedWarehouse is null)
@@ -1321,6 +1348,8 @@ public sealed class PosViewModel : ViewModelBase
 }
 
 internal readonly record struct QuoteCacheKey(long ProductId, long? PriceListId);
+
+public sealed record ExactSerialSearchMatch(PosProductCard Card, InventoryProductSerial Serial);
 
 public sealed class PosProductCard(InventoryProductItem product)
     : ViewModelBase

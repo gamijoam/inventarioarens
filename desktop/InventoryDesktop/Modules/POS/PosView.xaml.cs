@@ -184,14 +184,23 @@ public partial class PosView : UserControl
             return;
         }
 
-        PosProductCard? card = ViewModel.FindExactSearchMatch();
-        if (card is null)
-        {
-            return;
-        }
-
         try
         {
+            PosProductCard? card = ViewModel.FindExactSearchMatch();
+            if (card is null)
+            {
+                ExactSerialSearchMatch? serialMatch = await ViewModel.FindExactSerialSearchMatchAsync();
+                if (serialMatch is null)
+                {
+                    return;
+                }
+
+                await AddCardToCartAsync(serialMatch.Card, serialMatch.Serial);
+                SearchBox.Focus();
+                SearchBox.SelectAll();
+                return;
+            }
+
             if (card.Product.TrackingType == "serialized")
             {
                 InventoryProductSerial? exactSerial = await ViewModel.FindExactAvailableSerialAsync(card, ViewModel.SearchText);

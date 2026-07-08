@@ -193,12 +193,13 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - La ventana enfoca automáticamente el buscador para pistolear o escribir el IMEI de inmediato.
 - Si la búsqueda deja un único IMEI/serial disponible, Enter lo selecciona sin usar el mouse.
 - La ventana consulta `GET /api/inventory-center/products/{product}/serials?status=available&warehouse_id={warehouse_id}`.
+- Si se escanea un IMEI exacto en el buscador principal y la busqueda devuelve el producto, Enter agrega ese IMEI directo al carrito.
 - El carrito evita repetir el mismo IMEI/serial en la orden actual.
 - Las líneas con IMEI no permiten aumentar cantidad con el botón `+`; para otra unidad se debe elegir otro serial.
 - En el carrito, cada línea muestra si el producto se vende `Por cantidad` o como `Serializado / IMEI`.
 - Las líneas serializadas muestran el IMEI en una etiqueta verde y desactivan los botones `+` y `-`.
 - La ventana de cobro muestra un resumen compacto de los productos a confirmar, incluyendo el IMEI cuando aplica.
-- El item del carrito conserva `product_unit_ids` para el futuro checkout real.
+- El checkout envia `product_unit_ids` al backend para que la venta, el kardex y las garantias conozcan el IMEI exacto vendido.
 
 ## APIs usadas
 
