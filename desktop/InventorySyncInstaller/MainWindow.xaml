@@ -69,13 +69,13 @@
                         </ComboBox>
 
                         <Button x:Name="ValidateRequirementsButton" Content="Validar requisitos de esta PC" Margin="0,18,0,0" Click="ValidateRequirements_Click" />
-                        <Button x:Name="PrepareButton" Content="Configurar esta computadora" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,22,0,0" Click="Prepare_Click" />
+                        <Button x:Name="PrepareButton" Content="Configurar e instalar sincronización" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,22,0,0" Click="Prepare_Click" />
 
                         <Border Background="#F8FAFE" BorderBrush="#DCE5F5" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,18,0,0">
                             <StackPanel>
-                                <TextBlock Text="Sincronizacion automatica" FontWeight="Black" FontSize="17" Foreground="#07142F" />
-                                <TextBlock Text="Instala el worker para que Windows lo mantenga activo sin abrir el programa principal." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" Margin="0,4,0,10" />
-                                <Button x:Name="InstallTaskButton" Content="Instalar automatico en Windows" Background="{StaticResource AccentBrush}" Foreground="White" Click="InstallTask_Click" />
+                                <TextBlock Text="Soporte de sincronización" FontWeight="Black" FontSize="17" Foreground="#07142F" />
+                                <TextBlock Text="El botón principal ya instala el worker automático. Usa estas opciones solo para reparar, iniciar, detener o revisar el estado." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" Margin="0,4,0,10" />
+                                <Button x:Name="InstallTaskButton" Content="Reinstalar automático en Windows" Background="{StaticResource AccentBrush}" Foreground="White" Click="InstallTask_Click" />
                                 <UniformGrid Columns="3" Margin="0,10,0,0">
                                     <Button x:Name="StartTaskButton" Content="Iniciar" Margin="0,0,6,0" Click="StartTask_Click" />
                                     <Button x:Name="StopTaskButton" Content="Detener" Margin="3,0,3,0" Click="StopTask_Click" />
@@ -121,7 +121,7 @@
 
                         <StackPanel>
                             <TextBlock Text="Pasos de configuracion" FontSize="24" FontWeight="Black" Foreground="#07142F" />
-                            <TextBlock Text="El configurador hace todo en orden. Si algo falla, se mostrara un mensaje claro." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <TextBlock Text="El configurador hace todo en orden: valida, prepara la base, sincroniza e instala el worker automático." TextWrapping="Wrap" Foreground="#5B6B8A" FontWeight="SemiBold" Margin="0,4,0,0" />
                         </StackPanel>
 
                         <Grid Grid.Row="1" Margin="0,18,0,18">
@@ -144,10 +144,10 @@
                                     <ListBoxItem Content="1. Validar acceso del administrador" />
                                     <ListBoxItem Content="2. Obtener empresas disponibles" />
                                     <ListBoxItem Content="3. Preparar base local" />
-                                    <ListBoxItem Content="4. Guardar configuracion" />
+                                    <ListBoxItem Content="4. Guardar configuración" />
                                     <ListBoxItem Content="5. Sincronizar datos iniciales" />
-                                    <ListBoxItem Content="6. Activar sincronizacion automatica" />
-                                    <ListBoxItem Content="7. Finalizar instalacion" />
+                                    <ListBoxItem Content="6. Instalar tarea automática de Windows" />
+                                    <ListBoxItem Content="7. Iniciar worker y finalizar instalación" />
                                 </ListBox>
                             </StackPanel>
                         </Grid>

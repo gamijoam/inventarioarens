@@ -82,20 +82,20 @@ public partial class MainWindow : Window
             await RunArtisanAsync(["migrate", "--force"]);
             await PrepareLocalTenantAsync(selectedTenant, email, password, nodeName);
 
-            SetState("Guardando", "Guardando configuracion", "Registrando servidor, empresa y frecuencia de sincronizacion.", 3);
+            SetState("Guardando", "Guardando configuración", "Registrando servidor, empresa y frecuencia de sincronización.", 3);
             SaveSyncConfiguration(selectedTenant.Slug, cloudUrl, syncToken, nodeCode, nodeName, installationCode, interval);
 
-            SetState("Preparando", "Deteniendo sincronizacion anterior", "Si esta empresa tenia un worker abierto, se detendra antes de continuar.", 4);
+            SetState("Preparando", "Deteniendo sincronización anterior", "Si esta empresa tenía un worker abierto, se detendrá antes de continuar.", 4);
             await RunWorkerAsync("stop", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 
             SetState("Sincronizando", "Sincronizando datos iniciales", "Descargando productos, precios, cajas y permisos disponibles para esta empresa.", 4);
             await RunWorkerAsync("run", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
 
-            SetState("Activando", "Activando sincronizacion automatica", $"Windows mantendra activo el worker de esta empresa.", 5);
+            SetState("Instalando", "Instalando tarea automática de Windows", "Windows mantendrá activo el worker de esta empresa aunque el sistema principal esté cerrado.", 5);
             await RunWorkerTaskAsync("install", selectedTenant.Slug);
 
-            SetState("Completado", "Configuracion completada", "Esta computadora ya esta lista para abrir el Sistema de Inventario.", 6);
-            TechnicalSummaryText.Text = $"Empresa: {selectedTenant.Name} | Equipo: {nodeName} | Sincronizacion cada {interval} segundos.";
+            SetState("Completado", "Configuración completada", "Esta computadora ya está lista para abrir el Sistema de Inventario.", 6);
+            TechnicalSummaryText.Text = $"Empresa: {selectedTenant.Name} | Equipo: {nodeName} | Sincronización cada {interval} segundos.";
             OpenMainButton.Visibility = Visibility.Visible;
             AppendLog("Configuracion finalizada correctamente.");
         });
