@@ -174,6 +174,9 @@ public sealed record PosCustomerListResponse(
 public sealed record PosCustomerResponse(
     [property: JsonPropertyName("data")] PosCustomerOption Data);
 
+public sealed record PosCustomerDetailResponse(
+    [property: JsonPropertyName("data")] PosCustomerDetail Data);
+
 public sealed record PosCustomerCreateRequest(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("document_type")] string DocumentType,
@@ -216,4 +219,68 @@ public sealed record PosCustomerOption(
             return string.Join(" · ", parts);
         }
     }
+}
+
+public sealed record PosCustomerDetail(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("document_type")] string DocumentType,
+    [property: JsonPropertyName("document_number")] string DocumentNumber,
+    [property: JsonPropertyName("phone")] string? Phone,
+    [property: JsonPropertyName("email")] string? Email,
+    [property: JsonPropertyName("is_generic")] bool IsGeneric,
+    [property: JsonPropertyName("is_active")] bool IsActive,
+    [property: JsonPropertyName("pos_history")] PosCustomerHistory? PosHistory);
+
+public sealed record PosCustomerHistory(
+    [property: JsonPropertyName("total_orders")] int TotalOrders,
+    [property: JsonPropertyName("paid_orders")] int PaidOrders,
+    [property: JsonPropertyName("open_orders")] int OpenOrders,
+    [property: JsonPropertyName("total_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal TotalBaseAmount,
+    [property: JsonPropertyName("paid_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal PaidBaseAmount,
+    [property: JsonPropertyName("balance_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal BalanceBaseAmount,
+    [property: JsonPropertyName("last_order_at")] string? LastOrderAt,
+    [property: JsonPropertyName("recent_orders")] IReadOnlyList<PosCustomerRecentOrder> RecentOrders)
+{
+    public string OrdersLabel => $"{TotalOrders} compra(s)";
+
+    public string PaidLabel => $"Pagadas: {PaidOrders}";
+
+    public string OpenLabel => $"Pendientes: {OpenOrders}";
+
+    public string TotalLabel => $"Total USD {TotalBaseAmount:0.00}";
+
+    public string BalanceLabel => $"Saldo USD {BalanceBaseAmount:0.00}";
+
+    public string LastOrderLabel => string.IsNullOrWhiteSpace(LastOrderAt)
+        ? "Sin compras registradas"
+        : $"Ultima compra: {LastOrderAt}";
+}
+
+public sealed record PosCustomerRecentOrder(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("status_label")] string StatusLabel,
+    [property: JsonPropertyName("total_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal TotalBaseAmount,
+    [property: JsonPropertyName("paid_base_amount")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal PaidBaseAmount,
+    [property: JsonPropertyName("opened_at")] string? OpenedAt,
+    [property: JsonPropertyName("paid_at")] string? PaidAt)
+{
+    public string OrderLabel => $"POS #{Id}";
+
+    public string TotalLabel => $"USD {TotalBaseAmount:0.00}";
+
+    public string PaidLabel => $"Pagado USD {PaidBaseAmount:0.00}";
+
+    public string DateLabel => string.IsNullOrWhiteSpace(OpenedAt) ? "Sin fecha" : OpenedAt;
 }

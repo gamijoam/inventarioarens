@@ -1761,6 +1761,28 @@ Permiso requerido:
 customers.view
 ```
 
+Query params opcionales:
+
+```txt
+include=pos_history
+```
+
+Cuando `include=pos_history` esta presente, la respuesta agrega `data.pos_history` con:
+
+- `total_orders`: ordenes POS del cliente en la empresa actual;
+- `paid_orders`: ordenes POS pagadas;
+- `open_orders`: ordenes POS pendientes;
+- `total_base_amount`: total historico en USD base;
+- `paid_base_amount`: total pagado en USD base;
+- `balance_base_amount`: saldo estimado pendiente;
+- `recent_orders`: ultimas ordenes POS del cliente.
+
+Reglas:
+
+- el historial se limita a la empresa actual;
+- no mezcla ventas ni ordenes de otros tenants;
+- se usa para el selector de clientes del POS de escritorio.
+
 ### Actualizar cliente
 
 ```txt

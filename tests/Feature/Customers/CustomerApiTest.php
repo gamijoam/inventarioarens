@@ -4,6 +4,8 @@ namespace Tests\Feature\Customers;
 
 use App\Models\User;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\POS\Models\PosOrder;
+use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -157,6 +159,37 @@ class CustomerApiTest extends TestCase
             ->assertJsonPath('data.1.name', 'Pedro Accesorios');
     }
 
+    public function test_customer_detail_can_include_pos_history(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $otherTenant = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['customers.view']);
+
+        $customer = $this->customer($tenant, 'Cliente Historial', Customer::DOCUMENT_V, '123');
+        $otherCustomer = $this->customer($otherTenant, 'Cliente Externo', Customer::DOCUMENT_V, '123');
+
+        $this->posOrder($tenant, $customer, PosOrder::STATUS_PAID, 80, 80, now()->subDays(2));
+        $this->posOrder($tenant, $customer, PosOrder::STATUS_OPEN, 50, 20, now()->subDay());
+        $this->posOrder($otherTenant, $otherCustomer, PosOrder::STATUS_PAID, 999, 999, now());
+        $this->useTenant($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/customers/{$customer->id}?include=pos_history")
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Cliente Historial')
+            ->assertJsonPath('data.pos_history.total_orders', 2)
+            ->assertJsonPath('data.pos_history.paid_orders', 1)
+            ->assertJsonPath('data.pos_history.open_orders', 1)
+            ->assertJsonPath('data.pos_history.total_base_amount', 130)
+            ->assertJsonPath('data.pos_history.paid_base_amount', 100)
+            ->assertJsonPath('data.pos_history.balance_base_amount', 30)
+            ->assertJsonPath('data.pos_history.recent_orders.0.status', PosOrder::STATUS_OPEN)
+            ->assertJsonMissing(['total_base_amount' => 999]);
+    }
+
     public function test_customer_api_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -193,6 +226,33 @@ class CustomerApiTest extends TestCase
             'document_type' => $documentType,
             'document_number' => $documentNumber,
             'phone' => $phone,
+        ]);
+    }
+
+    private function posOrder(Tenant $tenant, Customer $customer, string $status, int $total, int $paid, \DateTimeInterface $openedAt): PosOrder
+    {
+        $this->useTenant($tenant);
+
+        $sale = Sale::create([
+            'customer_id' => $customer->id,
+            'status' => $status === PosOrder::STATUS_PAID ? 'confirmed' : 'draft',
+            'total_base_amount' => $total,
+            'total_local_amount' => $total * 500,
+            'confirmed_at' => $status === PosOrder::STATUS_PAID ? $openedAt : null,
+        ]);
+
+        return PosOrder::create([
+            'sale_id' => $sale->id,
+            'customer_id' => $customer->id,
+            'status' => $status,
+            'customer_name' => $customer->name,
+            'total_base_amount' => $total,
+            'total_local_amount' => $total * 500,
+            'paid_base_amount' => $paid,
+            'paid_local_amount' => $paid * 500,
+            'opened_at' => $openedAt,
+            'paid_at' => $status === PosOrder::STATUS_PAID ? $openedAt : null,
+            'closed_at' => $status === PosOrder::STATUS_PAID ? $openedAt : null,
         ]);
     }
 

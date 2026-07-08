@@ -35,6 +35,8 @@ public sealed class PosViewModel : ViewModelBase
     private InventoryWarehouseOption? selectedWarehouse;
     private PosCashRegisterSession? selectedCashRegisterSession;
     private PosCustomerOption? selectedCustomer;
+    private PosCustomerHistory? selectedCustomerHistory;
+    private bool isLoadingCustomerHistory;
     private PosReceiptSnapshot? lastReceipt;
     private CancellationTokenSource? quoteWarmupCancellation;
     private bool hasInitialized;
@@ -60,6 +62,8 @@ public sealed class PosViewModel : ViewModelBase
     public ObservableCollection<PaymentMethodOption> PaymentMethods { get; } = new();
 
     public ObservableCollection<PosCustomerOption> CustomerSearchResults { get; } = new();
+
+    public ObservableCollection<PosCustomerRecentOrder> CustomerRecentOrders { get; } = new();
 
     public ObservableCollection<PosOrderSummary> PendingOrders { get; } = new();
 
@@ -176,6 +180,53 @@ public sealed class PosViewModel : ViewModelBase
     public string CustomerLabel => SelectedCustomer?.Name ?? "Consumidor final";
 
     public string CustomerDetailLabel => SelectedCustomer?.DetailLabel ?? "Venta sin cliente registrado";
+
+    public PosCustomerHistory? SelectedCustomerHistory
+    {
+        get => selectedCustomerHistory;
+        private set
+        {
+            if (SetProperty(ref selectedCustomerHistory, value))
+            {
+                RaiseCustomerHistoryChanged();
+            }
+        }
+    }
+
+    public bool IsLoadingCustomerHistory
+    {
+        get => isLoadingCustomerHistory;
+        private set
+        {
+            if (SetProperty(ref isLoadingCustomerHistory, value))
+            {
+                RaisePropertyChanged(nameof(CustomerHistorySummaryLabel));
+            }
+        }
+    }
+
+    public string CustomerHistorySummaryLabel
+    {
+        get
+        {
+            if (IsLoadingCustomerHistory)
+            {
+                return "Consultando historial...";
+            }
+
+            return SelectedCustomerHistory?.OrdersLabel ?? "Selecciona un cliente para ver su historial.";
+        }
+    }
+
+    public string CustomerHistoryPaidLabel => SelectedCustomerHistory?.PaidLabel ?? "Pagadas: 0";
+
+    public string CustomerHistoryOpenLabel => SelectedCustomerHistory?.OpenLabel ?? "Pendientes: 0";
+
+    public string CustomerHistoryMoneyLabel => SelectedCustomerHistory?.TotalLabel ?? "Total USD 0.00";
+
+    public string CustomerHistoryDebtLabel => SelectedCustomerHistory?.BalanceLabel ?? "Saldo USD 0.00";
+
+    public string CustomerHistoryLastLabel => SelectedCustomerHistory?.LastOrderLabel ?? "Sin compras registradas";
 
     public string StatusMessage
     {
@@ -469,6 +520,42 @@ public sealed class PosViewModel : ViewModelBase
         {
             SetError("No se pudo conectar con la API para buscar clientes.");
             return [];
+        }
+    }
+
+    public async Task LoadCustomerHistoryAsync(PosCustomerOption? customer)
+    {
+        CustomerRecentOrders.Clear();
+        SelectedCustomerHistory = null;
+
+        if (customer is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsLoadingCustomerHistory = true;
+            PosCustomerDetailResponse response = await apiClient.GetAsync<PosCustomerDetailResponse>($"customers/{customer.Id}?include=pos_history");
+            PosCustomerHistory? history = response.Data.PosHistory;
+            SelectedCustomerHistory = history;
+
+            foreach (PosCustomerRecentOrder order in history?.RecentOrders ?? [])
+            {
+                CustomerRecentOrders.Add(order);
+            }
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar el historial del cliente.");
+        }
+        finally
+        {
+            IsLoadingCustomerHistory = false;
         }
     }
 
@@ -979,6 +1066,16 @@ public sealed class PosViewModel : ViewModelBase
         RaisePropertyChanged(nameof(CartCountLabel));
         RaisePropertyChanged(nameof(CanPay));
         RaisePropertyChanged(nameof(PayHint));
+    }
+
+    private void RaiseCustomerHistoryChanged()
+    {
+        RaisePropertyChanged(nameof(CustomerHistorySummaryLabel));
+        RaisePropertyChanged(nameof(CustomerHistoryPaidLabel));
+        RaisePropertyChanged(nameof(CustomerHistoryOpenLabel));
+        RaisePropertyChanged(nameof(CustomerHistoryMoneyLabel));
+        RaisePropertyChanged(nameof(CustomerHistoryDebtLabel));
+        RaisePropertyChanged(nameof(CustomerHistoryLastLabel));
     }
 
     private void RaiseOperationalContextChanged()

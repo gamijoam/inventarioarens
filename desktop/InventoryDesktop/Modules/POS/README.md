@@ -174,6 +174,8 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - El botón `Buscar cliente` abre una ventana de búsqueda.
 - La búsqueda consulta `GET /api/customers?search={texto}&active_only=1&limit=20`.
 - Se puede buscar por nombre, cédula/RIF, teléfono o correo.
+- Al seleccionar un cliente en la búsqueda, WPF consulta `GET /api/customers/{customer}?include=pos_history`.
+- El panel de historial muestra compras pagadas, pendientes, saldo y últimas órdenes POS del cliente.
 - Si el cliente no existe, el botón `+ Nuevo cliente` abre el registro rápido desde el POS.
 - El registro rápido envía `POST /api/customers` con nombre, tipo de documento, documento, teléfono, correo y dirección fiscal opcional.
 - Al crear un cliente desde el POS, queda seleccionado automáticamente para la venta actual.
@@ -205,6 +207,7 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - `GET /api/inventory-center/products/{product}/serials`: seriales/IMEI disponibles por producto y almacén.
 - `GET /api/payment-methods?active_only=1`: métodos de pago disponibles.
 - `GET /api/customers?search={texto}&active_only=1&limit=20`: búsqueda rápida de clientes activos.
+- `GET /api/customers/{customer}?include=pos_history`: detalle del cliente con historial reciente POS.
 - `POST /api/pos/checkouts`: confirmación real de venta POS.
 - `GET /api/pos/orders?status=open`: listado de órdenes POS pendientes.
 - `POST /api/pos/orders/{order}/payments`: completar cobro de una orden POS pendiente.

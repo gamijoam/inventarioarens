@@ -11,6 +11,8 @@ Cerrar el flujo de cliente dentro del POS de escritorio para que una venta pueda
 - El boton **F8 Buscar / crear** abre la ventana de seleccion de cliente.
 - El boton **Consumidor final** limpia el cliente seleccionado y vuelve a venta rapida.
 - Al seleccionar un cliente, el POS muestra nombre y detalle del documento/contacto.
+- Al marcar un cliente en la ventana de seleccion, el POS consulta su historial reciente de compras.
+- El historial muestra compras pagadas, pendientes, monto total, saldo y ultimas ordenes POS.
 - Al crear un cliente desde POS, queda seleccionado para la venta actual.
 - Al confirmar la venta, WPF envia `customer_id` y `customer_name` al backend.
 - Despues de confirmar la venta, el POS vuelve automaticamente a **Consumidor final** para evitar vender por error con el cliente anterior.
@@ -37,6 +39,12 @@ Busqueda de clientes:
 GET /api/customers?search={texto}&active_only=1&limit=20
 ```
 
+Detalle con historial POS:
+
+```http
+GET /api/customers/{customer}?include=pos_history
+```
+
 Creacion rapida:
 
 ```http
@@ -50,6 +58,22 @@ POST /api/pos/checkouts
 ```
 
 El backend ya valida que el cliente pertenezca a la empresa actual y que el documento no se duplique dentro de la misma empresa.
+
+## Mejora 2026-07-08 - Historial de cliente en selector POS
+
+La ventana **Seleccionar cliente** ahora tiene dos columnas:
+
+- izquierda: resultados de busqueda de clientes activos;
+- derecha: historial operativo del cliente seleccionado.
+
+El historial se carga solo al seleccionar un cliente, para no hacer lenta la busqueda. Esta informacion ayuda al cajero a detectar compras recientes, ordenes pendientes y saldos antes de asociar el cliente a la venta.
+
+Datos visibles:
+
+- compras totales, pagadas y pendientes;
+- total historico en USD;
+- saldo pendiente estimado en USD;
+- ultimas 5 ordenes POS del cliente.
 
 ## Pruebas ejecutadas
 

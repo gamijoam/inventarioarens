@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace InventoryDesktop.Modules.POS;
@@ -6,11 +7,13 @@ namespace InventoryDesktop.Modules.POS;
 public partial class PosCustomerSelectionWindow : Window
 {
     private readonly PosViewModel viewModel;
+    private long historyRequestId;
 
     public PosCustomerSelectionWindow(PosViewModel viewModel)
     {
         InitializeComponent();
         this.viewModel = viewModel;
+        DataContext = viewModel;
         CustomersGrid.ItemsSource = viewModel.CustomerSearchResults;
         PreviewKeyDown += CustomerSelectionWindow_PreviewKeyDown;
         SearchBox.Focus();
@@ -85,6 +88,18 @@ public partial class PosCustomerSelectionWindow : Window
     private void CustomersGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         SelectCurrentCustomer();
+    }
+
+    private async void CustomersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        long requestId = ++historyRequestId;
+        PosCustomerOption? customer = CustomersGrid.SelectedItem as PosCustomerOption;
+        await viewModel.LoadCustomerHistoryAsync(customer);
+
+        if (requestId != historyRequestId)
+        {
+            return;
+        }
     }
 
     private void Select_Click(object sender, RoutedEventArgs e)

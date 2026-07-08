@@ -20,6 +20,10 @@ class CustomerResource extends JsonResource
             'fiscal_address' => $this->fiscal_address,
             'is_generic' => $this->is_generic,
             'is_active' => $this->is_active,
+            'pos_history' => $this->when(
+                $this->resource->getAttribute('pos_history') !== null,
+                fn () => $this->resource->getAttribute('pos_history')
+            ),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
