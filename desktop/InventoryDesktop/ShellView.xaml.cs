@@ -30,7 +30,11 @@ public partial class ShellView : UserControl
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
         cashRegisterViewModel = new CashRegisterViewModel(session.ApiClient, session.Login.User.Id);
-        customersViewModel = new CustomersViewModel(session.ApiClient);
+        customersViewModel = new CustomersViewModel(
+            session.ApiClient,
+            session.HasPermission("customers.create"),
+            session.HasPermission("customers.update"),
+            session.HasPermission("customers.delete"));
         posViewModel = new PosViewModel(session.ApiClient, session.Login.User.Id);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;

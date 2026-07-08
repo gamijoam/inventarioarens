@@ -2,15 +2,17 @@
 
 ## Objetivo
 
-Se agregó un módulo independiente de Clientes en la aplicación WPF para que el operador pueda registrar, editar, consultar y desactivar clientes sin depender del flujo del POS.
+Se agrego un modulo independiente de Clientes en la aplicacion WPF para que el operador pueda registrar, editar, consultar y desactivar clientes sin depender del flujo del POS.
 
-## Implementación
+## Implementacion
 
-- Nueva tarjeta `Clientes` en el centro de módulos.
-- Nueva vista compacta de clientes con búsqueda, filtro de activos y panel de detalle.
+- Nueva tarjeta `Clientes` en el centro de modulos.
+- Nueva vista compacta de clientes con busqueda, filtro de activos y panel de detalle.
 - Nueva ventana para crear o editar datos del cliente.
 - Consulta de historial POS reciente por cliente.
-- Desactivación lógica mediante la API existente.
+- Desactivacion logica mediante la API existente.
+- Botones de crear, editar y desactivar controlados por permisos del usuario.
+- Estado visual cuando la busqueda no devuelve resultados.
 
 ## APIs usadas
 
@@ -20,16 +22,29 @@ Se agregó un módulo independiente de Clientes en la aplicación WPF para que e
 - `PATCH /api/customers/{id}`
 - `DELETE /api/customers/{id}`
 
-## Pruebas
+## Permisos aplicados
 
-Se debe validar:
+- `customers.view`: permite abrir el modulo.
+- `customers.create`: habilita `Nuevo cliente`.
+- `customers.update`: habilita `Editar`.
+- `customers.delete`: habilita `Desactivar`.
 
-- Compilación del proyecto WPF.
-- Pruebas específicas de clientes en PostgreSQL.
-- Creación, edición y desactivación desde escritorio.
-- Que el historial POS cargue sin bloquear la pantalla.
+El consumidor final queda protegido para evitar desactivaciones accidentales desde la vista.
+
+## Pruebas realizadas
+
+- Compilacion del proyecto WPF.
+- Pruebas especificas de clientes en PostgreSQL.
+- Integracion visual de permisos en la pantalla de escritorio.
+
+## Pruebas operativas recomendadas
+
+- Crear un cliente desde escritorio y verificar que se sincronice hacia la nube.
+- Editar un cliente desde la nube y verificar que baje al escritorio.
+- Desactivar un cliente desde escritorio y confirmar que no se borra su historial.
+- Confirmar que un usuario sin permisos no pueda crear, editar o desactivar.
 
 ## Pendiente
 
-- Agregar permisos finos en la interfaz para ocultar botones según `customers.create`, `customers.update` y `customers.delete`.
-- Integrar búsqueda avanzada por saldo o compras cuando el módulo de reportes/clientes crezca.
+- Integrar busqueda avanzada por saldo, frecuencia de compra o ultima venta cuando el modulo de reportes/clientes crezca.
+- Mostrar un indicador visual por cliente si existen cambios locales pendientes de sincronizar.

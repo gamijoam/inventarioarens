@@ -9,6 +9,9 @@ namespace InventoryDesktop.Modules.Customers;
 public sealed class CustomersViewModel : ViewModelBase
 {
     private readonly ApiClient apiClient;
+    private readonly bool canCreate;
+    private readonly bool canUpdate;
+    private readonly bool canDelete;
     private CustomerItem? selectedCustomer;
     private CustomerHistory? selectedHistory;
     private string search = string.Empty;
@@ -17,9 +20,12 @@ public sealed class CustomersViewModel : ViewModelBase
     private bool isStatusError;
     private string statusMessage = "Carga clientes para comenzar.";
 
-    public CustomersViewModel(ApiClient apiClient)
+    public CustomersViewModel(ApiClient apiClient, bool canCreate = true, bool canUpdate = true, bool canDelete = true)
     {
         this.apiClient = apiClient;
+        this.canCreate = canCreate;
+        this.canUpdate = canUpdate;
+        this.canDelete = canDelete;
     }
 
     public ObservableCollection<CustomerItem> Customers { get; } = new();
@@ -68,7 +74,16 @@ public sealed class CustomersViewModel : ViewModelBase
     public bool IsBusy
     {
         get => isBusy;
-        set => SetProperty(ref isBusy, value);
+        set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                RaisePropertyChanged(nameof(CanCreate));
+                RaisePropertyChanged(nameof(CanEditSelected));
+                RaisePropertyChanged(nameof(CanDeactivateSelected));
+                RaisePropertyChanged(nameof(HasNoCustomers));
+            }
+        }
     }
 
     public string StatusMessage
@@ -84,6 +99,18 @@ public sealed class CustomersViewModel : ViewModelBase
     public string CountLabel => $"{Customers.Count} cliente(s)";
 
     public bool HasSelection => SelectedCustomer is not null;
+
+    public bool HasNoCustomers => !IsBusy && Customers.Count == 0;
+
+    public bool CanCreate => canCreate && !IsBusy;
+
+    public bool CanEditSelected => canUpdate && !IsBusy && SelectedCustomer is not null;
+
+    public bool CanDeactivateSelected => canDelete
+        && !IsBusy
+        && SelectedCustomer is not null
+        && !SelectedCustomer.IsGeneric
+        && SelectedCustomer.IsActive;
 
     public string SelectedName => SelectedCustomer?.Name ?? "Selecciona un cliente";
 
@@ -132,6 +159,7 @@ public sealed class CustomersViewModel : ViewModelBase
             }
 
             RaisePropertyChanged(nameof(CountLabel));
+            RaisePropertyChanged(nameof(HasNoCustomers));
 
             SelectedCustomer = previousId is null
                 ? Customers.FirstOrDefault()
@@ -143,6 +171,8 @@ public sealed class CustomersViewModel : ViewModelBase
         {
             Customers.Clear();
             SelectedCustomer = null;
+            RaisePropertyChanged(nameof(CountLabel));
+            RaisePropertyChanged(nameof(HasNoCustomers));
             SetStatus(exception is ApiException ? exception.Message : "No se pudieron cargar los clientes.", true);
         }
         finally
@@ -153,6 +183,18 @@ public sealed class CustomersViewModel : ViewModelBase
 
     public async Task<CustomerItem?> SaveAsync(CustomerSaveRequest request, long? customerId)
     {
+        if (customerId is null && !canCreate)
+        {
+            SetStatus("No tienes permiso para crear clientes.", true);
+            return null;
+        }
+
+        if (customerId is not null && !canUpdate)
+        {
+            SetStatus("No tienes permiso para editar clientes.", true);
+            return null;
+        }
+
         if (IsBusy)
         {
             return null;
@@ -183,6 +225,12 @@ public sealed class CustomersViewModel : ViewModelBase
 
     public async Task<bool> DeactivateSelectedAsync()
     {
+        if (!canDelete)
+        {
+            SetStatus("No tienes permiso para desactivar clientes.", true);
+            return false;
+        }
+
         if (SelectedCustomer is null || IsBusy)
         {
             return false;
@@ -252,5 +300,7 @@ public sealed class CustomersViewModel : ViewModelBase
         RaisePropertyChanged(nameof(SelectedContact));
         RaisePropertyChanged(nameof(SelectedStatus));
         RaisePropertyChanged(nameof(SelectedAddress));
+        RaisePropertyChanged(nameof(CanEditSelected));
+        RaisePropertyChanged(nameof(CanDeactivateSelected));
     }
 }
