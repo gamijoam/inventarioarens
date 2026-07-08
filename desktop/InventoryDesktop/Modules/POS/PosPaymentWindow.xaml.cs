@@ -89,6 +89,7 @@ public partial class PosPaymentWindow : Window
 
         PaymentMethodBox.ItemsSource = choices;
         PaymentMethodBox.SelectedIndex = choices.Count > 0 ? 0 : -1;
+        BuildQuickPaymentButtons(choices);
 
         if (choices.Count == 0)
         {
@@ -117,6 +118,54 @@ public partial class PosPaymentWindow : Window
     {
         UpdateFormHelp();
         UpdatePaymentPreview();
+    }
+
+    private void BuildQuickPaymentButtons(IReadOnlyList<PaymentMethodChoice> choices)
+    {
+        QuickMethodsPanel.Children.Clear();
+
+        foreach (PaymentMethodChoice choice in choices.Take(6))
+        {
+            Button button = new()
+            {
+                Content = choice.QuickLabel,
+                Tag = choice,
+                Height = 34,
+                MinWidth = 118,
+                Margin = new Thickness(0, 0, 8, 8),
+                FontWeight = FontWeights.Black,
+                Background = new SolidColorBrush(Color.FromRgb(248, 250, 254)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+                Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                ToolTip = choice.RequiresReference
+                    ? "Completa saldo y pide referencia."
+                    : "Completa saldo y agrega el pago.",
+            };
+            button.Click += QuickPayment_Click;
+            QuickMethodsPanel.Children.Add(button);
+        }
+    }
+
+    private void QuickPayment_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: PaymentMethodChoice choice })
+        {
+            return;
+        }
+
+        PaymentMethodBox.SelectedItem = choice;
+        PaymentStatusBox.SelectedIndex = 0;
+        FillRemainingAmount();
+
+        if (choice.RequiresReference)
+        {
+            SetInfo("Monto listo. Ingresa la referencia y presiona Enter o Agregar pago.");
+            ReferenceBox.Focus();
+            ReferenceBox.SelectAll();
+            return;
+        }
+
+        AddPayment();
     }
 
     private void PaymentStatusBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -164,6 +213,11 @@ public partial class PosPaymentWindow : Window
     }
 
     private void UseRemaining_Click(object sender, RoutedEventArgs e)
+    {
+        FillRemainingAmount();
+    }
+
+    private void FillRemainingAmount()
     {
         ClearError();
         string currency = CurrencyBox.SelectedItem as string ?? "USD";
@@ -684,6 +738,10 @@ public sealed record PaymentMethodChoice(
     private string CurrencyLabel => CurrencyMode.Equals("flexible", StringComparison.OrdinalIgnoreCase)
         ? "USD/Bs"
         : CurrencyMode.ToUpperInvariant();
+
+    public string QuickLabel => RequiresReference
+        ? $"{Name} ref."
+        : Name;
 
     public static PaymentMethodChoice FromConfigured(PaymentMethodOption option)
     {

@@ -109,6 +109,9 @@ Este módulo contiene la primera base visual y operativa del punto de venta en W
 - Laravel vuelve a validar el descuento en `POST /api/pos/checkouts` para impedir descuentos mayores al total de la línea.
 - Laravel guarda en cada `sale_item` el tipo, valor, monto descontado, equivalente base, equivalente local y motivo.
 - El POS carga métodos de pago activos desde `GET /api/payment-methods?active_only=1`.
+- La ventana de cobro muestra botones de `Pagos rápidos` con los primeros métodos activos permitidos para la lista de precio.
+- Al tocar un pago rápido, WPF completa el faltante automáticamente; si el método no exige referencia, agrega el pago de una vez.
+- Si el método exige referencia, WPF deja el monto listo y enfoca el campo de referencia para que el cajero lo complete.
 - Si la lista de precio tiene métodos restringidos, la ventana de cobro solo muestra esos métodos.
 - Si la lista de precio está abierta, se muestran todos los métodos activos.
 - Si no hay métodos configurados y la lista está abierta, la ventana ofrece métodos básicos compatibles con el backend: efectivo USD, pago móvil Bs y transferencia Bs.

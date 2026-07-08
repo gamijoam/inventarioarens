@@ -70,6 +70,10 @@
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
                                    Margin="0,4,0,0" />
+                        <TextBlock Text="Pagos rápidos"
+                                   FontWeight="Black"
+                                   Margin="0,12,0,6" />
+                        <WrapPanel x:Name="QuickMethodsPanel" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Margin="0,18,0,0">
