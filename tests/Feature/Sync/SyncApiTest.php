@@ -3,7 +3,9 @@
 namespace Tests\Feature\Sync;
 
 use App\Models\User;
+use App\Modules\Sync\Services\SyncOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -485,6 +487,81 @@ class SyncApiTest extends TestCase
             'direction' => 'pull',
             'last_event_uuid' => $eventUuid,
         ]);
+    }
+
+    public function test_cloud_catalog_events_are_queued_independently_for_each_active_local_node(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-cloud-fanout');
+        $nodeA = $this->node($tenant, 'LOCAL-NORTE-01');
+        $nodeB = $this->node($tenant, 'LOCAL-CENTRO-01');
+        $this->node($tenant, 'CLOUD-MAIN', 'cloud');
+
+        app(TenantManager::class)->set($tenant);
+
+        app(SyncOutboxService::class)->record(
+            eventType: 'customer.created',
+            aggregateType: 'customer',
+            aggregateId: 77,
+            payload: [
+                'name' => 'Cliente Web Fanout',
+                'document_type' => 'V',
+                'document_number' => '77889900',
+                'is_generic' => false,
+                'is_active' => true,
+            ],
+            idempotencyKey: 'customer-created-fanout-77',
+        );
+
+        app(TenantManager::class)->clear();
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $nodeA,
+            'target_scope' => 'node',
+            'event_type' => 'customer.created',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $nodeB,
+            'target_scope' => 'node',
+            'event_type' => 'customer.created',
+            'status' => 'pending',
+        ]);
+        $this->assertSame(2, DB::table('sync_outbox')->where('tenant_id', $tenant->id)->where('event_type', 'customer.created')->count());
+
+        $firstPull = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sync/events/pull?node_code=LOCAL-NORTE-01')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->json('data.0.event_uuid');
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sync/events/{$firstPull}/ack", [
+                'node_code' => 'LOCAL-NORTE-01',
+                'status' => 'applied',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $nodeA,
+            'status' => 'processed',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $nodeB,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sync/events/pull?node_code=LOCAL-CENTRO-01')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.payload.name', 'Cliente Web Fanout');
     }
 
     public function test_sync_events_are_isolated_by_tenant(): void

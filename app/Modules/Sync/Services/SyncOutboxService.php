@@ -30,6 +30,56 @@ class SyncOutboxService
             return (int) $existingId;
         }
 
+        if ($targetNodeId === null && $targetScope === 'tenant') {
+            $nodeIds = DB::table('sync_nodes')
+                ->where('tenant_id', $tenant->id)
+                ->where('type', 'local')
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->pluck('id');
+
+            if ($nodeIds->isNotEmpty()) {
+                $firstId = null;
+
+                foreach ($nodeIds as $nodeId) {
+                    $nodeId = (int) $nodeId;
+                    $nodeKey = $idempotencyKey.':node:'.$nodeId;
+                    $existingNodeId = DB::table('sync_outbox')
+                        ->where('tenant_id', $tenant->id)
+                        ->where('idempotency_key', $nodeKey)
+                        ->value('id');
+
+                    if ($existingNodeId) {
+                        $firstId ??= (int) $existingNodeId;
+
+                        continue;
+                    }
+
+                    $insertedId = (int) DB::table('sync_outbox')->insertGetId([
+                        'tenant_id' => $tenant->id,
+                        'event_uuid' => (string) Str::uuid(),
+                        'origin_node_id' => null,
+                        'target_node_id' => $nodeId,
+                        'target_scope' => 'node',
+                        'event_type' => $eventType,
+                        'aggregate_type' => $aggregateType,
+                        'aggregate_id' => $aggregateId,
+                        'payload' => json_encode($payload),
+                        'occurred_at' => $now,
+                        'available_at' => $now,
+                        'status' => 'pending',
+                        'idempotency_key' => $nodeKey,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    $firstId ??= $insertedId;
+                }
+
+                return (int) $firstId;
+            }
+        }
+
         return (int) DB::table('sync_outbox')->insertGetId([
             'tenant_id' => $tenant->id,
             'event_uuid' => (string) Str::uuid(),

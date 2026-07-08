@@ -82,10 +82,11 @@ class RunSyncDaemonCommand extends Command
                 );
 
                 $this->line(sprintf(
-                    'Subidos: %d | Bajados: %d | Aplicados: %d | Fallos: %d',
+                    'Subidos: %d | Bajados: %d | Aplicados: %d | Ignorados: %d | Fallos: %d',
                     $summary['pushed'],
                     $summary['pulled'],
                     $summary['applied'],
+                    $summary['ignored'],
                     $summary['failed'],
                 ));
 

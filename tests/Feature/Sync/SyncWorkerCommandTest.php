@@ -160,6 +160,73 @@ class SyncWorkerCommandTest extends TestCase
         Http::assertSentCount(4);
     }
 
+    public function test_sync_worker_applies_customer_created_from_cloud(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync Cliente Nube',
+            'slug' => 'empresa-sync-cliente-nube',
+        ]);
+        $cloudEventUuid = (string) Str::uuid();
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-VAL-CUSTOMERS'],
+            ], 201),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [[
+                    'id' => 141,
+                    'event_uuid' => $cloudEventUuid,
+                    'event_type' => 'customer.created',
+                    'aggregate_type' => 'customer',
+                    'aggregate_id' => 88,
+                    'payload' => [
+                        'name' => 'Cliente Web Nube',
+                        'document_type' => 'V',
+                        'document_number' => '88442211',
+                        'phone' => '04148844221',
+                        'email' => 'cliente.web@example.com',
+                        'fiscal_address' => 'Valencia',
+                        'is_generic' => false,
+                        'is_active' => true,
+                    ],
+                ]],
+            ], 200),
+            "https://cloud.test/api/sync/events/{$cloudEventUuid}/ack" => Http::response([
+                'data' => ['event_uuid' => $cloudEventUuid, 'status' => 'processed'],
+            ], 200),
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-VAL-CUSTOMERS',
+            '--name' => 'Local Valencia Clientes',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--pull-only' => true,
+            '--installation' => 'LOCAL-WORKER-CUSTOMERS-01',
+        ])
+            ->expectsOutput('Sincronizacion ejecutada.')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('customers', [
+            'tenant_id' => $tenant->id,
+            'document_type' => 'V',
+            'document_number' => '88442211',
+            'name' => 'Cliente Web Nube',
+            'email' => 'cliente.web@example.com',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $cloudEventUuid,
+            'event_type' => 'customer.created',
+            'status' => 'applied',
+        ]);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), "/sync/events/{$cloudEventUuid}/ack"));
+    }
+
     public function test_sync_worker_does_not_acknowledge_cloud_events_that_fail_locally(): void
     {
         $tenant = Tenant::create([
