@@ -4668,6 +4668,79 @@ Reglas:
 - sirve para la pantalla compacta de reportes operativos del portal web;
 - no reemplaza los reportes financieros detallados.
 
+## Portal administrativo: ventas POS
+
+### `GET /api/admin-portal/pos-sales`
+
+Lista ordenes POS de la empresa activa para el portal administrativo web.
+
+Query params:
+
+- `period`: `today`, `week` o `month`.
+- `date_from`: fecha inicial personalizada.
+- `date_to`: fecha final personalizada.
+- `branch_id`: filtra por sucursal.
+- `cash_register_id`: filtra por caja fisica.
+- `cashier_id`: filtra por cajero.
+- `status`: `all`, `open`, `paid` o `cancelled`.
+- `search`: busca por numero de orden, cliente, documento, cajero, producto o SKU.
+- `page`: pagina.
+- `limit`: registros por pagina, de `10` a `100`.
+- `export=csv`: descarga las ventas filtradas en CSV.
+
+Respuesta JSON resumida:
+
+```json
+{
+  "data": {
+    "tenant": {
+      "id": 1,
+      "name": "Demo Valencia",
+      "slug": "demo-valencia"
+    },
+    "period": {
+      "from": "2026-07-08",
+      "to": "2026-07-08"
+    },
+    "summary": {
+      "orders_count": 3,
+      "paid_count": 2,
+      "open_count": 1,
+      "cancelled_count": 0,
+      "total_base_amount": 180,
+      "paid_base_amount": 120
+    },
+    "data": [],
+    "pagination": {
+      "page": 1,
+      "limit": 25,
+      "total": 3
+    },
+    "generated_at": "2026-07-08T10:00:00.000000Z"
+  }
+}
+```
+
+### `GET /api/admin-portal/pos-sales/{posOrder}`
+
+Devuelve el detalle de una orden POS de la empresa activa.
+
+Incluye:
+
+- datos generales de la orden;
+- cliente, caja, sucursal y cajero;
+- items vendidos;
+- seriales/IMEI asociados si existen;
+- pagos capturados o pendientes;
+- saldo en USD base.
+
+Reglas:
+
+- requiere `sales.view`, `reports.view` o `finance_reports.view`;
+- si la orden pertenece a otra empresa devuelve `404`;
+- es solo lectura;
+- la pantalla web usa este endpoint al presionar `Ver` en una orden.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion

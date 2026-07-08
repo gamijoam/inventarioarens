@@ -6,6 +6,12 @@ const state = {
     selectedTenant: null,
     session: null,
     activeSection: 'overview',
+    sales: {
+        page: 1,
+        loaded: false,
+        orders: [],
+        selectedOrder: null,
+    },
     reports: {
         title: 'Reportes operativos',
         copy: 'Ventas POS, metodos de pago, cajas y productos mas vendidos por periodo.',
@@ -96,6 +102,35 @@ const elements = {
     modulePlaceholder: document.querySelector('#module-placeholder'),
     modulePlaceholderTitle: document.querySelector('#module-placeholder-title'),
     modulePlaceholderCopy: document.querySelector('#module-placeholder-copy'),
+    salesModule: document.querySelector('#admin-sales-module'),
+    salesRefresh: document.querySelector('#admin-sales-refresh'),
+    salesExport: document.querySelector('#admin-sales-export'),
+    salesStatus: document.querySelector('#admin-sales-status'),
+    salesPeriod: document.querySelector('#admin-sales-period'),
+    salesDateFrom: document.querySelector('#admin-sales-date-from'),
+    salesDateTo: document.querySelector('#admin-sales-date-to'),
+    salesBranch: document.querySelector('#admin-sales-branch'),
+    salesCashRegister: document.querySelector('#admin-sales-cash-register'),
+    salesCashier: document.querySelector('#admin-sales-cashier'),
+    salesStatusFilter: document.querySelector('#admin-sales-status-filter'),
+    salesSearch: document.querySelector('#admin-sales-search'),
+    salesApply: document.querySelector('#admin-sales-apply'),
+    salesClear: document.querySelector('#admin-sales-clear'),
+    salesTable: document.querySelector('#admin-sales-table'),
+    salesCount: document.querySelector('#admin-sales-count'),
+    salesPrev: document.querySelector('#admin-sales-prev'),
+    salesNext: document.querySelector('#admin-sales-next'),
+    salesSummaryOrders: document.querySelector('#admin-sales-summary-orders'),
+    salesSummaryPaid: document.querySelector('#admin-sales-summary-paid'),
+    salesSummaryOpen: document.querySelector('#admin-sales-summary-open'),
+    salesSummaryTotal: document.querySelector('#admin-sales-summary-total'),
+    salesSummaryCollected: document.querySelector('#admin-sales-summary-collected'),
+    salesDetailTitle: document.querySelector('#admin-sales-detail-title'),
+    salesDetailSubtitle: document.querySelector('#admin-sales-detail-subtitle'),
+    salesDetailStatus: document.querySelector('#admin-sales-detail-status'),
+    salesDetailTotals: document.querySelector('#admin-sales-detail-totals'),
+    salesDetailItems: document.querySelector('#admin-sales-detail-items'),
+    salesDetailPayments: document.querySelector('#admin-sales-detail-payments'),
     reportsModule: document.querySelector('#admin-reports-module'),
     reportsRefresh: document.querySelector('#admin-reports-refresh'),
     reportsStatus: document.querySelector('#admin-reports-status'),
@@ -705,6 +740,11 @@ function renderDashboardTenantSwitcher(session) {
 }
 
 function resetTenantScopedState() {
+    state.sales.page = 1;
+    state.sales.loaded = false;
+    state.sales.orders = [];
+    state.sales.selectedOrder = null;
+
     state.inventory.page = 1;
     state.inventory.loaded = false;
     state.inventory.mode = 'edit';
@@ -806,6 +846,12 @@ function resetTenantScopedState() {
     if (elements.accessPermissionsGrid) {
         elements.accessPermissionsGrid.innerHTML = '';
     }
+
+    if (elements.salesTable) {
+        elements.salesTable.innerHTML = '';
+    }
+
+    renderAdminSaleDetail(null);
 }
 
 async function switchTenant() {
@@ -850,6 +896,7 @@ async function switchTenant() {
 function activatePortalSection(section) {
     const selectedSection = portalSections[section] ? section : 'overview';
     const isOverview = selectedSection === 'overview';
+    const isSales = selectedSection === 'sales';
     const isReports = selectedSection === 'reports';
     const isInventory = selectedSection === 'inventory';
     const isMovements = selectedSection === 'movements';
@@ -875,6 +922,10 @@ function activatePortalSection(section) {
 
     if (elements.reportsModule) {
         elements.reportsModule.hidden = !isReports;
+    }
+
+    if (elements.salesModule) {
+        elements.salesModule.hidden = !isSales;
     }
 
     if (elements.inventoryModule) {
@@ -909,11 +960,15 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isReports || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isMovements || isSuppliers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isReports && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
+    if (!isOverview && !isSales && !isReports && !isInventory && !isMovements && !isSuppliers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
+    }
+
+    if (isSales && !state.sales.loaded) {
+        loadAdminSales();
     }
 
     if (isReports && !state.reports.loaded) {
@@ -1043,6 +1098,301 @@ function renderAlerts(alerts) {
             return item;
         }),
     );
+}
+
+async function loadAdminSales(page = state.sales.page) {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    state.sales.page = Math.max(1, page);
+    setStatus(elements.salesStatus, 'Cargando ventas POS...');
+    setButtonLoading(elements.salesRefresh, true, 'Actualizando...');
+
+    try {
+        const query = buildAdminSalesQuery({ page: state.sales.page });
+        const sales = await api(`/api/admin-portal/pos-sales?${query}`, {
+            headers: authHeaders(session),
+        });
+
+        renderAdminSales(sales);
+        state.sales.loaded = true;
+        setStatus(elements.salesStatus, `Ventas actualizadas: ${formatDateTime(sales.generated_at)}.`, 'success');
+    } catch (error) {
+        setStatus(elements.salesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.salesRefresh, false);
+    }
+}
+
+function buildAdminSalesQuery(extra = {}) {
+    const query = new URLSearchParams({
+        period: elements.period?.value || 'today',
+        limit: '25',
+        ...extra,
+    });
+    const filters = {
+        date_from: elements.salesDateFrom?.value,
+        date_to: elements.salesDateTo?.value,
+        branch_id: elements.salesBranch?.value,
+        cash_register_id: elements.salesCashRegister?.value,
+        cashier_id: elements.salesCashier?.value,
+        status: elements.salesStatusFilter?.value || 'all',
+        search: elements.salesSearch?.value?.trim(),
+    };
+
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+            query.set(key, value);
+        }
+    });
+
+    return query;
+}
+
+function renderAdminSales(sales) {
+    const summary = sales.summary || {};
+    const pagination = sales.pagination || {};
+
+    if (elements.salesDateFrom && !elements.salesDateFrom.value) {
+        elements.salesDateFrom.value = sales.period?.from || '';
+    }
+
+    if (elements.salesDateTo && !elements.salesDateTo.value) {
+        elements.salesDateTo.value = sales.period?.to || '';
+    }
+
+    renderAdminSalesFilters(sales.filters || {});
+    elements.salesPeriod.textContent = `Periodo ${sales.period?.from || ''} a ${sales.period?.to || ''}.`;
+    elements.salesSummaryOrders.textContent = number(summary.orders_count);
+    elements.salesSummaryPaid.textContent = number(summary.paid_count);
+    elements.salesSummaryOpen.textContent = number(summary.open_count);
+    elements.salesSummaryTotal.textContent = money(summary.total_base_amount);
+    elements.salesSummaryCollected.textContent = money(summary.paid_base_amount);
+    state.sales.orders = sales.data || [];
+    renderAdminSalesTable(state.sales.orders);
+
+    elements.salesCount.textContent = `${number(pagination.from)}-${number(pagination.to)} de ${number(pagination.total)} ordenes`;
+    elements.salesPrev.disabled = !pagination.has_previous;
+    elements.salesNext.disabled = !pagination.has_next;
+}
+
+function renderAdminSalesFilters(filters) {
+    const options = filters.options || {};
+    fillSelect(elements.salesBranch, options.branches || [], 'Todas', (branch) => branch.id, (branch) => `${branch.name} (${branch.code})`);
+    fillSelect(elements.salesCashier, options.cashiers || [], 'Todos', (cashier) => cashier.id, (cashier) => `${cashier.name} - ${cashier.email}`);
+
+    const selectedBranch = elements.salesBranch?.value || '';
+    const cashRegisters = selectedBranch
+        ? (options.cash_registers || []).filter((register) => String(register.branch_id) === String(selectedBranch))
+        : (options.cash_registers || []);
+    fillSelect(elements.salesCashRegister, cashRegisters, 'Todas', (register) => register.id, (register) => `${register.name} (${register.code})`);
+}
+
+function renderAdminSalesTable(orders) {
+    if (!orders.length) {
+        renderEmptyTable(elements.salesTable, 'No hay ventas POS con estos filtros.', 8);
+        return;
+    }
+
+    elements.salesTable.replaceChildren(
+        ...orders.map((order) => {
+            const row = document.createElement('tr');
+            row.classList.toggle('is-selected', state.sales.selectedOrder?.id === order.id);
+            row.innerHTML = `
+                <td><strong>#${escapeHtml(order.id)}</strong><small>${escapeHtml(formatDateTime(order.paid_at || order.opened_at))}</small></td>
+                <td><strong>${escapeHtml(order.customer_name)}</strong><small>${escapeHtml(order.customer_document || 'Sin documento')}</small></td>
+                <td><strong>${escapeHtml(order.cash_register_name)}</strong><small>${escapeHtml(order.branch_name)}</small></td>
+                <td>${escapeHtml(order.cashier_name)}</td>
+                <td><span class="status-pill" data-tone="${posOrderStatusTone(order.status)}">${escapeHtml(order.status_label)}</span></td>
+                <td><strong>${money(order.total_base_amount)}</strong><small>Bs ${number(order.total_local_amount)}</small></td>
+                <td><strong>${money(order.paid_base_amount)}</strong><small>Saldo ${money(order.balance_base_amount)}</small></td>
+                <td><button class="ghost-button ghost-button--compact" type="button" data-admin-sales-detail="${escapeHtml(order.id)}">Ver</button></td>
+            `;
+
+            return row;
+        }),
+    );
+}
+
+async function loadAdminSaleDetail(orderId) {
+    const session = state.session;
+
+    if (!session || !orderId) {
+        return;
+    }
+
+    setStatus(elements.salesStatus, `Cargando detalle de orden #${orderId}...`);
+
+    try {
+        const order = await api(`/api/admin-portal/pos-sales/${orderId}`, {
+            headers: authHeaders(session),
+        });
+
+        state.sales.selectedOrder = order;
+        renderAdminSaleDetail(order);
+        renderAdminSalesTable(state.sales.orders);
+        setStatus(elements.salesStatus, `Detalle de orden #${order.id} cargado.`, 'success');
+    } catch (error) {
+        setStatus(elements.salesStatus, normalizeError(error), 'error');
+    }
+}
+
+function renderAdminSaleDetail(order) {
+    if (!elements.salesDetailTitle) {
+        return;
+    }
+
+    if (!order) {
+        state.sales.selectedOrder = null;
+        elements.salesDetailTitle.textContent = 'Detalle de venta';
+        elements.salesDetailSubtitle.textContent = 'Selecciona una orden para revisar items y pagos.';
+        elements.salesDetailStatus.textContent = 'Sin seleccion';
+        elements.salesDetailStatus.dataset.tone = 'neutral';
+        elements.salesDetailTotals.innerHTML = `
+            <div><span>Total</span><strong>USD 0.00</strong></div>
+            <div><span>Pagado</span><strong>USD 0.00</strong></div>
+            <div><span>Saldo</span><strong>USD 0.00</strong></div>
+        `;
+        elements.salesDetailItems.innerHTML = '<p>Sin orden seleccionada.</p>';
+        elements.salesDetailPayments.innerHTML = '<p>Sin pagos cargados.</p>';
+        return;
+    }
+
+    elements.salesDetailTitle.textContent = `Orden POS #${order.id}`;
+    elements.salesDetailSubtitle.textContent = `${order.customer_name} - ${order.cash_register_name} - ${formatDateTime(order.paid_at || order.opened_at)}`;
+    elements.salesDetailStatus.textContent = order.status_label;
+    elements.salesDetailStatus.dataset.tone = posOrderStatusTone(order.status);
+    elements.salesDetailTotals.innerHTML = `
+        <div><span>Total</span><strong>${money(order.total_base_amount)}</strong></div>
+        <div><span>Pagado</span><strong>${money(order.paid_base_amount)}</strong></div>
+        <div><span>Saldo</span><strong>${money(order.balance_base_amount)}</strong></div>
+    `;
+    renderAdminSaleItems(order.items || []);
+    renderAdminSalePayments(order.payments || []);
+}
+
+function renderAdminSaleItems(items) {
+    if (!items.length) {
+        elements.salesDetailItems.innerHTML = '<p>Sin productos registrados.</p>';
+        return;
+    }
+
+    elements.salesDetailItems.replaceChildren(
+        ...items.map((item) => {
+            const row = document.createElement('article');
+            row.className = 'sales-admin__detail-row';
+            row.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(item.product_name)}</strong>
+                    <small>${escapeHtml(item.product_sku || '')} - ${escapeHtml(item.warehouse_name || '')}</small>
+                    ${item.product_unit_ids?.length ? `<small>Seriales/IMEI: ${escapeHtml(item.product_unit_ids.join(', '))}</small>` : ''}
+                </div>
+                <div>
+                    <strong>${number(item.quantity)} x ${escapeHtml(item.sale_currency)} ${number(item.unit_price)}</strong>
+                    <small>Total ${money(item.base_total_amount)}</small>
+                </div>
+            `;
+            return row;
+        }),
+    );
+}
+
+function renderAdminSalePayments(payments) {
+    if (!payments.length) {
+        elements.salesDetailPayments.innerHTML = '<p>Sin pagos capturados.</p>';
+        return;
+    }
+
+    elements.salesDetailPayments.replaceChildren(
+        ...payments.map((payment) => {
+            const row = document.createElement('article');
+            row.className = 'sales-admin__detail-row';
+            row.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(payment.payment_method_name)}</strong>
+                    <small>${escapeHtml(payment.status)} ${payment.reference ? `- Ref. ${escapeHtml(payment.reference)}` : ''}</small>
+                </div>
+                <div>
+                    <strong>${escapeHtml(payment.currency)} ${number(payment.amount)}</strong>
+                    <small>${money(payment.amount_base)}</small>
+                </div>
+            `;
+            return row;
+        }),
+    );
+}
+
+function clearAdminSalesFilters() {
+    [
+        elements.salesDateFrom,
+        elements.salesDateTo,
+        elements.salesBranch,
+        elements.salesCashRegister,
+        elements.salesCashier,
+        elements.salesSearch,
+    ].forEach((field) => {
+        if (field) {
+            field.value = '';
+        }
+    });
+
+    if (elements.salesStatusFilter) {
+        elements.salesStatusFilter.value = 'all';
+    }
+
+    loadAdminSales(1);
+}
+
+async function exportAdminSales() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    setStatus(elements.salesStatus, 'Preparando CSV de ventas...');
+    setButtonLoading(elements.salesExport, true, 'Exportando...');
+
+    try {
+        const query = buildAdminSalesQuery({ export: 'csv' });
+        const response = await fetch(`/api/admin-portal/pos-sales?${query}`, {
+            headers: {
+                Accept: 'text/csv',
+                ...authHeaders(session),
+            },
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.message || 'No se pudo exportar ventas POS.');
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = csvFilenameFromResponse(response, 'ventas-pos.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        setStatus(elements.salesStatus, 'CSV de ventas generado correctamente.', 'success');
+    } catch (error) {
+        setStatus(elements.salesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.salesExport, false);
+    }
+}
+
+function posOrderStatusTone(status) {
+    return {
+        paid: 'success',
+        open: 'warning',
+        cancelled: 'error',
+    }[status] || 'neutral';
 }
 
 async function loadOperationalReports() {
@@ -4212,7 +4562,14 @@ elements.loadTenants?.addEventListener('click', loadTenants);
 elements.form?.addEventListener('submit', login);
 elements.refresh?.addEventListener('click', loadDashboard);
 elements.period?.addEventListener('change', () => {
+    state.sales.loaded = false;
     state.reports.loaded = false;
+    if (elements.salesDateFrom) {
+        elements.salesDateFrom.value = '';
+    }
+    if (elements.salesDateTo) {
+        elements.salesDateTo.value = '';
+    }
     if (elements.reportsDateFrom) {
         elements.reportsDateFrom.value = '';
     }
@@ -4220,6 +4577,10 @@ elements.period?.addEventListener('change', () => {
         elements.reportsDateTo.value = '';
     }
     loadDashboard();
+
+    if (state.activeSection === 'sales') {
+        loadAdminSales(1);
+    }
 
     if (state.activeSection === 'reports') {
         loadOperationalReports();
@@ -4229,6 +4590,42 @@ elements.tenantSwitcher?.addEventListener('change', switchTenant);
 elements.logout?.addEventListener('click', clearSession);
 elements.portalNavItems.forEach((item) => {
     item.addEventListener('click', () => activatePortalSection(item.dataset.portalSection));
+});
+elements.salesRefresh?.addEventListener('click', () => loadAdminSales());
+elements.salesApply?.addEventListener('click', () => loadAdminSales(1));
+elements.salesClear?.addEventListener('click', clearAdminSalesFilters);
+elements.salesExport?.addEventListener('click', exportAdminSales);
+elements.salesPrev?.addEventListener('click', () => loadAdminSales(Math.max(state.sales.page - 1, 1)));
+elements.salesNext?.addEventListener('click', () => loadAdminSales(state.sales.page + 1));
+elements.salesSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        loadAdminSales(1);
+    }
+});
+[
+    elements.salesBranch,
+    elements.salesCashRegister,
+    elements.salesCashier,
+    elements.salesStatusFilter,
+].forEach((filter) => {
+    filter?.addEventListener('change', () => {
+        if (filter === elements.salesBranch && elements.salesCashRegister) {
+            elements.salesCashRegister.value = '';
+        }
+
+        state.sales.loaded = false;
+        loadAdminSales(1);
+    });
+});
+elements.salesTable?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-admin-sales-detail]');
+
+    if (!button) {
+        return;
+    }
+
+    loadAdminSaleDetail(button.dataset.adminSalesDetail);
 });
 elements.reportsRefresh?.addEventListener('click', loadOperationalReports);
 [

@@ -211,6 +211,155 @@
                             </article>
                         </section>
 
+                        <section class="admin-module-panel sales-admin" id="admin-sales-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Ventas</span>
+                                    <h3>Ventas POS</h3>
+                                    <p>Consulta ordenes, pagos, saldos y detalle de productos vendidos por empresa, sucursal, caja o cajero.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-sales-export">Exportar CSV</button>
+                                    <button class="ghost-button" type="button" id="admin-sales-refresh">Actualizar ventas</button>
+                                </div>
+                            </div>
+
+                            <div class="sales-admin__filters" aria-label="Filtros de ventas POS">
+                                <label>
+                                    Desde
+                                    <input type="date" id="admin-sales-date-from">
+                                </label>
+                                <label>
+                                    Hasta
+                                    <input type="date" id="admin-sales-date-to">
+                                </label>
+                                <label>
+                                    Sucursal
+                                    <select id="admin-sales-branch">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Caja
+                                    <select id="admin-sales-cash-register">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Cajero
+                                    <select id="admin-sales-cashier">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Estado
+                                    <select id="admin-sales-status-filter">
+                                        <option value="all">Todos</option>
+                                        <option value="paid">Pagadas</option>
+                                        <option value="open">Pendientes</option>
+                                        <option value="cancelled">Canceladas</option>
+                                    </select>
+                                </label>
+                                <label class="sales-admin__search">
+                                    Buscar
+                                    <input type="search" id="admin-sales-search" placeholder="Orden, cliente, cajero, producto o SKU">
+                                </label>
+                                <button class="primary-button primary-button--fit" type="button" id="admin-sales-apply">Aplicar</button>
+                                <button class="ghost-button ghost-button--compact" type="button" id="admin-sales-clear">Limpiar</button>
+                            </div>
+
+                            <div class="sales-admin__summary" aria-label="Resumen de ventas POS">
+                                <article>
+                                    <span>Ordenes</span>
+                                    <strong id="admin-sales-summary-orders">0</strong>
+                                    <small>Dentro del filtro</small>
+                                </article>
+                                <article>
+                                    <span>Pagadas</span>
+                                    <strong id="admin-sales-summary-paid">0</strong>
+                                    <small>Ventas cerradas</small>
+                                </article>
+                                <article>
+                                    <span>Pendientes</span>
+                                    <strong id="admin-sales-summary-open">0</strong>
+                                    <small>Cobro incompleto</small>
+                                </article>
+                                <article>
+                                    <span>Total</span>
+                                    <strong id="admin-sales-summary-total">USD 0.00</strong>
+                                    <small>Monto facturado</small>
+                                </article>
+                                <article>
+                                    <span>Cobrado</span>
+                                    <strong id="admin-sales-summary-collected">USD 0.00</strong>
+                                    <small>Pagos capturados</small>
+                                </article>
+                            </div>
+
+                            <div class="sales-admin__layout">
+                                <section class="content-panel sales-admin__list">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Ordenes POS</h4>
+                                            <p id="admin-sales-period">Periodo actual.</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-table-wrap admin-table-wrap--compact sales-admin__table">
+                                        <table class="admin-data-table admin-data-table--compact">
+                                            <thead>
+                                                <tr>
+                                                    <th>Orden</th>
+                                                    <th>Cliente</th>
+                                                    <th>Caja</th>
+                                                    <th>Cajero</th>
+                                                    <th>Estado</th>
+                                                    <th>Total</th>
+                                                    <th>Pagado</th>
+                                                    <th>Accion</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="admin-sales-table"></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="table-footer">
+                                        <span id="admin-sales-count">Sin ventas cargadas.</span>
+                                        <div class="table-footer__actions">
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-sales-prev">Anterior</button>
+                                            <button class="ghost-button ghost-button--compact" type="button" id="admin-sales-next">Siguiente</button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <aside class="content-panel sales-admin__detail">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4 id="admin-sales-detail-title">Detalle de venta</h4>
+                                            <p id="admin-sales-detail-subtitle">Selecciona una orden para revisar items y pagos.</p>
+                                        </div>
+                                        <span class="status-pill" id="admin-sales-detail-status">Sin seleccion</span>
+                                    </div>
+
+                                    <div class="sales-admin__totals" id="admin-sales-detail-totals">
+                                        <div><span>Total</span><strong>USD 0.00</strong></div>
+                                        <div><span>Pagado</span><strong>USD 0.00</strong></div>
+                                        <div><span>Saldo</span><strong>USD 0.00</strong></div>
+                                    </div>
+
+                                    <h5>Productos</h5>
+                                    <div class="sales-admin__detail-list" id="admin-sales-detail-items">
+                                        <p>Sin orden seleccionada.</p>
+                                    </div>
+
+                                    <h5>Pagos</h5>
+                                    <div class="sales-admin__detail-list" id="admin-sales-detail-payments">
+                                        <p>Sin pagos cargados.</p>
+                                    </div>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-sales-status" role="status" aria-live="polite"></p>
+                        </section>
+
                         <section class="admin-module-panel reports-admin" id="admin-reports-module" hidden>
                             <div class="module-head">
                                 <div>
