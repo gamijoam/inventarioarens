@@ -45,6 +45,12 @@ class AdminPosSalesApiTest extends TestCase
             ->assertJsonPath('data.summary.paid_count', 1)
             ->assertJsonPath('data.summary.open_count', 1)
             ->assertJsonPath('data.summary.total_base_amount', 105)
+            ->assertJsonPath('data.analytics.by_branch.0.name', 'Principal')
+            ->assertJsonPath('data.analytics.by_branch.0.orders_count', 2)
+            ->assertJsonPath('data.analytics.by_cashier.0.name', $user->name)
+            ->assertJsonPath('data.analytics.by_payment_method.0.amount_base', 80)
+            ->assertJsonPath('data.analytics.top_products.0.product_sku', 'SKU-A')
+            ->assertJsonPath('data.analytics.top_products.0.quantity', 1)
             ->assertJsonPath('data.filters.options.branches.0.name', 'Principal');
 
         $orders = collect($response->json('data.data'));
@@ -107,6 +113,7 @@ class AdminPosSalesApiTest extends TestCase
             ->getJson('/api/admin-portal/pos-sales?period=today')
             ->assertOk()
             ->assertJsonPath('data.summary.orders_count', 1)
+            ->assertJsonPath('data.analytics.by_branch.0.paid_base_amount', 10)
             ->assertJsonMissing(['total_base_amount' => 99]);
 
         $this

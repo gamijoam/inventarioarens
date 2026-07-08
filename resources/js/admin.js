@@ -125,6 +125,10 @@ const elements = {
     salesSummaryOpen: document.querySelector('#admin-sales-summary-open'),
     salesSummaryTotal: document.querySelector('#admin-sales-summary-total'),
     salesSummaryCollected: document.querySelector('#admin-sales-summary-collected'),
+    salesByBranch: document.querySelector('#admin-sales-by-branch'),
+    salesByCashier: document.querySelector('#admin-sales-by-cashier'),
+    salesByPayment: document.querySelector('#admin-sales-by-payment'),
+    salesTopProducts: document.querySelector('#admin-sales-top-products'),
     salesDetailTitle: document.querySelector('#admin-sales-detail-title'),
     salesDetailSubtitle: document.querySelector('#admin-sales-detail-subtitle'),
     salesDetailStatus: document.querySelector('#admin-sales-detail-status'),
@@ -851,6 +855,7 @@ function resetTenantScopedState() {
         elements.salesTable.innerHTML = '';
     }
 
+    renderAdminSalesAnalytics({});
     renderAdminSaleDetail(null);
 }
 
@@ -1171,6 +1176,7 @@ function renderAdminSales(sales) {
     elements.salesSummaryOpen.textContent = number(summary.open_count);
     elements.salesSummaryTotal.textContent = money(summary.total_base_amount);
     elements.salesSummaryCollected.textContent = money(summary.paid_base_amount);
+    renderAdminSalesAnalytics(sales.analytics || {});
     state.sales.orders = sales.data || [];
     renderAdminSalesTable(state.sales.orders);
 
@@ -1189,6 +1195,69 @@ function renderAdminSalesFilters(filters) {
         ? (options.cash_registers || []).filter((register) => String(register.branch_id) === String(selectedBranch))
         : (options.cash_registers || []);
     fillSelect(elements.salesCashRegister, cashRegisters, 'Todas', (register) => register.id, (register) => `${register.name} (${register.code})`);
+}
+
+function renderAdminSalesAnalytics(analytics) {
+    renderAdminSalesRanking(elements.salesByBranch, analytics.by_branch || [], {
+        empty: 'Sin ventas por sucursal.',
+        title: (item) => item.name,
+        meta: (item) => `${number(item.orders_count)} ordenes`,
+        value: (item) => money(item.paid_base_amount),
+        amount: (item) => item.paid_base_amount,
+    });
+    renderAdminSalesRanking(elements.salesByCashier, analytics.by_cashier || [], {
+        empty: 'Sin ventas por cajero.',
+        title: (item) => item.name,
+        meta: (item) => `${number(item.orders_count)} ordenes`,
+        value: (item) => money(item.paid_base_amount),
+        amount: (item) => item.paid_base_amount,
+    });
+    renderAdminSalesRanking(elements.salesByPayment, analytics.by_payment_method || [], {
+        empty: 'Sin pagos capturados.',
+        title: (item) => item.name,
+        meta: (item) => `${number(item.payments_count)} pago(s) - ${item.currency || 'USD'}`,
+        value: (item) => money(item.amount_base),
+        amount: (item) => item.amount_base,
+    });
+    renderAdminSalesRanking(elements.salesTopProducts, analytics.top_products || [], {
+        empty: 'Sin productos vendidos.',
+        title: (item) => item.product_name,
+        meta: (item) => item.product_sku || 'Sin SKU',
+        value: (item) => `${number(item.quantity)} un.`,
+        amount: (item) => item.quantity,
+    });
+}
+
+function renderAdminSalesRanking(container, rows, config) {
+    if (!container) {
+        return;
+    }
+
+    if (!rows.length) {
+        container.innerHTML = `<p class="sales-admin__ranking-empty">${escapeHtml(config.empty)}</p>`;
+        return;
+    }
+
+    const max = Math.max(...rows.map((item) => Number(config.amount(item) || 0)), 1);
+
+    container.replaceChildren(
+        ...rows.map((item) => {
+            const amount = Number(config.amount(item) || 0);
+            const width = Math.max(4, Math.round((amount / max) * 100));
+            const row = document.createElement('article');
+            row.className = 'sales-admin__rank-row';
+            row.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(config.title(item))}</strong>
+                    <span>${escapeHtml(config.meta(item))}</span>
+                </div>
+                <em>${escapeHtml(config.value(item))}</em>
+                <div class="sales-admin__rank-bar" aria-hidden="true"><i style="width: ${width}%"></i></div>
+            `;
+
+            return row;
+        }),
+    );
 }
 
 function renderAdminSalesTable(orders) {

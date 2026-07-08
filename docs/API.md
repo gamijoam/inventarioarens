@@ -4710,6 +4710,40 @@ Respuesta JSON resumida:
       "total_base_amount": 180,
       "paid_base_amount": 120
     },
+    "analytics": {
+      "by_branch": [
+        {
+          "name": "Principal Valencia",
+          "orders_count": 2,
+          "total_base_amount": 150,
+          "paid_base_amount": 120
+        }
+      ],
+      "by_cashier": [
+        {
+          "name": "Gerente Valencia",
+          "orders_count": 2,
+          "total_base_amount": 150,
+          "paid_base_amount": 120
+        }
+      ],
+      "by_payment_method": [
+        {
+          "name": "Efectivo USD",
+          "currency": "USD",
+          "payments_count": 2,
+          "amount_base": 120
+        }
+      ],
+      "top_products": [
+        {
+          "product_name": "Adaptador Bluetooth",
+          "product_sku": "ADP-BT-VAL",
+          "quantity": 3,
+          "total_base_amount": 60
+        }
+      ]
+    },
     "data": [],
     "pagination": {
       "page": 1,
@@ -4720,6 +4754,13 @@ Respuesta JSON resumida:
   }
 }
 ```
+
+El bloque `analytics` respeta los mismos filtros de la consulta y alimenta los indicadores compactos del portal administrativo:
+
+- `by_branch`: ranking de ventas por sucursal;
+- `by_cashier`: ranking por cajero;
+- `by_payment_method`: cobros agrupados por metodo y moneda;
+- `top_products`: productos mas vendidos por cantidad y monto base.
 
 ### `GET /api/admin-portal/pos-sales/{posOrder}`
 

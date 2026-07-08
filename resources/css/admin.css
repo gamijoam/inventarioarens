@@ -740,6 +740,96 @@ button {
     align-items: start;
 }
 
+.sales-admin__analytics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.sales-admin__analytics-card {
+    padding: 9px;
+}
+
+.sales-admin__analytics-card .panel-heading {
+    margin-bottom: 6px;
+}
+
+.sales-admin__analytics-card h4 {
+    font-size: 14px;
+}
+
+.sales-admin__analytics-card p {
+    font-size: 11px;
+}
+
+.sales-admin__ranking {
+    display: grid;
+    gap: 5px;
+}
+
+.sales-admin__ranking-empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.sales-admin__rank-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.sales-admin__rank-row strong,
+.sales-admin__rank-row span,
+.sales-admin__rank-row small {
+    display: block;
+}
+
+.sales-admin__rank-row strong {
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sales-admin__rank-row span,
+.sales-admin__rank-row small {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.sales-admin__rank-row > em {
+    align-self: center;
+    color: var(--primary);
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 900;
+    text-align: right;
+}
+
+.sales-admin__rank-bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.sales-admin__rank-bar i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary);
+}
+
 .sales-admin__list,
 .sales-admin__detail {
     min-width: 0;
@@ -1825,8 +1915,13 @@ button {
     .suppliers-admin__layout,
     .purchases-admin__layout,
     .receivables-admin__layout,
-    .payables-admin__layout {
+    .payables-admin__layout,
+    .sales-admin__layout {
         grid-template-columns: 1fr;
+    }
+
+    .sales-admin__analytics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .access-admin__grid,
@@ -1888,6 +1983,8 @@ button {
     .purchases-admin__filters,
     .receivables-admin__filters,
     .payables-admin__filters,
+    .sales-admin__filters,
+    .sales-admin__analytics,
     .supplier-editor__grid,
     .purchase-editor__grid--two,
     .purchase-editor__grid--three,

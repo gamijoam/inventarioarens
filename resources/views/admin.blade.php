@@ -296,6 +296,45 @@
                                 </article>
                             </div>
 
+                            <div class="sales-admin__analytics" aria-label="Indicadores administrativos de ventas POS">
+                                <section class="content-panel sales-admin__analytics-card">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Por sucursal</h4>
+                                            <p>Ranking por monto cobrado.</p>
+                                        </div>
+                                    </div>
+                                    <div class="sales-admin__ranking" id="admin-sales-by-branch"></div>
+                                </section>
+                                <section class="content-panel sales-admin__analytics-card">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Por cajero</h4>
+                                            <p>Produccion del equipo.</p>
+                                        </div>
+                                    </div>
+                                    <div class="sales-admin__ranking" id="admin-sales-by-cashier"></div>
+                                </section>
+                                <section class="content-panel sales-admin__analytics-card">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Metodos de pago</h4>
+                                            <p>Distribucion cobrada.</p>
+                                        </div>
+                                    </div>
+                                    <div class="sales-admin__ranking" id="admin-sales-by-payment"></div>
+                                </section>
+                                <section class="content-panel sales-admin__analytics-card">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Productos top</h4>
+                                            <p>Unidades mas vendidas.</p>
+                                        </div>
+                                    </div>
+                                    <div class="sales-admin__ranking" id="admin-sales-top-products"></div>
+                                </section>
+                            </div>
+
                             <div class="sales-admin__layout">
                                 <section class="content-panel sales-admin__list">
                                     <div class="panel-heading">

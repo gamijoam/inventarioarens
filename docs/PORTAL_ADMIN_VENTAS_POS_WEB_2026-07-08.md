@@ -11,6 +11,7 @@ Esta pantalla sigue la regla visual de alta densidad del portal administrativo: 
 - Vista web compacta `Ventas` dentro del portal administrativo.
 - Filtros por fecha, sucursal, caja, cajero, estado y busqueda.
 - Resumen de ordenes, ventas pagadas, pendientes, total facturado y total cobrado.
+- Indicadores gerenciales compactos por sucursal, cajero, metodo de pago y productos mas vendidos.
 - Tabla paginada de ordenes POS.
 - Panel lateral con detalle de productos y pagos de la orden seleccionada.
 - Exportacion CSV con los mismos filtros de la vista.
@@ -51,11 +52,23 @@ Se agrego `tests/Feature/AdminPortal/AdminPosSalesApiTest.php` para validar:
 - aislamiento entre empresas;
 - exportacion CSV;
 - bloqueo por permisos.
+- indicadores por sucursal, cajero, metodo de pago y productos vendidos.
 
 ## Pendiente para futuras fases
 
 - Anulacion controlada de ventas desde web.
 - Historial avanzado por cliente.
-- Comparativos por cajero, sucursal y metodo de pago.
+- Comparativos avanzados por periodos y metas.
 - Impresion o descarga de recibos desde el portal.
 - Integracion con devoluciones y garantias desde una venta.
+
+## Mejora gerencial agregada
+
+La vista de ventas POS ahora muestra rankings administrativos en formato compacto:
+
+- ventas por sucursal;
+- ventas por cajero;
+- cobros por metodo de pago;
+- productos mas vendidos.
+
+Estos bloques ayudan al administrador a revisar rapido donde se esta vendiendo, quien esta cobrando, que medios de pago se usan y que productos tienen mayor movimiento. Respetan los mismos filtros de fecha, sucursal, caja, cajero, estado y busqueda de la tabla principal.

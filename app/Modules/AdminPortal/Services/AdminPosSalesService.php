@@ -51,6 +51,12 @@ class AdminPosSalesService
                 'total_base_amount' => $this->sum($summaryQuery, 'pos_orders.total_base_amount'),
                 'paid_base_amount' => $this->sum($summaryQuery, 'pos_orders.paid_base_amount'),
             ],
+            'analytics' => [
+                'by_branch' => $this->salesByBranch($tenant->id, $dateFrom, $dateTo, $filters),
+                'by_cashier' => $this->salesByCashier($tenant->id, $dateFrom, $dateTo, $filters),
+                'by_payment_method' => $this->salesByPaymentMethod($tenant->id, $dateFrom, $dateTo, $filters),
+                'top_products' => $this->topProducts($tenant->id, $dateFrom, $dateTo, $filters),
+            ],
             'data' => $orders,
             'pagination' => [
                 'page' => $page,
@@ -364,6 +370,141 @@ class AdminPosSalesService
                 ])
                 ->all(),
         ];
+    }
+
+    private function salesByBranch(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
+    {
+        return $this->baseOrdersQuery($tenantId, $dateFrom, $dateTo, $filters)
+            ->selectRaw("coalesce(branches.name, 'Sin sucursal') as branch_name")
+            ->selectRaw('count(*) as orders_count')
+            ->selectRaw('sum(pos_orders.total_base_amount) as total_base_amount')
+            ->selectRaw('sum(pos_orders.paid_base_amount) as paid_base_amount')
+            ->groupByRaw("coalesce(branches.name, 'Sin sucursal')")
+            ->orderByDesc('paid_base_amount')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row): array => [
+                'name' => $row->branch_name,
+                'orders_count' => (int) $row->orders_count,
+                'total_base_amount' => round((float) $row->total_base_amount, 4),
+                'paid_base_amount' => round((float) $row->paid_base_amount, 4),
+            ])
+            ->all();
+    }
+
+    private function salesByCashier(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
+    {
+        return $this->baseOrdersQuery($tenantId, $dateFrom, $dateTo, $filters)
+            ->selectRaw("coalesce(cashiers.name, 'Sin cajero') as cashier_name")
+            ->selectRaw('count(*) as orders_count')
+            ->selectRaw('sum(pos_orders.total_base_amount) as total_base_amount')
+            ->selectRaw('sum(pos_orders.paid_base_amount) as paid_base_amount')
+            ->groupByRaw("coalesce(cashiers.name, 'Sin cajero')")
+            ->orderByDesc('paid_base_amount')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row): array => [
+                'name' => $row->cashier_name,
+                'orders_count' => (int) $row->orders_count,
+                'total_base_amount' => round((float) $row->total_base_amount, 4),
+                'paid_base_amount' => round((float) $row->paid_base_amount, 4),
+            ])
+            ->all();
+    }
+
+    private function salesByPaymentMethod(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
+    {
+        $query = DB::table('pos_payments')
+            ->join('pos_orders', function ($join): void {
+                $join->on('pos_orders.id', '=', 'pos_payments.pos_order_id')
+                    ->on('pos_orders.tenant_id', '=', 'pos_payments.tenant_id');
+            })
+            ->leftJoin('payment_methods', 'payment_methods.id', '=', 'pos_payments.payment_method_id')
+            ->leftJoin('cash_register_sessions', 'cash_register_sessions.id', '=', 'pos_orders.cash_register_session_id')
+            ->leftJoin('cash_registers', 'cash_registers.id', '=', 'cash_register_sessions.cash_register_id')
+            ->leftJoin('branches', 'branches.id', '=', 'cash_register_sessions.branch_id')
+            ->leftJoin('users as cashiers', 'cashiers.id', '=', 'pos_orders.cashier_id')
+            ->leftJoin('customers', function ($join): void {
+                $join->on('customers.id', '=', 'pos_orders.customer_id')
+                    ->on('customers.tenant_id', '=', 'pos_orders.tenant_id');
+            })
+            ->where('pos_payments.tenant_id', $tenantId)
+            ->where(function ($query) use ($tenantId): void {
+                $query->whereNull('cash_register_sessions.id')
+                    ->orWhere('cash_register_sessions.tenant_id', $tenantId);
+            })
+            ->where(function ($query) use ($dateFrom, $dateTo): void {
+                $query->whereBetween('pos_orders.opened_at', [$dateFrom, $dateTo])
+                    ->orWhereBetween('pos_orders.paid_at', [$dateFrom, $dateTo])
+                    ->orWhereBetween('pos_orders.closed_at', [$dateFrom, $dateTo]);
+            });
+
+        $this->applyFilters($query, $filters);
+
+        return $query
+            ->selectRaw("coalesce(payment_methods.name, 'Metodo sin configurar') as payment_method_name")
+            ->selectRaw('pos_payments.currency')
+            ->selectRaw('count(*) as payments_count')
+            ->selectRaw('sum(pos_payments.amount_base) as amount_base')
+            ->groupByRaw("coalesce(payment_methods.name, 'Metodo sin configurar'), pos_payments.currency")
+            ->orderByDesc('amount_base')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row): array => [
+                'name' => $row->payment_method_name,
+                'currency' => $row->currency,
+                'payments_count' => (int) $row->payments_count,
+                'amount_base' => round((float) $row->amount_base, 4),
+            ])
+            ->all();
+    }
+
+    private function topProducts(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
+    {
+        $query = DB::table('sale_items')
+            ->join('pos_orders', function ($join): void {
+                $join->on('pos_orders.sale_id', '=', 'sale_items.sale_id')
+                    ->on('pos_orders.tenant_id', '=', 'sale_items.tenant_id');
+            })
+            ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
+            ->leftJoin('cash_register_sessions', 'cash_register_sessions.id', '=', 'pos_orders.cash_register_session_id')
+            ->leftJoin('cash_registers', 'cash_registers.id', '=', 'cash_register_sessions.cash_register_id')
+            ->leftJoin('branches', 'branches.id', '=', 'cash_register_sessions.branch_id')
+            ->leftJoin('users as cashiers', 'cashiers.id', '=', 'pos_orders.cashier_id')
+            ->leftJoin('customers', function ($join): void {
+                $join->on('customers.id', '=', 'pos_orders.customer_id')
+                    ->on('customers.tenant_id', '=', 'pos_orders.tenant_id');
+            })
+            ->where('sale_items.tenant_id', $tenantId)
+            ->where(function ($query) use ($tenantId): void {
+                $query->whereNull('cash_register_sessions.id')
+                    ->orWhere('cash_register_sessions.tenant_id', $tenantId);
+            })
+            ->where(function ($query) use ($dateFrom, $dateTo): void {
+                $query->whereBetween('pos_orders.opened_at', [$dateFrom, $dateTo])
+                    ->orWhereBetween('pos_orders.paid_at', [$dateFrom, $dateTo])
+                    ->orWhereBetween('pos_orders.closed_at', [$dateFrom, $dateTo]);
+            });
+
+        $this->applyFilters($query, $filters);
+
+        return $query
+            ->selectRaw("coalesce(products.name, 'Producto eliminado') as product_name")
+            ->selectRaw("coalesce(products.sku, '') as product_sku")
+            ->selectRaw('sum(sale_items.quantity) as quantity')
+            ->selectRaw('sum(sale_items.base_total_amount) as total_base_amount')
+            ->groupByRaw("coalesce(products.name, 'Producto eliminado'), coalesce(products.sku, '')")
+            ->orderByDesc('quantity')
+            ->orderByDesc('total_base_amount')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row): array => [
+                'product_name' => $row->product_name,
+                'product_sku' => $row->product_sku,
+                'quantity' => round((float) $row->quantity, 4),
+                'total_base_amount' => round((float) $row->total_base_amount, 4),
+            ])
+            ->all();
     }
 
     private function selectedFilters(array $filters): array
