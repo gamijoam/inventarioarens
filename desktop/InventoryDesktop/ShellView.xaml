@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cash="clr-namespace:InventoryDesktop.Modules.CashRegister"
+             xmlns:customers="clr-namespace:InventoryDesktop.Modules.Customers"
              xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter"
              xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS"
              xmlns:sync="clr-namespace:InventoryDesktop.Modules.Sync">
@@ -256,6 +257,19 @@
                             </Border>
                         </Button>
 
+                        <Button x:Name="HomeCustomersCard" Style="{StaticResource ModuleCardButtonStyle}" Click="Customers_Click">
+                            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                <StackPanel>
+                                    <Border Width="48" Height="48" CornerRadius="14" HorizontalAlignment="Left" Background="#14B8A6">
+                                        <TextBlock Text="CL" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Clientes" FontSize="22" FontWeight="Black" Margin="0,15,0,0" />
+                                    <TextBlock Text="Datos fiscales, contacto e historial POS." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                    <TextBlock Text="Abrir módulo" Foreground="#0F766E" FontWeight="Black" Margin="0,16,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </Button>
+
                         <Button x:Name="HomeSyncCard" Style="{StaticResource ModuleCardButtonStyle}" Click="Sync_Click" Visibility="Collapsed">
                             <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
                                 <StackPanel>
@@ -302,6 +316,7 @@
             <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
             <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
             <cash:CashRegisterView x:Name="CashRegisterContent" Visibility="Collapsed" />
+            <customers:CustomersView x:Name="CustomersContent" Visibility="Collapsed" />
             <sync:SyncWorkerView x:Name="SyncWorkerContent" Visibility="Collapsed" />
         </Grid>
 

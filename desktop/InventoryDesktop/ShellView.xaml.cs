@@ -4,6 +4,7 @@ using System.Windows.Media;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.CashRegister;
+using InventoryDesktop.Modules.Customers;
 using InventoryDesktop.Modules.InventoryCenter;
 using InventoryDesktop.Modules.POS;
 using InventoryDesktop.Modules.Sync;
@@ -16,6 +17,7 @@ public partial class ShellView : UserControl
     private readonly InventoryCenterViewModel inventoryCenterViewModel;
     private readonly InventoryCenterViewModel inventoryMovementsViewModel;
     private readonly CashRegisterViewModel cashRegisterViewModel;
+    private readonly CustomersViewModel customersViewModel;
     private readonly PosViewModel posViewModel;
     private bool initialSyncPromptShown;
 
@@ -28,10 +30,12 @@ public partial class ShellView : UserControl
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
         cashRegisterViewModel = new CashRegisterViewModel(session.ApiClient, session.Login.User.Id);
+        customersViewModel = new CustomersViewModel(session.ApiClient);
         posViewModel = new PosViewModel(session.ApiClient, session.Login.User.Id);
         InventoryCenterContent.DataContext = inventoryCenterViewModel;
         InventoryMovementsContent.DataContext = inventoryMovementsViewModel;
         CashRegisterContent.DataContext = cashRegisterViewModel;
+        CustomersContent.DataContext = customersViewModel;
         PosContent.DataContext = posViewModel;
         PosContent.ExitRequested += (_, _) => ShowHome();
         PriceListsContent.Configure(session.ApiClient);
@@ -172,6 +176,17 @@ public partial class ShellView : UserControl
         await cashRegisterViewModel.LoadAsync();
     }
 
+    private async void Customers_Click(object sender, RoutedEventArgs e)
+    {
+        if (!HomeCustomersCard.IsEnabled)
+        {
+            return;
+        }
+
+        ShowCustomers();
+        await customersViewModel.LoadAsync();
+    }
+
     private async void Pos_Click(object sender, RoutedEventArgs e)
     {
         if (!HomePosCard.IsEnabled)
@@ -228,6 +243,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -243,6 +259,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -258,6 +275,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Visible;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -273,6 +291,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Visible;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -288,6 +307,23 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Visible;
+        CustomersContent.Visibility = Visibility.Collapsed;
+        SyncWorkerContent.Visibility = Visibility.Collapsed;
+        PosContent.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowCustomers()
+    {
+        SectionTitle.Text = "Clientes";
+        SectionSubtitle.Text = "Datos fiscales, contacto e historial POS";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
+        HomeContent.Visibility = Visibility.Collapsed;
+        InventoryCenterContent.Visibility = Visibility.Collapsed;
+        InventoryMovementsContent.Visibility = Visibility.Collapsed;
+        PriceListsContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Visible;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -303,6 +339,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Visible;
         PosContent.Visibility = Visibility.Collapsed;
     }
@@ -315,6 +352,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Visible;
     }
@@ -326,6 +364,7 @@ public partial class ShellView : UserControl
         bool canMoveInventory = session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update");
         bool canManagePrices = session.HasPermission("products.update");
         bool canUseCashRegister = session.HasAnyPermission("cash_register.view", "cash_register.open");
+        bool canUseCustomers = session.HasPermission("customers.view");
         bool canUseSync = session.HasAnyPermission("sync.view", "sync.manage") || session.HasAnyPermission("cash_register.view", "products.view");
 
         SetCardAccess(HomePosCard, canUsePos, "Sin permiso POS");
@@ -333,6 +372,7 @@ public partial class ShellView : UserControl
         SetCardAccess(HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
         SetCardAccess(HomePriceListsCard, canManagePrices, "Sin permiso de precios");
         SetCardAccess(HomeCashCard, canUseCashRegister, "Sin permiso de caja");
+        SetCardAccess(HomeCustomersCard, canUseCustomers, "Sin permiso de clientes");
         SetCardAccess(HomeSyncCard, canUseSync, "Sin permiso de sincronizacion");
         RunSyncButton.IsEnabled = canUseSync;
         RunSyncButton.ToolTip = canUseSync ? "Ejecuta un ciclo manual para esta empresa." : "Sin permiso de sincronizacion";
