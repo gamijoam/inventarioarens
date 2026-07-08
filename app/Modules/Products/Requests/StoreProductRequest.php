@@ -16,7 +16,7 @@ class StoreProductRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'sku' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
                 Rule::unique('products', 'sku')->where('tenant_id', $tenantId),
@@ -57,7 +57,6 @@ class StoreProductRequest extends FormRequest
         return [
             'name.required' => 'El nombre del producto es obligatorio.',
             'name.max' => 'El nombre del producto no puede superar 255 caracteres.',
-            'sku.required' => 'El SKU del producto es obligatorio.',
             'sku.unique' => 'Ya existe un producto con este SKU en la empresa actual.',
             'sku.max' => 'El SKU no puede superar 255 caracteres.',
             'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',

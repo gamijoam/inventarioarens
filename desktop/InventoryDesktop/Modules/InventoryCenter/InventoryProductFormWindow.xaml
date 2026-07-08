@@ -35,7 +35,7 @@
                     <TextBlock Text="Nombre" FontWeight="Black" />
                     <TextBox x:Name="NameBox" Height="38" Margin="0,6,0,14" />
 
-                    <TextBlock Text="SKU" FontWeight="Black" />
+                    <TextBlock Text="SKU interno (opcional)" FontWeight="Black" />
                     <TextBox x:Name="SkuBox" Height="38" Margin="0,6,0,14" />
 
                     <Grid>
@@ -88,6 +88,11 @@
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,12,0,0" />
+                    <TextBlock Text="Si dejas el SKU vacio, el sistema generara un codigo interno. En telefonos, el POS seguira vendiendo por IMEI."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
         </ScrollViewer>

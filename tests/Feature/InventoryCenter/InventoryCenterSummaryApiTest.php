@@ -89,6 +89,44 @@ class InventoryCenterSummaryApiTest extends TestCase
             ->assertJsonPath('data.products.0.name', 'Samsung A06');
     }
 
+    public function test_inventory_center_searches_by_imei_for_pos_scanner(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen', 'code' => 'WH']);
+        $product = Product::create([
+            'name' => 'Redmi Note 15',
+            'sku' => 'REDMI-NOTE-15',
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+            'base_price' => 300,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860001501515151',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?search=860001501515151&stock_status=all')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.products')
+            ->assertJsonPath('data.products.0.name', 'Redmi Note 15')
+            ->assertJsonPath('data.products.0.tracking_type', Product::TRACKING_SERIALIZED);
+    }
+
     public function test_inventory_center_can_include_inactive_products_for_admin_catalog_management(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

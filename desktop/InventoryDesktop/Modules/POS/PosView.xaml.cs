@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using InventoryDesktop.Core.Api;
@@ -22,6 +23,7 @@ public partial class PosView : UserControl
         searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
         Loaded += (_, _) => FocusSearchBox();
         PreviewKeyDown += PosView_PreviewKeyDown;
+        PreviewTextInput += PosView_PreviewTextInput;
     }
 
     public event EventHandler? ExitRequested;
@@ -93,6 +95,19 @@ public partial class PosView : UserControl
             e.Handled = true;
             FocusSearchBox();
         }
+    }
+
+    private void PosView_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Text) || IsTextEntryElement(Keyboard.FocusedElement))
+        {
+            return;
+        }
+
+        SearchBox.Focus();
+        Keyboard.Focus(SearchBox);
+        InsertTextInSearchBox(e.Text);
+        e.Handled = true;
     }
 
     private async void SearchBox_KeyDown(object sender, KeyEventArgs e)
@@ -525,6 +540,26 @@ public partial class PosView : UserControl
     private void PosContext_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         FocusSearchBox();
+    }
+
+    private void InsertTextInSearchBox(string text)
+    {
+        int selectionStart = SearchBox.SelectionStart;
+        int selectionLength = SearchBox.SelectionLength;
+        string currentText = SearchBox.Text ?? string.Empty;
+
+        if (selectionLength > 0)
+        {
+            currentText = currentText.Remove(selectionStart, selectionLength);
+        }
+
+        SearchBox.Text = currentText.Insert(selectionStart, text);
+        SearchBox.CaretIndex = selectionStart + text.Length;
+    }
+
+    private static bool IsTextEntryElement(object? focusedElement)
+    {
+        return focusedElement is TextBoxBase or PasswordBox or ComboBox;
     }
 
     private void FocusSearchBox(bool selectAll = false)

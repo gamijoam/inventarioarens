@@ -254,11 +254,6 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
             return Fail("El nombre del producto es obligatorio.");
         }
 
-        if (string.IsNullOrWhiteSpace(sku))
-        {
-            return Fail("El SKU del producto es obligatorio.");
-        }
-
         decimal? basePrice = null;
         if (!string.IsNullOrWhiteSpace(BasePriceBox.Text))
         {

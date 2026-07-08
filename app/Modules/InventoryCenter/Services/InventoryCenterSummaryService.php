@@ -226,7 +226,10 @@ class InventoryCenterSummaryService
                 $like = "%{$normalizedSearch}%";
                 $query
                     ->whereRaw('LOWER(products.name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like]);
+                    ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like])
+                    ->orWhereHas('units', function (Builder $unitQuery) use ($like): void {
+                        $unitQuery->whereRaw('LOWER(product_units.serial_number) LIKE ?', [$like]);
+                    });
             });
         }
 

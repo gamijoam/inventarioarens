@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -51,7 +52,9 @@ class ProductController extends Controller
     {
         Gate::authorize('create', Product::class);
 
-        $product = Product::create($request->validated())
+        $data = $this->prepareProductData($request->validated());
+
+        $product = Product::create($data)
             ->refresh()
             ->load(['saleExchangeRateType', 'warrantyPolicy']);
         $this->recordAudit($product, ProductAudit::ACTION_CREATED, [], $product->only($this->auditedFields()), $request->user()?->id);
@@ -245,6 +248,40 @@ class ProductController extends Controller
             'warranty_policy_id',
             'is_active',
         ];
+    }
+
+    private function prepareProductData(array $data): array
+    {
+        $sku = trim((string) ($data['sku'] ?? ''));
+        $data['sku'] = $sku !== '' ? $sku : $this->generateSkuFromName((string) $data['name']);
+
+        return $data;
+    }
+
+    private function generateSkuFromName(string $name): string
+    {
+        $base = Str::of($name)
+            ->ascii()
+            ->upper()
+            ->replaceMatches('/[^A-Z0-9]+/', '-')
+            ->trim('-')
+            ->limit(32, '')
+            ->toString();
+
+        if ($base === '') {
+            $base = 'PRODUCTO';
+        }
+
+        $candidate = $base;
+        $counter = 2;
+
+        while (Product::query()->where('sku', $candidate)->exists()) {
+            $suffix = "-{$counter}";
+            $candidate = Str::limit($base, 32 - strlen($suffix), '').$suffix;
+            $counter++;
+        }
+
+        return $candidate;
     }
 
     private function changedValues(array $before, array $after): array

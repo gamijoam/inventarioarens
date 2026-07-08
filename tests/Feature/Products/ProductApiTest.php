@@ -59,6 +59,36 @@ class ProductApiTest extends TestCase
         ]);
     }
 
+    public function test_user_can_create_serialized_product_without_manual_sku(): void
+    {
+        $tenant = Tenant::create(['name' => 'Telefonos Demo', 'slug' => 'telefonos-demo']);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Redmi Note 15',
+                'tracking_type' => Product::TRACKING_SERIALIZED,
+                'base_price' => 300,
+                'sale_currency' => Product::CURRENCY_USD,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Redmi Note 15')
+            ->assertJsonPath('data.tracking_type', Product::TRACKING_SERIALIZED);
+
+        $generatedSku = $response->json('data.sku');
+        $this->assertNotEmpty($generatedSku);
+        $this->assertStringStartsWith('REDMI-NOTE-15', $generatedSku);
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'name' => 'Redmi Note 15',
+            'sku' => $generatedSku,
+        ]);
+    }
+
     public function test_user_can_create_product_when_product_audits_table_is_missing(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
