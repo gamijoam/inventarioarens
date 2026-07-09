@@ -986,6 +986,7 @@ Responsabilidad:
 - seleccion de IMEIs o seriales especificos cuando el producto es serializado;
 - generacion de movimientos `transfer_out` y `transfer_in` mediante `InventoryMovementService`;
 - generacion de guia y checklist cuando el traslado usa modo logistico;
+- preparacion logistica con reserva de stock, IMEIs cargados y diferencias justificadas;
 - trazabilidad del documento origen para Kardex y auditoria.
 
 Archivos principales:
@@ -998,6 +999,7 @@ Archivos principales:
 - `app/Modules/InventoryTransfers/Models/TenantTransferSetting.php`
 - `app/Modules/InventoryTransfers/Policies/InventoryTransferPolicy.php`
 - `app/Modules/InventoryTransfers/Controllers/InventoryTransferController.php`
+- `app/Modules/InventoryTransfers/Requests/PrepareInventoryTransferRequest.php`
 - `app/Modules/InventoryTransfers/Requests/StoreInventoryTransferRequest.php`
 - `app/Modules/InventoryTransfers/Resources/InventoryTransferResource.php`
 - `app/Modules/InventoryTransfers/Resources/InventoryTransferItemResource.php`
@@ -1009,7 +1011,9 @@ Regla importante:
 - en esta fase solo existe `internal`;
 - origen y destino deben pertenecer al mismo tenant;
 - `validation_mode = simple` completa el traslado inmediatamente y cambia el almacen del stock;
-- `validation_mode = logistics` crea solicitud, guia y checklist pendiente sin mover stock todavia;
+- `validation_mode = logistics` crea solicitud, guia y checklist pendiente sin mover stock al crear;
+- al preparar un traslado logistico, el sistema reserva la cantidad o los IMEIs cargados para que no se vendan ni se usen en otra operacion;
+- si se prepara menos de lo solicitado, se debe registrar un motivo de diferencia;
 - un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.

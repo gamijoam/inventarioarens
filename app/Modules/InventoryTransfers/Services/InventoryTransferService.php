@@ -122,6 +122,157 @@ class InventoryTransferService
         });
     }
 
+    public function prepare(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+            $transfer = InventoryTransfer::query()
+                ->whereKey($transfer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($transfer->validation_mode !== InventoryTransfer::VALIDATION_LOGISTICS) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo los traslados logisticos requieren preparacion por checklist.',
+                ]);
+            }
+
+            if ($transfer->status !== InventoryTransfer::STATUS_REQUESTED) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo se pueden preparar traslados solicitados.',
+                ]);
+            }
+
+            $transfer->loadMissing(['fromWarehouse', 'guide.checklists.items', 'items.product']);
+
+            $items = $transfer->items->keyBy('id');
+            $payloadItems = collect($data['items']);
+            $submittedItemIds = $payloadItems->pluck('inventory_transfer_item_id')->map(fn ($id): int => (int) $id)->all();
+            $expectedItemIds = $items->keys()->map(fn ($id): int => (int) $id)->all();
+
+            sort($submittedItemIds);
+            sort($expectedItemIds);
+
+            if ($submittedItemIds !== $expectedItemIds) {
+                throw ValidationException::withMessages([
+                    'items' => 'Debe preparar todos los productos incluidos en la guia.',
+                ]);
+            }
+
+            $preparationChecklist = $transfer->guide?->checklists
+                ->firstWhere('stage', InventoryTransferChecklist::STAGE_PREPARATION);
+
+            if (! $preparationChecklist) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'El traslado no tiene checklist de preparacion.',
+                ]);
+            }
+
+            $checklistItems = $preparationChecklist->items->keyBy('inventory_transfer_item_id');
+            $hasDifferences = false;
+
+            foreach ($payloadItems as $index => $payloadItem) {
+                /** @var InventoryTransferItem $item */
+                $item = $items->get((int) $payloadItem['inventory_transfer_item_id']);
+                $product = $item->product;
+                $requestedQuantity = (float) ($item->requested_quantity ?? $item->quantity);
+                $preparedUnitIds = $payloadItem['prepared_product_unit_ids'] ?? [];
+
+                if ($product->requiresSerializedTracking()) {
+                    $preparedQuantity = count($preparedUnitIds);
+                    $this->validatePreparedProductUnits($transfer, $item, $preparedUnitIds, $index);
+                } else {
+                    if ($preparedUnitIds !== []) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.prepared_product_unit_ids" => 'Solo los productos serializados pueden preparar IMEIs o seriales especificos.',
+                        ]);
+                    }
+
+                    $preparedQuantity = (float) ($payloadItem['prepared_quantity'] ?? $requestedQuantity);
+                }
+
+                if ($preparedQuantity > $requestedQuantity) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.prepared_quantity" => 'La cantidad preparada no puede superar la cantidad solicitada.',
+                    ]);
+                }
+
+                $differenceQuantity = $requestedQuantity - $preparedQuantity;
+                $differenceReason = $payloadItem['difference_reason'] ?? null;
+                $differenceNotes = $payloadItem['difference_notes'] ?? null;
+
+                if ($differenceQuantity > 0 && blank($differenceReason)) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.difference_reason" => 'Debe indicar el motivo cuando se prepara menos de lo solicitado.',
+                    ]);
+                }
+
+                if ($preparedQuantity > 0) {
+                    $movement = $this->inventory->reserve(
+                        warehouse: $transfer->fromWarehouse,
+                        product: $product,
+                        quantity: $preparedQuantity,
+                        createdBy: $user,
+                        reason: "Preparacion {$transfer->guide_number}: {$transfer->reason}",
+                        referenceType: InventoryTransfer::class,
+                        referenceId: $transfer->id,
+                    );
+
+                    $this->markPreparedProductUnitsAsReserved($preparedUnitIds, $movement->id);
+                }
+
+                $item->update([
+                    'prepared_quantity' => $preparedQuantity,
+                    'difference_quantity' => $differenceQuantity,
+                    'difference_reason' => $differenceReason,
+                    'difference_notes' => $differenceNotes,
+                    'prepared_product_unit_ids' => $preparedUnitIds ?: null,
+                ]);
+
+                $checklistItems->get($item->id)?->update([
+                    'checked_quantity' => $preparedQuantity,
+                    'difference_quantity' => $differenceQuantity,
+                    'reason' => $differenceReason,
+                    'notes' => $differenceNotes,
+                    'checked_product_unit_ids' => $preparedUnitIds ?: null,
+                ]);
+
+                $hasDifferences = $hasDifferences || $differenceQuantity > 0;
+            }
+
+            $preparedAt = $data['prepared_at'] ?? now();
+            $transferStatus = $hasDifferences
+                ? InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES
+                : InventoryTransfer::STATUS_PREPARED;
+            $guideStatus = $hasDifferences
+                ? InventoryTransferGuide::STATUS_PREPARED_WITH_DIFFERENCES
+                : InventoryTransferGuide::STATUS_PREPARED;
+            $checklistStatus = $hasDifferences
+                ? InventoryTransferChecklist::STATUS_COMPLETED_WITH_DIFFERENCES
+                : InventoryTransferChecklist::STATUS_COMPLETED;
+
+            $preparationChecklist->update([
+                'status' => $checklistStatus,
+                'completed_by' => $user->id,
+                'completed_at' => $preparedAt,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            $transfer->guide?->update([
+                'status' => $guideStatus,
+                'prepared_at' => $preparedAt,
+                'prepared_by' => $user->id,
+            ]);
+
+            $transfer->update([
+                'status' => $transferStatus,
+                'prepared_at' => $preparedAt,
+                'prepared_by' => $user->id,
+            ]);
+
+            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        });
+    }
+
     private function createLogisticTransfer(
         User $user,
         array $data,
@@ -245,6 +396,79 @@ class InventoryTransferService
                 }
             }
         }
+    }
+
+    private function validatePreparedProductUnits(
+        InventoryTransfer $transfer,
+        InventoryTransferItem $item,
+        array $unitIds,
+        int $itemIndex,
+    ): void {
+        if ((float) ($item->requested_quantity ?? $item->quantity) !== floor((float) ($item->requested_quantity ?? $item->quantity))) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.prepared_product_unit_ids" => 'Los productos serializados requieren cantidad entera.',
+            ]);
+        }
+
+        if (count($unitIds) !== count(array_unique($unitIds))) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.prepared_product_unit_ids" => 'No se puede repetir el mismo IMEI o serial en la preparacion.',
+            ]);
+        }
+
+        $expectedUnitIds = $item->product_unit_ids ?? [];
+
+        if ($expectedUnitIds !== [] && array_diff($unitIds, $expectedUnitIds) !== []) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.prepared_product_unit_ids" => 'Solo se pueden preparar IMEIs o seriales incluidos en la guia.',
+            ]);
+        }
+
+        if ($unitIds === []) {
+            return;
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($units->count() !== count($unitIds)) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.prepared_product_unit_ids" => 'Uno o mas IMEIs o seriales no existen.',
+            ]);
+        }
+
+        foreach ($unitIds as $unitIndex => $unitId) {
+            $unit = $units->get($unitId);
+
+            if ((int) $unit->product_id !== (int) $item->product_id
+                || (int) $unit->warehouse_id !== (int) $transfer->from_warehouse_id
+                || $unit->status !== ProductUnit::STATUS_AVAILABLE) {
+                throw ValidationException::withMessages([
+                    "items.{$itemIndex}.prepared_product_unit_ids.{$unitIndex}" => 'El IMEI o serial no esta disponible en el almacen origen.',
+                ]);
+            }
+        }
+    }
+
+    private function markPreparedProductUnitsAsReserved(array $unitIds, int $movementId): void
+    {
+        if ($unitIds === []) {
+            return;
+        }
+
+        ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->each(function (ProductUnit $unit) use ($movementId): void {
+                $unit->update([
+                    'status' => ProductUnit::STATUS_RESERVED,
+                    'released_stock_movement_id' => $movementId,
+                ]);
+            });
     }
 
     private function moveProductUnits(array $unitIds, Warehouse $toWarehouse, int $movementId): void

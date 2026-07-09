@@ -178,6 +178,194 @@ class InventoryTransferApiTest extends TestCase
         ]);
     }
 
+    public function test_user_can_prepare_logistic_transfer_and_reserve_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-PREP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 8);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'Preparar envio',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 5,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_quantity' => 5,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_PREPARED)
+            ->assertJsonPath('data.guide.status', InventoryTransferGuide::STATUS_PREPARED)
+            ->assertJsonPath('data.guide.checklists.0.status', InventoryTransferChecklist::STATUS_COMPLETED)
+            ->assertJsonPath('data.items.0.prepared_quantity', 5)
+            ->assertJsonPath('data.items.0.difference_quantity', 0);
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(3.0, (float) $balance->quantity_available);
+        $this->assertSame(5.0, (float) $balance->quantity_reserved);
+        $this->assertNull($this->balanceOrNull($toWarehouse, $product));
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $fromWarehouse->id,
+            'product_id' => $product->id,
+            'type' => 'reserved',
+            'quantity' => '5.0000',
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+        ]);
+    }
+
+    public function test_preparation_requires_reason_when_quantity_has_difference(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-DIFF', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 8);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 5,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_quantity' => 3,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.difference_reason']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_quantity' => 3,
+                    'difference_reason' => 'Faltaron unidades en estante',
+                    'difference_notes' => 'Se cargaron solo 3.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES)
+            ->assertJsonPath('data.guide.status', InventoryTransferGuide::STATUS_PREPARED_WITH_DIFFERENCES)
+            ->assertJsonPath('data.guide.checklists.0.status', InventoryTransferChecklist::STATUS_COMPLETED_WITH_DIFFERENCES)
+            ->assertJsonPath('data.items.0.prepared_quantity', 3)
+            ->assertJsonPath('data.items.0.difference_quantity', 2)
+            ->assertJsonPath('data.items.0.difference_reason', 'Faltaron unidades en estante');
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(5.0, (float) $balance->quantity_available);
+        $this->assertSame(3.0, (float) $balance->quantity_reserved);
+    }
+
+    public function test_user_can_prepare_logistic_transfer_with_serialized_units(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-PREP-IMEI', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.view',
+        ]);
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 3);
+        $units = $this->units($tenant, $fromWarehouse, $product, $movement->id, '862000', 3);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_PREPARED)
+            ->assertJsonPath('data.items.0.prepared_product_unit_ids.0', $units[0]->id)
+            ->assertJsonPath('data.items.0.prepared_quantity', 2);
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(1.0, (float) $balance->quantity_available);
+        $this->assertSame(2.0, (float) $balance->quantity_reserved);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[0]->id,
+            'warehouse_id' => $fromWarehouse->id,
+            'status' => ProductUnit::STATUS_RESERVED,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[2]->id,
+            'warehouse_id' => $fromWarehouse->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
     public function test_serialized_transfer_rejects_wrong_or_unavailable_units(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

@@ -3141,8 +3141,73 @@ Reglas:
 - los IMEIs seleccionados deben estar disponibles en el almacen origen;
 - al completar la transferencia, los IMEIs siguen disponibles pero cambian de almacen;
 - la transferencia usa bloqueo de balances para evitar stock negativo cuando hay operaciones simultaneas;
-- en modo logistico, el movimiento real de inventario se ejecutara en fases posteriores al preparar/despachar/recibir;
+- en modo logistico, la creacion no mueve stock; la preparacion reserva lo cargado y el movimiento real se completara en fases posteriores de despacho/recepcion;
 - los traslados entre empresas se modelaran como solicitud interempresa con aceptacion/rechazo, no como movimiento directo.
+
+### Preparar transferencia logistica
+
+```txt
+POST /api/inventory-transfers/{inventoryTransfer}/prepare
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.prepare
+```
+
+Body para producto por cantidad:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 10,
+      "prepared_quantity": 4
+    }
+  ]
+}
+```
+
+Body con diferencia justificada:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 10,
+      "prepared_quantity": 3,
+      "difference_reason": "Faltaron unidades en estante",
+      "difference_notes": "Se cargaron 3 de 4 solicitadas."
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 11,
+      "prepared_product_unit_ids": [100, 101]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- solo aplica para transferencias `validation_mode = logistics` en estado `requested`;
+- se deben preparar todos los items de la guia en una sola operacion;
+- si se prepara menos de lo solicitado, `difference_reason` es obligatorio;
+- los productos serializados se preparan indicando los IMEIs o seriales reales cargados;
+- si la guia ya traia IMEIs esperados, solo se pueden preparar esos IMEIs;
+- al preparar se reserva el stock cargado en el almacen origen (`reserved`) para impedir que POS u otra operacion lo venda;
+- si todo coincide, la transferencia queda en `prepared`, la guia en `prepared` y el checklist en `completed`;
+- si hay faltantes, la transferencia queda en `prepared_with_differences`, la guia en `prepared_with_differences` y el checklist en `completed_with_differences`;
+- esta fase no incrementa el almacen destino; eso se cerrara en despacho/recepcion.
 
 ### Ver transferencia
 

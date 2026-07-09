@@ -29,6 +29,8 @@ class InventoryTransferGuide extends Model
     use BelongsToTenant;
 
     public const STATUS_GENERATED = 'generated';
+    public const STATUS_PREPARED = 'prepared';
+    public const STATUS_PREPARED_WITH_DIFFERENCES = 'prepared_with_differences';
     public const STATUS_COMPLETED = 'completed';
 
     protected function casts(): array
