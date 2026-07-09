@@ -39,6 +39,7 @@
                          FontSize="16"
                          VerticalAlignment="Center"
                          ToolTip="Escanea o escribe SKU, nombre, serial o IMEI. Enter agrega coincidencia exacta."
+                         LostKeyboardFocus="SearchBox_LostKeyboardFocus"
                          TextChanged="SearchBox_TextChanged"
                          KeyDown="SearchBox_KeyDown" />
 

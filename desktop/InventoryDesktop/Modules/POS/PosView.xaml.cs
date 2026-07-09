@@ -12,6 +12,7 @@ namespace InventoryDesktop.Modules.POS;
 public partial class PosView : UserControl
 {
     private readonly DispatcherTimer searchDebounceTimer;
+    private readonly DispatcherTimer searchFocusTimer;
 
     public PosView()
     {
@@ -20,8 +21,14 @@ public partial class PosView : UserControl
         {
             Interval = TimeSpan.FromMilliseconds(450),
         };
+        searchFocusTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(700),
+        };
         searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
-        Loaded += (_, _) => FocusSearchBox();
+        searchFocusTimer.Tick += SearchFocusTimer_Tick;
+        Loaded += PosView_Loaded;
+        Unloaded += PosView_Unloaded;
         PreviewKeyDown += PosView_PreviewKeyDown;
         PreviewTextInput += PosView_PreviewTextInput;
     }
@@ -46,7 +53,19 @@ public partial class PosView : UserControl
         }
     }
 
-    private void PosView_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void PosView_Loaded(object sender, RoutedEventArgs e)
+    {
+        searchFocusTimer.Start();
+        FocusSearchBox(selectAll: true);
+    }
+
+    private void PosView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        searchFocusTimer.Stop();
+        searchDebounceTimer.Stop();
+    }
+
+    private async void PosView_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.F2)
         {
@@ -94,6 +113,29 @@ public partial class PosView : UserControl
 
             e.Handled = true;
             FocusSearchBox();
+            return;
+        }
+
+        if (Keyboard.FocusedElement != SearchBox && !IsTextEntryElement(Keyboard.FocusedElement))
+        {
+            if (e.Key == Key.Enter && ViewModel is not null && !string.IsNullOrWhiteSpace(SearchBox.Text))
+            {
+                searchDebounceTimer.Stop();
+                await ViewModel.SearchAsync();
+                await TryAddExactSearchMatchAsync();
+                e.Handled = true;
+                FocusSearchBox(selectAll: true);
+                return;
+            }
+
+            if (TryGetTextFromKey(e.Key, out string text))
+            {
+                SearchBox.Focus();
+                Keyboard.Focus(SearchBox);
+                InsertTextInSearchBox(text);
+                e.Handled = true;
+                return;
+            }
         }
     }
 
@@ -136,6 +178,16 @@ public partial class PosView : UserControl
         }
 
         searchDebounceTimer.Start();
+    }
+
+    private void SearchBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (IsTextEntryElement(e.NewFocus) || e.NewFocus is ComboBoxItem)
+        {
+            return;
+        }
+
+        FocusSearchBox();
     }
 
     private async void SearchDebounceTimer_Tick(object? sender, EventArgs e)
@@ -542,6 +594,21 @@ public partial class PosView : UserControl
         FocusSearchBox();
     }
 
+    private void SearchFocusTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsVisible || !IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        if (Keyboard.FocusedElement == SearchBox || IsTextEntryElement(Keyboard.FocusedElement))
+        {
+            return;
+        }
+
+        FocusSearchBox();
+    }
+
     private void InsertTextInSearchBox(string text)
     {
         int selectionStart = SearchBox.SelectionStart;
@@ -560,6 +627,40 @@ public partial class PosView : UserControl
     private static bool IsTextEntryElement(object? focusedElement)
     {
         return focusedElement is TextBoxBase or PasswordBox or ComboBox;
+    }
+
+    private static bool TryGetTextFromKey(Key key, out string text)
+    {
+        text = string.Empty;
+        Key normalizedKey = key;
+
+        if (normalizedKey >= Key.D0 && normalizedKey <= Key.D9)
+        {
+            text = ((int)normalizedKey - (int)Key.D0).ToString();
+            return true;
+        }
+
+        if (normalizedKey >= Key.NumPad0 && normalizedKey <= Key.NumPad9)
+        {
+            text = ((int)normalizedKey - (int)Key.NumPad0).ToString();
+            return true;
+        }
+
+        if (normalizedKey >= Key.A && normalizedKey <= Key.Z)
+        {
+            bool upper = Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
+            string letter = normalizedKey.ToString();
+            text = upper ? letter : letter.ToLowerInvariant();
+            return true;
+        }
+
+        if (normalizedKey is Key.OemMinus or Key.Subtract)
+        {
+            text = "-";
+            return true;
+        }
+
+        return false;
     }
 
     private void FocusSearchBox(bool selectAll = false)
