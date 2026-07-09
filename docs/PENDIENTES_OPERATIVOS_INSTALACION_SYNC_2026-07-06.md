@@ -70,11 +70,66 @@ Objetivo:
 - Evitar copiar archivos manualmente de forma desordenada.
 - Facilitar soporte remoto.
 
+### 4. Validacion automatica de permisos de instalacion
+
+El configurador o instalador tecnico debe validar permisos antes de intentar sincronizar o ejecutar la app.
+
+Permisos locales en Windows:
+
+- La carpeta del sistema debe permitir lectura y escritura al usuario operativo.
+- `storage/logs` debe permitir crear y escribir logs.
+- `storage/app/sync-worker` debe permitir crear configuracion, PID y archivos temporales del worker.
+- El worker automatico debe quedar instalado como tarea de Windows con el mismo usuario que tiene acceso a la carpeta del sistema.
+- El usuario debe poder ejecutar PHP, .NET y los scripts `scripts/sync-worker.cmd` y `scripts/sync-worker-task.cmd`.
+
+Permisos de PostgreSQL local:
+
+- El usuario configurado debe poder conectarse a la base local.
+- Debe poder crear tablas durante migraciones.
+- Debe poder leer y escribir datos operativos.
+- Si la base no existe, el configurador deberia permitir crearla o mostrar una instruccion clara.
+
+Permisos en VPS o servidor nube:
+
+- El usuario del servicio web debe poder leer el proyecto.
+- `storage` y `bootstrap/cache` deben ser escribibles por el usuario que ejecuta Laravel.
+- El servidor debe poder escribir logs de Laravel.
+- El backend nube debe tener acceso a PostgreSQL con permisos de lectura/escritura sobre la base `inventory_arens`.
+- La API nube debe quedar expuesta por HTTPS para los locales.
+- El puerto directo de PostgreSQL solo debe abrirse si es estrictamente necesario para soporte tecnico; en produccion se recomienda usar la API y restringir PostgreSQL por firewall.
+
+Validaciones recomendadas del instalador:
+
+- Conexion al backend nube.
+- Token de sincronizacion valido.
+- Escritura en `storage/logs`.
+- Escritura en `storage/app/sync-worker`.
+- Estado de la tarea automatica de Windows.
+- Conexion a PostgreSQL local.
+- Migraciones locales aplicadas.
+- Primer ciclo de sincronizacion local-nube.
+
+Resultado esperado:
+
+```text
+Instalacion lista para operar
+```
+
+Si algo falla, el instalador debe mostrar mensajes no tecnicos, por ejemplo:
+
+```text
+No puedo escribir logs en esta carpeta.
+PostgreSQL local no responde.
+La tarea automatica de sincronizacion no esta instalada.
+El token de nube no corresponde a esta empresa.
+```
+
 ## Orden sugerido
 
 1. Crear base local desde configurador.
 2. Prueba guiada de sincronizacion.
 3. Paquete tecnico de instalacion.
+4. Validacion automatica de permisos de instalacion.
 
 ## Nota
 

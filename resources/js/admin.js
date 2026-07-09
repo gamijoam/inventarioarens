@@ -29,6 +29,14 @@ const state = {
         rateTypes: [],
         warrantyPolicies: [],
     },
+    rates: {
+        title: 'Tasas de cambio',
+        copy: 'Administra BCV, paralelo y cualquier tasa usada para precios, POS y reportes.',
+        loaded: false,
+        selectedType: null,
+        rateTypes: [],
+        rates: [],
+    },
     movements: {
         page: 1,
         loaded: false,
@@ -211,6 +219,25 @@ const elements = {
     priceListRows: document.querySelector('#admin-price-list-rows'),
     priceListSave: document.querySelector('#admin-price-list-save'),
     priceCopyBase: document.querySelector('#admin-price-copy-base'),
+    ratesModule: document.querySelector('#admin-rates-module'),
+    ratesRefresh: document.querySelector('#admin-rates-refresh'),
+    rateTypesTable: document.querySelector('#admin-rate-types-table'),
+    ratesTable: document.querySelector('#admin-rates-table'),
+    ratesStatus: document.querySelector('#admin-rates-status'),
+    rateTypeTitle: document.querySelector('#admin-rate-type-title'),
+    rateTypeCode: document.querySelector('#admin-rate-type-code'),
+    rateTypeName: document.querySelector('#admin-rate-type-name'),
+    rateTypeDefault: document.querySelector('#admin-rate-type-default'),
+    rateTypeActive: document.querySelector('#admin-rate-type-active'),
+    rateTypeSave: document.querySelector('#admin-rate-type-save'),
+    rateTypeDeactivate: document.querySelector('#admin-rate-type-deactivate'),
+    rateTypeCancel: document.querySelector('#admin-rate-type-cancel'),
+    rateValueType: document.querySelector('#admin-rate-value-type'),
+    rateValue: document.querySelector('#admin-rate-value'),
+    rateEffectiveAt: document.querySelector('#admin-rate-effective-at'),
+    rateSource: document.querySelector('#admin-rate-source'),
+    rateActive: document.querySelector('#admin-rate-active'),
+    rateSave: document.querySelector('#admin-rate-save'),
     movementsModule: document.querySelector('#admin-movements-module'),
     movementsRefresh: document.querySelector('#admin-movements-refresh'),
     movementsSearch: document.querySelector('#admin-movements-search'),
@@ -442,6 +469,7 @@ const permissionProfiles = {
         'customers.update',
         'suppliers.view',
         'currency.view',
+        'currency.manage',
         'inventory.view',
         'product_entries.view',
         'product_exits.view',
@@ -467,6 +495,14 @@ const permissionProfiles = {
 };
 
 const portalSections = {
+    reports: {
+        title: 'Reportes operativos',
+        copy: 'Ventas POS, metodos de pago, cajas y productos mas vendidos por periodo.',
+    },
+    rates: {
+        title: 'Tasas de cambio',
+        copy: 'Administra BCV, paralelo y cualquier tasa usada para precios, POS y reportes.',
+    },
     overview: {
         title: 'Vista gerencial',
         copy: 'Resumen operativo de ventas, inventario, caja y sincronización.',
@@ -794,6 +830,11 @@ function resetTenantScopedState() {
     state.inventory.rateTypes = [];
     state.inventory.warrantyPolicies = [];
 
+    state.rates.loaded = false;
+    state.rates.selectedType = null;
+    state.rates.rateTypes = [];
+    state.rates.rates = [];
+
     state.movements.page = 1;
     state.movements.loaded = false;
     state.movements.warehousesLoaded = false;
@@ -944,6 +985,7 @@ function activatePortalSection(section) {
     const isSales = selectedSection === 'sales';
     const isReports = selectedSection === 'reports';
     const isInventory = selectedSection === 'inventory';
+    const isRates = selectedSection === 'rates';
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
     const isCustomers = selectedSection === 'customers';
@@ -978,6 +1020,10 @@ function activatePortalSection(section) {
         elements.inventoryModule.hidden = !isInventory;
     }
 
+    if (elements.ratesModule) {
+        elements.ratesModule.hidden = !isRates;
+    }
+
     if (elements.movementsModule) {
         elements.movementsModule.hidden = !isMovements;
     }
@@ -1010,9 +1056,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isMovements || isSuppliers || isCustomers || isPurchases || isReceivables || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isRates || isMovements || isSuppliers || isCustomers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isSales && !isReports && !isInventory && !isMovements && !isSuppliers && !isCustomers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
+    if (!isOverview && !isSales && !isReports && !isInventory && !isRates && !isMovements && !isSuppliers && !isCustomers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -1030,6 +1076,10 @@ function activatePortalSection(section) {
         loadInventoryPriceLists().catch((error) => {
             setStatus(elements.inventoryStatus, normalizeError(error), 'error');
         });
+    }
+
+    if (isRates && !state.rates.loaded) {
+        loadRates();
     }
 
     if (isMovements && !state.movements.loaded) {
@@ -4357,6 +4407,282 @@ async function saveProductPriceLists() {
     }
 }
 
+async function loadRates() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    if (!can('currency.view')) {
+        setStatus(elements.ratesStatus, 'Tu usuario no tiene permiso para ver tasas.', 'error');
+        return;
+    }
+
+    setStatus(elements.ratesStatus, 'Cargando tasas de cambio...');
+    setButtonLoading(elements.ratesRefresh, true, 'Actualizando...');
+
+    try {
+        const [typesPayload, ratesPayload] = await Promise.all([
+            api('/api/currency/rate-types', { headers: authHeaders(session) }),
+            api('/api/currency/rates', { headers: authHeaders(session) }),
+        ]);
+
+        state.rates.rateTypes = collectionData(typesPayload);
+        state.rates.rates = collectionData(ratesPayload);
+        state.rates.selectedType = keepSelectedOrFirst(state.rates.rateTypes, state.rates.selectedType);
+        state.rates.loaded = true;
+
+        renderRates();
+        setStatus(elements.ratesStatus, 'Tasas actualizadas.', 'success');
+    } catch (error) {
+        setStatus(elements.ratesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.ratesRefresh, false);
+    }
+}
+
+function renderRates() {
+    renderRateTypes();
+    renderRateHistory();
+    renderRateTypeForm();
+    renderRateValueTypes();
+}
+
+function renderRateTypes() {
+    if (!elements.rateTypesTable) {
+        return;
+    }
+
+    if (!state.rates.rateTypes.length) {
+        elements.rateTypesTable.innerHTML = '<tr><td colspan="6"><strong>Sin tipos de tasa</strong><small>Crea BCV, paralelo u otra tasa antes de registrar valores.</small></td></tr>';
+        return;
+    }
+
+    elements.rateTypesTable.replaceChildren(...state.rates.rateTypes.map((type) => {
+        const activeRate = state.rates.rates.find((rate) => rate.exchange_rate_type_id === type.id && rate.is_active);
+        const row = document.createElement('tr');
+        row.className = state.rates.selectedType?.id === type.id ? 'is-selected' : '';
+        row.innerHTML = `
+            <td><strong>${escapeHtml(type.code)}</strong></td>
+            <td>${escapeHtml(type.name)}</td>
+            <td>${type.is_default ? 'Si' : 'No'}</td>
+            <td>${type.is_active ? '<span class="access-chip">Activa</span>' : '<span class="access-chip access-chip--locked">Inactiva</span>'}</td>
+            <td>${activeRate ? `${escapeHtml(activeRate.quote_currency)} ${number(activeRate.rate)}` : 'Sin tasa'}</td>
+            <td><button class="ghost-button ghost-button--compact" type="button" data-rate-type="${type.id}">Editar</button></td>
+        `;
+        row.querySelector('[data-rate-type]')?.addEventListener('click', () => selectRateType(type));
+        row.addEventListener('dblclick', () => selectRateType(type));
+
+        return row;
+    }));
+}
+
+function renderRateHistory() {
+    if (!elements.ratesTable) {
+        return;
+    }
+
+    if (!state.rates.rates.length) {
+        elements.ratesTable.innerHTML = '<tr><td colspan="5"><strong>Sin tasas registradas</strong><small>Registra el primer valor para comenzar.</small></td></tr>';
+        return;
+    }
+
+    elements.ratesTable.replaceChildren(...state.rates.rates.map((rate) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${escapeHtml(rate.exchange_rate_type_code || 'N/D')}</strong><small>${escapeHtml(rate.exchange_rate_type_name || '')}</small></td>
+            <td>${escapeHtml(rate.quote_currency)} ${number(rate.rate)}</td>
+            <td>${formatDateTime(rate.effective_at)}</td>
+            <td>${rate.is_active ? '<span class="access-chip">Vigente</span>' : '<span class="access-chip access-chip--locked">Historial</span>'}</td>
+            <td>${escapeHtml(rate.source || 'Manual')}</td>
+        `;
+
+        return row;
+    }));
+}
+
+function selectRateType(type) {
+    state.rates.selectedType = type;
+    renderRates();
+    setStatus(elements.ratesStatus, `Editando tipo de tasa ${type.code}.`, 'neutral');
+}
+
+function renderRateTypeForm() {
+    const type = state.rates.selectedType;
+
+    if (!elements.rateTypeTitle) {
+        return;
+    }
+
+    elements.rateTypeTitle.textContent = type ? `Editar ${type.code}` : 'Nuevo tipo de tasa';
+    elements.rateTypeCode.value = type?.code || '';
+    elements.rateTypeName.value = type?.name || '';
+    elements.rateTypeDefault.checked = Boolean(type?.is_default);
+    elements.rateTypeActive.checked = type ? Boolean(type.is_active) : true;
+    elements.rateTypeDeactivate.disabled = !type;
+}
+
+function renderRateValueTypes() {
+    if (!elements.rateValueType) {
+        return;
+    }
+
+    const selectedValue = elements.rateValueType.value || state.rates.selectedType?.id || '';
+    elements.rateValueType.innerHTML = state.rates.rateTypes
+        .filter((type) => type.is_active)
+        .map((type) => `<option value="${type.id}">${escapeHtml(type.name)} (${escapeHtml(type.code)})</option>`)
+        .join('');
+
+    if (selectedValue) {
+        elements.rateValueType.value = String(selectedValue);
+    }
+
+    if (!elements.rateEffectiveAt.value) {
+        elements.rateEffectiveAt.value = localDateTimeValue();
+    }
+}
+
+function clearRateTypeForm() {
+    state.rates.selectedType = null;
+    renderRates();
+    setStatus(elements.ratesStatus, 'Formulario listo para crear un tipo de tasa.', 'neutral');
+}
+
+async function saveRateType() {
+    const session = state.session;
+    const type = state.rates.selectedType;
+
+    if (!session) {
+        return;
+    }
+
+    if (!can('currency.manage')) {
+        setStatus(elements.ratesStatus, 'Tu usuario no tiene permiso para administrar tasas.', 'error');
+        return;
+    }
+
+    const payload = {
+        code: elements.rateTypeCode.value.trim().toUpperCase(),
+        name: elements.rateTypeName.value.trim(),
+        is_default: elements.rateTypeDefault.checked,
+        is_active: elements.rateTypeActive.checked,
+    };
+
+    if (!payload.code || !payload.name) {
+        setStatus(elements.ratesStatus, 'Completa codigo y nombre del tipo de tasa.', 'error');
+        return;
+    }
+
+    setStatus(elements.ratesStatus, type ? 'Actualizando tipo de tasa...' : 'Creando tipo de tasa...');
+    setButtonLoading(elements.rateTypeSave, true, 'Guardando...');
+
+    try {
+        const saved = await api(type ? `/api/currency/rate-types/${type.id}` : '/api/currency/rate-types', {
+            method: type ? 'PUT' : 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+
+        state.rates.selectedType = saved;
+        await loadRates();
+        setStatus(elements.ratesStatus, 'Tipo de tasa guardado y listo para sincronizar.', 'success');
+    } catch (error) {
+        setStatus(elements.ratesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.rateTypeSave, false);
+    }
+}
+
+async function deactivateRateType() {
+    const session = state.session;
+    const type = state.rates.selectedType;
+
+    if (!session || !type) {
+        setStatus(elements.ratesStatus, 'Selecciona un tipo de tasa antes de desactivar.', 'error');
+        return;
+    }
+
+    if (!can('currency.manage')) {
+        setStatus(elements.ratesStatus, 'Tu usuario no tiene permiso para administrar tasas.', 'error');
+        return;
+    }
+
+    setStatus(elements.ratesStatus, 'Desactivando tipo de tasa...');
+    setButtonLoading(elements.rateTypeDeactivate, true, 'Desactivando...');
+
+    try {
+        await api(`/api/currency/rate-types/${type.id}`, {
+            method: 'DELETE',
+            headers: authHeaders(session),
+        });
+
+        state.rates.selectedType = null;
+        await loadRates();
+        setStatus(elements.ratesStatus, 'Tipo de tasa desactivado y listo para sincronizar.', 'success');
+    } catch (error) {
+        setStatus(elements.ratesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.rateTypeDeactivate, false);
+    }
+}
+
+async function saveExchangeRate() {
+    const session = state.session;
+
+    if (!session) {
+        return;
+    }
+
+    if (!can('currency.manage')) {
+        setStatus(elements.ratesStatus, 'Tu usuario no tiene permiso para registrar tasas.', 'error');
+        return;
+    }
+
+    const payload = {
+        exchange_rate_type_id: Number(elements.rateValueType.value),
+        base_currency: 'USD',
+        quote_currency: 'VES',
+        rate: Number(elements.rateValue.value),
+        effective_at: elements.rateEffectiveAt.value,
+        source: elements.rateSource.value.trim() || 'Manual',
+        is_active: elements.rateActive.checked,
+    };
+
+    if (!payload.exchange_rate_type_id || Number.isNaN(payload.rate) || payload.rate <= 0 || !payload.effective_at) {
+        setStatus(elements.ratesStatus, 'Selecciona tipo, valor y fecha vigente.', 'error');
+        return;
+    }
+
+    setStatus(elements.ratesStatus, 'Registrando tasa y preparando sincronizacion...');
+    setButtonLoading(elements.rateSave, true, 'Registrando...');
+
+    try {
+        await api('/api/currency/rates', {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify(payload),
+        });
+
+        elements.rateValue.value = '';
+        elements.rateSource.value = '';
+        elements.rateEffectiveAt.value = localDateTimeValue();
+        await loadRates();
+        setStatus(elements.ratesStatus, 'Tasa registrada. Los locales la recibiran por sincronizacion.', 'success');
+    } catch (error) {
+        setStatus(elements.ratesStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.rateSave, false);
+    }
+}
+
+function localDateTimeValue() {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+
+    return date.toISOString().slice(0, 16);
+}
+
 async function loadAccessControl() {
     const session = state.session;
 
@@ -4784,6 +5110,7 @@ function permissionModuleLabel(module) {
         sync: 'Sincronizacion',
         accounts_receivable: 'Cuentas por cobrar',
         accounts_payable: 'Cuentas por pagar',
+        currency: 'Tasas',
     }[module] ?? module.replaceAll('_', ' ');
 }
 
@@ -5107,6 +5434,11 @@ elements.inventoryCancel?.addEventListener('click', () => {
     renderProductPriceListRows([]);
     setStatus(elements.inventoryStatus, 'Edición cancelada.');
 });
+elements.ratesRefresh?.addEventListener('click', loadRates);
+elements.rateTypeSave?.addEventListener('click', saveRateType);
+elements.rateTypeDeactivate?.addEventListener('click', deactivateRateType);
+elements.rateTypeCancel?.addEventListener('click', clearRateTypeForm);
+elements.rateSave?.addEventListener('click', saveExchangeRate);
 elements.movementsRefresh?.addEventListener('click', () => loadMovements());
 elements.movementsApply?.addEventListener('click', () => loadMovements(1));
 elements.movementsClear?.addEventListener('click', clearMovementFilters);

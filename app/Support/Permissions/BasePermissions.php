@@ -106,6 +106,7 @@ class BasePermissions
             'suppliers.create',
             'suppliers.update',
             'currency.view',
+            'currency.manage',
             'inventory.view',
             'product_entries.view',
             'product_entries.create',

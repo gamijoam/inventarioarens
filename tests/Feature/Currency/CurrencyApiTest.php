@@ -9,6 +9,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -203,6 +204,61 @@ class CurrencyApiTest extends TestCase
                 'name' => 'Tasa BCV',
             ])
             ->assertForbidden();
+    }
+
+    public function test_currency_changes_are_queued_for_sync(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Currency Manager', ['currency.view', 'currency.manage']);
+
+        $typeResponse = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/currency/rate-types', [
+                'code' => 'BCV',
+                'name' => 'Banco Central de Venezuela',
+                'is_default' => true,
+                'is_active' => true,
+            ])
+            ->assertCreated();
+
+        $typeId = $typeResponse->json('data.id');
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'exchange_rate_type.created',
+            'aggregate_type' => 'exchange_rate_type',
+            'aggregate_id' => $typeId,
+        ]);
+
+        $rateResponse = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/currency/rates', [
+                'exchange_rate_type_id' => $typeId,
+                'rate' => 500,
+                'effective_at' => '2026-07-08T08:00:00-04:00',
+                'is_active' => true,
+                'source' => 'Prueba automatizada',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'exchange_rate.created',
+            'aggregate_type' => 'exchange_rate',
+            'aggregate_id' => $rateResponse->json('data.id'),
+        ]);
+
+        $payload = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'exchange_rate.created')
+            ->latest('id')
+            ->value('payload');
+
+        $this->assertSame('BCV', json_decode($payload, true)['exchange_rate_type_code']);
     }
 
     protected function setUp(): void

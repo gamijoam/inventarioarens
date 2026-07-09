@@ -1914,6 +1914,70 @@ button {
     margin: 1px 0 0;
 }
 
+.rates-admin__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.65fr);
+    gap: 10px;
+}
+
+.rates-admin__main,
+.rates-editor {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
+.rates-editor {
+    position: sticky;
+    top: 10px;
+}
+
+.rates-editor__block {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 12px;
+}
+
+.rates-editor__block h4 {
+    margin: 6px 0 10px;
+}
+
+.rates-editor__grid {
+    display: grid;
+    gap: 8px;
+}
+
+.rates-admin__table {
+    min-height: 180px;
+}
+
+.rates-admin__table--short {
+    max-height: 260px;
+}
+
+.inline-check,
+.inline-checks {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.inline-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0;
+}
+
+.inline-check input,
+.inline-checks input {
+    width: 15px;
+    height: 15px;
+    margin: 0 5px 0 0;
+    vertical-align: middle;
+}
+
 .access-empty {
     margin: 0;
     color: var(--muted);
@@ -1935,6 +1999,7 @@ button {
     }
 
     .inventory-admin__layout,
+    .rates-admin__layout,
     .suppliers-admin__layout,
     .customers-admin__layout,
     .purchases-admin__layout,
@@ -1955,6 +2020,7 @@ button {
 
     .inventory-editor,
     .inventory-detail,
+    .rates-editor,
     .supplier-editor,
     .customer-editor,
     .purchase-editor,

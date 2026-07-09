@@ -99,6 +99,10 @@
                             <span>Inventario</span>
                             <small>Stock y productos</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="rates">
+                            <span>Tasas</span>
+                            <small>BCV y paralelo</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="movements">
                             <span>Movimientos</span>
                             <small>Entradas y salidas</small>
@@ -798,6 +802,123 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-inventory-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel rates-admin" id="admin-rates-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Monedas</span>
+                                    <h3>Tasas de cambio</h3>
+                                    <p>Crea tipos de tasa como BCV o paralelo y registra el valor vigente para sincronizarlo con los locales.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-rates-refresh">Actualizar tasas</button>
+                                </div>
+                            </div>
+
+                            <div class="rates-admin__layout">
+                                <div class="rates-admin__main">
+                                    <section class="content-panel content-panel--flat">
+                                        <div class="panel-heading">
+                                            <div>
+                                                <h4>Tipos de tasa</h4>
+                                                <p>Define si una tasa esta activa o si sera la predeterminada.</p>
+                                            </div>
+                                        </div>
+                                        <div class="admin-table-wrap admin-table-wrap--compact rates-admin__table">
+                                            <table class="admin-data-table admin-data-table--compact">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Codigo</th>
+                                                        <th>Nombre</th>
+                                                        <th>Pred.</th>
+                                                        <th>Estado</th>
+                                                        <th>Tasa activa</th>
+                                                        <th>Accion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="admin-rate-types-table"></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+
+                                    <section class="content-panel content-panel--flat">
+                                        <div class="panel-heading">
+                                            <div>
+                                                <h4>Historial reciente</h4>
+                                                <p>Ultimas tasas registradas para auditoria rapida.</p>
+                                            </div>
+                                        </div>
+                                        <div class="admin-table-wrap admin-table-wrap--compact rates-admin__table rates-admin__table--short">
+                                            <table class="admin-data-table admin-data-table--compact">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Tipo</th>
+                                                        <th>Valor</th>
+                                                        <th>Vigencia</th>
+                                                        <th>Estado</th>
+                                                        <th>Fuente</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="admin-rates-table"></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+                                </div>
+
+                                <aside class="rates-editor">
+                                    <section class="rates-editor__block">
+                                        <span class="soft-badge">Tipo</span>
+                                        <h4 id="admin-rate-type-title">Nuevo tipo de tasa</h4>
+                                        <div class="rates-editor__grid">
+                                            <label class="field">
+                                                <span>Codigo</span>
+                                                <input id="admin-rate-type-code" type="text" maxlength="30" placeholder="BCV">
+                                            </label>
+                                            <label class="field">
+                                                <span>Nombre</span>
+                                                <input id="admin-rate-type-name" type="text" maxlength="120" placeholder="Banco Central de Venezuela">
+                                            </label>
+                                        </div>
+                                        <div class="inline-checks">
+                                            <label><input id="admin-rate-type-default" type="checkbox"> Predeterminada</label>
+                                            <label><input id="admin-rate-type-active" type="checkbox" checked> Activa</label>
+                                        </div>
+                                        <div class="purchase-editor__actions">
+                                            <button class="primary-button" type="button" id="admin-rate-type-save">Guardar tipo</button>
+                                            <button class="ghost-button" type="button" id="admin-rate-type-deactivate">Desactivar</button>
+                                            <button class="ghost-button" type="button" id="admin-rate-type-cancel">Limpiar</button>
+                                        </div>
+                                    </section>
+
+                                    <section class="rates-editor__block">
+                                        <span class="soft-badge">Valor</span>
+                                        <h4>Registrar tasa</h4>
+                                        <div class="rates-editor__grid">
+                                            <label class="field">
+                                                <span>Tipo</span>
+                                                <select id="admin-rate-value-type"></select>
+                                            </label>
+                                            <label class="field">
+                                                <span>Valor Bs por USD</span>
+                                                <input id="admin-rate-value" type="number" min="0.000001" step="0.000001" placeholder="500.00">
+                                            </label>
+                                            <label class="field">
+                                                <span>Vigente desde</span>
+                                                <input id="admin-rate-effective-at" type="datetime-local">
+                                            </label>
+                                            <label class="field">
+                                                <span>Fuente</span>
+                                                <input id="admin-rate-source" type="text" maxlength="255" placeholder="Manual, BCV...">
+                                            </label>
+                                        </div>
+                                        <label class="inline-check"><input id="admin-rate-active" type="checkbox" checked> Activar como tasa vigente</label>
+                                        <button class="primary-button" type="button" id="admin-rate-save">Registrar tasa</button>
+                                    </section>
+                                </aside>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-rates-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel movements-admin" id="admin-movements-module" hidden>
