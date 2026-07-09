@@ -5,6 +5,7 @@
              xmlns:currency="clr-namespace:InventoryDesktop.Modules.Currency"
              xmlns:customers="clr-namespace:InventoryDesktop.Modules.Customers"
              xmlns:inventory="clr-namespace:InventoryDesktop.Modules.InventoryCenter"
+             xmlns:transfers="clr-namespace:InventoryDesktop.Modules.InventoryTransfers"
              xmlns:pos="clr-namespace:InventoryDesktop.Modules.POS"
              xmlns:sync="clr-namespace:InventoryDesktop.Modules.Sync">
     <UserControl.Resources>
@@ -225,6 +226,26 @@
                             </Border>
                         </Button>
 
+                        <Button x:Name="HomeTransfersCard" Style="{StaticResource ModuleCardButtonStyle}" Click="InventoryTransfers_Click">
+                            <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Border Width="48" Height="48" CornerRadius="14" HorizontalAlignment="Left" Background="#16A34A">
+                                        <TextBlock Text="TR" Foreground="White" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Row="1" Margin="0,15,0,0">
+                                        <TextBlock Text="Traslados" FontSize="22" FontWeight="Black" />
+                                        <TextBlock Text="Guías, despacho y recepción logística." Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="2" Text="Abrir módulo" Foreground="#15803D" FontWeight="Black" />
+                                </Grid>
+                            </Border>
+                        </Button>
+
                         <Button x:Name="HomePriceListsCard" Style="{StaticResource ModuleCardButtonStyle}" Click="PriceLists_Click">
                             <Border Background="#FFFFFF" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="14" Padding="18">
                                 <Grid>
@@ -337,6 +358,7 @@
             <inventory:InventoryMovementsView x:Name="InventoryMovementsContent" Visibility="Collapsed" />
             <inventory:PriceListsView x:Name="PriceListsContent" Visibility="Collapsed" />
             <currency:CurrencyRatesView x:Name="CurrencyRatesContent" Visibility="Collapsed" />
+            <transfers:InventoryTransferReceptionView x:Name="TransferReceptionContent" Visibility="Collapsed" />
             <cash:CashRegisterView x:Name="CashRegisterContent" Visibility="Collapsed" />
             <customers:CustomersView x:Name="CustomersContent" Visibility="Collapsed" />
             <sync:SyncWorkerView x:Name="SyncWorkerContent" Visibility="Collapsed" />

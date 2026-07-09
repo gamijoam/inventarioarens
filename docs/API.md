@@ -3063,6 +3063,16 @@ Permiso requerido:
 inventory_transfers.view
 ```
 
+Filtros disponibles:
+
+- `status`: filtra por estado del traslado, por ejemplo `requested`, `prepared`, `dispatched`, `completed` o `completed_with_differences`.
+- `validation_mode`: filtra por modo de validacion, por ejemplo `simple` o `logistics`.
+
+Uso principal en escritorio:
+
+- `GET /api/inventory-transfers?status=dispatched&validation_mode=logistics` alimenta la pantalla de recepcion logistica del modulo de traslados.
+- La respuesta incluye almacenes origen/destino, guia e items con producto para que la app pueda mostrar la guia y confirmar cantidades recibidas.
+
 ### Crear transferencia interna
 
 ```txt

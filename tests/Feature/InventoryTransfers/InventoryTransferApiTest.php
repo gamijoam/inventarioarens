@@ -125,6 +125,61 @@ class InventoryTransferApiTest extends TestCase
         ]);
     }
 
+    public function test_user_can_filter_inventory_transfers_for_desktop_reception(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-FLT', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 12);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'Traslado simple',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'Traslado logistico',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 3,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-transfers?status=completed')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', InventoryTransfer::STATUS_COMPLETED)
+            ->assertJsonPath('data.0.items.0.product.name', $product->name);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-transfers?validation_mode=logistics')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.validation_mode', InventoryTransfer::VALIDATION_LOGISTICS);
+    }
+
     public function test_user_can_create_logistic_transfer_request_without_moving_stock(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

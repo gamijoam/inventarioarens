@@ -9,6 +9,7 @@ using InventoryDesktop.Modules.CashRegister;
 using InventoryDesktop.Modules.Currency;
 using InventoryDesktop.Modules.Customers;
 using InventoryDesktop.Modules.InventoryCenter;
+using InventoryDesktop.Modules.InventoryTransfers;
 using InventoryDesktop.Modules.POS;
 using InventoryDesktop.Modules.Sync;
 
@@ -47,6 +48,7 @@ public partial class ShellView : UserControl
         PosContent.ExitRequested += (_, _) => ShowHome();
         PriceListsContent.Configure(session.ApiClient);
         CurrencyRatesContent.Configure(session.ApiClient, RunSyncForCurrentTenantAsync);
+        TransferReceptionContent.Configure(session.ApiClient);
         SyncWorkerContent.Configure(session);
         Loaded += async (_, _) =>
         {
@@ -184,6 +186,17 @@ public partial class ShellView : UserControl
         await CurrencyRatesContent.LoadAsync();
     }
 
+    private async void InventoryTransfers_Click(object sender, RoutedEventArgs e)
+    {
+        if (!HomeTransfersCard.IsEnabled)
+        {
+            return;
+        }
+
+        ShowInventoryTransfers();
+        await TransferReceptionContent.LoadAsync();
+    }
+
     private async void CashRegister_Click(object sender, RoutedEventArgs e)
     {
         if (!HomeCashCard.IsEnabled)
@@ -262,6 +275,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -279,6 +293,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -296,6 +311,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Visible;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -313,6 +329,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Visible;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -330,6 +347,25 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Visible;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
+        CashRegisterContent.Visibility = Visibility.Collapsed;
+        CustomersContent.Visibility = Visibility.Collapsed;
+        SyncWorkerContent.Visibility = Visibility.Collapsed;
+        PosContent.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowInventoryTransfers()
+    {
+        SectionTitle.Text = "Traslados";
+        SectionSubtitle.Text = "Recepcion logistica y guia de traslado";
+        BackToModulesButton.Visibility = Visibility.Visible;
+        ShellHeader.Visibility = Visibility.Visible;
+        HomeContent.Visibility = Visibility.Collapsed;
+        InventoryCenterContent.Visibility = Visibility.Collapsed;
+        InventoryMovementsContent.Visibility = Visibility.Collapsed;
+        PriceListsContent.Visibility = Visibility.Collapsed;
+        CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Visible;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -347,6 +383,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Visible;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -364,6 +401,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Visible;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -381,6 +419,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Visible;
@@ -395,6 +434,7 @@ public partial class ShellView : UserControl
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
         CurrencyRatesContent.Visibility = Visibility.Collapsed;
+        TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
@@ -414,6 +454,7 @@ public partial class ShellView : UserControl
         bool canMoveInventory = session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update");
         bool canManagePrices = session.HasPermission("products.update");
         bool canViewCurrency = session.HasPermission("currency.view");
+        bool canUseTransfers = session.HasAnyPermission("inventory_transfers.view", "inventory_transfers.receive");
         bool canUseCashRegister = session.HasAnyPermission("cash_register.view", "cash_register.open");
         bool canUseCustomers = session.HasPermission("customers.view");
         bool canUseSync = session.HasAnyPermission("sync.view", "sync.manage") || session.HasAnyPermission("cash_register.view", "products.view");
@@ -423,6 +464,7 @@ public partial class ShellView : UserControl
         SetCardAccess(HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
         SetCardAccess(HomePriceListsCard, canManagePrices, "Sin permiso de precios");
         SetCardAccess(HomeCurrencyCard, canViewCurrency, "Sin permiso de tasas");
+        SetCardAccess(HomeTransfersCard, canUseTransfers, "Sin permiso de traslados");
         SetCardAccess(HomeCashCard, canUseCashRegister, "Sin permiso de caja");
         SetCardAccess(HomeCustomersCard, canUseCustomers, "Sin permiso de clientes");
         SetCardAccess(HomeSyncCard, canUseSync, "Sin permiso de sincronizacion");

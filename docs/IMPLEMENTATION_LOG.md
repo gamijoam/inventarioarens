@@ -4773,3 +4773,11 @@ Regla:
 - Se integraron permisos accounts_receivable.view y accounts_receivable.collect en la gestion visual de perfiles.
 - Se documento el avance en docs/PORTAL_ADMIN_CUENTAS_POR_COBRAR_WEB_2026-07-07.md, docs/API.md y docs/MODULES.md.
 - Pruebas objetivo: AccountsReceivableApiTest y AdminPortalWebTest.
+
+## 2026-07-09 - Traslados: recepcion logistica en escritorio
+
+- Se agrego la pantalla WPF de recepcion logistica para guias despachadas.
+- Se amplio el listado GET /api/inventory-transfers con filtros por estado y modo de validacion.
+- La app de escritorio ahora permite recibir completo o registrar diferencias justificadas por linea.
+- Se documento el avance en docs/IMPLEMENTACION_TRASLADOS_FASE_6_ESCRITORIO_RECEPCION_2026-07-09.md, docs/API.md y docs/MODULES.md.
+- Pruebas objetivo: InventoryTransferApiTest y compilacion WPF.

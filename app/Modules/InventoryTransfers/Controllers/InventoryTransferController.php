@@ -11,19 +11,22 @@ use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 
 class InventoryTransferController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', InventoryTransfer::class);
 
         return InventoryTransferResource::collection(
             InventoryTransfer::query()
-                ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items'])
+                ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
+                ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
+                ->when($request->query('validation_mode'), fn ($query, string $mode) => $query->where('validation_mode', $mode))
                 ->latest('processed_at')
                 ->paginate(25)
         );

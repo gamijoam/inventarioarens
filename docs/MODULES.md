@@ -1006,6 +1006,10 @@ Archivos principales:
 - `app/Modules/InventoryTransfers/Resources/InventoryTransferItemResource.php`
 - `app/Modules/InventoryTransfers/Services/InventoryTransferService.php`
 - `app/Modules/InventoryTransfers/routes.php`
+- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferDtos.cs`
+- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionView.xaml`
+- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionView.xaml.cs`
+- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionViewModel.cs`
 
 Regla importante:
 
@@ -1017,6 +1021,7 @@ Regla importante:
 - si se prepara menos de lo solicitado, se debe registrar un motivo de diferencia;
 - al despachar un traslado logistico, el sistema descuenta lo reservado del origen y registra `transfer_out`;
 - el destino recibe stock cuando se ejecuta la recepcion logistica y se genera `transfer_in`;
+- la app de escritorio puede listar guias logisticas despachadas y confirmar recepcion completa o con diferencias justificadas;
 - un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.
