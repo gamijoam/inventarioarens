@@ -20,7 +20,7 @@ class InventoryTransferController extends Controller
 
         return InventoryTransferResource::collection(
             InventoryTransfer::query()
-                ->with(['fromWarehouse', 'toWarehouse', 'items'])
+                ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items'])
                 ->latest('processed_at')
                 ->paginate(25)
         );
@@ -40,7 +40,7 @@ class InventoryTransferController extends Controller
         Gate::authorize('view', $inventoryTransfer);
 
         return InventoryTransferResource::make(
-            $inventoryTransfer->load(['fromWarehouse', 'toWarehouse', 'items.product'])
+            $inventoryTransfer->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
         );
     }
 }

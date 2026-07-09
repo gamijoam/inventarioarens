@@ -8,6 +8,7 @@ use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -32,7 +33,9 @@ class InventoryTransferService
             $transfer = InventoryTransfer::create([
                 'sequence' => $sequence,
                 'document_number' => 'TRF-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT),
+                'guide_number' => 'GUIA-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT),
                 'type' => $data['type'] ?? InventoryTransfer::TYPE_INTERNAL,
+                'validation_mode' => InventoryTransfer::VALIDATION_SIMPLE,
                 'from_warehouse_id' => $fromWarehouse->id,
                 'to_warehouse_id' => $toWarehouse->id,
                 'status' => InventoryTransfer::STATUS_COMPLETED,
@@ -41,6 +44,10 @@ class InventoryTransferService
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $user->id,
                 'processed_at' => $data['processed_at'] ?? now(),
+                'requested_at' => $data['processed_at'] ?? now(),
+                'prepared_at' => $data['processed_at'] ?? now(),
+                'dispatched_at' => $data['processed_at'] ?? now(),
+                'received_at' => $data['processed_at'] ?? now(),
             ]);
 
             foreach ($data['items'] as $item) {
@@ -70,15 +77,39 @@ class InventoryTransferService
                     'inventory_transfer_id' => $transfer->id,
                     'product_id' => $product->id,
                     'quantity' => $quantity,
+                    'requested_quantity' => $quantity,
+                    'prepared_quantity' => $quantity,
+                    'received_quantity' => $quantity,
+                    'difference_quantity' => 0,
                     'out_stock_movement_id' => $outMovement->id,
                     'in_stock_movement_id' => $inMovement->id,
                     'product_unit_ids' => $unitIds ?: null,
+                    'prepared_product_unit_ids' => $unitIds ?: null,
+                    'received_product_unit_ids' => $unitIds ?: null,
                 ]);
 
                 $this->moveProductUnits($unitIds, $toWarehouse, $inMovement->id);
             }
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'items.product']);
+            InventoryTransferGuide::create([
+                'inventory_transfer_id' => $transfer->id,
+                'guide_number' => $transfer->guide_number,
+                'status' => InventoryTransferGuide::STATUS_COMPLETED,
+                'issued_at' => $transfer->processed_at,
+                'prepared_at' => $transfer->processed_at,
+                'dispatched_at' => $transfer->processed_at,
+                'received_at' => $transfer->processed_at,
+                'issued_by' => $user->id,
+                'prepared_by' => $user->id,
+                'dispatched_by' => $user->id,
+                'received_by' => $user->id,
+                'metadata' => [
+                    'mode' => InventoryTransfer::VALIDATION_SIMPLE,
+                    'source' => 'inventory_transfer_service',
+                ],
+            ]);
+
+            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product']);
         });
     }
 

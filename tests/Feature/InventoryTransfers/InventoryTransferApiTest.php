@@ -46,12 +46,25 @@ class InventoryTransferApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.document_number', 'TRF-000001')
+            ->assertJsonPath('data.guide_number', 'GUIA-000001')
             ->assertJsonPath('data.type', InventoryTransfer::TYPE_INTERNAL)
+            ->assertJsonPath('data.validation_mode', InventoryTransfer::VALIDATION_SIMPLE)
             ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED)
-            ->assertJsonPath('data.items.0.quantity', 4);
+            ->assertJsonPath('data.guide.guide_number', 'GUIA-000001')
+            ->assertJsonPath('data.guide.status', 'completed')
+            ->assertJsonPath('data.items.0.quantity', 4)
+            ->assertJsonPath('data.items.0.requested_quantity', 4)
+            ->assertJsonPath('data.items.0.prepared_quantity', 4)
+            ->assertJsonPath('data.items.0.received_quantity', 4)
+            ->assertJsonPath('data.items.0.difference_quantity', 0);
 
         $this->assertSame(6.0, (float) $this->balance($fromWarehouse, $product)->quantity_available);
         $this->assertSame(4.0, (float) $this->balance($toWarehouse, $product)->quantity_available);
+        $this->assertDatabaseHas('inventory_transfer_guides', [
+            'tenant_id' => $tenant->id,
+            'guide_number' => 'GUIA-000001',
+            'status' => 'completed',
+        ]);
         $this->assertDatabaseHas('stock_movements', [
             'tenant_id' => $tenant->id,
             'warehouse_id' => $fromWarehouse->id,

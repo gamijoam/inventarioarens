@@ -13,9 +13,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'inventory_transfer_id',
     'product_id',
     'quantity',
+    'requested_quantity',
+    'prepared_quantity',
+    'received_quantity',
+    'difference_quantity',
+    'difference_reason',
+    'difference_notes',
     'out_stock_movement_id',
     'in_stock_movement_id',
     'product_unit_ids',
+    'prepared_product_unit_ids',
+    'received_product_unit_ids',
 ])]
 class InventoryTransferItem extends Model
 {
@@ -25,7 +33,13 @@ class InventoryTransferItem extends Model
     {
         return [
             'quantity' => 'decimal:4',
+            'requested_quantity' => 'decimal:4',
+            'prepared_quantity' => 'decimal:4',
+            'received_quantity' => 'decimal:4',
+            'difference_quantity' => 'decimal:4',
             'product_unit_ids' => 'array',
+            'prepared_product_unit_ids' => 'array',
+            'received_product_unit_ids' => 'array',
         ];
     }
 
