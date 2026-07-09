@@ -749,6 +749,148 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pending_pos_order_can_be_cancelled_and_releases_serialized_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860009999999999',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.cancel']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_EXTERNAL_FINANCING,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_PENDING,
+                    'external_provider' => 'Financiadora Demo',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN);
+
+        $orderId = $checkout->json('data.id');
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_RESERVED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_CANCELLED)
+            ->assertJsonPath('data.sale.status', Sale::STATUS_CANCELLED);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+            'quantity_reserved' => '0.0000',
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+            'released_stock_movement_id' => null,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'released',
+            'reference_type' => PosOrder::class,
+            'reference_id' => $orderId,
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'pos.order.cancelled',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => $orderId,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_pending_pos_order_with_captured_payment_cannot_be_cancelled_without_refund(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.cancel']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN);
+
+        $orderId = $checkout->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments']);
+
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'id' => $orderId,
+            'status' => PosOrder::STATUS_OPEN,
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+    }
+
     public function test_pending_pos_order_rejects_serialized_product_without_selected_imei(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

@@ -14,6 +14,9 @@ Cerrar el flujo operativo de productos serializados/IMEI dentro del POS para que
 - Mientras el IMEI esta reservado, otra caja no puede venderlo.
 - Cuando el cobro pendiente se completa, la reserva se libera dentro de la misma transaccion y la venta confirma el IMEI como `sold`.
 - Si la venta se paga completa desde el primer intento, el IMEI pasa directamente de `available` a `sold`.
+- Una orden POS pendiente sin pagos capturados puede cancelarse desde el POS.
+- Al cancelar una orden pendiente, la venta borrador pasa a `cancelled`, el stock reservado vuelve a disponible y los IMEI/seriales reservados vuelven a `available`.
+- Una orden pendiente con pagos capturados no se cancela directamente; queda bloqueada hasta implementar el flujo formal de devolucion/anulacion de pago.
 
 ## Validaciones cubiertas por pruebas
 
@@ -23,6 +26,8 @@ Cerrar el flujo operativo de productos serializados/IMEI dentro del POS para que
 - Checkout pendiente rechaza IMEI repetido.
 - Checkout pendiente rechaza IMEI de otro almacen.
 - Otra caja no puede vender una unidad ya reservada por una orden pendiente.
+- Cancelar una orden pendiente libera el stock y el IMEI reservado.
+- Cancelar una orden pendiente con pagos capturados se rechaza para proteger caja y auditoria.
 
 ## Impacto operativo
 
@@ -31,5 +36,5 @@ El cajero puede escanear un IMEI desde el POS y el backend confirma que ese seri
 ## Pendiente futuro
 
 - Agregar una pantalla de auditoria visual por IMEI en el POS.
-- Permitir cancelar ordenes POS pendientes y liberar automaticamente los IMEI reservados.
+- Implementar devolucion/anulacion formal de pagos capturados antes de cancelar ordenes con dinero recibido.
 - Mostrar en el buscador POS un mensaje mas explicito si el IMEI existe pero esta reservado, vendido, danado o en garantia.

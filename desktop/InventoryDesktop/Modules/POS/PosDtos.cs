@@ -168,6 +168,8 @@ public sealed record PosOrderPaymentSummary(
 public sealed record PosOrderPaymentsRequest(
     [property: JsonPropertyName("payments")] IReadOnlyList<PosCheckoutPaymentRequest> Payments);
 
+public sealed record PosCancelOrderRequest;
+
 public sealed record PosCustomerListResponse(
     [property: JsonPropertyName("data")] IReadOnlyList<PosCustomerOption> Data);
 

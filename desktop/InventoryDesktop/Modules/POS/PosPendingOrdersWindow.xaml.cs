@@ -241,6 +241,60 @@ public partial class PosPendingOrdersWindow : Window
         }
     }
 
+    private async void CancelOrder_Click(object sender, RoutedEventArgs e)
+    {
+        ClearError();
+        PosOrderSummary? order = SelectedOrder;
+        if (order is null)
+        {
+            SetError("Selecciona una orden pendiente.");
+            return;
+        }
+
+        MessageBoxResult confirmation = MessageBox.Show(
+            this,
+            $"Se cancelara la orden POS #{order.Id} y se liberara el stock o IMEI reservado.\n\nEsta accion no aplica si la orden ya tiene pagos capturados.",
+            "Cancelar orden pendiente",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            CancelOrderButton.IsEnabled = false;
+            CancelOrderButton.Content = "Cancelando...";
+            PosOrderResult result = await viewModel.CancelPendingOrderAsync(order.Id);
+            string resultMessage = $"Orden POS #{result.Id} cancelada. La reserva fue liberada.";
+
+            MessageBox.Show(
+                this,
+                resultMessage,
+                "Orden cancelada",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            await RefreshAsync();
+            SetInfo(resultMessage);
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            SetError(exception.Message);
+        }
+        finally
+        {
+            CancelOrderButton.IsEnabled = true;
+            CancelOrderButton.Content = "Cancelar orden";
+        }
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();

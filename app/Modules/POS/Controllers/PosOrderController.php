@@ -66,4 +66,16 @@ class PosOrderController extends Controller
 
         return PosOrderResource::make($order);
     }
+
+    public function cancel(PosOrder $posOrder, PosCheckoutService $checkout): PosOrderResource
+    {
+        Gate::authorize('cancel', $posOrder);
+
+        $order = $checkout->cancelPending(
+            order: $posOrder,
+            cashier: request()->user(),
+        );
+
+        return PosOrderResource::make($order);
+    }
 }

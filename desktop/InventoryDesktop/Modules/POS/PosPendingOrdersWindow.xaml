@@ -194,6 +194,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <TextBlock Text="Solo los pagos capturados cierran una orden. Los pendientes quedan como respaldo para validar despues."
@@ -203,14 +204,22 @@
                        VerticalAlignment="Center" />
 
             <Button Grid.Column="1"
-                    Content="Cerrar"
-                    Width="110"
+                    x:Name="CancelOrderButton"
+                    Content="Cancelar orden"
+                    Width="136"
                     Height="40"
                     Margin="12,0,0,0"
                     FontWeight="Black"
+                    Click="CancelOrder_Click" />
+            <Button Grid.Column="2"
+                    Content="Cerrar"
+                    Width="110"
+                    Height="40"
+                    Margin="10,0,0,0"
+                    FontWeight="Black"
                     Click="Close_Click" />
             <Button x:Name="SubmitPaymentButton"
-                    Grid.Column="2"
+                    Grid.Column="3"
                     Content="Cobrar faltante y cerrar"
                     Width="180"
                     Height="40"

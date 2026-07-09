@@ -658,6 +658,40 @@ public sealed class PosViewModel : ViewModelBase
         }
     }
 
+    public async Task<PosOrderResult> CancelPendingOrderAsync(long orderId)
+    {
+        try
+        {
+            IsBusy = true;
+            IsStatusError = false;
+            StatusMessage = "Cancelando orden pendiente...";
+
+            PosOrderResponse response = await apiClient.PostAsync<PosCancelOrderRequest, PosOrderResponse>(
+                $"pos/orders/{orderId}/cancel",
+                new PosCancelOrderRequest());
+
+            StatusMessage = $"Orden POS #{response.Data.Id} cancelada. La reserva fue liberada.";
+            IsStatusError = false;
+            await LoadPendingOrdersAsync();
+            return response.Data;
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            const string message = "No se pudo conectar con la API para cancelar la orden.";
+            SetError(message);
+            throw new InvalidOperationException(message, exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public void ClearCustomer()
     {
         SelectedCustomer = null;

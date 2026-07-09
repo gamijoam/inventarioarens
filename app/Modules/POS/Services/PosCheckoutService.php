@@ -281,6 +281,67 @@ class PosCheckoutService
         }, 1200, ['order_id' => $order->id, 'payments' => count($payments)]);
     }
 
+    public function cancelPending(PosOrder $order, User $cashier): PosOrder
+    {
+        return PerformanceProbe::measure('POS cancelar orden pendiente total', function () use ($order, $cashier): PosOrder {
+            return DB::transaction(function () use ($order, $cashier): PosOrder {
+                $order = PosOrder::query()
+                    ->with(['sale.items.product', 'sale.items.warehouse', 'cashRegisterSession', 'payments'])
+                    ->lockForUpdate()
+                    ->findOrFail($order->id);
+
+                if ($order->status !== PosOrder::STATUS_OPEN) {
+                    throw ValidationException::withMessages([
+                        'order' => 'Solo se pueden cancelar ordenes POS pendientes.',
+                    ]);
+                }
+
+                if (! $order->sale || $order->sale->status !== Sale::STATUS_DRAFT) {
+                    throw ValidationException::withMessages([
+                        'order' => 'La venta asociada ya no esta disponible para cancelar.',
+                    ]);
+                }
+
+                if ($order->payments->where('status', PosPayment::STATUS_CAPTURED)->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'payments' => 'No se puede cancelar una orden con pagos capturados. Primero se debe procesar una devolucion o anulacion de pago.',
+                    ]);
+                }
+
+                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
+                $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+
+                PerformanceProbe::measure(
+                    'POS cancelar liberar reserva',
+                    fn () => $this->releaseOrderReservation($order, $cashier),
+                    400,
+                    ['order_id' => $order->id]
+                );
+
+                $sale = PerformanceProbe::measure(
+                    'POS cancelar venta borrador',
+                    fn (): Sale => $this->sales->cancelDraft($order->sale),
+                    400,
+                    ['order_id' => $order->id, 'sale_id' => $order->sale_id]
+                );
+
+                $order->update([
+                    'status' => PosOrder::STATUS_CANCELLED,
+                    'closed_at' => now(),
+                ]);
+                $order->setRelation('sale', $sale);
+                $this->recordOrderSyncEvent($order->refresh(), 'pos.order.cancelled');
+
+                return PerformanceProbe::measure(
+                    'POS cancelar cargar respuesta',
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    300,
+                    ['order_id' => $order->id]
+                );
+            });
+        }, 900, ['order_id' => $order->id]);
+    }
+
     private function assertCashRegisterCanSell(CashRegisterSession $session, User $cashier): void
     {
         if ($session->status !== CashRegisterSession::STATUS_OPEN) {
