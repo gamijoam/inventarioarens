@@ -196,6 +196,29 @@ class InventoryMovementService
         });
     }
 
+    public function receiveTransfer(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
+    {
+        return $this->increaseAvailable(
+            type: 'transfer_in',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: null,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+        );
+    }
+
     public function markDamaged(
         Warehouse $warehouse,
         Product $product,

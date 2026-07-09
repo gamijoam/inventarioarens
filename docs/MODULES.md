@@ -1016,7 +1016,7 @@ Regla importante:
 - al preparar un traslado logistico, el sistema reserva la cantidad o los IMEIs cargados para que no se vendan ni se usen en otra operacion;
 - si se prepara menos de lo solicitado, se debe registrar un motivo de diferencia;
 - al despachar un traslado logistico, el sistema descuenta lo reservado del origen y registra `transfer_out`;
-- el destino solo recibira stock cuando se implemente y ejecute la fase de recepcion;
+- el destino recibe stock cuando se ejecuta la recepcion logistica y se genera `transfer_in`;
 - un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.

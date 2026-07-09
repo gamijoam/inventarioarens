@@ -3141,7 +3141,7 @@ Reglas:
 - los IMEIs seleccionados deben estar disponibles en el almacen origen;
 - al completar la transferencia, los IMEIs siguen disponibles pero cambian de almacen;
 - la transferencia usa bloqueo de balances para evitar stock negativo cuando hay operaciones simultaneas;
-- en modo logistico, la creacion no mueve stock; la preparacion reserva lo cargado y el movimiento real se completara en fases posteriores de despacho/recepcion;
+- en modo logistico, la creacion no mueve stock; la preparacion reserva lo cargado, el despacho descuenta el origen y la recepcion incrementa el destino;
 - los traslados entre empresas se modelaran como solicitud interempresa con aceptacion/rechazo, no como movimiento directo.
 
 ### Preparar transferencia logistica
@@ -3237,7 +3237,73 @@ Reglas:
 - el despacho consume el stock reservado en el almacen origen y registra movimiento `transfer_out`;
 - el almacen destino todavia no aumenta stock en esta fase;
 - los IMEIs o seriales quedan reservados logicamente hasta que la fase de recepcion confirme la entrada en destino;
-- la guia queda en estado `dispatched` y registra usuario/fecha de despacho.
+- la guia queda en estado `dispatched`, registra usuario/fecha de despacho y crea el checklist de recepcion pendiente.
+
+### Recibir transferencia logistica
+
+```txt
+POST /api/inventory-transfers/{inventoryTransfer}/receive
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.receive
+```
+
+Body para producto por cantidad:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 10,
+      "received_quantity": 4
+    }
+  ]
+}
+```
+
+Body con diferencia justificada:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 10,
+      "received_quantity": 3,
+      "difference_reason": "Llegaron menos unidades",
+      "difference_notes": "El transporte reporto faltante."
+    }
+  ]
+}
+```
+
+Body para producto serializado:
+
+```json
+{
+  "items": [
+    {
+      "inventory_transfer_item_id": 11,
+      "received_product_unit_ids": [100, 101]
+    }
+  ]
+}
+```
+
+Reglas:
+
+- solo aplica para transferencias `validation_mode = logistics` en estado `dispatched`;
+- se deben recibir todos los items de la guia en una sola operacion;
+- si se recibe menos de lo despachado, `difference_reason` es obligatorio;
+- no se permite recibir mas cantidad de la despachada;
+- los productos serializados se reciben indicando los IMEIs o seriales realmente recibidos;
+- solo se pueden recibir IMEIs o seriales que fueron despachados en la guia;
+- al recibir, el sistema registra movimiento `transfer_in` en el almacen destino;
+- los IMEIs recibidos cambian al almacen destino y quedan `available`;
+- si todo coincide, la transferencia queda en `completed`, la guia en `completed` y el checklist de recepcion en `completed`;
+- si hay faltantes, la transferencia queda en `completed_with_differences`, la guia en `completed_with_differences` y el checklist en `completed_with_differences`.
 
 ### Ver transferencia
 

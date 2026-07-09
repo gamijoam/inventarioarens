@@ -5,6 +5,7 @@ namespace App\Modules\InventoryTransfers\Controllers;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Requests\DispatchInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\PrepareInventoryTransferRequest;
+use App\Modules\InventoryTransfers\Requests\ReceiveInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\StoreInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
@@ -58,6 +59,18 @@ class InventoryTransferController extends Controller
 
         return InventoryTransferResource::make(
             $service->dispatch($request->user(), $inventoryTransfer, $request->validated())
+        );
+    }
+
+    public function receive(
+        ReceiveInventoryTransferRequest $request,
+        InventoryTransfer $inventoryTransfer,
+        InventoryTransferService $service,
+    ): InventoryTransferResource {
+        Gate::authorize('receive', $inventoryTransfer);
+
+        return InventoryTransferResource::make(
+            $service->receive($request->user(), $inventoryTransfer, $request->validated())
         );
     }
 

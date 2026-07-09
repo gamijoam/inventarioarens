@@ -324,6 +324,7 @@ class InventoryTransferService
                 $this->markDispatchedProductUnits($item->prepared_product_unit_ids ?? [], $movement->id);
             }
 
+            $receptionChecklist = $this->ensureReceptionChecklist($transfer);
             $dispatchedAt = $data['dispatched_at'] ?? now();
 
             $transfer->guide?->update([
@@ -336,6 +337,157 @@ class InventoryTransferService
                 'status' => InventoryTransfer::STATUS_DISPATCHED,
                 'dispatched_at' => $dispatchedAt,
                 'dispatched_by' => $user->id,
+                'notes' => $data['notes'] ?? $transfer->notes,
+            ]);
+
+            $receptionChecklist->refresh();
+
+            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        });
+    }
+
+    public function receive(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+            $transfer = InventoryTransfer::query()
+                ->whereKey($transfer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($transfer->validation_mode !== InventoryTransfer::VALIDATION_LOGISTICS) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo los traslados logisticos requieren recepcion por guia.',
+                ]);
+            }
+
+            if ($transfer->status !== InventoryTransfer::STATUS_DISPATCHED) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo se pueden recibir traslados despachados.',
+                ]);
+            }
+
+            $transfer->loadMissing(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+
+            $items = $transfer->items->keyBy('id');
+            $payloadItems = collect($data['items']);
+            $submittedItemIds = $payloadItems->pluck('inventory_transfer_item_id')->map(fn ($id): int => (int) $id)->all();
+            $expectedItemIds = $items->keys()->map(fn ($id): int => (int) $id)->all();
+
+            sort($submittedItemIds);
+            sort($expectedItemIds);
+
+            if ($submittedItemIds !== $expectedItemIds) {
+                throw ValidationException::withMessages([
+                    'items' => 'Debe recibir todos los productos incluidos en la guia.',
+                ]);
+            }
+
+            $receptionChecklist = $this->ensureReceptionChecklist($transfer);
+            $checklistItems = $receptionChecklist->items()->get()->keyBy('inventory_transfer_item_id');
+            $hasDifferences = false;
+
+            foreach ($payloadItems as $index => $payloadItem) {
+                /** @var InventoryTransferItem $item */
+                $item = $items->get((int) $payloadItem['inventory_transfer_item_id']);
+                $product = $item->product;
+                $expectedQuantity = (float) ($item->prepared_quantity ?? 0);
+                $receivedUnitIds = $payloadItem['received_product_unit_ids'] ?? [];
+
+                if ($product->requiresSerializedTracking()) {
+                    $receivedQuantity = count($receivedUnitIds);
+                    $this->validateReceivedProductUnits($transfer, $item, $receivedUnitIds, $index);
+                } else {
+                    if ($receivedUnitIds !== []) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.received_product_unit_ids" => 'Solo los productos serializados pueden recibir IMEIs o seriales especificos.',
+                        ]);
+                    }
+
+                    $receivedQuantity = (float) ($payloadItem['received_quantity'] ?? $expectedQuantity);
+                }
+
+                if ($receivedQuantity > $expectedQuantity) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.received_quantity" => 'La cantidad recibida no puede superar la cantidad despachada.',
+                    ]);
+                }
+
+                $differenceQuantity = $expectedQuantity - $receivedQuantity;
+                $differenceReason = $payloadItem['difference_reason'] ?? null;
+                $differenceNotes = $payloadItem['difference_notes'] ?? null;
+
+                if ($differenceQuantity > 0 && blank($differenceReason)) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.difference_reason" => 'Debe indicar el motivo cuando se recibe menos de lo despachado.',
+                    ]);
+                }
+
+                $movementId = null;
+
+                if ($receivedQuantity > 0) {
+                    $movement = $this->inventory->receiveTransfer(
+                        warehouse: $transfer->toWarehouse,
+                        product: $product,
+                        quantity: $receivedQuantity,
+                        createdBy: $user,
+                        reason: "Recepcion {$transfer->guide_number}: {$transfer->reason}",
+                        referenceType: InventoryTransfer::class,
+                        referenceId: $transfer->id,
+                    );
+
+                    $movementId = $movement->id;
+                    $this->moveProductUnits($receivedUnitIds, $transfer->toWarehouse, $movement->id);
+                }
+
+                $item->update([
+                    'received_quantity' => $receivedQuantity,
+                    'difference_quantity' => $differenceQuantity,
+                    'difference_reason' => $differenceReason,
+                    'difference_notes' => $differenceNotes,
+                    'received_product_unit_ids' => $receivedUnitIds ?: null,
+                    'in_stock_movement_id' => $movementId ?? $item->in_stock_movement_id,
+                ]);
+
+                $checklistItems->get($item->id)?->update([
+                    'checked_quantity' => $receivedQuantity,
+                    'difference_quantity' => $differenceQuantity,
+                    'reason' => $differenceReason,
+                    'notes' => $differenceNotes,
+                    'checked_product_unit_ids' => $receivedUnitIds ?: null,
+                ]);
+
+                $hasDifferences = $hasDifferences || $differenceQuantity > 0;
+            }
+
+            $receivedAt = $data['received_at'] ?? now();
+            $transferStatus = $hasDifferences
+                ? InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES
+                : InventoryTransfer::STATUS_COMPLETED;
+            $guideStatus = $hasDifferences
+                ? InventoryTransferGuide::STATUS_COMPLETED_WITH_DIFFERENCES
+                : InventoryTransferGuide::STATUS_COMPLETED;
+            $checklistStatus = $hasDifferences
+                ? InventoryTransferChecklist::STATUS_COMPLETED_WITH_DIFFERENCES
+                : InventoryTransferChecklist::STATUS_COMPLETED;
+
+            $receptionChecklist->update([
+                'status' => $checklistStatus,
+                'completed_by' => $user->id,
+                'completed_at' => $receivedAt,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            $transfer->guide?->update([
+                'status' => $guideStatus,
+                'received_at' => $receivedAt,
+                'received_by' => $user->id,
+            ]);
+
+            $transfer->update([
+                'status' => $transferStatus,
+                'received_at' => $receivedAt,
+                'received_by' => $user->id,
+                'processed_at' => $receivedAt,
                 'notes' => $data['notes'] ?? $transfer->notes,
             ]);
 
@@ -558,6 +710,94 @@ class InventoryTransferService
             });
     }
 
+    private function ensureReceptionChecklist(InventoryTransfer $transfer): InventoryTransferChecklist
+    {
+        $transfer->loadMissing(['guide.checklists.items', 'items']);
+
+        $receptionChecklist = $transfer->guide?->checklists
+            ->firstWhere('stage', InventoryTransferChecklist::STAGE_RECEPTION);
+
+        if ($receptionChecklist) {
+            return $receptionChecklist;
+        }
+
+        if (! $transfer->guide) {
+            throw ValidationException::withMessages([
+                'transfer' => 'El traslado no tiene guia para generar el checklist de recepcion.',
+            ]);
+        }
+
+        $receptionChecklist = InventoryTransferChecklist::create([
+            'inventory_transfer_id' => $transfer->id,
+            'inventory_transfer_guide_id' => $transfer->guide->id,
+            'stage' => InventoryTransferChecklist::STAGE_RECEPTION,
+            'status' => InventoryTransferChecklist::STATUS_PENDING,
+        ]);
+
+        $transfer->items()->get()->each(function (InventoryTransferItem $item) use ($receptionChecklist): void {
+            InventoryTransferChecklistItem::create([
+                'inventory_transfer_checklist_id' => $receptionChecklist->id,
+                'inventory_transfer_item_id' => $item->id,
+                'product_id' => $item->product_id,
+                'expected_quantity' => $item->prepared_quantity ?? 0,
+                'checked_quantity' => 0,
+                'difference_quantity' => 0,
+                'expected_product_unit_ids' => $item->prepared_product_unit_ids,
+            ]);
+        });
+
+        return $receptionChecklist->load('items');
+    }
+
+    private function validateReceivedProductUnits(
+        InventoryTransfer $transfer,
+        InventoryTransferItem $item,
+        array $unitIds,
+        int $itemIndex,
+    ): void {
+        if (count($unitIds) !== count(array_unique($unitIds))) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.received_product_unit_ids" => 'No se puede repetir el mismo IMEI o serial en la recepcion.',
+            ]);
+        }
+
+        $expectedUnitIds = $item->prepared_product_unit_ids ?? [];
+
+        if ($expectedUnitIds !== [] && array_diff($unitIds, $expectedUnitIds) !== []) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.received_product_unit_ids" => 'Solo se pueden recibir IMEIs o seriales despachados en la guia.',
+            ]);
+        }
+
+        if ($unitIds === []) {
+            return;
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($units->count() !== count($unitIds)) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.received_product_unit_ids" => 'Uno o mas IMEIs o seriales no existen.',
+            ]);
+        }
+
+        foreach ($unitIds as $unitIndex => $unitId) {
+            $unit = $units->get($unitId);
+
+            if ((int) $unit->product_id !== (int) $item->product_id
+                || (int) $unit->warehouse_id !== (int) $transfer->from_warehouse_id
+                || $unit->status !== ProductUnit::STATUS_RESERVED) {
+                throw ValidationException::withMessages([
+                    "items.{$itemIndex}.received_product_unit_ids.{$unitIndex}" => 'El IMEI o serial no esta despachado y pendiente por recibir.',
+                ]);
+            }
+        }
+    }
+
     private function moveProductUnits(array $unitIds, Warehouse $toWarehouse, int $movementId): void
     {
         if ($unitIds === []) {
@@ -571,6 +811,7 @@ class InventoryTransferService
             ->each(function (ProductUnit $unit) use ($toWarehouse, $movementId): void {
                 $unit->update([
                     'warehouse_id' => $toWarehouse->id,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
                     'acquired_stock_movement_id' => $movementId,
                     'released_stock_movement_id' => null,
                 ]);
