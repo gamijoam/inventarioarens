@@ -3209,6 +3209,36 @@ Reglas:
 - si hay faltantes, la transferencia queda en `prepared_with_differences`, la guia en `prepared_with_differences` y el checklist en `completed_with_differences`;
 - esta fase no incrementa el almacen destino; eso se cerrara en despacho/recepcion.
 
+### Despachar transferencia logistica
+
+```txt
+POST /api/inventory-transfers/{inventoryTransfer}/dispatch
+```
+
+Permiso requerido:
+
+```txt
+inventory_transfers.dispatch
+```
+
+Body opcional:
+
+```json
+{
+  "dispatched_at": "2026-07-09T10:15:00-04:00",
+  "notes": "Carga entregada al transporte."
+}
+```
+
+Reglas:
+
+- solo aplica para transferencias `validation_mode = logistics`;
+- solo se pueden despachar transferencias en estado `prepared` o `prepared_with_differences`;
+- el despacho consume el stock reservado en el almacen origen y registra movimiento `transfer_out`;
+- el almacen destino todavia no aumenta stock en esta fase;
+- los IMEIs o seriales quedan reservados logicamente hasta que la fase de recepcion confirme la entrada en destino;
+- la guia queda en estado `dispatched` y registra usuario/fecha de despacho.
+
 ### Ver transferencia
 
 ```txt

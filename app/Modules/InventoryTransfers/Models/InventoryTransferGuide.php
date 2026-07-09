@@ -31,6 +31,7 @@ class InventoryTransferGuide extends Model
     public const STATUS_GENERATED = 'generated';
     public const STATUS_PREPARED = 'prepared';
     public const STATUS_PREPARED_WITH_DIFFERENCES = 'prepared_with_differences';
+    public const STATUS_DISPATCHED = 'dispatched';
     public const STATUS_COMPLETED = 'completed';
 
     protected function casts(): array

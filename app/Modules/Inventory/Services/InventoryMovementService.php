@@ -173,6 +173,29 @@ class InventoryMovementService
         });
     }
 
+    public function dispatchReservedTransfer(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement
+    {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+            $this->validateOperation($warehouse, $product, $quantity);
+
+            $balance = $this->balanceFor($warehouse, $product);
+            $this->ensureEnough((float) $balance->quantity_reserved, $quantity, 'reserved');
+
+            $balance->quantity_reserved = (float) $balance->quantity_reserved - $quantity;
+            $balance->save();
+
+            return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+        });
+    }
+
     public function markDamaged(
         Warehouse $warehouse,
         Product $product,

@@ -999,6 +999,7 @@ Archivos principales:
 - `app/Modules/InventoryTransfers/Models/TenantTransferSetting.php`
 - `app/Modules/InventoryTransfers/Policies/InventoryTransferPolicy.php`
 - `app/Modules/InventoryTransfers/Controllers/InventoryTransferController.php`
+- `app/Modules/InventoryTransfers/Requests/DispatchInventoryTransferRequest.php`
 - `app/Modules/InventoryTransfers/Requests/PrepareInventoryTransferRequest.php`
 - `app/Modules/InventoryTransfers/Requests/StoreInventoryTransferRequest.php`
 - `app/Modules/InventoryTransfers/Resources/InventoryTransferResource.php`
@@ -1014,6 +1015,8 @@ Regla importante:
 - `validation_mode = logistics` crea solicitud, guia y checklist pendiente sin mover stock al crear;
 - al preparar un traslado logistico, el sistema reserva la cantidad o los IMEIs cargados para que no se vendan ni se usen en otra operacion;
 - si se prepara menos de lo solicitado, se debe registrar un motivo de diferencia;
+- al despachar un traslado logistico, el sistema descuenta lo reservado del origen y registra `transfer_out`;
+- el destino solo recibira stock cuando se implemente y ejecute la fase de recepcion;
 - un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.

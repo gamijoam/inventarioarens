@@ -273,6 +273,76 @@ class InventoryTransferService
         });
     }
 
+    public function dispatch(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+            $transfer = InventoryTransfer::query()
+                ->whereKey($transfer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($transfer->validation_mode !== InventoryTransfer::VALIDATION_LOGISTICS) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo los traslados logisticos requieren despacho por guia.',
+                ]);
+            }
+
+            if (! in_array($transfer->status, [
+                InventoryTransfer::STATUS_PREPARED,
+                InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Solo se pueden despachar traslados preparados.',
+                ]);
+            }
+
+            $transfer->loadMissing(['fromWarehouse', 'guide', 'items.product']);
+
+            foreach ($transfer->items as $item) {
+                /** @var InventoryTransferItem $item */
+                $product = $item->product;
+                $preparedQuantity = (float) ($item->prepared_quantity ?? 0);
+
+                if ($preparedQuantity <= 0) {
+                    continue;
+                }
+
+                $movement = $this->inventory->dispatchReservedTransfer(
+                    warehouse: $transfer->fromWarehouse,
+                    product: $product,
+                    quantity: $preparedQuantity,
+                    createdBy: $user,
+                    reason: "Despacho {$transfer->guide_number}: {$transfer->reason}",
+                    referenceType: InventoryTransfer::class,
+                    referenceId: $transfer->id,
+                );
+
+                $item->update([
+                    'out_stock_movement_id' => $movement->id,
+                ]);
+
+                $this->markDispatchedProductUnits($item->prepared_product_unit_ids ?? [], $movement->id);
+            }
+
+            $dispatchedAt = $data['dispatched_at'] ?? now();
+
+            $transfer->guide?->update([
+                'status' => InventoryTransferGuide::STATUS_DISPATCHED,
+                'dispatched_at' => $dispatchedAt,
+                'dispatched_by' => $user->id,
+            ]);
+
+            $transfer->update([
+                'status' => InventoryTransfer::STATUS_DISPATCHED,
+                'dispatched_at' => $dispatchedAt,
+                'dispatched_by' => $user->id,
+                'notes' => $data['notes'] ?? $transfer->notes,
+            ]);
+
+            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        });
+    }
+
     private function createLogisticTransfer(
         User $user,
         array $data,
@@ -466,6 +536,23 @@ class InventoryTransferService
             ->each(function (ProductUnit $unit) use ($movementId): void {
                 $unit->update([
                     'status' => ProductUnit::STATUS_RESERVED,
+                    'released_stock_movement_id' => $movementId,
+                ]);
+            });
+    }
+
+    private function markDispatchedProductUnits(array $unitIds, int $movementId): void
+    {
+        if ($unitIds === []) {
+            return;
+        }
+
+        ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->lockForUpdate()
+            ->get()
+            ->each(function (ProductUnit $unit) use ($movementId): void {
+                $unit->update([
                     'released_stock_movement_id' => $movementId,
                 ]);
             });

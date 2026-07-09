@@ -30,6 +30,12 @@ class InventoryTransferPolicy
             && $this->hasTenantPermission($user, 'inventory_transfers.prepare');
     }
 
+    public function dispatch(User $user, InventoryTransfer $transfer): bool
+    {
+        return $this->ownsResource($transfer)
+            && $this->hasTenantPermission($user, 'inventory_transfers.dispatch');
+    }
+
     private function hasTenantPermission(User $user, string $permission): bool
     {
         $tenant = app(TenantManager::class)->current();
