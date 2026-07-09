@@ -559,6 +559,28 @@ class PosCheckoutService
     {
         $unitIds = $item->product_unit_ids ?? [];
 
+        if (! $item->product->requiresSerializedTracking()) {
+            if ($unitIds !== []) {
+                throw ValidationException::withMessages([
+                    'items' => 'Solo los productos serializados pueden reservar IMEIs o seriales especificos.',
+                ]);
+            }
+
+            return;
+        }
+
+        if ((float) $item->quantity !== floor((float) $item->quantity) || count($unitIds) !== (int) $item->quantity) {
+            throw ValidationException::withMessages([
+                'items' => 'Los productos serializados requieren seleccionar un IMEI o serial por cada unidad vendida.',
+            ]);
+        }
+
+        if (count($unitIds) !== count(array_unique($unitIds))) {
+            throw ValidationException::withMessages([
+                'items' => 'No se puede repetir el mismo IMEI o serial en una orden POS.',
+            ]);
+        }
+
         if ($unitIds === []) {
             return;
         }

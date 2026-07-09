@@ -749,6 +749,166 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pending_pos_order_rejects_serialized_product_without_selected_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860002222222222',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-IMEI-MISSING',
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items'])
+            ->assertJsonPath('errors.items.0', 'Los productos serializados requieren seleccionar un IMEI o serial por cada unidad vendida.');
+
+        $this->assertDatabaseCount('pos_orders', 0);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+            'quantity_reserved' => '0.0000',
+        ]);
+    }
+
+    public function test_pending_pos_order_rejects_repeated_serialized_imei(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860003333333333',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'product_unit_ids' => [$unit->id, $unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-IMEI-DUP',
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items'])
+            ->assertJsonPath('errors.items.0', 'No se puede repetir el mismo IMEI o serial en una orden POS.');
+
+        $this->assertDatabaseCount('pos_orders', 0);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
+    public function test_pending_pos_order_rejects_serialized_imei_from_another_warehouse(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500, Product::TRACKING_SERIALIZED);
+        $this->useTenant($tenant);
+        $otherWarehouse = Warehouse::create([
+            'branch_id' => $warehouse->branch_id,
+            'name' => 'Almacen secundario',
+            'code' => 'WH-POS-SEC-'.$tenant->id,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $otherWarehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860004444444444',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'status' => PosPayment::STATUS_CAPTURED,
+                    'reference' => 'TRX-IMEI-WH',
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items']);
+
+        $this->assertDatabaseCount('pos_orders', 0);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'warehouse_id' => $otherWarehouse->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
     public function test_pos_checkout_can_sell_exact_serialized_imei(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
