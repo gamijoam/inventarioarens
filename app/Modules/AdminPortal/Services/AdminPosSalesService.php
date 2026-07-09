@@ -29,6 +29,9 @@ class AdminPosSalesService
 
         $summaryQuery = $this->baseOrdersQuery($tenant->id, $dateFrom, $dateTo, $filters);
 
+        $totalBaseAmount = $this->sum($summaryQuery, 'pos_orders.total_base_amount');
+        $paidBaseAmount = $this->sum($summaryQuery, 'pos_orders.paid_base_amount');
+
         return [
             'tenant' => [
                 'id' => $tenant->id,
@@ -48,11 +51,13 @@ class AdminPosSalesService
                 'paid_count' => (clone $summaryQuery)->where('pos_orders.status', PosOrder::STATUS_PAID)->count(),
                 'open_count' => (clone $summaryQuery)->where('pos_orders.status', PosOrder::STATUS_OPEN)->count(),
                 'cancelled_count' => (clone $summaryQuery)->where('pos_orders.status', PosOrder::STATUS_CANCELLED)->count(),
-                'total_base_amount' => $this->sum($summaryQuery, 'pos_orders.total_base_amount'),
-                'paid_base_amount' => $this->sum($summaryQuery, 'pos_orders.paid_base_amount'),
+                'total_base_amount' => $totalBaseAmount,
+                'paid_base_amount' => $paidBaseAmount,
+                'average_ticket_base_amount' => $total > 0 ? round($totalBaseAmount / $total, 4) : 0.0,
             ],
             'analytics' => [
                 'by_branch' => $this->salesByBranch($tenant->id, $dateFrom, $dateTo, $filters),
+                'by_cash_register' => $this->salesByCashRegister($tenant->id, $dateFrom, $dateTo, $filters),
                 'by_cashier' => $this->salesByCashier($tenant->id, $dateFrom, $dateTo, $filters),
                 'by_payment_method' => $this->salesByPaymentMethod($tenant->id, $dateFrom, $dateTo, $filters),
                 'top_products' => $this->topProducts($tenant->id, $dateFrom, $dateTo, $filters),
@@ -405,6 +410,28 @@ class AdminPosSalesService
             ->get()
             ->map(fn ($row): array => [
                 'name' => $row->cashier_name,
+                'orders_count' => (int) $row->orders_count,
+                'total_base_amount' => round((float) $row->total_base_amount, 4),
+                'paid_base_amount' => round((float) $row->paid_base_amount, 4),
+            ])
+            ->all();
+    }
+
+    private function salesByCashRegister(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
+    {
+        return $this->baseOrdersQuery($tenantId, $dateFrom, $dateTo, $filters)
+            ->selectRaw("coalesce(cash_registers.name, pos_orders.sync_cash_register_name, 'Sin caja') as cash_register_name")
+            ->selectRaw("coalesce(branches.name, pos_orders.sync_branch_name, 'Sin sucursal') as branch_name")
+            ->selectRaw('count(*) as orders_count')
+            ->selectRaw('sum(pos_orders.total_base_amount) as total_base_amount')
+            ->selectRaw('sum(pos_orders.paid_base_amount) as paid_base_amount')
+            ->groupByRaw("coalesce(cash_registers.name, pos_orders.sync_cash_register_name, 'Sin caja'), coalesce(branches.name, pos_orders.sync_branch_name, 'Sin sucursal')")
+            ->orderByDesc('paid_base_amount')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row): array => [
+                'name' => $row->cash_register_name,
+                'branch_name' => $row->branch_name,
                 'orders_count' => (int) $row->orders_count,
                 'total_base_amount' => round((float) $row->total_base_amount, 4),
                 'paid_base_amount' => round((float) $row->paid_base_amount, 4),

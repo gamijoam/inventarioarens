@@ -138,7 +138,9 @@ const elements = {
     salesSummaryOpen: document.querySelector('#admin-sales-summary-open'),
     salesSummaryTotal: document.querySelector('#admin-sales-summary-total'),
     salesSummaryCollected: document.querySelector('#admin-sales-summary-collected'),
+    salesSummaryTicket: document.querySelector('#admin-sales-summary-ticket'),
     salesByBranch: document.querySelector('#admin-sales-by-branch'),
+    salesByCashRegister: document.querySelector('#admin-sales-by-cash-register'),
     salesByCashier: document.querySelector('#admin-sales-by-cashier'),
     salesByPayment: document.querySelector('#admin-sales-by-payment'),
     salesTopProducts: document.querySelector('#admin-sales-top-products'),
@@ -146,6 +148,7 @@ const elements = {
     salesDetailSubtitle: document.querySelector('#admin-sales-detail-subtitle'),
     salesDetailStatus: document.querySelector('#admin-sales-detail-status'),
     salesDetailTotals: document.querySelector('#admin-sales-detail-totals'),
+    salesDetailContext: document.querySelector('#admin-sales-detail-context'),
     salesDetailItems: document.querySelector('#admin-sales-detail-items'),
     salesDetailPayments: document.querySelector('#admin-sales-detail-payments'),
     reportsModule: document.querySelector('#admin-reports-module'),
@@ -1275,6 +1278,7 @@ function renderAdminSales(sales) {
     elements.salesSummaryOpen.textContent = number(summary.open_count);
     elements.salesSummaryTotal.textContent = money(summary.total_base_amount);
     elements.salesSummaryCollected.textContent = money(summary.paid_base_amount);
+    elements.salesSummaryTicket.textContent = money(summary.average_ticket_base_amount);
     renderAdminSalesAnalytics(sales.analytics || {});
     state.sales.orders = sales.data || [];
     renderAdminSalesTable(state.sales.orders);
@@ -1308,6 +1312,13 @@ function renderAdminSalesAnalytics(analytics) {
         empty: 'Sin ventas por cajero.',
         title: (item) => item.name,
         meta: (item) => `${number(item.orders_count)} ordenes`,
+        value: (item) => money(item.paid_base_amount),
+        amount: (item) => item.paid_base_amount,
+    });
+    renderAdminSalesRanking(elements.salesByCashRegister, analytics.by_cash_register || [], {
+        empty: 'Sin ventas por caja.',
+        title: (item) => item.name,
+        meta: (item) => `${item.branch_name || 'Sin sucursal'} - ${number(item.orders_count)} ordenes`,
         value: (item) => money(item.paid_base_amount),
         amount: (item) => item.paid_base_amount,
     });
@@ -1424,13 +1435,20 @@ function renderAdminSaleDetail(order) {
             <div><span>Pagado</span><strong>USD 0.00</strong></div>
             <div><span>Saldo</span><strong>USD 0.00</strong></div>
         `;
+        if (elements.salesDetailContext) {
+            elements.salesDetailContext.innerHTML = `
+                <span><strong>Cliente</strong> Sin orden seleccionada</span>
+                <span><strong>Caja</strong> Sin orden seleccionada</span>
+                <span><strong>Cajero</strong> Sin orden seleccionada</span>
+            `;
+        }
         elements.salesDetailItems.innerHTML = '<p>Sin orden seleccionada.</p>';
         elements.salesDetailPayments.innerHTML = '<p>Sin pagos cargados.</p>';
         return;
     }
 
     elements.salesDetailTitle.textContent = `Orden POS #${order.id}`;
-    elements.salesDetailSubtitle.textContent = `${order.customer_name} - ${order.cash_register_name} - ${formatDateTime(order.paid_at || order.opened_at)}`;
+    elements.salesDetailSubtitle.textContent = `${order.branch_name || 'Sin sucursal'} - ${formatDateTime(order.paid_at || order.closed_at || order.opened_at)}`;
     elements.salesDetailStatus.textContent = order.status_label;
     elements.salesDetailStatus.dataset.tone = posOrderStatusTone(order.status);
     elements.salesDetailTotals.innerHTML = `
@@ -1438,6 +1456,13 @@ function renderAdminSaleDetail(order) {
         <div><span>Pagado</span><strong>${money(order.paid_base_amount)}</strong></div>
         <div><span>Saldo</span><strong>${money(order.balance_base_amount)}</strong></div>
     `;
+    if (elements.salesDetailContext) {
+        elements.salesDetailContext.innerHTML = `
+            <span><strong>Cliente</strong> ${escapeHtml(order.customer_name || 'Consumidor final')}${order.customer_document ? ` - ${escapeHtml(order.customer_document)}` : ''}</span>
+            <span><strong>Caja</strong> ${escapeHtml(order.cash_register_name || 'Sin caja')}</span>
+            <span><strong>Cajero</strong> ${escapeHtml(order.cashier_name || 'Sin cajero')}</span>
+        `;
+    }
     renderAdminSaleItems(order.items || []);
     renderAdminSalePayments(order.payments || []);
 }
@@ -1451,14 +1476,17 @@ function renderAdminSaleItems(items) {
     elements.salesDetailItems.replaceChildren(
         ...items.map((item) => {
             const row = document.createElement('article');
-            row.className = 'sales-admin__detail-row';
+            const discount = Number(item.discount_base_amount || 0);
+            row.className = 'sales-admin__detail-row sales-admin__detail-row--item';
             row.innerHTML = `
                 <div>
                     <strong>${escapeHtml(item.product_name)}</strong>
-                    <small>${escapeHtml(item.product_sku || '')} - ${escapeHtml(item.warehouse_name || '')}</small>
+                    <small>${escapeHtml(item.product_sku || 'Sin SKU')} - ${escapeHtml(item.warehouse_name || 'Sin almacen')}</small>
                     ${item.product_unit_ids?.length ? `<small>Seriales/IMEI: ${escapeHtml(item.product_unit_ids.join(', '))}</small>` : ''}
+                    ${item.warranty_policy_name ? `<small>Garantia: ${escapeHtml(item.warranty_policy_name)}</small>` : ''}
+                    ${discount > 0 ? `<em>Descuento: ${money(discount)}${item.discount_reason ? ` - ${escapeHtml(item.discount_reason)}` : ''}</em>` : ''}
                 </div>
-                <div>
+                <div class="sales-admin__detail-value">
                     <strong>${number(item.quantity)} x ${escapeHtml(item.sale_currency)} ${number(item.unit_price)}</strong>
                     <small>Total ${money(item.base_total_amount)}</small>
                 </div>
@@ -1477,15 +1505,17 @@ function renderAdminSalePayments(payments) {
     elements.salesDetailPayments.replaceChildren(
         ...payments.map((payment) => {
             const row = document.createElement('article');
-            row.className = 'sales-admin__detail-row';
+            row.className = 'sales-admin__detail-row sales-admin__detail-row--payment';
             row.innerHTML = `
                 <div>
                     <strong>${escapeHtml(payment.payment_method_name)}</strong>
-                    <small>${escapeHtml(payment.status)} ${payment.reference ? `- Ref. ${escapeHtml(payment.reference)}` : ''}</small>
+                    <small>${escapeHtml(posPaymentStatusLabel(payment.status))}${payment.reference ? ` - Ref. ${escapeHtml(payment.reference)}` : ' - Sin referencia'}</small>
+                    ${payment.exchange_rate ? `<small>Tasa ${escapeHtml(payment.exchange_rate_type_code || 'N/D')} ${number(payment.exchange_rate)}</small>` : '<small>Sin tasa registrada</small>'}
                 </div>
-                <div>
+                <div class="sales-admin__detail-value">
                     <strong>${escapeHtml(payment.currency)} ${number(payment.amount)}</strong>
-                    <small>${money(payment.amount_base)}</small>
+                    <small>Base ${money(payment.amount_base)}</small>
+                    <small>Equiv. Bs ${number(payment.amount_local)}</small>
                 </div>
             `;
             return row;
@@ -1561,6 +1591,15 @@ function posOrderStatusTone(status) {
         open: 'warning',
         cancelled: 'error',
     }[status] || 'neutral';
+}
+
+function posPaymentStatusLabel(status) {
+    return {
+        captured: 'Capturado',
+        pending: 'Pendiente',
+        failed: 'Fallido',
+        voided: 'Anulado',
+    }[status] || status || 'Sin estado';
 }
 
 async function loadOperationalReports() {

@@ -49,8 +49,12 @@ class AdminPosSalesApiTest extends TestCase
             ->assertJsonPath('data.summary.paid_count', 1)
             ->assertJsonPath('data.summary.open_count', 1)
             ->assertJsonPath('data.summary.total_base_amount', 105)
+            ->assertJsonPath('data.summary.average_ticket_base_amount', 52.5)
             ->assertJsonPath('data.analytics.by_branch.0.name', 'Principal')
             ->assertJsonPath('data.analytics.by_branch.0.orders_count', 2)
+            ->assertJsonPath('data.analytics.by_cash_register.0.name', 'Caja Principal')
+            ->assertJsonPath('data.analytics.by_cash_register.0.branch_name', 'Principal')
+            ->assertJsonPath('data.analytics.by_cash_register.0.orders_count', 2)
             ->assertJsonPath('data.analytics.by_cashier.0.name', $user->name)
             ->assertJsonPath('data.analytics.by_payment_method.0.amount_base', 80)
             ->assertJsonPath('data.analytics.top_products.0.product_sku', 'SKU-A')
@@ -192,6 +196,9 @@ class AdminPosSalesApiTest extends TestCase
             ->assertJsonPath('data.items.0.product_sku', 'SKU-DET')
             ->assertJsonPath('data.items.0.base_total_amount', 55)
             ->assertJsonPath('data.payments.0.amount_base', 55)
+            ->assertJsonPath('data.payments.0.amount_local', 27500)
+            ->assertJsonPath('data.payments.0.exchange_rate_type_code', 'BCV')
+            ->assertJsonPath('data.payments.0.exchange_rate', 500)
             ->assertJsonPath('data.payments.0.reference', 'PAY-SKU-DET');
     }
 
@@ -334,6 +341,8 @@ class AdminPosSalesApiTest extends TestCase
                 'amount' => $total,
                 'amount_base' => $total,
                 'amount_local' => $total * 500,
+                'exchange_rate_type_code' => 'BCV',
+                'exchange_rate' => 500,
                 'status' => PosPayment::STATUS_CAPTURED,
                 'reference' => 'PAY-'.$sku,
             ]);

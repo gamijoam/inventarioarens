@@ -702,7 +702,7 @@ button {
 
 .sales-admin__summary {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 7px;
     margin-top: 8px;
 }
@@ -742,13 +742,13 @@ button {
 
 .sales-admin__analytics {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 7px;
     margin-top: 8px;
 }
 
 .sales-admin__analytics-card {
-    padding: 9px;
+    padding: 8px;
 }
 
 .sales-admin__analytics-card .panel-heading {
@@ -765,7 +765,7 @@ button {
 
 .sales-admin__ranking {
     display: grid;
-    gap: 5px;
+    gap: 4px;
 }
 
 .sales-admin__ranking-empty {
@@ -778,8 +778,8 @@ button {
 .sales-admin__rank-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    padding: 6px;
+    gap: 6px;
+    padding: 5px;
     border: 1px solid var(--line);
     border-radius: 6px;
     background: #f8fafc;
@@ -794,7 +794,7 @@ button {
 .sales-admin__rank-row strong {
     overflow: hidden;
     color: var(--ink);
-    font-size: 12px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -802,14 +802,14 @@ button {
 .sales-admin__rank-row span,
 .sales-admin__rank-row small {
     color: var(--muted);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 750;
 }
 
 .sales-admin__rank-row > em {
     align-self: center;
     color: var(--primary);
-    font-size: 12px;
+    font-size: 11px;
     font-style: normal;
     font-weight: 900;
     text-align: right;
@@ -859,6 +859,28 @@ button {
     gap: 6px;
 }
 
+.sales-admin__detail-context {
+    display: grid;
+    gap: 4px;
+    margin-top: 7px;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #f8fafc;
+}
+
+.sales-admin__detail-context span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.25;
+}
+
+.sales-admin__detail-context strong {
+    color: var(--ink);
+    margin-right: 4px;
+}
+
 .sales-admin__detail-list {
     display: grid;
     gap: 5px;
@@ -887,6 +909,11 @@ button {
     background: #fff;
 }
 
+.sales-admin__detail-row--item,
+.sales-admin__detail-row--payment {
+    grid-template-columns: minmax(0, 1fr) minmax(110px, auto);
+}
+
 .sales-admin__detail-row strong,
 .sales-admin__detail-row small {
     display: block;
@@ -896,6 +923,19 @@ button {
     color: var(--muted);
     font-size: 11px;
     font-weight: 750;
+}
+
+.sales-admin__detail-row em {
+    display: block;
+    margin-top: 3px;
+    color: #b45309;
+    font-size: 10.5px;
+    font-style: normal;
+    font-weight: 850;
+}
+
+.sales-admin__detail-value {
+    text-align: right;
 }
 
 .module-head {

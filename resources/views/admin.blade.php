@@ -302,6 +302,11 @@
                                     <strong id="admin-sales-summary-collected">USD 0.00</strong>
                                     <small>Pagos capturados</small>
                                 </article>
+                                <article>
+                                    <span>Ticket prom.</span>
+                                    <strong id="admin-sales-summary-ticket">USD 0.00</strong>
+                                    <small>Promedio por orden</small>
+                                </article>
                             </div>
 
                             <div class="sales-admin__analytics" aria-label="Indicadores administrativos de ventas POS">
@@ -313,6 +318,15 @@
                                         </div>
                                     </div>
                                     <div class="sales-admin__ranking" id="admin-sales-by-branch"></div>
+                                </section>
+                                <section class="content-panel sales-admin__analytics-card">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <h4>Por caja</h4>
+                                            <p>Rendimiento por caja fisica.</p>
+                                        </div>
+                                    </div>
+                                    <div class="sales-admin__ranking" id="admin-sales-by-cash-register"></div>
                                 </section>
                                 <section class="content-panel sales-admin__analytics-card">
                                     <div class="panel-heading">
@@ -390,6 +404,12 @@
                                         <div><span>Total</span><strong>USD 0.00</strong></div>
                                         <div><span>Pagado</span><strong>USD 0.00</strong></div>
                                         <div><span>Saldo</span><strong>USD 0.00</strong></div>
+                                    </div>
+
+                                    <div class="sales-admin__detail-context" id="admin-sales-detail-context">
+                                        <span><strong>Cliente</strong> Sin orden seleccionada</span>
+                                        <span><strong>Caja</strong> Sin orden seleccionada</span>
+                                        <span><strong>Cajero</strong> Sin orden seleccionada</span>
                                     </div>
 
                                     <h5>Productos</h5>
