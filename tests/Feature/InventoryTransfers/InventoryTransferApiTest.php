@@ -8,6 +8,8 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
+use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -120,6 +122,59 @@ class InventoryTransferApiTest extends TestCase
             'id' => $units[2]->id,
             'warehouse_id' => $fromWarehouse->id,
             'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
+    public function test_user_can_create_logistic_transfer_request_without_moving_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-LOG', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 8);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'Preparar envio con checklist',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 5,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.document_number', 'TRF-000001')
+            ->assertJsonPath('data.guide_number', 'GUIA-000001')
+            ->assertJsonPath('data.validation_mode', InventoryTransfer::VALIDATION_LOGISTICS)
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_REQUESTED)
+            ->assertJsonPath('data.guide.status', InventoryTransferGuide::STATUS_GENERATED)
+            ->assertJsonPath('data.guide.checklists.0.stage', InventoryTransferChecklist::STAGE_PREPARATION)
+            ->assertJsonPath('data.guide.checklists.0.status', InventoryTransferChecklist::STATUS_PENDING)
+            ->assertJsonPath('data.guide.checklists.0.items.0.expected_quantity', '5.0000')
+            ->assertJsonPath('data.items.0.requested_quantity', 5)
+            ->assertJsonPath('data.items.0.prepared_quantity', 0)
+            ->assertJsonPath('data.items.0.received_quantity', 0);
+
+        $this->assertSame(8.0, (float) $this->balance($fromWarehouse, $product)->quantity_available);
+        $this->assertNull($this->balanceOrNull($toWarehouse, $product));
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'type' => 'transfer_out',
+        ]);
+        $this->assertDatabaseHas('inventory_transfer_guides', [
+            'tenant_id' => $tenant->id,
+            'guide_number' => 'GUIA-000001',
+            'status' => InventoryTransferGuide::STATUS_GENERATED,
+        ]);
+        $this->assertDatabaseHas('inventory_transfer_checklists', [
+            'tenant_id' => $tenant->id,
+            'stage' => InventoryTransferChecklist::STAGE_PREPARATION,
+            'status' => InventoryTransferChecklist::STATUS_PENDING,
         ]);
     }
 
@@ -340,6 +395,14 @@ class InventoryTransferApiTest extends TestCase
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
             ->firstOrFail();
+    }
+
+    private function balanceOrNull(Warehouse $warehouse, Product $product): ?StockBalance
+    {
+        return StockBalance::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->first();
     }
 
     private function useTenant(Tenant $tenant): void

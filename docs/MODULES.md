@@ -985,12 +985,17 @@ Responsabilidad:
 - transferencia multi-producto en un mismo documento;
 - seleccion de IMEIs o seriales especificos cuando el producto es serializado;
 - generacion de movimientos `transfer_out` y `transfer_in` mediante `InventoryMovementService`;
+- generacion de guia y checklist cuando el traslado usa modo logistico;
 - trazabilidad del documento origen para Kardex y auditoria.
 
 Archivos principales:
 
 - `app/Modules/InventoryTransfers/Models/InventoryTransfer.php`
 - `app/Modules/InventoryTransfers/Models/InventoryTransferItem.php`
+- `app/Modules/InventoryTransfers/Models/InventoryTransferGuide.php`
+- `app/Modules/InventoryTransfers/Models/InventoryTransferChecklist.php`
+- `app/Modules/InventoryTransfers/Models/InventoryTransferChecklistItem.php`
+- `app/Modules/InventoryTransfers/Models/TenantTransferSetting.php`
 - `app/Modules/InventoryTransfers/Policies/InventoryTransferPolicy.php`
 - `app/Modules/InventoryTransfers/Controllers/InventoryTransferController.php`
 - `app/Modules/InventoryTransfers/Requests/StoreInventoryTransferRequest.php`
@@ -1003,7 +1008,9 @@ Regla importante:
 
 - en esta fase solo existe `internal`;
 - origen y destino deben pertenecer al mismo tenant;
-- un traslado interno no vende ni retira mercancia, solo cambia su almacen;
+- `validation_mode = simple` completa el traslado inmediatamente y cambia el almacen del stock;
+- `validation_mode = logistics` crea solicitud, guia y checklist pendiente sin mover stock todavia;
+- un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
 - las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.
 

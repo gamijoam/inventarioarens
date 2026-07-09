@@ -15,6 +15,7 @@ class StoreInventoryTransferRequest extends FormRequest
 
         return [
             'type' => ['sometimes', Rule::in(InventoryTransfer::TYPES)],
+            'validation_mode' => ['sometimes', Rule::in(InventoryTransfer::VALIDATION_MODES)],
             'from_warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId)],
             'to_warehouse_id' => [
                 'required',

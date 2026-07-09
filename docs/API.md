@@ -3080,6 +3080,7 @@ Body para producto por cantidad:
 ```json
 {
   "type": "internal",
+  "validation_mode": "simple",
   "from_warehouse_id": 1,
   "to_warehouse_id": 2,
   "reason": "Reposicion de sucursal",
@@ -3110,17 +3111,37 @@ Body para producto serializado:
 }
 ```
 
+Body para traslado logistico con guia y checklist:
+
+```json
+{
+  "type": "internal",
+  "validation_mode": "logistics",
+  "from_warehouse_id": 1,
+  "to_warehouse_id": 2,
+  "reason": "Preparar envio con validacion",
+  "items": [
+    {
+      "product_id": 2,
+      "quantity": 4
+    }
+  ]
+}
+```
+
 Reglas:
 
 - una transferencia puede tener uno o varios productos;
 - en esta fase solo se permite `type = internal`;
 - origen y destino deben ser almacenes distintos de la misma empresa;
-- cada item genera dos movimientos de kardex: `transfer_out` en origen y `transfer_in` en destino;
+- `validation_mode = simple` completa el traslado inmediatamente y cada item genera dos movimientos de kardex: `transfer_out` en origen y `transfer_in` en destino;
+- `validation_mode = logistics` crea una solicitud en estado `requested`, genera una guia `GUIA-000001`, crea checklist de preparacion pendiente y no mueve stock todavia;
 - si el producto es `quantity`, no acepta `product_unit_ids`;
 - si el producto es `serialized`, debe recibir una unidad disponible por cada cantidad;
 - los IMEIs seleccionados deben estar disponibles en el almacen origen;
 - al completar la transferencia, los IMEIs siguen disponibles pero cambian de almacen;
 - la transferencia usa bloqueo de balances para evitar stock negativo cuando hay operaciones simultaneas;
+- en modo logistico, el movimiento real de inventario se ejecutara en fases posteriores al preparar/despachar/recibir;
 - los traslados entre empresas se modelaran como solicitud interempresa con aceptacion/rechazo, no como movimiento directo.
 
 ### Ver transferencia

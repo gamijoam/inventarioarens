@@ -8,6 +8,8 @@ use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
+use App\Modules\InventoryTransfers\Models\InventoryTransferChecklistItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\Products\Models\Product;
@@ -30,6 +32,13 @@ class InventoryTransferService
             $this->validateItems($fromWarehouse, $data['items']);
 
             $sequence = $this->nextSequence();
+            $validationMode = $data['validation_mode'] ?? InventoryTransfer::VALIDATION_SIMPLE;
+            $processedAt = $data['processed_at'] ?? now();
+
+            if ($validationMode === InventoryTransfer::VALIDATION_LOGISTICS) {
+                return $this->createLogisticTransfer($user, $data, $fromWarehouse, $toWarehouse, $sequence, $processedAt);
+            }
+
             $transfer = InventoryTransfer::create([
                 'sequence' => $sequence,
                 'document_number' => 'TRF-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT),
@@ -43,11 +52,11 @@ class InventoryTransferService
                 'reference' => $data['reference'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $user->id,
-                'processed_at' => $data['processed_at'] ?? now(),
-                'requested_at' => $data['processed_at'] ?? now(),
-                'prepared_at' => $data['processed_at'] ?? now(),
-                'dispatched_at' => $data['processed_at'] ?? now(),
-                'received_at' => $data['processed_at'] ?? now(),
+                'processed_at' => $processedAt,
+                'requested_at' => $processedAt,
+                'prepared_at' => $processedAt,
+                'dispatched_at' => $processedAt,
+                'received_at' => $processedAt,
             ]);
 
             foreach ($data['items'] as $item) {
@@ -109,8 +118,84 @@ class InventoryTransferService
                 ],
             ]);
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product']);
+            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
         });
+    }
+
+    private function createLogisticTransfer(
+        User $user,
+        array $data,
+        Warehouse $fromWarehouse,
+        Warehouse $toWarehouse,
+        int $sequence,
+        mixed $requestedAt,
+    ): InventoryTransfer {
+        $transfer = InventoryTransfer::create([
+            'sequence' => $sequence,
+            'document_number' => 'TRF-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT),
+            'guide_number' => 'GUIA-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT),
+            'type' => $data['type'] ?? InventoryTransfer::TYPE_INTERNAL,
+            'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+            'from_warehouse_id' => $fromWarehouse->id,
+            'to_warehouse_id' => $toWarehouse->id,
+            'status' => InventoryTransfer::STATUS_REQUESTED,
+            'reason' => $data['reason'] ?? null,
+            'reference' => $data['reference'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'created_by' => $user->id,
+            'requested_at' => $requestedAt,
+        ]);
+
+        foreach ($data['items'] as $item) {
+            $product = Product::query()->findOrFail($item['product_id']);
+            $quantity = (float) $item['quantity'];
+            $unitIds = $item['product_unit_ids'] ?? [];
+
+            InventoryTransferItem::create([
+                'inventory_transfer_id' => $transfer->id,
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'requested_quantity' => $quantity,
+                'prepared_quantity' => 0,
+                'received_quantity' => 0,
+                'difference_quantity' => 0,
+                'product_unit_ids' => $unitIds ?: null,
+            ]);
+        }
+
+        $guide = InventoryTransferGuide::create([
+            'inventory_transfer_id' => $transfer->id,
+            'guide_number' => $transfer->guide_number,
+            'status' => InventoryTransferGuide::STATUS_GENERATED,
+            'issued_at' => $requestedAt,
+            'issued_by' => $user->id,
+            'metadata' => [
+                'mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'source' => 'inventory_transfer_service',
+                'stock_moved' => false,
+            ],
+        ]);
+
+        $preparationChecklist = InventoryTransferChecklist::create([
+            'inventory_transfer_id' => $transfer->id,
+            'inventory_transfer_guide_id' => $guide->id,
+            'stage' => InventoryTransferChecklist::STAGE_PREPARATION,
+            'status' => InventoryTransferChecklist::STATUS_PENDING,
+        ]);
+
+        $transfer->items()->get()->each(function (InventoryTransferItem $item) use ($preparationChecklist): void {
+            InventoryTransferChecklistItem::create([
+                'inventory_transfer_checklist_id' => $preparationChecklist->id,
+                'inventory_transfer_item_id' => $item->id,
+                'product_id' => $item->product_id,
+                'expected_quantity' => $item->requested_quantity ?? $item->quantity,
+                'checked_quantity' => 0,
+                'difference_quantity' => 0,
+                'expected_product_unit_ids' => $item->product_unit_ids,
+            ]);
+        });
+
+        return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
     }
 
     private function validateItems(Warehouse $fromWarehouse, array $items): void
