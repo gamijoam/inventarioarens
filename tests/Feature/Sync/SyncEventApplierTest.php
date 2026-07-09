@@ -3,6 +3,7 @@
 namespace Tests\Feature\Sync;
 
 use App\Modules\Sync\Services\SyncEventApplier;
+use App\Modules\AdminPortal\Services\AdminPosSalesService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -216,6 +217,161 @@ class SyncEventApplierTest extends TestCase
         $this->assertDatabaseHas('cash_registers', ['tenant_id' => $tenant->id, 'code' => 'CJ-1', 'status' => 'active']);
     }
 
+    public function test_it_materializes_pos_paid_events_for_admin_sales(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Ventas Sync', 'slug' => 'empresa-ventas-sync']);
+        app(TenantManager::class)->set($tenant);
+        $now = now();
+        $branchId = $this->branch($tenant, 'VAL', 'Principal Valencia');
+        $warehouseId = $this->warehouse($tenant, $branchId, 'VAL-01', 'Almacen Principal Valencia');
+        $productId = $this->product($tenant, 'ADP-BT-VAL', 'Adaptador Bluetooth', '10.0000');
+        $priceListId = $this->priceList($tenant, 'DETAL');
+        DB::table('product_prices')->insert([
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'price_list_id' => $priceListId,
+            'price' => '10.0000',
+            'currency' => 'USD',
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('exchange_rate_types')->insert([
+            'tenant_id' => $tenant->id,
+            'name' => 'Paralelo',
+            'code' => 'PARALELO',
+            'is_default' => false,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('payment_methods')->insert([
+            'tenant_id' => $tenant->id,
+            'name' => 'Pago movil Bs',
+            'code' => 'PAGO-MOVIL-BS',
+            'method' => 'mobile_payment',
+            'currency_mode' => 'VES',
+            'requires_reference' => true,
+            'is_active' => true,
+            'sort_order' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $nodeId = DB::table('sync_nodes')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'code' => 'LOCAL-VAL-01',
+            'name' => 'Local Valencia',
+            'type' => 'local',
+            'status' => 'active',
+            'branch_id' => $branchId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'origin_node_id' => $nodeId,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'pos.order.paid',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => 99,
+            'payload_hash' => 'hash-pos-paid',
+            'payload' => json_encode([
+                'sale' => [
+                    'id' => 501,
+                    'status' => 'confirmed',
+                    'total_base_amount' => '10.0000',
+                    'total_local_amount' => '10000.0000',
+                    'confirmed_at' => $now->toISOString(),
+                ],
+                'order' => [
+                    'id' => 99,
+                    'status' => 'paid',
+                    'customer_name' => 'Consumidor final',
+                    'branch_name' => 'Principal Valencia',
+                    'cash_register_name' => 'Caja Mostrador VAL',
+                    'cashier_name' => 'Gerente Valencia',
+                    'total_base_amount' => '10.0000',
+                    'total_local_amount' => '10000.0000',
+                    'paid_base_amount' => '10.0000',
+                    'paid_local_amount' => '10000.0000',
+                    'opened_at' => $now->toISOString(),
+                    'paid_at' => $now->toISOString(),
+                    'closed_at' => $now->toISOString(),
+                ],
+                'items' => [[
+                    'id' => 7001,
+                    'product_sku' => 'ADP-BT-VAL',
+                    'warehouse_code' => 'VAL-01',
+                    'price_list_code' => 'DETAL',
+                    'price_list_name' => 'Detal',
+                    'quantity' => '1.0000',
+                    'sale_currency' => 'USD',
+                    'unit_price' => '10.0000',
+                    'total_amount' => '10.0000',
+                    'base_unit_price' => '10.0000',
+                    'base_total_amount' => '10.0000',
+                    'exchange_rate_type_code' => 'PARALELO',
+                    'exchange_rate' => '1000.000000',
+                ]],
+                'payments' => [[
+                    'id' => 9001,
+                    'payment_method_code' => 'PAGO-MOVIL-BS',
+                    'method' => 'mobile_payment',
+                    'currency' => 'VES',
+                    'amount' => '10000.0000',
+                    'amount_base' => '10.0000',
+                    'amount_local' => '10000.0000',
+                    'exchange_rate_type_code' => 'PARALELO',
+                    'exchange_rate' => '1000.000000',
+                    'status' => 'captured',
+                    'reference' => '123456',
+                ]],
+            ]),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1, $summary['applied']);
+        $this->assertDatabaseHas('sales', [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => 'LOCAL-VAL-01',
+            'sync_source_id' => 501,
+            'status' => 'confirmed',
+            'total_base_amount' => '10.0000',
+        ]);
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => 'LOCAL-VAL-01',
+            'sync_source_id' => 99,
+            'status' => 'paid',
+            'sync_cash_register_name' => 'Caja Mostrador VAL',
+            'paid_base_amount' => '10.0000',
+        ]);
+        $this->assertDatabaseHas('pos_payments', [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => 'LOCAL-VAL-01',
+            'sync_source_id' => 9001,
+            'currency' => 'VES',
+            'amount_base' => '10.0000',
+            'exchange_rate_type_code' => 'PARALELO',
+        ]);
+
+        $report = app(AdminPosSalesService::class)->index([
+            'date_from' => $now->toDateString(),
+            'date_to' => $now->toDateString(),
+            'status' => 'all',
+        ]);
+
+        $this->assertSame(1, $report['summary']['orders_count']);
+        $this->assertSame(10.0, $report['summary']['total_base_amount']);
+        $this->assertSame('Caja Mostrador VAL', $report['data'][0]['cash_register_name']);
+    }
+
     private function product(Tenant $tenant, string $sku, string $name, string $price): int
     {
         return (int) DB::table('products')->insertGetId([
@@ -240,6 +396,31 @@ class SyncEventApplierTest extends TestCase
             'is_default' => false,
             'is_active' => true,
             'sort_order' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function branch(Tenant $tenant, string $code, string $name): int
+    {
+        return (int) DB::table('branches')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => $name,
+            'code' => $code,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function warehouse(Tenant $tenant, int $branchId, string $code, string $name): int
+    {
+        return (int) DB::table('warehouses')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branchId,
+            'name' => $name,
+            'code' => $code,
+            'status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

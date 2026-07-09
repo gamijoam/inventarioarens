@@ -13,6 +13,7 @@ public partial class PosView : UserControl
 {
     private readonly DispatcherTimer searchDebounceTimer;
     private readonly DispatcherTimer searchFocusTimer;
+    private bool isLeavingPos;
 
     public PosView()
     {
@@ -45,6 +46,7 @@ public partial class PosView : UserControl
             return;
         }
 
+        isLeavingPos = false;
         searchFocusTimer.Start();
         Focus();
         Keyboard.Focus(this);
@@ -53,6 +55,9 @@ public partial class PosView : UserControl
 
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
+        isLeavingPos = true;
+        searchDebounceTimer.Stop();
+        searchFocusTimer.Stop();
         ExitRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -208,7 +213,7 @@ public partial class PosView : UserControl
 
     private void SearchBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (IsTextEntryElement(e.NewFocus) || e.NewFocus is ComboBoxItem)
+        if (isLeavingPos || IsTextEntryElement(e.NewFocus) || e.NewFocus is ComboBoxItem || e.NewFocus is ButtonBase)
         {
             return;
         }

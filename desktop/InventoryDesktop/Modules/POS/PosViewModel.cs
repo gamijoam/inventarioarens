@@ -5,6 +5,10 @@ using System.Windows.Media;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.ViewModels;
+using CurrencyCurrentResponse = InventoryDesktop.Modules.Currency.ExchangeRateCurrentResponse;
+using CurrencyExchangeRateItem = InventoryDesktop.Modules.Currency.ExchangeRateItem;
+using CurrencyExchangeRateTypeItem = InventoryDesktop.Modules.Currency.ExchangeRateTypeItem;
+using CurrencyRateTypeListResponse = InventoryDesktop.Modules.Currency.ExchangeRateTypeListResponse;
 using InventoryDesktop.Modules.InventoryCenter;
 
 namespace InventoryDesktop.Modules.POS;
@@ -60,6 +64,8 @@ public sealed class PosViewModel : ViewModelBase
     public ObservableCollection<PosCashRegisterSession> CashRegisterSessions { get; } = new();
 
     public ObservableCollection<PaymentMethodOption> PaymentMethods { get; } = new();
+
+    public ObservableCollection<PosExchangeRateChoice> PaymentRateChoices { get; } = new();
 
     public ObservableCollection<PosCustomerOption> CustomerSearchResults { get; } = new();
 
@@ -338,7 +344,8 @@ public sealed class PosViewModel : ViewModelBase
             {
                 await Task.WhenAll(
                     LoadPriceListsAsync(),
-                    LoadWarehousesAsync());
+                    LoadWarehousesAsync(),
+                    LoadCurrentRatesAsync());
                 hasInitialized = true;
             }
 
@@ -490,6 +497,56 @@ public sealed class PosViewModel : ViewModelBase
         catch (HttpRequestException)
         {
             SetError("No se pudo conectar con la API para cargar métodos de pago.");
+        }
+    }
+
+    public async Task LoadCurrentRatesAsync(bool forceRefresh = false)
+    {
+        if (!forceRefresh && PaymentRateChoices.Count > 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Task<CurrencyRateTypeListResponse> typeTask = apiClient.GetAsync<CurrencyRateTypeListResponse>("currency/rate-types");
+            Task<CurrencyCurrentResponse> currentTask = apiClient.GetAsync<CurrencyCurrentResponse>("currency/rates/current");
+            await Task.WhenAll(typeTask, currentTask);
+
+            Dictionary<long, CurrencyExchangeRateItem> currentRates = currentTask.Result.Data
+                .Where(rate => rate.IsActive
+                    && rate.Rate > 0
+                    && rate.BaseCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase)
+                    && rate.QuoteCurrency.Equals("VES", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(rate => rate.ExchangeRateTypeId)
+                .ToDictionary(group => group.Key, group => group.OrderByDescending(rate => rate.EffectiveAt).First());
+
+            PaymentRateChoices.Clear();
+            foreach (CurrencyExchangeRateTypeItem type in typeTask.Result.Data
+                         .Where(type => type.IsActive)
+                         .OrderByDescending(type => type.IsDefault)
+                         .ThenBy(type => type.Name))
+            {
+                if (!currentRates.TryGetValue(type.Id, out CurrencyExchangeRateItem? rate))
+                {
+                    continue;
+                }
+
+                PaymentRateChoices.Add(new PosExchangeRateChoice(
+                    type.Id,
+                    type.Code,
+                    type.Name,
+                    rate.Rate,
+                    type.IsDefault));
+            }
+        }
+        catch (ApiException exception)
+        {
+            SetError(exception.Message);
+        }
+        catch (HttpRequestException)
+        {
+            SetError("No se pudo conectar con la API para cargar tasas de cambio.");
         }
     }
 
@@ -1177,12 +1234,6 @@ public sealed class PosViewModel : ViewModelBase
                 return Task.FromResult(cachedQuote);
             }
 
-            if (TryBuildFastBaseQuote(product, priceListId) is PosPriceQuote fastQuote)
-            {
-                quoteCache[key] = fastQuote;
-                return Task.FromResult(fastQuote);
-            }
-
             if (quoteRequests.TryGetValue(key, out Task<PosPriceQuote>? activeRequest))
             {
                 return activeRequest;
@@ -1192,34 +1243,6 @@ public sealed class PosViewModel : ViewModelBase
             quoteRequests[key] = request;
             return request;
         }
-    }
-
-    private static PosPriceQuote? TryBuildFastBaseQuote(InventoryProductItem product, long? priceListId)
-    {
-        if (priceListId is not null || product.BasePrice is null)
-        {
-            return null;
-        }
-
-        if (!product.SaleCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return new PosPriceQuote(
-            product.Id,
-            null,
-            null,
-            "base",
-            product.BasePrice.Value,
-            "USD",
-            product.BasePrice.Value,
-            product.BasePrice.Value,
-            null,
-            null,
-            null,
-            null,
-            null);
     }
 
     private async Task<PosPriceQuote> FetchQuoteAsync(QuoteCacheKey key)

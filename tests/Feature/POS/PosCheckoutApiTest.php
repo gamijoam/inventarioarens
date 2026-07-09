@@ -337,6 +337,99 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonPath('data.payments.1.payment_method_id', $mobile->id);
     }
 
+    public function test_pos_checkout_closes_usd_sale_with_ves_payment_using_non_default_rate(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        $product->update(['base_price' => 50]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+
+        $parallelRateType = ExchangeRateType::create([
+            'code' => 'PARALELO',
+            'name' => 'Tasa Paralelo',
+            'is_default' => false,
+        ]);
+        ExchangeRate::create([
+            'exchange_rate_type_id' => $parallelRateType->id,
+            'rate' => 600,
+            'effective_at' => '2026-07-02 13:00:00',
+            'is_active' => true,
+        ]);
+
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD-MIX',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $mobile = PaymentMethod::create([
+            'name' => 'Pago movil paralelo',
+            'code' => 'PM-PAR-MIX',
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency_mode' => PaymentMethod::CURRENCY_VES,
+            'requires_reference' => true,
+        ]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [
+                    [
+                        'payment_method_id' => $cash->id,
+                        'method' => PosPayment::METHOD_CASH,
+                        'currency' => Product::CURRENCY_USD,
+                        'amount' => 40,
+                    ],
+                    [
+                        'payment_method_id' => $mobile->id,
+                        'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+                        'currency' => Product::CURRENCY_VES,
+                        'amount' => 6000,
+                        'exchange_rate_type_id' => $parallelRateType->id,
+                        'reference' => 'PM-PAR-001',
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.total_base_amount', '50.0000')
+            ->assertJsonPath('data.paid_base_amount', '50.0000')
+            ->assertJsonPath('data.payments.1.amount', '6000.0000')
+            ->assertJsonPath('data.payments.1.amount_base', '10.0000')
+            ->assertJsonPath('data.payments.1.amount_local', '6000.0000')
+            ->assertJsonPath('data.payments.1.exchange_rate_type_code', 'PARALELO')
+            ->assertJsonPath('data.payments.1.exchange_rate', '600.000000');
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_POS_PAYMENT,
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency' => Product::CURRENCY_VES,
+            'amount' => 6000,
+            'amount_base' => 10,
+            'amount_local' => 6000,
+            'exchange_rate_type_code' => 'PARALELO',
+            'exchange_rate' => 600,
+            'reference' => 'PM-PAR-001',
+        ]);
+    }
+
     public function test_pos_checkout_rejects_inactive_payment_method_for_restricted_price_list(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

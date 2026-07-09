@@ -6,6 +6,10 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Currency\Models\ExchangeRate;
+use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
@@ -56,6 +60,101 @@ class AdminPosSalesApiTest extends TestCase
         $orders = collect($response->json('data.data'));
 
         $this->assertTrue($orders->contains(fn (array $order): bool => $order['id'] === $paidOrder->id && $order['status_label'] === 'Pagada'));
+    }
+
+    public function test_real_pos_checkout_appears_in_today_admin_dashboard_and_pos_sales(): void
+    {
+        Carbon::setTestNow('2026-07-09 15:30:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa POS', 'slug' => 'empresa-pos']);
+        $user = $this->userInTenant($tenant, ['sales.view', 'pos.checkout', 'reports.view']);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'BR-CHECKOUT']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Tienda', 'code' => 'WH-CHECKOUT']);
+        $register = CashRegister::create([
+            'branch_id' => $branch->id,
+            'name' => 'Caja Principal',
+            'code' => 'CJ-CHECKOUT',
+            'status' => CashRegister::STATUS_ACTIVE,
+        ]);
+        $session = CashRegisterSession::create([
+            'branch_id' => $branch->id,
+            'cash_register_id' => $register->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opened_at' => now(),
+        ]);
+        $rateType = ExchangeRateType::create(['code' => 'BCV', 'name' => 'Banco Central de Venezuela', 'is_default' => true]);
+        ExchangeRate::create([
+            'exchange_rate_type_id' => $rateType->id,
+            'rate' => 500,
+            'effective_at' => now()->subHour(),
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'name' => 'Producto venta web hoy',
+            'sku' => 'SKU-WEB-TODAY',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 75,
+            'sale_currency' => Product::CURRENCY_USD,
+            'sale_exchange_rate_type_id' => $rateType->id,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 3,
+        ]);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD-TODAY',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $cash->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 75,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $orderId = $checkout->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/admin-portal/dashboard?period=today')
+            ->assertOk()
+            ->assertJsonPath('data.sales.confirmed_count', 1)
+            ->assertJsonPath('data.sales.confirmed_base_amount', 75)
+            ->assertJsonPath('data.sales.pos_paid_count', 1)
+            ->assertJsonPath('data.sales.pos_paid_base_amount', 75);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/admin-portal/pos-sales?period=today')
+            ->assertOk()
+            ->assertJsonPath('data.summary.orders_count', 1)
+            ->assertJsonPath('data.summary.paid_count', 1)
+            ->assertJsonPath('data.summary.total_base_amount', 75)
+            ->assertJsonPath('data.data.0.id', $orderId)
+            ->assertJsonPath('data.data.0.status_label', 'Pagada');
     }
 
     public function test_pos_sales_can_search_by_product_sku(): void

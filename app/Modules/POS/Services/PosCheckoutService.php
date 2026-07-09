@@ -730,7 +730,20 @@ class PosCheckoutService
 
     private function recordOrderSyncEvent(PosOrder $order, string $eventType): void
     {
-        $order->loadMissing(['payments', 'sale']);
+        $order->loadMissing([
+            'cashier',
+            'customer',
+            'cashRegisterSession.branch',
+            'cashRegisterSession.cashRegister',
+            'payments.paymentMethod',
+            'sale.customer',
+            'sale.items.product',
+            'sale.items.warehouse',
+            'sale.items.priceList',
+        ]);
+
+        $session = $order->cashRegisterSession;
+        $customer = $order->customer ?? $order->sale?->customer;
 
         $this->syncOutbox->record(
             eventType: $eventType,
@@ -753,6 +766,91 @@ class PosCheckoutService
                 'opened_at' => $order->opened_at?->toJSON(),
                 'paid_at' => $order->paid_at?->toJSON(),
                 'closed_at' => $order->closed_at?->toJSON(),
+                'sale' => [
+                    'id' => $order->sale_id,
+                    'status' => $order->sale?->status,
+                    'total_base_amount' => (string) $order->sale?->total_base_amount,
+                    'total_local_amount' => (string) $order->sale?->total_local_amount,
+                    'confirmed_at' => $order->sale?->confirmed_at?->toJSON(),
+                    'cancelled_at' => $order->sale?->cancelled_at?->toJSON(),
+                ],
+                'order' => [
+                    'id' => $order->id,
+                    'status' => $order->status,
+                    'customer_name' => $order->customer_name,
+                    'branch_name' => $session?->branch?->name,
+                    'cash_register_name' => $session?->cashRegister?->name,
+                    'cashier_name' => $order->cashier?->name,
+                    'customer_document_type' => $customer?->document_type,
+                    'customer_document_number' => $customer?->document_number,
+                    'total_base_amount' => (string) $order->total_base_amount,
+                    'total_local_amount' => (string) $order->total_local_amount,
+                    'paid_base_amount' => (string) $order->paid_base_amount,
+                    'paid_local_amount' => (string) $order->paid_local_amount,
+                    'opened_at' => $order->opened_at?->toJSON(),
+                    'paid_at' => $order->paid_at?->toJSON(),
+                    'closed_at' => $order->closed_at?->toJSON(),
+                ],
+                'cash_register' => [
+                    'code' => $session?->cashRegister?->code,
+                    'name' => $session?->cashRegister?->name,
+                    'branch_name' => $session?->branch?->name,
+                ],
+                'cashier' => [
+                    'name' => $order->cashier?->name,
+                    'email' => $order->cashier?->email,
+                ],
+                'customer' => [
+                    'name' => $customer?->name,
+                    'document_type' => $customer?->document_type,
+                    'document_number' => $customer?->document_number,
+                ],
+                'items' => $order->sale?->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'product_sku' => $item->product?->sku,
+                    'product_name' => $item->product?->name,
+                    'warehouse_code' => $item->warehouse?->code,
+                    'warehouse_name' => $item->warehouse?->name,
+                    'price_list_code' => $item->priceList?->code,
+                    'price_list_name' => $item->price_list_name,
+                    'quantity' => (string) $item->quantity,
+                    'sale_currency' => $item->sale_currency,
+                    'unit_price' => (string) $item->unit_price,
+                    'total_amount' => (string) $item->total_amount,
+                    'base_unit_price' => (string) $item->base_unit_price,
+                    'base_total_amount' => (string) $item->base_total_amount,
+                    'exchange_rate_type_code' => $item->exchange_rate_type_code,
+                    'exchange_rate' => $item->exchange_rate === null ? null : (string) $item->exchange_rate,
+                    'product_unit_ids' => $item->product_unit_ids ?? [],
+                    'discount_type' => $item->discount_type,
+                    'discount_value' => (string) ($item->discount_value ?? 0),
+                    'discount_amount' => (string) ($item->discount_amount ?? 0),
+                    'discount_base_amount' => (string) ($item->discount_base_amount ?? 0),
+                    'discount_local_amount' => (string) ($item->discount_local_amount ?? 0),
+                    'discount_reason' => $item->discount_reason,
+                    'warranty_policy_name' => $item->warranty_policy_name,
+                    'warranty_duration_days' => $item->warranty_duration_days,
+                    'warranty_coverage_type' => $item->warranty_coverage_type,
+                    'warranty_conditions' => $item->warranty_conditions,
+                    'warranty_starts_at' => $item->warranty_starts_at?->toJSON(),
+                    'warranty_expires_at' => $item->warranty_expires_at?->toJSON(),
+                ])->values()->all() ?? [],
+                'payments' => $order->payments->map(fn ($payment): array => [
+                    'id' => $payment->id,
+                    'payment_method_code' => $payment->paymentMethod?->code,
+                    'payment_method_name' => $payment->paymentMethod?->name,
+                    'method' => $payment->method,
+                    'currency' => $payment->currency,
+                    'amount' => (string) $payment->amount,
+                    'amount_base' => (string) $payment->amount_base,
+                    'amount_local' => (string) $payment->amount_local,
+                    'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                    'exchange_rate' => $payment->exchange_rate === null ? null : (string) $payment->exchange_rate,
+                    'status' => $payment->status,
+                    'reference' => $payment->reference,
+                    'external_provider' => $payment->external_provider,
+                    'metadata' => $payment->metadata ?? [],
+                ])->values()->all(),
             ],
             idempotencyKey: "{$eventType}:pos_order:{$order->id}:{$order->status}:payments:{$order->payments->count()}"
         );

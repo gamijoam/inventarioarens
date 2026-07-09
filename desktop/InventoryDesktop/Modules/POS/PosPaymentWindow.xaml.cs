@@ -14,7 +14,7 @@ public partial class PosPaymentWindow : Window
 {
     private readonly PosViewModel viewModel;
     private readonly ObservableCollection<PaymentLine> payments = new();
-    private readonly decimal? impliedVesRate;
+    private readonly decimal? orderAverageVesRate;
     private bool hasUnknownBaseAmount;
     private bool isConfirming;
 
@@ -22,7 +22,7 @@ public partial class PosPaymentWindow : Window
     {
         InitializeComponent();
         this.viewModel = viewModel;
-        impliedVesRate = viewModel.TotalUsd > 0 && viewModel.TotalVes is not null
+        orderAverageVesRate = viewModel.TotalUsd > 0 && viewModel.TotalVes is not null
             ? viewModel.TotalVes.Value / viewModel.TotalUsd
             : null;
 
@@ -60,14 +60,16 @@ public partial class PosPaymentWindow : Window
     {
         TotalUsdText.Text = viewModel.TotalUsdLabel;
         TotalVesText.Text = viewModel.TotalVesLabel;
+        TotalDueText.Text = viewModel.TotalUsdLabel;
+        TotalDueInlineText.Text = viewModel.TotalUsdLabel;
 
         string listLabel = viewModel.SelectedPriceList is null ? "Lista predeterminada" : viewModel.SelectedPriceList.Name;
         string cashRegister = viewModel.SelectedCashRegisterSession?.DisplayLabel ?? "Sin caja";
-        ContextText.Text = $"{listLabel} · {cashRegister}. Agrega uno o varios pagos para completar el total.";
+        ContextText.Text = $"{listLabel} · {cashRegister}. Completa el cobro.";
 
         if (viewModel.SelectedPriceList?.HasPaymentRestrictions == true)
         {
-            RestrictionText.Text = "Métodos restringidos por lista";
+            RestrictionText.Text = "Métodos permitidos por lista";
             return;
         }
 
@@ -93,8 +95,8 @@ public partial class PosPaymentWindow : Window
 
         if (choices.Count == 0)
         {
-            const string message = "No hay métodos de pago activos para esta lista. Configura métodos de pago antes de cobrar.";
-            ShowAlert(message, "Métodos de pago requeridos");
+            const string message = "No hay formas de pago activas para esta lista. Configura formas de pago antes de cobrar.";
+            ShowAlert(message, "Formas de pago requeridas");
             SetError(message);
         }
     }
@@ -103,8 +105,8 @@ public partial class PosPaymentWindow : Window
     {
         PaymentStatusBox.ItemsSource = new List<PaymentStatusChoice>
         {
-            new("captured", "Capturado - cuenta para cerrar"),
-            new("pending", "Pendiente - no cierra venta"),
+            new("captured", "Registrado"),
+            new("pending", "Pendiente"),
         };
         PaymentStatusBox.SelectedIndex = 0;
     }
@@ -116,6 +118,13 @@ public partial class PosPaymentWindow : Window
 
     private void CurrencyBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        RefreshPaymentRateOptions();
+        UpdateFormHelp();
+        UpdatePaymentPreview();
+    }
+
+    private void PaymentRateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
         UpdateFormHelp();
         UpdatePaymentPreview();
     }
@@ -126,24 +135,68 @@ public partial class PosPaymentWindow : Window
 
         foreach (PaymentMethodChoice choice in choices.Take(6))
         {
+            StackPanel content = new()
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            content.Children.Add(new TextBlock
+            {
+                Text = QuickPaymentIcon(choice),
+                FontSize = 13,
+                FontWeight = FontWeights.Black,
+                Foreground = new SolidColorBrush(Color.FromRgb(63, 52, 242)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = choice.QuickLabel,
+                FontSize = 10,
+                FontWeight = FontWeights.Black,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0),
+            });
+
             Button button = new()
             {
-                Content = choice.QuickLabel,
+                Content = content,
                 Tag = choice,
-                Height = 34,
-                MinWidth = 118,
-                Margin = new Thickness(0, 0, 8, 8),
+                Width = 120,
+                Height = 50,
+                Margin = new Thickness(0, 0, 7, 6),
                 FontWeight = FontWeights.Black,
                 Background = new SolidColorBrush(Color.FromRgb(248, 250, 254)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
                 Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
                 ToolTip = choice.RequiresReference
                     ? "Completa saldo y pide referencia."
-                    : "Completa saldo y agrega el pago.",
+                    : "Completa saldo y agrega.",
             };
             button.Click += QuickPayment_Click;
             QuickMethodsPanel.Children.Add(button);
         }
+    }
+
+    private static string QuickPaymentIcon(PaymentMethodChoice choice)
+    {
+        if (choice.CurrencyMode.Equals("USD", StringComparison.OrdinalIgnoreCase))
+        {
+            return "$";
+        }
+
+        if (choice.Method.Equals("mobile_payment", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Bs";
+        }
+
+        if (choice.Method.Equals("transfer", StringComparison.OrdinalIgnoreCase))
+        {
+            return "TRF";
+        }
+
+        return "+";
     }
 
     private void QuickPayment_Click(object sender, RoutedEventArgs e)
@@ -195,16 +248,63 @@ public partial class PosPaymentWindow : Window
 
         ReferenceLabel.Text = method.RequiresReference ? "Referencia (obligatoria)" : "Referencia";
         ReferenceBox.Text = string.Empty;
+        RefreshPaymentRateOptions();
         UpdateFormHelp();
         UpdatePaymentPreview();
+    }
+
+    private void RefreshPaymentRateOptions()
+    {
+        if (PaymentRatePanel is null || PaymentRateBox is null)
+        {
+            return;
+        }
+
+        string currency = CurrencyBox.SelectedItem as string ?? "USD";
+        if (!currency.Equals("VES", StringComparison.OrdinalIgnoreCase))
+        {
+            PaymentRatePanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        PaymentRatePanel.Visibility = Visibility.Visible;
+        PaymentRateBox.ItemsSource = viewModel.PaymentRateChoices;
+
+        PosExchangeRateChoice? selected = PaymentRateBox.SelectedItem as PosExchangeRateChoice;
+        if (selected is not null)
+        {
+            PaymentRateHintText.Text = $"Cobro en Bs usando {selected.ShortLabel}.";
+            return;
+        }
+
+        List<long> rateTypeIds = viewModel.CartItems
+            .Select(item => item.ExchangeRateTypeId)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        long? preferredRateTypeId = rateTypeIds.Count == 1 ? rateTypeIds[0] : null;
+
+        PosExchangeRateChoice? preferred = preferredRateTypeId > 0
+            ? viewModel.PaymentRateChoices.FirstOrDefault(rate => rate.TypeId == preferredRateTypeId.Value)
+            : null;
+
+        PaymentRateBox.SelectedItem = preferred
+            ?? viewModel.PaymentRateChoices.FirstOrDefault(rate => rate.IsDefault)
+            ?? viewModel.PaymentRateChoices.FirstOrDefault();
+
+        selected = PaymentRateBox.SelectedItem as PosExchangeRateChoice;
+        PaymentRateHintText.Text = selected is null
+            ? "No hay tasa activa para calcular pagos en Bs."
+            : $"Cobro en Bs usando {selected.ShortLabel}.";
     }
 
     private void UpdateFormHelp()
     {
         string currency = CurrencyBox.SelectedItem as string ?? "USD";
         FormHelpText.Text = currency == "VES"
-            ? "El monto en bolívares se convierte a USD con la tasa estimada. Backend recalcula con la tasa activa al confirmar."
-            : "El monto en dólares se toma como base directa para completar la venta.";
+            ? "El pago en Bs se convierte con la tasa seleccionada."
+            : "Pago directo en dolares.";
     }
 
     private void AddPayment_Click(object sender, RoutedEventArgs e)
@@ -225,12 +325,13 @@ public partial class PosPaymentWindow : Window
 
         if (remainingUsd <= 0)
         {
-            SetError("La venta ya está cubierta con pagos capturados.");
+            SetError("La venta ya esta cubierta.");
             return;
         }
 
+        decimal? selectedRate = SelectedVesRate();
         decimal suggested = currency.Equals("VES", StringComparison.OrdinalIgnoreCase)
-            ? impliedVesRate is > 0 ? remainingUsd * impliedVesRate.Value : 0m
+            ? selectedRate is > 0 ? remainingUsd * selectedRate.Value : 0m
             : remainingUsd;
 
         if (suggested <= 0)
@@ -259,7 +360,7 @@ public partial class PosPaymentWindow : Window
         ClearError();
         if (PaymentMethodBox.SelectedItem is not PaymentMethodChoice method)
         {
-            SetError("Selecciona un método de pago.");
+            SetError("Selecciona una forma de pago.");
             return;
         }
 
@@ -272,7 +373,7 @@ public partial class PosPaymentWindow : Window
 
         if (!method.AllowsCurrency(currency))
         {
-            SetError("La moneda no está permitida para ese método de pago.");
+            SetError("La moneda no esta permitida para esa forma de pago.");
             return;
         }
 
@@ -285,13 +386,13 @@ public partial class PosPaymentWindow : Window
         string? reference = string.IsNullOrWhiteSpace(ReferenceBox.Text) ? null : ReferenceBox.Text.Trim();
         if (method.RequiresReference && string.IsNullOrWhiteSpace(reference))
         {
-            SetError("Este método exige referencia.");
+            SetError("Esta forma de pago exige referencia.");
             return;
         }
 
         if (PaymentStatusBox.SelectedItem is not PaymentStatusChoice status)
         {
-            SetError("Selecciona el estado del pago.");
+            SetError("No se pudo preparar el pago.");
             return;
         }
 
@@ -350,14 +451,14 @@ public partial class PosPaymentWindow : Window
             {
                 MessageBoxResult result = MessageBox.Show(
                     this,
-                    "Los pagos capturados no cubren el total. La orden quedará pendiente y la venta no se cerrará hasta completar el cobro.\n\n¿Deseas continuar?",
+                    "Los pagos registrados no cubren el total. La orden quedara pendiente hasta completar el cobro.\n\n¿Deseas continuar?",
                     "Orden pendiente",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
 
                 if (result != MessageBoxResult.Yes)
                 {
-                    const string message = "Agrega un pago capturado o confirma la orden pendiente.";
+                    const string message = "Agrega otro pago o confirma la orden pendiente.";
                     ShowAlert(message, "Cobro incompleto");
                     SetError(message);
                     return;
@@ -365,7 +466,7 @@ public partial class PosPaymentWindow : Window
             }
             else
             {
-                const string message = "Los pagos capturados todavía no cubren el total.";
+                const string message = "Los pagos registrados todavia no cubren el total.";
                 ShowAlert(message, "Cobro incompleto");
                 SetError(message);
                 return;
@@ -377,7 +478,7 @@ public partial class PosPaymentWindow : Window
             isConfirming = true;
             ConfirmButton.IsEnabled = false;
             CancelButton.IsEnabled = false;
-            SetInfo("Procesando venta. Validando caja, stock, seriales y pagos en el servidor...");
+            SetInfo("Procesando venta...");
 
             List<PosReceiptItem> receiptItems = BuildReceiptItems();
             List<PosReceiptPayment> receiptPayments = BuildReceiptPayments();
@@ -491,6 +592,21 @@ public partial class PosPaymentWindow : Window
             && amount > 0;
     }
 
+    private decimal? SelectedVesRate()
+    {
+        return PaymentRateBox.SelectedItem is PosExchangeRateChoice selectedRate
+            ? selectedRate.Rate
+            : null;
+    }
+
+    private decimal? DisplayVesRate()
+    {
+        return SelectedVesRate()
+            ?? orderAverageVesRate
+            ?? viewModel.PaymentRateChoices.FirstOrDefault(rate => rate.IsDefault)?.Rate
+            ?? viewModel.PaymentRateChoices.FirstOrDefault()?.Rate;
+    }
+
     private decimal? EstimateBaseUsd(string currency, decimal amount)
     {
         if (currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
@@ -498,9 +614,10 @@ public partial class PosPaymentWindow : Window
             return amount;
         }
 
-        if (currency.Equals("VES", StringComparison.OrdinalIgnoreCase) && impliedVesRate is > 0)
+        decimal? selectedRate = SelectedVesRate();
+        if (currency.Equals("VES", StringComparison.OrdinalIgnoreCase) && selectedRate is > 0)
         {
-            return amount / impliedVesRate.Value;
+            return amount / selectedRate.Value;
         }
 
         return null;
@@ -513,26 +630,19 @@ public partial class PosPaymentWindow : Window
             return null;
         }
 
-        List<long> rateTypeIds = viewModel.CartItems
-            .Select(item => item.ExchangeRateTypeId)
-            .Where(id => id is not null)
-            .Select(id => id!.Value)
-            .Distinct()
-            .ToList();
-
-        if (rateTypeIds.Count > 1)
+        if (PaymentRateBox.SelectedItem is PosExchangeRateChoice selectedRate)
         {
-            throw new InvalidOperationException("La orden mezcla productos con tasas diferentes. Para cobrar en bolívares, separa la venta por tasa o cobra en dólares.");
+            return selectedRate.TypeId;
         }
 
-        return rateTypeIds.Count == 0 ? null : rateTypeIds[0];
+        throw new InvalidOperationException("Selecciona una tasa de cobro para registrar pagos en bolivares.");
     }
-
     private string BuildEquivalentLabel(string currency, decimal amount, decimal? baseUsd)
     {
         if (currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
         {
-            return impliedVesRate is > 0 ? $"Bs {amount * impliedVesRate.Value:0.00}" : "Solo USD";
+            decimal? rate = DisplayVesRate();
+            return rate is > 0 ? $"Bs {amount * rate.Value:0.00}" : "Solo USD";
         }
 
         if (currency.Equals("VES", StringComparison.OrdinalIgnoreCase))
@@ -648,7 +758,7 @@ public partial class PosPaymentWindow : Window
 
         if (!TryReadAmount(out decimal amount))
         {
-            PaymentPreviewText.Text = "Escribe el monto recibido o usa Completar saldo.";
+            PaymentPreviewText.Text = "Escribe el monto o usa Saldo exacto.";
             return;
         }
 
@@ -658,14 +768,14 @@ public partial class PosPaymentWindow : Window
 
         if (!isCaptured)
         {
-            PaymentPreviewText.Text = "Al agregarlo como pendiente, quedará registrado pero no cerrará la venta.";
+            PaymentPreviewText.Text = "Este pago queda pendiente y no completa la venta.";
             return;
         }
 
         decimal? baseUsd = EstimateBaseUsd(currency, amount);
         if (baseUsd is null)
         {
-            PaymentPreviewText.Text = "Al agregarlo, el servidor validará la conversión porque no hay tasa local suficiente.";
+            PaymentPreviewText.Text = "La conversion se validara al confirmar.";
             return;
         }
 
@@ -688,11 +798,12 @@ public partial class PosPaymentWindow : Window
             : pendingCount == 0
                 ? $"{payments.Count} pago(s) registrados."
                 : $"{payments.Count} pago(s) registrados, {pendingCount} pendiente(s).";
+        EmptyPaymentsPanel.Visibility = payments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         PaidText.Text = hasUnknownBaseAmount
             ? $"USD {knownPaid:0.00} + pago por validar"
             : $"USD {knownPaid:0.00}";
         RemainingText.Text = hasUnknownBaseAmount
-            ? "Validará servidor"
+            ? "Por validar"
             : $"USD {remaining:0.00}";
         ChangeText.Text = hasUnknownBaseAmount
             ? "Por validar"

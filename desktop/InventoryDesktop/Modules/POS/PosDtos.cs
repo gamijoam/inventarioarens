@@ -66,6 +66,18 @@ public sealed record PosPriceQuote(
         : $"{ExchangeRateTypeCode ?? "Tasa"} {ExchangeRate:0.##}";
 }
 
+public sealed record PosExchangeRateChoice(
+    long TypeId,
+    string Code,
+    string Name,
+    decimal Rate,
+    bool IsDefault)
+{
+    public string DisplayLabel => $"{Name} ({Code}) - Bs {Rate:0.####}";
+
+    public string ShortLabel => $"{Code} {Rate:0.####}";
+}
+
 public sealed record PosCheckoutRequest(
     [property: JsonPropertyName("cash_register_session_id")] long CashRegisterSessionId,
     [property: JsonPropertyName("customer_id")] long? CustomerId,

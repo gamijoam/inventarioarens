@@ -180,8 +180,8 @@ class AdminPosSalesService
                 }
 
                 $query->orWhereRaw('lower(coalesce(pos_orders.customer_name, \'\')) like ?', [$like])
-                    ->orWhereRaw('lower(coalesce(customers.document_number, \'\')) like ?', [$like])
-                    ->orWhereRaw('lower(coalesce(cashiers.name, \'\')) like ?', [$like])
+                    ->orWhereRaw('lower(coalesce(customers.document_number, pos_orders.sync_customer_document_number, \'\')) like ?', [$like])
+                    ->orWhereRaw('lower(coalesce(cashiers.name, pos_orders.sync_cashier_name, \'\')) like ?', [$like])
                     ->orWhereExists(function ($exists) use ($like): void {
                         $exists->selectRaw('1')
                             ->from('sale_items')
@@ -211,11 +211,11 @@ class AdminPosSalesService
             'pos_orders.opened_at',
             'pos_orders.paid_at',
             'pos_orders.closed_at',
-            'cash_registers.name as cash_register_name',
-            'branches.name as branch_name',
-            'cashiers.name as cashier_name',
-            'customers.document_type as customer_document_type',
-            'customers.document_number as customer_document_number',
+            DB::raw('coalesce(cash_registers.name, pos_orders.sync_cash_register_name) as cash_register_name'),
+            DB::raw('coalesce(branches.name, pos_orders.sync_branch_name) as branch_name'),
+            DB::raw('coalesce(cashiers.name, pos_orders.sync_cashier_name) as cashier_name'),
+            DB::raw('coalesce(customers.document_type, pos_orders.sync_customer_document_type) as customer_document_type'),
+            DB::raw('coalesce(customers.document_number, pos_orders.sync_customer_document_number) as customer_document_number'),
         ];
     }
 
@@ -375,11 +375,11 @@ class AdminPosSalesService
     private function salesByBranch(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
     {
         return $this->baseOrdersQuery($tenantId, $dateFrom, $dateTo, $filters)
-            ->selectRaw("coalesce(branches.name, 'Sin sucursal') as branch_name")
+            ->selectRaw("coalesce(branches.name, pos_orders.sync_branch_name, 'Sin sucursal') as branch_name")
             ->selectRaw('count(*) as orders_count')
             ->selectRaw('sum(pos_orders.total_base_amount) as total_base_amount')
             ->selectRaw('sum(pos_orders.paid_base_amount) as paid_base_amount')
-            ->groupByRaw("coalesce(branches.name, 'Sin sucursal')")
+            ->groupByRaw("coalesce(branches.name, pos_orders.sync_branch_name, 'Sin sucursal')")
             ->orderByDesc('paid_base_amount')
             ->limit(8)
             ->get()
@@ -395,11 +395,11 @@ class AdminPosSalesService
     private function salesByCashier(int $tenantId, Carbon $dateFrom, Carbon $dateTo, array $filters): array
     {
         return $this->baseOrdersQuery($tenantId, $dateFrom, $dateTo, $filters)
-            ->selectRaw("coalesce(cashiers.name, 'Sin cajero') as cashier_name")
+            ->selectRaw("coalesce(cashiers.name, pos_orders.sync_cashier_name, 'Sin cajero') as cashier_name")
             ->selectRaw('count(*) as orders_count')
             ->selectRaw('sum(pos_orders.total_base_amount) as total_base_amount')
             ->selectRaw('sum(pos_orders.paid_base_amount) as paid_base_amount')
-            ->groupByRaw("coalesce(cashiers.name, 'Sin cajero')")
+            ->groupByRaw("coalesce(cashiers.name, pos_orders.sync_cashier_name, 'Sin cajero')")
             ->orderByDesc('paid_base_amount')
             ->limit(8)
             ->get()

@@ -37,6 +37,10 @@ class SyncEventApplier
         'payment_method.created',
         'cash_register.updated',
         'cash_register.created',
+        'pos.order.pending',
+        'pos.order.payment_added',
+        'pos.order.paid',
+        'pos.order.cancelled',
     ];
 
     public function applyPending(Tenant $tenant, int $limit = 50): array
@@ -143,6 +147,7 @@ class SyncEventApplier
             'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
             'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
             'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
+            'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
             default => 'ignored',
         };
 
@@ -492,6 +497,209 @@ class SyncEventApplier
         return 'applied';
     }
 
+    private function applyPosOrder(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $orderPayload = $payload['order'] ?? $payload;
+        $salePayload = $payload['sale'] ?? $payload;
+        $sourceOrderId = (int) ($orderPayload['id'] ?? $payload['order_id'] ?? $event['aggregate_id'] ?? 0);
+        $sourceSaleId = (int) ($salePayload['id'] ?? $payload['sale_id'] ?? 0);
+
+        if ($sourceOrderId <= 0 || $sourceSaleId <= 0) {
+            throw new RuntimeException('El evento POS no incluye los identificadores de venta y orden.');
+        }
+
+        $now = now();
+        $paidAt = $this->nullableDate($orderPayload['paid_at'] ?? $payload['paid_at'] ?? null);
+        $closedAt = $this->nullableDate($orderPayload['closed_at'] ?? $payload['closed_at'] ?? null);
+        $openedAt = $this->nullableDate($orderPayload['opened_at'] ?? $payload['opened_at'] ?? null) ?? $now;
+        $status = $orderPayload['status'] ?? $payload['status'] ?? 'open';
+        $saleStatus = $salePayload['status'] ?? $payload['sale_status'] ?? ($status === 'paid' ? 'confirmed' : 'draft');
+        $cancelledAt = $this->nullableDate($salePayload['cancelled_at'] ?? null);
+
+        $customerId = $this->customerIdByDocument(
+            $tenant,
+            $payload['customer']['document_type'] ?? $orderPayload['customer_document_type'] ?? null,
+            $payload['customer']['document_number'] ?? $orderPayload['customer_document_number'] ?? null,
+        );
+
+        $saleId = $this->upsertAndGetId(
+            'sales',
+            [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceSaleId,
+            ],
+            [
+                'status' => $saleStatus,
+                'customer_id' => $customerId,
+                'total_base_amount' => $salePayload['total_base_amount'] ?? $orderPayload['total_base_amount'] ?? $payload['total_base_amount'] ?? 0,
+                'total_local_amount' => $salePayload['total_local_amount'] ?? $orderPayload['total_local_amount'] ?? $payload['total_local_amount'] ?? 0,
+                'created_by' => null,
+                'confirmed_at' => $this->nullableDate($salePayload['confirmed_at'] ?? null) ?? ($saleStatus === 'confirmed' ? ($paidAt ?? $closedAt ?? $now) : null),
+                'cancelled_at' => $cancelledAt,
+                'updated_at' => $now,
+            ]
+        );
+
+        $orderId = $this->upsertAndGetId(
+            'pos_orders',
+            [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceOrderId,
+            ],
+            [
+                'sale_id' => $saleId,
+                'cash_register_session_id' => null,
+                'customer_id' => $customerId,
+                'status' => $status,
+                'cashier_id' => null,
+                'customer_name' => $orderPayload['customer_name'] ?? $payload['customer_name'] ?? 'Consumidor final',
+                'sync_branch_name' => $orderPayload['branch_name'] ?? $payload['cash_register']['branch_name'] ?? null,
+                'sync_cash_register_name' => $orderPayload['cash_register_name'] ?? $payload['cash_register']['name'] ?? null,
+                'sync_cashier_name' => $orderPayload['cashier_name'] ?? $payload['cashier']['name'] ?? null,
+                'sync_customer_document_type' => $payload['customer']['document_type'] ?? $orderPayload['customer_document_type'] ?? null,
+                'sync_customer_document_number' => $payload['customer']['document_number'] ?? $orderPayload['customer_document_number'] ?? null,
+                'total_base_amount' => $orderPayload['total_base_amount'] ?? $payload['total_base_amount'] ?? 0,
+                'total_local_amount' => $orderPayload['total_local_amount'] ?? $payload['total_local_amount'] ?? 0,
+                'paid_base_amount' => $orderPayload['paid_base_amount'] ?? $payload['paid_base_amount'] ?? 0,
+                'paid_local_amount' => $orderPayload['paid_local_amount'] ?? $payload['paid_local_amount'] ?? 0,
+                'opened_at' => $openedAt,
+                'paid_at' => $paidAt,
+                'closed_at' => $closedAt,
+                'updated_at' => $now,
+            ]
+        );
+
+        $this->syncPosSaleItems($tenant, $saleId, $sourceNodeCode, $payload['items'] ?? []);
+        $this->syncPosPayments($tenant, $orderId, $sourceNodeCode, $payload['payments'] ?? []);
+
+        return 'applied';
+    }
+
+    private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, array $items): void
+    {
+        if ($items === []) {
+            return;
+        }
+
+        $sourceIds = [];
+        $now = now();
+
+        foreach ($items as $item) {
+            $sourceId = (int) ($item['id'] ?? $item['item_id'] ?? 0);
+            if ($sourceId <= 0) {
+                continue;
+            }
+
+            $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
+            $warehouse = $this->warehouseByCode($tenant, $this->requiredString($item, 'warehouse_code'));
+            $priceListId = $this->nullablePriceListIdByCode($tenant, $item['price_list_code'] ?? null);
+            $sourceIds[] = $sourceId;
+
+            $this->upsertByKeys(
+                'sale_items',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sync_source_node_code' => $sourceNodeCode,
+                    'sync_source_id' => $sourceId,
+                ],
+                [
+                    'sale_id' => $saleId,
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceListId,
+                    'price_list_name' => $item['price_list_name'] ?? null,
+                    'quantity' => $item['quantity'] ?? 1,
+                    'sale_currency' => strtoupper($item['sale_currency'] ?? 'USD'),
+                    'unit_price' => $item['unit_price'] ?? 0,
+                    'total_amount' => $item['total_amount'] ?? 0,
+                    'base_unit_price' => $item['base_unit_price'] ?? 0,
+                    'base_total_amount' => $item['base_total_amount'] ?? 0,
+                    'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $item['exchange_rate_type_code'] ?? null, $item['exchange_rate_type_id'] ?? null),
+                    'exchange_rate_type_code' => $item['exchange_rate_type_code'] ?? null,
+                    'exchange_rate' => $item['exchange_rate'] ?? null,
+                    'stock_movement_id' => null,
+                    'product_unit_ids' => isset($item['product_unit_ids']) ? json_encode($item['product_unit_ids']) : null,
+                    'discount_type' => $item['discount_type'] ?? null,
+                    'discount_value' => $item['discount_value'] ?? 0,
+                    'discount_amount' => $item['discount_amount'] ?? 0,
+                    'discount_base_amount' => $item['discount_base_amount'] ?? 0,
+                    'discount_local_amount' => $item['discount_local_amount'] ?? 0,
+                    'discount_reason' => $item['discount_reason'] ?? null,
+                    'warranty_policy_id' => null,
+                    'warranty_policy_name' => $item['warranty_policy_name'] ?? null,
+                    'warranty_duration_days' => $item['warranty_duration_days'] ?? null,
+                    'warranty_coverage_type' => $item['warranty_coverage_type'] ?? null,
+                    'warranty_conditions' => $item['warranty_conditions'] ?? null,
+                    'warranty_starts_at' => $this->nullableDate($item['warranty_starts_at'] ?? null),
+                    'warranty_expires_at' => $this->nullableDate($item['warranty_expires_at'] ?? null),
+                    'updated_at' => $now,
+                ]
+            );
+        }
+
+        DB::table('sale_items')
+            ->where('tenant_id', $tenant->id)
+            ->where('sale_id', $saleId)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->whereNotIn('sync_source_id', $sourceIds)
+            ->delete();
+    }
+
+    private function syncPosPayments(Tenant $tenant, int $orderId, string $sourceNodeCode, array $payments): void
+    {
+        if ($payments === []) {
+            return;
+        }
+
+        $sourceIds = [];
+        $now = now();
+
+        foreach ($payments as $payment) {
+            $sourceId = (int) ($payment['id'] ?? $payment['payment_id'] ?? 0);
+            if ($sourceId <= 0) {
+                continue;
+            }
+
+            $sourceIds[] = $sourceId;
+
+            $this->upsertByKeys(
+                'pos_payments',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sync_source_node_code' => $sourceNodeCode,
+                    'sync_source_id' => $sourceId,
+                ],
+                [
+                    'pos_order_id' => $orderId,
+                    'payment_method_id' => $this->nullablePaymentMethodIdByCode($tenant, $payment['payment_method_code'] ?? null),
+                    'method' => $payment['method'] ?? 'cash',
+                    'currency' => strtoupper($payment['currency'] ?? 'USD'),
+                    'amount' => $payment['amount'] ?? 0,
+                    'amount_base' => $payment['amount_base'] ?? 0,
+                    'amount_local' => $payment['amount_local'] ?? 0,
+                    'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payment['exchange_rate_type_code'] ?? null, $payment['exchange_rate_type_id'] ?? null),
+                    'exchange_rate_type_code' => $payment['exchange_rate_type_code'] ?? null,
+                    'exchange_rate' => $payment['exchange_rate'] ?? null,
+                    'status' => $payment['status'] ?? 'captured',
+                    'reference' => $payment['reference'] ?? null,
+                    'external_provider' => $payment['external_provider'] ?? null,
+                    'metadata' => isset($payment['metadata']) ? json_encode($payment['metadata']) : null,
+                    'updated_at' => $now,
+                ]
+            );
+        }
+
+        DB::table('pos_payments')
+            ->where('tenant_id', $tenant->id)
+            ->where('pos_order_id', $orderId)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->whereNotIn('sync_source_id', $sourceIds)
+            ->delete();
+    }
+
     private function syncPriceListPaymentMethods(Tenant $tenant, int $priceListId, ?array $paymentMethodCodes): void
     {
         if ($paymentMethodCodes === null) {
@@ -565,6 +773,34 @@ class SyncEventApplier
         return $priceList;
     }
 
+    private function nullablePriceListIdByCode(Tenant $tenant, mixed $code): ?int
+    {
+        $code = $this->nullableString($code);
+
+        if ($code === null) {
+            return null;
+        }
+
+        return DB::table('price_lists')
+            ->where('tenant_id', $tenant->id)
+            ->where('code', mb_strtoupper($code))
+            ->value('id');
+    }
+
+    private function nullablePaymentMethodIdByCode(Tenant $tenant, mixed $code): ?int
+    {
+        $code = $this->nullableString($code);
+
+        if ($code === null) {
+            return null;
+        }
+
+        return DB::table('payment_methods')
+            ->where('tenant_id', $tenant->id)
+            ->where('code', mb_strtoupper($code))
+            ->value('id');
+    }
+
     private function exchangeRateTypeId(Tenant $tenant, ?string $code, mixed $fallbackId): ?int
     {
         if ($code) {
@@ -575,6 +811,55 @@ class SyncEventApplier
         }
 
         return $fallbackId ? (int) $fallbackId : null;
+    }
+
+    private function customerIdByDocument(Tenant $tenant, mixed $documentType, mixed $documentNumber): ?int
+    {
+        $documentType = $this->nullableString($documentType);
+        $documentNumber = $this->nullableString($documentNumber);
+
+        if ($documentType === null || $documentNumber === null) {
+            return null;
+        }
+
+        return DB::table('customers')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_type', mb_strtoupper($documentType))
+            ->where('document_number', $documentNumber)
+            ->value('id');
+    }
+
+    private function sourceNodeCode(Tenant $tenant, array $event, array $payload): string
+    {
+        $payloadCode = $this->nullableString($payload['source_node_code'] ?? null);
+
+        if ($payloadCode !== null) {
+            return mb_strtoupper($payloadCode);
+        }
+
+        $originNodeId = (int) ($event['origin_node_id'] ?? 0);
+
+        if ($originNodeId > 0) {
+            $code = DB::table('sync_nodes')
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $originNodeId)
+                ->value('code');
+
+            if ($code) {
+                return mb_strtoupper((string) $code);
+            }
+        }
+
+        return 'SYNC-ORIGEN-DESCONOCIDO';
+    }
+
+    private function nullableDate(mixed $value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return Carbon::parse($value);
     }
 
     private function warrantyPolicyId(Tenant $tenant, array $payload): ?int
@@ -663,6 +948,13 @@ class SyncEventApplier
         DB::table($table)->insert(array_merge($keys, $values, [
             'created_at' => now(),
         ]));
+    }
+
+    private function upsertAndGetId(string $table, array $keys, array $values): int
+    {
+        $this->upsertByKeys($table, $keys, $values);
+
+        return (int) DB::table($table)->where($keys)->value('id');
     }
 
     private function decodePayload(mixed $payload): array
