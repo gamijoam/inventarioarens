@@ -1,6 +1,9 @@
 <UserControl x:Class="InventoryDesktop.Modules.POS.PosView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True"
+             FocusManager.IsFocusScope="True"
+             FocusManager.FocusedElement="{Binding ElementName=SearchBox}">
     <Grid Background="#F6F8FC">
         <Grid.RowDefinitions>
             <RowDefinition Height="122" />

@@ -29,6 +29,7 @@ public partial class PosView : UserControl
         searchFocusTimer.Tick += SearchFocusTimer_Tick;
         Loaded += PosView_Loaded;
         Unloaded += PosView_Unloaded;
+        IsVisibleChanged += PosView_IsVisibleChanged;
         PreviewKeyDown += PosView_PreviewKeyDown;
         PreviewTextInput += PosView_PreviewTextInput;
     }
@@ -36,6 +37,19 @@ public partial class PosView : UserControl
     public event EventHandler? ExitRequested;
 
     private PosViewModel? ViewModel => DataContext as PosViewModel;
+
+    public void ActivateForSale()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        searchFocusTimer.Start();
+        Focus();
+        Keyboard.Focus(this);
+        FocusSearchBox(selectAll: true, attempts: 8);
+    }
 
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
@@ -63,6 +77,18 @@ public partial class PosView : UserControl
     {
         searchFocusTimer.Stop();
         searchDebounceTimer.Stop();
+    }
+
+    private void PosView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            ActivateForSale();
+        }
+        else
+        {
+            searchFocusTimer.Stop();
+        }
     }
 
     private async void PosView_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -663,7 +689,7 @@ public partial class PosView : UserControl
         return false;
     }
 
-    private void FocusSearchBox(bool selectAll = false)
+    private void FocusSearchBox(bool selectAll = false, int attempts = 3)
     {
         Dispatcher.BeginInvoke(
             () =>
@@ -673,13 +699,19 @@ public partial class PosView : UserControl
                     return;
                 }
 
+                FocusManager.SetFocusedElement(this, SearchBox);
                 SearchBox.Focus();
                 Keyboard.Focus(SearchBox);
                 if (selectAll)
                 {
                     SearchBox.SelectAll();
                 }
+
+                if (Keyboard.FocusedElement != SearchBox && attempts > 0)
+                {
+                    FocusSearchBox(selectAll, attempts - 1);
+                }
             },
-            DispatcherPriority.Input);
+            DispatcherPriority.ContextIdle);
     }
 }

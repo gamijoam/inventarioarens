@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using System.Windows.Media;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
@@ -359,6 +361,12 @@ public partial class ShellView : UserControl
         CustomersContent.Visibility = Visibility.Collapsed;
         SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Visible;
+        PosContent.Focus();
+        Keyboard.Focus(PosContent);
+        PosContent.ActivateForSale();
+        Dispatcher.BeginInvoke(
+            () => PosContent.ActivateForSale(),
+            DispatcherPriority.ContextIdle);
     }
 
     private void ConfigureModulePermissions()
