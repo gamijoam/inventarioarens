@@ -141,7 +141,7 @@ jobs:
       FRONTEND_DEV_BYPASS_LOGIN: 'true'
       E2E_USER: gerente.valencia@demo.test
       E2E_PASSWORD: password
-      E2E_TENANT_SLUG: demo-valencia
+      E2E_TENANT_SLUG: demo-valencia-centro
       BASE_URL: http://127.0.0.1:8000
     steps:
       - name: Checkout
