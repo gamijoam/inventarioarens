@@ -184,7 +184,7 @@ jobs:
         run: php artisan migrate --force
 
       - name: Seed demo data
-        run: php artisan db:seed --class=DatabaseSeeder --force
+        run: php artisan db:seed --class=MultiCompanyLoginDemoSeeder --force && php artisan db:seed --class=DemoDataSeeder --force
 
       - name: Build frontend assets
         run: npm run build
