@@ -1983,6 +1983,135 @@ class InventoryTransferApiTest extends TestCase
         $this->assertContains($toWarehouse->code, $movementEvents->pluck('warehouse_code')->all());
     }
 
+    public function test_standard_api_prepare_rejects_cross_tenant_user(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+        $this->grantRole($tenantA, $userA, 'Almacen A', [
+            'inventory_transfers.create', 'inventory_transfers.prepare', 'inventory_transfers.view',
+        ]);
+        $this->grantRole($tenantB, $userB, 'Almacen B', [
+            'inventory_transfers.create', 'inventory_transfers.prepare', 'inventory_transfers.view',
+        ]);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'STD-XP-A', Product::TRACKING_QUANTITY);
+        $this->stock($tenantA, $fromA, $productA, $userA, 5);
+
+        $transferId = $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromA->id,
+                'to_warehouse_id' => $toA->id,
+                'items' => [['product_id' => $productA->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $itemId = InventoryTransfer::findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [['inventory_transfer_item_id' => $itemId, 'prepared_quantity' => 2]],
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(
+            InventoryTransfer::STATUS_REQUESTED,
+            InventoryTransfer::findOrFail($transferId)->status
+        );
+    }
+
+    public function test_standard_api_cancel_rejects_cross_tenant_user(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+        $this->grantRole($tenantA, $userA, 'Almacen A', [
+            'inventory_transfers.create', 'inventory_transfers.prepare', 'inventory_transfers.cancel', 'inventory_transfers.view',
+        ]);
+        $this->grantRole($tenantB, $userB, 'Almacen B', [
+            'inventory_transfers.create', 'inventory_transfers.prepare', 'inventory_transfers.cancel', 'inventory_transfers.view',
+        ]);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'STD-XC-A', Product::TRACKING_QUANTITY);
+        $this->stock($tenantA, $fromA, $productA, $userA, 5);
+
+        $transferId = $this->createPreparedTransfer($tenantA, $userA, $fromA, $toA, $productA, 2);
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Intento cross-tenant',
+            ])
+            ->assertForbidden();
+
+        $this->assertNotSame(
+            InventoryTransfer::STATUS_CANCELLED,
+            InventoryTransfer::findOrFail($transferId)->status
+        );
+    }
+
+    public function test_standard_api_index_does_not_leak_other_tenant_transfers(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+        $this->grantRole($tenantA, $userA, 'Almacen A', [
+            'inventory_transfers.create', 'inventory_transfers.view',
+        ]);
+        $this->grantRole($tenantB, $userB, 'Almacen B', [
+            'inventory_transfers.create', 'inventory_transfers.view',
+        ]);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'STD-XL-A', Product::TRACKING_QUANTITY);
+        $this->stock($tenantA, $fromA, $productA, $userA, 5);
+        $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromA->id,
+                'to_warehouse_id' => $toA->id,
+                'items' => [['product_id' => $productA->id, 'quantity' => 1]],
+            ])
+            ->assertCreated();
+
+        $this->useTenant($tenantB);
+        [$fromB, $toB, $productB] = $this->warehousesAndProduct($tenantB, 'STD-XL-B', Product::TRACKING_QUANTITY);
+        $this->stock($tenantB, $fromB, $productB, $userB, 5);
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromB->id,
+                'to_warehouse_id' => $toB->id,
+                'items' => [['product_id' => $productB->id, 'quantity' => 1]],
+            ])
+            ->assertCreated();
+
+        $response = $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson('/api/inventory-transfers');
+
+        $rows = $response->json('data');
+        $this->assertCount(1, $rows);
+        $this->assertSame($fromA->id, $rows[0]['from_warehouse_id']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

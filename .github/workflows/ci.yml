@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Cancela los jobs en curso si hay un push nuevo al mismo branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ENV: testing
+  APP_KEY: base64:ZmFrZWFwcGtleWZha2VhcHBrZXlmYWtlYXBwa2V5MTIzNDU2Nzg5MA==
+  APP_URL: http://127.0.0.1:8000
+  DB_CONNECTION: pgsql
+  DB_HOST: 127.0.0.1
+  DB_PORT: 5432
+  DB_DATABASE: inventory_arens_testing
+  DB_USERNAME: inventory_arens
+  DB_PASSWORD: secret
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  SESSION_DRIVER: array
+  MAIL_MAILER: array
+  BROADCAST_CONNECTION: null
+  BCRYPT_ROUNDS: 4
+
+jobs:
+  phpunit:
+    name: PHPUnit (Feature + Unit)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: inventory_arens
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: inventory_arens_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, opcache
+          coverage: none
+
+      - name: Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-php-${{ hashFiles('composer.json', 'composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate --force
+
+      - name: Wait for postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h 127.0.0.1 -p 5432 -U inventory_arens; then
+              echo "Postgres ready"
+              exit 0
+            fi
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
+
+      - name: Run migrations
+        run: php artisan migrate --force
+
+      - name: Cache config + routes
+        run: php artisan config:cache && php artisan route:cache
+
+      - name: Run phpunit
+        run: vendor/bin/phpunit --testsuite Feature --process-isolation
+
+  playwright:
+    name: Playwright (E2E Portal)
+    runs-on: ubuntu-latest
+    needs: phpunit
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: inventory_arens
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: inventory_arens_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:ZmFrZWFwcGtleWZha2VhcHBrZXlmYWtlYXBwa2V5MTIzNDU2Nzg5MA==
+      APP_URL: http://127.0.0.1:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: inventory_arens_e2e
+      DB_USERNAME: inventory_arens
+      DB_PASSWORD: secret
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      MAIL_MAILER: array
+      BROADCAST_CONNECTION: null
+      BCRYPT_ROUNDS: 4
+      FRONTEND_DEV_BYPASS_LOGIN: 'true'
+      E2E_USER: gerente.valencia@demo.test
+      E2E_PASSWORD: password
+      E2E_TENANT_SLUG: demo-valencia
+      BASE_URL: http://127.0.0.1:8000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, opcache
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install composer deps
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Install npm deps
+        run: npm install --no-audit --no-fund
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate --force
+
+      - name: Wait for postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h 127.0.0.1 -p 5432 -U inventory_arens; then
+              echo "Postgres ready"
+              exit 0
+            fi
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
+
+      - name: Migrate e2e database
+        run: php artisan migrate --force
+
+      - name: Seed demo data
+        run: php artisan db:seed --class=DatabaseSeeder --force
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Cache config + routes
+        run: php artisan config:cache && php artisan route:cache
+
+      - name: Start PHP server
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > /tmp/laravel.log 2>&1 &
+          SERVER_PID=$!
+          echo "Laravel server PID: $SERVER_PID"
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/up > /dev/null 2>&1; then
+              echo "Laravel up"
+              exit 0
+            fi
+            echo "Waiting for Laravel..."
+            sleep 2
+          done
+          echo "Laravel did not respond in time"
+          cat /tmp/laravel.log
+          exit 1
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

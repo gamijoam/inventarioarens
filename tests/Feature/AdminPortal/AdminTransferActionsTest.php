@@ -477,6 +477,164 @@ class AdminTransferActionsTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_prepare_action_rejects_cross_tenant_user(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-XP-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transfer = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+
+        $item = $transfer->items->first();
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/admin-portal/transfers/'.$transfer->id.'/prepare', [
+                'items' => [['inventory_transfer_item_id' => $item->id, 'prepared_quantity' => 2]],
+            ])
+            ->assertForbidden();
+
+        $transfer->refresh();
+        $this->assertSame(InventoryTransfer::STATUS_REQUESTED, $transfer->status);
+    }
+
+    public function test_dispatch_action_rejects_cross_tenant_user(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-XD-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transfer = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+        $this->prepareTransfer($userA, $tenantA, $transfer);
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/admin-portal/transfers/'.$transfer->id.'/dispatch', [])
+            ->assertForbidden();
+
+        $transfer->refresh();
+        $this->assertSame(InventoryTransfer::STATUS_PREPARED, $transfer->status);
+    }
+
+    public function test_receive_action_rejects_cross_tenant_user(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-XR-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transfer = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+        $this->prepareTransfer($userA, $tenantA, $transfer);
+        $this->dispatchTransfer($userA, $tenantA, $transfer);
+
+        $item = $transfer->refresh()->items->first();
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/admin-portal/transfers/'.$transfer->id.'/receive', [
+                'items' => [['inventory_transfer_item_id' => $item->id, 'received_quantity' => 2]],
+            ])
+            ->assertForbidden();
+
+        $transfer->refresh();
+        $this->assertSame(InventoryTransfer::STATUS_DISPATCHED, $transfer->status);
+    }
+
+    public function test_cancel_action_rejects_cross_tenant_user(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-XC-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transfer = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/admin-portal/transfers/'.$transfer->id.'/cancel', [
+                'cancellation_reason' => 'Intento cross-tenant',
+            ])
+            ->assertForbidden();
+
+        $transfer->refresh();
+        $this->assertNotSame(InventoryTransfer::STATUS_CANCELLED, $transfer->status);
+    }
+
+    public function test_resolve_differences_action_rejects_cross_tenant_user(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-XV-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transfer = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+        $transfer->update(['status' => InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES]);
+
+        $item = $transfer->items->first();
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson('/api/admin-portal/transfers/'.$transfer->id.'/resolve-differences', [
+                'items' => [[
+                    'inventory_transfer_item_id' => $item->id,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                ]],
+            ])
+            ->assertForbidden();
+
+        $transfer->refresh();
+        $this->assertSame(InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES, $transfer->status);
+    }
+
+    public function test_user_without_X_Tenant_header_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa NoHeader', 'slug' => 'empresa-noheader']);
+        $user = $this->userInTenant($tenant);
+
+        // Sin X-Tenant el TenantManager no resuelve tenant actual => el query
+        // base filtrado no devuelve nada => 404 (mismo patron que el resto
+        // de los endpoints cross-tenant, intencional para no leakear
+        // existencia de recursos).
+        $this
+            ->actingAs($user)
+            ->getJson('/api/admin-portal/transfers')
+            ->assertNotFound();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

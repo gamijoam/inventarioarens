@@ -112,3 +112,39 @@ El `.gitignore` ya tiene `/public/build` en la línea 19, así que los próximos
 ## Historial de cambios del flujo de build
 
 - **2026-07-10** — Se untrackea `public/build/` (commit de housekeeping). Antes: 19 archivos de assets en git (842+ líneas entre CSS/JS/fonts). Después: assets generados en cada setup/deploy, `.gitignore` ya los excluía.
+- **2026-07-10** — Se agrega CI/CD en `.github/workflows/ci.yml` con dos jobs: `phpunit` (corre todos los tests Feature con `--process-isolation` contra Postgres 15) y `playwright` (corre los 5 tests E2E del portal contra chromium). Se corre automaticamente en cada push a `main`/`develop` y en cada PR. Si rompe, el PR queda en rojo y no se puede mergear.
+
+## CI/CD (GitHub Actions)
+
+El repo tiene un workflow en `.github/workflows/ci.yml` que corre automaticamente:
+
+- **Job `phpunit`** — Levanta Postgres 15 como service, migra la DB de testing, corre los ~90 tests Feature con `--process-isolation`. Si falla, el workflow se frena aca.
+- **Job `playwright`** — Necesita que `phpunit` pase primero (`needs: phpunit`). Levanta Postgres, migra, siembra el demo data (`gerente.valencia@demo.test`), buildea los assets Vite, levanta `php artisan serve` en background, descarga chromium, corre los 5 tests E2E del portal. Si falla, sube el `playwright-report/` como artifact del run.
+
+Para correrlo localmente sin GitHub:
+
+```bash
+# Equivalente del job phpunit
+docker run --rm -d --name test-pg -e POSTGRES_USER=inventory_arens -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=inventory_arens_testing -p 5432:5432 postgres:15-alpine
+DB_HOST=127.0.0.1 DB_PORT=5432 vendor/bin/phpunit --testsuite Feature --process-isolation
+docker stop test-pg
+```
+
+O instalar [`act`](https://github.com/nektos/act) para correr el workflow literal en Docker.
+
+## Tests de tenant isolation
+
+Hay un set explicito de tests que verifica que un usuario de tenant A **no pueda** acceder/modificar traslados de tenant B. Sirven como guardia contra regresiones cuando se agregan nuevos endpoints o policies.
+
+- `tests/Feature/Inventory/InventorySchemaIsolationTest.php` — schema-level isolation (branches, warehouses, stock movements, balances, FK constraints).
+- `tests/Feature/Inventory/InventoryAuthorizationTest.php` — service-level (gates, authorized service, transfer cross-tenant).
+- `tests/Feature/AdminPortal/AdminTransfersListTest.php::test_admin_does_not_see_other_tenant_transfers` — listing isolation (admin portal).
+- `tests/Feature/AdminPortal/AdminTransferActionsTest.php` — 7 tests cross-tenant (show, prepare, dispatch, receive, cancel, resolve, missing X-Tenant).
+- `tests/Feature/InventoryTransfers/InventoryTransferApiTest.php` — 3 tests cross-tenant (prepare, cancel, index leak).
+
+Para correrlos todos juntos:
+```bash
+vendor/bin/phpunit --filter "cross_tenant|other_tenant|detail_audit|standard_api_index_does_not_leak"
+```
+
+Si vas a agregar un endpoint nuevo, **agregá un test cross-tenant** que verifique que user de tenant B no puede tocar recursos de tenant A. El patron es: crear tenant A y tenant B, usuario en cada uno con permisos completos, intentar la accion cross-tenant, esperar 403 (o 404 si el endpoint oculta existencia de recursos), y verificar que el estado del recurso en tenant A **no cambio**.
