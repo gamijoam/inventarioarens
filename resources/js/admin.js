@@ -65,6 +65,16 @@ const state = {
             data: null,
             activeAction: null,
             loading: false,
+            imei: {
+                itemId: null,
+                productId: null,
+                warehouseId: null,
+                action: null,
+                maxCount: 0,
+                serials: [],
+                selected: new Set(),
+                loading: false,
+            },
         },
     },
     customers: {
@@ -3082,6 +3092,59 @@ function buildQuantityItemBlock(action, item) {
             value="${escapeHtml(item.difference_notes || '')}" placeholder="Opcional">`;
     wrapper.appendChild(notesField);
 
+    if (item.serialized && item.product_id) {
+        const serialsBlock = document.createElement('div');
+        serialsBlock.className = 'transfers-drawer__item-serials';
+
+        const summary = document.createElement('div');
+        summary.className = 'transfers-drawer__item-serials-summary';
+
+        const label = document.createElement('span');
+        label.innerHTML = `IMEI / serial: <strong data-transfer-serial-summary data-item-id="${item.id}">0 seleccionados</strong>`;
+
+        const button = document.createElement('button');
+        button.className = 'ghost-button ghost-button--compact';
+        button.type = 'button';
+        button.textContent = 'Seleccionar seriales';
+        button.addEventListener('click', () => {
+            const transfer = state.transfers.detail.data?.transfer;
+            const warehouseId = action === 'prepare'
+                ? transfer?.from_warehouse_id
+                : transfer?.to_warehouse_id;
+            const preselected = action === 'prepare'
+                ? (Array.isArray(item.prepared_product_unit_ids) ? item.prepared_product_unit_ids : [])
+                : (Array.isArray(item.received_product_unit_ids) ? item.received_product_unit_ids : []);
+            const maxCount = Number(qtyField.querySelector('input').value) || 0;
+            openImeiPicker(item.id, item.product_id, warehouseId, action, preselected, maxCount);
+        });
+
+        summary.appendChild(label);
+        summary.appendChild(button);
+        serialsBlock.appendChild(summary);
+
+        const preview = document.createElement('div');
+        preview.className = 'transfers-drawer__item-serials-preview';
+        preview.dataset.transferSerialPreview = String(item.id);
+        const preselected = action === 'prepare'
+            ? (Array.isArray(item.prepared_product_unit_ids) ? item.prepared_product_unit_ids : [])
+            : (Array.isArray(item.received_product_unit_ids) ? item.received_product_unit_ids : []);
+        if (preselected.length === 0) {
+            preview.textContent = 'Todavia no se han elegido IMEIs.';
+        } else {
+            preview.textContent = `${preselected.length} IMEI(s) preseleccionado(s).`;
+        }
+        serialsBlock.appendChild(preview);
+
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.dataset.transferActionField = action === 'prepare' ? 'prepared_product_unit_ids' : 'received_product_unit_ids';
+        hidden.dataset.itemId = String(item.id);
+        hidden.value = preselected.join(',');
+        serialsBlock.appendChild(hidden);
+
+        wrapper.appendChild(serialsBlock);
+    }
+
     return wrapper;
 }
 
@@ -3144,16 +3207,25 @@ function collectActionPayload(action) {
 
     if (action === 'prepare' || action === 'receive') {
         const qtyKey = action === 'prepare' ? 'prepared_quantity' : 'received_quantity';
+        const serialsKey = action === 'prepare' ? 'prepared_product_unit_ids' : 'received_product_unit_ids';
         const arr = items.map((item) => {
             const qty = readFieldValue(action, 'quantity', item.id);
             const reason = readFieldValue(action, 'reason', item.id);
             const notes = readFieldValue(action, 'notes', item.id);
-            return {
+            const serialsCsv = readFieldValue(action, serialsKey, item.id);
+            const serials = serialsCsv
+                ? serialsCsv.split(',').map((id) => Number(id.trim())).filter((id) => Number.isFinite(id) && id > 0)
+                : [];
+            const entry = {
                 inventory_transfer_item_id: item.id,
                 [qtyKey]: qty === '' ? null : Number(qty),
                 difference_reason: reason || null,
                 difference_notes: notes || null,
             };
+            if (serials.length > 0) {
+                entry[serialsKey] = serials;
+            }
+            return entry;
         });
         const notes = readFieldValue(action, `${action}_notes`);
         const payload = { items: arr };
@@ -3285,6 +3357,229 @@ async function submitTransferAction(action) {
 
 function actionEndpoint(action) {
     return action === 'resolve_differences' ? 'resolve-differences' : action;
+}
+
+function openImeiPicker(itemId, productId, warehouseId, action, preselectedIds, maxCount) {
+    if (!elements.imeiPicker || !productId) {
+        return;
+    }
+    const item = state.transfers.detail.data?.items?.find((entry) => String(entry.id) === String(itemId));
+    if (!item) {
+        return;
+    }
+
+    const imei = state.transfers.detail.imei;
+    imei.itemId = itemId;
+    imei.productId = productId;
+    imei.warehouseId = warehouseId || null;
+    imei.action = action;
+    imei.maxCount = Number(maxCount) || 0;
+    imei.serials = [];
+    imei.selected = new Set(Array.isArray(preselectedIds) ? preselectedIds.map((id) => Number(id)) : []);
+    imei.loading = true;
+
+    if (elements.imeiPickerSearch) {
+        elements.imeiPickerSearch.value = '';
+    }
+    if (elements.imeiPickerTitle) {
+        elements.imeiPickerTitle.textContent = `IMEI / serial - ${item.product_name || `Producto #${productId}`}`;
+    }
+    if (elements.imeiPickerSubtitle) {
+        const wh = warehouseId ? `Almacen #${warehouseId}` : 'Todos los almacenes';
+        elements.imeiPickerSubtitle.textContent = `${imei.maxCount} como maximo. Disponibles en ${wh}.`;
+    }
+    if (elements.imeiPickerStatus) {
+        elements.imeiPickerStatus.textContent = 'Cargando seriales disponibles...';
+    }
+    if (elements.imeiPickerList) {
+        elements.imeiPickerList.replaceChildren();
+    }
+    updateImeiPickerCounter();
+
+    elements.imeiPicker.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    void loadImeiPickerSerials();
+}
+
+function closeImeiPicker() {
+    if (!elements.imeiPicker) {
+        return;
+    }
+    elements.imeiPicker.hidden = true;
+    document.body.style.overflow = '';
+    const imei = state.transfers.detail.imei;
+    imei.itemId = null;
+    imei.productId = null;
+    imei.action = null;
+    imei.serials = [];
+    imei.selected = new Set();
+    imei.loading = false;
+}
+
+async function loadImeiPickerSerials(search = '') {
+    const session = state.session;
+    const imei = state.transfers.detail.imei;
+    if (!session || !imei.productId) {
+        return;
+    }
+    if (imei.loading && !search) {
+        return;
+    }
+
+    imei.loading = true;
+    if (elements.imeiPickerStatus) {
+        elements.imeiPickerStatus.textContent = search ? 'Buscando...' : 'Cargando seriales disponibles...';
+    }
+
+    const query = new URLSearchParams();
+    query.set('status', 'available');
+    query.set('limit', '100');
+    if (imei.warehouseId) {
+        query.set('warehouse_id', String(imei.warehouseId));
+    }
+    if (search) {
+        query.set('search', search);
+    }
+
+    try {
+        const payload = await api(`/api/inventory-center/products/${imei.productId}/serials?${query.toString()}`, {
+            headers: authHeaders(session),
+        }, true);
+        const list = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.data?.data) ? payload.data.data : []);
+        imei.serials = list;
+        renderImeiPickerList();
+        const filtered = applyImeiSearchFilter(list, search);
+        if (elements.imeiPickerStatus) {
+            elements.imeiPickerStatus.textContent = filtered.length === 0
+                ? 'Sin seriales disponibles con ese filtro.'
+                : `${filtered.length} serial(es) disponible(s). Tildar los que se preparan/reciben.`;
+        }
+    } catch (error) {
+        imei.serials = [];
+        renderImeiPickerList();
+        setStatus(elements.imeiPickerStatus, normalizeError(error), 'error');
+    } finally {
+        imei.loading = false;
+    }
+}
+
+function applyImeiSearchFilter(list, search) {
+    if (!search) {
+        return list;
+    }
+    const needle = search.toLowerCase();
+    return list.filter((entry) => {
+        const serial = String(entry.serial || entry.code || '').toLowerCase();
+        return serial.includes(needle);
+    });
+}
+
+function renderImeiPickerList() {
+    if (!elements.imeiPickerList) {
+        return;
+    }
+    const imei = state.transfers.detail.imei;
+    const search = elements.imeiPickerSearch?.value?.trim() || '';
+    const list = applyImeiSearchFilter(imei.serials, search);
+
+    if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'transfers-imei-picker__item-empty';
+        empty.textContent = imei.serials.length === 0
+            ? 'No hay seriales disponibles para este producto en este almacen.'
+            : 'Ningun serial coincide con la busqueda.';
+        elements.imeiPickerList.replaceChildren(empty);
+        return;
+    }
+
+    elements.imeiPickerList.replaceChildren(...list.map((serial) => {
+        const row = document.createElement('label');
+        row.className = 'transfers-imei-picker__item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        const idNum = Number(serial.id);
+        checkbox.checked = imei.selected.has(idNum);
+        checkbox.addEventListener('change', () => onImeiSerialToggle(idNum, checkbox.checked));
+        if (imei.maxCount > 0 && imei.selected.size >= imei.maxCount && !checkbox.checked) {
+            checkbox.disabled = true;
+        }
+
+        const serialLabel = document.createElement('span');
+        serialLabel.className = 'transfers-imei-picker__item-serial';
+        serialLabel.textContent = String(serial.serial || serial.code || `ID ${serial.id}`);
+
+        const meta = document.createElement('span');
+        meta.className = 'transfers-imei-picker__item-meta';
+        const wh = serial.warehouse_name || (serial.warehouse_id ? `Almacen #${serial.warehouse_id}` : '');
+        const status = serial.status || '';
+        meta.textContent = [wh, status].filter(Boolean).join(' · ');
+
+        row.appendChild(checkbox);
+        row.appendChild(serialLabel);
+        row.appendChild(meta);
+        return row;
+    }));
+}
+
+function onImeiSerialToggle(serialId, checked) {
+    const imei = state.transfers.detail.imei;
+    if (checked) {
+        if (imei.maxCount > 0 && imei.selected.size >= imei.maxCount) {
+            setStatus(elements.imeiPickerStatus, `Maximo ${imei.maxCount} serial(es) para este item.`, 'error');
+            return;
+        }
+        imei.selected.add(serialId);
+    } else {
+        imei.selected.delete(serialId);
+    }
+    updateImeiPickerCounter();
+    renderImeiPickerList();
+}
+
+function updateImeiPickerCounter() {
+    if (!elements.imeiPickerCounter) {
+        return;
+    }
+    const imei = state.transfers.detail.imei;
+    const count = imei.selected.size;
+    const max = imei.maxCount > 0 ? ` / ${imei.maxCount}` : '';
+    elements.imeiPickerCounter.textContent = `${count} seleccionados${max}`;
+}
+
+function confirmImeiSelection() {
+    const imei = state.transfers.detail.imei;
+    if (!imei.itemId) {
+        return;
+    }
+    if (imei.maxCount > 0 && imei.selected.size > imei.maxCount) {
+        setStatus(elements.imeiPickerStatus, `Solo puedes elegir hasta ${imei.maxCount} serial(es).`, 'error');
+        return;
+    }
+
+    const itemId = String(imei.itemId);
+    const fieldId = imei.action === 'prepare' ? 'prepared_product_unit_ids' : 'received_product_unit_ids';
+    const action = imei.action;
+    const input = elements.transferDrawerForm?.querySelector(
+        `[data-transfer-action-field="${fieldId}"][data-item-id="${itemId}"]`
+    );
+    if (input) {
+        input.value = Array.from(imei.selected).join(',');
+    }
+
+    const summary = elements.transferDrawerForm?.querySelector(
+        `[data-transfer-serial-summary][data-item-id="${itemId}"]`
+    );
+    if (summary) {
+        const serials = imei.serials.filter((entry) => imei.selected.has(Number(entry.id)));
+        const labels = serials.map((entry) => entry.serial || entry.code || `#${entry.id}`);
+        summary.textContent = labels.length === 0
+            ? 'Sin seriales seleccionados'
+            : labels.join(', ');
+        summary.dataset.count = String(imei.selected.size);
+    }
+    closeImeiPicker();
 }
 
 async function loadCustomers(page = state.customers.page) {
@@ -6463,8 +6758,26 @@ if (elements.transferDrawer) {
         el.addEventListener('click', closeTransferDrawer);
     });
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !elements.transferDrawer.hidden) {
+        if (event.key === 'Escape' && !elements.transferDrawer.hidden && (elements.imeiPicker?.hidden ?? true)) {
             closeTransferDrawer();
+        }
+    });
+}
+if (elements.imeiPicker) {
+    elements.imeiPicker.querySelectorAll('[data-admin-imei-picker-close]').forEach((el) => {
+        el.addEventListener('click', closeImeiPicker);
+    });
+    elements.imeiPickerConfirm?.addEventListener('click', confirmImeiSelection);
+    let imeiSearchDebounce;
+    elements.imeiPickerSearch?.addEventListener('input', () => {
+        window.clearTimeout(imeiSearchDebounce);
+        imeiSearchDebounce = window.setTimeout(() => {
+            renderImeiPickerList();
+        }, 150);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && elements.imeiPicker && !elements.imeiPicker.hidden) {
+            closeImeiPicker();
         }
     });
 }

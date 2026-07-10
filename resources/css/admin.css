@@ -2533,3 +2533,189 @@ button {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.transfers-imei-picker {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.transfers-imei-picker[hidden] {
+    display: none !important;
+}
+
+.transfers-imei-picker__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 20, 45, 0.55);
+    backdrop-filter: blur(2px);
+    animation: transfers-drawer-fade 180ms var(--ease);
+}
+
+.transfers-imei-picker__panel {
+    position: relative;
+    width: min(720px, 100%);
+    max-height: 80vh;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(8, 20, 45, 0.25);
+    display: flex;
+    flex-direction: column;
+    animation: transfers-drawer-slide 220ms var(--ease);
+}
+
+.transfers-imei-picker__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-soft);
+}
+
+.transfers-imei-picker__header h3 {
+    margin: 8px 0 0;
+    font-size: 18px;
+    color: var(--ink);
+}
+
+.transfers-imei-picker__header p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.transfers-imei-picker__close {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.transfers-imei-picker__close:hover {
+    background: var(--panel-soft);
+    color: var(--ink);
+}
+
+.transfers-imei-picker__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: grid;
+    gap: 12px;
+}
+
+.transfers-imei-picker__list {
+    display: grid;
+    gap: 6px;
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px;
+    background: var(--panel-soft);
+}
+
+.transfers-imei-picker__item {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.transfers-imei-picker__item:hover {
+    background: var(--panel-soft);
+}
+
+.transfers-imei-picker__item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.transfers-imei-picker__item-serial {
+    font-weight: 700;
+    color: var(--ink);
+    font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+    font-size: 12px;
+}
+
+.transfers-imei-picker__item-meta {
+    color: var(--muted);
+    font-size: 11px;
+    text-align: right;
+}
+
+.transfers-imei-picker__item-empty {
+    padding: 18px 12px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.transfers-imei-picker__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+    background: var(--panel-soft);
+    gap: 12px;
+}
+
+.transfers-imei-picker__counter {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.transfers-imei-picker__footer > div {
+    display: flex;
+    gap: 8px;
+}
+
+.transfers-drawer__item-serials {
+    border-top: 1px dashed var(--line);
+    padding-top: 8px;
+    display: grid;
+    gap: 6px;
+}
+
+.transfers-drawer__item-serials-summary {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.transfers-drawer__item-serials-summary strong {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.transfers-drawer__item-serials-preview {
+    font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+}

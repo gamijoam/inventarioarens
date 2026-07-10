@@ -1875,6 +1875,35 @@
                             </div>
                         </aside>
 
+                        <aside class="transfers-imei-picker" id="admin-transfer-imei-picker" hidden>
+                            <div class="transfers-imei-picker__backdrop" data-admin-imei-picker-close></div>
+                            <div class="transfers-imei-picker__panel" role="dialog" aria-labelledby="admin-imei-picker-title" aria-modal="true">
+                                <header class="transfers-imei-picker__header">
+                                    <div>
+                                        <span class="soft-badge">IMEI / SERIAL</span>
+                                        <h3 id="admin-imei-picker-title">Seleccionar seriales</h3>
+                                        <p id="admin-imei-picker-subtitle">—</p>
+                                    </div>
+                                    <button class="transfers-imei-picker__close" type="button" data-admin-imei-picker-close aria-label="Cerrar">×</button>
+                                </header>
+                                <div class="transfers-imei-picker__body">
+                                    <label class="field">
+                                        <span>Buscar</span>
+                                        <input id="admin-imei-picker-search" type="search" placeholder="IMEI, serial o codigo">
+                                    </label>
+                                    <p class="dashboard-status" id="admin-imei-picker-status" role="status" aria-live="polite">Cargando seriales disponibles...</p>
+                                    <div class="transfers-imei-picker__list" id="admin-imei-picker-list"></div>
+                                </div>
+                                <footer class="transfers-imei-picker__footer">
+                                    <span id="admin-imei-picker-counter" class="transfers-imei-picker__counter">0 seleccionados</span>
+                                    <div>
+                                        <button class="ghost-button" type="button" data-admin-imei-picker-close>Cancelar</button>
+                                        <button class="primary-button" type="button" id="admin-imei-picker-confirm">Aplicar selección</button>
+                                    </div>
+                                </footer>
+                            </div>
+                        </aside>
+
                         <section class="admin-module-panel access-admin" id="admin-users-module" hidden>
                             <div class="module-head">
                                 <div>
