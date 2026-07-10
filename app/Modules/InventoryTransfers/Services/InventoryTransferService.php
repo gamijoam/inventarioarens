@@ -3,6 +3,7 @@
 namespace App\Modules\InventoryTransfers\Services;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
@@ -23,6 +24,7 @@ class InventoryTransferService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
+        private readonly AuditLogger $audit,
     )
     {
     }
@@ -503,6 +505,119 @@ class InventoryTransferService
             ]);
 
             return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        });
+    }
+
+    public function cancel(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+            $transfer = InventoryTransfer::query()
+                ->whereKey($transfer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($transfer->validation_mode !== InventoryTransfer::VALIDATION_LOGISTICS) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Los traslados simples no se cancelan desde este endpoint.',
+                ]);
+            }
+
+            $cancellable = [
+                InventoryTransfer::STATUS_REQUESTED,
+                InventoryTransfer::STATUS_PREPARED,
+                InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES,
+            ];
+
+            if (! in_array($transfer->status, $cancellable, true)) {
+                $message = match ($transfer->status) {
+                    InventoryTransfer::STATUS_DISPATCHED => 'El traslado ya fue despachado y esta en transito. Espere la recepcion o gestione las diferencias.',
+                    InventoryTransfer::STATUS_COMPLETED,
+                    InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES => 'El traslado ya fue completado y es historico; no se puede cancelar.',
+                    InventoryTransfer::STATUS_CANCELLED => 'El traslado ya esta cancelado.',
+                    InventoryTransfer::STATUS_REJECTED => 'El traslado ya fue rechazado.',
+                    default => 'El traslado no se puede cancelar en su estado actual.',
+                };
+
+                throw ValidationException::withMessages([
+                    'status' => $message,
+                ]);
+            }
+
+            $transfer->loadMissing(['fromWarehouse', 'items.product']);
+
+            $cancelledAt = $data['cancelled_at'] ?? now();
+            $reason = $data['cancellation_reason'];
+
+            $releasedItemsCount = 0;
+            $releasedUnitsCount = 0;
+
+            foreach ($transfer->items as $item) {
+                $preparedQuantity = (float) ($item->prepared_quantity ?? 0);
+                $preparedUnitIds = $item->prepared_product_unit_ids ?? [];
+
+                if ($preparedQuantity > 0) {
+                    $movement = $this->inventory->release(
+                        warehouse: $transfer->fromWarehouse,
+                        product: $item->product,
+                        quantity: $preparedQuantity,
+                        createdBy: $user,
+                        reason: "Cancelacion {$transfer->guide_number}: {$reason}",
+                        referenceType: InventoryTransfer::class,
+                        referenceId: $transfer->id,
+                    );
+
+                    $this->syncCatalog->stockMovementCreated($movement);
+                    $releasedItemsCount++;
+                }
+
+                if ($preparedUnitIds !== []) {
+                    ProductUnit::query()
+                        ->whereIn('id', $preparedUnitIds)
+                        ->lockForUpdate()
+                        ->get()
+                        ->each(function (ProductUnit $unit) use (&$releasedUnitsCount): void {
+                            if ($unit->status === ProductUnit::STATUS_RESERVED) {
+                                $unit->update([
+                                    'status' => ProductUnit::STATUS_AVAILABLE,
+                                    'released_stock_movement_id' => null,
+                                ]);
+                                $this->syncCatalog->productUnitUpdated($unit->refresh());
+                                $releasedUnitsCount++;
+                            }
+                        });
+                }
+            }
+
+            $previousStatus = $transfer->status;
+            $transfer->update([
+                'status' => InventoryTransfer::STATUS_CANCELLED,
+                'cancelled_at' => $cancelledAt,
+                'cancelled_by' => $user->id,
+            ]);
+
+            $this->audit->record(
+                action: 'inventory_transfer.cancelled',
+                entity: $transfer,
+                user: $user,
+                oldValues: [
+                    'status' => $previousStatus,
+                ],
+                newValues: [
+                    'status' => InventoryTransfer::STATUS_CANCELLED,
+                    'cancelled_at' => $cancelledAt instanceof \DateTimeInterface ? $cancelledAt->format('c') : (string) $cancelledAt,
+                    'cancellation_reason' => $reason,
+                    'released_items_count' => $releasedItemsCount,
+                    'released_units_count' => $releasedUnitsCount,
+                ],
+            );
+
+            return $transfer->refresh()->load([
+                'fromWarehouse',
+                'toWarehouse',
+                'guide.checklists.items',
+                'items.product',
+                'canceller',
+            ]);
         });
     }
 

@@ -937,6 +937,507 @@ class InventoryTransferApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_user_can_cancel_requested_logistic_transfer_without_affecting_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-REQ', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'Solicitud inicial',
+                'items' => [['product_id' => $product->id, 'quantity' => 4]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Cliente cancelo el pedido antes de preparar.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_CANCELLED)
+            ->assertJsonPath('data.cancelled_by', $user->id);
+
+        $this->assertNotNull(InventoryTransfer::find($transferId)->cancelled_at);
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(10.0, (float) $balance->quantity_available);
+        $this->assertSame(0.0, (float) $balance->quantity_reserved);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'released',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'tenant_id' => $tenant->id,
+            'action' => 'inventory_transfer.cancelled',
+            'entity_type' => InventoryTransfer::class,
+            'entity_id' => $transferId,
+        ]);
+    }
+
+    public function test_user_can_cancel_prepared_logistic_transfer_and_release_reserved_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-PREP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(5.0, (float) $balance->quantity_available);
+        $this->assertSame(5.0, (float) $balance->quantity_reserved);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Reprogramamos la entrega para la proxima semana.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_CANCELLED);
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(10.0, (float) $balance->quantity_available);
+        $this->assertSame(0.0, (float) $balance->quantity_reserved);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'released',
+            'quantity' => '5.0000',
+        ]);
+    }
+
+    public function test_user_can_cancel_prepared_with_differences_logistic_transfer(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-PD', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 6]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_quantity' => 4,
+                    'difference_reason' => 'Faltaron unidades en estante',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'El supervisor decidio reevaluar la operacion.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_CANCELLED);
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(10.0, (float) $balance->quantity_available);
+        $this->assertSame(0.0, (float) $balance->quantity_reserved);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'released',
+            'quantity' => '4.0000',
+        ]);
+    }
+
+    public function test_user_cannot_cancel_dispatched_logistic_transfer(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-DISP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Quiero cancelar aun despues del despacho.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+
+        $transfer = InventoryTransfer::find($transferId);
+        $this->assertSame(InventoryTransfer::STATUS_DISPATCHED, $transfer->status);
+        $this->assertNull($transfer->cancelled_at);
+    }
+
+    public function test_user_cannot_cancel_completed_logistic_transfer(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-COMP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [['inventory_transfer_item_id' => $itemId, 'received_quantity' => 5]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Intento cancelar un traslado ya recibido.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_user_cannot_cancel_simple_transfer(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-SIMP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 5);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'No deberia poder cancelar un traslado simple.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['transfer']);
+    }
+
+    public function test_cancel_requires_cancellation_reason(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-NORSN', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 5);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cancellation_reason']);
+    }
+
+    public function test_cancel_releases_serialized_units_back_to_available(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-IMEI', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 3);
+        $units = $this->units($tenant, $fromWarehouse, $product, $movement->id, '865000', 3);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[0]->id,
+            'status' => ProductUnit::STATUS_RESERVED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Cliente cambio de opinion, devolvemos inventario.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_CANCELLED);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[0]->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+            'released_stock_movement_id' => null,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[2]->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
+    public function test_cancel_emits_sync_outbox_events_for_released_stock_and_units(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-SYNC', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 3);
+        $units = $this->units($tenant, $fromWarehouse, $product, $movement->id, '866000', 3);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                ]],
+            ])
+            ->assertOk();
+
+        DB::table('sync_outbox')->where('tenant_id', $tenant->id)->delete();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Verificamos emision de eventos sync al cancelar.',
+            ])
+            ->assertOk();
+
+        $movementEvents = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'stock_movement.created')
+            ->get()
+            ->map(fn ($event): array => json_decode($event->payload, true));
+
+        $this->assertContains('released', $movementEvents->pluck('type')->all());
+        $this->assertContains($fromWarehouse->code, $movementEvents->pluck('warehouse_code')->all());
+
+        $unitEvents = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product_unit.updated')
+            ->get()
+            ->map(fn ($event): array => json_decode($event->payload, true));
+
+        $this->assertGreaterThanOrEqual(2, $unitEvents->count());
+        $this->assertContains($units[0]->serial_number, $unitEvents->pluck('serial_number')->all());
+    }
+
+    public function test_cancel_rejects_user_without_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-AUTH', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 5);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'No tengo permiso para cancelar.',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_cancel_isolated_per_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TRF-A', Product::TRACKING_QUANTITY);
+        [$fromB, $toB, $productB] = $this->warehousesAndProduct($tenantB, 'TRF-B', Product::TRACKING_QUANTITY);
+        $userA = $this->userInTenant($tenantA);
+        $userB = $this->userInTenant($tenantB);
+        $this->grantRole($tenantA, $userA, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->grantRole($tenantB, $userB, 'Almacen B', [
+            'inventory_transfers.create',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenantA, $fromA, $productA, $userA, 5);
+        $this->stock($tenantB, $fromB, $productB, $userB, 5);
+
+        $transferAId = $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromA->id,
+                'to_warehouse_id' => $toA->id,
+                'items' => [['product_id' => $productA->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->postJson("/api/inventory-transfers/{$transferAId}/cancel", [
+                'cancellation_reason' => 'No debo poder cancelar traslados de otra empresa.',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(InventoryTransfer::STATUS_REQUESTED, InventoryTransfer::find($transferAId)->status);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

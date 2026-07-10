@@ -32,6 +32,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'prepared_at',
     'dispatched_at',
     'received_at',
+    'cancelled_at',
+    'cancelled_by',
 ])]
 class InventoryTransfer extends Model
 {
@@ -71,6 +73,7 @@ class InventoryTransfer extends Model
             'prepared_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'received_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -112,5 +115,10 @@ class InventoryTransfer extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }
