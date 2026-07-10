@@ -34,6 +34,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'received_at',
     'cancelled_at',
     'cancelled_by',
+    'resolution_status',
+    'resolution_notes',
+    'resolved_at',
+    'resolved_by',
 ])]
 class InventoryTransfer extends Model
 {
@@ -65,6 +69,16 @@ class InventoryTransfer extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const RESOLUTION_UNRESOLVED = 'unresolved';
+    public const RESOLUTION_PARTIAL = 'partial';
+    public const RESOLUTION_RESOLVED = 'resolved';
+
+    public const RESOLUTION_STATUSES = [
+        self::RESOLUTION_UNRESOLVED,
+        self::RESOLUTION_PARTIAL,
+        self::RESOLUTION_RESOLVED,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -74,6 +88,7 @@ class InventoryTransfer extends Model
             'dispatched_at' => 'datetime',
             'received_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'resolved_at' => 'datetime',
         ];
     }
 
@@ -120,5 +135,10 @@ class InventoryTransfer extends Model
     public function canceller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 }

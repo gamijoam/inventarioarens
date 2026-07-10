@@ -25,6 +25,11 @@ class InventoryTransferItemResource extends JsonResource
             'product_unit_ids' => $this->product_unit_ids,
             'prepared_product_unit_ids' => $this->prepared_product_unit_ids,
             'received_product_unit_ids' => $this->received_product_unit_ids,
+            'resolution_status' => $this->resolution_status,
+            'resolution_notes' => $this->resolution_notes,
+            'resolved_at' => $this->resolved_at?->toISOString(),
+            'resolved_by' => $this->resolved_by,
+            'resolver' => $this->whenLoaded('resolver'),
         ];
     }
 }

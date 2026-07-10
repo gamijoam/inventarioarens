@@ -7,6 +7,7 @@ use App\Modules\InventoryTransfers\Requests\CancelInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\DispatchInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\PrepareInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\ReceiveInventoryTransferRequest;
+use App\Modules\InventoryTransfers\Requests\ResolveInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\StoreInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
@@ -87,6 +88,18 @@ class InventoryTransferController extends Controller
 
         return InventoryTransferResource::make(
             $service->cancel($request->user(), $inventoryTransfer, $request->validated())
+        );
+    }
+
+    public function resolveDifferences(
+        ResolveInventoryTransferRequest $request,
+        InventoryTransfer $inventoryTransfer,
+        InventoryTransferService $service,
+    ): InventoryTransferResource {
+        Gate::authorize('resolveDifferences', $inventoryTransfer);
+
+        return InventoryTransferResource::make(
+            $service->resolveDifferences($request->user(), $inventoryTransfer, $request->validated())
         );
     }
 

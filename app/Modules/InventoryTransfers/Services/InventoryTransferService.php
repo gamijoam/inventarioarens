@@ -621,6 +621,222 @@ class InventoryTransferService
         });
     }
 
+    public function resolveDifferences(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+            $transfer = InventoryTransfer::query()
+                ->whereKey($transfer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($transfer->validation_mode !== InventoryTransfer::VALIDATION_LOGISTICS) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'Los traslados simples no tienen diferencias que resolver.',
+                ]);
+            }
+
+            if ($transfer->status !== InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se pueden resolver diferencias en traslados completados con diferencias.',
+                ]);
+            }
+
+            $transfer->loadMissing(['fromWarehouse', 'toWarehouse', 'items.product']);
+
+            $itemsById = $transfer->items->keyBy('id');
+            $payloadItems = collect($data['items'] ?? []);
+            $submittedItemIds = $payloadItems->pluck('inventory_transfer_item_id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            $candidates = $itemsById->filter(
+                fn (InventoryTransferItem $item): bool => (float) ($item->difference_quantity ?? 0) > 0
+                    && $item->resolution_status === InventoryTransferItem::RESOLUTION_UNRESOLVED
+            );
+
+            if ($candidates->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'El traslado no tiene diferencias pendientes por resolver.',
+                ]);
+            }
+
+            $previousResolutionStatus = $transfer->resolution_status;
+            $appliedActions = [];
+            $lossMovementsCreated = 0;
+            $removedUnitsCount = 0;
+
+            foreach ($payloadItems as $index => $payloadItem) {
+                $itemId = (int) $payloadItem['inventory_transfer_item_id'];
+
+                if (! $itemsById->has($itemId)) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.inventory_transfer_item_id" => 'El item no pertenece al traslado.',
+                    ]);
+                }
+
+                /** @var InventoryTransferItem $item */
+                $item = $itemsById->get($itemId);
+
+                if (! $candidates->has($itemId)) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.inventory_transfer_item_id" => 'El item no tiene diferencias pendientes por resolver.',
+                    ]);
+                }
+
+                $action = $payloadItem['action'];
+                $notes = $payloadItem['notes'] ?? null;
+                $resolvedAt = $payloadItem['resolved_at'] ?? now();
+                $differenceQuantity = (float) $item->difference_quantity;
+                $product = $item->product;
+
+                switch ($action) {
+                    case InventoryTransferItem::RESOLUTION_INVESTIGATING:
+                        $movementId = null;
+                        break;
+
+                    case InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS:
+                        $movementId = null;
+                        break;
+
+                    case InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY:
+                        $manualQuantity = (float) ($payloadItem['quantity'] ?? 0);
+
+                        if ($manualQuantity <= 0) {
+                            throw ValidationException::withMessages([
+                                "items.{$index}.quantity" => 'La cantidad de ajuste manual debe ser mayor que cero.',
+                            ]);
+                        }
+
+                        $movement = $this->inventory->adjustmentOut(
+                            warehouse: $transfer->toWarehouse,
+                            product: $product,
+                            quantity: $manualQuantity,
+                            createdBy: $user,
+                            reason: "Ajuste manual por diferencia en recepcion {$transfer->guide_number}",
+                            referenceType: InventoryTransfer::class,
+                            referenceId: $transfer->id,
+                        );
+                        $this->syncCatalog->stockMovementCreated($movement);
+                        $movementId = $movement->id;
+                        $lossMovementsCreated++;
+                        break;
+
+                    case InventoryTransferItem::RESOLUTION_RETURNED_TO_ORIGIN:
+                        throw ValidationException::withMessages([
+                            "items.{$index}.action" => 'La devolucion al origen no esta habilitada en esta fase.',
+                        ]);
+
+                    default:
+                        throw ValidationException::withMessages([
+                            "items.{$index}.action" => 'Accion de resolucion no soportada.',
+                        ]);
+                }
+
+                $removedUnitIds = [];
+
+                if (in_array($action, [
+                    InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                    InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY,
+                ], true) && $product->requiresSerializedTracking()) {
+                    $expectedUnitIds = $item->prepared_product_unit_ids ?? [];
+                    $receivedUnitIds = $item->received_product_unit_ids ?? [];
+                    $missingUnitIds = array_values(array_diff($expectedUnitIds, $receivedUnitIds));
+
+                    if ($missingUnitIds !== []) {
+                        ProductUnit::query()
+                            ->whereIn('id', $missingUnitIds)
+                            ->lockForUpdate()
+                            ->get()
+                            ->each(function (ProductUnit $unit) use ($item, &$removedUnitIds, &$removedUnitsCount): void {
+                                if (in_array($unit->status, [
+                                    ProductUnit::STATUS_AVAILABLE,
+                                    ProductUnit::STATUS_RESERVED,
+                                ], true)) {
+                                    $unit->update([
+                                        'status' => ProductUnit::STATUS_REMOVED,
+                                        'released_stock_movement_id' => $item->out_stock_movement_id,
+                                    ]);
+                                    $this->syncCatalog->productUnitUpdated($unit->refresh());
+                                    $removedUnitIds[] = $unit->id;
+                                    $removedUnitsCount++;
+                                }
+                            });
+                    }
+                }
+
+                $item->update([
+                    'resolution_status' => $action,
+                    'resolution_notes' => $notes,
+                    'resolved_at' => $resolvedAt,
+                    'resolved_by' => $user->id,
+                ]);
+
+                $appliedActions[] = [
+                    'item_id' => $item->id,
+                    'action' => $action,
+                    'movement_id' => $movementId,
+                    'removed_unit_ids' => $removedUnitIds,
+                ];
+            }
+
+            $remainingUnresolved = $transfer->items()
+                ->get()
+                ->filter(fn (InventoryTransferItem $item): bool => (float) ($item->difference_quantity ?? 0) > 0
+                    && $item->resolution_status === InventoryTransferItem::RESOLUTION_UNRESOLVED)
+                ->count();
+
+            $hasInvestigating = $transfer->items()
+                ->get()
+                ->contains(fn (InventoryTransferItem $item): bool => $item->resolution_status === InventoryTransferItem::RESOLUTION_INVESTIGATING);
+
+            if ($remainingUnresolved > 0) {
+                $newResolutionStatus = InventoryTransfer::RESOLUTION_UNRESOLVED;
+            } elseif ($hasInvestigating) {
+                $newResolutionStatus = InventoryTransfer::RESOLUTION_PARTIAL;
+            } else {
+                $newResolutionStatus = InventoryTransfer::RESOLUTION_RESOLVED;
+            }
+
+            $transfer->resolution_status = $newResolutionStatus;
+            $transfer->resolution_notes = $data['notes'] ?? null;
+            $transfer->resolved_at = $newResolutionStatus === InventoryTransfer::RESOLUTION_RESOLVED ? now() : null;
+            $transfer->resolved_by = $newResolutionStatus === InventoryTransfer::RESOLUTION_RESOLVED ? $user->id : null;
+
+            $newTransferStatus = $newResolutionStatus === InventoryTransfer::RESOLUTION_RESOLVED
+                ? InventoryTransfer::STATUS_COMPLETED
+                : $transfer->status;
+
+            $transfer->status = $newTransferStatus;
+            $transfer->save();
+
+            $this->audit->record(
+                action: 'inventory_transfer.differences_resolved',
+                entity: $transfer,
+                user: $user,
+                oldValues: [
+                    'resolution_status' => $previousResolutionStatus,
+                    'status' => $transfer->wasChanged('status') ? $transfer->getOriginal('status') : $transfer->status,
+                ],
+                newValues: [
+                    'resolution_status' => $newResolutionStatus,
+                    'status' => $newTransferStatus,
+                    'resolution_notes' => $transfer->resolution_notes,
+                    'loss_movements_created' => $lossMovementsCreated,
+                    'removed_units_count' => $removedUnitsCount,
+                    'applied_actions' => $appliedActions,
+                ],
+            );
+
+            return $transfer->refresh()->load([
+                'fromWarehouse',
+                'toWarehouse',
+                'guide.checklists.items',
+                'items.product',
+                'items.resolver',
+                'resolver',
+            ]);
+        });
+    }
+
     private function createLogisticTransfer(
         User $user,
         array $data,

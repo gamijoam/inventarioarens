@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryTransfers\Models;
 
+use App\Models\User;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -24,6 +25,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'product_unit_ids',
     'prepared_product_unit_ids',
     'received_product_unit_ids',
+    'resolution_status',
+    'resolution_notes',
+    'resolved_at',
+    'resolved_by',
 ])]
 class InventoryTransferItem extends Model
 {
@@ -40,8 +45,29 @@ class InventoryTransferItem extends Model
             'product_unit_ids' => 'array',
             'prepared_product_unit_ids' => 'array',
             'received_product_unit_ids' => 'array',
+            'resolved_at' => 'datetime',
         ];
     }
+
+    public const RESOLUTION_UNRESOLVED = 'unresolved';
+    public const RESOLUTION_INVESTIGATING = 'investigating';
+    public const RESOLUTION_ACCEPTED_LOSS = 'accepted_loss';
+    public const RESOLUTION_RETURNED_TO_ORIGIN = 'returned_to_origin';
+    public const RESOLUTION_ADJUSTED_MANUALLY = 'adjusted_manually';
+
+    public const RESOLUTION_STATUSES = [
+        self::RESOLUTION_UNRESOLVED,
+        self::RESOLUTION_INVESTIGATING,
+        self::RESOLUTION_ACCEPTED_LOSS,
+        self::RESOLUTION_RETURNED_TO_ORIGIN,
+        self::RESOLUTION_ADJUSTED_MANUALLY,
+    ];
+
+    public const RESOLUTION_CLOSE_ACTIONS = [
+        self::RESOLUTION_ACCEPTED_LOSS,
+        self::RESOLUTION_RETURNED_TO_ORIGIN,
+        self::RESOLUTION_ADJUSTED_MANUALLY,
+    ];
 
     public function inventoryTransfer(): BelongsTo
     {
@@ -61,5 +87,10 @@ class InventoryTransferItem extends Model
     public function inStockMovement(): BelongsTo
     {
         return $this->belongsTo(StockMovement::class, 'in_stock_movement_id');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 }

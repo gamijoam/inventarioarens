@@ -34,6 +34,11 @@ class InventoryTransferResource extends JsonResource
             'cancelled_at' => $this->cancelled_at?->toISOString(),
             'cancelled_by' => $this->cancelled_by,
             'canceller' => $this->whenLoaded('canceller'),
+            'resolution_status' => $this->resolution_status,
+            'resolution_notes' => $this->resolution_notes,
+            'resolved_at' => $this->resolved_at?->toISOString(),
+            'resolved_by' => $this->resolved_by,
+            'resolver' => $this->whenLoaded('resolver'),
             'items' => InventoryTransferItemResource::collection($this->whenLoaded('items')),
             'created_at' => $this->created_at?->toISOString(),
         ];

@@ -9,6 +9,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
+use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
@@ -1436,6 +1437,550 @@ class InventoryTransferApiTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(InventoryTransfer::STATUS_REQUESTED, InventoryTransfer::find($transferAId)->status);
+    }
+
+    public function test_user_can_resolve_differences_with_accept_loss_and_adjust_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-LOSS', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 3,
+                    'difference_reason' => 'Llegaron 2 unidades menos de lo esperado.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'notes' => 'Tras auditoria se confirman 2 unidades perdidas en transito.',
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                    'notes' => 'Robo parcial en el transporte.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED)
+            ->assertJsonPath('data.resolution_status', InventoryTransfer::RESOLUTION_RESOLVED)
+            ->assertJsonPath('data.items.0.resolution_status', InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS);
+
+        $balance = $this->balance($toWarehouse, $product);
+        $this->assertSame(3.0, (float) $balance->quantity_available);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'adjustment_out',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'tenant_id' => $tenant->id,
+            'action' => 'inventory_transfer.differences_resolved',
+            'entity_type' => InventoryTransfer::class,
+            'entity_id' => $transferId,
+        ]);
+    }
+
+    public function test_user_can_resolve_differences_with_investigate_and_keep_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-INV', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 2,
+                    'difference_reason' => 'Tres unidades pendientes de verificacion.',
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_INVESTIGATING,
+                    'notes' => 'Coordinando con el transportista para confirmar el faltante.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES)
+            ->assertJsonPath('data.resolution_status', InventoryTransfer::RESOLUTION_PARTIAL)
+            ->assertJsonPath('data.items.0.resolution_status', InventoryTransferItem::RESOLUTION_INVESTIGATING);
+
+        $balance = $this->balance($toWarehouse, $product);
+        $this->assertSame(2.0, (float) $balance->quantity_available);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'adjustment_out',
+        ]);
+    }
+
+    public function test_user_can_resolve_differences_with_manual_adjustment_and_custom_quantity(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-MAN', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 4,
+                    'difference_reason' => 'Una unidad pendiente.',
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY,
+                    'quantity' => 1.5,
+                    'notes' => 'El supervisor decidio registrar 1.5 unidades como merma.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.resolution_status', InventoryTransfer::RESOLUTION_RESOLVED)
+            ->assertJsonPath('data.items.0.resolution_status', InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY);
+
+        $balance = $this->balance($toWarehouse, $product);
+        $this->assertSame(2.5, (float) $balance->quantity_available);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'reference_type' => InventoryTransfer::class,
+            'reference_id' => $transferId,
+            'type' => 'adjustment_out',
+            'quantity' => '1.5000',
+        ]);
+    }
+
+    public function test_user_can_resolve_differences_with_mixed_actions_and_partial_status(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $this->useTenant($tenant);
+        $branch = Branch::create(['name' => 'Sucursal MIX', 'code' => 'MIX']);
+        $fromWarehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Origen MIX', 'code' => 'FROM-MIX']);
+        $toWarehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Destino MIX', 'code' => 'TO-MIX']);
+        $productA = Product::create([
+            'name' => 'Producto MIX A',
+            'sku' => 'MIX-A',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 50,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $productB = Product::create([
+            'name' => 'Producto MIX B',
+            'sku' => 'MIX-B',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 80,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $productA, $user, 10);
+        $this->stock($tenant, $fromWarehouse, $productB, $user, 10);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [
+                    ['product_id' => $productA->id, 'quantity' => 4],
+                    ['product_id' => $productB->id, 'quantity' => 4],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemAId = InventoryTransfer::query()->findOrFail($transferId)->items()->where('product_id', $productA->id)->firstOrFail()->id;
+        $itemBId = InventoryTransfer::query()->findOrFail($transferId)->items()->where('product_id', $productB->id)->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [
+                    ['inventory_transfer_item_id' => $itemAId, 'prepared_quantity' => 4],
+                    ['inventory_transfer_item_id' => $itemBId, 'prepared_quantity' => 4],
+                ],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/dispatch")
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [
+                    ['inventory_transfer_item_id' => $itemAId, 'received_quantity' => 2, 'difference_reason' => 'Faltaron 2.'],
+                    ['inventory_transfer_item_id' => $itemBId, 'received_quantity' => 3, 'difference_reason' => 'Falto 1.'],
+                ],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [
+                    ['inventory_transfer_item_id' => $itemAId, 'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS, 'notes' => 'Perdida total.'],
+                    ['inventory_transfer_item_id' => $itemBId, 'action' => InventoryTransferItem::RESOLUTION_INVESTIGATING, 'notes' => 'Por verificar.'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES)
+            ->assertJsonPath('data.resolution_status', InventoryTransfer::RESOLUTION_PARTIAL);
+
+        $transfer = InventoryTransfer::find($transferId);
+        $itemA = $transfer->items->firstWhere('id', $itemAId);
+        $itemB = $transfer->items->firstWhere('id', $itemBId);
+        $this->assertSame(InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS, $itemA->resolution_status);
+        $this->assertSame(InventoryTransferItem::RESOLUTION_INVESTIGATING, $itemB->resolution_status);
+        $this->assertNull($transfer->resolved_at);
+    }
+
+    public function test_user_can_resolve_differences_and_marks_missing_serial_units_as_removed(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-IMEI', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 3);
+        $units = $this->units($tenant, $fromWarehouse, $product, $movement->id, '867000', 3);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 3,
+                    'product_unit_ids' => [$units[0]->id, $units[1]->id, $units[2]->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id, $units[2]->id],
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/dispatch")
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_product_unit_ids' => [$units[0]->id],
+                    'difference_reason' => 'No llegaron 2 unidades.',
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                    'notes' => 'Las unidades faltantes se reportan como robadas.',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.resolution_status', InventoryTransfer::RESOLUTION_RESOLVED);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[1]->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[2]->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $units[0]->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+            'warehouse_id' => $toWarehouse->id,
+        ]);
+    }
+
+    public function test_user_cannot_resolve_transfer_without_differences(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-NODIF', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 5,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_user_cannot_resolve_transfer_that_is_not_completed_with_differences(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-WRONG', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 5);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_resolve_differences_rejects_user_without_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-AUTH', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 3,
+                    'difference_reason' => 'Faltaron 2.',
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                ]],
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_resolve_differences_emits_sync_outbox_events(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-RES-SYNC', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+
+        $transferId = $this->createPreparedAndDispatchedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 4,
+                    'difference_reason' => 'Falto 1 unidad.',
+                ]],
+            ])
+            ->assertOk();
+
+        DB::table('sync_outbox')->where('tenant_id', $tenant->id)->delete();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY,
+                    'quantity' => 1.5,
+                    'notes' => 'El supervisor decidio registrar 1.5 unidades como merma.',
+                ]],
+            ])
+            ->assertOk();
+
+        $movementEvents = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'stock_movement.created')
+            ->get()
+            ->map(fn ($event): array => json_decode($event->payload, true));
+
+        $this->assertContains('adjustment_out', $movementEvents->pluck('type')->all());
+        $this->assertContains($toWarehouse->code, $movementEvents->pluck('warehouse_code')->all());
     }
 
     protected function setUp(): void
