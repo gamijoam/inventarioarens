@@ -13,4 +13,10 @@ Route::prefix('admin-portal')->group(function (): void {
     Route::get('pos-sales/{posOrder}', [AdminPosSalesController::class, 'show']);
     Route::get('transfers', [AdminTransfersController::class, 'index']);
     Route::get('transfers/summary', [AdminTransfersController::class, 'summary']);
+    Route::get('transfers/{inventoryTransfer}', [AdminTransfersController::class, 'show']);
+    Route::post('transfers/{inventoryTransfer}/prepare', [AdminTransfersController::class, 'prepare']);
+    Route::post('transfers/{inventoryTransfer}/dispatch', [AdminTransfersController::class, 'dispatch']);
+    Route::post('transfers/{inventoryTransfer}/receive', [AdminTransfersController::class, 'receive']);
+    Route::post('transfers/{inventoryTransfer}/cancel', [AdminTransfersController::class, 'cancel']);
+    Route::post('transfers/{inventoryTransfer}/resolve-differences', [AdminTransfersController::class, 'resolveDifferences']);
 });

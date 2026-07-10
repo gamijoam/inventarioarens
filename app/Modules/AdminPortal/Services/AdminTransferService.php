@@ -209,6 +209,83 @@ class AdminTransferService
         return $this->statusLabels()[$status] ?? ucfirst($status);
     }
 
+    public function detail(InventoryTransfer $transfer): array
+    {
+        $transfer->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product', 'canceller', 'resolver']);
+
+        $rows = $this->baseQuery(app(TenantManager::class)->require()->id, [])
+            ->where('inventory_transfers.id', $transfer->id)
+            ->get($this->columns())
+            ->map(fn ($row): array => $this->mapTransfer($row))
+            ->all();
+
+        $row = $rows[0] ?? null;
+        if ($row === null) {
+            abort(404, 'Traslado no encontrado.');
+        }
+
+        $items = $transfer->items->map(function ($item): array {
+            $product = $item->product;
+            $serialized = $product?->tracking_type === 'serialized';
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $product?->name ?? 'Producto eliminado',
+                'product_sku' => $product?->sku ?? '',
+                'tracking_type' => $product?->tracking_type,
+                'serialized' => $serialized,
+                'quantity' => (float) $item->quantity,
+                'requested_quantity' => $item->requested_quantity === null ? null : (float) $item->requested_quantity,
+                'prepared_quantity' => $item->prepared_quantity === null ? null : (float) $item->prepared_quantity,
+                'received_quantity' => $item->received_quantity === null ? null : (float) $item->received_quantity,
+                'difference_quantity' => (float) $item->difference_quantity,
+                'difference_reason' => $item->difference_reason,
+                'difference_notes' => $item->difference_notes,
+                'resolution_status' => $item->resolution_status,
+                'resolution_notes' => $item->resolution_notes,
+                'resolved_at' => $item->resolved_at?->toISOString(),
+                'product_unit_ids' => $item->product_unit_ids ?? [],
+                'prepared_product_unit_ids' => $item->prepared_product_unit_ids ?? [],
+                'received_product_unit_ids' => $item->received_product_unit_ids ?? [],
+            ];
+        })->all();
+
+        $availableActions = $this->availableActionsFor($row['status']);
+
+        return [
+            'transfer' => $row,
+            'items' => $items,
+            'available_actions' => $availableActions,
+            'canceller' => $transfer->canceller ? [
+                'id' => $transfer->canceller->id,
+                'name' => $transfer->canceller->name,
+            ] : null,
+            'resolver' => $transfer->resolver ? [
+                'id' => $transfer->resolver->id,
+                'name' => $transfer->resolver->name,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Devuelve la lista de acciones que el admin puede tomar en este estado.
+     * Se usa desde el portal para mostrar/ocultar botones sin re-chequear permisos.
+     */
+    public function availableActionsFor(string $status): array
+    {
+        return match ($status) {
+            InventoryTransfer::STATUS_REQUESTED,
+            InventoryTransfer::STATUS_IN_PREPARATION => ['prepare', 'cancel'],
+            InventoryTransfer::STATUS_PREPARED,
+            InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES => ['dispatch', 'cancel'],
+            InventoryTransfer::STATUS_DISPATCHED,
+            InventoryTransfer::STATUS_IN_RECEPTION => ['receive', 'cancel'],
+            InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES => ['resolve_differences'],
+            default => [],
+        };
+    }
+
     private function statusLabels(): array
     {
         return [
