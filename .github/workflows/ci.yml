@@ -62,7 +62,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
       - name: Composer cache
         uses: actions/cache@v4
@@ -75,7 +74,7 @@ jobs:
         run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Install npm deps
-        run: npm install --no-audit --no-fund
+        run: npm install --no-package-lock --no-audit --no-fund
 
       - name: Copy .env
         run: cp .env.example .env
@@ -159,13 +158,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-
       - name: Install composer deps
         run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Install npm deps
-        run: npm install --no-audit --no-fund
+        run: npm install --no-package-lock --no-audit --no-fund
 
       - name: Copy .env
         run: cp .env.example .env
@@ -225,5 +222,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
 
 
