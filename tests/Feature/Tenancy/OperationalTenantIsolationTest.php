@@ -4,6 +4,7 @@ namespace Tests\Feature\Tenancy;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
@@ -229,6 +230,15 @@ class OperationalTenantIsolationTest extends TestCase
             'expected_local_amount' => 0,
             'opened_at' => now(),
         ]);
+
+        $cashRegister = CashRegister::create([
+            'branch_id' => $branch->id,
+            'name' => 'Caja Principal '.$branch->code,
+            'code' => 'CR-'.$branch->code.'-'.$tenant->id,
+            'status' => CashRegister::STATUS_ACTIVE,
+        ]);
+
+        $session->update(['cash_register_id' => $cashRegister->id]);
 
         return [$user, $warehouse, $product, $session];
     }

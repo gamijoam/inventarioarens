@@ -506,7 +506,7 @@ class SyncEventApplier
         $sourceSaleId = (int) ($salePayload['id'] ?? $payload['sale_id'] ?? 0);
 
         if ($sourceOrderId <= 0 || $sourceSaleId <= 0) {
-            throw new RuntimeException('El evento POS no incluye los identificadores de venta y orden.');
+            return 'ignored';
         }
 
         $now = now();
