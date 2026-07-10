@@ -54,7 +54,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: pdo_pgsql, pgsql, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, opcache
           coverage: none
 
@@ -142,7 +142,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: pdo_pgsql, pgsql, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, opcache
           coverage: none
 
@@ -219,3 +219,4 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
