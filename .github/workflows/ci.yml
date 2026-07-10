@@ -58,6 +58,12 @@ jobs:
           extensions: pdo_pgsql, pgsql, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, opcache
           coverage: none
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
       - name: Composer cache
         uses: actions/cache@v4
         with:
@@ -65,8 +71,11 @@ jobs:
           key: ${{ runner.os }}-php-${{ hashFiles('composer.json', 'composer.lock') }}
           restore-keys: ${{ runner.os }}-php-
 
-      - name: Install dependencies
+      - name: Install composer deps
         run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Install npm deps
+        run: npm install --no-audit --no-fund
 
       - name: Copy .env
         run: cp .env.example .env
@@ -86,6 +95,9 @@ jobs:
 
       - name: Run migrations
         run: php artisan migrate --force
+
+      - name: Build frontend assets
+        run: npm run build
 
       - name: Cache config + routes
         run: php artisan config:cache && php artisan route:cache
