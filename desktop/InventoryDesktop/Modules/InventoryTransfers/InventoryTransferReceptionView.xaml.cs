@@ -6,6 +6,7 @@ namespace InventoryDesktop.Modules.InventoryTransfers;
 
 public partial class InventoryTransferReceptionView : UserControl
 {
+    private ApiClient? apiClient;
     private InventoryTransferReceptionViewModel? viewModel;
 
     public InventoryTransferReceptionView()
@@ -15,6 +16,7 @@ public partial class InventoryTransferReceptionView : UserControl
 
     public void Configure(ApiClient apiClient)
     {
+        this.apiClient = apiClient;
         viewModel = new InventoryTransferReceptionViewModel(apiClient);
         DataContext = viewModel;
     }
@@ -30,6 +32,29 @@ public partial class InventoryTransferReceptionView : UserControl
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await LoadAsync();
+    }
+
+    private async void CreateTransfer_Click(object sender, RoutedEventArgs e)
+    {
+        if (apiClient is null)
+        {
+            return;
+        }
+
+        Window? owner = Window.GetWindow(this);
+        InventoryTransferCreationWindow dialog = new(
+            apiClient,
+            onTransferCreated: OnTransferCreated)
+        {
+            Owner = owner,
+        };
+
+        dialog.ShowDialog();
+    }
+
+    private void OnTransferCreated(long transferId)
+    {
+        _ = LoadAsync();
     }
 
     private async void Preparation_Click(object sender, RoutedEventArgs e)

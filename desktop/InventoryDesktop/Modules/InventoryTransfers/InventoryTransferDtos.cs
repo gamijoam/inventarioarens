@@ -90,3 +90,40 @@ public sealed record PrepareInventoryTransferLineRequest(
 
 public sealed record DispatchInventoryTransferRequest(
     [property: JsonPropertyName("notes")] string? Notes);
+
+// === Creacion de traslados (desktop) ===
+
+public sealed record CreateInventoryTransferRequest(
+    [property: JsonPropertyName("validation_mode")] string ValidationMode,
+    [property: JsonPropertyName("from_warehouse_id")] long FromWarehouseId,
+    [property: JsonPropertyName("to_warehouse_id")] long ToWarehouseId,
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("reference")] string? Reference,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("items")] IReadOnlyList<CreateInventoryTransferItem> Items);
+
+public sealed record CreateInventoryTransferItem(
+    [property: JsonPropertyName("product_id")] long ProductId,
+    [property: JsonPropertyName("quantity")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal Quantity);
+
+public sealed record TransferProductSearchResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<TransferProductOption> Data,
+    [property: JsonPropertyName("meta")] TransferProductSearchMeta? Meta);
+
+public sealed record TransferProductSearchMeta(
+    [property: JsonPropertyName("total")] int? Total,
+    [property: JsonPropertyName("current_page")] int? CurrentPage,
+    [property: JsonPropertyName("last_page")] int? LastPage);
+
+public sealed record TransferProductOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("sku")] string Sku,
+    [property: JsonPropertyName("tracking_type")] string TrackingType)
+{
+    public string TrackingLabel => TrackingType == "serialized" ? "Serializado / IMEI" : "Por cantidad";
+
+    public string DisplayLabel => string.IsNullOrWhiteSpace(Sku) ? Name : $"{Name} ({Sku})";
+}

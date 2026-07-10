@@ -121,6 +121,11 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             IsEnabled="{Binding CanReceive}"
                             Click="ConfirmReception_Click" />
+                    <Button Content="+ Crear nuevo"
+                            Width="140"
+                            Margin="20,0,0,0"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Click="CreateTransfer_Click" />
                 </StackPanel>
             </Grid>
         </Border>

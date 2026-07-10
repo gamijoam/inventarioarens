@@ -1,0 +1,284 @@
+<Window x:Class="InventoryDesktop.Modules.InventoryTransfers.InventoryTransferCreationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Crear traslado"
+        Width="980"
+        Height="720"
+        MinWidth="860"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        Background="#F6F8FC">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style x:Key="PanelBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#DCE4F2" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#51617F" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+            <Setter Property="BorderBrush" Value="#CBD7EA" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Foreground" Value="#D9365C" />
+            <Setter Property="BorderBrush" Value="#F4C2CF" />
+        </Style>
+
+        <Style x:Key="LineGridStyle" TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="RowHeight" Value="44" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="SelectionMode" Value="Single" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Style="{StaticResource PanelBorderStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <Border Padding="10,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Left">
+                        <TextBlock Text="TRASLADO NUEVO" Foreground="{StaticResource AccentStrongBrush}" FontSize="11" FontWeight="Black" />
+                    </Border>
+                    <TextBlock Text="Crear traslado logistico" FontSize="26" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="Define origen, destino, motivo y los productos a mover. El traslado quedara en estado 'Solicitado' listo para preparar."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Content="Cerrar"
+                        Width="108"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Click="Close_Click"
+                        VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource PanelBorderStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="Almacen origen" Style="{StaticResource FieldLabelStyle}" />
+                        <ComboBox ItemsSource="{Binding Warehouses}"
+                                  SelectedItem="{Binding SelectedOrigin}"
+                                  DisplayMemberPath="WarehouseLabel"
+                                  Height="42"
+                                  FontSize="14"
+                                  IsEnabled="{Binding HasWarehouses}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,12,0">
+                        <TextBlock Text="Almacen destino" Style="{StaticResource FieldLabelStyle}" />
+                        <ComboBox ItemsSource="{Binding Warehouses}"
+                                  SelectedItem="{Binding SelectedDestination}"
+                                  DisplayMemberPath="WarehouseLabel"
+                                  Height="42"
+                                  FontSize="14"
+                                  IsEnabled="{Binding HasWarehouses}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                        <TextBlock Text="Modo" Style="{StaticResource FieldLabelStyle}" />
+                        <Border Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="8" Height="42" Padding="14,0">
+                            <TextBlock Text="Logistico (preparar, despachar, recibir)"
+                                       FontWeight="Black"
+                                       FontSize="13"
+                                       Foreground="{StaticResource InkBrush}"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,16,12,0">
+                        <TextBlock Text="Motivo (opcional)" Style="{StaticResource FieldLabelStyle}" />
+                        <TextBox Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="255"
+                                 ToolTip="Descripcion corta del motivo del traslado" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Grid.Row="1" Margin="12,16,12,0">
+                        <TextBlock Text="Referencia (opcional)" Style="{StaticResource FieldLabelStyle}" />
+                        <TextBox Text="{Binding Reference, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="150"
+                                 ToolTip="Codigo o referencia externa" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Grid.Row="1" Margin="12,16,0,0">
+                        <TextBlock Text="Notas internas (opcional)" Style="{StaticResource FieldLabelStyle}" />
+                        <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="1000"
+                                 ToolTip="Visible solo para tu empresa" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}" Margin="0,16,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Productos del traslado" FontSize="16" FontWeight="Black" />
+                            <TextBlock Text="Busca por nombre o SKU. La cantidad es obligatoria y debe ser mayor a cero."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Content="+ Agregar producto"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="AddProduct_Click" />
+                    </Grid>
+
+                    <DataGrid Grid.Row="1"
+                              x:Name="LinesGrid"
+                              Style="{StaticResource LineGridStyle}"
+                              Margin="0,14,0,0"
+                              ItemsSource="{Binding Items}"
+                              SelectedItem="{Binding SelectedLine, Mode=TwoWay}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Producto"
+                                                Binding="{Binding ProductName}"
+                                                Width="*"
+                                                IsReadOnly="True" />
+                            <DataGridTextColumn Header="SKU"
+                                                Binding="{Binding ProductSku}"
+                                                Width="140"
+                                                IsReadOnly="True" />
+                            <DataGridTextColumn Header="Tipo"
+                                                Binding="{Binding TrackingLabel}"
+                                                Width="160"
+                                                IsReadOnly="True" />
+                            <DataGridTemplateColumn Header="Cantidad" Width="140">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Quantity, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 VerticalAlignment="Center"
+                                                 MinHeight="32" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Quitar" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Quitar"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                Height="30"
+                                                Padding="10,0"
+                                                Click="RemoveLine_Click"
+                                                Tag="{Binding}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="2"
+                               Text="Aun no agregaste productos. Usa el boton 'Agregar producto' para empezar."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontStyle="Italic"
+                               FontSize="12"
+                               Margin="0,12,0,0"
+                               Visibility="{Binding HasNoItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#F7F9FD" BorderBrush="#DCE4F2" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,0,14">
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{Binding StatusBrush}"
+                       FontWeight="SemiBold"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancelar"
+                    Width="120"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Click="Cancel_Click"
+                    IsCancel="True" />
+            <Button x:Name="CreateTransferButton"
+                    Content="Crear traslado"
+                    Width="180"
+                    Margin="12,0,0,0"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Click="Create_Click"
+                    IsDefault="True"
+                    IsEnabled="{Binding CanSubmit}" />
+        </StackPanel>
+    </Grid>
+</Window>
