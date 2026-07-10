@@ -17,6 +17,7 @@ if (!$SafeTenantSlug) {
 $TaskName = "SistemaInventarioSync-$SafeTenantSlug"
 $LauncherFile = Join-Path $StateDir "sync-task-$SafeTenantSlug.cmd"
 $WorkerCmd = Join-Path $PSScriptRoot "sync-worker.cmd"
+$HiddenRunner = Join-Path $PSScriptRoot "run-sync-hidden.vbs"
 
 function Ensure-StateDir {
     if (!(Test-Path -LiteralPath $StateDir)) {
@@ -78,11 +79,30 @@ function Install-WorkerTask {
     if (!(Test-Path -LiteralPath $WorkerCmd)) {
         throw "No se encontro scripts\sync-worker.cmd."
     }
+    if (!(Test-Path -LiteralPath $HiddenRunner)) {
+        throw "No se encontro scripts\run-sync-hidden.vbs."
+    }
 
     Write-Launcher
 
-    Write-Step "Instalando tarea automatica de Windows"
-    Invoke-ScheduledTaskCommand @("/Create", "/TN", $TaskName, "/SC", "MINUTE", "/MO", "5", "/TR", "`"$LauncherFile`"", "/F")
+    Write-Step "Instalando tarea automatica de Windows (inicio oculto)"
+    $taskAction = New-ScheduledTaskAction `
+        -Execute "wscript.exe" `
+        -Argument ("`"" + $HiddenRunner + "`" `"" + $LauncherFile + "`"")
+    Register-ScheduledTask -TaskName $TaskName -Trigger $(
+        New-ScheduledTaskTrigger -AtStartup -Once:$false
+    ) -Action $taskAction -Settings (
+        New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -ExecutionTimeLimit (New-TimeSpan -Hours 72)
+    ) -Description "Inventario Arens - worker de sincronizacion para $TenantSlug (inicio oculto)." -Force | Out-Null
+    $repetition = (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition
+    $repetition.Interval = "PT5M"
+    $repetition.StopAtDurationEnd = $false
+    (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition = $repetition
+    Set-ScheduledTask -TaskName $TaskName -Trigger (Get-ScheduledTask -TaskName $TaskName).Triggers | Out-Null
 
     Write-Step "Iniciando sincronizacion ahora"
     & $WorkerCmd start -TenantSlug $TenantSlug
@@ -92,7 +112,7 @@ function Install-WorkerTask {
 
     Write-Host "Sincronizacion automatica instalada." -ForegroundColor Green
     Write-Host "Tarea: $TaskName"
-    Write-Host "La tarea verifica el worker cada 5 minutos y lo levanta si esta detenido."
+    Write-Host "La tarea verifica el worker cada 5 minutos y lo levanta si esta detenido. Inicio 100% oculto (sin ventana negra)."
 }
 
 function Uninstall-WorkerTask {
