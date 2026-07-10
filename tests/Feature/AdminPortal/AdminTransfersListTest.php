@@ -48,7 +48,8 @@ class AdminTransfersListTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(InventoryTransfer::STATUS_COMPLETED, $rows[0]['status']);
         $this->assertSame(InventoryTransfer::STATUS_COMPLETED, $rows[1]['status']);
-        $this->assertSame('5.0000', (string) $rows[0]['items_count']);
+        $this->assertSame(1, (int) $rows[0]['items_count']);
+        $this->assertSame(0, (int) $rows[0]['differences_count']);
     }
 
     public function test_admin_can_filter_by_single_status(): void
