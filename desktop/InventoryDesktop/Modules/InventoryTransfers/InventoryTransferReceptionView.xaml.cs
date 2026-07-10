@@ -81,6 +81,33 @@ public partial class InventoryTransferReceptionView : UserControl
         }
     }
 
+    private async void Resolution_Click(object sender, RoutedEventArgs e)
+    {
+        if (viewModel is not null)
+        {
+            await viewModel.SetStageAsync(InventoryTransferStage.Resolution);
+        }
+    }
+
+    private async void ConfirmResolution_Click(object sender, RoutedEventArgs e)
+    {
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        bool completed = await viewModel.ConfirmResolutionAsync();
+        if (completed)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "Diferencias resueltas. El traslado quedo cerrado.",
+                "Traslado cerrado",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
     private void CompleteCurrentStage_Click(object sender, RoutedEventArgs e)
     {
         viewModel?.CompleteCurrentStage();

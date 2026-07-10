@@ -92,6 +92,11 @@
                             Margin="8,0,0,0"
                             Style="{StaticResource StageButtonStyle}"
                             Click="Reception_Click" />
+                    <Button Content="Resolver"
+                            Width="104"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource StageButtonStyle}"
+                            Click="Resolution_Click" />
                     <Button Content="Actualizar"
                             Width="112"
                             Margin="14,0,0,0"
@@ -106,26 +111,82 @@
                     <Button Content="Preparar"
                             Width="112"
                             Margin="8,0,0,0"
-                            Style="{StaticResource PrimaryButtonStyle}"
                             IsEnabled="{Binding CanPrepare}"
-                            Click="ConfirmPreparation_Click" />
+                            Click="ConfirmPreparation_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="Despachar"
                             Width="118"
                             Margin="8,0,0,0"
-                            Style="{StaticResource PrimaryButtonStyle}"
                             IsEnabled="{Binding CanDispatch}"
-                            Click="ConfirmDispatch_Click" />
+                            Click="ConfirmDispatch_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="Recibir"
                             Width="104"
                             Margin="8,0,0,0"
-                            Style="{StaticResource PrimaryButtonStyle}"
                             IsEnabled="{Binding CanReceive}"
-                            Click="ConfirmReception_Click" />
+                            Click="ConfirmReception_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Confirmar resolución"
+                            Width="200"
+                            Margin="8,0,0,0"
+                            IsEnabled="{Binding CanResolve}"
+                            Click="ConfirmResolution_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="+ Crear nuevo"
                             Width="140"
                             Margin="20,0,0,0"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            Click="CreateTransfer_Click" />
+                            Click="CreateTransfer_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -227,78 +288,147 @@
                         </Grid>
                     </Border>
 
-                    <DataGrid Grid.Row="1"
-                              ItemsSource="{Binding Lines}"
-                              Style="{StaticResource TransferGridStyle}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="PRODUCTO" Binding="{Binding ProductName}" Width="2*" IsReadOnly="True" />
-                            <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120" IsReadOnly="True" />
-                            <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="130" IsReadOnly="True" />
-                            <DataGridTextColumn Header="ESPERADO" Binding="{Binding ExpectedLabel}" Width="86" IsReadOnly="True" />
-                            <DataGridTemplateColumn Header="CANT." Width="96">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBox Text="{Binding WorkQuantity, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource CellTextBoxStyle}" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="DIF." Binding="{Binding DifferenceQuantity}" Width="70" IsReadOnly="True" />
-                            <DataGridTemplateColumn Header="MOTIVO DIF." Width="160">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBox Text="{Binding DifferenceReason, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource CellTextBoxStyle}" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="NOTAS" Width="180">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBox Text="{Binding DifferenceNotes, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource CellTextBoxStyle}" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="IMEIs" Width="180">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="8,0,0,0">
-                                                <TextBlock Text="{Binding SerialsSelectionLabel}" FontWeight="Black" FontSize="12" />
-                                                <TextBlock Text="{Binding SerialSummary}"
-                                                           Foreground="{StaticResource MutedBrush}"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="11" />
-                                            </StackPanel>
-                                            <Button Grid.Column="1"
-                                                    Content="Seleccionar"
-                                                    Margin="8,0,8,0"
-                                                    Padding="12,0"
-                                                    Height="30"
-                                                    Click="ImeiPicker_Click"
-                                                    Tag="{Binding}">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
-                                                        <Setter Property="Visibility" Value="Visible" />
+                    <Grid Grid.Row="1">
+                        <DataGrid ItemsSource="{Binding Lines}">
+                            <DataGrid.Style>
+                                <Style TargetType="DataGrid" BasedOn="{StaticResource TransferGridStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Style>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="PRODUCTO" Binding="{Binding ProductName}" Width="2*" IsReadOnly="True" />
+                                <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120" IsReadOnly="True" />
+                                <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="130" IsReadOnly="True" />
+                                <DataGridTextColumn Header="ESPERADO" Binding="{Binding ExpectedLabel}" Width="86" IsReadOnly="True" />
+                                <DataGridTemplateColumn Header="CANT." Width="96">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding WorkQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource CellTextBoxStyle}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="DIF." Binding="{Binding DifferenceQuantity}" Width="70" IsReadOnly="True" />
+                                <DataGridTemplateColumn Header="MOTIVO DIF." Width="160">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding DifferenceReason, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource CellTextBoxStyle}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="NOTAS" Width="180">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding DifferenceNotes, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource CellTextBoxStyle}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="IMEIs" Width="180">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="8,0,0,0">
+                                                    <TextBlock Text="{Binding SerialsSelectionLabel}" FontWeight="Black" FontSize="12" />
+                                                    <TextBlock Text="{Binding SerialSummary}"
+                                                               Foreground="{StaticResource MutedBrush}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="11" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Content="Seleccionar"
+                                                        Margin="8,0,8,0"
+                                                        Padding="12,0"
+                                                        Height="30"
+                                                        Click="ImeiPicker_Click"
+                                                        Tag="{Binding}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanConfigureSerials}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <DataGrid ItemsSource="{Binding Lines}">
+                            <DataGrid.Style>
+                                <Style TargetType="DataGrid" BasedOn="{StaticResource TransferGridStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedStage}" Value="Resolution">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Style>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="PRODUCTO" Binding="{Binding ProductName}" Width="2*" IsReadOnly="True" />
+                                <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="110" IsReadOnly="True" />
+                                <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="120" IsReadOnly="True" />
+                                <DataGridTextColumn Header="ESPERADO" Binding="{Binding ExpectedLabel}" Width="80" IsReadOnly="True" />
+                                <DataGridTextColumn Header="RECIBIDO" Binding="{Binding ReceivedQuantityLabel}" Width="80" IsReadOnly="True" />
+                                <DataGridTextColumn Header="DIFERENCIA" Binding="{Binding ResolvedDifferenceLabel}" Width="84" IsReadOnly="True" />
+                                <DataGridTemplateColumn Header="ACCIÓN" Width="170">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox ItemsSource="{Binding AvailableResolutionActions}"
+                                                      SelectedValuePath="Value"
+                                                      DisplayMemberPath="Label"
+                                                      SelectedValue="{Binding ResolutionAction, UpdateSourceTrigger=PropertyChanged}"
+                                                      Height="30"
+                                                      VerticalContentAlignment="Center" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="CANT. AJUSTE" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding ResolutionQuantity, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBox.Style>
+                                                    <Style TargetType="TextBox" BasedOn="{StaticResource CellTextBoxStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding CanConfigureSerials}" Value="False">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            <DataTrigger Binding="{Binding RequiresResolutionQuantity}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </Button.Style>
-                                            </Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                                                </TextBox.Style>
+                                            </TextBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="NOTAS" Width="200">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding ResolutionNotes, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource CellTextBoxStyle}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

@@ -80,6 +80,12 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 
     public bool CanReceive => !IsBusy && SelectedStage == InventoryTransferStage.Reception && SelectedTransfer is not null && Lines.Count > 0;
 
+    public bool CanResolve => !IsBusy
+        && SelectedStage == InventoryTransferStage.Resolution
+        && SelectedTransfer is not null
+        && Lines.Count > 0
+        && Lines.All(line => line.IsResolutionReady);
+
     public bool CanComplete => CanPrepare || CanReceive;
 
     public bool CanCancel => !IsBusy
@@ -92,6 +98,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Preparación logística",
         InventoryTransferStage.Dispatch => "Despacho de guía",
+        InventoryTransferStage.Resolution => "Resolución de diferencias",
         _ => "Recepción logística",
     };
 
@@ -99,6 +106,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Marca lo que realmente se cargó y documenta cualquier diferencia antes de reservar el inventario.",
         InventoryTransferStage.Dispatch => "Confirma que la guía preparada salió del almacén origen para enviarla a recepción.",
+        InventoryTransferStage.Resolution => "Cierra cada item con diferencia eligiendo aceptar la pérdida, ajustar manualmente o dejarlo en investigación.",
         _ => "Confirma lo recibido en el almacén destino y documenta diferencias antes de cerrar el traslado.",
     };
 
@@ -106,6 +114,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Por preparar",
         InventoryTransferStage.Dispatch => "Por despachar",
+        InventoryTransferStage.Resolution => "Con diferencias",
         _ => "Por recibir",
     };
 
@@ -113,6 +122,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Traslados solicitados que esperan checklist de carga.",
         InventoryTransferStage.Dispatch => "Traslados preparados que esperan salida física.",
+        InventoryTransferStage.Resolution => "Guías completadas con diferencias que esperan una acción de cierre.",
         _ => "Guías despachadas que esperan recepción.",
     };
 
@@ -120,6 +130,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Sin traslados por preparar",
         InventoryTransferStage.Dispatch => "Sin guías por despachar",
+        InventoryTransferStage.Resolution => "Sin guías con diferencias",
         _ => "Sin guías por recibir",
     };
 
@@ -127,6 +138,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
     {
         InventoryTransferStage.Preparation => "Cuando se solicite un traslado logístico aparecerá aquí.",
         InventoryTransferStage.Dispatch => "Cuando preparación confirme una guía aparecerá aquí.",
+        InventoryTransferStage.Resolution => "Cuando una recepción quede con diferencias aparecerá aquí.",
         _ => "Cuando despacho envíe una guía aparecerá aquí.",
     };
 
@@ -338,6 +350,44 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         }
     }
 
+    public async Task<bool> ConfirmResolutionAsync()
+    {
+        if (!CanResolve || SelectedTransfer is null)
+        {
+            return false;
+        }
+
+        IsBusy = true;
+        SetStatus("Confirmando resolucion de diferencias...", false);
+
+        try
+        {
+            ResolveInventoryTransferRequest request = new(
+                Notes: null,
+                Items: Lines.Select(line => line.BuildResolveRequest()).ToList());
+
+            await apiClient.PostAsync<ResolveInventoryTransferRequest, InventoryTransferResponse>(
+                $"admin-portal/transfers/{SelectedTransfer.Id}/resolve-differences",
+                request);
+
+            string guide = string.IsNullOrWhiteSpace(SelectedTransfer.GuideNumber)
+                ? SelectedTransfer.DocumentNumber
+                : SelectedTransfer.GuideNumber;
+            SetStatus($"Diferencias resueltas en {guide}. Traslado cerrado.", false);
+            await LoadAsync();
+            return true;
+        }
+        catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(exception is ApiException ? exception.Message : "No se pudo resolver las diferencias.", true);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private static bool IsTransferCancellable(string? status)
     {
         if (string.IsNullOrWhiteSpace(status))
@@ -423,11 +473,18 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
             return prepared.Data.Concat(withDifferences.Data).ToList();
         }
 
+        if (SelectedStage == InventoryTransferStage.Resolution)
+        {
+            InventoryTransferListResponse response = await apiClient.GetAsync<InventoryTransferListResponse>(
+                "inventory-transfers?status=completed_with_differences&validation_mode=logistics");
+            return response.Data;
+        }
+
         string status = SelectedStage == InventoryTransferStage.Preparation ? "requested" : "dispatched";
-        InventoryTransferListResponse response = await apiClient.GetAsync<InventoryTransferListResponse>(
+        InventoryTransferListResponse response2 = await apiClient.GetAsync<InventoryTransferListResponse>(
             $"inventory-transfers?status={status}&validation_mode=logistics");
 
-        return response.Data;
+        return response2.Data;
     }
 
     private InventoryTransferOperationLine? FindLineMissingDifferenceReason()
@@ -446,17 +503,35 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 
     private void BuildLines()
     {
+        foreach (InventoryTransferOperationLine existing in Lines)
+        {
+            existing.PropertyChanged -= OnLinePropertyChanged;
+        }
+
         Lines.Clear();
 
         if (SelectedTransfer is not null)
         {
             foreach (InventoryTransferLine item in SelectedTransfer.Items)
             {
-                Lines.Add(new InventoryTransferOperationLine(item, SelectedStage));
+                InventoryTransferOperationLine line = new(item, SelectedStage);
+                line.PropertyChanged += OnLinePropertyChanged;
+                Lines.Add(line);
             }
         }
 
         RaiseActionProperties();
+    }
+
+    private void OnLinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InventoryTransferOperationLine.IsResolutionReady)
+            or nameof(InventoryTransferOperationLine.WorkQuantity)
+            or nameof(InventoryTransferOperationLine.DifferenceReason)
+            or nameof(InventoryTransferOperationLine.SelectedSerialsCount))
+        {
+            RaiseActionProperties();
+        }
     }
 
     private void SetStatus(string message, bool isError)
@@ -507,6 +582,7 @@ public enum InventoryTransferStage
     Preparation,
     Dispatch,
     Reception,
+    Resolution,
 }
 
 public sealed class InventoryTransferOperationLine : ViewModelBase
@@ -516,6 +592,9 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
     private decimal workQuantity;
     private string differenceReason = string.Empty;
     private string differenceNotes = string.Empty;
+    private string resolutionAction = "accepted_loss";
+    private decimal resolutionQuantity;
+    private string resolutionNotes = string.Empty;
 
     public InventoryTransferOperationLine(InventoryTransferLine item, InventoryTransferStage stage)
     {
@@ -529,9 +608,17 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
             ? item.PreparedQuantity ?? item.Quantity
             : item.Quantity;
         workQuantity = ExpectedQuantity;
+        ReceivedQuantity = item.ReceivedQuantity;
+        ResolvedDifference = item.DifferenceQuantity;
+        CurrentResolutionStatus = item.ResolutionStatus;
         ProductUnitIds = item.ProductUnitIds ?? Array.Empty<long>();
         PreparedUnitIds = item.PreparedProductUnitIds ?? Array.Empty<long>();
         ReceivedUnitIds = item.ReceivedProductUnitIds ?? Array.Empty<long>();
+        if (!string.IsNullOrWhiteSpace(item.ResolutionNotes))
+        {
+            resolutionNotes = item.ResolutionNotes;
+        }
+
         Stage = stage;
         AvailableSerials = availableSerials;
     }
@@ -555,6 +642,12 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
     public IReadOnlyList<long> PreparedUnitIds { get; }
 
     public IReadOnlyList<long> ReceivedUnitIds { get; }
+
+    public decimal? ReceivedQuantity { get; }
+
+    public decimal? ResolvedDifference { get; }
+
+    public string? CurrentResolutionStatus { get; }
 
     public InventoryTransferStage Stage { get; }
 
@@ -638,6 +731,77 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
     public string ExpectedLabel => ExpectedQuantity.ToString("0.####");
 
     public string WorkLabel => WorkQuantity.ToString("0.####");
+
+    public string ReceivedQuantityLabel => ReceivedQuantity?.ToString("0.####") ?? "-";
+
+    public string ResolvedDifferenceLabel => ResolvedDifference?.ToString("0.####") ?? "0";
+
+    public IReadOnlyList<ResolutionActionOption> AvailableResolutionActions { get; } = new List<ResolutionActionOption>
+    {
+        new("accepted_loss", "Aceptar perdida"),
+        new("adjusted_manually", "Ajuste manual"),
+        new("investigating", "Investigando"),
+    };
+
+    public string ResolutionAction
+    {
+        get => resolutionAction;
+        set
+        {
+            if (SetProperty(ref resolutionAction, value))
+            {
+                RaisePropertyChanged(nameof(RequiresResolutionQuantity));
+                RaisePropertyChanged(nameof(IsResolutionReady));
+            }
+        }
+    }
+
+    public decimal ResolutionQuantity
+    {
+        get => resolutionQuantity;
+        set
+        {
+            decimal normalized = value < 0 ? 0 : value;
+            if (SetProperty(ref resolutionQuantity, normalized))
+            {
+                RaisePropertyChanged(nameof(IsResolutionReady));
+            }
+        }
+    }
+
+    public string ResolutionNotes
+    {
+        get => resolutionNotes;
+        set => SetProperty(ref resolutionNotes, value ?? string.Empty);
+    }
+
+    public bool RequiresResolutionQuantity =>
+        Stage == InventoryTransferStage.Resolution
+        && string.Equals(resolutionAction, "adjusted_manually", StringComparison.Ordinal);
+
+    public bool IsResolutionReady
+    {
+        get
+        {
+            if (Stage != InventoryTransferStage.Resolution)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolutionAction))
+            {
+                return false;
+            }
+
+            if (string.Equals(resolutionAction, "adjusted_manually", StringComparison.Ordinal)
+                && resolutionQuantity <= 0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+    }
 
     public IReadOnlyList<long> GetSelectedSerialIds() => selectedSerialIds.ToList();
 
@@ -729,4 +893,22 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
         int count = (int)Math.Min(safeQuantity, ids.Count);
         return ids.Take(count).ToList();
     }
+
+    public ResolveInventoryTransferLineRequest BuildResolveRequest()
+    {
+        decimal? quantity = string.Equals(resolutionAction, "adjusted_manually", StringComparison.Ordinal)
+            ? resolutionQuantity
+            : null;
+        string? notes = string.IsNullOrWhiteSpace(resolutionNotes) ? null : resolutionNotes.Trim();
+        return new ResolveInventoryTransferLineRequest(
+            InventoryTransferItemId: ItemId,
+            Action: resolutionAction,
+            Quantity: quantity,
+            Notes: notes);
+    }
+}
+
+public sealed record ResolutionActionOption(string Value, string Label)
+{
+    public override string ToString() => Label;
 }

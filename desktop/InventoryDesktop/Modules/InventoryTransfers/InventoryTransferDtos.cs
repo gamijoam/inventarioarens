@@ -55,6 +55,13 @@ public sealed record InventoryTransferLine(
     [property: JsonPropertyName("received_quantity")]
     [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     decimal? ReceivedQuantity,
+    [property: JsonPropertyName("difference_quantity")]
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    decimal? DifferenceQuantity,
+    [property: JsonPropertyName("difference_reason")] string? DifferenceReason,
+    [property: JsonPropertyName("difference_notes")] string? DifferenceNotes,
+    [property: JsonPropertyName("resolution_status")] string? ResolutionStatus,
+    [property: JsonPropertyName("resolution_notes")] string? ResolutionNotes,
     [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long>? ProductUnitIds,
     [property: JsonPropertyName("prepared_product_unit_ids")] IReadOnlyList<long>? PreparedProductUnitIds,
     [property: JsonPropertyName("received_product_unit_ids")] IReadOnlyList<long>? ReceivedProductUnitIds);
@@ -94,6 +101,20 @@ public sealed record DispatchInventoryTransferRequest(
 public sealed record CancelInventoryTransferRequest(
     [property: JsonPropertyName("cancellation_reason")] string CancellationReason,
     [property: JsonPropertyName("cancelled_at")] string? CancelledAt = null);
+
+// === Resolucion de diferencias (desktop) ===
+
+public sealed record ResolveInventoryTransferRequest(
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("items")] IReadOnlyList<ResolveInventoryTransferLineRequest> Items);
+
+public sealed record ResolveInventoryTransferLineRequest(
+    [property: JsonPropertyName("inventory_transfer_item_id")] long InventoryTransferItemId,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    [property: JsonPropertyName("quantity")] decimal? Quantity,
+    [property: JsonPropertyName("notes")] string? Notes,
+    [property: JsonPropertyName("resolved_at")] string? ResolvedAt = null);
 
 // === Creacion de traslados (desktop) ===
 
