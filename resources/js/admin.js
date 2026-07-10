@@ -1,8 +1,6 @@
 const storageKey = 'inventory_admin_session';
 const requestTimeoutMs = 20000;
 
-console.log('[PORTAL] admin.js cargado v1.1 - ' + new Date().toISOString() + ' (con modulo de Traslados)');
-
 const state = {
     tenants: [],
     selectedTenant: null,
@@ -282,6 +280,27 @@ const elements = {
     suppliersPrev: document.querySelector('#admin-suppliers-prev'),
     suppliersNext: document.querySelector('#admin-suppliers-next'),
     suppliersStatus: document.querySelector('#admin-suppliers-status'),
+    transfersModule: document.querySelector('#admin-transfers-module'),
+    transfersRefresh: document.querySelector('#admin-transfers-refresh'),
+    transfersSearch: document.querySelector('#admin-transfers-search'),
+    transfersWarehouse: document.querySelector('#admin-transfers-warehouse'),
+    transfersDateFrom: document.querySelector('#admin-transfers-date-from'),
+    transfersDateTo: document.querySelector('#admin-transfers-date-to'),
+    transfersStatusOptions: document.querySelector('#admin-transfers-status-options'),
+    transfersApply: document.querySelector('#admin-transfers-apply'),
+    transfersClear: document.querySelector('#admin-transfers-clear'),
+    transfersTable: document.querySelector('#admin-transfers-table'),
+    transfersCount: document.querySelector('#admin-transfers-count'),
+    transfersPrev: document.querySelector('#admin-transfers-prev'),
+    transfersNext: document.querySelector('#admin-transfers-next'),
+    transfersStatus: document.querySelector('#admin-transfers-status'),
+    transfersChips: document.querySelectorAll('[data-admin-transfer-chip]'),
+    transfersChipTotal: document.querySelector('#admin-transfers-chip-total'),
+    transfersChipInFlight: document.querySelector('#admin-transfers-chip-in-flight'),
+    transfersChipDifferences: document.querySelector('#admin-transfers-chip-differences'),
+    transfersChipRequested: document.querySelector('#admin-transfers-chip-requested'),
+    transfersChipDispatched: document.querySelector('#admin-transfers-chip-dispatched'),
+    transfersChipCompletedDifferences: document.querySelector('#admin-transfers-chip-completed-differences'),
     supplierNew: document.querySelector('#admin-supplier-new'),
     supplierEditor: document.querySelector('#admin-supplier-editor'),
     supplierEditorTitle: document.querySelector('#admin-supplier-editor-title'),
