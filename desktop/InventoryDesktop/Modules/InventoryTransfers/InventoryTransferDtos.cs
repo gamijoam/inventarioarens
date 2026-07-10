@@ -91,6 +91,10 @@ public sealed record PrepareInventoryTransferLineRequest(
 public sealed record DispatchInventoryTransferRequest(
     [property: JsonPropertyName("notes")] string? Notes);
 
+public sealed record CancelInventoryTransferRequest(
+    [property: JsonPropertyName("cancellation_reason")] string CancellationReason,
+    [property: JsonPropertyName("cancelled_at")] string? CancelledAt = null);
+
 // === Creacion de traslados (desktop) ===
 
 public sealed record CreateInventoryTransferRequest(

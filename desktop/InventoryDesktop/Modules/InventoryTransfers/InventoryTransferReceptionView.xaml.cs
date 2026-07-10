@@ -143,6 +143,37 @@ public partial class InventoryTransferReceptionView : UserControl
         }
     }
 
+    private async void CancelTransfer_Click(object sender, RoutedEventArgs e)
+    {
+        if (viewModel is null || viewModel.SelectedTransfer is null)
+        {
+            return;
+        }
+
+        InventoryTransferItem transfer = viewModel.SelectedTransfer;
+        InventoryTransferCancelWindow dialog = new(transfer.GuideNumber, transfer.DocumentNumber, transfer.RouteLabel)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        bool? result = dialog.ShowDialog();
+        if (result != true)
+        {
+            return;
+        }
+
+        bool cancelled = await viewModel.ConfirmCancelAsync(dialog.Reason);
+        if (cancelled)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "Traslado cancelado correctamente.",
+                "Traslado cancelado",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
     private async void ImeiPicker_Click(object sender, RoutedEventArgs e)
     {
         if (viewModel is null || apiClient is null)

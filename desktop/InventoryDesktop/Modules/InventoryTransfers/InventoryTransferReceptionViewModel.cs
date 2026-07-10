@@ -82,6 +82,10 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 
     public bool CanComplete => CanPrepare || CanReceive;
 
+    public bool CanCancel => !IsBusy
+        && SelectedTransfer is not null
+        && IsTransferCancellable(SelectedTransfer.Status);
+
     public string CountLabel => $"{Transfers.Count} guia(s)";
 
     public string StageTitle => SelectedStage switch
@@ -292,6 +296,67 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         }
     }
 
+    public async Task<bool> ConfirmCancelAsync(string cancellationReason)
+    {
+        if (!CanCancel || SelectedTransfer is null)
+        {
+            return false;
+        }
+
+        string reason = (cancellationReason ?? string.Empty).Trim();
+        if (reason.Length < 5)
+        {
+            SetStatus("El motivo de cancelacion debe tener al menos 5 caracteres.", true);
+            return false;
+        }
+
+        IsBusy = true;
+        SetStatus("Cancelando traslado...", false);
+
+        try
+        {
+            CancelInventoryTransferRequest request = new(reason);
+            await apiClient.PostAsync<CancelInventoryTransferRequest, InventoryTransferResponse>(
+                $"admin-portal/transfers/{SelectedTransfer.Id}/cancel",
+                request);
+
+            string guide = string.IsNullOrWhiteSpace(SelectedTransfer.GuideNumber)
+                ? SelectedTransfer.DocumentNumber
+                : SelectedTransfer.GuideNumber;
+            SetStatus($"Traslado {guide} cancelado correctamente.", false);
+            await LoadAsync();
+            return true;
+        }
+        catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(exception is ApiException ? exception.Message : "No se pudo cancelar el traslado.", true);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static bool IsTransferCancellable(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return false;
+        }
+
+        return status switch
+        {
+            "requested" => true,
+            "in_preparation" => true,
+            "prepared" => true,
+            "prepared_with_differences" => true,
+            "dispatched" => true,
+            "in_reception" => true,
+            _ => false,
+        };
+    }
+
     public async Task<bool> ConfirmReceptionAsync()
     {
         if (!CanReceive || SelectedTransfer is null)
@@ -423,6 +488,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         RaisePropertyChanged(nameof(SelectedTitle));
         RaisePropertyChanged(nameof(SelectedRoute));
         RaisePropertyChanged(nameof(SelectedSummary));
+        RaisePropertyChanged(nameof(CanCancel));
         RaiseActionProperties();
     }
 
@@ -432,6 +498,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         RaisePropertyChanged(nameof(CanDispatch));
         RaisePropertyChanged(nameof(CanReceive));
         RaisePropertyChanged(nameof(CanComplete));
+        RaisePropertyChanged(nameof(CanCancel));
     }
 }
 
