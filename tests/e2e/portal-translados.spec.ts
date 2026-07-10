@@ -55,6 +55,9 @@ test.describe('Portal de traslados', () => {
     test('carga el listado de traslados despues del login', async ({ page }) => {
         await login(page);
 
+        // Esperar que la navegacion SPA termine de inyectar las secciones del menu.
+        await page.waitForSelector('[data-portal-section="transfers"]', { timeout: 60000 });
+
         // Ir a la seccion de traslados
         await page.locator('button[data-portal-section="transfers"]').first().click();
 
