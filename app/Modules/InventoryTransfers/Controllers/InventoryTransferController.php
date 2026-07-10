@@ -3,6 +3,7 @@
 namespace App\Modules\InventoryTransfers\Controllers;
 
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Requests\CancelInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\DispatchInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\PrepareInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\ReceiveInventoryTransferRequest;
@@ -74,6 +75,18 @@ class InventoryTransferController extends Controller
 
         return InventoryTransferResource::make(
             $service->receive($request->user(), $inventoryTransfer, $request->validated())
+        );
+    }
+
+    public function cancel(
+        CancelInventoryTransferRequest $request,
+        InventoryTransfer $inventoryTransfer,
+        InventoryTransferService $service,
+    ): InventoryTransferResource {
+        Gate::authorize('cancel', $inventoryTransfer);
+
+        return InventoryTransferResource::make(
+            $service->cancel($request->user(), $inventoryTransfer, $request->validated())
         );
     }
 
