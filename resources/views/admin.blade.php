@@ -1835,6 +1835,45 @@
                             <p class="dashboard-status" id="admin-transfers-status" role="status" aria-live="polite"></p>
                         </section>
 
+                        <aside class="transfers-drawer" id="admin-transfer-drawer" hidden>
+                            <div class="transfers-drawer__backdrop" data-admin-transfer-drawer-close></div>
+                            <div class="transfers-drawer__panel" role="dialog" aria-labelledby="admin-transfer-drawer-title" aria-modal="true">
+                                <header class="transfers-drawer__header">
+                                    <div class="transfers-drawer__heading">
+                                        <span class="soft-badge">Traslado</span>
+                                        <h3 id="admin-transfer-drawer-title">Cargando...</h3>
+                                        <p id="admin-transfer-drawer-subtitle">—</p>
+                                    </div>
+                                    <button class="transfers-drawer__close" type="button" data-admin-transfer-drawer-close aria-label="Cerrar">×</button>
+                                </header>
+
+                                <div class="transfers-drawer__body">
+                                    <div class="transfers-drawer__status" id="admin-transfer-drawer-status-pill"></div>
+
+                                    <dl class="transfers-drawer__meta">
+                                        <div><dt>Origen</dt><dd id="admin-transfer-drawer-from">—</dd></div>
+                                        <div><dt>Destino</dt><dd id="admin-transfer-drawer-to">—</dd></div>
+                                        <div><dt>Referencia</dt><dd id="admin-transfer-drawer-reference">—</dd></div>
+                                        <div><dt>Motivo</dt><dd id="admin-transfer-drawer-reason">—</dd></div>
+                                        <div><dt>Solicitado</dt><dd id="admin-transfer-drawer-requested-at">—</dd></div>
+                                        <div><dt>Preparado</dt><dd id="admin-transfer-drawer-prepared-at">—</dd></div>
+                                        <div><dt>Despachado</dt><dd id="admin-transfer-drawer-dispatched-at">—</dd></div>
+                                        <div><dt>Recibido</dt><dd id="admin-transfer-drawer-received-at">—</dd></div>
+                                        <div><dt>Cancelado</dt><dd id="admin-transfer-drawer-cancelled-at">—</dd></div>
+                                    </dl>
+
+                                    <h4 class="transfers-drawer__section-title">Productos</h4>
+                                    <div class="transfers-drawer__items" id="admin-transfer-drawer-items"></div>
+
+                                    <div class="transfers-drawer__action-bar" id="admin-transfer-drawer-actions"></div>
+
+                                    <div class="transfers-drawer__form" id="admin-transfer-drawer-form" hidden></div>
+
+                                    <p class="dashboard-status" id="admin-transfer-drawer-feedback" role="status" aria-live="polite"></p>
+                                </div>
+                            </div>
+                        </aside>
+
                         <section class="admin-module-panel access-admin" id="admin-users-module" hidden>
                             <div class="module-head">
                                 <div>

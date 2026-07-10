@@ -60,6 +60,12 @@ const state = {
             search: '',
         },
         transfers: [],
+        detail: {
+            id: null,
+            data: null,
+            activeAction: null,
+            loading: false,
+        },
     },
     customers: {
         page: 1,
@@ -301,6 +307,23 @@ const elements = {
     transfersChipRequested: document.querySelector('#admin-transfers-chip-requested'),
     transfersChipDispatched: document.querySelector('#admin-transfers-chip-dispatched'),
     transfersChipCompletedDifferences: document.querySelector('#admin-transfers-chip-completed-differences'),
+    transferDrawer: document.querySelector('#admin-transfer-drawer'),
+    transferDrawerTitle: document.querySelector('#admin-transfer-drawer-title'),
+    transferDrawerSubtitle: document.querySelector('#admin-transfer-drawer-subtitle'),
+    transferDrawerStatusPill: document.querySelector('#admin-transfer-drawer-status-pill'),
+    transferDrawerFrom: document.querySelector('#admin-transfer-drawer-from'),
+    transferDrawerTo: document.querySelector('#admin-transfer-drawer-to'),
+    transferDrawerReference: document.querySelector('#admin-transfer-drawer-reference'),
+    transferDrawerReason: document.querySelector('#admin-transfer-drawer-reason'),
+    transferDrawerRequestedAt: document.querySelector('#admin-transfer-drawer-requested-at'),
+    transferDrawerPreparedAt: document.querySelector('#admin-transfer-drawer-prepared-at'),
+    transferDrawerDispatchedAt: document.querySelector('#admin-transfer-drawer-dispatched-at'),
+    transferDrawerReceivedAt: document.querySelector('#admin-transfer-drawer-received-at'),
+    transferDrawerCancelledAt: document.querySelector('#admin-transfer-drawer-cancelled-at'),
+    transferDrawerItems: document.querySelector('#admin-transfer-drawer-items'),
+    transferDrawerActions: document.querySelector('#admin-transfer-drawer-actions'),
+    transferDrawerForm: document.querySelector('#admin-transfer-drawer-form'),
+    transferDrawerFeedback: document.querySelector('#admin-transfer-drawer-feedback'),
     supplierNew: document.querySelector('#admin-supplier-new'),
     supplierEditor: document.querySelector('#admin-supplier-editor'),
     supplierEditorTitle: document.querySelector('#admin-supplier-editor-title'),
@@ -2586,9 +2609,7 @@ function transferRow(transfer) {
     button.type = 'button';
     button.textContent = 'Ver';
     button.dataset.adminTransferView = String(transfer.id);
-    button.addEventListener('click', () => {
-        setStatus(elements.transfersStatus, `Detalle del traslado #${transfer.document_number} se habilita en la fase 2.`, 'neutral');
-    });
+    button.addEventListener('click', () => openTransferDrawer(transfer.id));
     action.appendChild(button);
 
     row.appendChild(code);
@@ -2654,6 +2675,557 @@ function clearTransferFilters() {
     }
     state.transfers.filters = { status: [], warehouse_id: '', date_from: '', date_to: '', search: '' };
     loadTransfers(1);
+}
+
+async function openTransferDrawer(transferId) {
+    if (!elements.transferDrawer) {
+        return;
+    }
+    const session = state.session;
+    if (!session) {
+        return;
+    }
+    if (!can('inventory_transfers.admin')) {
+        setStatus(elements.transfersStatus, 'No tienes permiso para ver el detalle del traslado.', 'error');
+        return;
+    }
+
+    state.transfers.detail.id = transferId;
+    state.transfers.detail.data = null;
+    state.transfers.detail.activeAction = null;
+
+    elements.transferDrawer.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    if (elements.transferDrawerTitle) {
+        elements.transferDrawerTitle.textContent = 'Cargando traslado...';
+    }
+    if (elements.transferDrawerSubtitle) {
+        elements.transferDrawerSubtitle.textContent = 'Obteniendo detalle.';
+    }
+    if (elements.transferDrawerItems) {
+        elements.transferDrawerItems.replaceChildren();
+    }
+    if (elements.transferDrawerActions) {
+        elements.transferDrawerActions.replaceChildren();
+    }
+    if (elements.transferDrawerForm) {
+        elements.transferDrawerForm.hidden = true;
+        elements.transferDrawerForm.replaceChildren();
+    }
+    setStatus(elements.transferDrawerFeedback, '', 'neutral');
+
+    await loadTransferDetail();
+}
+
+function closeTransferDrawer() {
+    if (!elements.transferDrawer) {
+        return;
+    }
+    elements.transferDrawer.hidden = true;
+    document.body.style.overflow = '';
+    state.transfers.detail.id = null;
+    state.transfers.detail.data = null;
+    state.transfers.detail.activeAction = null;
+}
+
+async function loadTransferDetail() {
+    const session = state.session;
+    const transferId = state.transfers.detail.id;
+    if (!session || !transferId) {
+        return;
+    }
+    if (state.transfers.detail.loading) {
+        return;
+    }
+
+    state.transfers.detail.loading = true;
+    try {
+        const data = await api(`/api/admin-portal/transfers/${transferId}`, { headers: authHeaders(session) }, true);
+        state.transfers.detail.data = data;
+        renderTransferDetail(data);
+    } catch (error) {
+        setStatus(elements.transferDrawerFeedback, normalizeError(error), 'error');
+    } finally {
+        state.transfers.detail.loading = false;
+    }
+}
+
+function renderTransferDetail(payload) {
+    const transfer = payload.transfer || {};
+    const items = payload.items || [];
+    const available = payload.available_actions || [];
+
+    if (elements.transferDrawerTitle) {
+        elements.transferDrawerTitle.textContent = transfer.document_number || `Traslado #${transfer.id || ''}`;
+    }
+    if (elements.transferDrawerSubtitle) {
+        elements.transferDrawerSubtitle.textContent = `${transfer.guide_number || ''} · Ref: ${transfer.reference || '—'}`;
+    }
+
+    if (elements.transferDrawerStatusPill) {
+        const pill = document.createElement('span');
+        pill.className = 'status-pill';
+        pill.dataset.tone = transferStatusTone(transfer.status);
+        pill.textContent = transfer.status_label || transfer.status || '—';
+        elements.transferDrawerStatusPill.replaceChildren(pill);
+    }
+
+    if (elements.transferDrawerFrom) {
+        elements.transferDrawerFrom.textContent = transfer.from_warehouse_name || `Almacén #${transfer.from_warehouse_id ?? '—'}`;
+    }
+    if (elements.transferDrawerTo) {
+        elements.transferDrawerTo.textContent = transfer.to_warehouse_name || `Almacén #${transfer.to_warehouse_id ?? '—'}`;
+    }
+    if (elements.transferDrawerReference) {
+        elements.transferDrawerReference.textContent = transfer.reference || '—';
+    }
+    if (elements.transferDrawerReason) {
+        elements.transferDrawerReason.textContent = transfer.reason || '—';
+    }
+    if (elements.transferDrawerRequestedAt) {
+        elements.transferDrawerRequestedAt.textContent = formatDateTime(transfer.requested_at || transfer.processed_at);
+    }
+    if (elements.transferDrawerPreparedAt) {
+        elements.transferDrawerPreparedAt.textContent = formatDateTime(transfer.prepared_at);
+    }
+    if (elements.transferDrawerDispatchedAt) {
+        elements.transferDrawerDispatchedAt.textContent = formatDateTime(transfer.dispatched_at);
+    }
+    if (elements.transferDrawerReceivedAt) {
+        elements.transferDrawerReceivedAt.textContent = formatDateTime(transfer.received_at);
+    }
+    if (elements.transferDrawerCancelledAt) {
+        elements.transferDrawerCancelledAt.textContent = formatDateTime(transfer.cancelled_at);
+    }
+
+    if (elements.transferDrawerItems) {
+        elements.transferDrawerItems.replaceChildren(...items.map(drawerItemCard));
+    }
+
+    if (elements.transferDrawerActions) {
+        elements.transferDrawerActions.replaceChildren(...buildActionButtons(available));
+    }
+
+    setStatus(elements.transferDrawerFeedback, '', 'neutral');
+}
+
+function drawerItemCard(item) {
+    const card = document.createElement('div');
+    card.className = 'transfers-drawer__item';
+    card.dataset.itemId = String(item.id);
+
+    const head = document.createElement('div');
+    head.className = 'transfers-drawer__item-head';
+    const name = document.createElement('div');
+    name.innerHTML = `<div class="transfers-drawer__item-name">${escapeHtml(item.product_name || `Producto #${item.product_id ?? '—'}`)}</div><div class="transfers-drawer__item-sku">${escapeHtml(item.product_sku || '')}</div>`;
+    head.appendChild(name);
+    card.appendChild(head);
+
+    const stats = document.createElement('div');
+    stats.className = 'transfers-drawer__item-stats';
+    const requested = item.requested_quantity ?? item.quantity ?? 0;
+    const prepared = item.prepared_quantity ?? '—';
+    const received = item.received_quantity ?? '—';
+    const difference = item.difference_quantity ?? 0;
+    stats.innerHTML = `
+        <div>Solicitado <strong>${number(requested)}</strong></div>
+        <div>Preparado <strong>${prepared === '—' ? '—' : number(prepared)}</strong></div>
+        <div>Recibido <strong>${received === '—' ? '—' : number(received)}</strong></div>
+        <div>Diferencia <strong>${number(difference)}</strong></div>
+    `;
+    card.appendChild(stats);
+
+    if (Number(difference) !== 0 || item.difference_reason || item.difference_notes || item.resolution_status) {
+        const diff = document.createElement('div');
+        diff.className = 'transfers-drawer__item-diff';
+        const lines = [];
+        if (item.difference_reason) {
+            lines.push(`<strong>Motivo:</strong> ${escapeHtml(item.difference_reason)}`);
+        }
+        if (item.difference_notes) {
+            lines.push(`<strong>Notas:</strong> ${escapeHtml(item.difference_notes)}`);
+        }
+        if (item.resolution_status && item.resolution_status !== 'unresolved') {
+            lines.push(`<strong>Resolución:</strong> ${escapeHtml(item.resolution_status)}`);
+        }
+        diff.innerHTML = lines.join('<br>');
+        card.appendChild(diff);
+    }
+
+    return card;
+}
+
+function buildActionButtons(available) {
+    if (!available || available.length === 0) {
+        const note = document.createElement('span');
+        note.style.color = 'var(--muted)';
+        note.style.fontSize = '12px';
+        note.textContent = 'Este traslado no admite acciones adicionales.';
+        return [note];
+    }
+
+    const labels = {
+        prepare: 'Preparar',
+        dispatch: 'Despachar',
+        receive: 'Recibir',
+        cancel: 'Cancelar',
+        resolve_differences: 'Resolver diferencias',
+    };
+
+    return available.map((action) => {
+        const button = document.createElement('button');
+        const destructive = action === 'cancel';
+        button.className = destructive ? 'danger-button' : 'primary-button';
+        button.type = 'button';
+        button.textContent = labels[action] || action;
+        button.dataset.transferAction = action;
+        button.addEventListener('click', () => showTransferActionForm(action));
+        return button;
+    });
+}
+
+function showTransferActionForm(action) {
+    const data = state.transfers.detail.data;
+    if (!data) {
+        return;
+    }
+
+    state.transfers.detail.activeAction = action;
+
+    if (elements.transferDrawerForm) {
+        elements.transferDrawerForm.hidden = false;
+        elements.transferDrawerForm.replaceChildren(...buildActionForm(action, data));
+    }
+
+    setStatus(elements.transferDrawerFeedback, '', 'neutral');
+}
+
+function buildActionForm(action, data) {
+    const transfer = data.transfer || {};
+    const items = data.items || [];
+    const nodes = [];
+
+    const title = document.createElement('h5');
+    title.className = 'transfers-drawer__form-title';
+    title.textContent = actionTitle(action);
+    nodes.push(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'transfers-drawer__form-hint';
+    hint.textContent = actionHint(action);
+    nodes.push(hint);
+
+    if (action === 'prepare' || action === 'receive') {
+        items.forEach((item) => {
+            nodes.push(buildQuantityItemBlock(action, item));
+        });
+        nodes.push(buildNotesField(`${action}_notes`, 'Notas (opcional)', ''));
+    } else if (action === 'dispatch') {
+        nodes.push(buildNotesField('notes', 'Notas (opcional)', ''));
+    } else if (action === 'cancel') {
+        nodes.push(buildNotesField('cancellation_reason', 'Motivo de cancelación', 'Detalla por qué se cancela (mínimo 5 caracteres).', { required: true, minLength: 5 }));
+    } else if (action === 'resolve_differences') {
+        const diffItems = items.filter((item) => Number(item.difference_quantity ?? 0) !== 0);
+        if (diffItems.length === 0) {
+            const note = document.createElement('p');
+            note.className = 'transfers-drawer__form-hint';
+            note.textContent = 'No hay items con diferencias para resolver.';
+            nodes.push(note);
+        } else {
+            diffItems.forEach((item) => nodes.push(buildResolveItemBlock(item)));
+        }
+        nodes.push(buildNotesField('notes', 'Notas globales (opcional)', ''));
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'transfers-drawer__form-actions';
+
+    const cancel = document.createElement('button');
+    cancel.className = 'ghost-button';
+    cancel.type = 'button';
+    cancel.textContent = 'Cancelar';
+    cancel.addEventListener('click', () => {
+        state.transfers.detail.activeAction = null;
+        if (elements.transferDrawerForm) {
+            elements.transferDrawerForm.hidden = true;
+            elements.transferDrawerForm.replaceChildren();
+        }
+    });
+    actions.appendChild(cancel);
+
+    const submit = document.createElement('button');
+    submit.className = 'primary-button';
+    submit.type = 'button';
+    submit.textContent = actionTitle(action);
+    submit.dataset.transferActionSubmit = action;
+    submit.addEventListener('click', () => submitTransferAction(action));
+    actions.appendChild(submit);
+
+    nodes.push(actions);
+    return nodes;
+}
+
+function actionTitle(action) {
+    return {
+        prepare: 'Confirmar preparación',
+        dispatch: 'Confirmar despacho',
+        receive: 'Confirmar recepción',
+        cancel: 'Cancelar traslado',
+        resolve_differences: 'Resolver diferencias',
+    }[action] || action;
+}
+
+function actionHint(action) {
+    return {
+        prepare: 'Indica cuánto preparas de cada producto. Si preparas menos, registra el motivo.',
+        dispatch: 'Marca el traslado como despachado. Esta acción es irreversible.',
+        receive: 'Indica cuánto recibes de cada producto. Si recibes menos, registra el motivo.',
+        cancel: 'El traslado volverá a estado cancelado y se liberará el stock reservado.',
+        resolve_differences: 'Asigna una acción de cierre para cada item con diferencia. Si el ajuste es manual, indica la cantidad.',
+    }[action] || '';
+}
+
+function buildQuantityItemBlock(action, item) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'transfers-drawer__form-item';
+
+    const name = document.createElement('div');
+    name.className = 'transfers-drawer__form-item-name';
+    const requested = item.requested_quantity ?? item.quantity ?? 0;
+    const prepOrRecv = action === 'prepare' ? item.prepared_quantity : item.received_quantity;
+    name.textContent = `${item.product_name || `Producto #${item.product_id ?? '—'}`} · Solicitado ${number(requested)}`;
+    wrapper.appendChild(name);
+
+    const grid = document.createElement('div');
+    grid.className = 'transfers-drawer__form-item-grid';
+
+    const qtyField = document.createElement('label');
+    qtyField.className = 'field';
+    qtyField.innerHTML = `<span>Cantidad ${action === 'prepare' ? 'preparada' : 'recibida'}</span>
+        <input type="number" min="0" step="0.01" data-transfer-action-field="quantity" data-item-id="${item.id}"
+            value="${prepOrRecv ?? requested}">`;
+    grid.appendChild(qtyField);
+
+    const reasonField = document.createElement('label');
+    reasonField.className = 'field';
+    reasonField.innerHTML = `<span>Motivo diferencia</span>
+        <input type="text" maxlength="255" data-transfer-action-field="reason" data-item-id="${item.id}"
+            value="${escapeHtml(item.difference_reason || '')}" placeholder="Solo si hay diferencia">`;
+    grid.appendChild(reasonField);
+
+    wrapper.appendChild(grid);
+
+    const notesField = document.createElement('label');
+    notesField.className = 'field';
+    notesField.innerHTML = `<span>Notas del item</span>
+        <input type="text" maxlength="1000" data-transfer-action-field="notes" data-item-id="${item.id}"
+            value="${escapeHtml(item.difference_notes || '')}" placeholder="Opcional">`;
+    wrapper.appendChild(notesField);
+
+    return wrapper;
+}
+
+function buildResolveItemBlock(item) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'transfers-drawer__form-item';
+
+    const name = document.createElement('div');
+    name.className = 'transfers-drawer__form-item-name';
+    name.textContent = `${item.product_name || `Producto #${item.product_id ?? '—'}`} · Diferencia ${number(item.difference_quantity)}`;
+    wrapper.appendChild(name);
+
+    const grid = document.createElement('div');
+    grid.className = 'transfers-drawer__form-item-grid';
+
+    const actionField = document.createElement('label');
+    actionField.className = 'field';
+    actionField.innerHTML = `<span>Acción</span>
+        <select data-transfer-action-field="action" data-item-id="${item.id}">
+            <option value="investigating" ${item.resolution_status === 'investigating' ? 'selected' : ''}>Investigando</option>
+            <option value="accepted_loss" ${item.resolution_status === 'accepted_loss' ? 'selected' : ''}>Aceptar pérdida</option>
+            <option value="adjusted_manually" ${item.resolution_status === 'adjusted_manually' ? 'selected' : ''}>Ajuste manual</option>
+        </select>`;
+    grid.appendChild(actionField);
+
+    const qtyField = document.createElement('label');
+    qtyField.className = 'field';
+    qtyField.innerHTML = `<span>Cantidad (ajuste manual)</span>
+        <input type="number" min="0" step="0.01" data-transfer-action-field="quantity" data-item-id="${item.id}"
+            value="${item.resolution_status === 'adjusted_manually' ? number(item.difference_quantity) : ''}">`;
+    grid.appendChild(qtyField);
+
+    wrapper.appendChild(grid);
+
+    const notesField = document.createElement('label');
+    notesField.className = 'field';
+    notesField.innerHTML = `<span>Notas del item</span>
+        <input type="text" maxlength="1000" data-transfer-action-field="notes" data-item-id="${item.id}"
+            value="${escapeHtml(item.resolution_notes || '')}" placeholder="Opcional">`;
+    wrapper.appendChild(notesField);
+
+    return wrapper;
+}
+
+function buildNotesField(name, label, placeholder, opts = {}) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'field';
+    const required = opts.required ? ' <span style="color:var(--red)">*</span>' : '';
+    wrapper.innerHTML = `<span>${label}${required}</span>
+        <textarea rows="2" maxlength="1000" data-transfer-action-field="${name}" placeholder="${escapeHtml(placeholder)}" ${opts.minLength ? `minlength="${opts.minLength}"` : ''} ${opts.required ? 'required' : ''}></textarea>`;
+    return wrapper;
+}
+
+function collectActionPayload(action) {
+    const data = state.transfers.detail.data;
+    if (!data) {
+        return null;
+    }
+    const items = data.items || [];
+
+    if (action === 'prepare' || action === 'receive') {
+        const qtyKey = action === 'prepare' ? 'prepared_quantity' : 'received_quantity';
+        const arr = items.map((item) => {
+            const qty = readFieldValue(action, 'quantity', item.id);
+            const reason = readFieldValue(action, 'reason', item.id);
+            const notes = readFieldValue(action, 'notes', item.id);
+            return {
+                inventory_transfer_item_id: item.id,
+                [qtyKey]: qty === '' ? null : Number(qty),
+                difference_reason: reason || null,
+                difference_notes: notes || null,
+            };
+        });
+        const notes = readFieldValue(action, `${action}_notes`);
+        const payload = { items: arr };
+        if (notes) payload.notes = notes;
+        return payload;
+    }
+
+    if (action === 'dispatch') {
+        const notes = readFieldValue(action, 'notes');
+        return notes ? { notes } : {};
+    }
+
+    if (action === 'cancel') {
+        const reason = readFieldValue(action, 'cancellation_reason') || '';
+        return { cancellation_reason: reason };
+    }
+
+    if (action === 'resolve_differences') {
+        const diffItems = items.filter((item) => Number(item.difference_quantity ?? 0) !== 0);
+        const arr = diffItems.map((item) => {
+            const act = readFieldValue(action, 'action', item.id);
+            const qty = readFieldValue(action, 'quantity', item.id);
+            const notes = readFieldValue(action, 'notes', item.id);
+            const entry = {
+                inventory_transfer_item_id: item.id,
+                action: act,
+            };
+            if (act === 'adjusted_manually') {
+                entry.quantity = qty === '' ? null : Number(qty);
+            }
+            if (notes) {
+                entry.notes = notes;
+            }
+            return entry;
+        });
+        const notes = readFieldValue(action, 'notes');
+        const payload = { items: arr };
+        if (notes) payload.notes = notes;
+        return payload;
+    }
+
+    return null;
+}
+
+function readFieldValue(action, field, itemId = null) {
+    if (!elements.transferDrawerForm) {
+        return '';
+    }
+    const selector = itemId !== null
+        ? `[data-transfer-action-field="${field}"][data-item-id="${itemId}"]`
+        : `[data-transfer-action-field="${field}"]`;
+    const el = elements.transferDrawerForm.querySelector(selector);
+    return el ? el.value.trim() : '';
+}
+
+async function submitTransferAction(action) {
+    const session = state.session;
+    const transferId = state.transfers.detail.id;
+    if (!session || !transferId) {
+        return;
+    }
+
+    const payload = collectActionPayload(action);
+    if (!payload) {
+        return;
+    }
+
+    if (action === 'cancel' && (!payload.cancellation_reason || payload.cancellation_reason.length < 5)) {
+        setStatus(elements.transferDrawerFeedback, 'Indica un motivo de cancelación de al menos 5 caracteres.', 'error');
+        return;
+    }
+
+    if (action === 'resolve_differences') {
+        if (!payload.items.length) {
+            setStatus(elements.transferDrawerFeedback, 'No hay items con diferencias para resolver.', 'error');
+            return;
+        }
+        for (const item of payload.items) {
+            if (item.action === 'adjusted_manually' && (!item.quantity || item.quantity <= 0)) {
+                setStatus(elements.transferDrawerFeedback, 'Indica la cantidad para los items con ajuste manual.', 'error');
+                return;
+            }
+        }
+    }
+
+    if (action === 'prepare' || action === 'receive') {
+        for (const item of payload.items) {
+            if (item.prepared_quantity !== undefined && item.prepared_quantity !== null && Number(item.difference_quantity ?? 0) > 0 && !item.difference_reason) {
+                setStatus(elements.transferDrawerFeedback, 'Indica el motivo cuando se prepara/recibe menos de lo solicitado.', 'error');
+                return;
+            }
+        }
+    }
+
+    const submitButton = elements.transferDrawerForm?.querySelector(`[data-transfer-action-submit="${action}"]`);
+    if (submitButton) {
+        setButtonLoading(submitButton, true, actionTitle(action));
+    }
+    setStatus(elements.transferDrawerFeedback, 'Procesando...', 'info');
+
+    try {
+        await api(`/api/admin-portal/transfers/${transferId}/${actionEndpoint(action)}`, {
+            method: 'POST',
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }, true);
+
+        setStatus(elements.transferDrawerFeedback, 'Acción aplicada.', 'success');
+        state.transfers.detail.activeAction = null;
+        if (elements.transferDrawerForm) {
+            elements.transferDrawerForm.hidden = true;
+            elements.transferDrawerForm.replaceChildren();
+        }
+        await loadTransferDetail();
+        await loadTransfers(state.transfers.page);
+        if (!state.transfers.summaryLoaded) {
+            await loadTransferSummary();
+        } else {
+            await loadTransferSummary();
+        }
+    } catch (error) {
+        setStatus(elements.transferDrawerFeedback, normalizeError(error), 'error');
+    } finally {
+        if (submitButton) {
+            setButtonLoading(submitButton, false, actionTitle(action));
+        }
+    }
+}
+
+function actionEndpoint(action) {
+    return action === 'resolve_differences' ? 'resolve-differences' : action;
 }
 
 async function loadCustomers(page = state.customers.page) {
@@ -5826,6 +6398,16 @@ elements.transfersChips?.forEach((chip) => {
         loadTransfers(1);
     });
 });
+if (elements.transferDrawer) {
+    elements.transferDrawer.querySelectorAll('[data-admin-transfer-drawer-close]').forEach((el) => {
+        el.addEventListener('click', closeTransferDrawer);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !elements.transferDrawer.hidden) {
+            closeTransferDrawer();
+        }
+    });
+}
 elements.customersRefresh?.addEventListener('click', () => loadCustomers());
 elements.customerNew?.addEventListener('click', clearCustomerForm);
 elements.customersApply?.addEventListener('click', () => loadCustomers(1));
