@@ -2719,3 +2719,81 @@ button {
     color: var(--muted);
     word-break: break-all;
 }
+
+.transfers-drawer__audit {
+    display: grid;
+    gap: 8px;
+}
+
+.transfers-drawer__audit-event {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    align-items: start;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.transfers-drawer__audit-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 6px;
+    background: var(--primary);
+    box-shadow: 0 0 0 3px rgba(62, 53, 242, 0.18);
+}
+
+.transfers-drawer__audit-dot--inventory-transfer-created { background: #16A34A; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18); }
+.transfers-drawer__audit-dot--inventory-transfer-prepared { background: #2563EB; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18); }
+.transfers-drawer__audit-dot--inventory-transferred-dispatched { background: #B45309; box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.18); }
+.transfers-drawer__audit-dot--inventory-transfer-received { background: #0EA5E9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18); }
+.transfers-drawer__audit-dot--inventory-transfer-cancelled { background: #D9365C; box-shadow: 0 0 0 3px rgba(217, 54, 92, 0.18); }
+.transfers-drawer__audit-dot--inventory-transfer-differences-resolved { background: #7C3AED; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18); }
+
+.transfers-drawer__audit-body {
+    display: grid;
+    gap: 4px;
+}
+
+.transfers-drawer__audit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.transfers-drawer__audit-head strong {
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.transfers-drawer__audit-when {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.transfers-drawer__audit-meta {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.transfers-drawer__audit-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.transfers-drawer__audit-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--ink);
+    font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+}

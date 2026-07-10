@@ -1866,6 +1866,9 @@
                                     <h4 class="transfers-drawer__section-title">Productos</h4>
                                     <div class="transfers-drawer__items" id="admin-transfer-drawer-items"></div>
 
+                                    <h4 class="transfers-drawer__section-title">Historial</h4>
+                                    <div class="transfers-drawer__audit" id="admin-transfer-drawer-audit"></div>
+
                                     <div class="transfers-drawer__action-bar" id="admin-transfer-drawer-actions"></div>
 
                                     <div class="transfers-drawer__form" id="admin-transfer-drawer-form" hidden></div>

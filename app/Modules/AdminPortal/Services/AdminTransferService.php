@@ -224,6 +224,8 @@ class AdminTransferService
             abort(404, 'Traslado no encontrado.');
         }
 
+        $auditEvents = $this->auditEvents($transfer->id);
+
         $items = $transfer->items->map(function ($item): array {
             $product = $item->product;
             $serialized = $product?->tracking_type === 'serialized';
@@ -265,7 +267,33 @@ class AdminTransferService
                 'id' => $transfer->resolver->id,
                 'name' => $transfer->resolver->name,
             ] : null,
+            'audit' => $auditEvents,
         ];
+    }
+
+    /**
+     * Devuelve los eventos de audit_log del traslado, mas recientes primero.
+     * Limita a 50 para no inflar el payload.
+     */
+    private function auditEvents(int $transferId): array
+    {
+        return \App\Modules\Audit\Models\AuditLog::query()
+            ->where('entity_type', \App\Modules\InventoryTransfers\Models\InventoryTransfer::class)
+            ->where('entity_id', $transferId)
+            ->with('user:id,name')
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn ($event): array => [
+                'action' => $event->action,
+                'created_at' => $event->created_at?->toISOString(),
+                'user' => $event->user ? [
+                    'id' => $event->user->id,
+                    'name' => $event->user->name,
+                ] : null,
+                'new_values' => $event->new_values,
+            ])
+            ->all();
     }
 
     /**

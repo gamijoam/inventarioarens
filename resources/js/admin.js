@@ -332,6 +332,7 @@ const elements = {
     transferDrawerReceivedAt: document.querySelector('#admin-transfer-drawer-received-at'),
     transferDrawerCancelledAt: document.querySelector('#admin-transfer-drawer-cancelled-at'),
     transferDrawerItems: document.querySelector('#admin-transfer-drawer-items'),
+    transferDrawerAudit: document.querySelector('#admin-transfer-drawer-audit'),
     transferDrawerActions: document.querySelector('#admin-transfer-drawer-actions'),
     transferDrawerForm: document.querySelector('#admin-transfer-drawer-form'),
     transferDrawerFeedback: document.querySelector('#admin-transfer-drawer-feedback'),
@@ -2872,6 +2873,10 @@ function renderTransferDetail(payload) {
         elements.transferDrawerItems.replaceChildren(...items.map(drawerItemCard));
     }
 
+    if (elements.transferDrawerAudit) {
+        elements.transferDrawerAudit.replaceChildren(...(payload.audit || []).map(auditEventCard));
+    }
+
     if (elements.transferDrawerActions) {
         elements.transferDrawerActions.replaceChildren(...buildActionButtons(available));
     }
@@ -2925,11 +2930,68 @@ function drawerItemCard(item) {
     return card;
 }
 
+function auditEventCard(event) {
+    const row = document.createElement('div');
+    row.className = 'transfers-drawer__audit-event';
+    row.dataset.auditAction = event.action || '';
+
+    const dot = document.createElement('span');
+    dot.className = `transfers-drawer__audit-dot transfers-drawer__audit-dot--${(event.action || '').replace(/\./g, '-')}`;
+
+    const body = document.createElement('div');
+    body.className = 'transfers-drawer__audit-body';
+
+    const head = document.createElement('div');
+    head.className = 'transfers-drawer__audit-head';
+    const label = document.createElement('strong');
+    label.textContent = transferAuditActionLabel(event.action);
+    const when = document.createElement('span');
+    when.className = 'transfers-drawer__audit-when';
+    when.textContent = formatDateTime(event.created_at);
+    head.appendChild(label);
+    head.appendChild(when);
+
+    const meta = document.createElement('div');
+    meta.className = 'transfers-drawer__audit-meta';
+    const who = event.user ? `${escapeHtml(event.user.name)} (#${event.user.id})` : 'Sistema';
+    meta.textContent = `${who} · ${when.textContent}`;
+
+    body.appendChild(head);
+    body.appendChild(meta);
+
+    if (event.new_values && Object.keys(event.new_values).length > 0) {
+        const values = document.createElement('div');
+        values.className = 'transfers-drawer__audit-values';
+        const entries = Object.entries(event.new_values).slice(0, 4);
+        entries.forEach(([key, value]) => {
+            const tag = document.createElement('span');
+            tag.className = 'transfers-drawer__audit-tag';
+            tag.textContent = `${key}: ${String(value)}`.slice(0, 60);
+            values.appendChild(tag);
+        });
+        body.appendChild(values);
+    }
+
+    row.appendChild(dot);
+    row.appendChild(body);
+    return row;
+}
+
+function transferAuditActionLabel(action) {
+    return {
+        'inventory_transfer.created': 'Traslado creado',
+        'inventory_transfer.prepared': 'Preparacion confirmada',
+        'inventory_transfer.dispatched': 'Despacho confirmado',
+        'inventory_transfer.received': 'Recepcion confirmada',
+        'inventory_transfer.cancelled': 'Traslado cancelado',
+        'inventory_transfer.differences_resolved': 'Diferencias resueltas',
+    }[action] || action;
+}
+
 function buildActionButtons(available) {
     if (!available || available.length === 0) {
         const note = document.createElement('span');
         note.style.color = 'var(--muted)';
-        note.style.fontSize = '12px';
         note.textContent = 'Este traslado no admite acciones adicionales.';
         return [note];
     }

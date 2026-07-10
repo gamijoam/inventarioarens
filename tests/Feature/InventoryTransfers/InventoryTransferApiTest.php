@@ -2137,6 +2137,104 @@ class InventoryTransferApiTest extends TestCase
             ->first();
     }
 
+    public function test_full_serialized_lifecycle_prepare_dispatch_receive_subset_resolve(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Serial', 'slug' => 'empresa-serial']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-LIFE', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen Serial', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.receive',
+            'inventory_transfers.cancel',
+            'inventory_transfers.resolve_differences',
+            'inventory_transfers.view',
+        ]);
+        $this->useTenant($tenant);
+
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 4);
+        $serials = $this->units($tenant, $fromWarehouse, $product, $movement->id, 'IMEI-LIFE-', 4);
+
+        $createResponse = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'reason' => 'E2E lifecycle test',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 4,
+                    'product_unit_ids' => array_map(fn ($s) => $s->id, $serials),
+                ]],
+            ]);
+        $createResponse->assertCreated();
+        $transferId = $createResponse->json('data.id');
+        $itemId = $createResponse->json('data.items.0.id');
+
+        // Preparar 4 con todos los IMEIs
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'prepared_quantity' => 4,
+                    'prepared_product_unit_ids' => array_map(fn ($s) => $s->id, $serials),
+                ]],
+            ])->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_PREPARED);
+
+        // Despachar
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/dispatch", [])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_DISPATCHED);
+
+        // Recibir solo 3 de los 4 IMEIs (1 se perdio en transito)
+        $receivedIds = [$serials[0]->id, $serials[1]->id, $serials[2]->id];
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 3,
+                    'received_product_unit_ids' => $receivedIds,
+                    'difference_reason' => 'IMEI faltante en transito',
+                ]],
+            ])->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES);
+
+        // Verificar el state del IMEI faltante y los recibidos
+        $missingUnit = ProductUnit::find($serials[3]->id);
+        $this->assertNotNull($missingUnit);
+        // El IMEI faltante queda RESERVED (se reservo en prepare, no se movio en receive)
+        $this->assertSame(ProductUnit::STATUS_RESERVED, $missingUnit->status);
+        $this->assertSame($fromWarehouse->id, $missingUnit->warehouse_id);
+
+        foreach ($receivedIds as $id) {
+            $unit = ProductUnit::find($id);
+            // Los IMEIs recibidos quedan AVAILABLE en el almacen destino
+            $this->assertSame(ProductUnit::STATUS_AVAILABLE, $unit->status);
+            $this->assertSame($toWarehouse->id, $unit->warehouse_id);
+        }
+
+        // Resolver diferencias (accept_loss para la unidad faltante)
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/resolve-differences", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $itemId,
+                    'action' => InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
+                    'notes' => 'Reconocido como perdida operativa',
+                ]],
+            ])->assertOk()
+            ->assertJsonPath('data.status', InventoryTransfer::STATUS_COMPLETED);
+
+        // Verificar que el item tiene resolution_status = accepted_loss
+        $transfer = InventoryTransfer::findOrFail($transferId);
+        $this->assertSame(InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS, $transfer->items->first()->resolution_status);
+        $this->assertNotNull($transfer->items->first()->resolved_at);
+    }
+
     private function useTenant(Tenant $tenant): void
     {
         app(TenantManager::class)->set($tenant);

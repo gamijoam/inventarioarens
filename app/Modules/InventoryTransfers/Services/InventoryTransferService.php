@@ -127,6 +127,19 @@ class InventoryTransferService
                 ],
             ]);
 
+            $this->audit->record(
+                action: 'inventory_transfer.created',
+                entity: $transfer,
+                user: $user,
+                newValues: [
+                    'validation_mode' => $transfer->validation_mode,
+                    'status' => $transfer->status,
+                    'from_warehouse_id' => $transfer->from_warehouse_id,
+                    'to_warehouse_id' => $transfer->to_warehouse_id,
+                    'items_count' => count($data['items']),
+                ],
+            );
+
             return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
         });
     }
@@ -279,6 +292,18 @@ class InventoryTransferService
                 'prepared_by' => $user->id,
             ]);
 
+            $this->audit->record(
+                action: 'inventory_transfer.prepared',
+                entity: $transfer,
+                user: $user,
+                newValues: [
+                    'status' => $transferStatus,
+                    'prepared_at' => $preparedAt->format('c'),
+                    'has_differences' => $hasDifferences,
+                    'items_count' => count($items),
+                ],
+            );
+
             return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
         });
     }
@@ -353,6 +378,16 @@ class InventoryTransferService
             ]);
 
             $receptionChecklist->refresh();
+
+            $this->audit->record(
+                action: 'inventory_transfer.dispatched',
+                entity: $transfer,
+                user: $user,
+                newValues: [
+                    'status' => InventoryTransfer::STATUS_DISPATCHED,
+                    'dispatched_at' => $dispatchedAt->format('c'),
+                ],
+            );
 
             return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
         });
@@ -503,6 +538,17 @@ class InventoryTransferService
                 'processed_at' => $receivedAt,
                 'notes' => $data['notes'] ?? $transfer->notes,
             ]);
+
+            $this->audit->record(
+                action: 'inventory_transfer.received',
+                entity: $transfer,
+                user: $user,
+                newValues: [
+                    'status' => $transferStatus,
+                    'received_at' => $receivedAt->format('c'),
+                    'has_differences' => $hasDifferences,
+                ],
+            );
 
             return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
         });
@@ -889,7 +935,7 @@ class InventoryTransferService
                 'source' => 'inventory_transfer_service',
                 'stock_moved' => false,
             ],
-        ]);
+            ]);
 
         $preparationChecklist = InventoryTransferChecklist::create([
             'inventory_transfer_id' => $transfer->id,
@@ -909,6 +955,19 @@ class InventoryTransferService
                 'expected_product_unit_ids' => $item->product_unit_ids,
             ]);
         });
+
+        $this->audit->record(
+            action: 'inventory_transfer.created',
+            entity: $transfer,
+            user: $user,
+            newValues: [
+                'validation_mode' => $transfer->validation_mode,
+                'status' => $transfer->status,
+                'from_warehouse_id' => $transfer->from_warehouse_id,
+                'to_warehouse_id' => $transfer->to_warehouse_id,
+                'items_count' => count($data['items']),
+            ],
+        );
 
         return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
     }

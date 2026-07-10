@@ -313,6 +313,79 @@ class AdminTransferActionsTest extends TestCase
             ->assertJsonValidationErrors(['cancellation_reason']);
     }
 
+    public function test_detail_includes_audit_log_with_event_chain(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa Audit', 'slug' => 'empresa-audit']);
+        $user = $this->userInTenant($tenant);
+        $this->useTenant($tenant);
+        [$from, $to, $product] = $this->warehousesAndProduct($tenant, 'TR-AUDIT');
+        $this->stock($tenant, $from, $product, 10);
+        $transfer = $this->createLogisticTransferViaApi($user, $tenant, $from, $to, $product, 4);
+        $this->prepareTransfer($user, $tenant, $transfer);
+        $this->dispatchTransfer($user, $tenant, $transfer);
+
+        $item = $transfer->refresh()->items->first();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/admin-portal/transfers/{$transfer->id}/receive", [
+                'items' => [[
+                    'inventory_transfer_item_id' => $item->id,
+                    'received_quantity' => 3,
+                    'difference_reason' => 'Faltante en transito',
+                ]],
+            ])
+            ->assertOk();
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/admin-portal/transfers/{$transfer->id}")
+            ->assertOk();
+
+        $audit = $response->json('data.audit');
+        $this->assertIsArray($audit);
+        $this->assertNotEmpty($audit, 'El detail debe incluir al menos un evento de audit');
+
+        $actions = array_column($audit, 'action');
+        $this->assertContains('inventory_transfer.created', $actions);
+        $this->assertContains('inventory_transfer.prepared', $actions);
+        $this->assertContains('inventory_transfer.dispatched', $actions);
+        $this->assertContains('inventory_transfer.received', $actions);
+
+        // El mas reciente primero
+        $this->assertSame('inventory_transfer.received', $audit[0]['action']);
+
+        // Cada evento tiene user + new_values
+        foreach ($audit as $event) {
+            $this->assertNotNull($event['user']);
+            $this->assertSame($user->id, $event['user']['id']);
+            $this->assertIsArray($event['new_values']);
+        }
+    }
+
+    public function test_detail_audit_does_not_leak_other_tenants(): void
+    {
+        $tenantA = Tenant::create(['name' => 'A', 'slug' => 'a']);
+        $tenantB = Tenant::create(['name' => 'B', 'slug' => 'b']);
+        $userA = $this->userInTenant($tenantA);
+
+        $this->useTenant($tenantA);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TR-ISO-A');
+        $this->stock($tenantA, $fromA, $productA, 5);
+        $transferA = $this->createLogisticTransferViaApi($userA, $tenantA, $fromA, $toA, $productA, 2);
+
+        $userB = $this->userInTenant($tenantB);
+        $this
+            ->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->getJson("/api/admin-portal/transfers/{$transferA->id}")
+            ->assertNotFound();
+    }
+
     public function test_admin_can_resolve_differences_via_admin_portal(): void
     {
         Carbon::setTestNow('2026-07-10 10:00:00');
