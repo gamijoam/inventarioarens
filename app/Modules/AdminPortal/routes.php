@@ -3,6 +3,7 @@
 use App\Modules\AdminPortal\Controllers\AdminDashboardController;
 use App\Modules\AdminPortal\Controllers\AdminOperationalReportController;
 use App\Modules\AdminPortal\Controllers\AdminPosSalesController;
+use App\Modules\AdminPortal\Controllers\AdminTransfersController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin-portal')->group(function (): void {
@@ -10,4 +11,6 @@ Route::prefix('admin-portal')->group(function (): void {
     Route::get('operational-reports', [AdminOperationalReportController::class, 'show']);
     Route::get('pos-sales', [AdminPosSalesController::class, 'index']);
     Route::get('pos-sales/{posOrder}', [AdminPosSalesController::class, 'show']);
+    Route::get('transfers', [AdminTransfersController::class, 'index']);
+    Route::get('transfers/summary', [AdminTransfersController::class, 'summary']);
 });

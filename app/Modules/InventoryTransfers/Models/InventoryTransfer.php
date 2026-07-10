@@ -69,6 +69,33 @@ class InventoryTransfer extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const ALL_STATUSES = [
+        self::STATUS_REQUESTED,
+        self::STATUS_IN_PREPARATION,
+        self::STATUS_PREPARED,
+        self::STATUS_PREPARED_WITH_DIFFERENCES,
+        self::STATUS_DISPATCHED,
+        self::STATUS_IN_RECEPTION,
+        self::STATUS_COMPLETED,
+        self::STATUS_COMPLETED_WITH_DIFFERENCES,
+        self::STATUS_REJECTED,
+        self::STATUS_CANCELLED,
+    ];
+
+    public const IN_FLIGHT_STATUSES = [
+        self::STATUS_REQUESTED,
+        self::STATUS_IN_PREPARATION,
+        self::STATUS_PREPARED,
+        self::STATUS_PREPARED_WITH_DIFFERENCES,
+        self::STATUS_DISPATCHED,
+        self::STATUS_IN_RECEPTION,
+    ];
+
+    public const DIFFERENCES_STATUSES = [
+        self::STATUS_PREPARED_WITH_DIFFERENCES,
+        self::STATUS_COMPLETED_WITH_DIFFERENCES,
+    ];
+
     public const RESOLUTION_UNRESOLVED = 'unresolved';
     public const RESOLUTION_PARTIAL = 'partial';
     public const RESOLUTION_RESOLVED = 'resolved';

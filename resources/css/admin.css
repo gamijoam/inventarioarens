@@ -2159,3 +2159,115 @@ button {
         }
     }
 }
+
+.transfers-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+
+.transfer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    font: inherit;
+    color: var(--ink);
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.transfer-chip:hover {
+    border-color: var(--line-strong);
+    background: var(--panel);
+}
+
+.transfer-chip:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.transfer-chip__label {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.transfer-chip strong {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.transfer-chip--total {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.transfer-chip--total .transfer-chip__label {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.transfers-admin__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin: 0 0 16px;
+}
+
+.transfers-admin__filters .field {
+    min-width: 140px;
+}
+
+.transfers-admin__search {
+    flex: 1 1 220px;
+}
+
+.transfers-admin__statuses {
+    flex: 1 1 100%;
+    display: block;
+}
+
+.transfers-admin__statuses > span {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.transfers-admin__status-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.status-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-soft);
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.status-toggle:has(input:checked) {
+    border-color: var(--primary);
+    background: rgba(62, 53, 242, 0.08);
+    color: var(--primary-dark);
+}
+
+.status-toggle input {
+    margin: 0;
+}
+
+.transfers-admin__actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}

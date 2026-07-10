@@ -47,6 +47,20 @@ const state = {
         loaded: false,
         selectedSupplier: null,
     },
+    transfers: {
+        page: 1,
+        loaded: false,
+        summaryLoaded: false,
+        summary: null,
+        filters: {
+            status: [],
+            warehouse_id: '',
+            date_from: '',
+            date_to: '',
+            search: '',
+        },
+        transfers: [],
+    },
     customers: {
         page: 1,
         loaded: false,
@@ -526,6 +540,10 @@ const portalSections = {
         title: 'Proveedores',
         copy: 'Gestion de proveedores, documentos fiscales, contactos y estado operativo para compras.',
     },
+    transfers: {
+        title: 'Traslados entre almacenes',
+        copy: 'Listado administrativo de traslados: busca por codigo, filtra por estado, almacen o periodo y detecta diferencias pendientes.',
+    },
     customers: {
         title: 'Clientes',
         copy: 'Gestion de clientes, documentos, contacto y estado para ventas POS, cartera y reportes.',
@@ -991,6 +1009,7 @@ function activatePortalSection(section) {
     const isRates = selectedSection === 'rates';
     const isMovements = selectedSection === 'movements';
     const isSuppliers = selectedSection === 'suppliers';
+    const isTransfers = selectedSection === 'transfers';
     const isCustomers = selectedSection === 'customers';
     const isPurchases = selectedSection === 'purchases';
     const isReceivables = selectedSection === 'receivables';
@@ -1035,6 +1054,10 @@ function activatePortalSection(section) {
         elements.suppliersModule.hidden = !isSuppliers;
     }
 
+    if (elements.transfersModule) {
+        elements.transfersModule.hidden = !isTransfers;
+    }
+
     if (elements.customersModule) {
         elements.customersModule.hidden = !isCustomers;
     }
@@ -1059,9 +1082,9 @@ function activatePortalSection(section) {
         return;
     }
 
-    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isRates || isMovements || isSuppliers || isCustomers || isPurchases || isReceivables || isPayables || isAccess;
+    elements.modulePlaceholder.hidden = isOverview || isSales || isReports || isInventory || isRates || isMovements || isSuppliers || isTransfers || isCustomers || isPurchases || isReceivables || isPayables || isAccess;
 
-    if (!isOverview && !isSales && !isReports && !isInventory && !isRates && !isMovements && !isSuppliers && !isCustomers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
+    if (!isOverview && !isSales && !isReports && !isInventory && !isRates && !isMovements && !isSuppliers && !isTransfers && !isCustomers && !isPurchases && !isReceivables && !isPayables && !isAccess) {
         elements.modulePlaceholderTitle.textContent = portalSections[selectedSection].title;
         elements.modulePlaceholderCopy.textContent = portalSections[selectedSection].copy;
     }
@@ -1091,6 +1114,15 @@ function activatePortalSection(section) {
 
     if (isSuppliers && !state.suppliers.loaded) {
         loadSuppliers();
+    }
+
+    if (isTransfers) {
+        if (!state.transfers.summaryLoaded) {
+            loadTransferSummary();
+        }
+        if (!state.transfers.loaded) {
+            loadTransfers();
+        }
     }
 
     if (isCustomers && !state.customers.loaded) {
@@ -2366,6 +2398,241 @@ function clearSupplierFilters() {
     }
 
     loadSuppliers(1);
+}
+
+async function loadTransferSummary() {
+    const session = state.session;
+    if (!session) {
+        return;
+    }
+
+    try {
+        const data = await api('/api/admin-portal/transfers/summary', { headers: authHeaders(session) }, true);
+        state.transfers.summary = data;
+        state.transfers.summaryLoaded = true;
+        renderTransferChips(data);
+        populateTransferWarehouseOptions(data.warehouses || []);
+    } catch (error) {
+        setStatus(elements.transfersStatus, normalizeError(error), 'error');
+    }
+}
+
+function populateTransferWarehouseOptions(warehouses) {
+    if (!elements.transfersWarehouse) {
+        return;
+    }
+
+    const select = elements.transfersWarehouse;
+    const current = state.transfers.filters.warehouse_id || '';
+    select.innerHTML = '<option value="">Todos los almacenes</option>';
+
+    warehouses.forEach((warehouse) => {
+        const option = document.createElement('option');
+        option.value = String(warehouse.id);
+        option.textContent = warehouse.name;
+        select.appendChild(option);
+    });
+
+    if (current && warehouses.some((w) => String(w.id) === current)) {
+        select.value = current;
+    } else {
+        state.transfers.filters.warehouse_id = '';
+        select.value = '';
+    }
+}
+
+function renderTransferChips(summary) {
+    if (!summary) {
+        return;
+    }
+
+    if (elements.transfersChipTotal) {
+        elements.transfersChipTotal.textContent = String(summary.total ?? 0);
+    }
+    if (elements.transfersChipInFlight) {
+        elements.transfersChipInFlight.textContent = String(summary.in_flight ?? 0);
+    }
+    if (elements.transfersChipDifferences) {
+        elements.transfersChipDifferences.textContent = String(summary.with_differences ?? 0);
+    }
+    if (elements.transfersChipRequested) {
+        elements.transfersChipRequested.textContent = String(summary.by_status?.requested ?? 0);
+    }
+    if (elements.transfersChipDispatched) {
+        elements.transfersChipDispatched.textContent = String(summary.by_status?.dispatched ?? 0);
+    }
+    if (elements.transfersChipCompletedDifferences) {
+        elements.transfersChipCompletedDifferences.textContent = String(summary.by_status?.completed_with_differences ?? 0);
+    }
+}
+
+async function loadTransfers(page = state.transfers.page) {
+    const session = state.session;
+    if (!session) {
+        return;
+    }
+
+    if (!can('inventory_transfers.admin')) {
+        setStatus(elements.transfersStatus, 'Tu usuario no tiene permiso para ver traslados.', 'error');
+        return;
+    }
+
+    state.transfers.page = page;
+    setStatus(elements.transfersStatus, 'Cargando traslados...');
+    setButtonLoading(elements.transfersRefresh, true, 'Actualizando...');
+    setButtonLoading(elements.transfersApply, true, 'Aplicando...');
+
+    try {
+        const query = new URLSearchParams({ page: String(page), limit: '25' });
+        const filters = state.transfers.filters;
+
+        if (filters.status && filters.status.length) {
+            filters.status.forEach((status) => query.append('status[]', status));
+        }
+        if (filters.warehouse_id) {
+            query.set('warehouse_id', filters.warehouse_id);
+        }
+        if (filters.date_from) {
+            query.set('date_from', filters.date_from);
+        }
+        if (filters.date_to) {
+            query.set('date_to', filters.date_to);
+        }
+        if (filters.search) {
+            query.set('search', filters.search);
+        }
+
+        const data = await api(`/api/admin-portal/transfers?${query.toString()}`, { headers: authHeaders(session) }, true);
+        state.transfers.loaded = true;
+        renderTransfersTable(data);
+        setStatus(elements.transfersStatus, `Traslados actualizados. ${data.pagination?.total ?? 0} registro(s).`, 'success');
+    } catch (error) {
+        setStatus(elements.transfersStatus, normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.transfersRefresh, false);
+        setButtonLoading(elements.transfersApply, false);
+    }
+}
+
+function renderTransfersTable(pageData) {
+    const transfers = pageData.data || [];
+    const meta = pageData.pagination || {};
+
+    if (!transfers.length) {
+        elements.transfersTable.innerHTML = '<tr><td colspan="7"><strong>Sin traslados</strong><small>No hay traslados que coincidan con los filtros seleccionados.</small></td></tr>';
+    } else {
+        elements.transfersTable.replaceChildren(...transfers.map(transferRow));
+    }
+
+    elements.transfersCount.textContent = (meta.total || 0) === 0
+        ? 'Sin traslados para mostrar.'
+        : `${meta.from || 1}-${meta.to || transfers.length} de ${meta.total} traslado(s).`;
+    elements.transfersPrev.disabled = !meta.page || meta.page <= 1;
+    elements.transfersNext.disabled = !meta.page || meta.page * meta.limit >= (meta.total || 0);
+    state.transfers.page = meta.page || 1;
+}
+
+function transferRow(transfer) {
+    const row = document.createElement('tr');
+    row.dataset.transferId = String(transfer.id);
+
+    const code = document.createElement('td');
+    code.innerHTML = `<strong>${escapeHtml(transfer.document_number || '-')}</strong><small>${escapeHtml(transfer.guide_number || '')}</small>`;
+
+    const warehouses = document.createElement('td');
+    warehouses.innerHTML = `<strong>${escapeHtml(transfer.from_warehouse_name || 'Origen')}</strong><small>a ${escapeHtml(transfer.to_warehouse_name || 'Destino')}</small>`;
+
+    const status = document.createElement('td');
+    status.appendChild(transferStatusPill(transfer));
+
+    const items = document.createElement('td');
+    items.textContent = String(transfer.items_count ?? 0);
+
+    const differences = document.createElement('td');
+    const diffCount = transfer.differences_count ?? 0;
+    if (diffCount > 0) {
+        differences.innerHTML = `<span class="status-pill" data-tone="warning">${diffCount}</span>`;
+    } else {
+        differences.textContent = '0';
+    }
+
+    const processed = document.createElement('td');
+    processed.textContent = formatDateTime(transfer.processed_at);
+
+    const action = document.createElement('td');
+    const button = document.createElement('button');
+    button.className = 'ghost-button ghost-button--compact';
+    button.type = 'button';
+    button.textContent = 'Ver';
+    button.dataset.adminTransferView = String(transfer.id);
+    button.addEventListener('click', () => {
+        setStatus(elements.transfersStatus, `Detalle del traslado #${transfer.document_number} se habilita en la fase 2.`, 'neutral');
+    });
+    action.appendChild(button);
+
+    row.appendChild(code);
+    row.appendChild(warehouses);
+    row.appendChild(status);
+    row.appendChild(items);
+    row.appendChild(differences);
+    row.appendChild(processed);
+    row.appendChild(action);
+
+    return row;
+}
+
+function transferStatusPill(transfer) {
+    const pill = document.createElement('span');
+    pill.className = 'status-pill';
+    const tone = transferStatusTone(transfer.status);
+    pill.dataset.tone = tone;
+    pill.textContent = transfer.status_label || transfer.status;
+    return pill;
+}
+
+function transferStatusTone(status) {
+    return {
+        requested: 'neutral',
+        in_preparation: 'neutral',
+        prepared: 'info',
+        prepared_with_differences: 'warning',
+        dispatched: 'info',
+        in_reception: 'info',
+        completed: 'success',
+        completed_with_differences: 'warning',
+        rejected: 'danger',
+        cancelled: 'danger',
+    }[status] || 'neutral';
+}
+
+function readTransferStatusFilters() {
+    const checked = elements.transfersStatusOptions
+        ? Array.from(elements.transfersStatusOptions.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.value)
+        : [];
+    return checked;
+}
+
+function applyTransferFilters() {
+    state.transfers.filters = {
+        status: readTransferStatusFilters(),
+        warehouse_id: elements.transfersWarehouse?.value || '',
+        date_from: elements.transfersDateFrom?.value || '',
+        date_to: elements.transfersDateTo?.value || '',
+        search: elements.transfersSearch?.value.trim() || '',
+    };
+    loadTransfers(1);
+}
+
+function clearTransferFilters() {
+    if (elements.transfersSearch) elements.transfersSearch.value = '';
+    if (elements.transfersWarehouse) elements.transfersWarehouse.value = '';
+    if (elements.transfersDateFrom) elements.transfersDateFrom.value = '';
+    if (elements.transfersDateTo) elements.transfersDateTo.value = '';
+    if (elements.transfersStatusOptions) {
+        elements.transfersStatusOptions.querySelectorAll('input[type="checkbox"]').forEach((el) => { el.checked = false; });
+    }
+    state.transfers.filters = { status: [], warehouse_id: '', date_from: '', date_to: '', search: '' };
+    loadTransfers(1);
 }
 
 async function loadCustomers(page = state.customers.page) {
@@ -5504,6 +5771,40 @@ elements.suppliersSearch?.addEventListener('keydown', (event) => {
 elements.supplierSave?.addEventListener('click', saveSupplier);
 elements.supplierDeactivate?.addEventListener('click', toggleSupplierActive);
 elements.supplierCancel?.addEventListener('click', clearSupplierForm);
+elements.transfersRefresh?.addEventListener('click', () => loadTransfers());
+elements.transfersApply?.addEventListener('click', applyTransferFilters);
+elements.transfersClear?.addEventListener('click', clearTransferFilters);
+elements.transfersPrev?.addEventListener('click', () => loadTransfers(Math.max(state.transfers.page - 1, 1)));
+elements.transfersNext?.addEventListener('click', () => loadTransfers(state.transfers.page + 1));
+elements.transfersSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        applyTransferFilters();
+    }
+});
+elements.transfersChips?.forEach((chip) => {
+    chip.addEventListener('click', () => {
+        const filter = chip.dataset.adminTransferChip;
+        if (!filter) return;
+        if (filter === 'all') {
+            clearTransferFilters();
+            return;
+        }
+        if (filter === 'in_flight') {
+            state.transfers.filters.status = ['requested', 'in_preparation', 'prepared', 'prepared_with_differences', 'dispatched', 'in_reception'];
+        } else if (filter === 'with_differences') {
+            state.transfers.filters.status = ['prepared_with_differences', 'completed_with_differences'];
+        } else {
+            state.transfers.filters.status = [filter];
+        }
+        if (elements.transfersStatusOptions) {
+            elements.transfersStatusOptions.querySelectorAll('input[type="checkbox"]').forEach((el) => {
+                el.checked = state.transfers.filters.status.includes(el.value);
+            });
+        }
+        loadTransfers(1);
+    });
+});
 elements.customersRefresh?.addEventListener('click', () => loadCustomers());
 elements.customerNew?.addEventListener('click', clearCustomerForm);
 elements.customersApply?.addEventListener('click', () => loadCustomers(1));

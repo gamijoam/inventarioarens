@@ -107,6 +107,10 @@
                             <span>Movimientos</span>
                             <small>Entradas y salidas</small>
                         </button>
+                        <button class="portal-nav__item" type="button" data-portal-section="transfers">
+                            <span>Traslados</span>
+                            <small>Logistica interna</small>
+                        </button>
                         <button class="portal-nav__item" type="button" data-portal-section="purchases">
                             <span>Compras</span>
                             <small>Recepciones</small>
@@ -1722,6 +1726,113 @@
                             </div>
 
                             <p class="dashboard-status" id="admin-suppliers-status" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="admin-module-panel transfers-admin" id="admin-transfers-module" hidden>
+                            <div class="module-head">
+                                <div>
+                                    <span class="soft-badge">Logistica</span>
+                                    <h3>Traslados entre almacenes</h3>
+                                    <p>Listado administrativo de traslados: busca por codigo, filtra por estado, almacen o periodo y detecta diferencias pendientes.</p>
+                                </div>
+                                <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-transfers-refresh">Actualizar traslados</button>
+                                </div>
+                            </div>
+
+                            <div class="transfers-chips" id="admin-transfers-chips" role="group" aria-label="Resumen por estado">
+                                <button class="transfer-chip transfer-chip--total" type="button" data-admin-transfer-chip="all">
+                                    <span class="transfer-chip__label">Total</span>
+                                    <strong id="admin-transfers-chip-total">0</strong>
+                                </button>
+                                <button class="transfer-chip" type="button" data-admin-transfer-chip="in_flight">
+                                    <span class="transfer-chip__label">En transito</span>
+                                    <strong id="admin-transfers-chip-in-flight">0</strong>
+                                </button>
+                                <button class="transfer-chip" type="button" data-admin-transfer-chip="with_differences">
+                                    <span class="transfer-chip__label">Con diferencias</span>
+                                    <strong id="admin-transfers-chip-differences">0</strong>
+                                </button>
+                                <button class="transfer-chip" type="button" data-admin-transfer-chip="requested">
+                                    <span class="transfer-chip__label">Solicitados</span>
+                                    <strong id="admin-transfers-chip-requested">0</strong>
+                                </button>
+                                <button class="transfer-chip" type="button" data-admin-transfer-chip="dispatched">
+                                    <span class="transfer-chip__label">Despachados</span>
+                                    <strong id="admin-transfers-chip-dispatched">0</strong>
+                                </button>
+                                <button class="transfer-chip" type="button" data-admin-transfer-chip="completed_with_differences">
+                                    <span class="transfer-chip__label">Cerrados c/diff</span>
+                                    <strong id="admin-transfers-chip-completed-differences">0</strong>
+                                </button>
+                            </div>
+
+                            <div class="transfers-admin__filters" role="search">
+                                <label class="field transfers-admin__search">
+                                    <span>Buscar</span>
+                                    <input id="admin-transfers-search" type="search" placeholder="Codigo, guia, referencia o notas">
+                                </label>
+                                <label class="field">
+                                    <span>Almacen</span>
+                                    <select id="admin-transfers-warehouse">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span>Desde</span>
+                                    <input id="admin-transfers-date-from" type="date">
+                                </label>
+                                <label class="field">
+                                    <span>Hasta</span>
+                                    <input id="admin-transfers-date-to" type="date">
+                                </label>
+                                <label class="field transfers-admin__statuses">
+                                    <span>Estados</span>
+                                    <div class="transfers-admin__status-options" id="admin-transfers-status-options">
+                                        <label class="status-toggle"><input type="checkbox" value="requested">Solicitado</label>
+                                        <label class="status-toggle"><input type="checkbox" value="in_preparation">En preparacion</label>
+                                        <label class="status-toggle"><input type="checkbox" value="prepared">Preparado</label>
+                                        <label class="status-toggle"><input type="checkbox" value="prepared_with_differences">Prep. c/diff</label>
+                                        <label class="status-toggle"><input type="checkbox" value="dispatched">Despachado</label>
+                                        <label class="status-toggle"><input type="checkbox" value="in_reception">En recepcion</label>
+                                        <label class="status-toggle"><input type="checkbox" value="completed">Completado</label>
+                                        <label class="status-toggle"><input type="checkbox" value="completed_with_differences">Comp. c/diff</label>
+                                        <label class="status-toggle"><input type="checkbox" value="rejected">Rechazado</label>
+                                        <label class="status-toggle"><input type="checkbox" value="cancelled">Cancelado</label>
+                                    </div>
+                                </label>
+                                <div class="transfers-admin__actions">
+                                    <button class="primary-button primary-button--fit" type="button" id="admin-transfers-apply">Aplicar</button>
+                                    <button class="ghost-button ghost-button--compact" type="button" id="admin-transfers-clear">Limpiar</button>
+                                </div>
+                            </div>
+
+                            <div class="admin-table-wrap transfers-admin__table">
+                                <table class="admin-data-table admin-data-table--compact">
+                                    <thead>
+                                        <tr>
+                                            <th>Codigo</th>
+                                            <th>Origen a Destino</th>
+                                            <th>Estado</th>
+                                            <th>Items</th>
+                                            <th>Diferencias</th>
+                                            <th>Procesado</th>
+                                            <th>Accion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-transfers-table"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="table-footer">
+                                <span id="admin-transfers-count">Sin traslados cargados.</span>
+                                <div class="table-footer__actions">
+                                    <button class="ghost-button ghost-button--compact" type="button" id="admin-transfers-prev">Anterior</button>
+                                    <button class="ghost-button ghost-button--compact" type="button" id="admin-transfers-next">Siguiente</button>
+                                </div>
+                            </div>
+
+                            <p class="dashboard-status" id="admin-transfers-status" role="status" aria-live="polite"></p>
                         </section>
 
                         <section class="admin-module-panel access-admin" id="admin-users-module" hidden>
