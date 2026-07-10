@@ -25,6 +25,9 @@ public sealed record InventoryTransferItem(
 
     public string StatusLabel => Status switch
     {
+        "requested" => "Pendiente de preparación",
+        "prepared" => "Preparado",
+        "prepared_with_differences" => "Preparado con diferencias",
         "dispatched" => "Despachado",
         "completed" => "Completado",
         "completed_with_differences" => "Completado con diferencias",
@@ -52,6 +55,7 @@ public sealed record InventoryTransferLine(
     [property: JsonPropertyName("received_quantity")]
     [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     decimal? ReceivedQuantity,
+    [property: JsonPropertyName("product_unit_ids")] IReadOnlyList<long>? ProductUnitIds,
     [property: JsonPropertyName("prepared_product_unit_ids")] IReadOnlyList<long>? PreparedProductUnitIds,
     [property: JsonPropertyName("received_product_unit_ids")] IReadOnlyList<long>? ReceivedProductUnitIds);
 
@@ -73,3 +77,16 @@ public sealed record ReceiveInventoryTransferLineRequest(
     [property: JsonPropertyName("received_product_unit_ids")] IReadOnlyList<long>? ReceivedProductUnitIds,
     [property: JsonPropertyName("difference_reason")] string? DifferenceReason,
     [property: JsonPropertyName("difference_notes")] string? DifferenceNotes);
+
+public sealed record PrepareInventoryTransferRequest(
+    [property: JsonPropertyName("items")] IReadOnlyList<PrepareInventoryTransferLineRequest> Items);
+
+public sealed record PrepareInventoryTransferLineRequest(
+    [property: JsonPropertyName("inventory_transfer_item_id")] long InventoryTransferItemId,
+    [property: JsonPropertyName("prepared_quantity")] decimal PreparedQuantity,
+    [property: JsonPropertyName("prepared_product_unit_ids")] IReadOnlyList<long>? PreparedProductUnitIds,
+    [property: JsonPropertyName("difference_reason")] string? DifferenceReason,
+    [property: JsonPropertyName("difference_notes")] string? DifferenceNotes);
+
+public sealed record DispatchInventoryTransferRequest(
+    [property: JsonPropertyName("notes")] string? Notes);

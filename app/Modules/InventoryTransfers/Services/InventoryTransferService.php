@@ -13,13 +13,17 @@ use App\Modules\InventoryTransfers\Models\InventoryTransferChecklistItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryTransferService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
+    public function __construct(
+        private readonly InventoryMovementService $inventory,
+        private readonly SyncCatalogOutboxService $syncCatalog,
+    )
     {
     }
 
@@ -79,6 +83,9 @@ class InventoryTransferService
                         'items' => $exception->getMessage(),
                     ]);
                 }
+
+                $this->syncCatalog->stockMovementCreated($outMovement);
+                $this->syncCatalog->stockMovementCreated($inMovement);
 
                 $unitIds = $item['product_unit_ids'] ?? [];
 
@@ -217,6 +224,7 @@ class InventoryTransferService
                         referenceId: $transfer->id,
                     );
 
+                    $this->syncCatalog->stockMovementCreated($movement);
                     $this->markPreparedProductUnitsAsReserved($preparedUnitIds, $movement->id);
                 }
 
@@ -316,6 +324,8 @@ class InventoryTransferService
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
                 );
+
+                $this->syncCatalog->stockMovementCreated($movement);
 
                 $item->update([
                     'out_stock_movement_id' => $movement->id,
@@ -436,6 +446,7 @@ class InventoryTransferService
                     );
 
                     $movementId = $movement->id;
+                    $this->syncCatalog->stockMovementCreated($movement);
                     $this->moveProductUnits($receivedUnitIds, $transfer->toWarehouse, $movement->id);
                 }
 
@@ -690,6 +701,8 @@ class InventoryTransferService
                     'status' => ProductUnit::STATUS_RESERVED,
                     'released_stock_movement_id' => $movementId,
                 ]);
+
+                $this->syncCatalog->productUnitUpdated($unit->refresh());
             });
     }
 
@@ -707,6 +720,8 @@ class InventoryTransferService
                 $unit->update([
                     'released_stock_movement_id' => $movementId,
                 ]);
+
+                $this->syncCatalog->productUnitUpdated($unit->refresh());
             });
     }
 
@@ -815,6 +830,8 @@ class InventoryTransferService
                     'acquired_stock_movement_id' => $movementId,
                     'released_stock_movement_id' => null,
                 ]);
+
+                $this->syncCatalog->productUnitUpdated($unit->refresh());
             });
     }
 

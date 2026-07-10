@@ -16,6 +16,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -616,6 +617,18 @@ class InventoryTransferApiTest extends TestCase
             'stage' => InventoryTransferChecklist::STAGE_RECEPTION,
             'status' => InventoryTransferChecklist::STATUS_COMPLETED,
         ]);
+
+        $movementEvents = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'stock_movement.created')
+            ->get()
+            ->map(fn ($event): array => json_decode($event->payload, true));
+
+        $this->assertContains('reserved', $movementEvents->pluck('type')->all());
+        $this->assertContains('transfer_out', $movementEvents->pluck('type')->all());
+        $this->assertContains('transfer_in', $movementEvents->pluck('type')->all());
+        $this->assertContains($fromWarehouse->code, $movementEvents->pluck('warehouse_code')->all());
+        $this->assertContains($toWarehouse->code, $movementEvents->pluck('warehouse_code')->all());
     }
 
     public function test_receive_rejects_transfer_that_has_not_been_dispatched(): void
@@ -780,6 +793,16 @@ class InventoryTransferApiTest extends TestCase
             'warehouse_id' => $fromWarehouse->id,
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
+
+        $unitEvents = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product_unit.updated')
+            ->get()
+            ->map(fn ($event): array => json_decode($event->payload, true));
+
+        $this->assertGreaterThanOrEqual(6, $unitEvents->count());
+        $this->assertContains($units[0]->serial_number, $unitEvents->pluck('serial_number')->all());
+        $this->assertContains($toWarehouse->code, $unitEvents->pluck('warehouse_code')->all());
     }
 
     public function test_serialized_transfer_rejects_wrong_or_unavailable_units(): void

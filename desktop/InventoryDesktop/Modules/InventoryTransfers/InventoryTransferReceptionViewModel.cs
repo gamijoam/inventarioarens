@@ -9,10 +9,11 @@ namespace InventoryDesktop.Modules.InventoryTransfers;
 public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 {
     private readonly ApiClient apiClient;
+    private InventoryTransferStage selectedStage = InventoryTransferStage.Preparation;
     private InventoryTransferItem? selectedTransfer;
     private bool isBusy;
     private bool isStatusError;
-    private string statusMessage = "Carga las guias despachadas para comenzar.";
+    private string statusMessage = "Carga la bandeja de traslados para comenzar.";
 
     public InventoryTransferReceptionViewModel(ApiClient apiClient)
     {
@@ -21,7 +22,19 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 
     public ObservableCollection<InventoryTransferItem> Transfers { get; } = new();
 
-    public ObservableCollection<InventoryTransferReceptionLine> Lines { get; } = new();
+    public ObservableCollection<InventoryTransferOperationLine> Lines { get; } = new();
+
+    public InventoryTransferStage SelectedStage
+    {
+        get => selectedStage;
+        set
+        {
+            if (SetProperty(ref selectedStage, value))
+            {
+                RaiseStageProperties();
+            }
+        }
+    }
 
     public InventoryTransferItem? SelectedTransfer
     {
@@ -43,7 +56,7 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         {
             if (SetProperty(ref isBusy, value))
             {
-                RaisePropertyChanged(nameof(CanReceive));
+                RaiseActionProperties();
                 RaisePropertyChanged(nameof(HasNoTransfers));
             }
         }
@@ -61,18 +74,66 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
 
     public bool HasNoTransfers => !IsBusy && Transfers.Count == 0;
 
-    public bool CanReceive => !IsBusy && SelectedTransfer is not null && Lines.Count > 0;
+    public bool CanPrepare => !IsBusy && SelectedStage == InventoryTransferStage.Preparation && SelectedTransfer is not null && Lines.Count > 0;
+
+    public bool CanDispatch => !IsBusy && SelectedStage == InventoryTransferStage.Dispatch && SelectedTransfer is not null;
+
+    public bool CanReceive => !IsBusy && SelectedStage == InventoryTransferStage.Reception && SelectedTransfer is not null && Lines.Count > 0;
+
+    public bool CanComplete => CanPrepare || CanReceive;
 
     public string CountLabel => $"{Transfers.Count} guia(s)";
 
+    public string StageTitle => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Preparación logística",
+        InventoryTransferStage.Dispatch => "Despacho de guía",
+        _ => "Recepción logística",
+    };
+
+    public string StageDescription => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Marca lo que realmente se cargó y documenta cualquier diferencia antes de reservar el inventario.",
+        InventoryTransferStage.Dispatch => "Confirma que la guía preparada salió del almacén origen para enviarla a recepción.",
+        _ => "Confirma lo recibido en el almacén destino y documenta diferencias antes de cerrar el traslado.",
+    };
+
+    public string ListTitle => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Por preparar",
+        InventoryTransferStage.Dispatch => "Por despachar",
+        _ => "Por recibir",
+    };
+
+    public string ListHelp => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Traslados solicitados que esperan checklist de carga.",
+        InventoryTransferStage.Dispatch => "Traslados preparados que esperan salida física.",
+        _ => "Guías despachadas que esperan recepción.",
+    };
+
+    public string EmptyMessage => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Sin traslados por preparar",
+        InventoryTransferStage.Dispatch => "Sin guías por despachar",
+        _ => "Sin guías por recibir",
+    };
+
+    public string EmptyHelp => SelectedStage switch
+    {
+        InventoryTransferStage.Preparation => "Cuando se solicite un traslado logístico aparecerá aquí.",
+        InventoryTransferStage.Dispatch => "Cuando preparación confirme una guía aparecerá aquí.",
+        _ => "Cuando despacho envíe una guía aparecerá aquí.",
+    };
+
     public string SelectedTitle => SelectedTransfer is null
-        ? "Selecciona una guia"
+        ? "Selecciona una guía"
         : $"{SelectedTransfer.GuideNumber} - {SelectedTransfer.DocumentNumber}";
 
-    public string SelectedRoute => SelectedTransfer?.RouteLabel ?? "No hay guia seleccionada.";
+    public string SelectedRoute => SelectedTransfer?.RouteLabel ?? "No hay guía seleccionada.";
 
     public string SelectedSummary => SelectedTransfer is null
-        ? "Selecciona una guia despachada para revisar lo recibido."
+        ? "Selecciona una guía para revisar el detalle operativo."
         : $"{SelectedTransfer.ItemsLabel} · {SelectedTransfer.StatusLabel}";
 
     public async Task LoadAsync()
@@ -83,16 +144,15 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         }
 
         IsBusy = true;
-        SetStatus("Cargando guias despachadas...", false);
+        SetStatus($"Cargando {ListTitle.ToLowerInvariant()}...", false);
 
         try
         {
-            InventoryTransferListResponse response = await apiClient.GetAsync<InventoryTransferListResponse>(
-                "inventory-transfers?status=dispatched&validation_mode=logistics");
-
             long? previousId = SelectedTransfer?.Id;
+            IReadOnlyList<InventoryTransferItem> transfers = await LoadTransfersForStageAsync();
+
             Transfers.Clear();
-            foreach (InventoryTransferItem transfer in response.Data)
+            foreach (InventoryTransferItem transfer in transfers.OrderBy(transfer => transfer.Id))
             {
                 Transfers.Add(transfer);
             }
@@ -105,8 +165,8 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
                 : Transfers.FirstOrDefault(transfer => transfer.Id == previousId.Value) ?? Transfers.FirstOrDefault();
 
             SetStatus(Transfers.Count == 0
-                ? "No hay guias despachadas pendientes por recibir."
-                : $"{Transfers.Count} guia(s) pendiente(s) de recepcion.", false);
+                ? EmptyMessage + "."
+                : $"{Transfers.Count} guía(s) en bandeja: {ListTitle.ToLowerInvariant()}.", false);
         }
         catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
         {
@@ -122,45 +182,134 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         }
     }
 
-    public void ReceiveComplete()
+    public async Task SetStageAsync(InventoryTransferStage stage)
     {
-        foreach (InventoryTransferReceptionLine line in Lines)
+        if (IsBusy || SelectedStage == stage)
         {
-            line.ReceivedQuantity = line.ExpectedQuantity;
+            return;
+        }
+
+        SelectedStage = stage;
+        await LoadAsync();
+    }
+
+    public void CompleteCurrentStage()
+    {
+        foreach (InventoryTransferOperationLine line in Lines)
+        {
+            line.WorkQuantity = line.ExpectedQuantity;
             line.DifferenceReason = string.Empty;
             line.DifferenceNotes = string.Empty;
         }
 
-        SetStatus("Guia preparada para recepcion completa. Confirma para aplicar.", false);
+        string action = SelectedStage == InventoryTransferStage.Preparation ? "preparación" : "recepción";
+        SetStatus($"Guía lista para {action} completa. Confirma para aplicar.", false);
     }
 
-    public async Task<bool> ConfirmReceptionAsync()
+    public async Task<bool> ConfirmPreparationAsync()
     {
-        if (SelectedTransfer is null || IsBusy)
+        if (!CanPrepare || SelectedTransfer is null)
         {
             return false;
         }
 
-        InventoryTransferReceptionLine? missingReason = Lines.FirstOrDefault(line =>
-            line.HasDifference && string.IsNullOrWhiteSpace(line.DifferenceReason));
-
-        if (missingReason is not null)
+        InventoryTransferOperationLine? invalid = FindLineMissingDifferenceReason();
+        if (invalid is not null)
         {
-            SetStatus($"Debes indicar motivo para la diferencia de {missingReason.ProductName}.", true);
+            SetStatus($"Debes indicar motivo para la diferencia de {invalid.ProductName}.", true);
             return false;
         }
 
         IsBusy = true;
-        SetStatus("Confirmando recepcion...", false);
+        SetStatus("Confirmando preparación...", false);
+
+        try
+        {
+            PrepareInventoryTransferRequest request = new(
+                Lines.Select(line => new PrepareInventoryTransferLineRequest(
+                    line.ItemId,
+                    line.WorkQuantity,
+                    line.BuildPreparedUnitIds(),
+                    line.HasDifference ? line.DifferenceReason.Trim() : null,
+                    string.IsNullOrWhiteSpace(line.DifferenceNotes) ? null : line.DifferenceNotes.Trim()
+                )).ToList());
+
+            await apiClient.PostAsync<PrepareInventoryTransferRequest, InventoryTransferResponse>(
+                $"inventory-transfers/{SelectedTransfer.Id}/prepare",
+                request);
+
+            SetStatus("Preparación confirmada correctamente.", false);
+            await LoadAsync();
+            return true;
+        }
+        catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(exception is ApiException ? exception.Message : "No se pudo confirmar la preparación.", true);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> ConfirmDispatchAsync()
+    {
+        if (!CanDispatch || SelectedTransfer is null)
+        {
+            return false;
+        }
+
+        IsBusy = true;
+        SetStatus("Confirmando despacho...", false);
+
+        try
+        {
+            DispatchInventoryTransferRequest request = new("Despacho confirmado desde escritorio.");
+            await apiClient.PostAsync<DispatchInventoryTransferRequest, InventoryTransferResponse>(
+                $"inventory-transfers/{SelectedTransfer.Id}/dispatch",
+                request);
+
+            SetStatus("Despacho confirmado correctamente.", false);
+            await LoadAsync();
+            return true;
+        }
+        catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(exception is ApiException ? exception.Message : "No se pudo confirmar el despacho.", true);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> ConfirmReceptionAsync()
+    {
+        if (!CanReceive || SelectedTransfer is null)
+        {
+            return false;
+        }
+
+        InventoryTransferOperationLine? invalid = FindLineMissingDifferenceReason();
+        if (invalid is not null)
+        {
+            SetStatus($"Debes indicar motivo para la diferencia de {invalid.ProductName}.", true);
+            return false;
+        }
+
+        IsBusy = true;
+        SetStatus("Confirmando recepción...", false);
 
         try
         {
             ReceiveInventoryTransferRequest request = new(
                 Lines.Select(line => new ReceiveInventoryTransferLineRequest(
                     line.ItemId,
-                    line.ReceivedQuantity,
+                    line.WorkQuantity,
                     line.BuildReceivedUnitIds(),
-                    string.IsNullOrWhiteSpace(line.DifferenceReason) ? null : line.DifferenceReason.Trim(),
+                    line.HasDifference ? line.DifferenceReason.Trim() : null,
                     string.IsNullOrWhiteSpace(line.DifferenceNotes) ? null : line.DifferenceNotes.Trim()
                 )).ToList());
 
@@ -168,19 +317,44 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
                 $"inventory-transfers/{SelectedTransfer.Id}/receive",
                 request);
 
-            SetStatus("Recepcion confirmada correctamente.", false);
+            SetStatus("Recepción confirmada correctamente.", false);
             await LoadAsync();
             return true;
         }
         catch (Exception exception) when (exception is ApiException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus(exception is ApiException ? exception.Message : "No se pudo confirmar la recepcion.", true);
+            SetStatus(exception is ApiException ? exception.Message : "No se pudo confirmar la recepción.", true);
             return false;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    private async Task<IReadOnlyList<InventoryTransferItem>> LoadTransfersForStageAsync()
+    {
+        if (SelectedStage == InventoryTransferStage.Dispatch)
+        {
+            InventoryTransferListResponse prepared = await apiClient.GetAsync<InventoryTransferListResponse>(
+                "inventory-transfers?status=prepared&validation_mode=logistics");
+            InventoryTransferListResponse withDifferences = await apiClient.GetAsync<InventoryTransferListResponse>(
+                "inventory-transfers?status=prepared_with_differences&validation_mode=logistics");
+
+            return prepared.Data.Concat(withDifferences.Data).ToList();
+        }
+
+        string status = SelectedStage == InventoryTransferStage.Preparation ? "requested" : "dispatched";
+        InventoryTransferListResponse response = await apiClient.GetAsync<InventoryTransferListResponse>(
+            $"inventory-transfers?status={status}&validation_mode=logistics");
+
+        return response.Data;
+    }
+
+    private InventoryTransferOperationLine? FindLineMissingDifferenceReason()
+    {
+        return Lines.FirstOrDefault(line =>
+            line.HasDifference && string.IsNullOrWhiteSpace(line.DifferenceReason));
     }
 
     private void BuildLines()
@@ -191,11 +365,11 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         {
             foreach (InventoryTransferLine item in SelectedTransfer.Items)
             {
-                Lines.Add(new InventoryTransferReceptionLine(item));
+                Lines.Add(new InventoryTransferOperationLine(item, SelectedStage));
             }
         }
 
-        RaisePropertyChanged(nameof(CanReceive));
+        RaiseActionProperties();
     }
 
     private void SetStatus(string message, bool isError)
@@ -205,31 +379,62 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         RaisePropertyChanged(nameof(StatusBrush));
     }
 
+    private void RaiseStageProperties()
+    {
+        RaisePropertyChanged(nameof(StageTitle));
+        RaisePropertyChanged(nameof(StageDescription));
+        RaisePropertyChanged(nameof(ListTitle));
+        RaisePropertyChanged(nameof(ListHelp));
+        RaisePropertyChanged(nameof(EmptyMessage));
+        RaisePropertyChanged(nameof(EmptyHelp));
+        BuildLines();
+        RaiseActionProperties();
+    }
+
     private void RaiseSelectedProperties()
     {
         RaisePropertyChanged(nameof(SelectedTitle));
         RaisePropertyChanged(nameof(SelectedRoute));
         RaisePropertyChanged(nameof(SelectedSummary));
+        RaiseActionProperties();
+    }
+
+    private void RaiseActionProperties()
+    {
+        RaisePropertyChanged(nameof(CanPrepare));
+        RaisePropertyChanged(nameof(CanDispatch));
         RaisePropertyChanged(nameof(CanReceive));
+        RaisePropertyChanged(nameof(CanComplete));
     }
 }
 
-public sealed class InventoryTransferReceptionLine : ViewModelBase
+public enum InventoryTransferStage
 {
-    private decimal receivedQuantity;
+    Preparation,
+    Dispatch,
+    Reception,
+}
+
+public sealed class InventoryTransferOperationLine : ViewModelBase
+{
+    private decimal workQuantity;
     private string differenceReason = string.Empty;
     private string differenceNotes = string.Empty;
 
-    public InventoryTransferReceptionLine(InventoryTransferLine item)
+    public InventoryTransferOperationLine(InventoryTransferLine item, InventoryTransferStage stage)
     {
         ItemId = item.Id;
         ProductName = item.Product?.Name ?? $"Producto #{item.ProductId}";
         Sku = item.Product?.Sku ?? "-";
         TrackingLabel = item.Product?.TrackingLabel ?? "Sin control";
         IsSerialized = item.Product?.TrackingType == "serialized";
-        ExpectedQuantity = item.PreparedQuantity ?? item.Quantity;
-        receivedQuantity = ExpectedQuantity;
+        ExpectedQuantity = stage == InventoryTransferStage.Reception
+            ? item.PreparedQuantity ?? item.Quantity
+            : item.Quantity;
+        workQuantity = ExpectedQuantity;
+        ProductUnitIds = item.ProductUnitIds ?? Array.Empty<long>();
         PreparedUnitIds = item.PreparedProductUnitIds ?? Array.Empty<long>();
+        Stage = stage;
     }
 
     public long ItemId { get; }
@@ -244,19 +449,23 @@ public sealed class InventoryTransferReceptionLine : ViewModelBase
 
     public decimal ExpectedQuantity { get; }
 
+    public IReadOnlyList<long> ProductUnitIds { get; }
+
     public IReadOnlyList<long> PreparedUnitIds { get; }
 
-    public decimal ReceivedQuantity
+    public InventoryTransferStage Stage { get; }
+
+    public decimal WorkQuantity
     {
-        get => receivedQuantity;
+        get => workQuantity;
         set
         {
             decimal normalized = value < 0 ? 0 : value;
-            if (SetProperty(ref receivedQuantity, normalized))
+            if (SetProperty(ref workQuantity, normalized))
             {
                 RaisePropertyChanged(nameof(DifferenceQuantity));
                 RaisePropertyChanged(nameof(HasDifference));
-                RaisePropertyChanged(nameof(ReceivedLabel));
+                RaisePropertyChanged(nameof(WorkLabel));
             }
         }
     }
@@ -273,17 +482,37 @@ public sealed class InventoryTransferReceptionLine : ViewModelBase
         set => SetProperty(ref differenceNotes, value);
     }
 
-    public decimal DifferenceQuantity => ExpectedQuantity - ReceivedQuantity;
+    public decimal DifferenceQuantity => ExpectedQuantity - WorkQuantity;
 
     public bool HasDifference => DifferenceQuantity != 0;
 
     public string ExpectedLabel => ExpectedQuantity.ToString("0.####");
 
-    public string ReceivedLabel => ReceivedQuantity.ToString("0.####");
+    public string WorkLabel => WorkQuantity.ToString("0.####");
 
-    public string SerialSummary => IsSerialized
-        ? $"{PreparedUnitIds.Count} IMEI(s) despachado(s)"
-        : "Producto por cantidad";
+    public string SerialSummary
+    {
+        get
+        {
+            if (!IsSerialized)
+            {
+                return "Producto por cantidad";
+            }
+
+            int count = Stage == InventoryTransferStage.Reception ? PreparedUnitIds.Count : ProductUnitIds.Count;
+            return $"{count} IMEI(s)";
+        }
+    }
+
+    public IReadOnlyList<long>? BuildPreparedUnitIds()
+    {
+        if (!IsSerialized)
+        {
+            return null;
+        }
+
+        return TakeSerials(ProductUnitIds);
+    }
 
     public IReadOnlyList<long>? BuildReceivedUnitIds()
     {
@@ -292,8 +521,13 @@ public sealed class InventoryTransferReceptionLine : ViewModelBase
             return null;
         }
 
-        decimal safeQuantity = Math.Max(ReceivedQuantity, 0);
-        int count = (int)Math.Min(safeQuantity, PreparedUnitIds.Count);
-        return PreparedUnitIds.Take(count).ToList();
+        return TakeSerials(PreparedUnitIds);
+    }
+
+    private IReadOnlyList<long> TakeSerials(IReadOnlyList<long> ids)
+    {
+        decimal safeQuantity = Math.Max(WorkQuantity, 0);
+        int count = (int)Math.Min(safeQuantity, ids.Count);
+        return ids.Take(count).ToList();
     }
 }

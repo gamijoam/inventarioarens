@@ -14,13 +14,19 @@
 
         <Style x:Key="CompactButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="38" />
-            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Padding" Value="14,0" />
             <Setter Property="FontWeight" Value="Black" />
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style x:Key="StageButtonStyle" TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
+            <Setter Property="Background" Value="#F7F9FD" />
+            <Setter Property="Foreground" Value="#10182F" />
+            <Setter Property="BorderBrush" Value="#CBD7EA" />
         </Style>
 
         <Style x:Key="TransferGridStyle" TargetType="DataGrid">
@@ -63,8 +69,8 @@
                             <TextBlock Text="{Binding CountLabel}" Foreground="#51617F" FontSize="11" FontWeight="Black" />
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Recepción logística" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
-                    <TextBlock Text="Confirma guías despachadas, registra cantidades recibidas y documenta diferencias antes de cerrar el traslado."
+                    <TextBlock Text="{Binding StageTitle}" FontSize="28" FontWeight="Black" Margin="0,12,0,0" />
+                    <TextBlock Text="{Binding StageDescription}"
                                Foreground="{StaticResource MutedBrush}"
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
@@ -72,19 +78,46 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Preparar"
+                            Width="104"
+                            Style="{StaticResource StageButtonStyle}"
+                            Click="Preparation_Click" />
+                    <Button Content="Despachar"
+                            Width="108"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource StageButtonStyle}"
+                            Click="DispatchStage_Click" />
+                    <Button Content="Recibir"
+                            Width="96"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource StageButtonStyle}"
+                            Click="Reception_Click" />
                     <Button Content="Actualizar"
-                            Width="120"
+                            Width="112"
+                            Margin="14,0,0,0"
                             Style="{StaticResource CompactButtonStyle}"
                             Click="Refresh_Click" />
-                    <Button Content="Recibir completo"
-                            Width="150"
-                            Margin="10,0,0,0"
+                    <Button Content="Completo"
+                            Width="104"
+                            Margin="8,0,0,0"
                             Style="{StaticResource CompactButtonStyle}"
-                            IsEnabled="{Binding CanReceive}"
-                            Click="ReceiveComplete_Click" />
-                    <Button Content="Confirmar recepción"
-                            Width="170"
-                            Margin="10,0,0,0"
+                            IsEnabled="{Binding CanComplete}"
+                            Click="CompleteCurrentStage_Click" />
+                    <Button Content="Preparar"
+                            Width="112"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            IsEnabled="{Binding CanPrepare}"
+                            Click="ConfirmPreparation_Click" />
+                    <Button Content="Despachar"
+                            Width="118"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            IsEnabled="{Binding CanDispatch}"
+                            Click="ConfirmDispatch_Click" />
+                    <Button Content="Recibir"
+                            Width="104"
+                            Margin="8,0,0,0"
                             Style="{StaticResource PrimaryButtonStyle}"
                             IsEnabled="{Binding CanReceive}"
                             Click="ConfirmReception_Click" />
@@ -107,8 +140,8 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel>
-                        <TextBlock Text="Guías pendientes" FontSize="20" FontWeight="Black" />
-                        <TextBlock Text="Selecciona la guía que llegó al almacén destino."
+                        <TextBlock Text="{Binding ListTitle}" FontSize="20" FontWeight="Black" />
+                        <TextBlock Text="{Binding ListHelp}"
                                    Foreground="{StaticResource MutedBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
@@ -129,11 +162,11 @@
                         <Border Background="#FFFFFF"
                                 Visibility="{Binding HasNoTransfers, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="Sin guías pendientes"
+                                <TextBlock Text="{Binding EmptyMessage}"
                                            FontSize="18"
                                            FontWeight="Black"
                                            HorizontalAlignment="Center" />
-                                <TextBlock Text="Cuando se despache un traslado logístico aparecerá aquí."
+                                <TextBlock Text="{Binding EmptyHelp}"
                                            Foreground="{StaticResource MutedBrush}"
                                            FontWeight="SemiBold"
                                            TextAlignment="Center"
@@ -167,12 +200,12 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="PRODUCTO" Binding="{Binding ProductName}" Width="2*" IsReadOnly="True" />
                             <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120" IsReadOnly="True" />
-                            <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="125" IsReadOnly="True" />
+                            <DataGridTextColumn Header="CONTROL" Binding="{Binding TrackingLabel}" Width="130" IsReadOnly="True" />
                             <DataGridTextColumn Header="ESPERADO" Binding="{Binding ExpectedLabel}" Width="86" IsReadOnly="True" />
-                            <DataGridTemplateColumn Header="RECIBIDO" Width="100">
+                            <DataGridTemplateColumn Header="CANT." Width="96">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding ReceivedQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding WorkQuantity, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource CellTextBoxStyle}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -194,7 +227,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="SERIALES" Binding="{Binding SerialSummary}" Width="145" IsReadOnly="True" />
+                            <DataGridTextColumn Header="SERIALES" Binding="{Binding SerialSummary}" Width="120" IsReadOnly="True" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

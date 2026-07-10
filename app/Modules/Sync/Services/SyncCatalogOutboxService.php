@@ -3,6 +3,8 @@
 namespace App\Modules\Sync\Services;
 
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
@@ -124,6 +126,16 @@ class SyncCatalogOutboxService
         );
     }
 
+    public function stockMovementCreated(StockMovement $movement): void
+    {
+        $this->recordStockMovement('stock_movement.created', $movement);
+    }
+
+    public function productUnitUpdated(ProductUnit $unit): void
+    {
+        $this->recordProductUnit('product_unit.updated', $unit);
+    }
+
     private function recordProduct(string $eventType, Product $product): void
     {
         $product->loadMissing(['saleExchangeRateType', 'warrantyPolicy']);
@@ -215,6 +227,49 @@ class SyncCatalogOutboxService
                 'is_active' => (bool) $customer->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'customer', $customer->id),
+        );
+    }
+
+    private function recordStockMovement(string $eventType, StockMovement $movement): void
+    {
+        $movement->loadMissing(['product', 'warehouse']);
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'stock_movement',
+            aggregateId: $movement->id,
+            payload: [
+                'source_id' => $movement->id,
+                'sku' => $movement->product?->sku,
+                'warehouse_code' => $movement->warehouse?->code,
+                'type' => $movement->type,
+                'quantity' => (string) $movement->quantity,
+                'unit_cost' => $movement->unit_cost === null ? null : (string) $movement->unit_cost,
+                'reason' => $movement->reason,
+                'reference_type' => $movement->reference_type,
+                'reference_id' => $movement->reference_id,
+                'created_at' => $movement->created_at?->toISOString(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id),
+        );
+    }
+
+    private function recordProductUnit(string $eventType, ProductUnit $unit): void
+    {
+        $unit->loadMissing(['product', 'warehouse']);
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'product_unit',
+            aggregateId: $unit->id,
+            payload: [
+                'sku' => $unit->product?->sku,
+                'warehouse_code' => $unit->warehouse?->code,
+                'serial_type' => $unit->serial_type,
+                'serial_number' => $unit->serial_number,
+                'status' => $unit->status,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'product_unit', $unit->id),
         );
     }
 
