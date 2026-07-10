@@ -14,7 +14,7 @@ concurrency:
 
 env:
   APP_ENV: testing
-  APP_KEY: base64:ZmFrZWFwcGtleWZha2VhcHBrZXlmYWtlYXBwa2V5MTIzNDU2Nzg5MA==
+  APP_KEY: base64:Y6TPKmU6yumlacirNxbeG5cCr4a1IHMJ4bVpFZRL588=
   APP_URL: http://127.0.0.1:8000
   DB_CONNECTION: pgsql
   DB_HOST: 127.0.0.1
@@ -71,9 +71,6 @@ jobs:
       - name: Copy .env
         run: cp .env.example .env
 
-      - name: Generate app key
-        run: php artisan key:generate --force
-
       - name: Wait for postgres
         run: |
           for i in {1..30}; do
@@ -116,7 +113,7 @@ jobs:
           --health-retries 5
     env:
       APP_ENV: testing
-      APP_KEY: base64:ZmFrZWFwcGtleWZha2VhcHBrZXlmYWtlYXBwa2V5MTIzNDU2Nzg5MA==
+      APP_KEY: base64:Y6TPKmU6yumlacirNxbeG5cCr4a1IHMJ4bVpFZRL588=
       APP_URL: http://127.0.0.1:8000
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
@@ -160,9 +157,6 @@ jobs:
 
       - name: Copy .env
         run: cp .env.example .env
-
-      - name: Generate app key
-        run: php artisan key:generate --force
 
       - name: Wait for postgres
         run: |
@@ -219,4 +213,5 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
 
