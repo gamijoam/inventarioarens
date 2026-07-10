@@ -40,6 +40,8 @@ sudo /usr/bin/env php artisan optimize:clear       # limpia config, cache, views
 
 ## Tests
 
+### Tests feature (PHP / PHPUnit)
+
 ```bash
 # Suite completa
 php vendor/bin/phpunit
@@ -52,6 +54,33 @@ php vendor/bin/phpunit tests/Feature/AdminPortal/AdminTransferActionsTest.php
 ```
 
 > Si la suite completa tira errores de "duplicate table" / "undefined table" al correrla local con `RefreshDatabase`, es por concurrencia en la DB de testing. En el server no se reproduce. Solución: correr archivo por archivo o usar `--process-isolation`.
+
+### Tests E2E (Playwright)
+
+Cobertura del UI del portal: login, listado, drawer, filtros, export CSV.
+
+```bash
+# Solo la primera vez (instala ~150 MB de chromium)
+pnpm install
+pnpm e2e:install
+
+# Correr todos los tests E2E
+pnpm e2e
+
+# Solo un test
+pnpm e2e tests/e2e/portal-translados.spec.js
+```
+
+Variables de entorno utiles:
+
+| Variable | Default | Proposito |
+|---|---|---|
+| `BASE_URL` | `http://127.0.0.1:8000` | URL del portal a testear |
+| `E2E_USER` | `gerente.valencia@demo.test` | Email del usuario de prueba |
+| `E2E_PASSWORD` | `password` | Password del usuario de prueba |
+| `E2E_TENANT_SLUG` | `demo-valencia` | Slug del tenant |
+
+Los tests detectan automaticamente si el portal esta en modo dev bypass (sin form de login) y skipean el paso. Si tu setup NO usa bypass, configura `E2E_USER` y `E2E_PASSWORD` con credenciales reales.
 
 ## Por qué `public/build/` no está en git
 
