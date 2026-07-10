@@ -1,6 +1,8 @@
 const storageKey = 'inventory_admin_session';
 const requestTimeoutMs = 20000;
 
+console.log('[PORTAL] admin.js cargado v1.1 - ' + new Date().toISOString() + ' (con modulo de Traslados)');
+
 const state = {
     tenants: [],
     selectedTenant: null,
