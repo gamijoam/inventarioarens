@@ -16,11 +16,29 @@ use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminTransfersController extends Controller
 {
-    public function index(AdminTransferListRequest $request, AdminTransferService $transfers): JsonResponse
+    public function index(AdminTransferListRequest $request, AdminTransferService $transfers): JsonResponse|StreamedResponse
     {
+        if ($request->wantsCsvExport()) {
+            $export = $transfers->export($request->filters());
+
+            return response()->streamDownload(function () use ($export): void {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, $export['headers']);
+
+                foreach ($export['rows'] as $row) {
+                    fputcsv($handle, $row);
+                }
+
+                fclose($handle);
+            }, $export['filename'], [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+            ]);
+        }
+
         return response()->json([
             'data' => $transfers->index($request->filters()),
         ]);

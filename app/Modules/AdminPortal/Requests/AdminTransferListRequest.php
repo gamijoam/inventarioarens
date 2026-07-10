@@ -26,6 +26,7 @@ class AdminTransferListRequest extends FormRequest
             'search' => ['nullable', 'string', 'max:120'],
             'limit' => ['nullable', 'integer', 'min:10', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'export' => ['nullable', Rule::in(['csv'])],
         ];
     }
 
@@ -46,5 +47,10 @@ class AdminTransferListRequest extends FormRequest
             'limit' => (int) $this->input('limit', 25),
             'page' => (int) $this->input('page', 1),
         ];
+    }
+
+    public function wantsCsvExport(): bool
+    {
+        return $this->input('export') === 'csv';
     }
 }

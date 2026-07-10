@@ -307,6 +307,7 @@ const elements = {
     transfersChipRequested: document.querySelector('#admin-transfers-chip-requested'),
     transfersChipDispatched: document.querySelector('#admin-transfers-chip-dispatched'),
     transfersChipCompletedDifferences: document.querySelector('#admin-transfers-chip-completed-differences'),
+    transfersExport: document.querySelector('#admin-transfers-export'),
     transferDrawer: document.querySelector('#admin-transfer-drawer'),
     transferDrawerTitle: document.querySelector('#admin-transfer-drawer-title'),
     transferDrawerSubtitle: document.querySelector('#admin-transfer-drawer-subtitle'),
@@ -2675,6 +2676,64 @@ function clearTransferFilters() {
     }
     state.transfers.filters = { status: [], warehouse_id: '', date_from: '', date_to: '', search: '' };
     loadTransfers(1);
+}
+
+async function exportTransfersCsv() {
+    const session = state.session;
+    if (!session) {
+        return;
+    }
+    if (!can('inventory_transfers.admin')) {
+        setStatus(elements.transfersStatus, 'No tienes permiso para exportar traslados.', 'error');
+        return;
+    }
+
+    const filters = state.transfers.filters;
+    const query = new URLSearchParams();
+    if (Array.isArray(filters.status) && filters.status.length > 0) {
+        filters.status.forEach((status) => query.append('status[]', status));
+    }
+    if (filters.warehouse_id) {
+        query.set('warehouse_id', String(filters.warehouse_id));
+    }
+    if (filters.date_from) {
+        query.set('date_from', filters.date_from);
+    }
+    if (filters.date_to) {
+        query.set('date_to', filters.date_to);
+    }
+    if (filters.search) {
+        query.set('search', filters.search);
+    }
+    query.set('export', 'csv');
+
+    const url = `/api/admin-portal/transfers?${query.toString()}`;
+    setStatus(elements.transfersStatus, 'Generando archivo CSV...', 'info');
+
+    try {
+        const response = await fetch(url, { headers: authHeaders(session) });
+        if (!response.ok) {
+            setStatus(elements.transfersStatus, `Error al exportar: HTTP ${response.status}.`, 'error');
+            return;
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : `traslados-${new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)}.csv`;
+
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+
+        setStatus(elements.transfersStatus, `Archivo ${filename} descargado.`, 'success');
+    } catch (error) {
+        setStatus(elements.transfersStatus, normalizeError(error), 'error');
+    }
 }
 
 async function openTransferDrawer(transferId) {
@@ -6367,6 +6426,7 @@ elements.supplierCancel?.addEventListener('click', clearSupplierForm);
 elements.transfersRefresh?.addEventListener('click', () => loadTransfers());
 elements.transfersApply?.addEventListener('click', applyTransferFilters);
 elements.transfersClear?.addEventListener('click', clearTransferFilters);
+elements.transfersExport?.addEventListener('click', exportTransfersCsv);
 elements.transfersPrev?.addEventListener('click', () => loadTransfers(Math.max(state.transfers.page - 1, 1)));
 elements.transfersNext?.addEventListener('click', () => loadTransfers(state.transfers.page + 1));
 elements.transfersSearch?.addEventListener('keydown', (event) => {

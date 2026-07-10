@@ -286,6 +286,52 @@ class AdminTransferService
         };
     }
 
+    public function export(array $filters): array
+    {
+        $tenant = app(TenantManager::class)->require();
+        $stamp = now()->format('Ymd-His');
+
+        $baseColumns = $this->columns();
+        $baseColumns[] = DB::raw('(select count(*) from inventory_transfer_items where inventory_transfer_items.inventory_transfer_id = inventory_transfers.id) as items_count');
+        $baseColumns[] = DB::raw("(select count(*) from inventory_transfer_items where inventory_transfer_items.inventory_transfer_id = inventory_transfers.id and inventory_transfer_items.difference_quantity != 0) as differences_count");
+
+        $rows = $this->baseQuery($tenant->id, $filters)
+            ->orderByDesc('inventory_transfers.id')
+            ->limit(2000)
+            ->get($baseColumns)
+            ->map(fn ($row): array => [
+                $row->id,
+                $row->document_number,
+                $row->guide_number,
+                $row->type,
+                $row->validation_mode,
+                $this->statusLabel($row->status),
+                $row->from_warehouse_name,
+                $row->to_warehouse_name,
+                (int) $row->items_count,
+                (int) $row->differences_count,
+                $row->reason ?: '',
+                $row->reference ?: '',
+                $row->processed_at,
+                $row->prepared_at,
+                $row->dispatched_at,
+                $row->received_at,
+                $row->cancelled_at,
+            ])
+            ->all();
+
+        return [
+            'filename' => "traslados-{$tenant->slug}-{$stamp}.csv",
+            'headers' => [
+                'ID', 'Documento', 'Guia', 'Tipo', 'Modo validacion', 'Estado',
+                'Almacen origen', 'Almacen destino', 'Items', 'Diferencias',
+                'Motivo', 'Referencia', 'Procesado', 'Preparado', 'Despachado',
+                'Recibido', 'Cancelado',
+            ],
+            'rows' => $rows,
+        ];
+    }
+
     private function statusLabels(): array
     {
         return [

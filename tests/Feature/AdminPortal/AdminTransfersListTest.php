@@ -305,6 +305,99 @@ class AdminTransfersListTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_admin_can_export_transfers_as_csv(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa Traslados', 'slug' => 'empresa-traslados']);
+        $user = $this->userInTenant($tenant);
+        $this->useTenant($tenant);
+        [$from, $to, $product] = $this->warehousesAndProduct($tenant, 'TR-CSV');
+        $this->stock($tenant, $from, $product, 20);
+
+        $this->createTransferViaApi($user, $tenant, $from, $to, $product, 5);
+        $this->createTransferViaApi($user, $tenant, $from, $to, $product, 3);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/admin-portal/transfers?export=csv')
+            ->assertOk();
+
+        $this->assertSame('text/csv; charset=UTF-8', $response->headers->get('content-type'));
+        $this->assertStringContainsString('attachment', (string) $response->headers->get('content-disposition'));
+        $this->assertStringContainsString('traslados-empresa-traslados-', (string) $response->headers->get('content-disposition'));
+        $this->assertStringContainsString('.csv', (string) $response->headers->get('content-disposition'));
+
+        $body = $response->streamedContent();
+        $lines = array_values(array_filter(explode("\n", trim($body))));
+        $this->assertGreaterThanOrEqual(3, count($lines), 'CSV debe tener header + 2 traslados');
+
+        $header = str_getcsv($lines[0]);
+        $this->assertSame('ID', $header[0]);
+        $this->assertSame('Documento', $header[1]);
+        $this->assertSame('Guia', $header[2]);
+        $this->assertSame('Estado', $header[5]);
+        $this->assertSame('Almacen origen', $header[6]);
+
+        $firstData = str_getcsv($lines[1]);
+        $this->assertCount(count($header), $firstData, 'Cada fila debe tener la misma cantidad de columnas que el header');
+    }
+
+    public function test_csv_export_respects_filters(): void
+    {
+        Carbon::setTestNow('2026-07-10 10:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa Traslados', 'slug' => 'empresa-traslados']);
+        $user = $this->userInTenant($tenant);
+        $this->useTenant($tenant);
+        [$from, $to, $product] = $this->warehousesAndProduct($tenant, 'TR-CSVF');
+        $this->stock($tenant, $from, $product, 50);
+
+        $a = $this->createTransferViaApi($user, $tenant, $from, $to, $product, 1);
+        $a->update(['status' => InventoryTransfer::STATUS_DISPATCHED, 'dispatched_at' => now()]);
+
+        $b = $this->createTransferViaApi($user, $tenant, $from, $to, $product, 1);
+        $b->update(['status' => InventoryTransfer::STATUS_CANCELLED, 'cancelled_at' => now()]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/admin-portal/transfers?export=csv&status[]=cancelled')
+            ->assertOk();
+
+        $body = $response->streamedContent();
+        $lines = array_values(array_filter(explode("\n", trim($body))));
+        $this->assertCount(2, $lines, 'Solo el header + 1 traslado cancelado');
+        $dataRow = str_getcsv($lines[1]);
+        $this->assertSame('Cancelado', $dataRow[5]);
+    }
+
+    public function test_csv_export_requires_admin_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Traslados', 'slug' => 'empresa-traslados']);
+        $user = $this->userInTenant($tenant, ['inventory_transfers.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/admin-portal/transfers?export=csv')
+            ->assertForbidden();
+    }
+
+    public function test_csv_export_rejects_unknown_format(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Traslados', 'slug' => 'empresa-traslados']);
+        $user = $this->userInTenant($tenant);
+        $this->useTenant($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/admin-portal/transfers?export=xlsx')
+            ->assertStatus(422);
+    }
+
     public function test_admin_does_not_see_other_tenant_transfers(): void
     {
         Carbon::setTestNow('2026-07-10 10:00:00');

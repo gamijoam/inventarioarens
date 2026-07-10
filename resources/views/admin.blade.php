@@ -1736,6 +1736,7 @@
                                     <p>Listado administrativo de traslados: busca por codigo, filtra por estado, almacen o periodo y detecta diferencias pendientes.</p>
                                 </div>
                                 <div class="module-head__actions">
+                                    <button class="ghost-button" type="button" id="admin-transfers-export">Exportar CSV</button>
                                     <button class="ghost-button" type="button" id="admin-transfers-refresh">Actualizar traslados</button>
                                 </div>
                             </div>
