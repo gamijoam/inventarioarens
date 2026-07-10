@@ -142,4 +142,82 @@ public partial class InventoryTransferReceptionView : UserControl
                 MessageBoxImage.Information);
         }
     }
+
+    private async void ImeiPicker_Click(object sender, RoutedEventArgs e)
+    {
+        if (viewModel is null || apiClient is null)
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement element || element.Tag is not InventoryTransferOperationLine line)
+        {
+            return;
+        }
+
+        InventoryTransferItem? transfer = viewModel.SelectedTransfer;
+        if (transfer is null)
+        {
+            return;
+        }
+
+        long? warehouseId = transfer.FromWarehouse?.Id;
+        if (warehouseId is null || warehouseId <= 0)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "La guia no tiene almacen de origen definido.",
+                "IMEI picker",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        // Para prepare los IMEIs disponibles del pool original son ProductUnitIds (status=available).
+        // Para receive los IMEIs preparados estan RESERVED en el origen (siguen en el origen hasta
+        // que el receive los mueva al destino). En ambos casos consultamos al origen.
+        string actionLabel = viewModel.SelectedStage switch
+        {
+            InventoryTransferStage.Preparation => "preparar",
+            InventoryTransferStage.Reception => "recibir",
+            _ => "seleccionar",
+        };
+
+        string statusFilter = viewModel.SelectedStage == InventoryTransferStage.Preparation
+            ? "all"
+            : "reserved";
+
+        IReadOnlyList<long> allowedIds = viewModel.SelectedStage == InventoryTransferStage.Reception
+            ? line.PreparedUnitIds
+            : line.ProductUnitIds;
+
+        IReadOnlyList<long> initialSelection = viewModel.SelectedStage == InventoryTransferStage.Reception
+            ? line.ReceivedUnitIds
+            : line.PreparedUnitIds;
+
+        int required = (int)Math.Truncate(Math.Max(line.WorkQuantity, 0));
+
+        InventoryTransferImeiPickerWindow picker = new(
+            apiClient,
+            line.ProductId,
+            warehouseId.Value,
+            statusFilter,
+            line.ProductName,
+            actionLabel,
+            required,
+            allowedIds,
+            initialSelection)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        bool? result = picker.ShowDialog();
+        if (result != true)
+        {
+            return;
+        }
+
+        line.SetSelectedSerialIds(picker.SelectedIds);
+        viewModel?.SetExternalStatus($"IMEIs actualizados para {line.ProductName}: {line.SelectedSerialsCount} de {required} seleccionados.", false);
+    }
 }

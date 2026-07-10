@@ -127,3 +127,41 @@ public sealed record TransferProductOption(
 
     public string DisplayLabel => string.IsNullOrWhiteSpace(Sku) ? Name : $"{Name} ({Sku})";
 }
+
+// === IMEI / serial picker (desktop) ===
+
+public sealed record InventoryTransferImeiSearchResponse(
+    [property: JsonPropertyName("data")] InventoryTransferImeiSearchPayload Data);
+
+public sealed record InventoryTransferImeiSearchPayload(
+    [property: JsonPropertyName("data")] IReadOnlyList<InventoryTransferImeiOption> Data);
+
+public sealed record InventoryTransferImeiOption(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("serial_type")] string? SerialType,
+    [property: JsonPropertyName("serial_number")] string? SerialNumber,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("warehouse_id")] long? WarehouseId,
+    [property: JsonPropertyName("warehouse_name")] string? WarehouseName)
+{
+    public string DisplayLabel => string.IsNullOrWhiteSpace(SerialNumber) ? $"ID #{Id}" : SerialNumber;
+
+    public string MetaLabel
+    {
+        get
+        {
+            List<string> parts = new();
+            if (!string.IsNullOrWhiteSpace(WarehouseName))
+            {
+                parts.Add(WarehouseName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Status))
+            {
+                parts.Add(Status);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+}

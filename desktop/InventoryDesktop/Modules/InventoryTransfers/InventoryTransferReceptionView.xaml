@@ -232,7 +232,43 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="SERIALES" Binding="{Binding SerialSummary}" Width="120" IsReadOnly="True" />
+                            <DataGridTemplateColumn Header="IMEIs" Width="180">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding SerialsSelectionLabel}" FontWeight="Black" FontSize="12" />
+                                                <TextBlock Text="{Binding SerialSummary}"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="11" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Content="Seleccionar"
+                                                    Margin="8,0,8,0"
+                                                    Padding="12,0"
+                                                    Height="30"
+                                                    Click="ImeiPicker_Click"
+                                                    Tag="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource CompactButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanConfigureSerials}" Value="False">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

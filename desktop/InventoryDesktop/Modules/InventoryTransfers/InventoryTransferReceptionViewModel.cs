@@ -220,6 +220,13 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
             return false;
         }
 
+        InventoryTransferOperationLine? missingSerials = FindLineMissingSerialSelection();
+        if (missingSerials is not null)
+        {
+            SetStatus($"Debes tildar {missingSerials.WorkQuantity} IMEI(s) para {missingSerials.ProductName}.", true);
+            return false;
+        }
+
         IsBusy = true;
         SetStatus("Confirmando preparación...", false);
 
@@ -299,6 +306,13 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
             return false;
         }
 
+        InventoryTransferOperationLine? missingSerials = FindLineMissingSerialSelection();
+        if (missingSerials is not null)
+        {
+            SetStatus($"Debes tildar {missingSerials.WorkQuantity} IMEI(s) para {missingSerials.ProductName}.", true);
+            return false;
+        }
+
         IsBusy = true;
         SetStatus("Confirmando recepción...", false);
 
@@ -357,6 +371,14 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
             line.HasDifference && string.IsNullOrWhiteSpace(line.DifferenceReason));
     }
 
+    private InventoryTransferOperationLine? FindLineMissingSerialSelection()
+    {
+        return Lines.FirstOrDefault(line =>
+            line.IsSerialized
+            && line.WorkQuantity > 0
+            && !line.HasCompleteSerialSelection);
+    }
+
     private void BuildLines()
     {
         Lines.Clear();
@@ -377,6 +399,11 @@ public sealed class InventoryTransferReceptionViewModel : ViewModelBase
         isStatusError = isError;
         StatusMessage = message;
         RaisePropertyChanged(nameof(StatusBrush));
+    }
+
+    public void SetExternalStatus(string message, bool isError)
+    {
+        SetStatus(message, isError);
     }
 
     private void RaiseStageProperties()
@@ -417,6 +444,8 @@ public enum InventoryTransferStage
 
 public sealed class InventoryTransferOperationLine : ViewModelBase
 {
+    private readonly System.Collections.ObjectModel.ObservableCollection<InventoryTransferImeiOption> availableSerials = new();
+    private readonly HashSet<long> selectedSerialIds = new();
     private decimal workQuantity;
     private string differenceReason = string.Empty;
     private string differenceNotes = string.Empty;
@@ -424,6 +453,7 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
     public InventoryTransferOperationLine(InventoryTransferLine item, InventoryTransferStage stage)
     {
         ItemId = item.Id;
+        ProductId = item.ProductId;
         ProductName = item.Product?.Name ?? $"Producto #{item.ProductId}";
         Sku = item.Product?.Sku ?? "-";
         TrackingLabel = item.Product?.TrackingLabel ?? "Sin control";
@@ -434,10 +464,14 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
         workQuantity = ExpectedQuantity;
         ProductUnitIds = item.ProductUnitIds ?? Array.Empty<long>();
         PreparedUnitIds = item.PreparedProductUnitIds ?? Array.Empty<long>();
+        ReceivedUnitIds = item.ReceivedProductUnitIds ?? Array.Empty<long>();
         Stage = stage;
+        AvailableSerials = availableSerials;
     }
 
     public long ItemId { get; }
+
+    public long ProductId { get; }
 
     public string ProductName { get; }
 
@@ -453,7 +487,53 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
 
     public IReadOnlyList<long> PreparedUnitIds { get; }
 
+    public IReadOnlyList<long> ReceivedUnitIds { get; }
+
     public InventoryTransferStage Stage { get; }
+
+    public System.Collections.ObjectModel.ObservableCollection<InventoryTransferImeiOption> AvailableSerials { get; }
+
+    public int SelectedSerialsCount => selectedSerialIds.Count;
+
+    public int PoolSize => Stage == InventoryTransferStage.Reception ? PreparedUnitIds.Count : ProductUnitIds.Count;
+
+    public bool CanConfigureSerials => IsSerialized
+        && PoolSize > 0
+        && (Stage == InventoryTransferStage.Preparation || Stage == InventoryTransferStage.Reception);
+
+    public bool HasCompleteSerialSelection => IsSerialized
+        ? (int)Math.Truncate(WorkQuantity) == selectedSerialIds.Count
+        : true;
+
+    public string SerialsSelectionLabel
+    {
+        get
+        {
+            if (!IsSerialized)
+            {
+                return "No aplica";
+            }
+
+            int required = (int)Math.Truncate(Math.Max(WorkQuantity, 0));
+            return required == 0
+                ? "0 de 0"
+                : $"{selectedSerialIds.Count} de {required}";
+        }
+    }
+
+    public string SerialSummary
+    {
+        get
+        {
+            if (!IsSerialized)
+            {
+                return "Producto por cantidad";
+            }
+
+            int count = Stage == InventoryTransferStage.Reception ? PreparedUnitIds.Count : ProductUnitIds.Count;
+            return $"{count} IMEI(s)";
+        }
+    }
 
     public decimal WorkQuantity
     {
@@ -466,6 +546,8 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
                 RaisePropertyChanged(nameof(DifferenceQuantity));
                 RaisePropertyChanged(nameof(HasDifference));
                 RaisePropertyChanged(nameof(WorkLabel));
+                RaisePropertyChanged(nameof(SerialsSelectionLabel));
+                RaisePropertyChanged(nameof(HasCompleteSerialSelection));
             }
         }
     }
@@ -490,18 +572,58 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
 
     public string WorkLabel => WorkQuantity.ToString("0.####");
 
-    public string SerialSummary
-    {
-        get
-        {
-            if (!IsSerialized)
-            {
-                return "Producto por cantidad";
-            }
+    public IReadOnlyList<long> GetSelectedSerialIds() => selectedSerialIds.ToList();
 
-            int count = Stage == InventoryTransferStage.Reception ? PreparedUnitIds.Count : ProductUnitIds.Count;
-            return $"{count} IMEI(s)";
+    public void SetSelectedSerialIds(IEnumerable<long> ids)
+    {
+        selectedSerialIds.Clear();
+        if (ids is not null)
+        {
+            foreach (long id in ids)
+            {
+                selectedSerialIds.Add(id);
+            }
         }
+
+        RaiseSerialSelectionChanged();
+    }
+
+    public void ResetSelectedSerialIds()
+    {
+        if (selectedSerialIds.Count == 0)
+        {
+            return;
+        }
+
+        selectedSerialIds.Clear();
+        RaiseSerialSelectionChanged();
+    }
+
+    public void AutoFillSerialSelection()
+    {
+        int required = (int)Math.Truncate(Math.Max(WorkQuantity, 0));
+        if (required <= 0)
+        {
+            ResetSelectedSerialIds();
+            return;
+        }
+
+        selectedSerialIds.Clear();
+        foreach (InventoryTransferImeiOption option in availableSerials
+            .Where(option => !selectedSerialIds.Contains(option.Id))
+            .Take(required))
+        {
+            selectedSerialIds.Add(option.Id);
+        }
+
+        RaiseSerialSelectionChanged();
+    }
+
+    public void RaiseSerialSelectionChanged()
+    {
+        RaisePropertyChanged(nameof(SelectedSerialsCount));
+        RaisePropertyChanged(nameof(SerialsSelectionLabel));
+        RaisePropertyChanged(nameof(HasCompleteSerialSelection));
     }
 
     public IReadOnlyList<long>? BuildPreparedUnitIds()
@@ -511,7 +633,12 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
             return null;
         }
 
-        return TakeSerials(ProductUnitIds);
+        if (selectedSerialIds.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        return TakeSerials(selectedSerialIds.ToList());
     }
 
     public IReadOnlyList<long>? BuildReceivedUnitIds()
@@ -521,7 +648,12 @@ public sealed class InventoryTransferOperationLine : ViewModelBase
             return null;
         }
 
-        return TakeSerials(PreparedUnitIds);
+        if (selectedSerialIds.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        return TakeSerials(selectedSerialIds.ToList());
     }
 
     private IReadOnlyList<long> TakeSerials(IReadOnlyList<long> ids)
