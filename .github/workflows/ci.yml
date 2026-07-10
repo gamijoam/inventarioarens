@@ -77,7 +77,7 @@ jobs:
       - name: Wait for postgres
         run: |
           for i in {1..30}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U inventory_arens; then
+            if PGPASSWORD=secret psql -h 127.0.0.1 -p 5432 -U inventory_arens -d postgres -c '\q' 2>/dev/null; then
               echo "Postgres ready"
               exit 0
             fi
@@ -94,7 +94,7 @@ jobs:
         run: php artisan config:cache && php artisan route:cache
 
       - name: Run phpunit
-        run: vendor/bin/phpunit --testsuite Feature --process-isolation
+        run: vendor/bin/phpunit --testsuite Feature
 
   playwright:
     name: Playwright (E2E Portal)
@@ -167,7 +167,7 @@ jobs:
       - name: Wait for postgres
         run: |
           for i in {1..30}; do
-            if pg_isready -h 127.0.0.1 -p 5432 -U inventory_arens; then
+            if PGPASSWORD=secret psql -h 127.0.0.1 -p 5432 -U inventory_arens -d postgres -c '\q' 2>/dev/null; then
               echo "Postgres ready"
               exit 0
             fi
