@@ -5,6 +5,8 @@ namespace InventoryDesktop.Modules.InventoryCenter;
 
 public partial class InventoryMovementsView : UserControl
 {
+    public event EventHandler? BackToModulesRequested;
+
     public InventoryMovementsView()
     {
         InitializeComponent();

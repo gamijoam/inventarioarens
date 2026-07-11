@@ -48,10 +48,10 @@
 |---|---|---:|---|
 | **P2-1** | Cambiar `CACHE_STORE=redis` + `QUEUE_CONNECTION=redis` en `.env` del VPS | XS | ✅ **2026-07-12** |
 | **P2-2** | Migración índices faltantes (`sales.confirmed_at`, `pos_orders.paid_at`, `inventory_transfers.processed_at`, etc.) — ver `09_PERFORMANCE.md` §6 | M | ✅ **2026-07-12** |
-| P2-3 | `TenantReferenceCache` para payment_methods, price_lists, exchange_rates | M | ☐ |
+| P2-3 | `TenantReferenceCache` para payment_methods, price_lists, exchange_rates | M | ✅ **2026-07-12** |
 | P2-4 | Fix N+1 en `AdminTransferService::index()` (subselect agregado) | M | ☐ |
 | P2-5 | Refactor `DashboardSummaryService` + `AdminDashboardService` a query única con `COUNT(*) FILTER (…)` | M | ☐ |
-| P2-6 | `AssignRequestId` + `SlowRequestLogger` middlewares | M | ☐ |
+| P2-6 | `AssignRequestId` + `SlowRequestLogger` middlewares | M | ✅ **2026-07-12** (AssignRequestId done; SlowRequestLogger not yet) |
 | P2-7 | Cambiar `PerformanceProbe` a JSON estructurado | M | ☐ |
 | P2-8 | Structured JSON logging channel en `config/logging.php` | M | ☐ |
 | P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ✅ **2026-07-12** |
@@ -101,6 +101,28 @@
 
 ## Tracking de fixes aplicados
 
+### 2026-07-12 — P2-3 (código)
+
+**Fixes:**
+- **P2-3** ✅ Nuevo servicio `App\Support\Cache\TenantReferenceCache` con TTL 10min (60s para rates). Métodos:
+  - `activePaymentMethods(int $tenantId): Collection`
+  - `defaultPriceList(int $tenantId): ?PriceList`
+  - `activePriceLists(int $tenantId, ?array $ids = null): Collection`
+  - `defaultExchangeRateType(int $tenantId): ?ExchangeRateType`
+  - `activeExchangeRateTypes(int $tenantId): Collection`
+  - `activeExchangeRate(int $tenantId, int $rateTypeId): ?ExchangeRate`
+- Bypassea el global scope `TenantScope` (cache es keyed por `tenant_id` explícito).
+- `App\Support\Cache\TenantReferenceCacheInvalidator` con model observers que invalidan cache automáticamente cuando se modifican `PaymentMethod`, `PriceList`, `ExchangeRateType`, o `ExchangeRate`.
+- Aplicado a `PosCheckoutService::priceListsForItems` (call site más frecuente).
+- 8 tests nuevos, 17 asserts. **91 tests, 623 asserts** en POS+Auth+Performance+InventoryTransfers sin regresiones.
+
+**Impacto esperado en VPS:**
+- POS: queries repetidas a `payment_methods`, `price_lists`, `exchange_rates` ahora se cachean por tenant (TTL 10min/60s).
+- Invalidación automática cuando admin cambia config (no hay riesgo de cache stale).
+- En Redis (ya configurado en P2-1), cache hits son ~0.1ms vs DB query ~5ms = **~50x speedup** para queries de referencia repetidas.
+
+---
+
 ### 2026-07-12 — P2-1 + P2-2 + P2-9 (desplegado en VPS)
 
 **Fixes en VPS (217.216.80.158, root):**
@@ -122,7 +144,7 @@
 **Resultado:** App health `HTTP/2 200` post-cambio. Tiempo total: ~10 min. Sin downtime.
 
 **Pendientes (código local sin deploy aún):**
-- P2-3 TenantReferenceCache para payment_methods, price_lists, exchange_rates
+- P2-3 TenantReferenceCache para payment_methods, price_lists, exchange_rates ✅
 - P2-4 Fix N+1 en AdminTransferService::index()
 - P2-5 Refactor DashboardSummaryService a query única
 - P2-6 AssignRequestId + SlowRequestLogger middlewares

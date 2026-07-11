@@ -23,10 +23,13 @@ class PerformanceProbe
         $elapsed = (int) round((microtime(true) - $startedAt) * 1000);
         $level = $elapsed >= $warnAfterMilliseconds ? 'LENTO' : 'OK';
 
-        Log::info("PERF {$level} BACKEND {$operation}: {$elapsed} ms", array_filter([
+        Log::info("perf_probe.{$level}", array_filter([
+            'level' => $level,
+            'operation' => $operation,
             'elapsed_ms' => $elapsed,
             'warn_after_ms' => $warnAfterMilliseconds,
+            'tenant_id' => app(\App\Support\Tenancy\TenantManager::class)->current()?->id,
             ...$context,
-        ], fn ($value): bool => $value !== null && $value !== ''));
+        ], fn ($value): bool => $value !== null && $value !== '' && $value !== []));
     }
 }

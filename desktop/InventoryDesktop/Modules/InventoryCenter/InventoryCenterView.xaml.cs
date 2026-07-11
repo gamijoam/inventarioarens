@@ -177,6 +177,13 @@ public partial class InventoryCenterView : UserControl
         window.Activate();
     }
 
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        BackToModulesRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? BackToModulesRequested;
+
     private void OpenAlerts_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || ViewModel.Alerts.Count == 0)

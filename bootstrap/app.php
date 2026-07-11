@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        $middleware->append(\App\Http\Middleware\AssignRequestId::class);
 
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
