@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+# Pre-push hook: corre la suite COMPLETA de tests (composer test) antes de
+# cada push. Si falla aunque sea un test, el push se cancela. Para saltar
+# (emergencia): git push --no-verify.
+# Logica real en bin/pre-push.php (cross-platform, con discovery de php
+# y composer en paths comunes porque la shell de git no siempre hereda
+# el PATH del usuario).
+
+# Buscar PHP en PATH o en paths comunes (Laragon, XAMPP, etc.)
+PHP_BIN=""
+if command -v php > /dev/null 2>&1; then
+    PHP_BIN="php"
+elif [ -x /c/laragon/bin/php/php-8.3*/php.exe ]; then
+    # Laragon default Windows (8.3 first, then 8.4)
+    PHP_BIN="$(ls /c/laragon/bin/php/php-8.3*/php.exe 2>/dev/null | head -1)"
+fi
+if [ -z "$PHP_BIN" ] && [ -x /c/laragon/bin/php/php-8.4*/php.exe ]; then
+    PHP_BIN="$(ls /c/laragon/bin/php/php-8.4*/php.exe 2>/dev/null | head -1)"
+fi
+if [ -z "$PHP_BIN" ] && command -v /usr/bin/php3 > /dev/null 2>&1; then
+    PHP_BIN="/usr/bin/php"
+fi
+if [ -z "$PHP_BIN" ] && [ -x /usr/bin/php ]; then
+    PHP_BIN="/usr/bin/php"
+fi
+
+if [ -z "$PHP_BIN" ]; then
+    echo "[pre-push] ERROR: no encontre php en PATH ni en paths comunes." >&2
+    echo "[pre-push] Paths buscados: PATH, C:/laragon/bin/php/, /usr/bin/" >&2
+    echo "[pre-push] Soluciones:" >&2
+    echo "[pre-push]   - Agregar php al PATH del sistema" >&2
+    echo "[pre-push]   - O saltar el hook para este push: git push --no-verify" >&2
+    exit 1
+fi
+
+exec "$PHP_BIN" bin/pre-push.php "$@"
