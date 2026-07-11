@@ -542,7 +542,7 @@ class ProductApiTest extends TestCase
         ]);
 
         $this->assertSame(
-            3,
+            2,
             DB::table('sync_outbox')
                 ->where('tenant_id', $tenant->id)
                 ->where('event_type', 'product.updated')

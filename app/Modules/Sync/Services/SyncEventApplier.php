@@ -134,6 +134,7 @@ class SyncEventApplier
 
     public function applyOne(Tenant $tenant, array $event): string
     {
+        $this->assertPayloadIntegrity($event);
         $payload = $this->decodePayload($event['payload'] ?? []);
 
         $result = match ($event['event_type']) {
@@ -1042,6 +1043,31 @@ class SyncEventApplier
         }
 
         return json_decode($payload, true) ?: [];
+    }
+
+    private function assertPayloadIntegrity(array $event): void
+    {
+        $expectedHash = $event['payload_hash'] ?? null;
+
+        if ($expectedHash === null || $expectedHash === '') {
+            return;
+        }
+
+        $rawPayload = $event['payload'] ?? '';
+
+        if (is_array($rawPayload)) {
+            $rawPayload = json_encode($rawPayload);
+        }
+
+        $actualHash = hash('sha256', (string) $rawPayload);
+
+        if (! hash_equals((string) $expectedHash, $actualHash)) {
+            throw new RuntimeException(sprintf(
+                'Payload hash mismatch for event %s (uuid: %s). The event may have been tampered with during transit.',
+                $event['event_type'] ?? 'unknown',
+                $event['event_uuid'] ?? 'unknown'
+            ));
+        }
     }
 
     private function recordProductAudit(int $productId, array $before, array $after): void

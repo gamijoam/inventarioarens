@@ -36,20 +36,26 @@ class RunSyncDaemonCommand extends Command
             return self::FAILURE;
         }
 
-        $cloudUrl = $this->option('cloud-url') ?: config('services.sync.cloud_url');
-        $token = $this->option('token') ?: config('services.sync.token');
+        // Auto-fill token/cloud_url/interval from per-tenant config (WPF installer writes
+        // storage/app/sync-worker/sync-config.json). The previous implementation used
+        // only the global SYNC_CLOUD_TOKEN, which failed for any tenant whose token
+        // was different from the .env one.
+        $perTenant = $this->loadPerTenantConfig((string) $tenant->slug);
+
+        $cloudUrl = (string) ($this->option('cloud-url') ?: ($perTenant['cloud_url'] ?? null) ?: config('services.sync.cloud_url'));
+        $token = (string) ($this->option('token') ?: ($perTenant['token'] ?? null) ?: config('services.sync.token'));
 
         if (! $cloudUrl || ! $token) {
-            $this->error('Debes indicar --cloud-url y --token, o configurar SYNC_CLOUD_URL y SYNC_CLOUD_TOKEN.');
+            $this->error('Debes indicar --cloud-url y --token, o configurar SYNC_CLOUD_URL y SYNC_CLOUD_TOKEN, o instalar la empresa con el configurador WPF para escribir storage/app/sync-worker/sync-config.json.');
 
             return self::FAILURE;
         }
 
-        $nodeCode = (string) $this->option('node');
-        $nodeName = (string) ($this->option('name') ?: $nodeCode);
-        $installationCode = (string) ($this->option('installation') ?: $nodeCode);
-        $limit = max(1, min(200, (int) $this->option('limit')));
-        $interval = max(5, (int) $this->option('interval'));
+        $nodeCode = (string) ($this->option('node') ?: ($perTenant['node_code'] ?? null) ?: 'LOCAL-01');
+        $nodeName = (string) ($this->option('name') ?: ($perTenant['node_name'] ?? null) ?: $nodeCode);
+        $installationCode = (string) ($this->option('installation') ?: ($perTenant['installation_code'] ?? null) ?: $nodeCode);
+        $limit = max(1, min(200, (int) ($this->option('limit') ?: ($perTenant['limit'] ?? null) ?: 50)));
+        $interval = max(5, (int) ($this->option('interval') ?: ($perTenant['interval'] ?? null) ?: 30));
         $maxCycles = $this->option('once') ? 1 : max(0, (int) $this->option('cycles'));
         $push = ! $this->option('pull-only');
         $pull = ! $this->option('push-only');
@@ -104,5 +110,27 @@ class RunSyncDaemonCommand extends Command
 
             sleep($interval);
         }
+    }
+
+    /**
+     * Read the per-tenant sync config written by the WPF installer
+     * (storage/app/sync-worker/sync-config.json). Returns an empty
+     * array if the file does not exist or the tenant is not configured.
+     */
+    private function loadPerTenantConfig(string $tenantSlug): array
+    {
+        $path = storage_path('app/sync-worker/sync-config.json');
+        if (! is_file($path)) {
+            return [];
+        }
+        $raw = @file_get_contents($path);
+        if ($raw === false || $raw === '') {
+            return [];
+        }
+        $data = json_decode($raw, true);
+        if (! is_array($data) || ! isset($data['tenants'][$tenantSlug]) || ! is_array($data['tenants'][$tenantSlug])) {
+            return [];
+        }
+        return $data['tenants'][$tenantSlug];
     }
 }

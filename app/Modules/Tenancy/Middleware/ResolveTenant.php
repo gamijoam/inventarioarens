@@ -19,19 +19,26 @@ class ResolveTenant
     {
         $tenant = $this->resolveTenant($request);
 
-        abort_unless($tenant, 404, 'Tenant not found.');
+        abort_unless($tenant, 404, 'Tenant not found.', [
+            'WWW-Authenticate' => 'Bearer realm="api"',
+        ]);
 
         $token = $request->attributes->get('auth_token');
 
         if ($token instanceof AuthToken) {
-            abort_unless($token->tenant_id === $tenant->id, 403, 'Token does not belong to this tenant.');
+            abort_unless($token->tenant_id === $tenant->id, 403, 'Token does not belong to this tenant.', [
+                'WWW-Authenticate' => 'Bearer realm="api", error="invalid_token", error_description="tenant_mismatch"',
+            ]);
         }
 
         if ($request->user()) {
             abort_unless(
                 $request->user()->tenants()->whereKey($tenant->id)->wherePivot('status', 'active')->exists(),
                 403,
-                'User does not belong to this tenant.'
+                'User does not belong to this tenant.',
+                [
+                    'WWW-Authenticate' => 'Bearer realm="api", error="insufficient_scope", error_description="user_not_in_tenant"',
+                ]
             );
         }
 

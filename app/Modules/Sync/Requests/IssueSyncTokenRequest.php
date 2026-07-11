@@ -8,14 +8,14 @@ class IssueSyncTokenRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return (bool) $this->user()?->can('sync.issue_token');
     }
 
     public function rules(): array
     {
         return [
             'name' => ['nullable', 'string', 'max:120'],
-            'days' => ['nullable', 'integer', 'min:1', 'max:1095'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:365'],
         ];
     }
 }

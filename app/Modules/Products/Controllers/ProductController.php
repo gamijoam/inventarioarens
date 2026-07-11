@@ -18,9 +18,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
@@ -53,12 +54,17 @@ class ProductController extends Controller
         Gate::authorize('create', Product::class);
 
         $data = $this->prepareProductData($request->validated());
+        $userId = $request->user()?->id;
 
-        $product = Product::create($data)
-            ->refresh()
-            ->load(['saleExchangeRateType', 'warrantyPolicy']);
-        $this->recordAudit($product, ProductAudit::ACTION_CREATED, [], $product->only($this->auditedFields()), $request->user()?->id);
-        $syncCatalog->productCreated($product);
+        $product = DB::transaction(function () use ($data, $userId, $syncCatalog): Product {
+            $created = Product::create($data)
+                ->refresh()
+                ->load(['saleExchangeRateType', 'warrantyPolicy']);
+            $this->recordAudit($created, ProductAudit::ACTION_CREATED, [], $created->only($this->auditedFields()), $userId);
+            $syncCatalog->productCreated($created);
+
+            return $created;
+        });
 
         return ProductResource::make($product)
             ->response()
@@ -153,44 +159,46 @@ class ProductController extends Controller
     {
         Gate::authorize('update', $product);
 
-        foreach ($request->validated('prices') as $price) {
-            $productPrice = ProductPrice::query()
-                ->where('product_id', $product->id)
-                ->where('price_list_id', $price['price_list_id'])
-                ->first();
+        DB::transaction(function () use ($request, $product, $syncCatalog): void {
+            foreach ($request->validated('prices') as $price) {
+                $productPrice = ProductPrice::query()
+                    ->where('product_id', $product->id)
+                    ->where('price_list_id', $price['price_list_id'])
+                    ->first();
 
-            $attributes = [
-                'price' => $price['price'],
-                'currency' => $price['currency'],
-                'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
-                'is_active' => $price['is_active'] ?? true,
-            ];
-            $before = $productPrice ? $this->productPriceAuditData($productPrice) : null;
+                $attributes = [
+                    'price' => $price['price'],
+                    'currency' => $price['currency'],
+                    'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
+                    'is_active' => $price['is_active'] ?? true,
+                ];
+                $before = $productPrice ? $this->productPriceAuditData($productPrice) : null;
 
-            if ($productPrice) {
-                $productPrice->update($attributes);
-            } else {
-                $productPrice = ProductPrice::create([
-                    'product_id' => $product->id,
-                    'price_list_id' => $price['price_list_id'],
-                    ...$attributes,
-                ]);
+                if ($productPrice) {
+                    $productPrice->update($attributes);
+                } else {
+                    $productPrice = ProductPrice::create([
+                        'product_id' => $product->id,
+                        'price_list_id' => $price['price_list_id'],
+                        ...$attributes,
+                    ]);
+                }
+
+                $after = $this->productPriceAuditData($productPrice->refresh());
+                if ($before != $after) {
+                    $this->recordAudit(
+                        $product,
+                        ProductAudit::ACTION_UPDATED,
+                        ['product_price' => $before],
+                        ['product_price' => $after],
+                        $request->user()?->id
+                    );
+                    $before === null
+                        ? $syncCatalog->productPriceCreated($productPrice)
+                        : $syncCatalog->productPriceUpdated($productPrice);
+                }
             }
-
-            $after = $this->productPriceAuditData($productPrice->refresh());
-            if ($before != $after) {
-                $this->recordAudit(
-                    $product,
-                    ProductAudit::ACTION_UPDATED,
-                    ['product_price' => $before],
-                    ['product_price' => $after],
-                    $request->user()?->id
-                );
-                $before === null
-                    ? $syncCatalog->productPriceCreated($productPrice)
-                    : $syncCatalog->productPriceUpdated($productPrice);
-            }
-        }
+        });
 
         return $this->prices($product);
     }
@@ -200,6 +208,7 @@ class ProductController extends Controller
         Gate::authorize('update', $product);
 
         $data = $request->validated();
+        $userId = $request->user()?->id;
 
         if (
             array_key_exists('tracking_type', $data)
@@ -211,17 +220,21 @@ class ProductController extends Controller
             ]);
         }
 
-        $before = $product->only(array_keys($data));
-        $product->update($data);
-        $after = $product->refresh()->only(array_keys($data));
-        $changes = $this->changedValues($before, $after);
+        $product = DB::transaction(function () use ($data, $product, $userId, $syncCatalog): Product {
+            $before = $product->only(array_keys($data));
+            $product->update($data);
+            $after = $product->refresh()->only(array_keys($data));
+            $changes = $this->changedValues($before, $after);
 
-        if ($changes !== []) {
-            $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $changes['before'], $changes['after'], $request->user()?->id);
-            $syncCatalog->productUpdated($product);
-        }
+            if ($changes !== []) {
+                $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $changes['before'], $changes['after'], $userId);
+                $syncCatalog->productUpdated($product);
+            }
 
-        return ProductResource::make($product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
+            return $product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units');
+        });
+
+        return ProductResource::make($product);
     }
 
     public function destroy(Product $product, SyncCatalogOutboxService $syncCatalog): Response
@@ -229,9 +242,12 @@ class ProductController extends Controller
         Gate::authorize('delete', $product);
 
         $before = ['is_active' => $product->is_active];
-        $product->update(['is_active' => false]);
-        $this->recordAudit($product, ProductAudit::ACTION_DEACTIVATED, $before, ['is_active' => false], request()->user()?->id);
-        $syncCatalog->productDeactivated($product->refresh());
+
+        DB::transaction(function () use ($product, $before, $syncCatalog): void {
+            $product->update(['is_active' => false]);
+            $this->recordAudit($product, ProductAudit::ACTION_DEACTIVATED, $before, ['is_active' => false], request()->user()?->id);
+            $syncCatalog->productDeactivated($product->refresh());
+        });
 
         return response()->noContent();
     }

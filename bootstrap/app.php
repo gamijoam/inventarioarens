@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Application;
+use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Modules/Sync/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(SecurityHeaders::class);
+
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
             'tenant' => ResolveTenant::class,

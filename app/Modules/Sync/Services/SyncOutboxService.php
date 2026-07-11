@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class SyncOutboxService
 {
-    public function record(
+public function record(
         string $eventType,
         string $aggregateType,
         ?int $aggregateId,
@@ -19,6 +19,8 @@ class SyncOutboxService
     ): int {
         $tenant = app(TenantManager::class)->require();
         $idempotencyKey ??= $this->defaultIdempotencyKey($eventType, $aggregateType, $aggregateId);
+        $payloadHash = substr(hash('sha256', (string) json_encode($payload)), 0, 16);
+        $idempotencyKey = $idempotencyKey.':'.$payloadHash;
         $now = now();
 
         $existingId = DB::table('sync_outbox')

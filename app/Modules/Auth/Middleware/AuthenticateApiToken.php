@@ -18,7 +18,9 @@ class AuthenticateApiToken
             return $next($request);
         }
 
-        abort_unless($plainToken, Response::HTTP_UNAUTHORIZED, 'Unauthenticated.');
+        abort_unless($plainToken, Response::HTTP_UNAUTHORIZED, 'Unauthenticated.', [
+            'WWW-Authenticate' => 'Bearer realm="api"',
+        ]);
 
         $token = AuthToken::query()
             ->with('user')
@@ -30,14 +32,31 @@ class AuthenticateApiToken
             })
             ->first();
 
-        abort_unless($token?->user, Response::HTTP_UNAUTHORIZED, 'Unauthenticated.');
+        abort_unless($token?->user, Response::HTTP_UNAUTHORIZED, 'Unauthenticated.', [
+            'WWW-Authenticate' => 'Bearer realm="api", error="invalid_token"',
+        ]);
 
-        $token->forceFill(['last_used_at' => now()])->save();
+        $this->touchLastUsedAtIfStale($token);
 
         Auth::setUser($token->user);
         $request->setUserResolver(fn () => $token->user);
         $request->attributes->set('auth_token', $token);
 
         return $next($request);
+    }
+
+    /**
+     * Throttle writes a last_used_at: solo actualiza si han pasado
+     * mas de 5 minutos desde la ultima escritura. Esto evita 1 UPDATE por
+     * request autenticado, lo que importa para cargas altas en el WPF/POS
+     * (polling cada 15-30s) y reduce write amplification a la DB.
+     */
+    private function touchLastUsedAtIfStale(\App\Modules\Auth\Models\AuthToken $token): void
+    {
+        if ($token->last_used_at && $token->last_used_at->gt(now()->subMinutes(5))) {
+            return;
+        }
+
+        $token->forceFill(['last_used_at' => now()])->save();
     }
 }

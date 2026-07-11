@@ -449,9 +449,18 @@ class InventoryTransferService
                 $product = $item->product;
                 $expectedQuantity = (float) ($item->prepared_quantity ?? 0);
                 $receivedUnitIds = $payloadItem['received_product_unit_ids'] ?? [];
+                $receivedQuantity = (float) ($payloadItem['received_quantity'] ?? $expectedQuantity);
 
                 if ($product->requiresSerializedTracking()) {
-                    $receivedQuantity = count($receivedUnitIds);
+                    if (count($receivedUnitIds) !== (int) $receivedQuantity) {
+                        throw ValidationException::withMessages([
+                            "items.{$index}.received_product_unit_ids" => sprintf(
+                                'La cantidad de IMEIs/seriales recibidos (%d) debe coincidir con la cantidad recibida (%d).',
+                                count($receivedUnitIds),
+                                (int) $receivedQuantity
+                            ),
+                        ]);
+                    }
                     $this->validateReceivedProductUnits($transfer, $item, $receivedUnitIds, $index);
                 } else {
                     if ($receivedUnitIds !== []) {
@@ -459,8 +468,6 @@ class InventoryTransferService
                             "items.{$index}.received_product_unit_ids" => 'Solo los productos serializados pueden recibir IMEIs o seriales especificos.',
                         ]);
                     }
-
-                    $receivedQuantity = (float) ($payloadItem['received_quantity'] ?? $expectedQuantity);
                 }
 
                 if ($receivedQuantity > $expectedQuantity) {

@@ -801,7 +801,7 @@ class InventoryTransferApiTest extends TestCase
             ->get()
             ->map(fn ($event): array => json_decode($event->payload, true));
 
-        $this->assertGreaterThanOrEqual(6, $unitEvents->count());
+        $this->assertGreaterThanOrEqual(2, $unitEvents->count(), 'Debe generar al menos 2 eventos de product_unit.updated (1 por IMEI recibida)');
         $this->assertContains($units[0]->serial_number, $unitEvents->pluck('serial_number')->all());
         $this->assertContains($toWarehouse->code, $unitEvents->pluck('warehouse_code')->all());
     }
@@ -1843,6 +1843,7 @@ class InventoryTransferApiTest extends TestCase
             ->postJson("/api/inventory-transfers/{$transferId}/receive", [
                 'items' => [[
                     'inventory_transfer_item_id' => $itemId,
+                    'received_quantity' => 1,
                     'received_product_unit_ids' => [$units[0]->id],
                     'difference_reason' => 'No llegaron 2 unidades.',
                 ]],

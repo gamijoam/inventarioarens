@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Modules.InventoryCenter;
@@ -14,6 +15,7 @@ public partial class PosView : UserControl
     private readonly DispatcherTimer searchDebounceTimer;
     private readonly DispatcherTimer searchFocusTimer;
     private bool isLeavingPos;
+    private int openDropDownCount;
 
     public PosView()
     {
@@ -74,14 +76,66 @@ public partial class PosView : UserControl
 
     private void PosView_Loaded(object sender, RoutedEventArgs e)
     {
+        HookAllComboBoxes();
         searchFocusTimer.Start();
         FocusSearchBox(selectAll: true);
+    }
+
+    private void HookAllComboBoxes()
+    {
+        foreach (var comboBox in EnumerateVisualDescendants<ComboBox>(this))
+        {
+            comboBox.DropDownOpened += ComboBox_DropDownOpened;
+            comboBox.DropDownClosed += ComboBox_DropDownClosed;
+        }
+    }
+
+    private void ComboBox_DropDownOpened(object? sender, EventArgs e)
+    {
+        openDropDownCount++;
+    }
+
+    private void ComboBox_DropDownClosed(object? sender, EventArgs e)
+    {
+        if (openDropDownCount > 0)
+        {
+            openDropDownCount--;
+        }
+    }
+
+    private static IEnumerable<T> EnumerateVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                yield return match;
+            }
+            foreach (var descendant in EnumerateVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private void PosView_Unloaded(object sender, RoutedEventArgs e)
     {
         searchFocusTimer.Stop();
         searchDebounceTimer.Stop();
+        UnhookAllComboBoxes();
+    }
+
+    private void UnhookAllComboBoxes()
+    {
+        foreach (var comboBox in EnumerateVisualDescendants<ComboBox>(this))
+        {
+            comboBox.DropDownOpened -= ComboBox_DropDownOpened;
+            comboBox.DropDownClosed -= ComboBox_DropDownClosed;
+        }
+        openDropDownCount = 0;
     }
 
     private void PosView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -633,6 +687,11 @@ public partial class PosView : UserControl
         }
 
         if (Keyboard.FocusedElement == SearchBox || IsTextEntryElement(Keyboard.FocusedElement))
+        {
+            return;
+        }
+
+        if (openDropDownCount > 0)
         {
             return;
         }

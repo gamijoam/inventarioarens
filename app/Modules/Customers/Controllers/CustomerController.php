@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class CustomerController extends Controller
@@ -51,8 +52,12 @@ class CustomerController extends Controller
     {
         Gate::authorize('create', Customer::class);
 
-        $customer = Customer::create($request->validated())->refresh();
-        $syncCatalog->customerCreated($customer);
+        $customer = DB::transaction(function () use ($request, $syncCatalog): Customer {
+            $created = Customer::create($request->validated())->refresh();
+            $syncCatalog->customerCreated($created);
+
+            return $created;
+        });
 
         return CustomerResource::make($customer)
             ->response()
@@ -74,9 +79,13 @@ class CustomerController extends Controller
     {
         Gate::authorize('update', $customer);
 
-        $customer->update($request->validated());
-        $customer = $customer->refresh();
-        $syncCatalog->customerUpdated($customer);
+        $customer = DB::transaction(function () use ($request, $customer, $syncCatalog): Customer {
+            $customer->update($request->validated());
+            $refreshed = $customer->refresh();
+            $syncCatalog->customerUpdated($refreshed);
+
+            return $refreshed;
+        });
 
         return CustomerResource::make($customer);
     }
@@ -85,8 +94,10 @@ class CustomerController extends Controller
     {
         Gate::authorize('delete', $customer);
 
-        $customer->update(['is_active' => false]);
-        $syncCatalog->customerDeactivated($customer->refresh());
+        DB::transaction(function () use ($customer, $syncCatalog): void {
+            $customer->update(['is_active' => false]);
+            $syncCatalog->customerDeactivated($customer->refresh());
+        });
 
         return response()->noContent();
     }

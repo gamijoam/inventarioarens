@@ -53,7 +53,7 @@
                 </form>
             </section>
 
-            <section class="admin-shell" data-view="dashboard" tabindex="-1" hidden>
+            <section class="admin-shell admin-shell--v2" data-view="dashboard" tabindex="-1" data-collapsed="false">
                 <header class="admin-topbar">
                     <div class="topbar-title">
                         <div class="brand-orb brand-orb--small" aria-hidden="true">SI</div>
@@ -80,6 +80,1115 @@
                         <button class="danger-button" type="button" id="admin-logout">Salir</button>
                     </div>
                 </header>
+
+                <aside class="v2-sidebar" aria-label="Menú principal">
+                    <div class="v2-sidebar__brand">
+                        <div class="v2-sidebar__logo" aria-hidden="true">SI</div>
+                        <div class="v2-sidebar__brand-text">
+                            <strong>{{ config('app.name', 'Sistema de Inventario') }}</strong>
+                            <small>Portal administrativo</small>
+                        </div>
+                    </div>
+
+                    <nav class="v2-sidebar__nav" id="v2-sidebar-nav">
+                        <button class="v2-nav-item is-active" type="button" data-portal-section="overview" title="Resumen">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            <span class="v2-nav-item__text"><strong>Resumen</strong><small>Indicadores</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="sales" title="Ventas">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+                            <span class="v2-nav-item__text"><strong>Ventas</strong><small>POS y órdenes</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="reports" title="Reportes">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+                            <span class="v2-nav-item__text"><strong>Reportes</strong><small>Operación</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="inventory" title="Inventario">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                            <span class="v2-nav-item__text"><strong>Inventario</strong><small>Stock y productos</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="rates" title="Tasas">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+                            <span class="v2-nav-item__text"><strong>Tasas</strong><small>BCV y paralelo</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="movements" title="Movimientos">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                            <span class="v2-nav-item__text"><strong>Movimientos</strong><small>Entradas y salidas</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="transfers" title="Traslados">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                            <span class="v2-nav-item__text"><strong>Traslados</strong><small>Logística interna</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="purchases" title="Compras">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4"/><polyline points="9 11 12 8 15 11"/><line x1="12" y1="2" x2="12" y2="14"/></svg>
+                            <span class="v2-nav-item__text"><strong>Compras</strong><small>Recepciones</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="receivables" title="CxC">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            <span class="v2-nav-item__text"><strong>CxC</strong><small>Cobros cliente</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="customers" title="Clientes">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            <span class="v2-nav-item__text"><strong>Clientes</strong><small>Datos y cartera</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="payables" title="CxP">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                            <span class="v2-nav-item__text"><strong>CxP</strong><small>Pagos proveedor</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="suppliers" title="Proveedores">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            <span class="v2-nav-item__text"><strong>Proveedores</strong><small>Compras y cuentas</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="cash" title="Caja">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><line x1="6" y1="12" x2="6" y2="12.01"/><line x1="18" y1="12" x2="18" y2="12.01"/></svg>
+                            <span class="v2-nav-item__text"><strong>Caja</strong><small>Turnos y cierres</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="users" title="Usuarios">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 11l2 2 4-4"/></svg>
+                            <span class="v2-nav-item__text"><strong>Usuarios</strong><small>Perfiles y permisos</small></span>
+                        </button>
+                        <button class="v2-nav-item" type="button" data-portal-section="sync" title="Sincronización">
+                            <svg class="v2-nav-item__icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            <span class="v2-nav-item__text"><strong>Sincronización</strong><small>Nodos y eventos</small></span>
+                        </button>
+                    </nav>
+
+                    <div class="v2-sidebar__footer">
+                        <button class="v2-sidebar__toggle" type="button" id="v2-sidebar-toggle" title="Colapsar menú">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                            <span>Colapsar menú</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <header class="v2-topbar" role="banner">
+                    <div class="v2-topbar__search">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="search" placeholder="Buscar global — productos, traslados, clientes..." aria-label="Buscar global">
+                    </div>
+                    <div class="v2-topbar__spacer"></div>
+                    <label class="v2-topbar__field" id="v2-tenant-field">
+                        <span>Empresa activa</span>
+                        <select id="v2-tenant-switcher" aria-label="Cambiar empresa activa"></select>
+                    </label>
+                    <label class="v2-topbar__field">
+                        <span>Periodo</span>
+                        <select id="v2-dashboard-period" aria-label="Periodo del dashboard">
+                            <option value="today">Hoy</option>
+                            <option value="week">Semana</option>
+                            <option value="month">Mes</option>
+                        </select>
+                    </label>
+                    <button class="v2-btn v2-btn--primary" type="button" id="v2-dashboard-refresh">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>
+                        Actualizar
+                    </button>
+                    <button class="v2-btn v2-btn--danger" type="button" id="v2-admin-logout">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        Salir
+                    </button>
+                </header>
+
+                <main class="v2-main" id="v2-main">
+                    <section class="v2-page" id="v2-overview-page" data-portal-section="overview">
+                    <div class="v2-page-head">
+                        <div>
+                            <h1>Resumen ejecutivo</h1>
+                            <p id="v2-period-label">Vista gerencial · cargando…</p>
+                        </div>
+                    </div>
+
+                    <section class="v2-metric-grid" aria-label="Métricas principales">
+                        <article class="v2-metric v2-metric--info">
+                            <span class="v2-metric__label">Ventas confirmadas</span>
+                            <strong class="v2-metric__value" id="v2-metric-sales-total">USD 0.00</strong>
+                            <span class="v2-metric__hint" id="v2-metric-sales-count">0 ventas confirmadas</span>
+                        </article>
+                        <article class="v2-metric v2-metric--success">
+                            <span class="v2-metric__label">Disponible</span>
+                            <strong class="v2-metric__value" id="v2-metric-stock-available">0</strong>
+                            <span class="v2-metric__hint">Unidades vendibles</span>
+                        </article>
+                        <article class="v2-metric v2-metric--warning">
+                            <span class="v2-metric__label">Cajas abiertas</span>
+                            <strong class="v2-metric__value" id="v2-metric-open-cash">0</strong>
+                            <span class="v2-metric__hint" id="v2-metric-cash-expected">USD 0.00 esperado</span>
+                        </article>
+                        <article class="v2-metric v2-metric--danger">
+                            <span class="v2-metric__label">Pendientes POS</span>
+                            <strong class="v2-metric__value" id="v2-metric-pending-pos">0</strong>
+                            <span class="v2-metric__hint">Órdenes por cerrar</span>
+                        </article>
+                    </section>
+
+                    <section class="v2-panel-grid" aria-label="Inventario y sincronización">
+                        <article class="v2-panel">
+                            <div class="v2-panel__head">
+                                <div>
+                                    <h2>Inventario</h2>
+                                    <p>Productos, stock bajo y disponibilidad.</p>
+                                </div>
+                            </div>
+                            <div class="v2-mini-grid">
+                                <div class="v2-mini v2-mini--info">
+                                    <span class="v2-mini__label">Productos activos</span>
+                                    <span class="v2-mini__value" id="v2-metric-products">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="products"></div>
+                                </div>
+                                <div class="v2-mini v2-mini--warning">
+                                    <span class="v2-mini__label">Stock bajo</span>
+                                    <span class="v2-mini__value" id="v2-metric-low-stock">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="low-stock"></div>
+                                </div>
+                                <div class="v2-mini v2-mini--danger">
+                                    <span class="v2-mini__label">Sin stock</span>
+                                    <span class="v2-mini__value" id="v2-metric-without-stock">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="without-stock"></div>
+                                </div>
+                                <div class="v2-mini v2-mini--info">
+                                    <span class="v2-mini__label">Reservado</span>
+                                    <span class="v2-mini__value" id="v2-metric-reserved">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="reserved"></div>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="v2-panel">
+                            <div class="v2-panel__head">
+                                <div>
+                                    <h2>Sincronización</h2>
+                                    <p>Estado de nodos y eventos pendientes.</p>
+                                </div>
+                                <span class="v2-status-pill" id="v2-sync-status">Sin datos</span>
+                            </div>
+                            <div class="v2-mini-grid v2-mini-grid--3">
+                                <div class="v2-mini v2-mini--success">
+                                    <span class="v2-mini__label">Nodos activos</span>
+                                    <span class="v2-mini__value" id="v2-metric-sync-nodes">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="nodes"></div>
+                                </div>
+                                <div class="v2-mini v2-mini--warning">
+                                    <span class="v2-mini__label">Pendientes por subir</span>
+                                    <span class="v2-mini__value" id="v2-metric-sync-pending">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="pending"></div>
+                                </div>
+                                <div class="v2-mini v2-mini--success">
+                                    <span class="v2-mini__label">Errores</span>
+                                    <span class="v2-mini__value" id="v2-metric-sync-errors">0</span>
+                                    <div class="v2-mini__spark" data-sparkline="errors"></div>
+                                </div>
+                            </div>
+                        </article>
+                    </section>
+
+                    <section class="v2-panel" aria-label="Alertas operativas">
+                        <div class="v2-panel__head">
+                            <div>
+                                <h2>Alertas operativas</h2>
+                                <p>Prioridades que requieren revisión.</p>
+                            </div>
+                        </div>
+                        <div class="v2-alerts" id="v2-alert-list"></div>
+                    </section>
+
+                    <p class="dashboard-status" id="v2-dashboard-status" role="status" aria-live="polite" style="margin-top: 16px;"></p>
+                    </section>
+
+                    <section class="v2-page" id="v2-inventory-page" data-portal-section="inventory" hidden>
+                        <div class="v2-page-head">
+                            <div>
+                                <span class="soft-badge">Inventario</span>
+                                <h1>Catálogo de productos</h1>
+                                <p id="v2-inv-period">Cargando catálogo...</p>
+                            </div>
+                            <div class="v2-page-head__actions">
+                                <button class="v2-btn v2-btn--primary" type="button" id="v2-inv-new">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Nuevo producto
+                                </button>
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-inv-export">
+                                    Exportar CSV
+                                </button>
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-inv-refresh">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>
+                                    Actualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        <section class="v2-metric-grid v2-metric-grid--compact" aria-label="Indicadores de inventario">
+                            <article class="v2-metric v2-metric--info v2-metric--compact">
+                                <span class="v2-metric__label">Productos activos</span>
+                                <strong class="v2-metric__value" id="v2-inv-metric-total">0</strong>
+                                <span class="v2-metric__hint" id="v2-inv-metric-total-hint">Cargando...</span>
+                            </article>
+                            <article class="v2-metric v2-metric--warning v2-metric--compact">
+                                <span class="v2-metric__label">Stock bajo</span>
+                                <strong class="v2-metric__value" id="v2-inv-metric-low">0</strong>
+                                <span class="v2-metric__hint" id="v2-inv-metric-low-hint">Mínimo operativo: 3</span>
+                            </article>
+                            <article class="v2-metric v2-metric--danger v2-metric--compact">
+                                <span class="v2-metric__label">Sin stock</span>
+                                <strong class="v2-metric__value" id="v2-inv-metric-out">0</strong>
+                                <span class="v2-metric__hint">Disponibilidad crítica</span>
+                            </article>
+                            <article class="v2-metric v2-metric--success v2-metric--compact">
+                                <span class="v2-metric__label">Unidades disponibles</span>
+                                <strong class="v2-metric__value" id="v2-inv-metric-available">0</strong>
+                                <span class="v2-metric__hint" id="v2-inv-metric-reserved">0 reservadas · 0 dañadas</span>
+                            </article>
+                        </section>
+
+                        <div class="v2-alert-strip" id="v2-inv-alert-strip" hidden role="status" aria-live="polite">
+                            <svg class="v2-alert-strip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <div class="v2-alert-strip__list" id="v2-inv-alert-strip-list"></div>
+                            <button class="v2-alert-strip__close" type="button" id="v2-inv-alert-strip-close" aria-label="Cerrar alertas">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        <article class="v2-panel v2-panel--flush v2-inv-catalog">
+                            <div class="v2-catalog__head">
+                                <div class="v2-catalog__title-block">
+                                    <h2>Catálogo</h2>
+                                    <p id="v2-inv-filter-summary">Vista completa del catálogo.</p>
+                                </div>
+                                <span class="v2-status-pill v2-status-pill--info" id="v2-inv-active-status">Activos</span>
+                            </div>
+
+                            <div class="v2-catalog__toolbar" role="search">
+                                <label class="v2-field v2-field--search v2-field--search-lg">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input id="v2-inv-search" type="search" placeholder="Buscar nombre o SKU..." autocomplete="off">
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Control</span>
+                                    <select id="v2-inv-tracking">
+                                        <option value="">Todos</option>
+                                        <option value="quantity">Cantidad</option>
+                                        <option value="serialized">Serializado</option>
+                                    </select>
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Stock</span>
+                                    <select id="v2-inv-stock">
+                                        <option value="all">Todos</option>
+                                        <option value="available">Disponible</option>
+                                        <option value="low">Stock bajo</option>
+                                        <option value="out">Sin stock</option>
+                                    </select>
+                                </label>
+                                <button class="v2-btn v2-btn--primary" type="button" id="v2-inv-apply">Aplicar</button>
+                            </div>
+
+                            <div class="v2-chip-row" id="v2-inv-quick-status" role="tablist" aria-label="Filtro rápido de estado comercial">
+                                <button class="v2-chip is-active" type="button" data-v2-inv-active-filter="active">Activos</button>
+                                <button class="v2-chip" type="button" data-v2-inv-active-filter="inactive">Inactivos</button>
+                                <button class="v2-chip" type="button" data-v2-inv-active-filter="all">Todos</button>
+                            </div>
+
+                            <div class="admin-table-wrap">
+                                <table class="admin-data-table v2-table v2-table--inventory" id="v2-inv-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="v2-col-product">Producto</th>
+                                            <th class="v2-col-price">Precio</th>
+                                            <th class="v2-col-stock">Disponible</th>
+                                            <th class="v2-col-status">Estado</th>
+                                            <th class="v2-col-active">Venta</th>
+                                            <th class="v2-col-action" aria-label="Acciones"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="v2-inv-tbody"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="v2-table-footer">
+                                <span id="v2-inv-count">Sin productos cargados.</span>
+                                <div class="v2-table-footer__actions">
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-inv-prev">Anterior</button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-inv-next">Siguiente</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <p class="dashboard-status" id="v2-inv-status" role="status" aria-live="polite" style="margin-top: 16px;"></p>
+                    </section>
+
+                    <div class="v2-sheet" id="v2-inv-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="v2-sheet-title">
+                        <div class="v2-sheet__backdrop" id="v2-inv-sheet-backdrop"></div>
+                        <div class="v2-sheet__panel" tabindex="-1">
+                            <header class="v2-sheet__head">
+                                <div>
+                                    <span class="soft-badge" id="v2-sheet-badge">Detalle</span>
+                                    <h2 id="v2-sheet-title">Producto</h2>
+                                    <p id="v2-sheet-subtitle">Cargando...</p>
+                                </div>
+                                <div class="v2-sheet__head-actions" id="v2-sheet-actions-view">
+                                    <button class="v2-btn v2-btn--primary" type="button" id="v2-sheet-edit">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        Editar
+                                    </button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-sheet-close" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div class="v2-sheet__head-actions" id="v2-sheet-actions-edit" hidden>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-sheet-cancel">
+                                        Cancelar
+                                    </button>
+                                    <button class="v2-btn v2-btn--primary" type="button" id="v2-sheet-save">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                        <span id="v2-sheet-save-label">Guardar</span>
+                                    </button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-sheet-close-edit" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            </header>
+
+                            <nav class="v2-sheet__tabs" id="v2-inv-sheet-tabs" role="tablist" aria-label="Secciones del producto">
+                                <button class="v2-sheet__tab is-active" type="button" data-v2-sheet-tab="general" role="tab" aria-selected="true">General</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-sheet-tab="stock" role="tab" aria-selected="false">Stock</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-sheet-tab="prices" role="tab" aria-selected="false">Precios</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-sheet-tab="history" role="tab" aria-selected="false">Historial</button>
+                            </nav>
+
+                            <div class="v2-sheet__body">
+                                <section class="v2-sheet__pane" data-v2-sheet-pane="general" role="tabpanel">
+                                    <dl class="v2-kv" data-v2-sheet-mode="view">
+                                        <div><dt>Nombre</dt><dd id="v2-sheet-name">—</dd></div>
+                                        <div><dt>SKU</dt><dd id="v2-sheet-sku">—</dd></div>
+                                        <div><dt>Control</dt><dd id="v2-sheet-tracking">—</dd></div>
+                                        <div><dt>Moneda</dt><dd id="v2-sheet-currency">—</dd></div>
+                                        <div><dt>Precio base</dt><dd id="v2-sheet-base-price">—</dd></div>
+                                        <div><dt>Estado</dt><dd id="v2-sheet-active">—</dd></div>
+                                    </dl>
+                                    <form class="v2-sheet__edit-form" data-v2-sheet-mode="edit" hidden novalidate>
+                                        <label class="v2-field v2-field--full">
+                                            <span>Nombre comercial</span>
+                                            <input id="v2-sheet-edit-name" type="text" maxlength="255" required>
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>SKU</span>
+                                            <input id="v2-sheet-edit-sku" type="text" maxlength="255" placeholder="Opcional — se genera del nombre">
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Tipo de control</span>
+                                            <select id="v2-sheet-edit-tracking">
+                                                <option value="quantity">Por cantidad</option>
+                                                <option value="serialized">Serializado / IMEI</option>
+                                            </select>
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Moneda</span>
+                                            <select id="v2-sheet-edit-currency">
+                                                <option value="USD">USD — Dólar</option>
+                                                <option value="VES">VES — Bolívar</option>
+                                            </select>
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Precio base</span>
+                                            <input id="v2-sheet-edit-price" type="number" min="0" step="0.01" placeholder="0.00">
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Estado</span>
+                                            <select id="v2-sheet-edit-active">
+                                                <option value="1">Activo para venta</option>
+                                                <option value="0">Inactivo</option>
+                                            </select>
+                                        </label>
+                                        <div class="v2-sheet__edit-error" id="v2-sheet-edit-error" hidden></div>
+                                    </form>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-sheet-pane="stock" role="tabpanel" hidden>
+                                    <div class="v2-sheet__pane-head">
+                                        <h3>Stock por almacén</h3>
+                                        <span class="v2-status-pill" id="v2-sheet-stock-total">0 disp.</span>
+                                    </div>
+                                    <div class="v2-sheet__list" id="v2-sheet-stock">
+                                        <p class="v2-sheet__empty">Sin stock cargado.</p>
+                                    </div>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-sheet-pane="prices" role="tabpanel" hidden>
+                                    <div class="v2-sheet__pane-head">
+                                        <h3>Precios por lista</h3>
+                                        <span class="v2-status-pill" id="v2-sheet-price-count">0 listas</span>
+                                    </div>
+                                    <div class="v2-sheet__list" id="v2-sheet-prices">
+                                        <p class="v2-sheet__empty">Sin precios por lista.</p>
+                                    </div>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-sheet-pane="history" role="tabpanel" hidden>
+                                    <div class="v2-sheet__pane-head">
+                                        <h3>Actividad reciente</h3>
+                                        <span class="v2-status-pill" id="v2-sheet-change-count">0 cambios</span>
+                                    </div>
+                                    <div class="v2-sheet__list" id="v2-sheet-history">
+                                        <p class="v2-sheet__empty">Sin movimientos recientes.</p>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="v2-page" id="v2-rates-page" data-portal-section="rates" hidden>
+                        <div class="v2-page-head">
+                            <div>
+                                <span class="soft-badge">Monedas</span>
+                                <h1>Tasas de cambio</h1>
+                                <p id="v2-rates-period">Cargando tipos y valores vigentes…</p>
+                            </div>
+                            <div class="v2-page-head__actions">
+                                <button class="v2-btn v2-btn--primary" type="button" id="v2-rates-new-type">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Nuevo tipo
+                                </button>
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-rates-new-value">
+                                    Registrar tasa
+                                </button>
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-rates-refresh">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>
+                                    Actualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        <section class="v2-metric-grid v2-metric-grid--compact" aria-label="Indicadores de tasas">
+                            <article class="v2-metric v2-metric--info v2-metric--compact">
+                                <span class="v2-metric__label">Tipos activos</span>
+                                <strong class="v2-metric__value" id="v2-rates-metric-types">0</strong>
+                                <span class="v2-metric__hint" id="v2-rates-metric-types-hint">0 predeterminados</span>
+                            </article>
+                            <article class="v2-metric v2-metric--success v2-metric--compact">
+                                <span class="v2-metric__label">Tasa vigente (default)</span>
+                                <strong class="v2-metric__value" id="v2-rates-metric-current">—</strong>
+                                <span class="v2-metric__hint" id="v2-rates-metric-current-hint">Sin tasa activa</span>
+                            </article>
+                            <article class="v2-metric v2-metric--warning v2-metric--compact">
+                                <span class="v2-metric__label">Tasas registradas</span>
+                                <strong class="v2-metric__value" id="v2-rates-metric-total">0</strong>
+                                <span class="v2-metric__hint" id="v2-rates-metric-total-hint">Histórico completo</span>
+                            </article>
+                            <article class="v2-metric v2-metric--info v2-metric--compact">
+                                <span class="v2-metric__label">Última actualización</span>
+                                <strong class="v2-metric__value" id="v2-rates-metric-last">—</strong>
+                                <span class="v2-metric__hint" id="v2-rates-metric-last-hint">—</span>
+                            </article>
+                        </section>
+
+                        <div class="v2-alert-strip" id="v2-rates-alert-strip" hidden role="status" aria-live="polite">
+                            <svg class="v2-alert-strip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <div class="v2-alert-strip__list" id="v2-rates-alert-strip-list"></div>
+                            <button class="v2-alert-strip__close" type="button" id="v2-rates-alert-strip-close" aria-label="Cerrar alertas">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        <article class="v2-panel v2-panel--flush v2-rates-catalog">
+                            <div class="v2-catalog__head">
+                                <div class="v2-catalog__title-block">
+                                    <h2>Tipos de tasa</h2>
+                                    <p>Define si una tasa está activa o si será la predeterminada.</p>
+                                </div>
+                                <span class="v2-status-pill v2-status-pill--info" id="v2-rates-types-count">0 tipos</span>
+                            </div>
+                            <div class="admin-table-wrap">
+                                <table class="admin-data-table v2-table v2-table--rates" id="v2-rates-types-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="v2-col-product">Tipo</th>
+                                            <th class="v2-col-default">Predeterminada</th>
+                                            <th class="v2-col-status">Estado</th>
+                                            <th class="v2-col-count">Tasas</th>
+                                            <th class="v2-col-date">Última tasa</th>
+                                            <th class="v2-col-action" aria-label="Acciones"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="v2-rates-types-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="v2-table-footer">
+                                <span id="v2-rates-types-count-foot">Sin tipos cargados.</span>
+                            </div>
+                        </article>
+
+                        <article class="v2-panel v2-panel--flush v2-rates-catalog">
+                            <div class="v2-catalog__head">
+                                <div class="v2-catalog__title-block">
+                                    <h2>Historial de tasas</h2>
+                                    <p>Últimas tasas registradas para auditoría rápida. La activa es la vigente para el POS.</p>
+                                </div>
+                                <span class="v2-status-pill v2-status-pill--info" id="v2-rates-history-count">0 valores</span>
+                            </div>
+                            <div class="admin-table-wrap">
+                                <table class="admin-data-table v2-table v2-table--rates" id="v2-rates-history-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="v2-col-type">Tipo</th>
+                                            <th class="v2-col-rate">Tasa (Bs/USD)</th>
+                                            <th class="v2-col-effective">Vigencia</th>
+                                            <th class="v2-col-status">Estado</th>
+                                            <th class="v2-col-source">Fuente</th>
+                                            <th class="v2-col-action" aria-label="Acciones"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="v2-rates-history-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="v2-table-footer">
+                                <span id="v2-rates-history-count-foot">Mostrando los últimos 50 valores.</span>
+                                <div class="v2-table-footer__actions">
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rates-prev">Anterior</button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rates-next">Siguiente</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <p class="dashboard-status" id="v2-rates-status" role="status" aria-live="polite" style="margin-top: 16px;"></p>
+                    </section>
+
+                    <div class="v2-sheet" id="v2-rates-type-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="v2-rate-type-title">
+                        <div class="v2-sheet__backdrop" id="v2-rates-type-sheet-backdrop"></div>
+                        <div class="v2-sheet__panel" tabindex="-1">
+                            <header class="v2-sheet__head">
+                                <div>
+                                    <span class="soft-badge" id="v2-rate-type-badge">Tipo</span>
+                                    <h2 id="v2-rate-type-title">Tipo de tasa</h2>
+                                    <p id="v2-rate-type-subtitle">Cargando…</p>
+                                </div>
+                                <div class="v2-sheet__head-actions" data-v2-rate-sheet-mode="view">
+                                    <button class="v2-btn v2-btn--primary" type="button" id="v2-rate-type-edit">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        Editar
+                                    </button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rate-type-close" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div class="v2-sheet__head-actions" data-v2-rate-sheet-mode="edit" hidden>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rate-type-cancel">Cancelar</button>
+                                    <button class="v2-btn v2-btn--primary" type="button" id="v2-rate-type-save">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                        <span id="v2-rate-type-save-label">Guardar</span>
+                                    </button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rate-type-close-edit" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            </header>
+
+                            <nav class="v2-sheet__tabs" role="tablist" aria-label="Secciones del tipo de tasa">
+                                <button class="v2-sheet__tab is-active" type="button" data-v2-rate-type-tab="general" role="tab" aria-selected="true">General</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-rate-type-tab="history" role="tab" aria-selected="false">Historial</button>
+                            </nav>
+
+                            <div class="v2-sheet__body">
+                                <section class="v2-sheet__pane" data-v2-rate-type-pane="general" role="tabpanel">
+                                    <dl class="v2-kv" data-v2-rate-type-mode="view">
+                                        <div><dt>Código</dt><dd id="v2-rate-type-code">—</dd></div>
+                                        <div><dt>Nombre</dt><dd id="v2-rate-type-name-view">—</dd></div>
+                                        <div><dt>Predeterminada</dt><dd id="v2-rate-type-default">—</dd></div>
+                                        <div><dt>Estado</dt><dd id="v2-rate-type-active">—</dd></div>
+                                        <div><dt>Creado</dt><dd id="v2-rate-type-created">—</dd></div>
+                                    </dl>
+                                    <form class="v2-sheet__edit-form" data-v2-rate-type-mode="edit" hidden novalidate>
+                                        <label class="v2-field v2-field--full">
+                                            <span>Código</span>
+                                            <input id="v2-rate-type-edit-code" type="text" maxlength="50" required placeholder="BCV, PARALELO, ENPARALELO">
+                                        </label>
+                                        <label class="v2-field v2-field--full">
+                                            <span>Nombre</span>
+                                            <input id="v2-rate-type-edit-name" type="text" maxlength="255" required placeholder="Banco Central de Venezuela">
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Predeterminada</span>
+                                            <select id="v2-rate-type-edit-default">
+                                                <option value="0">No</option>
+                                                <option value="1">Sí (única)</option>
+                                            </select>
+                                        </label>
+                                        <label class="v2-field">
+                                            <span>Estado</span>
+                                            <select id="v2-rate-type-edit-active">
+                                                <option value="1">Activo</option>
+                                                <option value="0">Inactivo</option>
+                                            </select>
+                                        </label>
+                                        <div class="v2-sheet__edit-error" id="v2-rate-type-edit-error" hidden></div>
+                                    </form>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-rate-type-pane="history" role="tabpanel" hidden>
+                                    <div class="v2-sheet__pane-head">
+                                        <h3>Tasas registradas</h3>
+                                        <span class="v2-status-pill" id="v2-rate-type-history-count">0 valores</span>
+                                    </div>
+                                    <div class="v2-sheet__list" id="v2-rate-type-history-list">
+                                        <p class="v2-sheet__empty">Sin tasas registradas para este tipo.</p>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="v2-sheet" id="v2-rates-value-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="v2-rate-value-title">
+                        <div class="v2-sheet__backdrop" id="v2-rates-value-sheet-backdrop"></div>
+                        <div class="v2-sheet__panel" tabindex="-1">
+                            <header class="v2-sheet__head">
+                                <div>
+                                    <span class="soft-badge">Nueva tasa</span>
+                                    <h2 id="v2-rate-value-title">Registrar valor</h2>
+                                    <p id="v2-rate-value-subtitle">Captura el valor vigente y se aplicará al POS y a la sincronización local.</p>
+                                </div>
+                                <div class="v2-sheet__head-actions">
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rate-value-cancel">Cancelar</button>
+                                    <button class="v2-btn v2-btn--primary" type="button" id="v2-rate-value-save">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                        Registrar
+                                    </button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-rate-value-close" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            </header>
+
+                            <div class="v2-sheet__body">
+                                <form class="v2-sheet__edit-form v2-sheet__edit-form--full" novalidate>
+                                    <label class="v2-field v2-field--full">
+                                        <span>Tipo de tasa</span>
+                                        <select id="v2-rate-value-type" required></select>
+                                    </label>
+                                    <label class="v2-field">
+                                        <span>Valor (Bs por USD)</span>
+                                        <input id="v2-rate-value-amount" type="number" min="0.000001" step="0.000001" required placeholder="36.50">
+                                    </label>
+                                    <label class="v2-field">
+                                        <span>Vigente desde</span>
+                                        <input id="v2-rate-value-effective" type="datetime-local" required>
+                                    </label>
+                                    <label class="v2-field v2-field--full">
+                                        <span>Fuente</span>
+                                        <input id="v2-rate-value-source" type="text" maxlength="255" placeholder="Manual, BCV, paralelo, monitor dolar...">
+                                    </label>
+                                    <label class="v2-field v2-field--full v2-field--inline-check">
+                                        <input id="v2-rate-value-active" type="checkbox" checked>
+                                        Activar como tasa vigente (desactiva las demás del mismo tipo y par)
+                                    </label>
+                                    <div class="v2-sheet__edit-error" id="v2-rate-value-error" hidden></div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="v2-page" id="v2-reports-page" data-portal-section="reports" hidden>
+                        <div class="v2-page-head">
+                            <div>
+                                <span class="soft-badge">Reportes</span>
+                                <h1>Reportes operativos</h1>
+                                <p id="v2-reports-period">Cargando actividad…</p>
+                            </div>
+                            <div class="v2-page-head__actions">
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-reports-refresh">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>
+                                    Actualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        <section class="v2-metric-grid v2-metric-grid--compact" aria-label="Indicadores operativos">
+                            <article class="v2-metric v2-metric--compact">
+                                <span class="v2-metric__label">Ventas POS</span>
+                                <strong class="v2-metric__value" id="v2-reports-metric-pos-total">USD 0.00</strong>
+                                <span class="v2-metric__hint" id="v2-reports-metric-pos-hint">0 ventas confirmadas</span>
+                            </article>
+                            <article class="v2-metric v2-metric--compact">
+                                <span class="v2-metric__label">Ticket promedio</span>
+                                <strong class="v2-metric__value" id="v2-reports-metric-ticket">USD 0.00</strong>
+                                <span class="v2-metric__hint">Promedio por venta POS</span>
+                            </article>
+                            <article class="v2-metric v2-metric--compact v2-metric--warning">
+                                <span class="v2-metric__label">Pendientes POS</span>
+                                <strong class="v2-metric__value" id="v2-reports-metric-pending">0</strong>
+                                <span class="v2-metric__hint" id="v2-reports-metric-pending-hint">USD 0.00 por cerrar</span>
+                            </article>
+                            <article class="v2-metric v2-metric--compact v2-metric--info">
+                                <span class="v2-metric__label">Cajas abiertas</span>
+                                <strong class="v2-metric__value" id="v2-reports-metric-open-cash">0</strong>
+                                <span class="v2-metric__hint" id="v2-reports-metric-cash-hint">USD 0.00 esperado</span>
+                            </article>
+                        </section>
+
+                        <div class="v2-alert-strip" id="v2-reports-alert-strip" hidden role="status" aria-live="polite">
+                            <svg class="v2-alert-strip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <div class="v2-alert-strip__list" id="v2-reports-alert-strip-list"></div>
+                            <button class="v2-alert-strip__close" type="button" id="v2-reports-alert-strip-close" aria-label="Cerrar alertas">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="v2-reports-toolbar" role="search">
+                            <label class="v2-field v2-field--inline">
+                                <span>Periodo</span>
+                                <select id="v2-reports-period-select">
+                                    <option value="today">Hoy</option>
+                                    <option value="week">Semana</option>
+                                    <option value="month">Mes</option>
+                                    <option value="quarter">Trimestre</option>
+                                </select>
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Desde</span>
+                                <input id="v2-reports-date-from" type="date">
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Hasta</span>
+                                <input id="v2-reports-date-to" type="date">
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Sucursal</span>
+                                <select id="v2-reports-branch">
+                                    <option value="">Todas</option>
+                                </select>
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Caja</span>
+                                <select id="v2-reports-cash-register">
+                                    <option value="">Todas</option>
+                                </select>
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Cajero</span>
+                                <select id="v2-reports-cashier">
+                                    <option value="">Todos</option>
+                                </select>
+                            </label>
+                            <label class="v2-field v2-field--inline">
+                                <span>Estado POS</span>
+                                <select id="v2-reports-order-status">
+                                    <option value="all">Todos</option>
+                                    <option value="paid">Pagadas</option>
+                                    <option value="open">Pendientes</option>
+                                    <option value="cancelled">Canceladas</option>
+                                </select>
+                            </label>
+                            <button class="v2-btn v2-btn--primary" type="button" id="v2-reports-apply">Aplicar</button>
+                            <button class="v2-btn v2-btn--ghost" type="button" id="v2-reports-clear">Limpiar</button>
+                        </div>
+
+                        <div class="v2-reports-grid">
+                            <article class="v2-panel v2-panel--flush v2-reports-panel v2-reports-panel--wide">
+                                <div class="v2-catalog__head">
+                                    <div class="v2-catalog__title-block">
+                                        <h2>Ventas recientes</h2>
+                                        <p id="v2-reports-orders-subtitle">Últimas órdenes POS del periodo.</p>
+                                    </div>
+                                    <button class="v2-btn v2-btn--ghost v2-btn--sm" type="button" id="v2-reports-export-orders">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        CSV
+                                    </button>
+                                </div>
+                                <div class="admin-table-wrap">
+                                    <table class="admin-data-table v2-table v2-table--reports">
+                                        <thead>
+                                            <tr>
+                                                <th>Orden</th>
+                                                <th>Cliente</th>
+                                                <th>Caja</th>
+                                                <th>Estado</th>
+                                                <th class="v2-col-money">Total</th>
+                                                <th class="v2-col-money">Pagado</th>
+                                                <th>Fecha</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="v2-reports-orders-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </article>
+
+                            <article class="v2-panel v2-panel--flush v2-reports-panel">
+                                <div class="v2-catalog__head">
+                                    <div class="v2-catalog__title-block">
+                                        <h2>Métodos de pago</h2>
+                                        <p>Pagos capturados por moneda y método.</p>
+                                    </div>
+                                    <button class="v2-btn v2-btn--ghost v2-btn--sm" type="button" id="v2-reports-export-payments">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        CSV
+                                    </button>
+                                </div>
+                                <div class="admin-table-wrap">
+                                    <table class="admin-data-table v2-table v2-table--reports">
+                                        <thead>
+                                            <tr>
+                                                <th>Método</th>
+                                                <th class="v2-col-count">Pagos</th>
+                                                <th class="v2-col-money">Total USD</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="v2-reports-payments-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </article>
+
+                            <article class="v2-panel v2-panel--flush v2-reports-panel">
+                                <div class="v2-catalog__head">
+                                    <div class="v2-catalog__title-block">
+                                        <h2>Productos vendidos</h2>
+                                        <p>Ranking por monto facturado.</p>
+                                    </div>
+                                    <button class="v2-btn v2-btn--ghost v2-btn--sm" type="button" id="v2-reports-export-products">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        CSV
+                                    </button>
+                                </div>
+                                <div class="admin-table-wrap">
+                                    <table class="admin-data-table v2-table v2-table--reports">
+                                        <thead>
+                                            <tr>
+                                                <th class="v2-col-rank">#</th>
+                                                <th>Producto</th>
+                                                <th class="v2-col-count">Cant.</th>
+                                                <th class="v2-col-money">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="v2-reports-products-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </article>
+
+                            <article class="v2-panel v2-panel--flush v2-reports-panel v2-reports-panel--wide">
+                                <div class="v2-catalog__head">
+                                    <div class="v2-catalog__title-block">
+                                        <h2>Actividad de caja</h2>
+                                        <p>Turnos abiertos o cerrados dentro del periodo.</p>
+                                    </div>
+                                    <button class="v2-btn v2-btn--ghost v2-btn--sm" type="button" id="v2-reports-export-cash">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        CSV
+                                    </button>
+                                </div>
+                                <div class="admin-table-wrap">
+                                    <table class="admin-data-table v2-table v2-table--reports">
+                                        <thead>
+                                            <tr>
+                                                <th>Caja</th>
+                                                <th>Sucursal</th>
+                                                <th>Cajero</th>
+                                                <th>Estado</th>
+                                                <th class="v2-col-money">Esperado</th>
+                                                <th class="v2-col-money">Diferencia</th>
+                                                <th>Apertura</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="v2-reports-cash-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </article>
+                        </div>
+
+                        <p class="dashboard-status" id="v2-reports-status" role="status" aria-live="polite" style="margin-top: 16px;"></p>
+                    </section>
+
+                    <section class="v2-page" id="v2-movements-page" data-portal-section="movements" hidden>
+                        <div class="v2-page-head">
+                            <div>
+                                <span class="soft-badge">Inventario</span>
+                                <h1>Historial de movimientos</h1>
+                                <p id="v2-mov-period">Cargando actividad…</p>
+                            </div>
+                            <div class="v2-page-head__actions">
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-mov-refresh">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>
+                                    Actualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        <section class="v2-metric-grid v2-metric-grid--compact" aria-label="Indicadores de movimientos">
+                            <article class="v2-metric v2-metric--info v2-metric--compact">
+                                <span class="v2-metric__label">Movimientos (vista)</span>
+                                <strong class="v2-metric__value" id="v2-mov-metric-total">0</strong>
+                                <span class="v2-metric__hint" id="v2-mov-metric-total-hint">En la página actual</span>
+                            </article>
+                            <article class="v2-metric v2-metric--success v2-metric--compact">
+                                <span class="v2-metric__label">Entradas netas</span>
+                                <strong class="v2-metric__value" id="v2-mov-metric-in">0</strong>
+                                <span class="v2-metric__hint">Unidades que entraron a stock</span>
+                            </article>
+                            <article class="v2-metric v2-metric--warning v2-metric--compact">
+                                <span class="v2-metric__label">Salidas netas</span>
+                                <strong class="v2-metric__value" id="v2-mov-metric-out">0</strong>
+                                <span class="v2-metric__hint">Unidades que salieron de stock</span>
+                            </article>
+                            <article class="v2-metric v2-metric--info v2-metric--compact">
+                                <span class="v2-metric__label">Productos distintos</span>
+                                <strong class="v2-metric__value" id="v2-mov-metric-products">0</strong>
+                                <span class="v2-metric__hint">En la página actual</span>
+                            </article>
+                        </section>
+
+                        <div class="v2-alert-strip" id="v2-mov-alert-strip" hidden role="status" aria-live="polite">
+                            <svg class="v2-alert-strip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <div class="v2-alert-strip__list" id="v2-mov-alert-strip-list"></div>
+                            <button class="v2-alert-strip__close" type="button" id="v2-mov-alert-strip-close" aria-label="Cerrar alertas">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        <article class="v2-panel v2-panel--flush v2-mov-catalog">
+                            <div class="v2-catalog__head">
+                                <div class="v2-catalog__title-block">
+                                    <h2>Actividad reciente</h2>
+                                    <p>Entradas, salidas, ventas, devoluciones, ajustes y traslados por empresa.</p>
+                                </div>
+                                <span class="v2-status-pill v2-status-pill--info" id="v2-mov-filter-status">Todos los tipos</span>
+                            </div>
+
+                            <div class="v2-mov-toolbar" role="search">
+                                <label class="v2-field v2-field--search v2-field--search-lg v2-mov-toolbar__search">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input id="v2-mov-search" type="search" placeholder="Buscar producto, SKU, motivo o referencia..." autocomplete="off">
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Tipo</span>
+                                    <select id="v2-mov-type">
+                                        <option value="all">Todos</option>
+                                        <option value="purchase">Compra</option>
+                                        <option value="purchase_return">Dev. proveedor</option>
+                                        <option value="sale">Venta</option>
+                                        <option value="sale_return">Dev. venta</option>
+                                        <option value="adjustment_in">Ajuste entrada</option>
+                                        <option value="adjustment_out">Ajuste salida</option>
+                                        <option value="transfer_in">Traslado entrada</option>
+                                        <option value="transfer_out">Traslado salida</option>
+                                        <option value="return_in">Retorno entrada</option>
+                                        <option value="return_out">Retorno salida</option>
+                                        <option value="damaged">Dañado</option>
+                                        <option value="reserved">Reservado</option>
+                                        <option value="released">Liberado</option>
+                                    </select>
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Almacén</span>
+                                    <select id="v2-mov-warehouse">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Desde</span>
+                                    <input id="v2-mov-from" type="date">
+                                </label>
+                                <label class="v2-field v2-field--inline">
+                                    <span>Hasta</span>
+                                    <input id="v2-mov-to" type="date">
+                                </label>
+                                <button class="v2-btn v2-btn--primary" type="button" id="v2-mov-apply">Aplicar</button>
+                                <button class="v2-btn v2-btn--ghost" type="button" id="v2-mov-clear">Limpiar</button>
+                            </div>
+
+                            <div class="admin-table-wrap">
+                                <table class="admin-data-table v2-table v2-table--movements" id="v2-mov-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="v2-col-datetime">Fecha</th>
+                                            <th class="v2-col-type">Tipo</th>
+                                            <th class="v2-col-product">Producto</th>
+                                            <th class="v2-col-qty">Cantidad</th>
+                                            <th class="v2-col-warehouse">Almacén / Sede</th>
+                                            <th class="v2-col-reason">Motivo / referencia</th>
+                                            <th class="v2-col-action" aria-label="Acciones"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="v2-mov-tbody"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="v2-table-footer">
+                                <span id="v2-mov-count">Sin movimientos cargados.</span>
+                                <div class="v2-table-footer__actions">
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-mov-prev">Anterior</button>
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-mov-next">Siguiente</button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <p class="dashboard-status" id="v2-mov-status" role="status" aria-live="polite" style="margin-top: 16px;"></p>
+                    </section>
+
+                    <div class="v2-sheet" id="v2-mov-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="v2-mov-sheet-title">
+                        <div class="v2-sheet__backdrop" id="v2-mov-sheet-backdrop"></div>
+                        <div class="v2-sheet__panel" tabindex="-1">
+                            <header class="v2-sheet__head">
+                                <div>
+                                    <span class="soft-badge" id="v2-mov-sheet-badge">Movimiento</span>
+                                    <h2 id="v2-mov-sheet-title">Movimiento</h2>
+                                    <p id="v2-mov-sheet-subtitle">Cargando…</p>
+                                </div>
+                                <div class="v2-sheet__head-actions">
+                                    <button class="v2-btn v2-btn--ghost" type="button" id="v2-mov-sheet-close" aria-label="Cerrar">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            </header>
+
+                            <nav class="v2-sheet__tabs" role="tablist" aria-label="Secciones del movimiento">
+                                <button class="v2-sheet__tab is-active" type="button" data-v2-mov-tab="general" role="tab" aria-selected="true">General</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-mov-tab="product" role="tab" aria-selected="false">Producto</button>
+                                <button class="v2-sheet__tab" type="button" data-v2-mov-tab="context" role="tab" aria-selected="false">Contexto</button>
+                            </nav>
+
+                            <div class="v2-sheet__body">
+                                <section class="v2-sheet__pane" data-v2-mov-pane="general" role="tabpanel">
+                                    <dl class="v2-kv">
+                                        <div><dt>Tipo</dt><dd id="v2-mov-sheet-type">—</dd></div>
+                                        <div><dt>Cantidad</dt><dd id="v2-mov-sheet-qty">—</dd></div>
+                                        <div><dt>Costo unitario</dt><dd id="v2-mov-sheet-cost">—</dd></div>
+                                        <div><dt>Fecha</dt><dd id="v2-mov-sheet-date">—</dd></div>
+                                        <div><dt>Motivo</dt><dd id="v2-mov-sheet-reason">—</dd></div>
+                                        <div><dt>Referencia</dt><dd id="v2-mov-sheet-ref">—</dd></div>
+                                    </dl>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-mov-pane="product" role="tabpanel" hidden>
+                                    <dl class="v2-kv">
+                                        <div><dt>Producto</dt><dd id="v2-mov-sheet-product-name">—</dd></div>
+                                        <div><dt>SKU</dt><dd id="v2-mov-sheet-product-sku">—</dd></div>
+                                        <div><dt>ID</dt><dd id="v2-mov-sheet-product-id">—</dd></div>
+                                    </dl>
+                                </section>
+
+                                <section class="v2-sheet__pane" data-v2-mov-pane="context" role="tabpanel" hidden>
+                                    <dl class="v2-kv">
+                                        <div><dt>Almacén</dt><dd id="v2-mov-sheet-warehouse">—</dd></div>
+                                        <div><dt>Sucursal</dt><dd id="v2-mov-sheet-branch">—</dd></div>
+                                        <div><dt>Registrado por</dt><dd id="v2-mov-sheet-user">—</dd></div>
+                                        <div><dt>ID interno</dt><dd id="v2-mov-sheet-id">—</dd></div>
+                                    </dl>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+                </main>
 
                 <main class="portal-layout" id="admin-main">
                     <aside class="portal-nav" aria-label="Módulos administrativos">

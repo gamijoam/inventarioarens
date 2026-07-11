@@ -102,7 +102,7 @@ class SyncController extends Controller
 
         $data = $request->validated();
         $name = $data['name'] ?? ('sync-worker-'.$request->ip());
-        $days = (int) ($data['days'] ?? 365);
+        $days = (int) ($data['days'] ?? 90);
 
         return response()->json([
             'data' => $this->tokens->issue(

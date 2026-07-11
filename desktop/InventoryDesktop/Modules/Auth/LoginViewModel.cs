@@ -15,6 +15,7 @@ public sealed class LoginViewModel : ViewModelBase
     private TenantOption? selectedTenant;
     private string statusMessage = "";
     private bool isBusy;
+    private bool hasError;
 
     public event EventHandler<DesktopSession>? LoginSucceeded;
 
@@ -41,13 +42,53 @@ public sealed class LoginViewModel : ViewModelBase
     public string StatusMessage
     {
         get => statusMessage;
-        set => SetProperty(ref statusMessage, value);
+        private set
+        {
+            if (SetProperty(ref statusMessage, value))
+            {
+                RaisePropertyChanged(nameof(HasStatusInfo));
+            }
+        }
     }
 
     public bool IsBusy
     {
         get => isBusy;
-        set => SetProperty(ref isBusy, value);
+        private set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                RaisePropertyChanged(nameof(IsLoginEnabled));
+            }
+        }
+    }
+
+    public bool HasError
+    {
+        get => hasError;
+        private set
+        {
+            if (SetProperty(ref hasError, value))
+            {
+                RaisePropertyChanged(nameof(HasStatusInfo));
+            }
+        }
+    }
+
+    public bool HasStatusInfo => !string.IsNullOrWhiteSpace(StatusMessage);
+
+    public bool IsLoginEnabled => !IsBusy;
+
+    public void SetError(string message)
+    {
+        StatusMessage = message;
+        HasError = true;
+    }
+
+    private void SetInfo(string message)
+    {
+        StatusMessage = message;
+        HasError = false;
     }
 
     public async Task FindTenantsByEmailAsync()
@@ -60,11 +101,18 @@ public sealed class LoginViewModel : ViewModelBase
         await RunAsync(async () =>
         {
             await FetchTenantsAsync();
-            StatusMessage = Tenants.Count == 0
-                ? "No hay empresas activas para este usuario."
-                : Tenants.Count == 1
-                    ? $"Empresa encontrada: {Tenants[0].Name}."
-                    : $"Selecciona una de las {Tenants.Count} empresas disponibles.";
+            if (Tenants.Count == 0)
+            {
+                SetInfo("No hay empresas activas para este correo. Verifica el servidor API o que la cuenta exista.");
+            }
+            else if (Tenants.Count == 1)
+            {
+                SetInfo($"Empresa encontrada: {Tenants[0].Name}.");
+            }
+            else
+            {
+                SetInfo($"Selecciona una de las {Tenants.Count} empresas disponibles.");
+            }
         });
     }
 
@@ -85,6 +133,7 @@ public sealed class LoginViewModel : ViewModelBase
                     StatusMessage = Tenants.Count == 0
                         ? "No hay empresas activas para este usuario."
                         : "Selecciona la empresa antes de ingresar.";
+                    HasError = true;
                     return;
                 }
 
@@ -118,6 +167,7 @@ public sealed class LoginViewModel : ViewModelBase
         if (SelectedTenant is null)
         {
             StatusMessage = "Selecciona la empresa antes de ingresar.";
+            HasError = true;
             return;
         }
 
@@ -128,7 +178,8 @@ public sealed class LoginViewModel : ViewModelBase
 
         tokenVault.Save(response.Data.Token);
         apiClient.Configure(ApiBaseUrl, response.Data.Token, response.Data.Tenant.Slug);
-        StatusMessage = $"Sesion iniciada en {response.Data.Tenant.Name} como {response.Data.User.Name}.";
+        StatusMessage = $"Sesión iniciada en {response.Data.Tenant.Name} como {response.Data.User.Name}.";
+        HasError = false;
         LoginSucceeded?.Invoke(this, new DesktopSession(apiClient, response.Data, ApiBaseUrl));
     }
 
@@ -136,19 +187,19 @@ public sealed class LoginViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(ApiBaseUrl))
         {
-            StatusMessage = "Debes indicar la URL base de la API.";
+            SetError("Debes indicar la URL base de la API.");
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(Email))
         {
-            StatusMessage = "El correo es obligatorio.";
+            SetError("El correo es obligatorio.");
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(password))
         {
-            StatusMessage = "La contrasena es obligatoria.";
+            SetError("La contraseña es obligatoria.");
             return false;
         }
 
@@ -162,20 +213,20 @@ public sealed class LoginViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(ApiBaseUrl))
         {
-            StatusMessage = "Debes indicar la URL base de la API.";
+            SetError("Debes indicar la URL base de la API.");
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(Email))
         {
-            StatusMessage = "";
+            SetInfo(string.Empty);
             return false;
         }
 
         string normalizedEmail = Email.Trim();
         if (!normalizedEmail.Contains('@') || !normalizedEmail.Contains('.'))
         {
-            StatusMessage = "";
+            SetInfo(string.Empty);
             return false;
         }
 
@@ -187,20 +238,20 @@ public sealed class LoginViewModel : ViewModelBase
         try
         {
             IsBusy = true;
-            StatusMessage = "Conectando con el servidor...";
+            SetInfo("Conectando con el servidor...");
             await action();
         }
         catch (ApiException exception)
         {
-            StatusMessage = exception.Message;
+            SetError(exception.Message);
         }
         catch (HttpRequestException)
         {
-            StatusMessage = "No se pudo conectar con la API. Verifica que Laravel este encendido.";
+            SetError($"No se pudo conectar con {ApiBaseUrl}. Verifica el servidor API o tu conexión.");
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La conexion tardo demasiado. Intenta nuevamente.";
+            SetError("La conexión tardó demasiado. Intenta nuevamente.");
         }
         finally
         {

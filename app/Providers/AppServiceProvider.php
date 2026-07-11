@@ -47,8 +47,12 @@ use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Suppliers\Policies\SupplierPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warehouses\Policies\WarehousePolicy;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -65,6 +69,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->assertNoBypassLoginOutsideLocal();
+
         Gate::policy(AccountsPayable::class, AccountsPayablePolicy::class);
         Gate::policy(AccountsReceivable::class, AccountsReceivablePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
@@ -92,5 +98,37 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('inventory.sale-operation', [InventoryPolicy::class, 'sale']);
         Gate::define('inventory.adjust-operation', [InventoryPolicy::class, 'adjust']);
         Gate::define('inventory.transfer-operation', [InventoryPolicy::class, 'transfer']);
+
+        $this->configureRateLimiters();
+    }
+
+    private function configureRateLimiters(): void
+    {
+        RateLimiter::for('auth', function (Request $request): array {
+            $email = strtolower((string) $request->input('email', ''));
+            $key = $request->ip().'|'.$email;
+
+            return [
+                Limit::perMinute(5)->by($key)->response(function (): \Illuminate\Http\JsonResponse {
+                    return response()->json([
+                        'message' => 'Demasiados intentos de autenticación. Por favor intente en 1 minuto.',
+                    ], 429);
+                }),
+            ];
+        });
+    }
+
+    /**
+     * Defensa en profundidad: el bypass login solo puede existir en entorno local.
+     * Si en producción (testing/staging/production) está activo, falla loud en boot.
+     */
+    private function assertNoBypassLoginOutsideLocal(): void
+    {
+        if (! app()->environment('local') && (bool) env('FRONTEND_DEV_BYPASS_LOGIN', false)) {
+            throw new RuntimeException(
+                'FRONTEND_DEV_BYPASS_LOGIN solo puede estar activo cuando APP_ENV=local. '
+                .'Entorno actual: '.app()->environment().'. Verifica tu archivo .env.'
+            );
+        }
     }
 }

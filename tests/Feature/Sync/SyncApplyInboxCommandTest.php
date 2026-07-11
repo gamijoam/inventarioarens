@@ -35,6 +35,14 @@ class SyncApplyInboxCommandTest extends TestCase
             'updated_at' => $now,
         ]);
 
+        $productPayload = json_encode([
+            'sku' => 'ADP-BT-VAL',
+            'name' => 'Adaptador Bluetooth',
+            'tracking_type' => 'quantity',
+            'base_price' => '2000.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+        ]);
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenant->id,
             'event_uuid' => (string) Str::uuid(),
@@ -42,15 +50,8 @@ class SyncApplyInboxCommandTest extends TestCase
             'event_type' => 'product.updated',
             'aggregate_type' => 'product',
             'aggregate_id' => 67,
-            'payload_hash' => hash('sha256', json_encode(['sku' => 'ADP-BT-VAL'])),
-            'payload' => json_encode([
-                'sku' => 'ADP-BT-VAL',
-                'name' => 'Adaptador Bluetooth',
-                'tracking_type' => 'quantity',
-                'base_price' => '2000.0000',
-                'sale_currency' => 'USD',
-                'is_active' => true,
-            ]),
+            'payload_hash' => hash('sha256', $productPayload),
+            'payload' => $productPayload,
             'status' => 'received',
             'received_at' => $now,
             'created_at' => $now,

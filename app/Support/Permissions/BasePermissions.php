@@ -92,6 +92,7 @@ class BasePermissions
         'roles.update',
         'roles.delete',
         'settings.manage',
+        'sync.issue_token',
         'ai.use',
         'ai.configure',
     ];
@@ -167,6 +168,7 @@ class BasePermissions
             'warranties.resolve',
             'warranties.deliver',
             'users.view',
+            'sync.issue_token',
             'ai.use',
         ],
         'Vendedor' => [

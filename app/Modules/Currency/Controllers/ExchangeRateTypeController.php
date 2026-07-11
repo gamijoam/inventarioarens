@@ -6,6 +6,7 @@ use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Requests\StoreExchangeRateTypeRequest;
 use App\Modules\Currency\Requests\UpdateExchangeRateTypeRequest;
 use App\Modules\Currency\Resources\ExchangeRateTypeResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -13,7 +14,6 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 
 class ExchangeRateTypeController extends Controller
 {
@@ -42,10 +42,11 @@ class ExchangeRateTypeController extends Controller
                 ExchangeRateType::query()->update(['is_default' => false]);
             }
 
-            return ExchangeRateType::create($data)->refresh();
-        });
+            $created = ExchangeRateType::create($data)->refresh();
+            $this->recordSyncEvent('exchange_rate_type.created', $created);
 
-        $this->recordSyncEvent('exchange_rate_type.created', $type);
+            return $created;
+        });
 
         return ExchangeRateTypeResource::make($type)
             ->response()
@@ -73,11 +74,11 @@ class ExchangeRateTypeController extends Controller
             }
 
             $type->update($data);
+            $refreshed = $type->refresh();
+            $this->recordSyncEvent('exchange_rate_type.updated', $refreshed);
 
-            return $type->refresh();
+            return $refreshed;
         });
-
-        $this->recordSyncEvent('exchange_rate_type.updated', $type);
 
         return ExchangeRateTypeResource::make($type);
     }
@@ -86,8 +87,10 @@ class ExchangeRateTypeController extends Controller
     {
         Gate::authorize('delete', $type);
 
-        $type->update(['is_active' => false]);
-        $this->recordSyncEvent('exchange_rate_type.updated', $type->refresh());
+        DB::transaction(function () use ($type): void {
+            $type->update(['is_active' => false]);
+            $this->recordSyncEvent('exchange_rate_type.updated', $type->refresh());
+        });
 
         return response()->noContent();
     }
@@ -104,7 +107,7 @@ class ExchangeRateTypeController extends Controller
                 'is_default' => (bool) $type->is_default,
                 'is_active' => (bool) $type->is_active,
             ],
-            idempotencyKey: sprintf('currency:%s:%s:%s', $eventType, $type->id, Str::uuid()),
+            idempotencyKey: SyncCatalogOutboxService::eventKey($eventType, 'exchange_rate_type', $type->id, $type->updated_at),
         );
     }
 }

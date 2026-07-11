@@ -50,19 +50,21 @@ class SyncEventApplierTest extends TestCase
             ],
         ]);
 
+        $productPricePayload = [
+            'sku' => 'SKU-001',
+            'price_list_code' => 'DETAL',
+            'price' => '15.5000',
+            'currency' => 'USD',
+        ];
+
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenantA->id,
             'event_uuid' => (string) Str::uuid(),
             'event_type' => 'product_price.updated',
             'aggregate_type' => 'product_price',
             'aggregate_id' => null,
-            'payload_hash' => 'hash',
-            'payload' => json_encode([
-                'sku' => 'SKU-001',
-                'price_list_code' => 'DETAL',
-                'price' => '15.5000',
-                'currency' => 'USD',
-            ]),
+            'payload_hash' => hash('sha256', json_encode($productPricePayload)),
+            'payload' => json_encode($productPricePayload),
             'status' => 'received',
             'received_at' => $now,
             'created_at' => $now,
@@ -90,22 +92,25 @@ class SyncEventApplierTest extends TestCase
     {
         $tenant = Tenant::create(['name' => 'Empresa Falla', 'slug' => 'empresa-falla']);
         app(TenantManager::class)->set($tenant);
+        $now = now();
+
+        $invalidPayload = [
+            'sku' => 'NO-EXISTE',
+            'price_list_code' => 'DETAL',
+            'price' => '15.5000',
+        ];
 
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenant->id,
             'event_uuid' => (string) Str::uuid(),
             'event_type' => 'product_price.updated',
             'aggregate_type' => 'product_price',
-            'payload_hash' => 'hash',
-            'payload' => json_encode([
-                'sku' => 'NO-EXISTE',
-                'price_list_code' => 'DETAL',
-                'price' => '15.5000',
-            ]),
+            'payload_hash' => hash('sha256', json_encode($invalidPayload)),
+            'payload' => json_encode($invalidPayload),
             'status' => 'received',
-            'received_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
 
         $summary = app(SyncEventApplier::class)->applyPending($tenant);
@@ -126,26 +131,27 @@ class SyncEventApplierTest extends TestCase
 
         $now = now();
 
+        $payload = json_encode([
+            'sku' => 'PROD-GAR-001',
+            'name' => 'Producto con garantia nube',
+            'tracking_type' => 'quantity',
+            'base_price' => '77.7700',
+            'sale_currency' => 'USD',
+            'warranty_policy_id' => 999,
+            'warranty_policy_name' => 'Garantia prueba 7 dias',
+            'warranty_policy_duration_days' => 7,
+            'warranty_policy_coverage_type' => 'store',
+            'warranty_policy_conditions' => 'Cambio por defecto de fabrica.',
+            'warranty_policy_is_active' => true,
+            'is_active' => true,
+        ]);
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenant->id,
             'event_uuid' => (string) Str::uuid(),
             'event_type' => 'product.created',
             'aggregate_type' => 'product',
-            'payload_hash' => 'hash',
-            'payload' => json_encode([
-                'sku' => 'PROD-GAR-001',
-                'name' => 'Producto con garantia nube',
-                'tracking_type' => 'quantity',
-                'base_price' => '77.7700',
-                'sale_currency' => 'USD',
-                'warranty_policy_id' => 999,
-                'warranty_policy_name' => 'Garantia prueba 7 dias',
-                'warranty_policy_duration_days' => 7,
-                'warranty_policy_coverage_type' => 'store',
-                'warranty_policy_conditions' => 'Cambio por defecto de fabrica.',
-                'warranty_policy_is_active' => true,
-                'is_active' => true,
-            ]),
+            'payload_hash' => hash('sha256', $payload),
+            'payload' => $payload,
             'status' => 'received',
             'received_at' => $now,
             'created_at' => $now,
@@ -268,6 +274,58 @@ class SyncEventApplierTest extends TestCase
             'updated_at' => $now,
         ]);
 
+        $payload = json_encode([
+            'sale' => [
+                'id' => 501,
+                'status' => 'confirmed',
+                'total_base_amount' => '10.0000',
+                'total_local_amount' => '10000.0000',
+                'confirmed_at' => $now->toISOString(),
+            ],
+            'order' => [
+                'id' => 99,
+                'status' => 'paid',
+                'customer_name' => 'Consumidor final',
+                'branch_name' => 'Principal Valencia',
+                'cash_register_name' => 'Caja Mostrador VAL',
+                'cashier_name' => 'Gerente Valencia',
+                'total_base_amount' => '10.0000',
+                'total_local_amount' => '10000.0000',
+                'paid_base_amount' => '10.0000',
+                'paid_local_amount' => '10000.0000',
+                'opened_at' => $now->toISOString(),
+                'paid_at' => $now->toISOString(),
+                'closed_at' => $now->toISOString(),
+            ],
+            'items' => [[
+                'id' => 7001,
+                'product_sku' => 'ADP-BT-VAL',
+                'warehouse_code' => 'VAL-01',
+                'price_list_code' => 'DETAL',
+                'price_list_name' => 'Detal',
+                'quantity' => '1.0000',
+                'sale_currency' => 'USD',
+                'unit_price' => '10.0000',
+                'total_amount' => '10.0000',
+                'base_unit_price' => '10.0000',
+                'base_total_amount' => '10.0000',
+                'exchange_rate_type_code' => 'PARALELO',
+                'exchange_rate' => '1000.000000',
+            ]],
+            'payments' => [[
+                'id' => 9001,
+                'payment_method_code' => 'PAGO-MOVIL-BS',
+                'method' => 'mobile_payment',
+                'currency' => 'VES',
+                'amount' => '10000.0000',
+                'amount_base' => '10.0000',
+                'amount_local' => '10000.0000',
+                'exchange_rate_type_code' => 'PARALELO',
+                'exchange_rate' => '1000.000000',
+                'status' => 'captured',
+                'reference' => '123456',
+            ]],
+        ]);
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenant->id,
             'origin_node_id' => $nodeId,
@@ -275,59 +333,8 @@ class SyncEventApplierTest extends TestCase
             'event_type' => 'pos.order.paid',
             'aggregate_type' => 'pos_order',
             'aggregate_id' => 99,
-            'payload_hash' => 'hash-pos-paid',
-            'payload' => json_encode([
-                'sale' => [
-                    'id' => 501,
-                    'status' => 'confirmed',
-                    'total_base_amount' => '10.0000',
-                    'total_local_amount' => '10000.0000',
-                    'confirmed_at' => $now->toISOString(),
-                ],
-                'order' => [
-                    'id' => 99,
-                    'status' => 'paid',
-                    'customer_name' => 'Consumidor final',
-                    'branch_name' => 'Principal Valencia',
-                    'cash_register_name' => 'Caja Mostrador VAL',
-                    'cashier_name' => 'Gerente Valencia',
-                    'total_base_amount' => '10.0000',
-                    'total_local_amount' => '10000.0000',
-                    'paid_base_amount' => '10.0000',
-                    'paid_local_amount' => '10000.0000',
-                    'opened_at' => $now->toISOString(),
-                    'paid_at' => $now->toISOString(),
-                    'closed_at' => $now->toISOString(),
-                ],
-                'items' => [[
-                    'id' => 7001,
-                    'product_sku' => 'ADP-BT-VAL',
-                    'warehouse_code' => 'VAL-01',
-                    'price_list_code' => 'DETAL',
-                    'price_list_name' => 'Detal',
-                    'quantity' => '1.0000',
-                    'sale_currency' => 'USD',
-                    'unit_price' => '10.0000',
-                    'total_amount' => '10.0000',
-                    'base_unit_price' => '10.0000',
-                    'base_total_amount' => '10.0000',
-                    'exchange_rate_type_code' => 'PARALELO',
-                    'exchange_rate' => '1000.000000',
-                ]],
-                'payments' => [[
-                    'id' => 9001,
-                    'payment_method_code' => 'PAGO-MOVIL-BS',
-                    'method' => 'mobile_payment',
-                    'currency' => 'VES',
-                    'amount' => '10000.0000',
-                    'amount_base' => '10.0000',
-                    'amount_local' => '10000.0000',
-                    'exchange_rate_type_code' => 'PARALELO',
-                    'exchange_rate' => '1000.000000',
-                    'status' => 'captured',
-                    'reference' => '123456',
-                ]],
-            ]),
+            'payload_hash' => hash('sha256', $payload),
+            'payload' => $payload,
             'status' => 'received',
             'received_at' => $now,
             'created_at' => $now,

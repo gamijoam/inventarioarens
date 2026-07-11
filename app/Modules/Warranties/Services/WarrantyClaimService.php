@@ -493,7 +493,18 @@ class WarrantyClaimService
 
     private function assertRefundAmountWithinSaleItem(WarrantyClaim $claim, float $amountBase): void
     {
-        $maxRefundBase = round((float) $claim->saleItem->base_unit_price * (float) $claim->quantity, 4);
+        $saleItem = $claim->saleItem;
+        $lineQuantity = (float) $saleItem->quantity;
+        $lineTotalBase = (float) $saleItem->base_total_amount;
+
+        if ($lineQuantity <= 0.0) {
+            throw ValidationException::withMessages([
+                'sale_item_id' => 'El item vendido no tiene cantidad valida para calcular reembolso.',
+            ]);
+        }
+
+        $perUnitBase = $lineTotalBase / $lineQuantity;
+        $maxRefundBase = round($perUnitBase * (float) $claim->quantity, 4);
 
         if ($amountBase > $maxRefundBase) {
             throw ValidationException::withMessages([

@@ -10,7 +10,7 @@ class RunSyncCommand extends Command
 {
     protected $signature = 'sync:run
         {tenant : Slug de la empresa local}
-        {--node=LOCAL-01 : Codigo unico del nodo local}
+        {--node= : Codigo unico del nodo local}
         {--name= : Nombre visible del nodo local}
         {--installation= : Codigo estable de la instalacion local}
         {--cloud-url= : URL base del API en la nube, por ejemplo https://dominio.com/api}
@@ -32,18 +32,25 @@ class RunSyncCommand extends Command
             return self::FAILURE;
         }
 
-        $cloudUrl = $this->option('cloud-url') ?: config('services.sync.cloud_url');
-        $token = $this->option('token') ?: config('services.sync.token');
-        $nodeCode = (string) $this->option('node');
-        $nodeName = $this->option('name') ?: $nodeCode;
-        $installationCode = $this->option('installation') ?: $nodeCode;
-        $limit = max(1, min(200, (int) $this->option('limit')));
+        // Auto-fill from per-tenant config (storage/app/sync-worker/sync-config.json) when
+        // the WPF installer or a previous sync run wrote a token for this tenant. This makes
+        // the worker self-sufficient: the .cmd scripts no longer have to pass --token
+        // explicitly, and the global SYNC_CLOUD_TOKEN in .env stops shadowing the per-tenant
+        // token (which was the cause of the 403 "Token does not belong to this tenant").
+        $perTenant = $this->loadPerTenantConfig((string) $tenant->slug);
+
+        $cloudUrl = (string) ($this->option('cloud-url') ?: ($perTenant['cloud_url'] ?? null) ?: config('services.sync.cloud_url'));
+        $token = (string) ($this->option('token') ?: ($perTenant['token'] ?? null) ?: config('services.sync.token'));
+        $nodeCode = (string) ($this->option('node') ?: ($perTenant['node_code'] ?? null) ?: 'LOCAL-01');
+        $nodeName = (string) ($this->option('name') ?: ($perTenant['node_name'] ?? null) ?: $nodeCode);
+        $installationCode = (string) ($this->option('installation') ?: ($perTenant['installation_code'] ?? null) ?: $nodeCode);
+        $limit = max(1, min(200, (int) ($this->option('limit') ?: ($perTenant['limit'] ?? null) ?: 50)));
         $push = ! $this->option('pull-only');
         $pull = ! $this->option('push-only');
         $apply = ! $this->option('no-apply');
 
         if (! $cloudUrl || ! $token) {
-            $this->error('Debes indicar --cloud-url y --token, o configurar SYNC_CLOUD_URL y SYNC_CLOUD_TOKEN.');
+            $this->error('Debes indicar --cloud-url y --token, o configurar SYNC_CLOUD_URL y SYNC_CLOUD_TOKEN, o instalar la empresa con el configurador WPF para escribir storage/app/sync-worker/sync-config.json.');
 
             return self::FAILURE;
         }
@@ -72,5 +79,27 @@ class RunSyncCommand extends Command
         $this->line('Fallos: '.$summary['failed']);
 
         return $summary['failed'] > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Read the per-tenant sync config written by the WPF installer
+     * (storage/app/sync-worker/sync-config.json). Returns an empty
+     * array if the file does not exist or the tenant is not configured.
+     */
+    private function loadPerTenantConfig(string $tenantSlug): array
+    {
+        $path = storage_path('app/sync-worker/sync-config.json');
+        if (! is_file($path)) {
+            return [];
+        }
+        $raw = @file_get_contents($path);
+        if ($raw === false || $raw === '') {
+            return [];
+        }
+        $data = json_decode($raw, true);
+        if (! is_array($data) || ! isset($data['tenants'][$tenantSlug]) || ! is_array($data['tenants'][$tenantSlug])) {
+            return [];
+        }
+        return $data['tenants'][$tenantSlug];
     }
 }

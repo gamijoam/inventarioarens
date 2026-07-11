@@ -6,14 +6,15 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Requests\StoreExchangeRateRequest;
 use App\Modules\Currency\Resources\ExchangeRateResource;
 use App\Modules\Currency\Services\ExchangeRateActivationService;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 
 class ExchangeRateController extends Controller
 {
@@ -51,30 +52,34 @@ class ExchangeRateController extends Controller
     {
         Gate::authorize('create', ExchangeRate::class);
 
-        $data = $request->validated();
-        $deactivatedRates = collect();
+        $rate = DB::transaction(function () use ($request, $activationService): ExchangeRate {
+            $data = $request->validated();
+            $deactivatedRates = collect();
 
-        if (($data['is_active'] ?? false) === true) {
-            $deactivatedRates = ExchangeRate::query()
-                ->with('type')
-                ->where('exchange_rate_type_id', $data['exchange_rate_type_id'])
-                ->where('base_currency', $data['base_currency'] ?? ExchangeRate::BASE_USD)
-                ->where('quote_currency', $data['quote_currency'] ?? ExchangeRate::QUOTE_VES)
-                ->where('is_active', true)
-                ->get();
-        }
+            if (($data['is_active'] ?? false) === true) {
+                $deactivatedRates = ExchangeRate::query()
+                    ->with('type')
+                    ->where('exchange_rate_type_id', $data['exchange_rate_type_id'])
+                    ->where('base_currency', $data['base_currency'] ?? ExchangeRate::BASE_USD)
+                    ->where('quote_currency', $data['quote_currency'] ?? ExchangeRate::QUOTE_VES)
+                    ->where('is_active', true)
+                    ->get();
+            }
 
-        $rate = ExchangeRate::create($data)->refresh()->load('type');
+            $created = ExchangeRate::create($data)->refresh()->load('type');
 
-        if ($rate->is_active) {
-            $rate = $activationService->activate($rate);
-        }
+            if ($created->is_active) {
+                $created = $activationService->activate($created);
+            }
 
-        $deactivatedRates
-            ->where('id', '!=', $rate->id)
-            ->each(fn (ExchangeRate $deactivatedRate) => $this->recordSyncEvent('exchange_rate.updated', $deactivatedRate->refresh()->load('type')));
+            $deactivatedRates
+                ->where('id', '!=', $created->id)
+                ->each(fn (ExchangeRate $deactivatedRate) => $this->recordSyncEvent('exchange_rate.updated', $deactivatedRate->refresh()->load('type')));
 
-        $this->recordSyncEvent('exchange_rate.created', $rate);
+            $this->recordSyncEvent('exchange_rate.created', $created);
+
+            return $created;
+        });
 
         return ExchangeRateResource::make($rate)
             ->response()
@@ -92,19 +97,23 @@ class ExchangeRateController extends Controller
     {
         Gate::authorize('update', $rate);
 
-        $deactivatedRates = ExchangeRate::query()
-            ->with('type')
-            ->where('exchange_rate_type_id', $rate->exchange_rate_type_id)
-            ->where('base_currency', $rate->base_currency)
-            ->where('quote_currency', $rate->quote_currency)
-            ->where('is_active', true)
-            ->whereKeyNot($rate->id)
-            ->get();
+        $rate = DB::transaction(function () use ($rate, $activationService): ExchangeRate {
+            $deactivatedRates = ExchangeRate::query()
+                ->with('type')
+                ->where('exchange_rate_type_id', $rate->exchange_rate_type_id)
+                ->where('base_currency', $rate->base_currency)
+                ->where('quote_currency', $rate->quote_currency)
+                ->where('is_active', true)
+                ->whereKeyNot($rate->id)
+                ->get();
 
-        $rate = $activationService->activate($rate);
+            $activated = $activationService->activate($rate);
 
-        $deactivatedRates->each(fn (ExchangeRate $deactivatedRate) => $this->recordSyncEvent('exchange_rate.updated', $deactivatedRate->refresh()->load('type')));
-        $this->recordSyncEvent('exchange_rate.updated', $rate);
+            $deactivatedRates->each(fn (ExchangeRate $deactivatedRate) => $this->recordSyncEvent('exchange_rate.updated', $deactivatedRate->refresh()->load('type')));
+            $this->recordSyncEvent('exchange_rate.updated', $activated);
+
+            return $activated;
+        });
 
         return ExchangeRateResource::make($rate);
     }
@@ -113,9 +122,13 @@ class ExchangeRateController extends Controller
     {
         Gate::authorize('update', $rate);
 
-        $rate->update(['is_active' => false]);
-        $rate = $rate->refresh()->load('type');
-        $this->recordSyncEvent('exchange_rate.updated', $rate);
+        $rate = DB::transaction(function () use ($rate): ExchangeRate {
+            $rate->update(['is_active' => false]);
+            $refreshed = $rate->refresh()->load('type');
+            $this->recordSyncEvent('exchange_rate.updated', $refreshed);
+
+            return $refreshed;
+        });
 
         return ExchangeRateResource::make($rate);
     }
@@ -135,7 +148,7 @@ class ExchangeRateController extends Controller
                 'source' => $rate->source,
                 'is_active' => (bool) $rate->is_active,
             ],
-            idempotencyKey: sprintf('currency:%s:%s:%s', $eventType, $rate->id, Str::uuid()),
+            idempotencyKey: SyncCatalogOutboxService::eventKey($eventType, 'exchange_rate', $rate->id, $rate->updated_at),
         );
     }
 }

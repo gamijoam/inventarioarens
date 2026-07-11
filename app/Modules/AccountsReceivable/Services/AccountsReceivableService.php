@@ -208,7 +208,7 @@ class AccountsReceivableService
             foreach ($return->items as $item) {
                 $saleItem = $item->saleItem;
                 $quantity = (float) $item->quantity;
-                $returnedBase += round((float) $saleItem->base_unit_price * $quantity, 4);
+                $returnedBase += $this->returnBaseAmount($saleItem, $quantity);
                 $returnedLocal += $this->localReturnAmount($saleItem, $quantity);
             }
         }
@@ -216,10 +216,31 @@ class AccountsReceivableService
         return [round($returnedBase, 4), round($returnedLocal, 4)];
     }
 
+    private function returnBaseAmount($saleItem, float $quantity): float
+    {
+        $lineQuantity = (float) $saleItem->quantity;
+
+        if ($lineQuantity <= 0.0) {
+            return 0.0;
+        }
+
+        $perUnitBase = (float) $saleItem->base_total_amount / $lineQuantity;
+
+        return round($perUnitBase * $quantity, 4);
+    }
+
     private function localReturnAmount($saleItem, float $quantity): float
     {
+        $lineQuantity = (float) $saleItem->quantity;
+
+        if ($lineQuantity <= 0.0) {
+            return 0.0;
+        }
+
+        $perUnitBase = (float) $saleItem->base_total_amount / $lineQuantity;
+
         if ($saleItem->exchange_rate) {
-            return round((float) $saleItem->base_unit_price * $quantity * (float) $saleItem->exchange_rate, 4);
+            return round($perUnitBase * $quantity * (float) $saleItem->exchange_rate, 4);
         }
 
         return $saleItem->sale_currency === Product::CURRENCY_VES

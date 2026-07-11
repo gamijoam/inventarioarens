@@ -503,24 +503,29 @@ class PosCheckoutService
         $rateType = null;
         $rate = null;
 
-        if ($currency === Product::CURRENCY_VES || isset($payment['exchange_rate_type_id'])) {
+        if ($currency === Product::CURRENCY_VES
+            || $currency === Product::CURRENCY_USD
+            || isset($payment['exchange_rate_type_id'])) {
             $rateType = $this->rateTypeFor($payment['exchange_rate_type_id'] ?? null);
             $rate = $this->activeRateFor($rateType);
         }
 
-        $exchangeRate = $rate ? (float) $rate->rate : null;
-
-        if ($currency === Product::CURRENCY_VES && ! $exchangeRate) {
+        if (! $rate) {
+            $message = $currency === Product::CURRENCY_VES
+                ? 'El pago en bolivares requiere una tasa activa.'
+                : 'El pago requiere una tasa activa para calcular el equivalente en bolivares.';
             throw ValidationException::withMessages([
-                'payments' => 'El pago en bolivares requiere una tasa activa.',
+                'payments' => $message,
             ]);
         }
 
+        $exchangeRate = (float) $rate->rate;
+
         return [
             'amount_base' => $currency === Product::CURRENCY_USD ? round($amount, 4) : round($amount / $exchangeRate, 4),
-            'amount_local' => $currency === Product::CURRENCY_VES ? round($amount, 4) : ($exchangeRate ? round($amount * $exchangeRate, 4) : null),
-            'exchange_rate_type_id' => $rateType?->id,
-            'exchange_rate_type_code' => $rateType?->code,
+            'amount_local' => $currency === Product::CURRENCY_VES ? round($amount, 4) : round($amount * $exchangeRate, 4),
+            'exchange_rate_type_id' => $rateType->id,
+            'exchange_rate_type_code' => $rateType->code,
             'exchange_rate' => $exchangeRate,
         ];
     }

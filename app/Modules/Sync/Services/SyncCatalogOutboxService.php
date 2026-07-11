@@ -11,6 +11,7 @@ use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Str;
 
 class SyncCatalogOutboxService
@@ -97,7 +98,7 @@ class SyncCatalogOutboxService
                     'serial_units' => $item->serial_units ?? [],
                 ])->values()->all(),
             ],
-            idempotencyKey: $this->eventKey('product_entry.created', 'product_entry', $entry->id),
+            idempotencyKey: $this->eventKey('product_entry.created', 'product_entry', $entry->id, $entry->updated_at),
         );
     }
 
@@ -123,7 +124,7 @@ class SyncCatalogOutboxService
                     'product_unit_ids' => $item->product_unit_ids ?? [],
                 ])->values()->all(),
             ],
-            idempotencyKey: $this->eventKey('product_exit.created', 'product_exit', $exit->id),
+            idempotencyKey: $this->eventKey('product_exit.created', 'product_exit', $exit->id, $exit->updated_at),
         );
     }
 
@@ -171,7 +172,7 @@ class SyncCatalogOutboxService
                 'warranty_policy_is_active' => $product->warrantyPolicy ? (bool) $product->warrantyPolicy->is_active : null,
                 'is_active' => (bool) $product->is_active,
             ],
-            idempotencyKey: $this->eventKey($eventType, 'product', $product->id),
+            idempotencyKey: $this->eventKey($eventType, 'product', $product->id, $product->updated_at),
         );
     }
 
@@ -196,7 +197,7 @@ class SyncCatalogOutboxService
                     ->values()
                     ->all(),
             ],
-            idempotencyKey: $this->eventKey($eventType, 'price_list', $priceList->id),
+            idempotencyKey: $this->eventKey($eventType, 'price_list', $priceList->id, $priceList->updated_at),
         );
     }
 
@@ -217,7 +218,7 @@ class SyncCatalogOutboxService
                 'exchange_rate_type_code' => $productPrice->exchangeRateType?->code,
                 'is_active' => (bool) $productPrice->is_active,
             ],
-            idempotencyKey: $this->eventKey($eventType, 'product_price', $productPrice->id),
+            idempotencyKey: $this->eventKey($eventType, 'product_price', $productPrice->id, $productPrice->updated_at),
         );
     }
 
@@ -237,7 +238,7 @@ class SyncCatalogOutboxService
                 'is_generic' => (bool) $customer->is_generic,
                 'is_active' => (bool) $customer->is_active,
             ],
-            idempotencyKey: $this->eventKey($eventType, 'customer', $customer->id),
+            idempotencyKey: $this->eventKey($eventType, 'customer', $customer->id, $customer->updated_at),
         );
     }
 
@@ -261,7 +262,7 @@ class SyncCatalogOutboxService
                 'reference_id' => $movement->reference_id,
                 'created_at' => $movement->created_at?->toISOString(),
             ],
-            idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id),
+            idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id, $movement->updated_at),
         );
     }
 
@@ -306,7 +307,7 @@ class SyncCatalogOutboxService
                     'difference_quantity' => $item->difference_quantity === null ? null : (string) $item->difference_quantity,
                 ])->values()->all(),
             ],
-            idempotencyKey: $this->eventKey($eventType, 'inventory_transfer', $transfer->id),
+            idempotencyKey: $this->eventKey($eventType, 'inventory_transfer', $transfer->id, $transfer->updated_at),
         );
     }
 
@@ -325,17 +326,21 @@ class SyncCatalogOutboxService
                 'serial_number' => $unit->serial_number,
                 'status' => $unit->status,
             ],
-            idempotencyKey: $this->eventKey($eventType, 'product_unit', $unit->id),
+            idempotencyKey: $this->eventKey($eventType, 'product_unit', $unit->id, $unit->updated_at),
         );
     }
 
-    private function eventKey(string $eventType, string $aggregateType, ?int $aggregateId): string
+    public static function eventKey(string $eventType, string $aggregateType, ?int $aggregateId, int|CarbonInterface|null $version = null): string
     {
+        if ($version instanceof CarbonInterface) {
+            $version = (int) ($version->getTimestamp() * 1_000_000) + (int) $version->micro;
+        }
+
         return implode(':', [
             $eventType,
             $aggregateType,
             $aggregateId ?? 'none',
-            (string) Str::uuid(),
+            $version ?? 0,
         ]);
     }
 }

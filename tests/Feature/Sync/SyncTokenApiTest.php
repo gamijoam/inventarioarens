@@ -5,11 +5,25 @@ namespace Tests\Feature\Sync;
 use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class SyncTokenApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+    }
 
     public function test_manager_can_issue_sync_token_from_api(): void
     {
@@ -21,6 +35,13 @@ class SyncTokenApiTest extends TestCase
             'email' => 'gerente-token@example.test',
         ]);
         $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $role = Role::findOrCreate('Gerente Token', 'web');
+        $role->syncPermissions(['sync.issue_token']);
+        $user->assignRole($role);
 
         $response = $this
             ->actingAs($user)

@@ -15,7 +15,7 @@ class SwitchTenantRequest extends FormRequest
     {
         return [
             'tenant_slug' => ['required', 'string', 'max:120'],
-            'device_name' => ['nullable', 'string', 'max:120'],
+            'device_name' => ['nullable', 'string', 'max:120', 'regex:/^[\PC\s]+$/u'],
         ];
     }
 
@@ -23,6 +23,7 @@ class SwitchTenantRequest extends FormRequest
     {
         return [
             'tenant_slug.required' => 'Debes seleccionar una empresa.',
+            'device_name.regex' => 'El nombre del dispositivo contiene caracteres no permitidos.',
         ];
     }
 }

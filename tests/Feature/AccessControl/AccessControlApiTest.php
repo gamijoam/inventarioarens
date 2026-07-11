@@ -35,7 +35,7 @@ class AccessControlApiTest extends TestCase
             ->postJson('/api/users', [
                 'name' => 'Cajero Principal',
                 'email' => 'cajero@example.test',
-                'password' => 'password-seguro',
+                'password' => 'Password123!',
                 'roles' => ['Vendedor'],
             ])
             ->assertCreated()

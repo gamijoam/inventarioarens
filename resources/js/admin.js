@@ -915,6 +915,7 @@ function resetTenantScopedState() {
     state.movements.page = 1;
     state.movements.loaded = false;
     state.movements.warehousesLoaded = false;
+    state.movements.lastData = null;
 
     state.suppliers.page = 1;
     state.suppliers.loaded = false;
@@ -949,6 +950,7 @@ function resetTenantScopedState() {
 
     state.reports.loaded = false;
     state.reports.filterOptionsLoaded = false;
+    state.reports.lastData = null;
 
     state.access.loaded = false;
     state.access.users = [];
@@ -1073,6 +1075,15 @@ function activatePortalSection(section) {
     const isAccess = selectedSection === 'users';
 
     state.activeSection = selectedSection;
+
+    // v2: toggle v2-page sections so only the matching one is visible.
+    // If the section has no v2 page yet (e.g. sales, transfers), fall back
+    // to overview so the workspace doesn't render empty.
+    const hasV2Page = !!document.querySelector(`.v2-page[data-portal-section="${selectedSection}"]`);
+    const v2SectionToShow = hasV2Page ? selectedSection : 'overview';
+    document.querySelectorAll('.v2-page[data-portal-section]').forEach((page) => {
+        page.hidden = page.dataset.portalSection !== v2SectionToShow;
+    });
 
     elements.portalNavItems.forEach((item) => {
         item.classList.toggle('is-active', item.dataset.portalSection === selectedSection);
@@ -1707,6 +1718,10 @@ async function loadOperationalReports() {
         });
 
         renderOperationalReports(report);
+        // v2: also render the redesigned dashboard (no extra API call)
+        v2PopulateReportsFiltersFromV1();
+        v2RenderReports(report);
+        state.reports.lastData = report;
         state.reports.loaded = true;
         setStatus(elements.reportsStatus, `Reportes actualizados: ${formatDateTime(report.generated_at)}.`, 'success');
     } catch (error) {
@@ -1998,6 +2013,7 @@ async function loadInventory(page = state.inventory.page) {
 
         state.inventory.loaded = true;
         renderInventory(summary);
+        try { v2RenderInventory(summary); } catch (e) { console.warn('v2RenderInventory failed', e); }
         setStatus(elements.inventoryStatus, `Inventario actualizado. ${summary.products.length} producto(s) en vista.`, 'success');
     } catch (error) {
         setStatus(elements.inventoryStatus, normalizeError(error), 'error');
@@ -2122,7 +2138,11 @@ async function loadMovements(page = state.movements.page) {
         });
 
         state.movements.loaded = true;
+        state.movements.lastData = pageData;
         renderMovements(pageData);
+        // v2: also render the redesigned catalog + sheet (no extra API call)
+        v2PopulateMovementWarehousesIntoV2();
+        v2RenderMovements(pageData);
         setStatus(elements.movementsStatus, `Movimientos actualizados. ${pageData.pagination?.total || 0} registro(s) encontrados.`, 'success');
     } catch (error) {
         setStatus(elements.movementsStatus, normalizeError(error), 'error');
@@ -2463,7 +2483,7 @@ async function loadTransferSummary() {
     }
 
     try {
-        const data = await api('/api/admin-portal/transfers/summary', { headers: authHeaders(session) }, true);
+        const data = await api('/api/admin-portal/transfers/summary', { headers: authHeaders(session) });
         state.transfers.summary = data;
         state.transfers.summaryLoaded = true;
         renderTransferChips(data);
@@ -2558,7 +2578,7 @@ async function loadTransfers(page = state.transfers.page) {
             query.set('search', filters.search);
         }
 
-        const data = await api(`/api/admin-portal/transfers?${query.toString()}`, { headers: authHeaders(session) }, true);
+        const data = await api(`/api/admin-portal/transfers?${query.toString()}`, { headers: authHeaders(session) });
         state.transfers.loaded = true;
         renderTransfersTable(data);
         setStatus(elements.transfersStatus, `Traslados actualizados. ${data.pagination?.total ?? 0} registro(s).`, 'success');
@@ -2811,7 +2831,7 @@ async function loadTransferDetail() {
 
     state.transfers.detail.loading = true;
     try {
-        const data = await api(`/api/admin-portal/transfers/${transferId}`, { headers: authHeaders(session) }, true);
+        const data = await api(`/api/admin-portal/transfers/${transferId}`, { headers: authHeaders(session) });
         state.transfers.detail.data = data;
         renderTransferDetail(data);
     } catch (error) {
@@ -5749,6 +5769,7 @@ async function loadRates() {
         state.rates.loaded = true;
 
         renderRates();
+        try { v2RenderRates(state.rates); } catch (e) { console.warn('v2RenderRates failed', e); }
         setStatus(elements.ratesStatus, 'Tasas actualizadas.', 'success');
     } catch (error) {
         setStatus(elements.ratesStatus, normalizeError(error), 'error');
@@ -6932,4 +6953,3312 @@ restoreSession();
 if (state.session) {
     loadDashboard();
 }
+
+// =====================================================================
+// v2 Overview redesign (Resumen)
+// =====================================================================
+
+const v2 = {
+    shell: document.querySelector('.admin-shell--v2'),
+    sidebar: document.querySelector('.v2-sidebar'),
+    toggle: document.getElementById('v2-sidebar-toggle'),
+    navItems: document.querySelectorAll('.v2-nav-item'),
+    refresh: document.getElementById('v2-dashboard-refresh'),
+    logout: document.getElementById('v2-admin-logout'),
+    period: document.getElementById('v2-dashboard-period'),
+    tenantSwitcher: document.getElementById('v2-tenant-switcher'),
+    tenantField: document.getElementById('v2-tenant-field'),
+    periodLabel: document.getElementById('v2-period-label'),
+    dashboardStatus: document.getElementById('v2-dashboard-status'),
+    salesTotal: document.getElementById('v2-metric-sales-total'),
+    salesCount: document.getElementById('v2-metric-sales-count'),
+    stockAvailable: document.getElementById('v2-metric-stock-available'),
+    openCash: document.getElementById('v2-metric-open-cash'),
+    cashExpected: document.getElementById('v2-metric-cash-expected'),
+    pendingPos: document.getElementById('v2-metric-pending-pos'),
+    products: document.getElementById('v2-metric-products'),
+    lowStock: document.getElementById('v2-metric-low-stock'),
+    withoutStock: document.getElementById('v2-metric-without-stock'),
+    reserved: document.getElementById('v2-metric-reserved'),
+    syncNodes: document.getElementById('v2-metric-sync-nodes'),
+    syncPending: document.getElementById('v2-metric-sync-pending'),
+    syncErrors: document.getElementById('v2-metric-sync-errors'),
+    syncStatus: document.getElementById('v2-sync-status'),
+    alertList: document.getElementById('v2-alert-list'),
+    sparkContainers: document.querySelectorAll('[data-sparkline]'),
+    search: document.querySelector('.v2-topbar__search input'),
+    // v2 Inventario (Phase 1)
+    inventory: {
+        page: document.getElementById('v2-inventory-page'),
+        period: document.getElementById('v2-inv-period'),
+        status: document.getElementById('v2-inv-status'),
+        newBtn: document.getElementById('v2-inv-new'),
+        refreshBtn: document.getElementById('v2-inv-refresh'),
+        exportBtn: document.getElementById('v2-inv-export'),
+        metricTotal: document.getElementById('v2-inv-metric-total'),
+        metricTotalHint: document.getElementById('v2-inv-metric-total-hint'),
+        metricLow: document.getElementById('v2-inv-metric-low'),
+        metricLowHint: document.getElementById('v2-inv-metric-low-hint'),
+        metricOut: document.getElementById('v2-inv-metric-out'),
+        metricAvailable: document.getElementById('v2-inv-metric-available'),
+        metricReserved: document.getElementById('v2-inv-metric-reserved'),
+        // alert strip (compact, single row)
+        alertStrip: document.getElementById('v2-inv-alert-strip'),
+        alertStripList: document.getElementById('v2-inv-alert-strip-list'),
+        alertStripClose: document.getElementById('v2-inv-alert-strip-close'),
+        activeStatus: document.getElementById('v2-inv-active-status'),
+        search: document.getElementById('v2-inv-search'),
+        tracking: document.getElementById('v2-inv-tracking'),
+        stock: document.getElementById('v2-inv-stock'),
+        apply: document.getElementById('v2-inv-apply'),
+        quickStatus: document.getElementById('v2-inv-quick-status'),
+        filterSummary: document.getElementById('v2-inv-filter-summary'),
+        tbody: document.getElementById('v2-inv-tbody'),
+        count: document.getElementById('v2-inv-count'),
+        prev: document.getElementById('v2-inv-prev'),
+        next: document.getElementById('v2-inv-next'),
+        // side sheet (product detail)
+        sheet: document.getElementById('v2-inv-sheet'),
+        sheetBackdrop: document.getElementById('v2-inv-sheet-backdrop'),
+        sheetPanel: document.querySelector('#v2-inv-sheet .v2-sheet__panel'),
+        sheetBadge: document.getElementById('v2-sheet-badge'),
+        sheetTitle: document.getElementById('v2-sheet-title'),
+        sheetSubtitle: document.getElementById('v2-sheet-subtitle'),
+        // action groups (view vs edit)
+        sheetActionsView: document.getElementById('v2-sheet-actions-view'),
+        sheetActionsEdit: document.getElementById('v2-sheet-actions-edit'),
+        sheetEdit: document.getElementById('v2-sheet-edit'),
+        sheetClose: document.getElementById('v2-sheet-close'),
+        sheetCancel: document.getElementById('v2-sheet-cancel'),
+        sheetSave: document.getElementById('v2-sheet-save'),
+        sheetSaveLabel: document.getElementById('v2-sheet-save-label'),
+        sheetCloseEdit: document.getElementById('v2-sheet-close-edit'),
+        sheetTabs: document.getElementById('v2-inv-sheet-tabs'),
+        // view mode (key-value)
+        sheetName: document.getElementById('v2-sheet-name'),
+        sheetSku: document.getElementById('v2-sheet-sku'),
+        sheetTracking: document.getElementById('v2-sheet-tracking'),
+        sheetCurrency: document.getElementById('v2-sheet-currency'),
+        sheetBasePrice: document.getElementById('v2-sheet-base-price'),
+        sheetActive: document.getElementById('v2-sheet-active'),
+        // edit mode (form)
+        sheetEditName: document.getElementById('v2-sheet-edit-name'),
+        sheetEditSku: document.getElementById('v2-sheet-edit-sku'),
+        sheetEditTracking: document.getElementById('v2-sheet-edit-tracking'),
+        sheetEditCurrency: document.getElementById('v2-sheet-edit-currency'),
+        sheetEditPrice: document.getElementById('v2-sheet-edit-price'),
+        sheetEditActive: document.getElementById('v2-sheet-edit-active'),
+        sheetEditError: document.getElementById('v2-sheet-edit-error'),
+        // detail panes
+        sheetStock: document.getElementById('v2-sheet-stock'),
+        sheetStockTotal: document.getElementById('v2-sheet-stock-total'),
+        sheetPrices: document.getElementById('v2-sheet-prices'),
+        sheetPriceCount: document.getElementById('v2-sheet-price-count'),
+        sheetHistory: document.getElementById('v2-sheet-history'),
+        sheetChangeCount: document.getElementById('v2-sheet-change-count'),
+    },
+    // v2 Tasas (Phase 2)
+    rates: {
+        page: document.getElementById('v2-rates-page'),
+        period: document.getElementById('v2-rates-period'),
+        status: document.getElementById('v2-rates-status'),
+        metricTypes: document.getElementById('v2-rates-metric-types'),
+        metricTypesHint: document.getElementById('v2-rates-metric-types-hint'),
+        metricCurrent: document.getElementById('v2-rates-metric-current'),
+        metricCurrentHint: document.getElementById('v2-rates-metric-current-hint'),
+        metricTotal: document.getElementById('v2-rates-metric-total'),
+        metricTotalHint: document.getElementById('v2-rates-metric-total-hint'),
+        metricLast: document.getElementById('v2-rates-metric-last'),
+        metricLastHint: document.getElementById('v2-rates-metric-last-hint'),
+        alertStrip: document.getElementById('v2-rates-alert-strip'),
+        alertStripList: document.getElementById('v2-rates-alert-strip-list'),
+        alertStripClose: document.getElementById('v2-rates-alert-strip-close'),
+        typesCount: document.getElementById('v2-rates-types-count'),
+        typesCountFoot: document.getElementById('v2-rates-types-count-foot'),
+        typesTbody: document.getElementById('v2-rates-types-tbody'),
+        historyCount: document.getElementById('v2-rates-history-count'),
+        historyCountFoot: document.getElementById('v2-rates-history-count-foot'),
+        historyTbody: document.getElementById('v2-rates-history-tbody'),
+        prev: document.getElementById('v2-rates-prev'),
+        next: document.getElementById('v2-rates-next'),
+        refresh: document.getElementById('v2-rates-refresh'),
+        newType: document.getElementById('v2-rates-new-type'),
+        newValue: document.getElementById('v2-rates-new-value'),
+        // type sheet
+        typeSheet: document.getElementById('v2-rates-type-sheet'),
+        typeSheetBackdrop: document.getElementById('v2-rates-type-sheet-backdrop'),
+        typeSheetPanel: document.querySelector('#v2-rates-type-sheet .v2-sheet__panel'),
+        typeBadge: document.getElementById('v2-rate-type-badge'),
+        typeTitle: document.getElementById('v2-rate-type-title'),
+        typeSubtitle: document.getElementById('v2-rate-type-subtitle'),
+        typeCode: document.getElementById('v2-rate-type-code'),
+        typeNameView: document.getElementById('v2-rate-type-name-view'),
+        typeDefault: document.getElementById('v2-rate-type-default'),
+        typeActive: document.getElementById('v2-rate-type-active'),
+        typeCreated: document.getElementById('v2-rate-type-created'),
+        typeEditBtn: document.getElementById('v2-rate-type-edit'),
+        typeClose: document.getElementById('v2-rate-type-close'),
+        typeCloseEdit: document.getElementById('v2-rate-type-close-edit'),
+        typeCancel: document.getElementById('v2-rate-type-cancel'),
+        typeSave: document.getElementById('v2-rate-type-save'),
+        typeSaveLabel: document.getElementById('v2-rate-type-save-label'),
+        typeEditCode: document.getElementById('v2-rate-type-edit-code'),
+        typeEditName: document.getElementById('v2-rate-type-edit-name'),
+        typeEditDefault: document.getElementById('v2-rate-type-edit-default'),
+        typeEditActive: document.getElementById('v2-rate-type-edit-active'),
+        typeEditError: document.getElementById('v2-rate-type-edit-error'),
+        typeHistoryList: document.getElementById('v2-rate-type-history-list'),
+        typeHistoryCount: document.getElementById('v2-rate-type-history-count'),
+        // value sheet
+        valueSheet: document.getElementById('v2-rates-value-sheet'),
+        valueSheetBackdrop: document.getElementById('v2-rates-value-sheet-backdrop'),
+        valueSheetPanel: document.querySelector('#v2-rates-value-sheet .v2-sheet__panel'),
+        valueTitle: document.getElementById('v2-rate-value-title'),
+        valueSubtitle: document.getElementById('v2-rate-value-subtitle'),
+        valueTypeSelect: document.getElementById('v2-rate-value-type'),
+        valueAmount: document.getElementById('v2-rate-value-amount'),
+        valueEffective: document.getElementById('v2-rate-value-effective'),
+        valueSource: document.getElementById('v2-rate-value-source'),
+        valueActive: document.getElementById('v2-rate-value-active'),
+        valueCancel: document.getElementById('v2-rate-value-cancel'),
+        valueSave: document.getElementById('v2-rate-value-save'),
+        valueClose: document.getElementById('v2-rate-value-close'),
+        valueError: document.getElementById('v2-rate-value-error'),
+    },
+    // v2 Movimientos (Phase 3)
+    movements: {
+        page: document.getElementById('v2-movements-page'),
+        period: document.getElementById('v2-mov-period'),
+        status: document.getElementById('v2-mov-status'),
+        refresh: document.getElementById('v2-mov-refresh'),
+        // KPI row
+        metricTotal: document.getElementById('v2-mov-metric-total'),
+        metricTotalHint: document.getElementById('v2-mov-metric-total-hint'),
+        metricIn: document.getElementById('v2-mov-metric-in'),
+        metricOut: document.getElementById('v2-mov-metric-out'),
+        metricProducts: document.getElementById('v2-mov-metric-products'),
+        // alert strip
+        alertStrip: document.getElementById('v2-mov-alert-strip'),
+        alertStripList: document.getElementById('v2-mov-alert-strip-list'),
+        alertStripClose: document.getElementById('v2-mov-alert-strip-close'),
+        filterStatus: document.getElementById('v2-mov-filter-status'),
+        // filter toolbar
+        search: document.getElementById('v2-mov-search'),
+        type: document.getElementById('v2-mov-type'),
+        warehouse: document.getElementById('v2-mov-warehouse'),
+        from: document.getElementById('v2-mov-from'),
+        to: document.getElementById('v2-mov-to'),
+        apply: document.getElementById('v2-mov-apply'),
+        clear: document.getElementById('v2-mov-clear'),
+        // table
+        tbody: document.getElementById('v2-mov-tbody'),
+        count: document.getElementById('v2-mov-count'),
+        prev: document.getElementById('v2-mov-prev'),
+        next: document.getElementById('v2-mov-next'),
+        // detail sheet
+        sheet: document.getElementById('v2-mov-sheet'),
+        sheetBackdrop: document.getElementById('v2-mov-sheet-backdrop'),
+        sheetPanel: document.querySelector('#v2-mov-sheet .v2-sheet__panel'),
+        sheetBadge: document.getElementById('v2-mov-sheet-badge'),
+        sheetTitle: document.getElementById('v2-mov-sheet-title'),
+        sheetSubtitle: document.getElementById('v2-mov-sheet-subtitle'),
+        sheetClose: document.getElementById('v2-mov-sheet-close'),
+        // tab panes
+        sheetType: document.getElementById('v2-mov-sheet-type'),
+        sheetQty: document.getElementById('v2-mov-sheet-qty'),
+        sheetCost: document.getElementById('v2-mov-sheet-cost'),
+        sheetDate: document.getElementById('v2-mov-sheet-date'),
+        sheetReason: document.getElementById('v2-mov-sheet-reason'),
+        sheetRef: document.getElementById('v2-mov-sheet-ref'),
+        sheetProductName: document.getElementById('v2-mov-sheet-product-name'),
+        sheetProductSku: document.getElementById('v2-mov-sheet-product-sku'),
+        sheetProductId: document.getElementById('v2-mov-sheet-product-id'),
+        sheetWarehouse: document.getElementById('v2-mov-sheet-warehouse'),
+        sheetBranch: document.getElementById('v2-mov-sheet-branch'),
+        sheetUser: document.getElementById('v2-mov-sheet-user'),
+        sheetId: document.getElementById('v2-mov-sheet-id'),
+    },
+    // v2 Reportes (Phase 4) — multi-panel operational dashboard
+    reports: {
+        page: document.getElementById('v2-reports-page'),
+        period: document.getElementById('v2-reports-period'),
+        status: document.getElementById('v2-reports-status'),
+        refresh: document.getElementById('v2-reports-refresh'),
+        // KPI row
+        metricPosTotal: document.getElementById('v2-reports-metric-pos-total'),
+        metricPosHint: document.getElementById('v2-reports-metric-pos-hint'),
+        metricTicket: document.getElementById('v2-reports-metric-ticket'),
+        metricPending: document.getElementById('v2-reports-metric-pending'),
+        metricPendingHint: document.getElementById('v2-reports-metric-pending-hint'),
+        metricOpenCash: document.getElementById('v2-reports-metric-open-cash'),
+        metricCashHint: document.getElementById('v2-reports-metric-cash-hint'),
+        // alert strip
+        alertStrip: document.getElementById('v2-reports-alert-strip'),
+        alertStripList: document.getElementById('v2-reports-alert-strip-list'),
+        alertStripClose: document.getElementById('v2-reports-alert-strip-close'),
+        // filter toolbar
+        periodSelect: document.getElementById('v2-reports-period-select'),
+        dateFrom: document.getElementById('v2-reports-date-from'),
+        dateTo: document.getElementById('v2-reports-date-to'),
+        branch: document.getElementById('v2-reports-branch'),
+        cashRegister: document.getElementById('v2-reports-cash-register'),
+        cashier: document.getElementById('v2-reports-cashier'),
+        orderStatus: document.getElementById('v2-reports-order-status'),
+        apply: document.getElementById('v2-reports-apply'),
+        clear: document.getElementById('v2-reports-clear'),
+        // 4 panels
+        ordersTbody: document.getElementById('v2-reports-orders-tbody'),
+        ordersSubtitle: document.getElementById('v2-reports-orders-subtitle'),
+        paymentsTbody: document.getElementById('v2-reports-payments-tbody'),
+        productsTbody: document.getElementById('v2-reports-products-tbody'),
+        cashTbody: document.getElementById('v2-reports-cash-tbody'),
+        // export buttons
+        exportOrders: document.getElementById('v2-reports-export-orders'),
+        exportPayments: document.getElementById('v2-reports-export-payments'),
+        exportProducts: document.getElementById('v2-reports-export-products'),
+        exportCash: document.getElementById('v2-reports-export-cash'),
+    },
+};
+
+function v2StatusTone(status) {
+    const map = {
+        ready: 'success',
+        synced: 'success',
+        synced_with_pending: 'warning',
+        pending: 'warning',
+        with_errors: 'error',
+        error: 'error',
+        not_configured: 'warning',
+        degraded: 'warning',
+    };
+    return map[status] || 'warning';
+}
+
+function v2StatusLabel(status) {
+    const map = {
+        ready: 'Sincronizado',
+        synced: 'Sincronizado',
+        synced_with_pending: 'Pendiente',
+        pending: 'Pendiente',
+        with_errors: 'Con errores',
+        error: 'Con errores',
+        not_configured: 'No configurado',
+        degraded: 'Degradado',
+    };
+    return map[status] || 'Sin datos';
+}
+
+function v2AlertIcon(action) {
+    const a = String(action || '').toLowerCase();
+    if (a.includes('stock')) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    }
+    if (a.includes('sync') || a.includes('event')) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 5.3L23 10"/></svg>';
+    }
+    if (a.includes('cash') || a.includes('caja')) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+}
+
+function v2AlertTone(action) {
+    const a = String(action || '').toLowerCase();
+    if (a.includes('sin_stock') || a.includes('critical') || a.includes('error')) return 'danger';
+    if (a.includes('low_stock') || a.includes('pending') || a.includes('stock_bajo') || a.includes('warning')) return 'warning';
+    if (a.includes('sync') || a.includes('event')) return 'info';
+    return 'warning';
+}
+
+// Seeded pseudo-random for deterministic sparklines (same value -> same shape)
+function v2SeededRand(seed) {
+    let s = seed | 0 || 1;
+    return () => {
+        s = (s * 9301 + 49297) % 233280;
+        return s / 233280;
+    };
+}
+
+function v2GenerateSparkPoints(seed, value, count = 12) {
+    const rand = v2SeededRand(seed);
+    const baseline = Math.max(1, Number(value) || 1);
+    const points = [];
+    let current = baseline * (0.55 + rand() * 0.45);
+    for (let i = 0; i < count; i++) {
+        const swing = (rand() - 0.5) * 0.45;
+        const drift = ((baseline - current) / (count - i)) * 0.6;
+        current = Math.max(0, current + drift + swing * baseline);
+        points.push(current);
+    }
+    points[points.length - 1] = baseline;
+    return points;
+}
+
+function v2RenderSparkline(container, value, color) {
+    if (!container) return;
+    const seedAttr = container.getAttribute('data-sparkline') || 'spark';
+    let seed = 0;
+    for (let i = 0; i < seedAttr.length; i++) seed = (seed * 31 + seedAttr.charCodeAt(i)) | 0;
+    const points = v2GenerateSparkPoints(seed, value, 14);
+    const w = 120, h = 28;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+    const stepX = w / (points.length - 1);
+    let path = '';
+    let area = `M 0 ${h} `;
+    points.forEach((p, i) => {
+        const x = (i * stepX).toFixed(2);
+        const y = (h - ((p - min) / range) * (h - 4) - 2).toFixed(2);
+        path += `${i === 0 ? 'M' : 'L'} ${x} ${y} `;
+        area += `${i === 0 ? 'L' : 'L'} ${x} ${y} `;
+    });
+    area += `L ${w} ${h} Z`;
+
+    container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">` +
+        `<path d="${area}" fill="${color}" fill-opacity="0.18" />` +
+        `<path d="${path}" fill="none" stroke="${color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />` +
+        `</svg>`;
+}
+
+function v2RenderSparklines(valuesByKey) {
+    const colorMap = {
+        success: 'var(--v2-green)',
+        warning: 'var(--v2-amber)',
+        danger: 'var(--v2-red)',
+        info: 'var(--v2-accent)',
+    };
+    document.querySelectorAll('[data-sparkline]').forEach((container) => {
+        const key = container.getAttribute('data-sparkline');
+        const value = valuesByKey[key] ?? 0;
+        const parent = container.closest('.v2-mini');
+        let tone = 'info';
+        if (parent) {
+            for (const t of ['success', 'warning', 'danger', 'info']) {
+                if (parent.classList.contains(`v2-mini--${t}`)) { tone = t; break; }
+            }
+        }
+        v2RenderSparkline(container, value, colorMap[tone] || colorMap.info);
+    });
+}
+
+function v2RenderOverview(summary) {
+    if (!summary) return;
+
+    if (v2.periodLabel && summary.period) {
+        v2.periodLabel.textContent = `Vista gerencial · ${summary.period.from} a ${summary.period.to}`;
+    }
+
+    if (v2.salesTotal) v2.salesTotal.textContent = money(summary.sales?.confirmed_base_amount || 0);
+    if (v2.salesCount) v2.salesCount.textContent = `${number(summary.sales?.confirmed_count || 0)} ventas confirmadas`;
+    if (v2.stockAvailable) v2.stockAvailable.textContent = number(summary.inventory?.available_quantity || 0);
+    if (v2.openCash) v2.openCash.textContent = number(summary.cash_register?.open_sessions_count || 0);
+    if (v2.cashExpected) v2.cashExpected.textContent = `${money(summary.cash_register?.expected_base_amount || 0)} esperado`;
+    if (v2.pendingPos) v2.pendingPos.textContent = number(summary.sales?.pending_pos_count || 0);
+
+    if (v2.products) v2.products.textContent = number(summary.inventory?.active_products_count || 0);
+    if (v2.lowStock) v2.lowStock.textContent = number(summary.inventory?.low_stock_count || 0);
+    if (v2.withoutStock) v2.withoutStock.textContent = number(summary.inventory?.without_stock_count || 0);
+    if (v2.reserved) v2.reserved.textContent = number(summary.inventory?.reserved_quantity || 0);
+
+    if (v2.syncNodes) v2.syncNodes.textContent = number(summary.sync?.nodes_count || 0);
+    if (v2.syncPending) v2.syncPending.textContent = number(summary.sync?.pending_outbox_count || 0);
+    if (v2.syncErrors) v2.syncErrors.textContent = number((summary.sync?.failed_outbox_count || 0) + (summary.sync?.failed_inbox_count || 0));
+
+    if (v2.syncStatus) {
+        const status = summary.sync?.readiness_status || 'not_configured';
+        v2.syncStatus.textContent = v2StatusLabel(status);
+        v2.syncStatus.className = `v2-status-pill v2-status-pill--${v2StatusTone(status)}`;
+    }
+
+    v2RenderSparklines({
+        'products': summary.inventory?.active_products_count || 0,
+        'low-stock': summary.inventory?.low_stock_count || 0,
+        'without-stock': summary.inventory?.without_stock_count || 0,
+        'reserved': summary.inventory?.reserved_quantity || 0,
+        'nodes': summary.sync?.nodes_count || 0,
+        'pending': summary.sync?.pending_outbox_count || 0,
+        'errors': (summary.sync?.failed_outbox_count || 0) + (summary.sync?.failed_inbox_count || 0),
+    });
+
+    v2RenderAlerts(summary.alerts || []);
+}
+
+function v2RenderAlerts(alerts) {
+    if (!v2.alertList) return;
+    if (!alerts.length) {
+        v2.alertList.innerHTML = '<div class="v2-alert v2-alert--success"><div class="v2-alert__icon">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+            '<div class="v2-alert__body"><strong>Sin alertas críticas</strong><span>La empresa no tiene alertas operativas para este resumen.</span></div></div>';
+        return;
+    }
+    v2.alertList.replaceChildren(
+        ...alerts.map((alert) => {
+            const tone = v2AlertTone(alert.action);
+            const node = document.createElement('div');
+            node.className = `v2-alert v2-alert--${tone}`;
+            const iconWrap = document.createElement('div');
+            iconWrap.className = 'v2-alert__icon';
+            iconWrap.innerHTML = v2AlertIcon(alert.action);
+            const body = document.createElement('div');
+            body.className = 'v2-alert__body';
+            const strong = document.createElement('strong');
+            strong.textContent = alert.title || alert.action || 'Alerta';
+            const span = document.createElement('span');
+            span.textContent = alert.description || alert.message || '';
+            body.append(strong, span);
+            node.append(iconWrap, body);
+            return node;
+        })
+    );
+}
+
+// Sidebar collapse toggle
+if (v2.toggle && v2.shell) {
+    const STORAGE_KEY = 'v2-sidebar-collapsed';
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved === 'true') v2.shell.dataset.collapsed = 'true';
+    } catch (e) { /* ignore */ }
+    v2.toggle.addEventListener('click', () => {
+        const collapsed = v2.shell.dataset.collapsed === 'true';
+        const next = !collapsed;
+        v2.shell.dataset.collapsed = String(next);
+        try { localStorage.setItem(STORAGE_KEY, String(next)); } catch (e) { /* ignore */ }
+    });
+}
+
+// V2 nav item click -> also switch section (existing handler covers portal-section)
+v2.navItems.forEach((item) => {
+    item.addEventListener('click', (event) => {
+        // Stop propagation? The existing handler in admin.js binds to portalNavItems
+        // which includes both v1 and v2 items. Calling the existing handler twice
+        // is harmless (idempotent toggle), so we just let the original handler run.
+        // The default behavior will be triggered by the existing click handler since
+        // both nav items have data-portal-section.
+    });
+});
+
+// V2 refresh button
+if (v2.refresh) {
+    v2.refresh.addEventListener('click', () => {
+        if (typeof loadDashboard === 'function') loadDashboard();
+    });
+}
+
+// V2 logout button
+if (v2.logout) {
+    v2.logout.addEventListener('click', () => {
+        const logoutBtn = document.getElementById('admin-logout');
+        if (logoutBtn) logoutBtn.click();
+    });
+}
+
+// V2 period select -> triggers reload
+if (v2.period) {
+    v2.period.addEventListener('change', () => {
+        const v1Period = document.getElementById('dashboard-period');
+        if (v1Period) {
+            v1Period.value = v2.period.value;
+            v1Period.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (typeof loadDashboard === 'function') loadDashboard();
+    });
+}
+
+// Hook into loadDashboard to also render v2
+const _origLoadDashboard = typeof loadDashboard === 'function' ? loadDashboard : null;
+window.loadDashboard = async function v2WrappedLoadDashboard(...args) {
+    if (_origLoadDashboard) {
+        await _origLoadDashboard(...args);
+    }
+    // Render v2 from the most recent fetch
+    try {
+        const query = new URLSearchParams({
+            period: (v2.period && v2.period.value) || 'today',
+            low_stock_threshold: '3',
+        });
+        const session = state && state.session;
+        if (!session) return;
+        const summary = await api(`/api/admin-portal/dashboard?${query}`, { headers: authHeaders(session) });
+        v2RenderOverview(summary);
+        if (v2.dashboardStatus) {
+            v2.dashboardStatus.textContent = `Dashboard actualizado: ${formatDateTime(summary.generated_at)}.`;
+        }
+    } catch (error) {
+        if (v2.dashboardStatus) {
+            v2.dashboardStatus.textContent = normalizeError(error);
+        }
+    }
+};
+
+// V2 tenant switcher sync
+function v2SyncTenantSwitcher() {
+    if (!v2.tenantSwitcher) return;
+    const session = state && state.session;
+    const tenants = (session && session.available_tenants) || state.tenants || [];
+    const current = session && session.tenant;
+    v2.tenantSwitcher.innerHTML = '';
+    if (v2.tenantField) v2.tenantField.hidden = tenants.length <= 1;
+    tenants.forEach((tenant) => {
+        const opt = document.createElement('option');
+        opt.value = tenant.slug;
+        opt.textContent = tenant.name;
+        if (current && current.slug === tenant.slug) opt.selected = true;
+        v2.tenantSwitcher.appendChild(opt);
+    });
+}
+
+if (v2.tenantSwitcher) {
+    v2.tenantSwitcher.addEventListener('change', () => {
+        const slug = v2.tenantSwitcher.value;
+        const v1Switcher = document.getElementById('admin-tenant-switcher');
+        if (v1Switcher) {
+            v1Switcher.value = slug;
+            v1Switcher.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+}
+
+// V2 search (UI only for now)
+if (v2.search) {
+    v2.search.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Placeholder: scroll to first matching module
+            const term = v2.search.value.trim().toLowerCase();
+            if (!term) return;
+            const sections = ['sales', 'inventory', 'customers', 'transfers', 'purchases'];
+            const match = sections.find((s) => s.includes(term));
+            if (match) {
+                const btn = document.querySelector(`.v2-nav-item[data-portal-section="${match}"]`);
+                if (btn) btn.click();
+            }
+        }
+    });
+}
+
+// Sync tenant switcher after each session restore
+const _origSaveSession = typeof saveSession === 'function' ? saveSession : null;
+if (_origSaveSession) {
+    window.saveSession = function v2WrappedSaveSession(session, tenants) {
+        const result = _origSaveSession(session, tenants);
+        try { v2SyncTenantSwitcher(); } catch (e) { /* ignore */ }
+        return result;
+    };
+}
+
+// Initial sync
+try { v2SyncTenantSwitcher(); } catch (e) { /* ignore */ }
+
+// =====================================================================
+// v2 Inventario (Phase 1)
+// Re-skin of the existing v1 inventory module with v2 visual language.
+// Real data is sourced from the same /api/inventory-center/summary endpoint
+// already used by loadInventory(); v2RenderInventory is called from inside
+// loadInventory so we don't double-fetch.
+// =====================================================================
+
+function v2Money(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '—';
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function v2StatusPillTone(severity) {
+    const sev = String(severity || '').toLowerCase();
+    if (sev === 'danger' || sev === 'critical' || sev === 'error') return 'error';
+    if (sev === 'warning' || sev === 'warn') return 'warning';
+    if (sev === 'info') return 'info';
+    if (sev === 'success' || sev === 'ok') return 'success';
+    return 'warning';
+}
+
+function v2InventoryStatusTone(stockStatus) {
+    const s = String(stockStatus || '');
+    if (s === 'available') return 'success';
+    if (s === 'low') return 'warning';
+    if (s === 'out') return 'danger';
+    return 'info';
+}
+
+function v2InventoryStatusLabel(stockStatus) {
+    const s = String(stockStatus || '');
+    if (s === 'available') return 'Disponible';
+    if (s === 'low') return 'Stock bajo';
+    if (s === 'out') return 'Sin stock';
+    return '—';
+}
+
+function v2InventoryTrackingLabel(tracking) {
+    return tracking === 'serialized' ? 'Serializado' : 'Por cantidad';
+}
+
+// ----- v2 row menu (3-dot dropdown) -----
+function v2BuildRowMenu(products) {
+    const wrap = document.createElement('div');
+    wrap.className = 'v2-row-menu';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'v2-row-menu__trigger';
+    trigger.setAttribute('aria-label', 'Acciones');
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+    const panel = document.createElement('div');
+    panel.className = 'v2-row-menu__panel';
+    panel.setAttribute('role', 'menu');
+
+    const items = [
+        { label: 'Ver detalle', icon: '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>', action: 'view' },
+        { label: 'Editar', icon: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', action: 'edit' },
+        { divider: true },
+        { label: products.is_active ? 'Desactivar' : 'Activar', icon: '<svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>', action: 'toggle', danger: !products.is_active },
+    ];
+    items.forEach((it) => {
+        if (it.divider) {
+            const div = document.createElement('div');
+            div.className = 'v2-row-menu__divider';
+            panel.append(div);
+            return;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `v2-row-menu__item${it.danger ? ' v2-row-menu__item--danger' : ''}`;
+        btn.setAttribute('role', 'menuitem');
+        btn.dataset.action = it.action;
+        btn.innerHTML = `${it.icon}<span>${it.label}</span>`;
+        panel.append(btn);
+    });
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Close any other open menus
+        document.querySelectorAll('.v2-row-menu.is-open').forEach((m) => { if (m !== wrap) m.classList.remove('is-open'); });
+        wrap.classList.toggle('is-open');
+    });
+    panel.addEventListener('click', (e) => {
+        const btn = e.target.closest('.v2-row-menu__item');
+        if (!btn) return;
+        e.stopPropagation();
+        wrap.classList.remove('is-open');
+        const action = btn.dataset.action;
+        if (action === 'view') v2OpenInventorySheet(products.id);
+        else if (action === 'edit') v2OpenInventorySheet(products.id, 'edit');
+        else if (action === 'toggle') v2ToggleProductActive(products);
+    });
+
+    wrap.append(trigger, panel);
+    return wrap;
+}
+
+async function v2ToggleProductActive(product) {
+    const session = state.session;
+    if (!session) return;
+    try {
+        setStatus(v2.inventory.status, `${product.is_active ? 'Desactivando' : 'Activando'} producto...`, '');
+        await api(`/api/products/${product.id}`, {
+            method: 'PATCH',
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: !product.is_active }),
+        });
+        setStatus(v2.inventory.status, `Producto ${product.is_active ? 'desactivado' : 'activado'}.`, 'success');
+        if (typeof loadInventory === 'function') loadInventory();
+    } catch (error) {
+        setStatus(v2.inventory.status, normalizeError(error), 'error');
+    }
+}
+
+// Close row menu on outside click
+document.addEventListener('click', () => {
+    document.querySelectorAll('.v2-row-menu.is-open').forEach((m) => m.classList.remove('is-open'));
+});
+
+function v2InventoryRow(product) {
+    const tr = document.createElement('tr');
+    tr.dataset.productId = product.id;
+    tr.tabIndex = 0;
+    tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-label', `Ver detalle de ${product.name || 'producto'}`);
+
+    const stock = product.stock || {};
+    const statusTone = v2InventoryStatusTone(stock.status);
+    const statusLabel = v2InventoryStatusLabel(stock.status);
+
+    // Column 1: Producto (name + SKU + tracking label)
+    const nameCell = document.createElement('td');
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'v2-product-cell';
+    const nameStrong = document.createElement('span');
+    nameStrong.className = 'v2-product-cell__name';
+    nameStrong.textContent = product.name || '—';
+    const skuSmall = document.createElement('span');
+    skuSmall.className = 'v2-product-cell__sku';
+    skuSmall.textContent = product.sku ? product.sku : '—';
+    const trackingSmall = document.createElement('span');
+    trackingSmall.className = 'v2-product-cell__tracking';
+    trackingSmall.textContent = v2InventoryTrackingLabel(product.tracking_type);
+    nameWrap.append(nameStrong, skuSmall, trackingSmall);
+    nameCell.append(nameWrap);
+
+    // Column 2: Precio (big number + currency)
+    const priceCell = document.createElement('td');
+    const priceWrap = document.createElement('div');
+    priceWrap.className = 'v2-price-cell';
+    if (product.base_price === null || product.base_price === undefined) {
+        priceWrap.textContent = '—';
+        const small = document.createElement('small');
+        small.textContent = product.sale_currency || 'USD';
+        priceWrap.appendChild(small);
+    } else {
+        priceWrap.textContent = v2Money(product.base_price);
+        const small = document.createElement('small');
+        small.textContent = product.sale_currency || 'USD';
+        priceWrap.appendChild(small);
+    }
+    priceCell.append(priceWrap);
+
+    // Column 3: Disponible (colored by status + dañado)
+    const availableCell = document.createElement('td');
+    const availWrap = document.createElement('div');
+    availWrap.className = `v2-stock-cell v2-stock-cell--${stock.status || 'available'}`;
+    const availStrong = document.createElement('strong');
+    availStrong.textContent = v2Money(stock.available);
+    const availSmall = document.createElement('small');
+    availSmall.textContent = `Reservado ${v2Money(stock.reserved || 0)} · Dañado ${v2Money(stock.damaged || 0)}`;
+    availWrap.append(availStrong, availSmall);
+    availableCell.append(availWrap);
+
+    // Column 4: Estado (pill)
+    const statusCell = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className = `v2-status-inline v2-status-inline--${statusTone}`;
+    statusPill.textContent = statusLabel;
+    statusCell.append(statusPill);
+
+    // Column 5: Venta (pill)
+    const saleCell = document.createElement('td');
+    const salePill = document.createElement('span');
+    salePill.className = `v2-status-inline ${product.is_active ? 'v2-status-inline--success' : 'v2-status-inline--neutral'}`;
+    salePill.textContent = product.is_active ? 'Activo' : 'Inactivo';
+    saleCell.append(salePill);
+
+    // Column 6: 3-dot action menu
+    const actionCell = document.createElement('td');
+    actionCell.className = 'v2-col-action';
+    actionCell.append(v2BuildRowMenu(product));
+
+    tr.append(nameCell, priceCell, availableCell, statusCell, saleCell, actionCell);
+
+    // Row click → open sheet (but ignore clicks on the menu itself)
+    tr.addEventListener('click', (e) => {
+        if (e.target.closest('.v2-row-menu')) return;
+        v2OpenInventorySheet(product.id);
+    });
+    tr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            v2OpenInventorySheet(product.id);
+        }
+    });
+
+    return tr;
+}
+
+function v2RenderInventory(summary) {
+    if (!summary || !v2.inventory || !v2.inventory.page) return;
+
+    const metrics = summary.metrics || {};
+    const products = summary.products || [];
+    const pagination = summary.pagination || {};
+    const filters = summary.filters || {};
+    const alerts = summary.alerts || [];
+
+    // KPIs (compact)
+    if (v2.inventory.metricTotal) v2.inventory.metricTotal.textContent = v2Money(metrics.total_products || 0);
+    if (v2.inventory.metricTotalHint) {
+        const ser = Number(metrics.serialized_products || 0);
+        const qty = Number(metrics.quantity_products || 0);
+        v2.inventory.metricTotalHint.textContent = `${ser} serializados · ${qty} por cantidad`;
+    }
+    if (v2.inventory.metricLow) v2.inventory.metricLow.textContent = v2Money(metrics.low_stock_count || 0);
+    if (v2.inventory.metricLowHint) {
+        const threshold = filters.low_stock_threshold || 3;
+        v2.inventory.metricLowHint.textContent = `Mínimo operativo: ${threshold}`;
+    }
+    if (v2.inventory.metricOut) v2.inventory.metricOut.textContent = v2Money(metrics.without_stock_count || 0);
+    if (v2.inventory.metricAvailable) v2.inventory.metricAvailable.textContent = v2Money(metrics.available_quantity || 0);
+    if (v2.inventory.metricReserved) {
+        v2.inventory.metricReserved.textContent = `${v2Money(metrics.reserved_quantity || 0)} reservadas · ${v2Money(metrics.damaged_quantity || 0)} dañadas`;
+    }
+
+    if (v2.inventory.period) {
+        v2.inventory.period.textContent = `${pagination.total || 0} productos en vista.`;
+    }
+
+    if (v2.inventory.activeStatus) {
+        const activeStatus = (elements.inventoryActive && elements.inventoryActive.value) || 'active';
+        const map = { active: 'Solo activos', inactive: 'Solo inactivos', all: 'Todos' };
+        const tone = activeStatus === 'inactive' ? 'warning' : 'info';
+        v2.inventory.activeStatus.textContent = map[activeStatus] || 'Activos';
+        v2.inventory.activeStatus.className = `v2-status-pill v2-status-pill--${tone}`;
+    }
+
+    v2.inventory.quickStatus?.querySelectorAll('[data-v2-inv-active-filter]').forEach((btn) => {
+        const activeStatus = (elements.inventoryActive && elements.inventoryActive.value) || 'active';
+        btn.classList.toggle('is-active', btn.dataset.v2InvActiveFilter === activeStatus);
+    });
+
+    if (v2.inventory.filterSummary) {
+        const parts = [];
+        const search = (elements.inventorySearch && elements.inventorySearch.value || '').trim();
+        const tracking = (elements.inventoryTracking && elements.inventoryTracking.value) || '';
+        const stock = (elements.inventoryStock && elements.inventoryStock.value) || 'all';
+        if (search) parts.push(`"${search}"`);
+        if (tracking) parts.push(v2InventoryTrackingLabel(tracking).toLowerCase());
+        if (stock !== 'all') parts.push(`stock: ${v2InventoryStatusLabel(stock).toLowerCase()}`);
+        v2.inventory.filterSummary.textContent = parts.length
+            ? `${pagination.total || 0} producto(s) con ${parts.join(' · ')}.`
+            : `${pagination.total || 0} producto(s) en vista completa.`;
+    }
+
+    // Table (full width)
+    if (v2.inventory.tbody) {
+        if (!products.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.innerHTML = '<div style="padding:48px 12px;text-align:center;"><strong style="display:block;color:var(--v2-ink-strong);font-size:15px;margin-bottom:6px;">Sin productos</strong><small style="color:var(--v2-muted);">No hay productos con los filtros seleccionados.</small></div>';
+            tr.append(td);
+            v2.inventory.tbody.replaceChildren(tr);
+        } else {
+            v2.inventory.tbody.replaceChildren(...products.map(v2InventoryRow));
+        }
+    }
+
+    if (v2.inventory.count) {
+        v2.inventory.count.textContent = pagination.total === 0
+            ? 'Sin productos para mostrar.'
+            : `Mostrando ${pagination.from}-${pagination.to} de ${pagination.total}.`;
+    }
+    if (v2.inventory.prev) v2.inventory.prev.disabled = !pagination.has_previous;
+    if (v2.inventory.next) v2.inventory.next.disabled = !pagination.has_next;
+
+    // Alert strip (compact, single row)
+    v2RenderInventoryAlertStrip(alerts);
+
+    if (v2.inventory.status) {
+        setStatus(v2.inventory.status, `Catálogo actualizado · ${products.length} producto(s) en vista.`, 'success');
+    }
+}
+
+function v2RenderInventoryAlertStrip(alerts) {
+    const strip = v2.inventory.alertStrip;
+    const list = v2.inventory.alertStripList;
+    if (!strip || !list) return;
+    if (!alerts.length) {
+        strip.hidden = true;
+        list.replaceChildren();
+        return;
+    }
+    strip.hidden = false;
+    list.replaceChildren(...alerts.map((alert) => {
+        const tone = String(alert.severity || '').toLowerCase();
+        const toneClass = tone === 'danger' ? 'v2-alert-chip--danger'
+            : tone === 'info' ? 'v2-alert-chip--info'
+            : 'v2-alert-chip--warning';
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = `v2-alert-chip ${toneClass}`;
+        chip.title = alert.message || alert.title || '';
+        chip.textContent = `${alert.count} · ${alert.title || alert.type}`;
+        chip.addEventListener('click', () => {
+            // Filter the catalog to show the products of this alert
+            if (!v2.inventory) return;
+            if (alert.type === 'low_stock' || alert.type === 'without_stock') {
+                v2.inventory.stock.value = alert.type === 'low_stock' ? 'low' : 'out';
+                v2.inventory.apply?.click();
+            } else {
+                setStatus(v2.inventory.status, alert.message || 'Alerta operativa', 'info');
+            }
+        });
+        return chip;
+    }));
+}
+
+// ----- v2 sheet (side panel for product detail) -----
+// ----- v2 sheet (side panel for product detail/edit/create) -----
+const v2SheetState = { productId: null, mode: 'view', detail: null, inflight: null };
+
+function v2OpenInventorySheet(productId, mode = 'view') {
+    const session = state.session;
+    const sheet = v2.inventory.sheet;
+    if (!session || !sheet) return;
+
+    v2SheetState.productId = productId;
+    v2SheetState.mode = mode;
+
+    v2ActivateInventorySheetTab('general');
+    sheet.hidden = false;
+    void sheet.offsetWidth;
+    sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
+
+    if (mode === 'create') {
+        v2PrepareCreateSheet();
+        return;
+    }
+
+    // View / Edit on existing product: load detail
+    if (v2.inventory.sheetTitle) v2.inventory.sheetTitle.textContent = 'Cargando...';
+    if (v2.inventory.sheetSubtitle) v2.inventory.sheetSubtitle.textContent = 'Producto #' + productId;
+    if (v2.inventory.sheetBadge) v2.inventory.sheetBadge.textContent = mode === 'edit' ? 'Editar' : 'Detalle';
+
+    v2SheetState.inflight = v2FetchProductDetail(productId);
+    v2SheetState.inflight.then((payload) => {
+        // Only apply if the user is still on this product (not closed/reset)
+        if (v2SheetState.productId !== productId) return;
+        v2SheetState.detail = payload.detail && !payload.detail.__error ? payload.detail : null;
+        v2RenderInventorySheet(payload);
+        if (mode === 'edit') {
+            v2StartEditExistingProduct();
+        }
+    }).catch((error) => {
+        if (v2SheetState.productId !== productId) return;
+        if (v2.inventory.sheetTitle) v2.inventory.sheetTitle.textContent = 'Error';
+        if (v2.inventory.sheetSubtitle) v2.inventory.sheetSubtitle.textContent = normalizeError(error);
+    }).finally(() => {
+        if (v2SheetState.productId === productId) v2SheetState.inflight = null;
+    });
+}
+
+function v2PrepareCreateSheet() {
+    v2SheetState.detail = null;
+    v2SheetState.productId = null;
+
+    if (v2.inventory.sheetTitle) v2.inventory.sheetTitle.textContent = 'Nuevo producto';
+    if (v2.inventory.sheetSubtitle) v2.inventory.sheetSubtitle.textContent = 'Completa los datos básicos para crear el producto.';
+    if (v2.inventory.sheetBadge) v2.inventory.sheetBadge.textContent = 'Crear';
+
+    // Clear view-mode fields
+    ['sheetName', 'sheetSku', 'sheetTracking', 'sheetCurrency', 'sheetBasePrice', 'sheetActive'].forEach((key) => {
+        if (v2.inventory[key]) v2.inventory[key].textContent = '—';
+    });
+
+    // Clear detail panes
+    if (v2.inventory.sheetStock) v2.inventory.sheetStock.innerHTML = '<p class="v2-sheet__empty">Sin stock todavía. Crea el producto y registra movimientos después.</p>';
+    if (v2.inventory.sheetStockTotal) v2.inventory.sheetStockTotal.textContent = '0 disp.';
+    if (v2.inventory.sheetPrices) v2.inventory.sheetPrices.innerHTML = '<p class="v2-sheet__empty">Asigna listas de precio después de crear el producto.</p>';
+    if (v2.inventory.sheetPriceCount) v2.inventory.sheetPriceCount.textContent = '0 listas';
+    if (v2.inventory.sheetHistory) v2.inventory.sheetHistory.innerHTML = '<p class="v2-sheet__empty">Sin movimientos todavía.</p>';
+    if (v2.inventory.sheetChangeCount) v2.inventory.sheetChangeCount.textContent = '0 cambios';
+
+    // Populate edit form with empty defaults
+    if (v2.inventory.sheetEditName) v2.inventory.sheetEditName.value = '';
+    if (v2.inventory.sheetEditSku) v2.inventory.sheetEditSku.value = '';
+    if (v2.inventory.sheetEditTracking) v2.inventory.sheetEditTracking.value = 'quantity';
+    if (v2.inventory.sheetEditCurrency) v2.inventory.sheetEditCurrency.value = 'USD';
+    if (v2.inventory.sheetEditPrice) v2.inventory.sheetEditPrice.value = '';
+    if (v2.inventory.sheetEditActive) v2.inventory.sheetEditActive.value = '1';
+    v2ClearSheetEditError();
+
+    // Show edit form, hide view
+    v2EnterEditMode();
+    if (v2.inventory.sheetSaveLabel) v2.inventory.sheetSaveLabel.textContent = 'Crear producto';
+    if (v2.inventory.sheetEditName) v2.inventory.sheetEditName.focus();
+}
+
+function v2CloseInventorySheet() {
+    const sheet = v2.inventory.sheet;
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { sheet.hidden = true; }, 280);
+    v2SheetState.productId = null;
+    v2SheetState.mode = 'view';
+    v2SheetState.detail = null;
+    v2SheetState.inflight = null;
+}
+
+function v2ActivateInventorySheetTab(tabName) {
+    v2.inventory.sheetTabs?.querySelectorAll('.v2-sheet__tab').forEach((tab) => {
+        const isActive = tab.dataset.v2SheetTab === tabName;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-v2-sheet-pane]').forEach((pane) => {
+        pane.hidden = pane.dataset.v2SheetPane !== tabName;
+    });
+}
+
+function v2EnterEditMode() {
+    v2SheetState.mode = v2SheetState.productId ? 'edit' : 'create';
+    if (v2.inventory.sheetActionsView) v2.inventory.sheetActionsView.hidden = true;
+    if (v2.inventory.sheetActionsEdit) v2.inventory.sheetActionsEdit.hidden = false;
+    if (v2.inventory.sheetSaveLabel) {
+        v2.inventory.sheetSaveLabel.textContent = v2SheetState.mode === 'create' ? 'Crear producto' : 'Guardar cambios';
+    }
+    document.querySelectorAll('[data-v2-sheet-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2SheetMode !== 'edit';
+    });
+    // Only the General tab is editable; hide others visually but keep them
+    // accessible so the user can switch and view current state.
+    v2ActivateInventorySheetTab('general');
+}
+
+function v2EnterViewMode() {
+    v2SheetState.mode = 'view';
+    if (v2.inventory.sheetActionsView) v2.inventory.sheetActionsView.hidden = false;
+    if (v2.inventory.sheetActionsEdit) v2.inventory.sheetActionsEdit.hidden = true;
+    document.querySelectorAll('[data-v2-sheet-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2SheetMode !== 'view';
+    });
+    v2ClearSheetEditError();
+}
+
+function v2ClearSheetEditError() {
+    if (!v2.inventory.sheetEditError) return;
+    v2.inventory.sheetEditError.hidden = true;
+    v2.inventory.sheetEditError.replaceChildren();
+}
+
+function v2ShowSheetEditError(messageOrList) {
+    if (!v2.inventory.sheetEditError) return;
+    v2.inventory.sheetEditError.hidden = false;
+    v2.inventory.sheetEditError.replaceChildren();
+    if (typeof messageOrList === 'string') {
+        const span = document.createElement('span');
+        span.textContent = messageOrList;
+        v2.inventory.sheetEditError.append(span);
+    } else if (Array.isArray(messageOrList) && messageOrList.length) {
+        const span = document.createElement('span');
+        span.textContent = 'No pudimos guardar los cambios:';
+        const ul = document.createElement('ul');
+        messageOrList.forEach((m) => {
+            const li = document.createElement('li');
+            li.textContent = m;
+            ul.append(li);
+        });
+        v2.inventory.sheetEditError.append(span, ul);
+    } else {
+        v2.inventory.sheetEditError.hidden = true;
+    }
+}
+
+function v2CollectSheetForm() {
+    return {
+        name: (v2.inventory.sheetEditName?.value || '').trim(),
+        sku: (v2.inventory.sheetEditSku?.value || '').trim() || null,
+        tracking_type: v2.inventory.sheetEditTracking?.value || 'quantity',
+        sale_currency: v2.inventory.sheetEditCurrency?.value || 'USD',
+        base_price: v2.inventory.sheetEditPrice?.value ? Number(v2.inventory.sheetEditPrice.value) : null,
+        is_active: v2.inventory.sheetEditActive?.value === '1',
+    };
+}
+
+async function v2SaveInventorySheet() {
+    const session = state.session;
+    if (!session) return;
+    const isCreate = v2SheetState.mode === 'create' || !v2SheetState.productId;
+    const data = v2CollectSheetForm();
+    if (!data.name) {
+        v2ShowSheetEditError('El nombre del producto es obligatorio.');
+        if (v2.inventory.sheetEditName) v2.inventory.sheetEditName.focus();
+        return;
+    }
+    setButtonLoading(v2.inventory.sheetSave, true, isCreate ? 'Creando...' : 'Guardando...');
+    v2ClearSheetEditError();
+    try {
+        const url = isCreate ? '/api/products' : `/api/products/${v2SheetState.productId}`;
+        const method = isCreate ? 'POST' : 'PATCH';
+        const response = await api(url, {
+            method,
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        // api() returns the inner data, so response is the product resource
+        const product = response?.data || response;
+        const productId = product?.id || v2SheetState.productId;
+        setStatus(v2.inventory.status, isCreate ? `Producto "${data.name}" creado.` : `Producto "${data.name}" actualizado.`, 'success');
+        // Refresh catalog and re-open sheet in view mode for the saved product
+        if (typeof loadInventory === 'function') await loadInventory();
+        if (isCreate) {
+            // Close sheet, the new product is now in the catalog with full data
+            v2CloseInventorySheet();
+        } else {
+            v2SheetState.productId = productId;
+            v2SheetState.mode = 'view';
+            const payload = await v2FetchProductDetail(productId);
+            v2SheetState.detail = payload.detail && !payload.detail.__error ? payload.detail : null;
+            v2RenderInventorySheet(payload);
+            v2EnterViewMode();
+        }
+    } catch (error) {
+        // Try to extract Laravel validation errors from response
+        const errors = error?.errors || (error?.response && error.response.errors);
+        if (Array.isArray(errors)) {
+            v2ShowSheetEditError(errors.map((e) => e?.message || String(e)).filter(Boolean));
+        } else if (errors && typeof errors === 'object') {
+            v2ShowSheetEditError(Object.values(errors).flat().filter(Boolean));
+        } else {
+            v2ShowSheetEditError(normalizeError(error));
+        }
+    } finally {
+        setButtonLoading(v2.inventory.sheetSave, false);
+    }
+}
+
+function v2StartEditExistingProduct() {
+    // If the inflight fetch hasn't resolved yet, wait for it before populating
+    if (v2SheetState.inflight) {
+        v2SheetState.inflight.then(() => v2StartEditExistingProduct());
+        return;
+    }
+    if (!v2SheetState.detail) {
+        // Last-resort: trigger a fresh fetch for the current product
+        const productId = v2SheetState.productId;
+        if (!productId) return;
+        v2SheetState.inflight = v2FetchProductDetail(productId);
+        v2SheetState.inflight.then((payload) => {
+            if (v2SheetState.productId !== productId) return;
+            v2SheetState.detail = payload.detail && !payload.detail.__error ? payload.detail : null;
+            v2StartEditExistingProduct();
+        });
+        return;
+    }
+    // detail is the inner {product, stock, ...} object; we edit the product
+    const d = v2SheetState.detail.product || v2SheetState.detail;
+    if (v2.inventory.sheetEditName) v2.inventory.sheetEditName.value = d.name || '';
+    if (v2.inventory.sheetEditSku) v2.inventory.sheetEditSku.value = d.sku || '';
+    if (v2.inventory.sheetEditTracking) v2.inventory.sheetEditTracking.value = d.tracking_type || 'quantity';
+    if (v2.inventory.sheetEditCurrency) v2.inventory.sheetEditCurrency.value = d.sale_currency || 'USD';
+    if (v2.inventory.sheetEditPrice) v2.inventory.sheetEditPrice.value = d.base_price ?? '';
+    if (v2.inventory.sheetEditActive) v2.inventory.sheetEditActive.value = d.is_active ? '1' : '0';
+    v2ClearSheetEditError();
+    v2EnterEditMode();
+    // Focus first field for fast keyboard editing
+    if (v2.inventory.sheetEditName) v2.inventory.sheetEditName.focus();
+}
+
+async function v2FetchProductDetail(productId) {
+    const session = state.session;
+    const headers = authHeaders(session);
+    const [detail, stockByWarehouse, movements, audits, prices] = await Promise.all([
+        api(`/api/inventory-center/products/${productId}`, { headers }).catch((e) => ({ __error: e })),
+        api(`/api/inventory-center/products/${productId}/stock-by-warehouse`, { headers }).catch((e) => ({ __error: e })),
+        api(`/api/inventory-center/products/${productId}/movements?limit=20`, { headers }).catch((e) => ({ __error: e })),
+        api(`/api/inventory-center/products/${productId}/audits?limit=20`, { headers }).catch((e) => ({ __error: e })),
+        api(`/api/products/${productId}/prices`, { headers }).catch((e) => ({ __error: e })),
+    ]);
+    return { detail, stockByWarehouse, movements, audits, prices };
+}
+
+function v2RenderInventorySheet(payload) {
+    const wrapper = payload.detail && !payload.detail.__error ? payload.detail : null;
+    // The detail endpoint returns { data: { product, stock, serials, recent_movements, recent_audits } }
+    // payload.detail is the inner object; payload.detail.product has the product fields.
+    const detail = wrapper?.product || null;
+    if (!detail) {
+        if (v2.inventory.sheetTitle) v2.inventory.sheetTitle.textContent = 'Producto no disponible';
+        if (v2.inventory.sheetSubtitle) v2.inventory.sheetSubtitle.textContent = 'Intenta recargar o vuelve al catálogo.';
+        return;
+    }
+    if (v2.inventory.sheetBadge) v2.inventory.sheetBadge.textContent = detail.is_active ? 'Activo' : 'Inactivo';
+    if (v2.inventory.sheetTitle) v2.inventory.sheetTitle.textContent = detail.name || 'Producto';
+    if (v2.inventory.sheetSubtitle) {
+        const parts = [];
+        if (detail.sku) parts.push(`SKU ${detail.sku}`);
+        parts.push(v2InventoryTrackingLabel(detail.tracking_type));
+        v2.inventory.sheetSubtitle.textContent = parts.join(' · ');
+    }
+
+    // General tab
+    if (v2.inventory.sheetName) v2.inventory.sheetName.textContent = detail.name || '—';
+    if (v2.inventory.sheetSku) v2.inventory.sheetSku.textContent = detail.sku || '—';
+    if (v2.inventory.sheetTracking) v2.inventory.sheetTracking.textContent = v2InventoryTrackingLabel(detail.tracking_type);
+    if (v2.inventory.sheetCurrency) v2.inventory.sheetCurrency.textContent = detail.sale_currency || '—';
+    if (v2.inventory.sheetBasePrice) v2.inventory.sheetBasePrice.textContent = detail.base_price !== null && detail.base_price !== undefined ? `${v2Money(detail.base_price)} ${detail.sale_currency || 'USD'}` : '—';
+    if (v2.inventory.sheetActive) {
+        v2.inventory.sheetActive.textContent = detail.is_active ? 'Activo' : 'Inactivo';
+        v2.inventory.sheetActive.style.color = detail.is_active ? 'var(--v2-green)' : 'var(--v2-muted)';
+    }
+
+    // Stock tab — prefer bundled detail.stock.by_warehouse; fall back to parallel /stock-by-warehouse
+    const stockList = v2.inventory.sheetStock;
+    const stockObj = wrapper?.stock || {};
+    const sw = (Array.isArray(stockObj.by_warehouse) && stockObj.by_warehouse.length)
+        ? stockObj.by_warehouse
+        : (payload.stockByWarehouse && !payload.stockByWarehouse.__error
+            ? (payload.stockByWarehouse.data || payload.stockByWarehouse)
+            : (detail.stock_by_warehouse || []));
+    if (stockList) {
+        if (!Array.isArray(sw) || !sw.length) {
+            stockList.innerHTML = '<p class="v2-sheet__empty">Sin stock por almacén.</p>';
+        } else {
+            stockList.replaceChildren(...sw.map((w) => {
+                const row = document.createElement('div');
+                row.className = 'v2-sheet__list-row';
+                const left = document.createElement('div');
+                left.className = 'v2-sheet__list-row__name';
+                const strong = document.createElement('strong');
+                strong.textContent = w.warehouse_name || w.name || `Almacén #${w.warehouse_id}`;
+                const small = document.createElement('small');
+                small.textContent = w.warehouse_code || w.code || '';
+                left.append(strong, small);
+                const right = document.createElement('div');
+                right.className = 'v2-sheet__list-row__value';
+                right.textContent = v2Money(w.available ?? w.quantity_available ?? 0);
+                const rightSmall = document.createElement('small');
+                rightSmall.textContent = `Reservado ${v2Money(w.reserved ?? w.quantity_reserved ?? 0)}`;
+                right.append(rightSmall);
+                row.append(left, right);
+                return row;
+            }));
+        }
+    }
+    if (v2.inventory.sheetStockTotal) {
+        const totals = stockObj.totals || { available: detail.stock?.available || 0 };
+        v2.inventory.sheetStockTotal.textContent = `${v2Money(totals.available || 0)} disp.`;
+    }
+
+    // Prices tab — from separate /prices endpoint
+    const pricesList = v2.inventory.sheetPrices;
+    if (pricesList) {
+        const pricesResp = payload.prices && !payload.prices.__error
+            ? (payload.prices.data || payload.prices)
+            : (detail.prices || detail.price_lists || []);
+        const prices = Array.isArray(pricesResp) ? pricesResp : (pricesResp?.data || []);
+        if (!prices.length) {
+            pricesList.innerHTML = '<p class="v2-sheet__empty">Sin precios por lista.</p>';
+        } else {
+            pricesList.replaceChildren(...prices.map((p) => {
+                const row = document.createElement('div');
+                row.className = 'v2-sheet__list-row';
+                const left = document.createElement('div');
+                left.className = 'v2-sheet__list-row__name';
+                const strong = document.createElement('strong');
+                // Price list resources return { id, price_list: {id, name, code}, price, currency, is_active, ... }
+                const listName = p.price_list?.name || p.list_name || p.name || `Lista #${p.price_list_id}`;
+                const listCode = p.price_list?.code || p.price_list_code || '';
+                strong.textContent = listName;
+                const small = document.createElement('small');
+                small.textContent = `${p.currency || 'USD'}${listCode ? ' · ' + listCode : ''}`;
+                left.append(strong, small);
+                const right = document.createElement('div');
+                right.className = 'v2-sheet__list-row__value';
+                right.textContent = v2Money(p.price ?? p.amount ?? 0);
+                row.append(left, right);
+                return row;
+            }));
+        }
+    }
+    if (v2.inventory.sheetPriceCount) {
+        const pricesResp = payload.prices && !payload.prices.__error
+            ? (payload.prices.data || payload.prices)
+            : (detail.prices || []);
+        const prices = Array.isArray(pricesResp) ? pricesResp : (pricesResp?.data || []);
+        v2.inventory.sheetPriceCount.textContent = `${prices.length} listas`;
+    }
+
+    // History tab — from bundled recent_movements or fallback to parallel /movements
+    const histList = v2.inventory.sheetHistory;
+    if (histList) {
+        const movements = (Array.isArray(wrapper?.recent_movements) && wrapper.recent_movements.length)
+            ? wrapper.recent_movements
+            : (payload.movements && !payload.movements.__error
+                ? (payload.movements.data?.data || payload.movements.data || payload.movements)
+                : (detail.recent_movements || []));
+        if (!Array.isArray(movements) || !movements.length) {
+            histList.innerHTML = '<p class="v2-sheet__empty">Sin movimientos recientes.</p>';
+        } else {
+            histList.replaceChildren(...movements.slice(0, 12).map((c) => {
+                const row = document.createElement('div');
+                row.className = 'v2-sheet__list-row';
+                const left = document.createElement('div');
+                left.className = 'v2-sheet__list-row__name';
+                const strong = document.createElement('strong');
+                strong.textContent = c.type || c.action || c.event || 'Movimiento';
+                const small = document.createElement('small');
+                small.textContent = c.created_at || c.occurred_at || c.changed_at || '';
+                left.append(strong, small);
+                const right = document.createElement('div');
+                right.className = 'v2-sheet__list-row__value';
+                right.style.textAlign = 'right';
+                if (c.quantity !== undefined) {
+                    right.textContent = v2Money(c.quantity);
+                    const rsmall = document.createElement('small');
+                    rsmall.textContent = c.created_by_name || c.user_name || c.user || '';
+                    right.append(rsmall);
+                } else {
+                    right.innerHTML = `<small>${escapeHtml(c.created_by_name || c.user_name || c.user || '')}</small>`;
+                }
+                row.append(left, right);
+                return row;
+            }));
+        }
+    }
+    if (v2.inventory.sheetChangeCount) {
+        const movements = (Array.isArray(wrapper?.recent_movements) && wrapper.recent_movements.length)
+            ? wrapper.recent_movements
+            : (detail.recent_movements || []);
+        v2.inventory.sheetChangeCount.textContent = `${movements.length} movimientos`;
+    }
+}
+
+// ----- v2 inventory event wiring -----
+function syncV2InventoryToV1() {
+    if (!v2.inventory) return;
+    if (elements.inventorySearch) elements.inventorySearch.value = v2.inventory.search?.value || '';
+    if (elements.inventoryTracking) elements.inventoryTracking.value = v2.inventory.tracking?.value || '';
+    if (elements.inventoryStock) elements.inventoryStock.value = v2.inventory.stock?.value || 'all';
+    const activeChip = v2.inventory.quickStatus?.querySelector('.is-active');
+    if (activeChip && elements.inventoryActive) {
+        elements.inventoryActive.value = activeChip.dataset.v2InvActiveFilter || 'active';
+    }
+}
+
+v2.inventory?.apply?.addEventListener('click', () => {
+    syncV2InventoryToV1();
+    if (typeof loadInventory === 'function') loadInventory(1);
+});
+
+v2.inventory?.refreshBtn?.addEventListener('click', () => {
+    syncV2InventoryToV1();
+    if (typeof loadInventory === 'function') loadInventory();
+});
+
+v2.inventory?.exportBtn?.addEventListener('click', () => {
+    syncV2InventoryToV1();
+    const session = state.session;
+    if (!session) return;
+    const params = new URLSearchParams();
+    if (elements.inventorySearch?.value) params.set('search', elements.inventorySearch.value);
+    if (elements.inventoryTracking?.value) params.set('tracking_type', elements.inventoryTracking.value);
+    if (elements.inventoryStock?.value && elements.inventoryStock.value !== 'all') {
+        params.set('stock_status', elements.inventoryStock.value);
+    }
+    params.set('low_stock_threshold', '3');
+    const url = `/api/inventory-center/export?${params}`;
+    window.open(url, '_blank');
+});
+
+v2.inventory?.search?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        v2.inventory.apply?.click();
+    }
+});
+
+v2.inventory?.prev?.addEventListener('click', () => {
+    if (typeof loadInventory === 'function') loadInventory(Math.max(state.inventory.page - 1, 1));
+});
+
+v2.inventory?.next?.addEventListener('click', () => {
+    if (typeof loadInventory === 'function') loadInventory(state.inventory.page + 1);
+});
+
+v2.inventory?.quickStatus?.querySelectorAll('[data-v2-inv-active-filter]')?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+        v2.inventory.quickStatus.querySelectorAll('[data-v2-inv-active-filter]').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        v2.inventory.apply?.click();
+    });
+});
+
+v2.inventory?.alertStripClose?.addEventListener('click', () => {
+    if (v2.inventory.alertStrip) v2.inventory.alertStrip.hidden = true;
+});
+
+v2.inventory?.sheetClose?.addEventListener('click', v2CloseInventorySheet);
+v2.inventory?.sheetCloseEdit?.addEventListener('click', v2CloseInventorySheet);
+v2.inventory?.sheetBackdrop?.addEventListener('click', v2CloseInventorySheet);
+v2.inventory?.sheetTabs?.querySelectorAll('.v2-sheet__tab')?.forEach((tab) => {
+    tab.addEventListener('click', () => v2ActivateInventorySheetTab(tab.dataset.v2SheetTab));
+});
+v2.inventory?.sheetEdit?.addEventListener('click', v2StartEditExistingProduct);
+v2.inventory?.sheetCancel?.addEventListener('click', v2EnterViewMode);
+v2.inventory?.sheetSave?.addEventListener('click', v2SaveInventorySheet);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && v2.inventory.sheet && !v2.inventory.sheet.hidden && v2.inventory.sheet.classList.contains('is-open')) {
+        v2CloseInventorySheet();
+    }
+    // Ctrl/Cmd+S to save when in edit mode
+    if ((e.ctrlKey || e.metaKey) && e.key === 's' && v2SheetState.mode !== 'view' && v2.inventory.sheet && !v2.inventory.sheet.hidden) {
+        e.preventDefault();
+        v2SaveInventorySheet();
+    }
+});
+
+v2.inventory?.newBtn?.addEventListener('click', () => {
+    v2OpenInventorySheet(null, 'create');
+});
+
+// =====================================================================
+// v2 Tasas (Phase 2)
+// Same 4 patterns as Inventario: alert strip, full-width tables with
+// 3-dot row menu, side sheets for detail/edit/create, compact KPI row.
+// =====================================================================
+
+function v2RelativeDate(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (Number.isNaN(ms)) return '';
+    const days = Math.floor(ms / 86400000);
+    if (days <= 0) return 'hoy';
+    if (days === 1) return 'ayer';
+    if (days < 7) return `hace ${days} días`;
+    if (days < 30) return `hace ${Math.floor(days / 7)} sem`;
+    if (days < 365) return `hace ${Math.floor(days / 30)} mes${Math.floor(days / 30) === 1 ? '' : 'es'}`;
+    return `hace ${Math.floor(days / 365)} año${Math.floor(days / 365) === 1 ? '' : 's'}`;
+}
+
+function v2DateOnly(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function v2DateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('es-VE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function v2RateTrend(current, previous) {
+    if (!current || !previous) return null;
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.0001) return { cls: 'v2-rate-trend--flat', symbol: '·', text: 'sin cambio' };
+    if (diff > 0) return { cls: 'v2-rate-trend--up', symbol: '▲', text: `+${diff.toFixed(4)}` };
+    return { cls: 'v2-rate-trend--down', symbol: '▼', text: `${diff.toFixed(4)}` };
+}
+
+function v2BuildRateTypeRow(type, state) {
+    const tr = document.createElement('tr');
+    tr.dataset.typeId = type.id;
+    tr.tabIndex = 0;
+    tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-label', `Ver detalle del tipo ${type.code}`);
+
+    // Column 1: Tipo (code + name + "Predeterminada" label)
+    const nameCell = document.createElement('td');
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'v2-rate-cell';
+    const codeSpan = document.createElement('span');
+    codeSpan.className = 'v2-rate-cell__code';
+    codeSpan.textContent = type.code;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'v2-rate-cell__name';
+    if (type.is_default) {
+        const strong = document.createElement('strong');
+        strong.textContent = type.name;
+        nameSpan.append(strong, document.createTextNode(' · Predeterminada'));
+    } else {
+        nameSpan.textContent = type.name;
+    }
+    nameWrap.append(codeSpan, nameSpan);
+    nameCell.append(nameWrap);
+
+    // Column 2: Predeterminada pill
+    const defaultCell = document.createElement('td');
+    const defaultPill = document.createElement('span');
+    defaultPill.className = `v2-status-inline ${type.is_default ? 'v2-status-inline--success' : 'v2-status-inline--neutral'}`;
+    defaultPill.textContent = type.is_default ? 'Sí' : 'No';
+    defaultCell.append(defaultPill);
+
+    // Column 3: Estado pill
+    const activeCell = document.createElement('td');
+    const activePill = document.createElement('span');
+    activePill.className = `v2-status-inline ${type.is_active ? 'v2-status-inline--success' : 'v2-status-inline--warning'}`;
+    activePill.textContent = type.is_active ? 'Activo' : 'Inactivo';
+    activeCell.append(activePill);
+
+    // Column 4: count of rates for this type
+    const countCell = document.createElement('td');
+    countCell.style.textAlign = 'right';
+    const myRates = state.rates.filter((r) => r.exchange_rate_type_id === type.id);
+    countCell.textContent = String(myRates.length);
+
+    // Column 5: última tasa (effective_at)
+    const dateCell = document.createElement('td');
+    const lastRate = myRates[0]; // rates are already ordered latest first
+    if (lastRate) {
+        const dateSpan = document.createElement('div');
+        dateSpan.className = 'v2-rate-effective';
+        const dateStrong = document.createElement('span');
+        dateStrong.className = 'v2-rate-effective__date';
+        dateStrong.textContent = v2DateOnly(lastRate.effective_at);
+        const ageSmall = document.createElement('span');
+        ageSmall.className = 'v2-rate-effective__age';
+        ageSmall.textContent = v2RelativeDate(lastRate.effective_at);
+        dateSpan.append(dateStrong, ageSmall);
+        dateCell.append(dateSpan);
+    } else {
+        dateCell.innerHTML = '<span style="color:var(--v2-muted);font-size:12px;">Sin tasas</span>';
+    }
+
+    // Column 6: 3-dot menu
+    const actionCell = document.createElement('td');
+    actionCell.className = 'v2-col-action';
+    actionCell.append(v2BuildRateTypeMenu(type, state));
+
+    tr.append(nameCell, defaultCell, activeCell, countCell, dateCell, actionCell);
+
+    tr.addEventListener('click', (e) => {
+        if (e.target.closest('.v2-row-menu')) return;
+        v2OpenRateTypeSheet(type.id, 'view');
+    });
+    tr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            v2OpenRateTypeSheet(type.id, 'view');
+        }
+    });
+
+    return tr;
+}
+
+function v2BuildRateTypeMenu(type, state) {
+    const wrap = document.createElement('div');
+    wrap.className = 'v2-row-menu';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'v2-row-menu__trigger';
+    trigger.setAttribute('aria-label', `Acciones para ${type.code}`);
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+    const panel = document.createElement('div');
+    panel.className = 'v2-row-menu__panel';
+    panel.setAttribute('role', 'menu');
+
+    const items = [
+        { label: 'Ver detalle', icon: '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>', action: 'view' },
+        { label: 'Editar', icon: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', action: 'edit' },
+    ];
+    if (!type.is_default) {
+        items.push({ label: 'Marcar como predeterminada', icon: '<svg viewBox="0 0 24 24"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 9 8.5 12 2"/></svg>', action: 'default' });
+    }
+    items.push({ divider: true });
+    if (type.is_active) {
+        items.push({ label: 'Desactivar tipo', icon: '<svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>', action: 'toggle', danger: true });
+    } else {
+        items.push({ label: 'Activar tipo', icon: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>', action: 'toggle' });
+    }
+
+    items.forEach((it) => {
+        if (it.divider) {
+            const div = document.createElement('div');
+            div.className = 'v2-row-menu__divider';
+            panel.append(div);
+            return;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `v2-row-menu__item${it.danger ? ' v2-row-menu__item--danger' : ''}`;
+        btn.setAttribute('role', 'menuitem');
+        btn.dataset.action = it.action;
+        btn.innerHTML = `${it.icon}<span>${it.label}</span>`;
+        panel.append(btn);
+    });
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.v2-row-menu.is-open').forEach((m) => { if (m !== wrap) m.classList.remove('is-open'); });
+        wrap.classList.toggle('is-open');
+    });
+    panel.addEventListener('click', (e) => {
+        const btn = e.target.closest('.v2-row-menu__item');
+        if (!btn) return;
+        e.stopPropagation();
+        wrap.classList.remove('is-open');
+        v2RunRateTypeAction(type, btn.dataset.action, state);
+    });
+
+    wrap.append(trigger, panel);
+    return wrap;
+}
+
+async function v2RunRateTypeAction(type, action, state) {
+    if (action === 'view') {
+        v2OpenRateTypeSheet(type.id, 'view');
+    } else if (action === 'edit') {
+        v2OpenRateTypeSheet(type.id, 'edit');
+    } else if (action === 'default') {
+        await v2SetRateTypeDefault(type);
+    } else if (action === 'toggle') {
+        await v2ToggleRateTypeActive(type);
+    }
+}
+
+async function v2SetRateTypeDefault(type) {
+    const session = state.session;
+    if (!session) return;
+    setStatus(v2.rates.status, `Marcando ${type.code} como predeterminado…`, '');
+    try {
+        await api(`/api/currency/rate-types/${type.id}`, {
+            method: 'PATCH',
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_default: true }),
+        });
+        setStatus(v2.rates.status, `${type.code} ahora es la tasa predeterminada.`, 'success');
+        if (typeof loadRates === 'function') await loadRates();
+    } catch (error) {
+        setStatus(v2.rates.status, normalizeError(error), 'error');
+    }
+}
+
+async function v2ToggleRateTypeActive(type) {
+    const session = state.session;
+    if (!session) return;
+    const next = !type.is_active;
+    setStatus(v2.rates.status, `${next ? 'Activando' : 'Desactivando'} ${type.code}…`, '');
+    try {
+        await api(`/api/currency/rate-types/${type.id}`, {
+            method: 'PATCH',
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: next }),
+        });
+        setStatus(v2.rates.status, `Tipo ${type.code} ${next ? 'activado' : 'desactivado'}.`, 'success');
+        if (typeof loadRates === 'function') await loadRates();
+    } catch (error) {
+        setStatus(v2.rates.status, normalizeError(error), 'error');
+    }
+}
+
+function v2BuildRateHistoryRow(rate, state) {
+    const tr = document.createElement('tr');
+    tr.dataset.rateId = rate.id;
+
+    // Column 1: Tipo (code badge + name)
+    const typeCell = document.createElement('td');
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'v2-status-inline v2-status-inline--info';
+    typeBadge.textContent = rate.exchange_rate_type_code || '—';
+    typeCell.append(typeBadge);
+
+    // Column 2: Tasa (big value + par + trend vs previous)
+    const valueCell = document.createElement('td');
+    const valueWrap = document.createElement('div');
+    valueWrap.className = 'v2-rate-value';
+    const valueBig = document.createElement('span');
+    valueBig.className = `v2-rate-value__big${rate.is_active ? ' v2-rate-value__big--active' : ''}`;
+    valueBig.textContent = Number(rate.rate).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+    // Trend vs previous rate of same type
+    const sameType = state.rates.filter((r) => r.exchange_rate_type_id === rate.exchange_rate_type_id);
+    const idx = sameType.findIndex((r) => r.id === rate.id);
+    if (idx >= 0 && idx + 1 < sameType.length) {
+        const prev = sameType[idx + 1];
+        const trend = v2RateTrend(rate.rate, prev.rate);
+        if (trend) {
+            const trendSpan = document.createElement('span');
+            trendSpan.className = `v2-rate-trend ${trend.cls}`;
+            trendSpan.textContent = `${trend.symbol} ${trend.text}`;
+            valueBig.append(trendSpan);
+        }
+    }
+    const pairSmall = document.createElement('div');
+    pairSmall.className = 'v2-rate-value__pair';
+    pairSmall.textContent = `1 ${rate.base_currency || 'USD'} = ${Number(rate.rate).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ${rate.quote_currency || 'VES'}`;
+    valueWrap.append(valueBig, pairSmall);
+    valueCell.append(valueWrap);
+
+    // Column 3: Vigencia
+    const effectiveCell = document.createElement('td');
+    const effWrap = document.createElement('div');
+    effWrap.className = 'v2-rate-effective';
+    const effDate = document.createElement('span');
+    effDate.className = 'v2-rate-effective__date';
+    effDate.textContent = v2DateTime(rate.effective_at);
+    const effAge = document.createElement('span');
+    effAge.className = 'v2-rate-effective__age';
+    effAge.textContent = v2RelativeDate(rate.effective_at);
+    effWrap.append(effDate, effAge);
+    effectiveCell.append(effWrap);
+
+    // Column 4: Estado
+    const statusCell = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className = `v2-status-inline ${rate.is_active ? 'v2-status-inline--success' : 'v2-status-inline--neutral'}`;
+    statusPill.textContent = rate.is_active ? 'Vigente' : 'Inactiva';
+    statusCell.append(statusPill);
+
+    // Column 5: Fuente
+    const sourceCell = document.createElement('td');
+    if (rate.source) {
+        sourceCell.innerHTML = `<span class="v2-rate-source">${escapeHtml(rate.source)}</span>`;
+    } else {
+        sourceCell.innerHTML = '<span class="v2-rate-source v2-rate-source--empty">—</span>';
+    }
+
+    // Column 6: 3-dot menu
+    const actionCell = document.createElement('td');
+    actionCell.className = 'v2-col-action';
+    actionCell.append(v2BuildRateHistoryMenu(rate, state));
+
+    tr.append(typeCell, valueCell, effectiveCell, statusCell, sourceCell, actionCell);
+    return tr;
+}
+
+function v2BuildRateHistoryMenu(rate, state) {
+    const wrap = document.createElement('div');
+    wrap.className = 'v2-row-menu';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'v2-row-menu__trigger';
+    trigger.setAttribute('aria-label', 'Acciones');
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+    const panel = document.createElement('div');
+    panel.className = 'v2-row-menu__panel';
+    panel.setAttribute('role', 'menu');
+
+    const items = [];
+    if (!rate.is_active) {
+        items.push({ label: 'Activar como vigente', icon: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>', action: 'activate' });
+    } else {
+        items.push({ label: 'Desactivar', icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>', action: 'deactivate', danger: true });
+    }
+
+    items.forEach((it) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `v2-row-menu__item${it.danger ? ' v2-row-menu__item--danger' : ''}`;
+        btn.setAttribute('role', 'menuitem');
+        btn.dataset.action = it.action;
+        btn.innerHTML = `${it.icon}<span>${it.label}</span>`;
+        panel.append(btn);
+    });
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.v2-row-menu.is-open').forEach((m) => { if (m !== wrap) m.classList.remove('is-open'); });
+        wrap.classList.toggle('is-open');
+    });
+    panel.addEventListener('click', (e) => {
+        const btn = e.target.closest('.v2-row-menu__item');
+        if (!btn) return;
+        e.stopPropagation();
+        wrap.classList.remove('is-open');
+        v2RunRateHistoryAction(rate, btn.dataset.action);
+    });
+
+    wrap.append(trigger, panel);
+    return wrap;
+}
+
+async function v2RunRateHistoryAction(rate, action) {
+    const session = state.session;
+    if (!session) return;
+    try {
+        if (action === 'activate') {
+            setStatus(v2.rates.status, `Activando tasa #${rate.id}…`, '');
+            await api(`/api/currency/rates/${rate.id}/activate`, {
+                method: 'PATCH',
+                headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            });
+            setStatus(v2.rates.status, 'Tasa activada como vigente.', 'success');
+        } else if (action === 'deactivate') {
+            setStatus(v2.rates.status, `Desactivando tasa #${rate.id}…`, '');
+            await api(`/api/currency/rates/${rate.id}/deactivate`, {
+                method: 'PATCH',
+                headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            });
+            setStatus(v2.rates.status, 'Tasa desactivada.', 'success');
+        }
+        if (typeof loadRates === 'function') await loadRates();
+    } catch (error) {
+        setStatus(v2.rates.status, normalizeError(error), 'error');
+    }
+}
+
+function v2RenderRates(state) {
+    if (!v2.rates || !v2.rates.page) return;
+    const types = state?.rateTypes || [];
+    const rates = state?.rates || [];
+    const defaultType = types.find((t) => t.is_default);
+    const activeDefault = rates.find((r) => r.exchange_rate_type_id === defaultType?.id && r.is_active);
+
+    // KPIs
+    if (v2.rates.metricTypes) v2.rates.metricTypes.textContent = String(types.filter((t) => t.is_active).length);
+    if (v2.rates.metricTypesHint) {
+        v2.rates.metricTypesHint.textContent = `${types.filter((t) => t.is_default).length} predeterminados · ${types.length} totales`;
+    }
+    if (v2.rates.metricCurrent) {
+        v2.rates.metricCurrent.textContent = activeDefault
+            ? Number(activeDefault.rate).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+            : '—';
+    }
+    if (v2.rates.metricCurrentHint) {
+        v2.rates.metricCurrentHint.textContent = activeDefault
+            ? `${activeDefault.exchange_rate_type_code || ''} · vigente ${v2RelativeDate(activeDefault.effective_at)}`
+            : (defaultType ? `Sin tasa activa para ${defaultType.code}` : 'Sin tipo predeterminado');
+    }
+    if (v2.rates.metricTotal) v2.rates.metricTotal.textContent = String(rates.length);
+    if (v2.rates.metricTotalHint) {
+        const active = rates.filter((r) => r.is_active).length;
+        v2.rates.metricTotalHint.textContent = `${active} activas · ${rates.length - active} históricas`;
+    }
+    if (v2.rates.metricLast) {
+        if (rates[0]) {
+            v2.rates.metricLast.textContent = v2DateOnly(rates[0].effective_at);
+        } else {
+            v2.rates.metricLast.textContent = '—';
+        }
+    }
+    if (v2.rates.metricLastHint) {
+        v2.rates.metricLastHint.textContent = rates[0] ? v2RelativeDate(rates[0].effective_at) : '—';
+    }
+
+    // Alert strip — only show if there's a real operational concern
+    v2RenderRatesAlertStrip(types, rates, defaultType, activeDefault);
+
+    // Period summary
+    if (v2.rates.period) {
+        v2.rates.period.textContent = `${types.length} tipos · ${rates.length} valores registrados.`;
+    }
+
+    // Types table
+    if (v2.rates.typesCount) v2.rates.typesCount.textContent = `${types.length} tipos`;
+    if (v2.rates.typesCountFoot) {
+        v2.rates.typesCountFoot.textContent = types.length === 0
+            ? 'Sin tipos cargados.'
+            : `${types.length} tipo(s) · click en una fila para ver detalle.`;
+    }
+    if (v2.rates.typesTbody) {
+        if (!types.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.innerHTML = '<div style="padding:48px 12px;text-align:center;"><strong style="display:block;color:var(--v2-ink-strong);font-size:15px;margin-bottom:6px;">Sin tipos de tasa</strong><small style="color:var(--v2-muted);">Crea BCV, paralelo u otro tipo para empezar a registrar valores.</small></div>';
+            tr.append(td);
+            v2.rates.typesTbody.replaceChildren(tr);
+        } else {
+            v2.rates.typesTbody.replaceChildren(...types.map((t) => v2BuildRateTypeRow(t, { rates })));
+        }
+    }
+
+    // History table (last 50)
+    if (v2.rates.historyCount) v2.rates.historyCount.textContent = `${rates.length} valores`;
+    if (v2.rates.historyCountFoot) {
+        v2.rates.historyCountFoot.textContent = rates.length === 0
+            ? 'Sin valores registrados.'
+            : `Mostrando los últimos ${rates.length} valor(es).`;
+    }
+    if (v2.rates.historyTbody) {
+        if (!rates.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.innerHTML = '<div style="padding:48px 12px;text-align:center;"><strong style="display:block;color:var(--v2-ink-strong);font-size:15px;margin-bottom:6px;">Sin tasas registradas</strong><small style="color:var(--v2-muted);">Usa el botón "Registrar tasa" para empezar.</small></div>';
+            tr.append(td);
+            v2.rates.historyTbody.replaceChildren(tr);
+        } else {
+            v2.rates.historyTbody.replaceChildren(...rates.map((r) => v2BuildRateHistoryRow(r, { rates })));
+        }
+    }
+    // Disable prev/next (no pagination in v1 either; shown for parity)
+    if (v2.rates.prev) v2.rates.prev.disabled = true;
+    if (v2.rates.next) v2.rates.next.disabled = true;
+
+    if (v2.rates.status) {
+        setStatus(v2.rates.status, `Tasas actualizadas · ${types.length} tipos · ${rates.length} valores.`, 'success');
+    }
+}
+
+function v2RenderRatesAlertStrip(types, rates, defaultType, activeDefault) {
+    const strip = v2.rates.alertStrip;
+    const list = v2.rates.alertStripList;
+    if (!strip || !list) return;
+    const chips = [];
+    if (!defaultType) {
+        chips.push({ severity: 'warning', title: 'Sin tipo predeterminado', message: 'Selecciona un tipo como predeterminado para usarlo en el POS.' });
+    } else if (!activeDefault) {
+        chips.push({ severity: 'danger', title: `${defaultType.code} sin tasa vigente`, message: 'Registra un valor y márcalo como vigente para activar la tasa predeterminada.' });
+    }
+    const typesWithoutRates = types.filter((t) => !rates.some((r) => r.exchange_rate_type_id === t.id));
+    typesWithoutRates.forEach((t) => {
+        chips.push({ severity: 'info', title: `${t.code} sin tasas`, message: 'Este tipo no tiene valores registrados.' });
+    });
+    if (!chips.length) {
+        strip.hidden = true;
+        list.replaceChildren();
+        return;
+    }
+    strip.hidden = false;
+    list.replaceChildren(...chips.map((alert) => {
+        const tone = String(alert.severity || '').toLowerCase();
+        const toneClass = tone === 'danger' ? 'v2-alert-chip--danger'
+            : tone === 'info' ? 'v2-alert-chip--info'
+            : 'v2-alert-chip--warning';
+        const chip = document.createElement('span');
+        chip.className = `v2-alert-chip ${toneClass}`;
+        chip.title = alert.message || alert.title || '';
+        chip.textContent = alert.title;
+        return chip;
+    }));
+}
+
+// =====================================================================
+// v2 Rate Type Sheet (view / edit / create)
+// =====================================================================
+const v2RateSheetState = { typeId: null, mode: 'view', type: null, inflight: null };
+
+function v2OpenRateTypeSheet(typeId, mode = 'view') {
+    const session = state.session;
+    const sheet = v2.rates.typeSheet;
+    if (!session || !sheet) return;
+    v2RateSheetState.typeId = typeId;
+    v2RateSheetState.mode = mode;
+    // Reset tabs
+    v2ActivateRateTypeTab('general');
+    sheet.hidden = false;
+    void sheet.offsetWidth;
+    sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
+    if (v2.rates.typeBadge) v2.rates.typeBadge.textContent = mode === 'edit' ? 'Editar' : (mode === 'create' ? 'Nuevo' : 'Tipo');
+    if (v2.rates.typeSaveLabel) v2.rates.typeSaveLabel.textContent = mode === 'create' ? 'Crear tipo' : 'Guardar cambios';
+    if (mode === 'create') {
+        v2PrepareCreateRateType();
+        return;
+    }
+    if (v2.rates.typeTitle) v2.rates.typeTitle.textContent = 'Cargando…';
+    if (v2.rates.typeSubtitle) v2.rates.typeSubtitle.textContent = `Tipo #${typeId}`;
+    v2RateSheetState.inflight = v2FetchRateType(typeId);
+    v2RateSheetState.inflight.then((type) => {
+        if (v2RateSheetState.typeId !== typeId) return;
+        v2RateSheetState.type = type;
+        v2RenderRateTypeSheet(type);
+        if (mode === 'edit') v2StartEditRateType();
+    }).catch((error) => {
+        if (v2.rates.typeTitle) v2.rates.typeTitle.textContent = 'Error';
+        if (v2.rates.typeSubtitle) v2.rates.typeSubtitle.textContent = normalizeError(error);
+    }).finally(() => {
+        if (v2RateSheetState.typeId === typeId) v2RateSheetState.inflight = null;
+    });
+}
+
+function v2PrepareCreateRateType() {
+    v2RateSheetState.type = null;
+    v2RateSheetState.typeId = null;
+    if (v2.rates.typeBadge) v2.rates.typeBadge.textContent = 'Nuevo';
+    if (v2.rates.typeTitle) v2.rates.typeTitle.textContent = 'Nuevo tipo de tasa';
+    if (v2.rates.typeSubtitle) v2.rates.typeSubtitle.textContent = 'Crea un tipo (BCV, paralelo, monitor, etc.) para registrar valores.';
+    // Clear view fields
+    ['typeCode', 'typeNameView', 'typeDefault', 'typeActive', 'typeCreated'].forEach((k) => {
+        if (v2.rates[k]) v2.rates[k].textContent = '—';
+    });
+    // Clear history
+    if (v2.rates.typeHistoryList) {
+        v2.rates.typeHistoryList.innerHTML = '<p class="v2-sheet__empty">Crea el tipo y registra valores desde la página principal.</p>';
+    }
+    if (v2.rates.typeHistoryCount) v2.rates.typeHistoryCount.textContent = '0 valores';
+    // Populate edit form
+    if (v2.rates.typeEditCode) v2.rates.typeEditCode.value = '';
+    if (v2.rates.typeEditName) v2.rates.typeEditName.value = '';
+    if (v2.rates.typeEditDefault) v2.rates.typeEditDefault.value = '0';
+    if (v2.rates.typeEditActive) v2.rates.typeEditActive.value = '1';
+    v2ClearRateTypeEditError();
+    v2EnterEditRateType();
+    if (v2.rates.typeEditCode) v2.rates.typeEditCode.focus();
+}
+
+function v2CloseRateTypeSheet() {
+    const sheet = v2.rates.typeSheet;
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { sheet.hidden = true; }, 280);
+    v2RateSheetState.typeId = null;
+    v2RateSheetState.mode = 'view';
+    v2RateSheetState.type = null;
+    v2RateSheetState.inflight = null;
+}
+
+function v2ActivateRateTypeTab(tabName) {
+    document.querySelectorAll('[data-v2-rate-type-tab]').forEach((tab) => {
+        const isActive = tab.dataset.v2RateTypeTab === tabName;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-v2-rate-type-pane]').forEach((pane) => {
+        pane.hidden = pane.dataset.v2RateTypePane !== tabName;
+    });
+}
+
+function v2EnterEditRateType() {
+    v2RateSheetState.mode = v2RateSheetState.typeId ? 'edit' : 'create';
+    document.querySelectorAll('[data-v2-rate-sheet-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2RateSheetMode !== 'edit';
+    });
+    document.querySelectorAll('[data-v2-rate-type-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2RateTypeMode !== 'edit';
+    });
+    if (v2.rates.typeSaveLabel) {
+        v2.rates.typeSaveLabel.textContent = v2RateSheetState.mode === 'create' ? 'Crear tipo' : 'Guardar cambios';
+    }
+    v2ActivateRateTypeTab('general');
+}
+
+function v2EnterViewRateType() {
+    v2RateSheetState.mode = 'view';
+    document.querySelectorAll('[data-v2-rate-sheet-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2RateSheetMode !== 'view';
+    });
+    document.querySelectorAll('[data-v2-rate-type-mode]').forEach((el) => {
+        el.hidden = el.dataset.v2RateTypeMode !== 'view';
+    });
+    v2ClearRateTypeEditError();
+}
+
+function v2ClearRateTypeEditError() {
+    if (!v2.rates.typeEditError) return;
+    v2.rates.typeEditError.hidden = true;
+    v2.rates.typeEditError.replaceChildren();
+}
+
+function v2ShowRateTypeEditError(messageOrList) {
+    if (!v2.rates.typeEditError) return;
+    v2.rates.typeEditError.hidden = false;
+    v2.rates.typeEditError.replaceChildren();
+    if (typeof messageOrList === 'string') {
+        const span = document.createElement('span');
+        span.textContent = messageOrList;
+        v2.rates.typeEditError.append(span);
+    } else if (Array.isArray(messageOrList) && messageOrList.length) {
+        const span = document.createElement('span');
+        span.textContent = 'No pudimos guardar:';
+        const ul = document.createElement('ul');
+        messageOrList.forEach((m) => {
+            const li = document.createElement('li');
+            li.textContent = m;
+            ul.append(li);
+        });
+        v2.rates.typeEditError.append(span, ul);
+    } else {
+        v2.rates.typeEditError.hidden = true;
+    }
+}
+
+async function v2FetchRateType(typeId) {
+    const session = state.session;
+    const response = await api(`/api/currency/rate-types/${typeId}`, { headers: authHeaders(session) });
+    return response?.data || response;
+}
+
+function v2RenderRateTypeSheet(type) {
+    if (v2.rates.typeBadge) v2.rates.typeBadge.textContent = type.is_active ? 'Activo' : 'Inactivo';
+    if (v2.rates.typeTitle) v2.rates.typeTitle.textContent = type.name || 'Tipo de tasa';
+    const subParts = [];
+    subParts.push(type.code || '—');
+    if (type.is_default) subParts.push('Predeterminada');
+    if (v2.rates.typeSubtitle) v2.rates.typeSubtitle.textContent = subParts.join(' · ');
+
+    if (v2.rates.typeCode) v2.rates.typeCode.textContent = type.code || '—';
+    if (v2.rates.typeNameView) v2.rates.typeNameView.textContent = type.name || '—';
+    if (v2.rates.typeDefault) {
+        v2.rates.typeDefault.textContent = type.is_default ? 'Sí' : 'No';
+        v2.rates.typeDefault.style.color = type.is_default ? 'var(--v2-green)' : '';
+    }
+    if (v2.rates.typeActive) {
+        v2.rates.typeActive.textContent = type.is_active ? 'Activo' : 'Inactivo';
+        v2.rates.typeActive.style.color = type.is_active ? 'var(--v2-green)' : 'var(--v2-muted)';
+    }
+    if (v2.rates.typeCreated) v2.rates.typeCreated.textContent = v2DateTime(type.created_at);
+
+    // History tab — show only rates for this type, latest first (already ordered in state.rates)
+    const myRates = (state.rates.rates || []).filter((r) => r.exchange_rate_type_id === type.id);
+    if (v2.rates.typeHistoryCount) v2.rates.typeHistoryCount.textContent = `${myRates.length} valores`;
+    if (v2.rates.typeHistoryList) {
+        if (!myRates.length) {
+            v2.rates.typeHistoryList.innerHTML = '<p class="v2-sheet__empty">Sin tasas registradas para este tipo.</p>';
+        } else {
+            v2.rates.typeHistoryList.replaceChildren(...myRates.slice(0, 15).map((r) => {
+                const row = document.createElement('div');
+                row.className = 'v2-sheet__list-row';
+                const left = document.createElement('div');
+                left.className = 'v2-sheet__list-row__name';
+                const strong = document.createElement('strong');
+                strong.textContent = Number(r.rate).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' ' + (r.quote_currency || 'VES');
+                const small = document.createElement('small');
+                small.textContent = v2DateTime(r.effective_at);
+                left.append(strong, small);
+                const right = document.createElement('div');
+                right.className = 'v2-sheet__list-row__value';
+                const pill = document.createElement('span');
+                pill.className = `v2-status-inline ${r.is_active ? 'v2-status-inline--success' : 'v2-status-inline--neutral'}`;
+                pill.textContent = r.is_active ? 'Vigente' : 'Inactiva';
+                right.append(pill);
+                row.append(left, right);
+                return row;
+            }));
+        }
+    }
+}
+
+function v2StartEditRateType() {
+    if (v2RateSheetState.inflight) {
+        v2RateSheetState.inflight.then(() => v2StartEditRateType());
+        return;
+    }
+    if (!v2RateSheetState.type) return;
+    const t = v2RateSheetState.type;
+    if (v2.rates.typeEditCode) v2.rates.typeEditCode.value = t.code || '';
+    if (v2.rates.typeEditName) v2.rates.typeEditName.value = t.name || '';
+    if (v2.rates.typeEditDefault) v2.rates.typeEditDefault.value = t.is_default ? '1' : '0';
+    if (v2.rates.typeEditActive) v2.rates.typeEditActive.value = t.is_active ? '1' : '0';
+    v2ClearRateTypeEditError();
+    v2EnterEditRateType();
+    if (v2.rates.typeEditName) v2.rates.typeEditName.focus();
+}
+
+async function v2SaveRateType() {
+    const session = state.session;
+    if (!session) return;
+    const isCreate = v2RateSheetState.mode === 'create' || !v2RateSheetState.typeId;
+    const payload = {
+        code: (v2.rates.typeEditCode?.value || '').trim(),
+        name: (v2.rates.typeEditName?.value || '').trim(),
+        is_default: v2.rates.typeEditDefault?.value === '1',
+        is_active: v2.rates.typeEditActive?.value === '1',
+    };
+    if (!payload.code || !payload.name) {
+        v2ShowRateTypeEditError('Código y nombre son obligatorios.');
+        return;
+    }
+    setButtonLoading(v2.rates.typeSave, true, isCreate ? 'Creando...' : 'Guardando...');
+    v2ClearRateTypeEditError();
+    try {
+        const url = isCreate ? '/api/currency/rate-types' : `/api/currency/rate-types/${v2RateSheetState.typeId}`;
+        const method = isCreate ? 'POST' : 'PATCH';
+        const response = await api(url, {
+            method,
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const saved = response?.data || response;
+        setStatus(v2.rates.status, isCreate ? `Tipo ${saved.code} creado.` : `Tipo ${saved.code} actualizado.`, 'success');
+        if (typeof loadRates === 'function') await loadRates();
+        if (isCreate) {
+            v2CloseRateTypeSheet();
+        } else {
+            v2RateSheetState.typeId = saved.id;
+            v2RateSheetState.type = saved;
+            v2RenderRateTypeSheet(saved);
+            v2EnterViewRateType();
+        }
+    } catch (error) {
+        const errors = error?.errors || (error?.response && error.response.errors);
+        if (Array.isArray(errors)) {
+            v2ShowRateTypeEditError(errors.map((e) => e?.message || String(e)).filter(Boolean));
+        } else if (errors && typeof errors === 'object') {
+            v2ShowRateTypeEditError(Object.values(errors).flat().filter(Boolean));
+        } else {
+            v2ShowRateTypeEditError(normalizeError(error));
+        }
+    } finally {
+        setButtonLoading(v2.rates.typeSave, false);
+    }
+}
+
+// =====================================================================
+// v2 Rate Value Sheet (registrar nuevo valor)
+// =====================================================================
+function v2OpenRateValueSheet() {
+    const sheet = v2.rates.valueSheet;
+    if (!sheet) return;
+    // Populate type select from current state
+    if (v2.rates.valueTypeSelect) {
+        const types = state.rates.rateTypes || [];
+        v2.rates.valueTypeSelect.replaceChildren(...types.map((t) => {
+            const opt = document.createElement('option');
+            opt.value = String(t.id);
+            opt.textContent = `${t.code} — ${t.name}`;
+            if (t.is_default) opt.selected = true;
+            return opt;
+        }));
+        if (!types.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Crea primero un tipo de tasa';
+            opt.disabled = true;
+            v2.rates.valueTypeSelect.append(opt);
+        }
+    }
+    // Reset form
+    if (v2.rates.valueAmount) v2.rates.valueAmount.value = '';
+    if (v2.rates.valueEffective) {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        v2.rates.valueEffective.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+    if (v2.rates.valueSource) v2.rates.valueSource.value = '';
+    if (v2.rates.valueActive) v2.rates.valueActive.checked = true;
+    v2ClearRateValueEditError();
+    sheet.hidden = false;
+    void sheet.offsetWidth;
+    sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
+    if (v2.rates.valueAmount) v2.rates.valueAmount.focus();
+}
+
+function v2CloseRateValueSheet() {
+    const sheet = v2.rates.valueSheet;
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { sheet.hidden = true; }, 280);
+}
+
+function v2ClearRateValueEditError() {
+    if (!v2.rates.valueError) return;
+    v2.rates.valueError.hidden = true;
+    v2.rates.valueError.replaceChildren();
+}
+
+function v2ShowRateValueEditError(messageOrList) {
+    if (!v2.rates.valueError) return;
+    v2.rates.valueError.hidden = false;
+    v2.rates.valueError.replaceChildren();
+    if (typeof messageOrList === 'string') {
+        const span = document.createElement('span');
+        span.textContent = messageOrList;
+        v2.rates.valueError.append(span);
+    } else if (Array.isArray(messageOrList) && messageOrList.length) {
+        const span = document.createElement('span');
+        span.textContent = 'No pudimos registrar:';
+        const ul = document.createElement('ul');
+        messageOrList.forEach((m) => {
+            const li = document.createElement('li');
+            li.textContent = m;
+            ul.append(li);
+        });
+        v2.rates.valueError.append(span, ul);
+    } else {
+        v2.rates.valueError.hidden = true;
+    }
+}
+
+async function v2SaveRateValue() {
+    const session = state.session;
+    if (!session) return;
+    const typeId = parseInt(v2.rates.valueTypeSelect?.value, 10);
+    const amount = parseFloat(v2.rates.valueAmount?.value);
+    const effectiveAt = v2.rates.valueEffective?.value;
+    const source = (v2.rates.valueSource?.value || '').trim() || null;
+    const isActive = !!v2.rates.valueActive?.checked;
+    if (!typeId) { v2ShowRateValueEditError('Selecciona un tipo de tasa.'); return; }
+    if (!amount || amount <= 0) { v2ShowRateValueEditError('Indica un valor mayor a cero.'); return; }
+    if (!effectiveAt) { v2ShowRateValueEditError('Indica la fecha de vigencia.'); return; }
+    // Format effective_at as ISO (input gives "YYYY-MM-DDTHH:MM" in local TZ)
+    const effectiveIso = new Date(effectiveAt).toISOString();
+    setButtonLoading(v2.rates.valueSave, true, 'Registrando...');
+    v2ClearRateValueEditError();
+    try {
+        await api('/api/currency/rates', {
+            method: 'POST',
+            headers: { ...authHeaders(session), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                exchange_rate_type_id: typeId,
+                rate: amount,
+                effective_at: effectiveIso,
+                is_active: isActive,
+                source: source,
+            }),
+        });
+        setStatus(v2.rates.status, 'Tasa registrada.', 'success');
+        v2CloseRateValueSheet();
+        if (typeof loadRates === 'function') await loadRates();
+    } catch (error) {
+        const errors = error?.errors || (error?.response && error.response.errors);
+        if (Array.isArray(errors)) {
+            v2ShowRateValueEditError(errors.map((e) => e?.message || String(e)).filter(Boolean));
+        } else if (errors && typeof errors === 'object') {
+            v2ShowRateValueEditError(Object.values(errors).flat().filter(Boolean));
+        } else {
+            v2ShowRateValueEditError(normalizeError(error));
+        }
+    } finally {
+        setButtonLoading(v2.rates.valueSave, false);
+    }
+}
+
+// ----- v2 rates event wiring -----
+v2.rates?.refresh?.addEventListener('click', () => {
+    if (typeof loadRates === 'function') loadRates();
+});
+v2.rates?.alertStripClose?.addEventListener('click', () => {
+    if (v2.rates.alertStrip) v2.rates.alertStrip.hidden = true;
+});
+v2.rates?.newType?.addEventListener('click', () => v2OpenRateTypeSheet(null, 'create'));
+v2.rates?.newValue?.addEventListener('click', () => v2OpenRateValueSheet());
+
+v2.rates?.typeClose?.addEventListener('click', v2CloseRateTypeSheet);
+v2.rates?.typeCloseEdit?.addEventListener('click', v2CloseRateTypeSheet);
+v2.rates?.typeSheetBackdrop?.addEventListener('click', v2CloseRateTypeSheet);
+v2.rates?.typeEditBtn?.addEventListener('click', v2StartEditRateType);
+v2.rates?.typeCancel?.addEventListener('click', v2EnterViewRateType);
+v2.rates?.typeSave?.addEventListener('click', v2SaveRateType);
+document.querySelectorAll('[data-v2-rate-type-tab]').forEach((tab) => {
+    tab.addEventListener('click', () => v2ActivateRateTypeTab(tab.dataset.v2RateTypeTab));
+});
+
+v2.rates?.valueCancel?.addEventListener('click', v2CloseRateValueSheet);
+v2.rates?.valueClose?.addEventListener('click', v2CloseRateValueSheet);
+v2.rates?.valueSheetBackdrop?.addEventListener('click', v2CloseRateValueSheet);
+v2.rates?.valueSave?.addEventListener('click', v2SaveRateValue);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (v2.rates?.typeSheet && !v2.rates.typeSheet.hidden && v2.rates.typeSheet.classList.contains('is-open')) {
+            v2CloseRateTypeSheet();
+        } else if (v2.rates?.valueSheet && !v2.rates.valueSheet.hidden && v2.rates.valueSheet.classList.contains('is-open')) {
+            v2CloseRateValueSheet();
+        }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        if (v2.rates?.typeSheet && !v2.rates.typeSheet.hidden && v2RateSheetState.mode !== 'view' && v2RateSheetState.mode !== 'create') {
+            e.preventDefault();
+            v2SaveRateType();
+        }
+    }
+});
+
+// =====================================================================
+// v2 Movimientos (Phase 3) — full-width catalog + side sheet
+// =====================================================================
+
+// Color/direction metadata for the 13 movement types.
+// Direction drives the qty sign + cell color:
+//   in      → stock increased  → green  → qty shown as +
+//   out     → stock decreased  → red    → qty shown as −
+//   neutral → qty is informational (reserved/released) → gray
+const V2_MOVEMENT_TYPE_META = {
+    purchase:        { label: 'Compra',            dir: 'in' },
+    purchase_return: { label: 'Dev. proveedor',   dir: 'out' },
+    sale:            { label: 'Venta',             dir: 'out' },
+    sale_return:     { label: 'Dev. venta',        dir: 'in' },
+    adjustment_in:   { label: 'Ajuste entrada',    dir: 'in' },
+    adjustment_out:  { label: 'Ajuste salida',     dir: 'out' },
+    transfer_in:     { label: 'Traslado entrada',  dir: 'in' },
+    transfer_out:    { label: 'Traslado salida',   dir: 'out' },
+    return_in:       { label: 'Retorno entrada',   dir: 'in' },
+    return_out:      { label: 'Retorno salida',    dir: 'out' },
+    damaged:         { label: 'Dañado',            dir: 'out', tone: 'warning' },
+    reserved:        { label: 'Reservado',         dir: 'neutral' },
+    released:        { label: 'Liberado',          dir: 'neutral' },
+};
+
+function v2MovementTypeLabel(type) {
+    return V2_MOVEMENT_TYPE_META[type]?.label || movementTypeLabel(type) || (type || 'Movimiento');
+}
+
+function v2MovementTypeDir(type) {
+    return V2_MOVEMENT_TYPE_META[type]?.dir || 'neutral';
+}
+
+function v2MovementTypeTone(type) {
+    return V2_MOVEMENT_TYPE_META[type]?.tone || v2MovementTypeDir(type);
+}
+
+function v2FormatMovementDate(iso) {
+    if (!iso) return { date: '—', time: '' };
+    // Backend already returns ISO with timezone; show local date+time split.
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return { date: iso, time: '' };
+    const pad = (n) => String(n).padStart(2, '0');
+    const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return { date, time };
+}
+
+function v2BuildMovementRow(movement) {
+    const tr = document.createElement('tr');
+    tr.dataset.movementId = movement.id;
+    tr.dataset.movementType = movement.type;
+
+    const dt = v2FormatMovementDate(movement.created_at);
+    const dir = v2MovementTypeDir(movement.type);
+    const tone = v2MovementTypeTone(movement.type);
+    const qtyClass = `v2-mov-qty v2-mov-qty--${dir}`;
+    const typeClass = `v2-mov-type v2-mov-type--${tone}`;
+    const qty = stockNumber(movement.quantity);
+
+    const reference = [movement.reference_type, movement.reference_id].filter(Boolean).join(' #');
+
+    // Cell 1: Fecha (date + time)
+    const cellDate = document.createElement('td');
+    cellDate.innerHTML = `<div class="v2-mov-datetime"><strong>${escapeHtml(dt.date)}</strong><small>${escapeHtml(dt.time)}</small></div>`;
+    tr.append(cellDate);
+
+    // Cell 2: Tipo (colored pill)
+    const cellType = document.createElement('td');
+    const pill = document.createElement('span');
+    pill.className = typeClass;
+    pill.textContent = v2MovementTypeLabel(movement.type);
+    cellType.append(pill);
+    tr.append(cellType);
+
+    // Cell 3: Producto (name + SKU)
+    const cellProduct = document.createElement('td');
+    cellProduct.innerHTML = `<div class="v2-mov-product"><strong>${escapeHtml(movement.product_name || 'Producto eliminado')}</strong><small>${escapeHtml(movement.product_sku || '—')}</small></div>`;
+    tr.append(cellProduct);
+
+    // Cell 4: Cantidad (sign + color)
+    const cellQty = document.createElement('td');
+    const qtyWrap = document.createElement('span');
+    qtyWrap.className = qtyClass;
+    qtyWrap.textContent = qty;
+    cellQty.append(qtyWrap);
+    if (movement.unit_cost !== null && movement.unit_cost !== undefined) {
+        const cost = document.createElement('small');
+        cost.style.color = 'var(--v2-muted)';
+        cost.style.display = 'block';
+        cost.style.fontSize = '11px';
+        cost.style.marginTop = '2px';
+        cost.textContent = `Costo ${money(movement.unit_cost)}`;
+        cellQty.append(cost);
+    }
+    tr.append(cellQty);
+
+    // Cell 5: Almacén (warehouse + branch)
+    const cellWh = document.createElement('td');
+    const whName = movement.warehouse_name || 'Sin almacén';
+    const whCode = movement.warehouse_code ? ` · ${movement.warehouse_code}` : '';
+    cellWh.innerHTML = `<div class="v2-mov-warehouse"><strong>${escapeHtml(whName)}</strong><small>${escapeHtml(whCode)}${movement.branch_name ? ` · ${escapeHtml(movement.branch_name)}` : ''}</small></div>`;
+    tr.append(cellWh);
+
+    // Cell 6: Motivo / referencia
+    const cellReason = document.createElement('td');
+    const reason = document.createElement('div');
+    reason.className = 'v2-mov-reason';
+    const reasonStr = movement.reason || 'Sin motivo';
+    const reasonEl = document.createElement('strong');
+    reasonEl.textContent = reasonStr;
+    reason.append(reasonEl);
+    if (reference) {
+        const refWrap = document.createElement('span');
+        refWrap.className = 'v2-mov-ref';
+        if (movement.reference_type) {
+            const badge = document.createElement('span');
+            badge.className = 'v2-mov-ref-badge';
+            badge.textContent = movement.reference_type;
+            refWrap.append(badge);
+        }
+        const refText = document.createElement('span');
+        refText.textContent = `#${movement.reference_id}`;
+        refWrap.append(refText);
+        reason.append(refWrap);
+    } else {
+        const noRef = document.createElement('small');
+        noRef.style.color = 'var(--v2-muted)';
+        noRef.textContent = 'Sin referencia';
+        reason.append(noRef);
+    }
+    cellReason.append(reason);
+    tr.append(cellReason);
+
+    // Cell 7: 3-dot action menu
+    const cellAction = document.createElement('td');
+    cellAction.append(v2BuildMovementRowMenu(movement));
+    tr.append(cellAction);
+
+    return tr;
+}
+
+function v2BuildMovementRowMenu(movement) {
+    const wrap = document.createElement('div');
+    wrap.className = 'v2-row-menu';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'v2-row-menu__trigger';
+    trigger.setAttribute('aria-label', `Acciones para movimiento #${movement.id}`);
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+    const panel = document.createElement('div');
+    panel.className = 'v2-row-menu__panel';
+    panel.setAttribute('role', 'menu');
+
+    const items = [
+        { label: 'Ver detalle', action: 'view', icon: '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' },
+    ];
+    if (movement.product_id) {
+        items.push({ label: 'Ver producto', action: 'product', icon: '<svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>' });
+    }
+    items.push({ divider: true });
+    items.push({ label: `Copiar #${movement.id}`, action: 'copy-id', icon: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' });
+
+    items.forEach((it) => {
+        if (it.divider) {
+            const div = document.createElement('div');
+            div.className = 'v2-row-menu__divider';
+            panel.append(div);
+            return;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'v2-row-menu__item';
+        btn.setAttribute('role', 'menuitem');
+        btn.dataset.action = it.action;
+        btn.innerHTML = `${it.icon}<span>${escapeHtml(it.label)}</span>`;
+        panel.append(btn);
+    });
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.v2-row-menu.is-open').forEach((m) => { if (m !== wrap) m.classList.remove('is-open'); });
+        wrap.classList.toggle('is-open');
+    });
+    panel.addEventListener('click', (e) => {
+        const btn = e.target.closest('.v2-row-menu__item');
+        if (!btn) return;
+        e.stopPropagation();
+        wrap.classList.remove('is-open');
+        v2RunMovementAction(movement, btn.dataset.action);
+    });
+
+    wrap.append(trigger, panel);
+    return wrap;
+}
+
+async function v2RunMovementAction(movement, action) {
+    if (action === 'view') {
+        v2OpenMovementSheet(movement);
+    } else if (action === 'product') {
+        // Switch to inventory tab and open the product in v2 sheet
+        activatePortalSection('inventory');
+        if (typeof v2OpenProductSheet === 'function') {
+            v2OpenProductSheet(movement.product_id, 'view');
+        } else {
+            loadInventory(movement.product_id);
+        }
+    } else if (action === 'copy-id') {
+        try {
+            await navigator.clipboard.writeText(String(movement.id));
+            if (v2.movements.status) {
+                setStatus(v2.movements.status, `ID #${movement.id} copiado al portapapeles.`, 'success');
+            }
+        } catch {
+            if (v2.movements.status) {
+                setStatus(v2.movements.status, 'No se pudo copiar al portapapeles.', 'error');
+            }
+        }
+    }
+}
+
+function v2RenderMovements(pageData = {}) {
+    if (!v2.movements || !v2.movements.page) return;
+    const movements = Array.isArray(pageData.data) ? pageData.data : [];
+    const pagination = pageData.pagination || {};
+    const totals = pageData.totals || {};
+    const filters = pageData.filters || {};
+
+    // KPIs
+    const inQty = movements
+        .filter((m) => v2MovementTypeDir(m.type) === 'in')
+        .reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const outQty = movements
+        .filter((m) => v2MovementTypeDir(m.type) === 'out')
+        .reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const uniqueProducts = new Set(movements.map((m) => m.product_id).filter(Boolean)).size;
+
+    if (v2.movements.metricTotal) {
+        v2.movements.metricTotal.textContent = number(movements.length);
+    }
+    if (v2.movements.metricTotalHint) {
+        v2.movements.metricTotalHint.textContent = pagination.total
+            ? `De ${number(pagination.total)} en total`
+            : 'En la página actual';
+    }
+    if (v2.movements.metricIn) v2.movements.metricIn.textContent = number(inQty);
+    if (v2.movements.metricOut) v2.movements.metricOut.textContent = number(outQty);
+    if (v2.movements.metricProducts) v2.movements.metricProducts.textContent = number(uniqueProducts);
+
+    // Period summary
+    if (v2.movements.period) {
+        const from = filters.date_from || '—';
+        const to = filters.date_to || 'hoy';
+        const typeLabel = filters.type && filters.type !== 'all' ? v2MovementTypeLabel(filters.type) : 'Todos los tipos';
+        v2.movements.period.textContent = `${typeLabel} · ${from} → ${to} · ${pagination.total || 0} movimiento(s).`;
+    }
+
+    // Filter status pill (right side of catalog head)
+    if (v2.movements.filterStatus) {
+        const activeFilterCount = [
+            filters.search,
+            filters.type && filters.type !== 'all' ? filters.type : null,
+            filters.warehouse_id,
+            filters.date_from,
+            filters.date_to,
+        ].filter(Boolean).length;
+        if (activeFilterCount === 0) {
+            v2.movements.filterStatus.textContent = 'Todos los tipos';
+            v2.movements.filterStatus.className = 'v2-status-pill v2-status-pill--info';
+        } else {
+            v2.movements.filterStatus.textContent = `${activeFilterCount} filtro(s) activo(s)`;
+            v2.movements.filterStatus.className = 'v2-status-pill v2-status-pill--warning';
+        }
+    }
+
+    // Alert strip — surface real operational concerns from this page
+    v2RenderMovementsAlertStrip(movements, pagination, inQty, outQty);
+
+    // Table
+    if (v2.movements.tbody) {
+        if (!movements.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 7;
+            td.innerHTML = '<div class="v2-table-empty"><strong>Sin movimientos</strong>No hay actividad que coincida con los filtros seleccionados.</div>';
+            tr.append(td);
+            v2.movements.tbody.replaceChildren(tr);
+        } else {
+            v2.movements.tbody.replaceChildren(...movements.map(v2BuildMovementRow));
+        }
+    }
+
+    // Footer + pagination
+    if (v2.movements.count) {
+        v2.movements.count.textContent = pagination.total === 0
+            ? 'Sin movimientos para mostrar.'
+            : `Mostrando ${pagination.from}-${pagination.to} de ${pagination.total} movimiento(s).`;
+    }
+    if (v2.movements.prev) v2.movements.prev.disabled = !pagination.has_previous;
+    if (v2.movements.next) v2.movements.next.disabled = !pagination.has_next;
+    if (v2.movements.status) {
+        v2.movements.status.textContent = `Movimientos actualizados · ${formatDateTime(new Date().toISOString())}`;
+    }
+}
+
+function v2RenderMovementsAlertStrip(movements, pagination, inQty, outQty) {
+    if (!v2.movements.alertStrip) return;
+    const items = [];
+
+    // Net stock delta
+    if (inQty - outQty !== 0 && movements.length) {
+        const delta = inQty - outQty;
+        const sign = delta > 0 ? '+' : '−';
+        items.push({
+            tone: 'info',
+            html: `<strong>Balance neto:</strong> ${sign}${number(Math.abs(delta))} unidades en esta página.`,
+        });
+    }
+
+    // Damaged / adjustments
+    const damaged = movements.filter((m) => m.type === 'damaged');
+    if (damaged.length) {
+        items.push({
+            tone: 'warning',
+            html: `<strong>${number(damaged.length)} registro(s)</strong> por daño — revisar motivo y responsable.`,
+        });
+    }
+
+    // Reservations
+    const reserved = movements.filter((m) => m.type === 'reserved' || m.type === 'released');
+    if (reserved.length >= 5) {
+        items.push({
+            tone: 'info',
+            html: `<strong>${number(reserved.length)}</strong> movimientos de reserva/liberación — fuera del stock físico.`,
+        });
+    }
+
+    if (!items.length) {
+        v2.movements.alertStrip.hidden = true;
+        v2.movements.alertStrip.replaceChildren();
+        return;
+    }
+
+    v2.movements.alertStrip.hidden = false;
+    v2.movements.alertStrip.className = 'v2-alert-strip';
+    items.forEach((it) => {
+        if (it.tone) v2.movements.alertStrip.classList.add(`v2-alert-strip--${it.tone}`);
+    });
+
+    // Use a real SVG element (not a string) — replaceChildren() treats strings
+    // as Text nodes, which is why the icon was rendering as raw HTML in the alert
+    // strip on the first deploy.
+    const NS = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(NS, 'svg');
+    icon.setAttribute('class', 'v2-alert-strip__icon');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    const iconPath = document.createElementNS(NS, 'path');
+    iconPath.setAttribute('d', 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z');
+    const iconLine1 = document.createElementNS(NS, 'line');
+    iconLine1.setAttribute('x1', '12'); iconLine1.setAttribute('y1', '9');
+    iconLine1.setAttribute('x2', '12'); iconLine1.setAttribute('y2', '13');
+    const iconLine2 = document.createElementNS(NS, 'line');
+    iconLine2.setAttribute('x1', '12'); iconLine2.setAttribute('y1', '17');
+    iconLine2.setAttribute('x2', '12.01'); iconLine2.setAttribute('y2', '17');
+    icon.append(iconPath, iconLine1, iconLine2);
+
+    const list = document.createElement('div');
+    list.className = 'v2-alert-strip__list';
+    items.forEach((it) => {
+        const span = document.createElement('span');
+        span.className = 'v2-alert-strip__item';
+        span.innerHTML = it.html;
+        list.append(span);
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'v2-alert-strip__close';
+    closeBtn.setAttribute('aria-label', 'Cerrar alertas');
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    closeBtn.addEventListener('click', () => { v2.movements.alertStrip.hidden = true; });
+    v2.movements.alertStrip.replaceChildren(icon, list, closeBtn);
+}
+
+function v2OpenMovementSheet(movement) {
+    if (!v2.movements.sheet) return;
+    const m = v2.movements;
+    const dt = v2FormatMovementDate(movement.created_at);
+    const dir = v2MovementTypeDir(movement.type);
+    const qtyClass = `v2-mov-qty v2-mov-qty--${dir}`;
+
+    // Header
+    if (m.sheetBadge) {
+        m.sheetBadge.textContent = v2MovementTypeLabel(movement.type);
+    }
+    if (m.sheetTitle) {
+        m.sheetTitle.textContent = `Movimiento #${movement.id}`;
+    }
+    if (m.sheetSubtitle) {
+        const who = movement.created_by_name || 'Sistema';
+        m.sheetSubtitle.textContent = `${dt.date} ${dt.time} · ${who}`;
+    }
+
+    // Tab: General
+    if (m.sheetType) {
+        const typePill = document.createElement('span');
+        typePill.className = `v2-mov-type v2-mov-type--${v2MovementTypeTone(movement.type)}`;
+        typePill.textContent = v2MovementTypeLabel(movement.type);
+        m.sheetType.replaceChildren(typePill);
+    }
+    if (m.sheetQty) {
+        m.sheetQty.replaceChildren();
+        const qtyEl = document.createElement('span');
+        qtyEl.className = qtyClass;
+        qtyEl.textContent = stockNumber(movement.quantity);
+        m.sheetQty.append(qtyEl);
+        if (movement.unit_cost !== null && movement.unit_cost !== undefined) {
+            const small = document.createElement('small');
+            small.textContent = `Costo unitario ${money(movement.unit_cost)}`;
+            m.sheetQty.append(small);
+        }
+    }
+    if (m.sheetCost) {
+        m.sheetCost.textContent = (movement.unit_cost === null || movement.unit_cost === undefined)
+            ? '—'
+            : money(movement.unit_cost);
+    }
+    if (m.sheetDate) m.sheetDate.textContent = formatDateTime(movement.created_at);
+    if (m.sheetReason) m.sheetReason.textContent = movement.reason || 'Sin motivo registrado';
+    if (m.sheetRef) {
+        if (movement.reference_type || movement.reference_id) {
+            const parts = [movement.reference_type, movement.reference_id].filter(Boolean).join(' #');
+            m.sheetRef.textContent = parts || '—';
+        } else {
+            m.sheetRef.textContent = '—';
+        }
+    }
+
+    // Tab: Producto
+    if (m.sheetProductName) m.sheetProductName.textContent = movement.product_name || 'Producto eliminado';
+    if (m.sheetProductSku) m.sheetProductSku.textContent = movement.product_sku || '—';
+    if (m.sheetProductId) m.sheetProductId.textContent = movement.product_id ? `#${movement.product_id}` : '—';
+
+    // Tab: Contexto
+    if (m.sheetWarehouse) {
+        const whLabel = [movement.warehouse_name, movement.warehouse_code ? `(${movement.warehouse_code})` : ''].filter(Boolean).join(' ');
+        m.sheetWarehouse.textContent = whLabel || '—';
+    }
+    if (m.sheetBranch) m.sheetBranch.textContent = movement.branch_name || '—';
+    if (m.sheetUser) {
+        if (movement.created_by_name) {
+            m.sheetUser.replaceChildren();
+            const strong = document.createElement('strong');
+            strong.textContent = movement.created_by_name;
+            m.sheetUser.append(strong);
+            if (movement.created_by_email) {
+                const small = document.createElement('small');
+                small.textContent = movement.created_by_email;
+                m.sheetUser.append(small);
+            }
+        } else {
+            m.sheetUser.textContent = 'Sistema';
+        }
+    }
+    if (m.sheetId) m.sheetId.textContent = `#${movement.id}`;
+
+    // Reset to first tab
+    v2SelectMovementTab('general');
+
+    // Open
+    m.sheet.hidden = false;
+    void m.sheet.offsetWidth;
+    m.sheet.classList.add('is-open');
+    m.sheet.setAttribute('aria-hidden', 'false');
+    if (m.sheetClose) m.sheetClose.focus();
+}
+
+function v2CloseMovementSheet() {
+    const sheet = v2.movements.sheet;
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { sheet.hidden = true; }, 280);
+}
+
+function v2SelectMovementTab(tab) {
+    if (!v2.movements.sheet) return;
+    document.querySelectorAll('#v2-mov-sheet .v2-sheet__tab').forEach((btn) => {
+        const active = btn.dataset.v2MovTab === tab;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('#v2-mov-sheet .v2-sheet__pane').forEach((pane) => {
+        pane.hidden = pane.dataset.v2MovPane !== tab;
+    });
+}
+
+// =====================================================================
+// v2 Movimientos — filter wiring (sync v2 inputs to v1 selectors so
+// the existing loadMovements() picks up our values, then refresh).
+// =====================================================================
+
+function v2SyncMovementsFiltersToV1() {
+    if (!v2.movements || !elements.movementsSearch) return;
+    if (v2.movements.search) elements.movementsSearch.value = v2.movements.search.value;
+    if (v2.movements.type) elements.movementsType.value = v2.movements.type.value || 'all';
+    if (v2.movements.warehouse) elements.movementsWarehouse.value = v2.movements.warehouse.value;
+    if (v2.movements.from) elements.movementsFrom.value = v2.movements.from.value;
+    if (v2.movements.to) elements.movementsTo.value = v2.movements.to.value;
+}
+
+function v2ApplyMovementsFilters() {
+    v2SyncMovementsFiltersToV1();
+    loadMovements(1);
+}
+
+function v2ClearMovementsFilters() {
+    if (!v2.movements) return;
+    if (v2.movements.search) v2.movements.search.value = '';
+    if (v2.movements.type) v2.movements.type.value = 'all';
+    if (v2.movements.warehouse) v2.movements.warehouse.value = '';
+    if (v2.movements.from) v2.movements.from.value = '';
+    if (v2.movements.to) v2.movements.to.value = '';
+    v2SyncMovementsFiltersToV1();
+    loadMovements(1);
+}
+
+function v2PopulateMovementWarehousesIntoV2() {
+    if (!v2.movements?.warehouse) return;
+    if (v2.movements.warehouse.options.length > 1) return; // already populated
+    const src = elements.movementsWarehouse;
+    if (!src) return;
+    const options = Array.from(src.options).map((o) => {
+        const opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.textContent;
+        return opt;
+    });
+    v2.movements.warehouse.replaceChildren(...options);
+}
+
+// Wire v2 movements controls
+(function v2WireMovements() {
+    if (!v2.movements) return;
+    const m = v2.movements;
+    if (m.refresh) m.refresh.addEventListener('click', () => loadMovements());
+    if (m.apply) m.apply.addEventListener('click', v2ApplyMovementsFilters);
+    if (m.clear) m.clear.addEventListener('click', v2ClearMovementsFilters);
+    if (m.prev) m.prev.addEventListener('click', () => {
+        if (!m.prev.disabled) loadMovements(Math.max(1, (state.movements.page || 1) - 1));
+    });
+    if (m.next) m.next.addEventListener('click', () => {
+        if (!m.next.disabled) loadMovements((state.movements.page || 1) + 1);
+    });
+    if (m.search) {
+        m.search.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                v2ApplyMovementsFilters();
+            }
+        });
+    }
+    // Row click → open sheet (ignore clicks that hit the 3-dot menu or its items)
+    if (m.tbody) {
+        m.tbody.addEventListener('click', (e) => {
+            if (e.target.closest('.v2-row-menu')) return;
+            const tr = e.target.closest('tr[data-movement-id]');
+            if (!tr) return;
+            const id = tr.dataset.movementId;
+            const movement = (state.movements.lastData?.data || []).find((x) => String(x.id) === String(id));
+            if (movement) v2OpenMovementSheet(movement);
+        });
+    }
+    // Sheet close (button + backdrop)
+    if (m.sheetClose) m.sheetClose.addEventListener('click', v2CloseMovementSheet);
+    if (m.sheetBackdrop) m.sheetBackdrop.addEventListener('click', v2CloseMovementSheet);
+    // Tab switching
+    document.querySelectorAll('#v2-mov-sheet .v2-sheet__tab').forEach((btn) => {
+        btn.addEventListener('click', () => v2SelectMovementTab(btn.dataset.v2MovTab));
+    });
+    // Esc to close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && m.sheet && !m.sheet.hidden) {
+            v2CloseMovementSheet();
+        }
+    });
+})();
+
+// =====================================================================
+// v2 Reportes (Phase 4) — multi-panel operational dashboard
+// =====================================================================
+
+function v2ReportOrderStatusTone(status) {
+    return { paid: 'success', open: 'warning', cancelled: 'danger' }[status] || 'neutral';
+}
+function v2ReportOrderStatusLabel(status) {
+    return {
+        paid: 'Pagada',
+        open: 'Pendiente',
+        cancelled: 'Cancelada',
+    }[status] || (status || 'Sin estado');
+}
+function v2ReportCashStatusTone(status) {
+    return { open: 'warning', closed: 'success' }[status] || 'neutral';
+}
+function v2ReportCashStatusLabel(status) {
+    return { open: 'Abierta', closed: 'Cerrada' }[status] || (status || 'Sin estado');
+}
+
+function v2BuildReportOrderRow(order) {
+    const tr = document.createElement('tr');
+    tr.dataset.orderId = order.id;
+    tr.innerHTML = `
+        <td><strong>#${escapeHtml(order.id)}</strong><small>${escapeHtml(formatDateTime(order.opened_at))}</small></td>
+        <td>${escapeHtml(order.customer_name || 'Consumidor final')}</td>
+        <td>${escapeHtml(order.cash_register_name || 'Sin caja')}</td>
+        <td><span class="v2-status-pill v2-status-pill--${v2ReportOrderStatusTone(order.status)}">${escapeHtml(v2ReportOrderStatusLabel(order.status))}</span></td>
+        <td class="v2-col-money"><strong>${money(order.total_base_amount)}</strong></td>
+        <td class="v2-col-money"><strong>${money(order.paid_base_amount)}</strong><small>Saldo ${money(order.balance_base_amount)}</small></td>
+        <td>${escapeHtml(formatDateTime(order.paid_at || order.opened_at))}</td>
+    `;
+    return tr;
+}
+
+function v2BuildReportPaymentRow(method, maxAmount) {
+    const tr = document.createElement('tr');
+    const pct = maxAmount > 0 ? Math.round((Number(method.amount_base) || 0) / maxAmount * 100) : 0;
+    tr.innerHTML = `
+        <td><strong>${escapeHtml(method.name || 'Método')}</strong><small>${escapeHtml(method.currency || 'USD')}</small></td>
+        <td class="v2-col-count">${number(method.payments_count)}</td>
+        <td class="v2-col-money">
+            <strong>${money(method.amount_base)}</strong>
+            <div class="v2-share-bar">
+                <div class="v2-share-bar__track"><div class="v2-share-bar__fill" style="width: ${pct}%;"></div></div>
+                <span class="v2-share-bar__pct">${pct}%</span>
+            </div>
+        </td>
+    `;
+    return tr;
+}
+
+function v2BuildReportProductRow(product, rank) {
+    const tr = document.createElement('tr');
+    const rankClass = rank <= 3 ? `v2-rank v2-rank--${rank}` : 'v2-rank';
+    tr.innerHTML = `
+        <td class="v2-col-rank"><span class="${rankClass}">${rank}</span></td>
+        <td><strong>${escapeHtml(product.product_name || 'Producto')}</strong><small>${escapeHtml(product.product_sku || '—')}</small></td>
+        <td class="v2-col-count">${number(product.quantity)}</td>
+        <td class="v2-col-money"><strong>${money(product.total_base_amount)}</strong></td>
+    `;
+    return tr;
+}
+
+function v2BuildReportCashRow(session) {
+    const diff = Number(session.difference_base_amount) || 0;
+    let diffClass = 'v2-money-delta--zero';
+    if (diff > 0) diffClass = 'v2-money-delta--pos';
+    else if (diff < 0) diffClass = 'v2-money-delta--neg';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><strong>${escapeHtml(session.cash_register_name || 'Caja')}</strong><small>#${escapeHtml(session.id)}</small></td>
+        <td>${escapeHtml(session.branch_name || '—')}</td>
+        <td>${escapeHtml(session.cashier_name || '—')}</td>
+        <td><span class="v2-status-pill v2-status-pill--${v2ReportCashStatusTone(session.status)}">${escapeHtml(v2ReportCashStatusLabel(session.status))}</span></td>
+        <td class="v2-col-money"><strong>${money(session.expected_base_amount)}</strong></td>
+        <td class="v2-col-money"><strong class="${diffClass}">${diff > 0 ? '+' : ''}${money(diff)}</strong></td>
+        <td>${escapeHtml(formatDateTime(session.opened_at))}</td>
+    `;
+    return tr;
+}
+
+function v2RenderReportEmptyRow(tbody, message, colspan) {
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = colspan;
+    td.innerHTML = `<div class="v2-table-empty"><strong>Sin datos</strong>${escapeHtml(message)}</div>`;
+    tr.append(td);
+    tbody.replaceChildren(tr);
+}
+
+function v2RenderReports(report) {
+    if (!v2.reports || !v2.reports.page) return;
+    const data = report || {};
+    const sales = data.sales || {};
+    const cash = data.cash_register || {};
+    const period = data.period || {};
+
+    // Period label
+    if (v2.reports.period) {
+        v2.reports.period.textContent = `Periodo ${period.from || '—'} a ${period.to || '—'} · Generado ${formatDateTime(data.generated_at || new Date().toISOString())}`;
+    }
+    if (v2.reports.ordersSubtitle) {
+        v2.reports.ordersSubtitle.textContent = `Últimas órdenes POS del ${period.from || '—'} al ${period.to || '—'}.`;
+    }
+
+    // KPIs
+    if (v2.reports.metricPosTotal) v2.reports.metricPosTotal.textContent = money(sales.pos_paid_base_amount || 0);
+    if (v2.reports.metricPosHint) v2.reports.metricPosHint.textContent = `${number(sales.pos_paid_count || 0)} ventas confirmadas`;
+    if (v2.reports.metricTicket) v2.reports.metricTicket.textContent = money(sales.average_ticket_base_amount || 0);
+    if (v2.reports.metricPending) v2.reports.metricPending.textContent = number(sales.pending_pos_count || 0);
+    if (v2.reports.metricPendingHint) v2.reports.metricPendingHint.textContent = `${money(sales.pending_pos_base_amount || 0)} por cerrar`;
+    if (v2.reports.metricOpenCash) v2.reports.metricOpenCash.textContent = number(cash.open_count || 0);
+    if (v2.reports.metricCashHint) v2.reports.metricCashHint.textContent = `${money(cash.expected_base_amount || 0)} esperado`;
+
+    // Alert strip
+    v2RenderReportsAlertStrip(sales, cash);
+
+    // Panel 1: Ventas recientes
+    const orders = data.recent_orders || [];
+    if (v2.reports.ordersTbody) {
+        if (!orders.length) {
+            v2RenderReportEmptyRow(v2.reports.ordersTbody, 'No hay órdenes POS en el periodo.', 7);
+        } else {
+            v2.reports.ordersTbody.replaceChildren(...orders.map(v2BuildReportOrderRow));
+        }
+    }
+
+    // Panel 2: Métodos de pago (with share bar relative to max)
+    const methods = data.payment_methods || [];
+    if (v2.reports.paymentsTbody) {
+        if (!methods.length) {
+            v2RenderReportEmptyRow(v2.reports.paymentsTbody, 'Sin pagos capturados en el periodo.', 3);
+        } else {
+            const maxAmount = Math.max(0, ...methods.map((m) => Number(m.amount_base) || 0));
+            v2.reports.paymentsTbody.replaceChildren(...methods.map((m) => v2BuildReportPaymentRow(m, maxAmount)));
+        }
+    }
+
+    // Panel 3: Productos vendidos (rank 1..N)
+    const products = data.top_products || [];
+    if (v2.reports.productsTbody) {
+        if (!products.length) {
+            v2RenderReportEmptyRow(v2.reports.productsTbody, 'Sin productos vendidos en el periodo.', 4);
+        } else {
+            v2.reports.productsTbody.replaceChildren(...products.map((p, i) => v2BuildReportProductRow(p, i + 1)));
+        }
+    }
+
+    // Panel 4: Actividad de caja
+    const sessions = cash.sessions || [];
+    if (v2.reports.cashTbody) {
+        if (!sessions.length) {
+            v2RenderReportEmptyRow(v2.reports.cashTbody, 'Sin turnos de caja en el periodo.', 7);
+        } else {
+            v2.reports.cashTbody.replaceChildren(...sessions.map(v2BuildReportCashRow));
+        }
+    }
+
+    if (v2.reports.status) {
+        v2.reports.status.textContent = `Reportes actualizados · ${formatDateTime(data.generated_at || new Date().toISOString())}`;
+    }
+}
+
+function v2RenderReportsAlertStrip(sales, cash) {
+    if (!v2.reports.alertStrip) return;
+    const items = [];
+    const pendingCount = Number(sales?.pending_pos_count || 0);
+    const pendingTotal = Number(sales?.pending_pos_base_amount || 0);
+    const openCash = Number(cash?.open_count || 0);
+    const sessions = cash?.sessions || [];
+    const sessionsWithDiff = sessions.filter((s) => Math.abs(Number(s.difference_base_amount) || 0) > 0.01);
+
+    if (pendingCount > 0) {
+        items.push({
+            tone: 'warning',
+            html: `<strong>${number(pendingCount)} orden(es) POS</strong> pendientes por cerrar — ${money(pendingTotal)} sin cobrar.`,
+        });
+    }
+    if (openCash > 0) {
+        items.push({
+            tone: 'info',
+            html: `<strong>${number(openCash)} caja(s) abiertas</strong> — revisar arqueos al cierre del turno.`,
+        });
+    }
+    if (sessionsWithDiff.length > 0) {
+        items.push({
+            tone: 'warning',
+            html: `<strong>${number(sessionsWithDiff.length)} turno(s)</strong> con diferencia en arqueo — comparar contra el esperado.`,
+        });
+    }
+    if (!Number(sales?.pos_paid_count || 0) && !Number(sales?.confirmed_count || 0)) {
+        items.push({
+            tone: 'info',
+            html: `<strong>Sin ventas confirmadas</strong> en el periodo seleccionado — amplia el rango de fechas.`,
+        });
+    }
+
+    if (!items.length) {
+        v2.reports.alertStrip.hidden = true;
+        v2.reports.alertStrip.replaceChildren();
+        return;
+    }
+
+    v2.reports.alertStrip.hidden = false;
+    v2.reports.alertStrip.className = 'v2-alert-strip';
+    items.forEach((it) => {
+        if (it.tone) v2.reports.alertStrip.classList.add(`v2-alert-strip--${it.tone}`);
+    });
+
+    // Build a real SVG icon (replaceChildren with strings would render literal HTML)
+    const NS = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(NS, 'svg');
+    icon.setAttribute('class', 'v2-alert-strip__icon');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    const iconPath = document.createElementNS(NS, 'path');
+    iconPath.setAttribute('d', 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z');
+    const iconLine1 = document.createElementNS(NS, 'line');
+    iconLine1.setAttribute('x1', '12'); iconLine1.setAttribute('y1', '9');
+    iconLine1.setAttribute('x2', '12'); iconLine1.setAttribute('y2', '13');
+    const iconLine2 = document.createElementNS(NS, 'line');
+    iconLine2.setAttribute('x1', '12'); iconLine2.setAttribute('y1', '17');
+    iconLine2.setAttribute('x2', '12.01'); iconLine2.setAttribute('y2', '17');
+    icon.append(iconPath, iconLine1, iconLine2);
+
+    const list = document.createElement('div');
+    list.className = 'v2-alert-strip__list';
+    items.forEach((it) => {
+        const span = document.createElement('span');
+        span.className = 'v2-alert-strip__item';
+        span.innerHTML = it.html;
+        list.append(span);
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'v2-alert-strip__close';
+    closeBtn.setAttribute('aria-label', 'Cerrar alertas');
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    closeBtn.addEventListener('click', () => { v2.reports.alertStrip.hidden = true; });
+    v2.reports.alertStrip.replaceChildren(icon, list, closeBtn);
+}
+
+// =====================================================================
+// v2 Reportes — filter wiring (sync v2 inputs to v1 selectors so
+// the existing loadOperationalReports() picks up our values, then refresh).
+// =====================================================================
+
+function v2PopulateReportsFiltersFromV1() {
+    if (!v2.reports || !elements.reportsBranch) return;
+    // Branches
+    if (v2.reports.branch.options.length <= 1 && elements.reportsBranch.options.length > 1) {
+        const options = Array.from(elements.reportsBranch.options).map((o) => {
+            const opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.textContent;
+            return opt;
+        });
+        v2.reports.branch.replaceChildren(...options);
+    }
+    // Cashiers
+    if (v2.reports.cashier.options.length <= 1 && elements.reportsCashier && elements.reportsCashier.options.length > 1) {
+        const options = Array.from(elements.reportsCashier.options).map((o) => {
+            const opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.textContent;
+            return opt;
+        });
+        v2.reports.cashier.replaceChildren(...options);
+    }
+    // Cash registers
+    if (v2.reports.cashRegister.options.length <= 1 && elements.reportsCashRegister && elements.reportsCashRegister.options.length > 1) {
+        const options = Array.from(elements.reportsCashRegister.options).map((o) => {
+            const opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.textContent;
+            return opt;
+        });
+        v2.reports.cashRegister.replaceChildren(...options);
+    }
+}
+
+function v2SyncReportsFiltersToV1() {
+    if (!v2.reports || !elements.reportsDateFrom) return;
+    if (v2.reports.dateFrom) elements.reportsDateFrom.value = v2.reports.dateFrom.value;
+    if (v2.reports.dateTo) elements.reportsDateTo.value = v2.reports.dateTo.value;
+    if (v2.reports.branch) elements.reportsBranch.value = v2.reports.branch.value;
+    if (v2.reports.cashRegister) elements.reportsCashRegister.value = v2.reports.cashRegister.value;
+    if (v2.reports.cashier) elements.reportsCashier.value = v2.reports.cashier.value;
+    if (v2.reports.orderStatus) elements.reportsOrderStatus.value = v2.reports.orderStatus.value || 'all';
+    if (v2.reports.periodSelect && elements.period) elements.period.value = v2.reports.periodSelect.value;
+}
+
+function v2ApplyReportsFilters() {
+    v2SyncReportsFiltersToV1();
+    loadOperationalReports();
+}
+
+function v2ClearReportsFilters() {
+    if (!v2.reports) return;
+    if (v2.reports.dateFrom) v2.reports.dateFrom.value = '';
+    if (v2.reports.dateTo) v2.reports.dateTo.value = '';
+    if (v2.reports.branch) v2.reports.branch.value = '';
+    if (v2.reports.cashRegister) v2.reports.cashRegister.value = '';
+    if (v2.reports.cashier) v2.reports.cashier.value = '';
+    if (v2.reports.orderStatus) v2.reports.orderStatus.value = 'all';
+    if (v2.reports.periodSelect) v2.reports.periodSelect.value = 'today';
+    v2SyncReportsFiltersToV1();
+    loadOperationalReports();
+}
+
+// Wire v2 reports controls
+(function v2WireReports() {
+    if (!v2.reports) return;
+    const r = v2.reports;
+    if (r.refresh) r.refresh.addEventListener('click', () => loadOperationalReports());
+    if (r.apply) r.apply.addEventListener('click', v2ApplyReportsFilters);
+    if (r.clear) r.clear.addEventListener('click', v2ClearReportsFilters);
+    if (r.periodSelect) {
+        r.periodSelect.addEventListener('change', () => {
+            v2SyncReportsFiltersToV1();
+            loadOperationalReports();
+        });
+    }
+    // Export buttons (reuse existing exportOperationalReport from v1)
+    if (r.exportOrders && elements.reportsExportOrders) r.exportOrders.addEventListener('click', () => exportOperationalReport('recent_orders', elements.reportsExportOrders));
+    if (r.exportPayments && elements.reportsExportPayments) r.exportPayments.addEventListener('click', () => exportOperationalReport('payment_methods', elements.reportsExportPayments));
+    if (r.exportProducts && elements.reportsExportProducts) r.exportProducts.addEventListener('click', () => exportOperationalReport('top_products', elements.reportsExportProducts));
+    if (r.exportCash && elements.reportsExportCash) r.exportCash.addEventListener('click', () => exportOperationalReport('cash_sessions', elements.reportsExportCash));
+    // Branch change → cascade to cash-register filter (mirror v1 behavior)
+    if (r.branch) {
+        r.branch.addEventListener('change', () => {
+            const selected = r.branch.value;
+            if (elements.reportsBranch) elements.reportsBranch.value = selected;
+            // Reload reports to get filtered cash registers
+            v2SyncReportsFiltersToV1();
+            loadOperationalReports();
+        });
+    }
+    // Mirror v1 topbar period changes to the v2 period select so both stay in sync
+    if (elements.period && r.periodSelect) {
+        elements.period.addEventListener('change', () => {
+            r.periodSelect.value = elements.period.value;
+        });
+    }
+})();
 

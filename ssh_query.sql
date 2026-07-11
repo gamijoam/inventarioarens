@@ -1,0 +1,1 @@
+﻿select count(*) as transfers from inventory_transfers; select count(*) as outbox from sync_outbox; select count(*) as inbox from sync_inbox; select id, tenant_id, document_number, status, created_at from inventory_transfers order by id desc limit 10;
