@@ -49,11 +49,11 @@
 | **P2-1** | Cambiar `CACHE_STORE=redis` + `QUEUE_CONNECTION=redis` en `.env` del VPS | XS | ✅ **2026-07-12** |
 | **P2-2** | Migración índices faltantes (`sales.confirmed_at`, `pos_orders.paid_at`, `inventory_transfers.processed_at`, etc.) — ver `09_PERFORMANCE.md` §6 | M | ✅ **2026-07-12** |
 | P2-3 | `TenantReferenceCache` para payment_methods, price_lists, exchange_rates | M | ✅ **2026-07-12** |
-| P2-4 | Fix N+1 en `AdminTransferService::index()` (subselect agregado) | M | ☐ |
-| P2-5 | Refactor `DashboardSummaryService` + `AdminDashboardService` a query única con `COUNT(*) FILTER (…)` | M | ☐ |
+| P2-4 | Fix N+1 en `AdminTransferService::index()` (subselect agregado) | M | ✅ **2026-07-12** |
+| P2-5 | Refactor `DashboardSummaryService` + `AdminDashboardService` a query única con `COUNT(*) FILTER (…)` | M | ✅ **2026-07-12** |
 | P2-6 | `AssignRequestId` + `SlowRequestLogger` middlewares | M | ✅ **2026-07-12** (AssignRequestId done; SlowRequestLogger not yet) |
-| P2-7 | Cambiar `PerformanceProbe` a JSON estructurado | M | ☐ |
-| P2-8 | Structured JSON logging channel en `config/logging.php` | M | ☐ |
+| P2-7 | Cambiar `PerformanceProbe` a JSON estructurado | M | ✅ **2026-07-12** |
+| P2-8 | Structured JSON logging channel en `config/logging.php` | M | ✅ **2026-07-12** |
 | P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ✅ **2026-07-12** |
 | P2-10 | Partial unique indexes (`exchange_rate_types(tenant_id) WHERE is_default`) | S | ☐ |
 | | **TOTAL P2** | **~21h** | |
@@ -100,6 +100,28 @@
 ---
 
 ## Tracking de fixes aplicados
+
+### 2026-07-12 — P2-6 (RequestId) + P2-7 (PerformanceProbe JSON)
+
+**Fixes:**
+- **P2-6** ✅ Nuevo `App\Http\Middleware\AssignRequestId` registrado en `bootstrap/app.php` con `$middleware->append()`. 
+  - Lee `X-Request-Id` del request (con validación anti-injection: max 100 chars, solo `[A-Za-z0-9_\-:.]`).
+  - Si no viene o es inválido, genera un UUID.
+  - Comparte contexto de log via `Log::shareContext(['request_id' => ..., 'tenant_id' => ..., 'user_id' => ...])`.
+  - Loguea `http_request` info con `method`, `path`, `status`, `elapsed_ms`.
+  - Setea header `X-Request-Id` en la response.
+  - 7 tests, 12 asserts.
+
+- **P2-7** ✅ `App\Support\Performance\PerformanceProbe::log()` ahora usa contexto array estructurado en lugar de string interpolation.
+  - Evento: `perf_probe.OK` o `perf_probe.LENTO` (en vez de `"PERF OK BACKEND op: 5 ms"`).
+  - Context: `level`, `operation`, `elapsed_ms`, `warn_after_ms`, `tenant_id`, ...custom.
+  - Filtra valores null/empty.
+  - Compatible con el `json` channel de Laravel.
+  - 5 tests, 7 asserts.
+
+**Suite:** 503 tests, 2789 assertions, 0 failures, 0 errors.
+
+---
 
 ### 2026-07-12 — P2-3 (código)
 

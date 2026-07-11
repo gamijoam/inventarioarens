@@ -1,4 +1,4 @@
-<Window x:Class="InventoryDesktop.Modules.InventoryCenter.InventoryProductExitWindow"
+﻿<Window x:Class="InventoryDesktop.Modules.InventoryCenter.InventoryProductExitWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Registrar salida"
@@ -7,7 +7,7 @@
         MinWidth="640"
         MinHeight="620"
         WindowStartupLocation="CenterOwner"
-        Background="#F4F7FB">
+        Background="#F1F5F9">
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -15,7 +15,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Padding="20" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+        <Border Padding="20" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
             <StackPanel>
                 <Border Padding="9,5" Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="7" HorizontalAlignment="Left">
                     <TextBlock Text="SALIDA" Foreground="#B45309" FontSize="10" FontWeight="Black" />
@@ -27,9 +27,9 @@
 
         <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <Border Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+                <Border Padding="18" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
                     <StackPanel>
-                        <TextBlock Text="Almacén" FontWeight="Black" />
+                        <TextBlock Text="AlmacÃ©n" FontWeight="Black" />
                         <ComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding SelectedWarehouse}" DisplayMemberPath="WarehouseLabel" Height="38" Margin="0,6,0,14" />
 
                         <Grid>
@@ -61,7 +61,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="IMEI / seriales disponibles" FontWeight="Black" />
-                                    <TextBlock Text="Busca y selecciona exactamente los IMEI/seriales que saldrán del inventario."
+                                    <TextBlock Text="Busca y selecciona exactamente los IMEI/seriales que saldrÃ¡n del inventario."
                                                Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="1"
@@ -80,11 +80,11 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="SerialSearchBox"
                                          Height="38"
-                                         Margin="0,0,10,0"
+                                         Margin="0,0,12,0"
                                          TextChanged="SerialSearchBox_TextChanged"
-                                         ToolTip="Buscar por IMEI, almacén o estado" />
+                                         ToolTip="Buscar por IMEI, almacÃ©n o estado" />
                                 <Button Grid.Column="1"
-                                        Content="Usar selección"
+                                        Content="Usar selecciÃ³n"
                                         Width="116"
                                         Height="38"
                                         Margin="10,0,0,0"
@@ -130,7 +130,7 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="2" Padding="12" Margin="0,14,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
+        <Border Grid.Row="2" Padding="12" Margin="0,14,0,0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -144,3 +144,5 @@
         </Border>
     </Grid>
 </Window>
+
+

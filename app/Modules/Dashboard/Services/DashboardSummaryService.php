@@ -8,8 +8,8 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sales\Models\Sale;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardSummaryService
 {
@@ -18,19 +18,9 @@ class DashboardSummaryService
         [$dateFrom, $dateTo] = $this->dateRange($filters);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
 
-        $sales = Sale::query()
-            ->where('status', Sale::STATUS_CONFIRMED)
-            ->whereBetween('confirmed_at', [$dateFrom, $dateTo]);
+        $metrics = $this->aggregatedMetrics($dateFrom, $dateTo, $threshold);
 
-        $posOrders = PosOrder::query()
-            ->where('status', PosOrder::STATUS_PAID)
-            ->whereBetween('paid_at', [$dateFrom, $dateTo]);
-
-        $receivables = AccountsReceivable::query()
-            ->whereIn('status', [AccountsReceivable::STATUS_PENDING, AccountsReceivable::STATUS_PARTIAL, AccountsReceivable::STATUS_OVERDUE]);
-
-        $payables = AccountsPayable::query()
-            ->whereIn('status', [AccountsPayable::STATUS_PENDING, AccountsPayable::STATUS_PARTIAL, AccountsPayable::STATUS_OVERDUE]);
+        $lowStockCount = (int) ($metrics['low_stock_count'] ?? 0);
 
         return [
             'currency' => 'USD',
@@ -39,30 +29,91 @@ class DashboardSummaryService
                 'to' => $dateTo->toDateString(),
             ],
             'sales' => [
-                'confirmed_count' => (clone $sales)->count(),
-                'total_base_amount' => $this->sum($sales, 'total_base_amount'),
+                'confirmed_count' => (int) ($metrics['sales_count'] ?? 0),
+                'total_base_amount' => round((float) ($metrics['sales_total'] ?? 0), 4),
             ],
             'pos' => [
-                'paid_orders_count' => (clone $posOrders)->count(),
-                'paid_base_amount' => $this->sum($posOrders, 'paid_base_amount'),
+                'paid_orders_count' => (int) ($metrics['pos_count'] ?? 0),
+                'paid_base_amount' => round((float) ($metrics['pos_total'] ?? 0), 4),
             ],
             'cash_register' => [
-                'open_sessions_count' => CashRegisterSession::query()
-                    ->where('status', CashRegisterSession::STATUS_OPEN)
-                    ->count(),
+                'open_sessions_count' => (int) ($metrics['cash_open_sessions'] ?? 0),
             ],
             'inventory' => [
-                'low_stock_count' => $this->lowStockQuery($threshold)->count(),
+                'low_stock_count' => $lowStockCount,
                 'low_stock_threshold' => $threshold,
                 'low_stock_items' => $this->lowStockItems($threshold),
             ],
             'finance' => [
-                'accounts_receivable_balance_base_amount' => $this->sum($receivables, 'balance_base_amount'),
-                'accounts_payable_balance_base_amount' => $this->sum($payables, 'balance_base_amount'),
-                'accounts_receivable_count' => (clone $receivables)->count(),
-                'accounts_payable_count' => (clone $payables)->count(),
+                'accounts_receivable_balance_base_amount' => round((float) ($metrics['receivable_balance'] ?? 0), 4),
+                'accounts_payable_balance_base_amount' => round((float) ($metrics['payable_balance'] ?? 0), 4),
+                'accounts_receivable_count' => (int) ($metrics['receivable_count'] ?? 0),
+                'accounts_payable_count' => (int) ($metrics['payable_count'] ?? 0),
             ],
         ];
+    }
+
+    /**
+     * Ejecuta una sola query SQL con UNION ALL para obtener todas las
+     * metricas agregadas (counts, sums, balances) en un solo round-trip.
+     * Reduce 7 queries a 1.
+     */
+    private function aggregatedMetrics(Carbon $dateFrom, Carbon $dateTo, float $threshold): array
+    {
+        $tenantId = (int) app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+        $dateFromStr = $dateFrom->toDateTimeString();
+        $dateToStr = $dateTo->toDateTimeString();
+        $thresholdStr = (string) $threshold;
+        $salesConfirmed = Sale::STATUS_CONFIRMED;
+        $posPaid = PosOrder::STATUS_PAID;
+        $cashOpen = CashRegisterSession::STATUS_OPEN;
+        $arActive = "'pending', 'partial', 'overdue'";
+        $apActive = "'pending', 'partial', 'overdue'";
+
+        $sql = "
+            select 'sales_count' as metric, cast(count(*) as text) as val_num from sales where tenant_id = ? and status = ? and confirmed_at between ? and ?
+            union all
+            select 'sales_total' as metric, cast(coalesce(sum(total_base_amount), 0) as text) as val_num from sales where tenant_id = ? and status = ? and confirmed_at between ? and ?
+            union all
+            select 'pos_count' as metric, cast(count(*) as text) as val_num from pos_orders where tenant_id = ? and status = ? and paid_at between ? and ?
+            union all
+            select 'pos_total' as metric, cast(coalesce(sum(paid_base_amount), 0) as text) as val_num from pos_orders where tenant_id = ? and status = ? and paid_at between ? and ?
+            union all
+            select 'cash_open_sessions' as metric, cast(count(*) as text) as val_num from cash_register_sessions where tenant_id = ? and status = ?
+            union all
+            select 'low_stock_count' as metric, cast(count(*) as text) as val_num from stock_balances where tenant_id = ? and quantity_available <= ?
+            union all
+            select 'receivable_count' as metric, cast(count(*) as text) as val_num from accounts_receivables where tenant_id = ? and status in ({$arActive})
+            union all
+            select 'receivable_balance' as metric, cast(coalesce(sum(balance_base_amount), 0) as text) as val_num from accounts_receivables where tenant_id = ? and status in ({$arActive})
+            union all
+            select 'payable_count' as metric, cast(count(*) as text) as val_num from accounts_payables where tenant_id = ? and status in ({$apActive})
+            union all
+            select 'payable_balance' as metric, cast(coalesce(sum(balance_base_amount), 0) as text) as val_num from accounts_payables where tenant_id = ? and status in ({$apActive})
+        ";
+
+        $bindings = [
+            $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
+            $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
+            $tenantId, $posPaid, $dateFromStr, $dateToStr,
+            $tenantId, $posPaid, $dateFromStr, $dateToStr,
+            $tenantId, $cashOpen,
+            $tenantId, $thresholdStr,
+            $tenantId,
+            $tenantId,
+            $tenantId,
+            $tenantId,
+        ];
+
+        $rows = DB::select($sql, $bindings);
+
+        $metrics = [];
+        foreach ($rows as $row) {
+            $val = $row->val_num === null ? null : (float) $row->val_num;
+            $metrics[$row->metric] = $val;
+        }
+
+        return $metrics;
     }
 
     private function dateRange(array $filters): array
@@ -85,7 +136,8 @@ class DashboardSummaryService
 
     private function lowStockItems(float $threshold): array
     {
-        return $this->lowStockQuery($threshold)
+        return StockBalance::query()
+            ->where('quantity_available', '<=', $threshold)
             ->select(['id', 'warehouse_id', 'product_id', 'quantity_available'])
             ->with([
                 'product:id,name,sku',
@@ -104,16 +156,5 @@ class DashboardSummaryService
                 'quantity_available' => (float) $balance->quantity_available,
             ])
             ->all();
-    }
-
-    private function lowStockQuery(float $threshold): Builder
-    {
-        return StockBalance::query()
-            ->where('quantity_available', '<=', $threshold);
-    }
-
-    private function sum(Builder $query, string $column): float
-    {
-        return round((float) (clone $query)->sum($column), 4);
     }
 }

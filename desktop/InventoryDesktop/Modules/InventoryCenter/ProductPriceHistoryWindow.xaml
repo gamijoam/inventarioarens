@@ -1,4 +1,4 @@
-<Window x:Class="InventoryDesktop.Modules.InventoryCenter.ProductPriceHistoryWindow"
+﻿<Window x:Class="InventoryDesktop.Modules.InventoryCenter.ProductPriceHistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Historial de precios"
@@ -7,7 +7,7 @@
         MinWidth="760"
         MinHeight="460"
         WindowStartupLocation="CenterOwner"
-        Background="#F4F7FB"
+        Background="#F1F5F9"
         Loaded="Window_Loaded">
     <Window.Resources>
         <SolidColorBrush x:Key="AccentBrush" Color="#5038F2" />
@@ -55,12 +55,12 @@
                   IsReadOnly="True"
                   Margin="0,14,0,0"
                   HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal">
+                  GridLinesVisibility="None">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="FECHA" Binding="{Binding DateLabel}" Width="1.25*" />
                 <DataGridTextColumn Header="LISTA" Binding="{Binding ListLabel}" Width="1.45*" />
                 <DataGridTextColumn Header="ANTES" Binding="{Binding BeforeLabel}" Width="1.15*" />
-                <DataGridTextColumn Header="DESPUÉS" Binding="{Binding AfterLabel}" Width="1.15*" />
+                <DataGridTextColumn Header="DESPUÃ‰S" Binding="{Binding AfterLabel}" Width="1.15*" />
                 <DataGridTextColumn Header="USUARIO" Binding="{Binding UserLabel}" Width="1.2*" />
             </DataGrid.Columns>
         </DataGrid>
@@ -88,3 +88,5 @@
         </Border>
     </Grid>
 </Window>
+
+

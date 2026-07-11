@@ -16,13 +16,23 @@ class AdminTransferService
         $limit = max(10, min((int) ($filters['limit'] ?? 25), 100));
         $page = max(1, (int) ($filters['page'] ?? 1));
 
-        $query = $this->baseQuery($tenant->id, $filters);
-        $total = (clone $query)->count();
-        $rows = (clone $query)
+        $base = $this->baseQuery($tenant->id, $filters);
+        $total = (clone $base)->count();
+
+        $itemsSub = DB::table('inventory_transfer_items')
+            ->selectRaw('inventory_transfer_id, count(*) as items_count, count(*) filter (where difference_quantity <> 0) as differences_count')
+            ->groupBy('inventory_transfer_id');
+
+        $query = (clone $base)
+            ->leftJoinSub($itemsSub, 'items_agg', 'items_agg.inventory_transfer_id', '=', 'inventory_transfers.id')
+            ->select($this->columns())
+            ->addSelect('items_agg.items_count', 'items_agg.differences_count')
             ->orderByDesc('inventory_transfers.processed_at')
             ->orderByDesc('inventory_transfers.id')
-            ->forPage($page, $limit)
-            ->get($this->columns())
+            ->forPage($page, $limit);
+
+        $rows = $query
+            ->get()
             ->map(fn ($row): array => $this->mapTransfer($row))
             ->all();
 
@@ -169,15 +179,6 @@ class AdminTransferService
 
     private function mapTransfer(object $row): array
     {
-        $itemsCount = (int) DB::table('inventory_transfer_items')
-            ->where('inventory_transfer_id', $row->id)
-            ->count();
-
-        $differencesCount = (int) DB::table('inventory_transfer_items')
-            ->where('inventory_transfer_id', $row->id)
-            ->where('difference_quantity', '!=', 0)
-            ->count();
-
         return [
             'id' => (int) $row->id,
             'document_number' => $row->document_number,
@@ -193,8 +194,8 @@ class AdminTransferService
             'to_warehouse_name' => $row->to_warehouse_name,
             'reason' => $row->reason,
             'reference' => $row->reference,
-            'items_count' => $itemsCount,
-            'differences_count' => $differencesCount,
+            'items_count' => (int) ($row->items_count ?? 0),
+            'differences_count' => (int) ($row->differences_count ?? 0),
             'processed_at' => $row->processed_at,
             'prepared_at' => $row->prepared_at,
             'dispatched_at' => $row->dispatched_at,

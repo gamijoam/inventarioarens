@@ -1,4 +1,4 @@
-<Window x:Class="InventoryDesktop.Modules.InventoryCenter.InventoryProductFormWindow"
+﻿<Window x:Class="InventoryDesktop.Modules.InventoryCenter.InventoryProductFormWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Producto"
@@ -7,7 +7,7 @@
         MinWidth="640"
         MinHeight="620"
         WindowStartupLocation="CenterOwner"
-        Background="#F4F7FB">
+        Background="#F1F5F9">
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -15,13 +15,13 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Padding="20" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+        <Border Padding="20" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
             <StackPanel>
                 <Border Padding="9,5" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="7" HorizontalAlignment="Left">
                     <TextBlock Text="{Binding ModeLabel}" Foreground="{StaticResource AccentStrongBrush}" FontSize="10" FontWeight="Black" />
                 </Border>
                 <TextBlock Text="{Binding TitleLabel}" FontSize="27" FontWeight="Black" TextWrapping="Wrap" Margin="0,12,0,0" />
-                <TextBlock Text="Define datos comerciales, moneda, tasa, garantía y tipo de control."
+                <TextBlock Text="Define datos comerciales, moneda, tasa, garantÃ­a y tipo de control."
                            Foreground="{StaticResource MutedBrush}"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
@@ -30,7 +30,7 @@
         </Border>
 
         <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
-            <Border Padding="18" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="12">
+            <Border Padding="18" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
                 <StackPanel>
                     <TextBlock Text="Nombre" FontWeight="Black" />
                     <TextBox x:Name="NameBox" Height="38" Margin="0,6,0,14" />
@@ -74,7 +74,7 @@
                               Height="38"
                               Margin="0,6,0,14" />
 
-                    <TextBlock Text="Política de garantía" FontWeight="Black" />
+                    <TextBlock Text="PolÃ­tica de garantÃ­a" FontWeight="Black" />
                     <ComboBox x:Name="WarrantyBox"
                               ItemsSource="{Binding WarrantyPolicies}"
                               SelectedItem="{Binding SelectedWarrantyPolicy}"
@@ -97,7 +97,7 @@
             </Border>
         </ScrollViewer>
 
-        <Border Grid.Row="2" Padding="12" Margin="0,14,0,0" Background="#FFFFFF" BorderBrush="#E1E7F3" BorderThickness="1" CornerRadius="10">
+        <Border Grid.Row="2" Padding="12" Margin="0,14,0,0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -111,3 +111,5 @@
         </Border>
     </Grid>
 </Window>
+
+
