@@ -46,15 +46,15 @@
 
 | # | Acción | Esfuerzo | Status |
 |---|---|---:|---|
-| **P2-1** | Cambiar `CACHE_STORE=redis` + `QUEUE_CONNECTION=redis` en `.env` del VPS | XS | ☐ |
-| **P2-2** | Migración índices faltantes (`sales.confirmed_at`, `pos_orders.paid_at`, `inventory_transfers.processed_at`, etc.) — ver `09_PERFORMANCE.md` §6 | M | ☐ |
+| **P2-1** | Cambiar `CACHE_STORE=redis` + `QUEUE_CONNECTION=redis` en `.env` del VPS | XS | ✅ **2026-07-12** |
+| **P2-2** | Migración índices faltantes (`sales.confirmed_at`, `pos_orders.paid_at`, `inventory_transfers.processed_at`, etc.) — ver `09_PERFORMANCE.md` §6 | M | ✅ **2026-07-12** |
 | P2-3 | `TenantReferenceCache` para payment_methods, price_lists, exchange_rates | M | ☐ |
 | P2-4 | Fix N+1 en `AdminTransferService::index()` (subselect agregado) | M | ☐ |
 | P2-5 | Refactor `DashboardSummaryService` + `AdminDashboardService` a query única con `COUNT(*) FILTER (…)` | M | ☐ |
 | P2-6 | `AssignRequestId` + `SlowRequestLogger` middlewares | M | ☐ |
 | P2-7 | Cambiar `PerformanceProbe` a JSON estructurado | M | ☐ |
 | P2-8 | Structured JSON logging channel en `config/logging.php` | M | ☐ |
-| P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ☐ |
+| P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ✅ **2026-07-12** |
 | P2-10 | Partial unique indexes (`exchange_rate_types(tenant_id) WHERE is_default`) | S | ☐ |
 | | **TOTAL P2** | **~21h** | |
 
@@ -100,6 +100,37 @@
 ---
 
 ## Tracking de fixes aplicados
+
+### 2026-07-12 — P2-1 + P2-2 + P2-9 (desplegado en VPS)
+
+**Fixes en VPS (217.216.80.158, root):**
+- **P2-9** ✅ `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` — slow log activado. Confirmado con `SHOW log_min_duration_statement` retorna `500ms`.
+- **P2-2** ✅ Migration `2026_07_12_000000_add_performance_indexes` aplicada. 12 índices tenant nuevos:
+  - `sales_tenant_confirmed_at_idx`, `pos_orders_tenant_paid_at_idx`, `pos_orders_tenant_opened_at_idx`
+  - `inventory_transfers_tenant_processed_at_idx`, `crs_tenant_opened_at_idx`
+  - `wc_tenant_received_at_idx`, `ar_tenant_status_due_idx`, `ap_tenant_status_due_idx`
+  - `sm_tenant_product_date_idx`, `sm_tenant_date_idx`
+  - `pos_payments_tenant_status_idx`, `sync_outbox_tenant_processed_at_idx`
+  - `stock_balances_low_stock_idx` (partial), `exchange_rate_types_default_idx` (partial unique)
+- **P2-1** ✅ Redis 7.0.15 instalado via `apt install redis-server`, extension `php8.4-redis` disponible. `.env`:
+  - `CACHE_STORE=redis` (antes: `database`)
+  - `QUEUE_CONNECTION=redis` (antes: `database`)
+  - `REDIS_CLIENT=phpredis` (extensión nativa)
+  - Test `cache()->put('test', 'redis-works')` retorna el valor, confirmando uso de Redis.
+  - Backups: `.env.bak.1783810306`, `.env.bak2.1783810348` en el VPS.
+
+**Resultado:** App health `HTTP/2 200` post-cambio. Tiempo total: ~10 min. Sin downtime.
+
+**Pendientes (código local sin deploy aún):**
+- P2-3 TenantReferenceCache para payment_methods, price_lists, exchange_rates
+- P2-4 Fix N+1 en AdminTransferService::index()
+- P2-5 Refactor DashboardSummaryService a query única
+- P2-6 AssignRequestId + SlowRequestLogger middlewares
+- P2-7 PerformanceProbe JSON estructurado
+- P2-8 Structured JSON logging channel
+- P2-10 Partial unique indexes (ya hecho en P2-2)
+
+---
 
 ### 2026-07-11 — P1 (COMPLETO: 12/12 items, score +1.2 a ~8.0/10)
 

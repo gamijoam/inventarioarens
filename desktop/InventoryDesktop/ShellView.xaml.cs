@@ -1,8 +1,11 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Threading;
 using System.Windows.Media;
+using System.Windows.Threading;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Modules.CashRegister;
@@ -12,6 +15,7 @@ using InventoryDesktop.Modules.InventoryCenter;
 using InventoryDesktop.Modules.InventoryTransfers;
 using InventoryDesktop.Modules.POS;
 using InventoryDesktop.Modules.Sync;
+using MaterialDesignThemes.Wpf;
 
 namespace InventoryDesktop;
 
@@ -24,6 +28,8 @@ public partial class ShellView : UserControl
     private readonly CustomersViewModel customersViewModel;
     private readonly PosViewModel posViewModel;
     private bool initialSyncPromptShown;
+
+    public ObservableCollection<ModuleCardInfo> ModuleCards { get; } = BuildModuleCards();
 
     public ShellView(DesktopSession session)
     {
@@ -60,10 +66,46 @@ public partial class ShellView : UserControl
         };
     }
 
-    private void Home_Click(object sender, RoutedEventArgs e)
+    private static ObservableCollection<ModuleCardInfo> BuildModuleCards()
     {
-        ShowHome();
+        return new ObservableCollection<ModuleCardInfo>
+        {
+            new("POS", "Punto de venta", "Venta rapida, carrito, caja y metodos de pago.",
+                PackIconKind.PointOfSale, Color.FromRgb(0x4D, 0x35, 0xFF), nameof(Pos_Click)),
+
+            new("Centro de Inventario", "Productos y stock", "Productos, stock, seriales, precios y detalle.",
+                PackIconKind.PackageVariantClosed, Color.FromRgb(0x0E, 0xA5, 0xA4), nameof(InventoryCenter_Click)),
+
+            new("Entradas y salidas", "Movimientos", "Movimientos operativos de productos y seriales.",
+                PackIconKind.SwapHorizontal, Color.FromRgb(0x25, 0x63, 0xEB), nameof(InventoryMovements_Click)),
+
+            new("Traslados", "Logistica", "Guias, despacho y recepcion logistica.",
+                PackIconKind.TruckCargoContainer, Color.FromRgb(0x16, 0xA3, 0x4A), nameof(InventoryTransfers_Click)),
+
+            new("Listas de precio", "Precios", "Detal, mayor, tecnico y reglas de cobro.",
+                PackIconKind.TagMultiple, Color.FromRgb(0x7C, 0x3A, 0xED), nameof(PriceLists_Click)),
+
+            new("Tasas", "BCV y paralelo", "BCV, paralelo y tasas vigentes sincronizadas.",
+                PackIconKind.CashSync, Color.FromRgb(0x08, 0x91, 0xB2), nameof(CurrencyRates_Click)),
+
+            new("Caja", "Apertura y cierre", "Aperturas, movimientos y cierre de caja.",
+                PackIconKind.CashRegister, Color.FromRgb(0xF5, 0x9E, 0x0B), nameof(CashRegister_Click)),
+
+            new("Clientes", "CRM", "Datos fiscales, contacto e historial POS.",
+                PackIconKind.AccountGroupOutline, Color.FromRgb(0x14, 0xB8, 0xA6), nameof(Customers_Click)),
+
+            new("Sincronizacion", "Worker local", "Estado, inicio y parada del worker local-nube.",
+                PackIconKind.CloudSyncOutline, Color.FromRgb(0x63, 0x66, 0xF1), nameof(Sync_Click), IsHidden: true),
+
+            new("Reportes", "Pronto", "Indicadores, ventas, inventario y finanzas.",
+                PackIconKind.ChartLine, Color.FromRgb(0xDC, 0x26, 0x26), "", IsComingSoon: true),
+
+            new("Configuracion", "Pronto", "Usuarios, permisos, empresa y parametros.",
+                PackIconKind.CogOutline, Color.FromRgb(0x47, 0x55, 0x69), "", IsComingSoon: true),
+        };
     }
+
+    private void Home_Click(object sender, RoutedEventArgs e) => ShowHome();
 
     private async void RefreshHome_Click(object sender, RoutedEventArgs e)
     {
@@ -72,10 +114,7 @@ public partial class ShellView : UserControl
         ShowHome();
     }
 
-    private async void RunSyncNow_Click(object sender, RoutedEventArgs e)
-    {
-        await RunSyncForCurrentTenantAsync();
-    }
+    private async void RunSyncNow_Click(object sender, RoutedEventArgs e) => await RunSyncForCurrentTenantAsync();
 
     private async Task RunSyncForCurrentTenantAsync()
     {
@@ -85,8 +124,7 @@ public partial class ShellView : UserControl
         SyncStatusDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
         ShowInitialSyncNotice(
             "Sincronizando esta empresa",
-            "Estamos enviando y descargando cambios para dejar esta instalacion lista. Puedes esperar unos segundos y luego abrir el modulo."
-        );
+            "Estamos enviando y descargando cambios para dejar esta instalacion lista. Puedes esperar unos segundos y luego abrir el modulo.");
 
         try
         {
@@ -142,90 +180,59 @@ public partial class ShellView : UserControl
         return "La empresa sigue pendiente de sincronizacion inicial. Revisa la URL/token de nube o vuelve a intentar.";
     }
 
+    private void ModuleCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ModuleCardInfo card }) return;
+        if (!card.IsClickable) return;
+
+        var method = GetType().GetMethod(card.ClickHandler, BindingFlags.Instance | BindingFlags.NonPublic);
+        method?.Invoke(this, new object?[] { this, RoutedEventArgs.Empty });
+    }
+
     private async void InventoryCenter_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeInventoryCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowInventoryCenter();
         await inventoryCenterViewModel.LoadAsync();
     }
 
     private async void InventoryMovements_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeMovementsCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowInventoryMovements();
         await inventoryMovementsViewModel.LoadAsync();
     }
 
     private async void PriceLists_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomePriceListsCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowPriceLists();
         await PriceListsContent.LoadAsync();
     }
 
     private async void CurrencyRates_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeCurrencyCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowCurrencyRates();
         await CurrencyRatesContent.LoadAsync();
     }
 
     private async void InventoryTransfers_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeTransfersCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowInventoryTransfers();
         await TransferReceptionContent.LoadAsync();
     }
 
     private async void CashRegister_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeCashCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowCashRegister();
         await cashRegisterViewModel.LoadAsync();
     }
 
     private async void Customers_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeCustomersCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowCustomers();
         await customersViewModel.LoadAsync();
     }
 
     private async void Pos_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomePosCard.IsEnabled)
-        {
-            return;
-        }
-
         using PerformanceTrace trace = PerformanceTrace.Start("Abrir módulo POS", 500);
         await posViewModel.InitializeAsync();
         if (posViewModel.SelectedCashRegisterSession?.HasPhysicalRegister != true)
@@ -237,7 +244,7 @@ public partial class ShellView : UserControl
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
-            if (result == MessageBoxResult.Yes && HomeCashCard.IsEnabled)
+            if (result == MessageBoxResult.Yes && ModuleHasPermission("Caja"))
             {
                 ShowCashRegister();
                 await cashRegisterViewModel.LoadAsync();
@@ -255,11 +262,6 @@ public partial class ShellView : UserControl
 
     private async void Sync_Click(object sender, RoutedEventArgs e)
     {
-        if (!HomeSyncCard.IsEnabled)
-        {
-            return;
-        }
-
         ShowSync();
         await SyncWorkerContent.LoadAsync();
     }
@@ -271,150 +273,62 @@ public partial class ShellView : UserControl
         BackToModulesButton.Visibility = Visibility.Collapsed;
         ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Visible;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        HideAllModules();
     }
 
     private void ShowInventoryCenter()
     {
-        SectionTitle.Text = "Centro de Inventario";
-        SectionSubtitle.Text = "Datos reales desde el servidor";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Visible;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Centro de Inventario", "Datos reales desde el servidor", InventoryCenterContent);
     }
 
     private void ShowInventoryMovements()
     {
-        SectionTitle.Text = "Entradas y salidas";
-        SectionSubtitle.Text = "Registra movimientos reales de stock por producto";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Visible;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Entradas y salidas", "Registra movimientos reales de stock por producto", InventoryMovementsContent);
     }
 
     private void ShowPriceLists()
     {
-        SectionTitle.Text = "Listas de precio";
-        SectionSubtitle.Text = "Configura precios para detal, mayor, técnico y futuras ventas POS";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Visible;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Listas de precio", "Configura precios para detal, mayor, técnico y futuras ventas POS", PriceListsContent);
     }
 
     private void ShowCurrencyRates()
     {
-        SectionTitle.Text = "Tasas";
-        SectionSubtitle.Text = "Consulta tasas vigentes sincronizadas";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Visible;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Tasas", "Consulta tasas vigentes sincronizadas", CurrencyRatesContent);
     }
 
     private void ShowInventoryTransfers()
     {
-        SectionTitle.Text = "Traslados";
-        SectionSubtitle.Text = "Recepcion logistica y guia de traslado";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Visible;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Traslados", "Recepcion logistica y guia de traslado", TransferReceptionContent);
     }
 
     private void ShowCashRegister()
     {
-        SectionTitle.Text = "Caja";
-        SectionSubtitle.Text = "Apertura y control operativo para POS";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Visible;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Caja", "Apertura y control operativo para POS", CashRegisterContent);
     }
 
     private void ShowCustomers()
     {
-        SectionTitle.Text = "Clientes";
-        SectionSubtitle.Text = "Datos fiscales, contacto e historial POS";
-        BackToModulesButton.Visibility = Visibility.Visible;
-        ShellHeader.Visibility = Visibility.Visible;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Visible;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
-        PosContent.Visibility = Visibility.Collapsed;
+        ShowModule("Clientes", "Datos fiscales, contacto e historial POS", CustomersContent);
     }
 
     private void ShowSync()
     {
-        SectionTitle.Text = "Sincronizacion";
-        SectionSubtitle.Text = "Worker local-nube";
+        ShowModule("Sincronizacion", "Worker local-nube", SyncWorkerContent);
+    }
+
+    private void ShowModule(string title, string subtitle, FrameworkElement moduleContent)
+    {
+        SectionTitle.Text = title;
+        SectionSubtitle.Text = subtitle;
         BackToModulesButton.Visibility = Visibility.Visible;
         ShellHeader.Visibility = Visibility.Visible;
         HomeContent.Visibility = Visibility.Collapsed;
+        HideAllModules();
+        moduleContent.Visibility = Visibility.Visible;
+    }
+
+    private void HideAllModules()
+    {
         InventoryCenterContent.Visibility = Visibility.Collapsed;
         InventoryMovementsContent.Visibility = Visibility.Collapsed;
         PriceListsContent.Visibility = Visibility.Collapsed;
@@ -422,22 +336,14 @@ public partial class ShellView : UserControl
         TransferReceptionContent.Visibility = Visibility.Collapsed;
         CashRegisterContent.Visibility = Visibility.Collapsed;
         CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Visible;
+        SyncWorkerContent.Visibility = Visibility.Collapsed;
         PosContent.Visibility = Visibility.Collapsed;
     }
 
     private void ShowPos()
     {
         ShellHeader.Visibility = Visibility.Collapsed;
-        HomeContent.Visibility = Visibility.Collapsed;
-        InventoryCenterContent.Visibility = Visibility.Collapsed;
-        InventoryMovementsContent.Visibility = Visibility.Collapsed;
-        PriceListsContent.Visibility = Visibility.Collapsed;
-        CurrencyRatesContent.Visibility = Visibility.Collapsed;
-        TransferReceptionContent.Visibility = Visibility.Collapsed;
-        CashRegisterContent.Visibility = Visibility.Collapsed;
-        CustomersContent.Visibility = Visibility.Collapsed;
-        SyncWorkerContent.Visibility = Visibility.Collapsed;
+        HideAllModules();
         PosContent.Visibility = Visibility.Visible;
         PosContent.Focus();
         Keyboard.Focus(PosContent);
@@ -449,27 +355,38 @@ public partial class ShellView : UserControl
 
     private void ConfigureModulePermissions()
     {
-        bool canUsePos = session.HasAnyPermission("pos.view", "pos.checkout");
-        bool canViewInventory = session.HasPermission("products.view");
-        bool canMoveInventory = session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update");
-        bool canManagePrices = session.HasPermission("products.update");
-        bool canViewCurrency = session.HasPermission("currency.view");
-        bool canUseTransfers = session.HasAnyPermission("inventory_transfers.view", "inventory_transfers.receive");
-        bool canUseCashRegister = session.HasAnyPermission("cash_register.view", "cash_register.open");
-        bool canUseCustomers = session.HasPermission("customers.view");
-        bool canUseSync = session.HasAnyPermission("sync.view", "sync.manage") || session.HasAnyPermission("cash_register.view", "products.view");
+        var permissions = new Dictionary<string, (bool CanAccess, string DeniedText)>
+        {
+            ["POS"] = (session.HasAnyPermission("pos.view", "pos.checkout"), "Sin permiso POS"),
+            ["Centro de Inventario"] = (session.HasPermission("products.view"), "Sin permiso de inventario"),
+            ["Entradas y salidas"] = (session.HasAnyPermission("product_entries.create", "product_exits.create", "products.update"), "Sin permiso de movimientos"),
+            ["Listas de precio"] = (session.HasPermission("products.update"), "Sin permiso de precios"),
+            ["Tasas"] = (session.HasPermission("currency.view"), "Sin permiso de tasas"),
+            ["Traslados"] = (session.HasAnyPermission("inventory_transfers.view", "inventory_transfers.receive"), "Sin permiso de traslados"),
+            ["Caja"] = (session.HasAnyPermission("cash_register.view", "cash_register.open"), "Sin permiso de caja"),
+            ["Clientes"] = (session.HasPermission("customers.view"), "Sin permiso de clientes"),
+            ["Sincronizacion"] = (session.HasAnyPermission("sync.view", "sync.manage") || session.HasAnyPermission("cash_register.view", "products.view"), "Sin permiso de sincronizacion"),
+        };
 
-        SetCardAccess(HomePosCard, canUsePos, "Sin permiso POS");
-        SetCardAccess(HomeInventoryCard, canViewInventory, "Sin permiso de inventario");
-        SetCardAccess(HomeMovementsCard, canMoveInventory, "Sin permiso de movimientos");
-        SetCardAccess(HomePriceListsCard, canManagePrices, "Sin permiso de precios");
-        SetCardAccess(HomeCurrencyCard, canViewCurrency, "Sin permiso de tasas");
-        SetCardAccess(HomeTransfersCard, canUseTransfers, "Sin permiso de traslados");
-        SetCardAccess(HomeCashCard, canUseCashRegister, "Sin permiso de caja");
-        SetCardAccess(HomeCustomersCard, canUseCustomers, "Sin permiso de clientes");
-        SetCardAccess(HomeSyncCard, canUseSync, "Sin permiso de sincronizacion");
+        foreach (var card in ModuleCards)
+        {
+            if (card.IsComingSoon || card.IsHidden) continue;
+
+            if (permissions.TryGetValue(card.Title, out var perm))
+            {
+                card.UpdateAccess(perm.CanAccess, perm.DeniedText);
+            }
+        }
+
+        bool canUseSync = permissions["Sincronizacion"].CanAccess;
         RunSyncButton.IsEnabled = canUseSync;
         RunSyncButton.ToolTip = canUseSync ? "Ejecuta un ciclo manual para esta empresa." : "Sin permiso de sincronizacion";
+    }
+
+    private bool ModuleHasPermission(string title)
+    {
+        var card = ModuleCards.FirstOrDefault(c => c.Title == title);
+        return card?.IsClickable ?? false;
     }
 
     private async Task RefreshSyncIndicatorAsync()
@@ -592,11 +509,86 @@ public partial class ShellView : UserControl
             await RunSyncForCurrentTenantAsync();
         }
     }
+}
 
-    private static void SetCardAccess(Button cardButton, bool canAccess, string deniedText)
+public sealed class ModuleCardInfo : INotifyPropertyChanged
+{
+    private bool isClickable;
+    private string toolTip = string.Empty;
+    private double opacity = 1.0;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string Title { get; }
+    public string Subtitle { get; }
+    public string Description { get; }
+    public PackIconKind Icon { get; }
+    public Brush IconBrush { get; }
+    public string ClickHandler { get; }
+    public bool IsComingSoon { get; }
+    public bool IsHidden { get; }
+
+    public Visibility ComingSoonVisibility => IsComingSoon ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CardVisibility => IsHidden ? Visibility.Collapsed : Visibility.Visible;
+
+    public bool IsClickable
     {
-        cardButton.IsEnabled = canAccess;
-        cardButton.ToolTip = canAccess ? null : deniedText;
-        cardButton.Opacity = canAccess ? 1 : 0.55;
+        get => isClickable;
+        private set
+        {
+            if (isClickable == value) return;
+            isClickable = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsClickable)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Opacity)));
+        }
+    }
+
+    public string ToolTip
+    {
+        get => toolTip;
+        private set
+        {
+            if (toolTip == value) return;
+            toolTip = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolTip)));
+        }
+    }
+
+    public double Opacity
+    {
+        get => IsClickable ? opacity : 0.55;
+        private set
+        {
+            if (Math.Abs(opacity - value) < 0.01) return;
+            opacity = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Opacity)));
+        }
+    }
+
+    public ModuleCardInfo(
+        string title,
+        string subtitle,
+        string description,
+        PackIconKind icon,
+        Color iconColor,
+        string clickHandler,
+        bool IsComingSoon = false,
+        bool IsHidden = false)
+    {
+        Title = title;
+        Subtitle = subtitle;
+        Description = description;
+        Icon = icon;
+        IconBrush = new SolidColorBrush(iconColor);
+        ClickHandler = clickHandler;
+        this.IsComingSoon = IsComingSoon;
+        this.IsHidden = IsHidden;
+        isClickable = !IsComingSoon && !IsHidden && !string.IsNullOrEmpty(clickHandler);
+    }
+
+    public void UpdateAccess(bool canAccess, string deniedText)
+    {
+        IsClickable = canAccess;
+        ToolTip = canAccess ? string.Empty : deniedText;
     }
 }

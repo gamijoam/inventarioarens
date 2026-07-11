@@ -227,7 +227,7 @@
                         </DockPanel>
                     </Border>
 
-                    <ItemsControl ItemsSource="{Binding ModuleCards}">
+                    <ItemsControl ItemsSource="{Binding ModuleCards, RelativeSource={RelativeSource AncestorType=UserControl}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
