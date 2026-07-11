@@ -351,17 +351,18 @@ class SyncEventApplier
         // Reemplazar items para que coincidan exactamente con el payload.
         foreach ($payload['items'] ?? [] as $itemPayload) {
             $product = $this->productBySku($tenant, $this->requiredString($itemPayload, 'sku'));
-            $sourceItemId = (int) ($itemPayload['id'] ?? 0);
-            $keys = $sourceItemId > 0
-                ? ['tenant_id' => $tenant->id, 'id' => $sourceItemId]
-                : ['tenant_id' => $tenant->id, 'inventory_transfer_id' => $transferId, 'product_id' => $product->id];
-
+            // Upsert por (tenant_id, inventory_transfer_id, product_id) en lugar
+            // del id local: el id del local puede chocar con data existente en
+            // la nube (seed u otros locales). La llave semantica es
+            // "un item por producto por traslado" y eso es lo que usamos.
             $this->upsertAndGetId(
                 'inventory_transfer_items',
-                $keys,
                 [
+                    'tenant_id' => $tenant->id,
                     'inventory_transfer_id' => $transferId,
                     'product_id' => $product->id,
+                ],
+                [
                     'quantity' => $itemPayload['quantity'] ?? 0,
                     'requested_quantity' => $itemPayload['requested_quantity'] ?? ($itemPayload['quantity'] ?? 0),
                     'prepared_quantity' => $itemPayload['prepared_quantity'] ?? ($itemPayload['quantity'] ?? 0),
