@@ -312,40 +312,43 @@ class SyncEventApplier
         $sourceId = (int) ($payload['id'] ?? 0);
         $now = now();
 
-        $transferId = $sourceId > 0
-            ? $this->upsertAndGetId(
-                'inventory_transfers',
-                ['tenant_id' => $tenant->id, 'id' => $sourceId],
-                [
-                    'sequence' => $sourceId,
-                    'document_number' => $this->requiredString($payload, 'document_number'),
-                    'guide_number' => $this->nullableString($payload['guide_number'] ?? null),
-                    'type' => $this->nullableString($payload['type'] ?? null) ?? 'internal',
-                    'validation_mode' => $this->nullableString($payload['validation_mode'] ?? null) ?? 'simple',
-                    'from_warehouse_id' => $fromWarehouse->id,
-                    'to_warehouse_id' => $toWarehouse->id,
-                    'status' => $this->nullableString($payload['status'] ?? null) ?? 'completed',
-                    'reason' => $this->nullableString($payload['reason'] ?? null),
-                    'reference' => $this->nullableString($payload['reference'] ?? null),
-                    'notes' => $this->nullableString($payload['notes'] ?? null),
-                    'resolution_status' => $this->nullableString($payload['resolution_status'] ?? null) ?? 'unresolved',
-                    'processed_at' => isset($payload['processed_at']) ? Carbon::parse($payload['processed_at']) : null,
-                    'prepared_at' => isset($payload['prepared_at']) ? Carbon::parse($payload['prepared_at']) : null,
-                    'dispatched_at' => isset($payload['dispatched_at']) ? Carbon::parse($payload['dispatched_at']) : null,
-                    'received_at' => isset($payload['received_at']) ? Carbon::parse($payload['received_at']) : null,
-                    'cancelled_at' => isset($payload['cancelled_at']) ? Carbon::parse($payload['cancelled_at']) : null,
-                    'resolved_at' => isset($payload['resolved_at']) ? Carbon::parse($payload['resolved_at']) : null,
-                    'updated_at' => $now,
-                ]
-            )
-            : 0;
+        // Upsert por (tenant_id, document_number): mas estable que el id local
+        // porque el cloud puede tener ya una fila con el mismo id (de seeds u
+        // otros locales) y choca el unique constraint. El document_number es
+        // semanticamente unico por tenant.
+        $transferId = $this->upsertAndGetId(
+            'inventory_transfers',
+            [
+                'tenant_id' => $tenant->id,
+                'document_number' => $this->requiredString($payload, 'document_number'),
+            ],
+            [
+                'sequence' => $sourceId > 0 ? $sourceId : DB::table('inventory_transfers')->where('tenant_id', $tenant->id)->max('sequence') + 1,
+                'guide_number' => $this->nullableString($payload['guide_number'] ?? null),
+                'type' => $this->nullableString($payload['type'] ?? null) ?? 'internal',
+                'validation_mode' => $this->nullableString($payload['validation_mode'] ?? null) ?? 'simple',
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'status' => $this->nullableString($payload['status'] ?? null) ?? 'completed',
+                'reason' => $this->nullableString($payload['reason'] ?? null),
+                'reference' => $this->nullableString($payload['reference'] ?? null),
+                'notes' => $this->nullableString($payload['notes'] ?? null),
+                'resolution_status' => $this->nullableString($payload['resolution_status'] ?? null) ?? 'unresolved',
+                'processed_at' => isset($payload['processed_at']) ? Carbon::parse($payload['processed_at']) : null,
+                'prepared_at' => isset($payload['prepared_at']) ? Carbon::parse($payload['prepared_at']) : null,
+                'dispatched_at' => isset($payload['dispatched_at']) ? Carbon::parse($payload['dispatched_at']) : null,
+                'received_at' => isset($payload['received_at']) ? Carbon::parse($payload['received_at']) : null,
+                'cancelled_at' => isset($payload['cancelled_at']) ? Carbon::parse($payload['cancelled_at']) : null,
+                'resolved_at' => isset($payload['resolved_at']) ? Carbon::parse($payload['resolved_at']) : null,
+                'updated_at' => $now,
+            ]
+        );
 
         if ($transferId <= 0) {
             return 'ignored';
         }
 
         // Reemplazar items para que coincidan exactamente con el payload.
-        $sourceItemIds = [];
         foreach ($payload['items'] ?? [] as $itemPayload) {
             $product = $this->productBySku($tenant, $this->requiredString($itemPayload, 'sku'));
             $sourceItemId = (int) ($itemPayload['id'] ?? 0);
@@ -353,7 +356,7 @@ class SyncEventApplier
                 ? ['tenant_id' => $tenant->id, 'id' => $sourceItemId]
                 : ['tenant_id' => $tenant->id, 'inventory_transfer_id' => $transferId, 'product_id' => $product->id];
 
-            $itemId = $this->upsertAndGetId(
+            $this->upsertAndGetId(
                 'inventory_transfer_items',
                 $keys,
                 [
@@ -367,10 +370,6 @@ class SyncEventApplier
                     'updated_at' => $now,
                 ]
             );
-
-            if ($sourceItemId > 0) {
-                $sourceItemIds[] = $sourceItemId;
-            }
         }
 
         return 'applied';
