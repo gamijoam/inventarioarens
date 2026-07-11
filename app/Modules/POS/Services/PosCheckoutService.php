@@ -34,6 +34,7 @@ class PosCheckoutService
         private readonly AccountsReceivableService $accountsReceivable,
         private readonly InventoryMovementService $inventory,
         private readonly SyncOutboxService $syncOutbox,
+        private readonly \App\Support\Cache\TenantReferenceCache $referenceCache,
     ) {}
 
     public function checkout(
@@ -422,17 +423,22 @@ class PosCheckoutService
 
     private function priceListsForItems(array $items)
     {
+        $tenantId = app(\App\Support\Tenancy\TenantManager::class)->current()?->id;
         $defaultPriceList = null;
         $priceListIds = collect($items)
-            ->map(function (array $item) use (&$defaultPriceList): ?int {
+            ->map(function (array $item) use (&$defaultPriceList, $tenantId): ?int {
                 if (! empty($item['price_list_id'])) {
                     return (int) $item['price_list_id'];
                 }
 
-                $defaultPriceList ??= PriceList::query()
-                    ->where('is_default', true)
-                    ->where('is_active', true)
-                    ->first();
+                if ($tenantId && ! $defaultPriceList) {
+                    $defaultPriceList = $this->referenceCache->defaultPriceList($tenantId);
+                } elseif (! $defaultPriceList) {
+                    $defaultPriceList = PriceList::query()
+                        ->where('is_default', true)
+                        ->where('is_active', true)
+                        ->first();
+                }
 
                 return $defaultPriceList?->id;
             })
@@ -442,6 +448,13 @@ class PosCheckoutService
 
         if ($priceListIds->isEmpty()) {
             return collect();
+        }
+
+        if ($tenantId) {
+            $cached = $this->referenceCache->activePriceLists($tenantId, $priceListIds->all());
+            if ($cached->isNotEmpty()) {
+                return $cached;
+            }
         }
 
         return PriceList::query()

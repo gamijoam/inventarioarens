@@ -100,6 +100,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('inventory.transfer-operation', [InventoryPolicy::class, 'transfer']);
 
         $this->configureRateLimiters();
+
+        \App\Support\Cache\TenantReferenceCacheInvalidator::register();
     }
 
     private function configureRateLimiters(): void

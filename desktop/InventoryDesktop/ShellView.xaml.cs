@@ -186,7 +186,7 @@ public partial class ShellView : UserControl
         if (!card.IsClickable) return;
 
         var method = GetType().GetMethod(card.ClickHandler, BindingFlags.Instance | BindingFlags.NonPublic);
-        method?.Invoke(this, new object?[] { this, RoutedEventArgs.Empty });
+        method?.Invoke(this, new object?[] { this, new RoutedEventArgs() });
     }
 
     private async void InventoryCenter_Click(object sender, RoutedEventArgs e)
