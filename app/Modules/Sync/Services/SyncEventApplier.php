@@ -37,6 +37,8 @@ class SyncEventApplier
         'payment_method.created',
         'cash_register.updated',
         'cash_register.created',
+        'inventory_transfer.updated',
+        'inventory_transfer.created',
         'pos.order.pending',
         'pos.order.payment_added',
         'pos.order.paid',
@@ -147,6 +149,7 @@ class SyncEventApplier
             'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
             'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
             'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
+            'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
             'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
             default => 'ignored',
         };
@@ -298,6 +301,77 @@ class SyncEventApplier
                 'updated_at' => $now,
             ]
         );
+
+        return 'applied';
+    }
+
+    private function applyInventoryTransfer(Tenant $tenant, array $payload): string
+    {
+        $fromWarehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'from_warehouse_code'));
+        $toWarehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'to_warehouse_code'));
+        $sourceId = (int) ($payload['id'] ?? 0);
+        $now = now();
+
+        $transferId = $sourceId > 0
+            ? $this->upsertAndGetId(
+                'inventory_transfers',
+                ['tenant_id' => $tenant->id, 'id' => $sourceId],
+                [
+                    'sequence' => $sourceId,
+                    'document_number' => $this->requiredString($payload, 'document_number'),
+                    'guide_number' => $this->nullableString($payload['guide_number'] ?? null),
+                    'type' => $this->nullableString($payload['type'] ?? null) ?? 'internal',
+                    'validation_mode' => $this->nullableString($payload['validation_mode'] ?? null) ?? 'simple',
+                    'from_warehouse_id' => $fromWarehouse->id,
+                    'to_warehouse_id' => $toWarehouse->id,
+                    'status' => $this->nullableString($payload['status'] ?? null) ?? 'completed',
+                    'reason' => $this->nullableString($payload['reason'] ?? null),
+                    'reference' => $this->nullableString($payload['reference'] ?? null),
+                    'notes' => $this->nullableString($payload['notes'] ?? null),
+                    'resolution_status' => $this->nullableString($payload['resolution_status'] ?? null) ?? 'unresolved',
+                    'processed_at' => isset($payload['processed_at']) ? Carbon::parse($payload['processed_at']) : null,
+                    'prepared_at' => isset($payload['prepared_at']) ? Carbon::parse($payload['prepared_at']) : null,
+                    'dispatched_at' => isset($payload['dispatched_at']) ? Carbon::parse($payload['dispatched_at']) : null,
+                    'received_at' => isset($payload['received_at']) ? Carbon::parse($payload['received_at']) : null,
+                    'cancelled_at' => isset($payload['cancelled_at']) ? Carbon::parse($payload['cancelled_at']) : null,
+                    'resolved_at' => isset($payload['resolved_at']) ? Carbon::parse($payload['resolved_at']) : null,
+                    'updated_at' => $now,
+                ]
+            )
+            : 0;
+
+        if ($transferId <= 0) {
+            return 'ignored';
+        }
+
+        // Reemplazar items para que coincidan exactamente con el payload.
+        $sourceItemIds = [];
+        foreach ($payload['items'] ?? [] as $itemPayload) {
+            $product = $this->productBySku($tenant, $this->requiredString($itemPayload, 'sku'));
+            $sourceItemId = (int) ($itemPayload['id'] ?? 0);
+            $keys = $sourceItemId > 0
+                ? ['tenant_id' => $tenant->id, 'id' => $sourceItemId]
+                : ['tenant_id' => $tenant->id, 'inventory_transfer_id' => $transferId, 'product_id' => $product->id];
+
+            $itemId = $this->upsertAndGetId(
+                'inventory_transfer_items',
+                $keys,
+                [
+                    'inventory_transfer_id' => $transferId,
+                    'product_id' => $product->id,
+                    'quantity' => $itemPayload['quantity'] ?? 0,
+                    'requested_quantity' => $itemPayload['requested_quantity'] ?? ($itemPayload['quantity'] ?? 0),
+                    'prepared_quantity' => $itemPayload['prepared_quantity'] ?? ($itemPayload['quantity'] ?? 0),
+                    'received_quantity' => $itemPayload['received_quantity'] ?? ($itemPayload['quantity'] ?? 0),
+                    'difference_quantity' => $itemPayload['difference_quantity'] ?? 0,
+                    'updated_at' => $now,
+                ]
+            );
+
+            if ($sourceItemId > 0) {
+                $sourceItemIds[] = $sourceItemId;
+            }
+        }
 
         return 'applied';
     }

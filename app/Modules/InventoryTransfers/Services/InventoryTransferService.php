@@ -140,7 +140,11 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+
+            $this->syncCatalog->inventoryTransferCreated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -304,7 +308,10 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $this->syncCatalog->inventoryTransferUpdated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -389,7 +396,10 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $this->syncCatalog->inventoryTransferUpdated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -550,7 +560,10 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+            $this->syncCatalog->inventoryTransferUpdated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -657,13 +670,16 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load([
+            $transfer = $transfer->refresh()->load([
                 'fromWarehouse',
                 'toWarehouse',
                 'guide.checklists.items',
                 'items.product',
                 'canceller',
             ]);
+            $this->syncCatalog->inventoryTransferUpdated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -872,7 +888,7 @@ class InventoryTransferService
                 ],
             );
 
-            return $transfer->refresh()->load([
+            $transfer = $transfer->refresh()->load([
                 'fromWarehouse',
                 'toWarehouse',
                 'guide.checklists.items',
@@ -880,6 +896,9 @@ class InventoryTransferService
                 'items.resolver',
                 'resolver',
             ]);
+            $this->syncCatalog->inventoryTransferUpdated($transfer);
+
+            return $transfer;
         });
     }
 
@@ -969,7 +988,10 @@ class InventoryTransferService
             ],
         );
 
-        return $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
+        $this->syncCatalog->inventoryTransferCreated($transfer);
+
+        return $transfer;
     }
 
     private function validateItems(Warehouse $fromWarehouse, array $items): void

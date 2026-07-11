@@ -1363,6 +1363,80 @@ class InventoryTransferApiTest extends TestCase
         $this->assertContains($units[0]->serial_number, $unitEvents->pluck('serial_number')->all());
     }
 
+    /**
+     * Regresion: el evento inventory_transfer.created/.updated DEBE emitirse al
+     * outbox ademas de los stock_movements. Sin este evento, la nube nunca
+     * recibe la fila padre del traslado (solo los hijos) y la UI web muestra
+     * "0 traslados" aunque los stock_movements esten aplicados.
+     */
+    public function test_create_and_state_changes_emit_inventory_transfer_sync_outbox_events(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-ITR-SYNC', Product::TRACKING_SERIALIZED);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.dispatch',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $movement = $this->stock($tenant, $fromWarehouse, $product, $user, 2);
+        $units = $this->units($tenant, $fromWarehouse, $product, $movement->id, '866100', 2);
+
+        $transferId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-transfers', [
+                'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'product_unit_ids' => [$units[0]->id],
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $createdEvent = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'inventory_transfer.created')
+            ->where('aggregate_type', 'inventory_transfer')
+            ->where('aggregate_id', $transferId)
+            ->first();
+
+        $this->assertNotNull($createdEvent, 'Falta el evento inventory_transfer.created en el outbox tras crear el traslado (regresion: bug del 2026-07-10).');
+
+        $createdPayload = json_decode($createdEvent->payload, true);
+        $this->assertSame($fromWarehouse->code, $createdPayload['from_warehouse_code']);
+        $this->assertSame($toWarehouse->code, $createdPayload['to_warehouse_code']);
+        $this->assertSame(InventoryTransfer::STATUS_REQUESTED, $createdPayload['status']);
+        $this->assertCount(1, $createdPayload['items']);
+        $this->assertSame($product->sku, $createdPayload['items'][0]['sku']);
+
+        $itemId = InventoryTransfer::query()->findOrFail($transferId)->items()->firstOrFail()->id;
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
+                'items' => [['inventory_transfer_item_id' => $itemId, 'prepared_product_unit_ids' => [$units[0]->id]]],
+            ])
+            ->assertOk();
+
+        $preparedEvent = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'inventory_transfer.updated')
+            ->where('aggregate_id', $transferId)
+            ->orderByDesc('id')
+            ->first();
+
+        $this->assertNotNull($preparedEvent, 'Falta inventory_transfer.updated tras prepare.');
+        $this->assertSame(InventoryTransfer::STATUS_PREPARED, json_decode($preparedEvent->payload, true)['status']);
+    }
+
     public function test_cancel_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

@@ -5,6 +5,7 @@ namespace App\Modules\Sync\Services;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
@@ -131,6 +132,16 @@ class SyncCatalogOutboxService
         $this->recordStockMovement('stock_movement.created', $movement);
     }
 
+    public function inventoryTransferCreated(InventoryTransfer $transfer): void
+    {
+        $this->recordInventoryTransfer('inventory_transfer.created', $transfer);
+    }
+
+    public function inventoryTransferUpdated(InventoryTransfer $transfer): void
+    {
+        $this->recordInventoryTransfer('inventory_transfer.updated', $transfer);
+    }
+
     public function productUnitUpdated(ProductUnit $unit): void
     {
         $this->recordProductUnit('product_unit.updated', $unit);
@@ -251,6 +262,51 @@ class SyncCatalogOutboxService
                 'created_at' => $movement->created_at?->toISOString(),
             ],
             idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id),
+        );
+    }
+
+    private function recordInventoryTransfer(string $eventType, InventoryTransfer $transfer): void
+    {
+        $transfer->loadMissing([
+            'fromWarehouse:id,code,name',
+            'toWarehouse:id,code,name',
+            'items.product:id,sku',
+        ]);
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'inventory_transfer',
+            aggregateId: $transfer->id,
+            payload: [
+                'id' => $transfer->id,
+                'document_number' => $transfer->document_number,
+                'guide_number' => $transfer->guide_number,
+                'type' => $transfer->type,
+                'validation_mode' => $transfer->validation_mode,
+                'status' => $transfer->status,
+                'resolution_status' => $transfer->resolution_status,
+                'from_warehouse_code' => $transfer->fromWarehouse?->code,
+                'to_warehouse_code' => $transfer->toWarehouse?->code,
+                'reason' => $transfer->reason,
+                'reference' => $transfer->reference,
+                'notes' => $transfer->notes,
+                'processed_at' => $transfer->processed_at?->toISOString(),
+                'prepared_at' => $transfer->prepared_at?->toISOString(),
+                'dispatched_at' => $transfer->dispatched_at?->toISOString(),
+                'received_at' => $transfer->received_at?->toISOString(),
+                'cancelled_at' => $transfer->cancelled_at?->toISOString(),
+                'resolved_at' => $transfer->resolved_at?->toISOString(),
+                'items' => $transfer->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'sku' => $item->product?->sku,
+                    'quantity' => (string) $item->quantity,
+                    'requested_quantity' => $item->requested_quantity === null ? null : (string) $item->requested_quantity,
+                    'prepared_quantity' => $item->prepared_quantity === null ? null : (string) $item->prepared_quantity,
+                    'received_quantity' => $item->received_quantity === null ? null : (string) $item->received_quantity,
+                    'difference_quantity' => $item->difference_quantity === null ? null : (string) $item->difference_quantity,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'inventory_transfer', $transfer->id),
         );
     }
 
