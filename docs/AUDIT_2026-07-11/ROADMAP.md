@@ -80,6 +80,7 @@
 | P3-13 | Events faltantes: `sale.cancelled`, `cash.movement.created`, `payment_method.deactivated` | M | ✅ **2026-07-12** (parcial: `product_entry.created` y `product_exit.created` ya sincronizan correctamente; `inventory_transfer_request.{created,accepted,rejected,cancelled}` también cubiertos con handlers cloud + E2E 4/4 verde — ver commit `6322158`) |
 | P3-14 | Structured logs en módulo Sync (P4 sync audit) | S | ☐ |
 | P3-15 | `payload_hash` verification (P0-6) — mover a P0 si es prioritario | S | ☐ |
+| **NEW-2026-07-12** | **Backend Tenancy API: CRUD de empresas + attach/detach cross-tenant** (ver `docs/TENANCY_API.md`) | L | ✅ **2026-07-12** (8 endpoints nuevos, 6 permisos, 30 tests E2E) |
 
 ---
 
