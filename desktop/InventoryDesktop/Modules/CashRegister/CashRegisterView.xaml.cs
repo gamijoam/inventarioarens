@@ -10,6 +10,13 @@ public partial class CashRegisterView : UserControl
         InitializeComponent();
     }
 
+    public event EventHandler? BackToModulesRequested;
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        BackToModulesRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is CashRegisterViewModel viewModel)

@@ -50,6 +50,10 @@ public sealed class CashRegisterViewModel : ViewModelBase
 
     public ObservableCollection<CashRegisterMovementItem> Movements { get; } = new();
 
+    public ObservableCollection<SessionMetricCardItem> SessionMetricItems { get; } = new();
+
+    public ObservableCollection<MovementTimelineItem> MovementTimeline { get; } = new();
+
     public IReadOnlyList<string> CurrencyOptions { get; } = ["USD", "VES"];
 
     public IReadOnlyList<string> CashRegisterStatusOptions { get; } = ["active", "inactive"];
@@ -365,6 +369,8 @@ public sealed class CashRegisterViewModel : ViewModelBase
             await LoadWarehousesAsync();
             await LoadCashRegistersAsync();
             await LoadSessionsAsync();
+            LoadSessionMetrics();
+            LoadMovementTimeline();
             StatusMessage = "Caja lista para operar. Si no tienes caja abierta, abre una para entrar al POS.";
             IsStatusError = false;
         }
@@ -775,4 +781,97 @@ public sealed class CashRegisterViewModel : ViewModelBase
             .Where(movement => movement.Type == type)
             .Sum(movement => movement.AmountLocal ?? 0);
     }
+
+    public void LoadSessionMetrics()
+    {
+        SessionMetricItems.Clear();
+        SessionMetricItems.Add(new SessionMetricCardItem
+        {
+            Label = "Apertura",
+            Value = OpeningSummaryLabel,
+            IconKind = MaterialDesignThemes.Wpf.PackIconKind.CashPlus,
+            IconColor = new SolidColorBrush(Color.FromRgb(0x4D, 0x35, 0xFF))
+        });
+        SessionMetricItems.Add(new SessionMetricCardItem
+        {
+            Label = "Pagos POS",
+            Value = PosPaymentsSummaryLabel,
+            IconKind = MaterialDesignThemes.Wpf.PackIconKind.CreditCardCheckOutline,
+            IconColor = new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69))
+        });
+        SessionMetricItems.Add(new SessionMetricCardItem
+        {
+            Label = "Entradas",
+            Value = ManualInflowsSummaryLabel,
+            IconKind = MaterialDesignThemes.Wpf.PackIconKind.ArrowUpBoldCircleOutline,
+            IconColor = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8))
+        });
+        SessionMetricItems.Add(new SessionMetricCardItem
+        {
+            Label = "Salidas",
+            Value = ManualOutflowsSummaryLabel,
+            IconKind = MaterialDesignThemes.Wpf.PackIconKind.ArrowDownBoldCircleOutline,
+            IconColor = new SolidColorBrush(Color.FromRgb(0xB4, 0x53, 0x09))
+        });
+        SessionMetricItems.Add(new SessionMetricCardItem
+        {
+            Label = "Esperado",
+            Value = ExpectedSummaryLabel,
+            IconKind = MaterialDesignThemes.Wpf.PackIconKind.StarCircleOutline,
+            IconColor = new SolidColorBrush(Color.FromRgb(0x3B, 0x2C, 0xF6))
+        });
+    }
+
+    public void LoadMovementTimeline()
+    {
+        MovementTimeline.Clear();
+        foreach (var movement in Movements.OrderByDescending(m => m.CreatedAt))
+        {
+            bool isInflow = movement.Type == "inflow" || movement.Type == "pos_payment";
+            bool isOutflow = movement.Type == "outflow";
+            MovementTimeline.Add(new MovementTimelineItem
+            {
+                TypeLabel = movement.TypeLabel,
+                MethodLabel = movement.MethodLabel,
+                AmountLabel = movement.AmountLabel,
+                NotesLabel = movement.NotesLabel,
+                CreatedAtLabel = movement.CreatedAtLabel,
+                IconKind = isInflow
+                    ? MaterialDesignThemes.Wpf.PackIconKind.ArrowUpBold
+                    : isOutflow
+                        ? MaterialDesignThemes.Wpf.PackIconKind.ArrowDownBold
+                        : MaterialDesignThemes.Wpf.PackIconKind.SwapHorizontal,
+                IconBackground = new SolidColorBrush(isInflow
+                    ? Color.FromRgb(0x10, 0xB9, 0x81)
+                    : isOutflow
+                        ? Color.FromRgb(0xEF, 0x44, 0x44)
+                        : Color.FromRgb(0x4D, 0x35, 0xFF)),
+                AmountColor = new SolidColorBrush(isInflow
+                    ? Color.FromRgb(0x05, 0x96, 0x69)
+                    : isOutflow
+                        ? Color.FromRgb(0xB9, 0x1C, 0x1C)
+                        : Color.FromRgb(0x1E, 0x29, 0x3B))
+            });
+        }
+    }
+}
+
+public sealed class SessionMetricCardItem
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    public MaterialDesignThemes.Wpf.PackIconKind IconKind { get; set; }
+    public Brush IconColor { get; set; } = Brushes.Gray;
+}
+
+public sealed class MovementTimelineItem
+{
+    public string TypeLabel { get; set; } = "";
+    public string MethodLabel { get; set; } = "";
+    public string AmountLabel { get; set; } = "";
+    public string NotesLabel { get; set; } = "";
+    public string CreatedAtLabel { get; set; } = "";
+    public MaterialDesignThemes.Wpf.PackIconKind IconKind { get; set; }
+    public Brush IconBackground { get; set; } = Brushes.Gray;
+    public Brush AmountColor { get; set; } = Brushes.Gray;
 }

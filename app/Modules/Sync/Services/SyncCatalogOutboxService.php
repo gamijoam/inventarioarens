@@ -5,6 +5,8 @@ namespace App\Modules\Sync\Services;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
@@ -141,6 +143,87 @@ class SyncCatalogOutboxService
     public function inventoryTransferUpdated(InventoryTransfer $transfer): void
     {
         $this->recordInventoryTransfer('inventory_transfer.updated', $transfer);
+    }
+
+    public function inventoryTransferRequestCreated(InventoryTransferRequest $request): void
+    {
+        $request->loadMissing(['items']);
+
+        $this->outbox->record(
+            eventType: 'inventory_transfer_request.created',
+            aggregateType: 'inventory_transfer_request',
+            aggregateId: $request->id,
+            payload: $this->serializeTransferRequest($request),
+            idempotencyKey: $this->eventKey('inventory_transfer_request.created', 'inventory_transfer_request', $request->id, $request->updated_at),
+        );
+    }
+
+    public function inventoryTransferRequestAccepted(InventoryTransferRequest $request): void
+    {
+        $request->loadMissing(['items']);
+
+        $this->outbox->record(
+            eventType: 'inventory_transfer_request.accepted',
+            aggregateType: 'inventory_transfer_request',
+            aggregateId: $request->id,
+            payload: $this->serializeTransferRequest($request),
+            idempotencyKey: $this->eventKey('inventory_transfer_request.accepted', 'inventory_transfer_request', $request->id, $request->updated_at),
+        );
+    }
+
+    public function inventoryTransferRequestRejected(InventoryTransferRequest $request): void
+    {
+        $this->outbox->record(
+            eventType: 'inventory_transfer_request.rejected',
+            aggregateType: 'inventory_transfer_request',
+            aggregateId: $request->id,
+            payload: $this->serializeTransferRequest($request),
+            idempotencyKey: $this->eventKey('inventory_transfer_request.rejected', 'inventory_transfer_request', $request->id, $request->updated_at),
+        );
+    }
+
+    public function inventoryTransferRequestCancelled(InventoryTransferRequest $request): void
+    {
+        $this->outbox->record(
+            eventType: 'inventory_transfer_request.cancelled',
+            aggregateType: 'inventory_transfer_request',
+            aggregateId: $request->id,
+            payload: $this->serializeTransferRequest($request),
+            idempotencyKey: $this->eventKey('inventory_transfer_request.cancelled', 'inventory_transfer_request', $request->id, $request->updated_at),
+        );
+    }
+
+    private function serializeTransferRequest(InventoryTransferRequest $request): array
+    {
+        return [
+            'id' => $request->id,
+            'document_number' => $request->document_number,
+            'sequence' => $request->sequence,
+            'origin_tenant_id' => $request->origin_tenant_id,
+            'destination_tenant_id' => $request->destination_tenant_id,
+            'from_warehouse_id' => $request->from_warehouse_id,
+            'destination_warehouse_id' => $request->destination_warehouse_id,
+            'status' => $request->status,
+            'reason' => $request->reason,
+            'reference' => $request->reference,
+            'notes' => $request->notes,
+            'response_notes' => $request->response_notes,
+            'requested_by' => $request->requested_by,
+            'responded_by' => $request->responded_by,
+            'requested_at' => $request->requested_at?->toISOString(),
+            'responded_at' => $request->responded_at?->toISOString(),
+            'completed_at' => $request->completed_at?->toISOString(),
+            'items' => $request->items->map(fn (InventoryTransferRequestItem $item): array => [
+                'id' => $item->id,
+                'origin_product_id' => $item->origin_product_id,
+                'destination_product_id' => $item->destination_product_id,
+                'quantity' => (string) $item->quantity,
+                'product_unit_ids' => $item->product_unit_ids ?? [],
+                'serial_units' => $item->serial_units ?? [],
+                'out_stock_movement_id' => $item->out_stock_movement_id,
+                'in_stock_movement_id' => $item->in_stock_movement_id,
+            ])->values()->all(),
+        ];
     }
 
     public function productUnitUpdated(ProductUnit $unit): void

@@ -18,8 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryTransferRequestService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
-    {
+    public function __construct(
+        private readonly InventoryMovementService $inventory,
+        private readonly \App\Modules\Sync\Services\SyncCatalogOutboxService $syncCatalog,
+    ) {
     }
 
     public function create(User $user, array $data): InventoryTransferRequest
@@ -27,7 +29,7 @@ class InventoryTransferRequestService
         $originTenant = app(TenantManager::class)->require();
         $destinationTenant = $this->resolveDestinationTenant($data, $originTenant);
 
-        return DB::transaction(function () use ($user, $data, $originTenant, $destinationTenant): InventoryTransferRequest {
+        $request = DB::transaction(function () use ($user, $data, $originTenant, $destinationTenant): InventoryTransferRequest {
             $fromWarehouse = Warehouse::query()->findOrFail($data['from_warehouse_id']);
             $this->validateOriginItems($fromWarehouse, $data['items']);
 
@@ -60,6 +62,10 @@ class InventoryTransferRequestService
 
             return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
         });
+
+        $this->syncCatalog->inventoryTransferRequestCreated($request);
+
+        return $request;
     }
 
     public function accept(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
@@ -116,11 +122,15 @@ class InventoryTransferRequestService
                 'items.destinationProduct',
             ]);
         });
+
+        $this->syncCatalog->inventoryTransferRequestAccepted($request->refresh());
+
+        return $request;
     }
 
     public function reject(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
     {
-        return DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
+        $rejected = DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
             $request = InventoryTransferRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
 
             if ($request->status !== InventoryTransferRequest::STATUS_REQUESTED) {
@@ -138,11 +148,15 @@ class InventoryTransferRequestService
 
             return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
         });
+
+        $this->syncCatalog->inventoryTransferRequestRejected($rejected);
+
+        return $rejected;
     }
 
     public function cancel(InventoryTransferRequest $request, User $user): InventoryTransferRequest
     {
-        return DB::transaction(function () use ($request, $user): InventoryTransferRequest {
+        $cancelled = DB::transaction(function () use ($request, $user): InventoryTransferRequest {
             $request = InventoryTransferRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
 
             if ($request->status !== InventoryTransferRequest::STATUS_REQUESTED) {
@@ -159,6 +173,10 @@ class InventoryTransferRequestService
 
             return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
         });
+
+        $this->syncCatalog->inventoryTransferRequestCancelled($cancelled);
+
+        return $cancelled;
     }
 
     private function processAcceptedItem(
