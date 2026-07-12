@@ -65,7 +65,8 @@
 | # | Acción | Esfuerzo | Status |
 |---|---|---:|---|
 | P3-1 | `TransferState` enum + tabla de transiciones + borrar estados fantasma | M | ☐ |
-| P3-2 | `pg_advisory_xact_lock` para `nextSequence()` (transfers, receipts, adjustments) | M | ☐ |
+| P3-2-extra | `dispatch()` rechaza si `prepared_quantity=0` en todos los items | XS | ✅ **2026-07-11** (Fix-2 transferencia-only) |
+| P3-2 | `pg_advisory_xact_lock` para `nextSequence()` (transfers, receipts, adjustments) | M | ✅ **2026-07-11** (transfers; receipts/adjustments pendientes) |
 | P3-3 | Reservation TTL + `inventory:expire-reservations` + scheduled | M | ☐ |
 | P3-4 | DB CHECK constraints (`stock_balances >= 0`, `stock_movements.type` ENUM) | M | ☐ |
 | P3-5 | Idempotency middleware global (tabla `idempotency_keys` + middleware) | L | ☐ |
@@ -73,7 +74,7 @@
 | P3-7 | Split `SyncEventApplier` (913 → appliers per evento + registry) | XL | ☐ |
 | P3-8 | Constructor-inject `TenantManager` en lugar de `app()` (143 sitios) | L | ☐ |
 | P3-9 | Enum `StockMovementType`, `BaseRoles`, `AuditActions`, `Currency::normalize` | M | ☐ |
-| P3-10 | `TenantTransferSetting` agrega `BelongsToTenant` + test | XS | ☐ |
+| P3-10 | `TenantTransferSetting` agrega `BelongsToTenant` + test | XS | ✅ **2026-07-11** |
 | P3-11 | Implementar `reserve_on_request` desde `TenantTransferSetting` | M | ☐ |
 | P3-12 | Tracking_type enforcement en `InventoryMovementService` (C3 inventario) | M | ☐ |
 | P3-13 | Events faltantes: `sale.cancelled`, `cash.movement.created`, `payment_method.deactivated` | M | ☐ |
@@ -120,6 +121,24 @@
   - 5 tests, 7 asserts.
 
 **Suite:** 503 tests, 2789 assertions, 0 failures, 0 errors.
+
+---
+
+### 2026-07-11 — P3-2 (transfers) + P3-10 (multi-tenancy)
+
+**Fixes:**
+- **P3-2 (transfers)** ✅ `InventoryTransferService::nextSequence()` ahora usa `pg_advisory_xact_lock(100, tenant_id)` para serializar la asignación de sequence per-tenant. Lock namespace=100 evita colisiones con otros features. Lock auto-released al final de la transacción. **6 tests** en `NextSequenceRaceConditionFixTest`.
+- **P3-2-extra (dispatch guard)** ✅ `InventoryTransferService::dispatch()` ahora valida que AL MENOS UN item tenga `prepared_quantity > 0`. Si todos son 0, lanza `ValidationException` con mensaje claro. Previene transfers que van a `DISPATCHED` sin movimiento de stock. **4 tests** en `DispatchGuardTest`.
+- **P3-10** ✅ `TenantTransferSetting` ahora usa `BelongsToTenant`. Era el único modelo tenant-scoped sin el trait. **5 tests** en `TenantTransferSettingModelTest`.
+
+**Total nuevos tests:** 15 (6+4+5). **+29 assertions**.
+
+**Suite completa:** 523 tests, 2827 assertions, 0 failures, 0 errors. (Antes: 508 tests, 2798 assertions).
+
+**Impacto:**
+- P3-2 previene pérdida de datos por race conditions en `document_number` / `guide_number` uniqueness.
+- P3-2-extra previene estado huérfano `DISPATCHED` con 0 stock movement.
+- P3-10 cierra riesgo dormant de cross-tenant access al `tenant_transfer_settings` cuando se use.
 
 ---
 

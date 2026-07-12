@@ -39,6 +39,8 @@ class SyncEventApplier
         'cash_register.created',
         'inventory_transfer.updated',
         'inventory_transfer.created',
+        'product_entry.created',
+        'product_exit.created',
         'pos.order.pending',
         'pos.order.payment_added',
         'pos.order.paid',
@@ -149,6 +151,8 @@ class SyncEventApplier
             'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
             'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
             'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
+            'product_entry.created' => $this->applyProductEntry($tenant, $payload),
+            'product_exit.created' => $this->applyProductExit($tenant, $payload),
             'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
             'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
             'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
@@ -306,6 +310,239 @@ class SyncEventApplier
         return 'applied';
     }
 
+    /**
+     * Aplica un product_entry (entrada manual de stock) del local a la nube.
+     * Reproduce el flujo de InventoryMovementService::adjustmentIn + increaseAvailable:
+     * crea/upsert la entrada y sus items, actualiza stock_balances.quantity_available
+     * e inserta el stock_movements row. Idempotente via (tenant_id, document_number):
+     * si el entry ya existe con el mismo document_number, no hace nada (no duplica items,
+     * no suma stock, no crea movement). Esto garantiza que re-procesar el mismo evento
+     * (p. ej. en REPROCESSABLE_EVENT_TYPES) no duplique el efecto.
+     */
+    private function applyProductEntry(Tenant $tenant, array $payload): string
+    {
+        $documentNumber = $this->requiredString($payload, 'document_number');
+
+        $existingEntry = DB::table('product_entries')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($existingEntry) {
+            return 'applied';
+        }
+
+        $sourceId = (int) ($payload['source_id'] ?? $payload['id'] ?? 0);
+        $now = now();
+        $processedAt = isset($payload['processed_at']) ? Carbon::parse($payload['processed_at']) : $now;
+
+        return DB::transaction(function () use (
+            $tenant, $documentNumber, $sourceId, $now, $processedAt, $payload
+        ): string {
+            $entryId = $this->upsertAndGetId(
+                'product_entries',
+                [
+                    'tenant_id' => $tenant->id,
+                    'document_number' => $documentNumber,
+                ],
+                [
+                    'sequence' => $sourceId > 0 ? $sourceId : ((int) DB::table('product_entries')
+                        ->where('tenant_id', $tenant->id)->max('sequence')) + 1,
+                    'reason' => $payload['reason'] ?? null,
+                    'reference' => $payload['reference'] ?? null,
+                    'notes' => $payload['notes'] ?? null,
+                    'status' => $payload['status'] ?? 'processed',
+                    'processed_at' => $processedAt,
+                    'created_by' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+
+            $items = $payload['items'] ?? [];
+            foreach ($items as $item) {
+                $this->applyProductStockMovement(
+                    tenant: $tenant,
+                    documentType: 'entry',
+                    productEntryId: $entryId,
+                    productExitId: 0,
+                    productSku: $this->requiredString($item, 'sku'),
+                    warehouseCode: $this->requiredString($item, 'warehouse_code'),
+                    quantity: (float) ($item['quantity'] ?? 0),
+                    unitCost: $item['unit_cost'] ?? null,
+                    serialUnits: $item['serial_units'] ?? null,
+                    reason: "Entrada manual {$documentNumber}",
+                    now: $now,
+                );
+            }
+
+            return 'applied';
+        });
+    }
+
+    /**
+     * Aplica un product_exit (salida manual de stock) del local a la nube.
+     * Reproduce InventoryMovementService::adjustmentOut + decreaseAvailable.
+     * Decrementa stock_balances.quantity_available. Idempotente via (tenant_id, document_number):
+     * si el exit ya existe con el mismo document_number, no hace nada.
+     */
+    private function applyProductExit(Tenant $tenant, array $payload): string
+    {
+        $documentNumber = $this->requiredString($payload, 'document_number');
+
+        $existingExit = DB::table('product_exits')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($existingExit) {
+            return 'applied';
+        }
+
+        $sourceId = (int) ($payload['source_id'] ?? $payload['id'] ?? 0);
+        $now = now();
+        $processedAt = isset($payload['processed_at']) ? Carbon::parse($payload['processed_at']) : $now;
+
+        return DB::transaction(function () use (
+            $tenant, $documentNumber, $sourceId, $now, $processedAt, $payload
+        ): string {
+            $exitId = $this->upsertAndGetId(
+                'product_exits',
+                [
+                    'tenant_id' => $tenant->id,
+                    'document_number' => $documentNumber,
+                ],
+                [
+                    'sequence' => $sourceId > 0 ? $sourceId : ((int) DB::table('product_exits')
+                        ->where('tenant_id', $tenant->id)->max('sequence')) + 1,
+                    'reason' => $payload['reason'] ?? null,
+                    'reference' => $payload['reference'] ?? null,
+                    'notes' => $payload['notes'] ?? null,
+                    'status' => $payload['status'] ?? 'processed',
+                    'processed_at' => $processedAt,
+                    'created_by' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+
+            $items = $payload['items'] ?? [];
+            foreach ($items as $item) {
+                $this->applyProductStockMovement(
+                    tenant: $tenant,
+                    documentType: 'exit',
+                    productEntryId: 0,
+                    productExitId: $exitId,
+                    productSku: $this->requiredString($item, 'sku'),
+                    warehouseCode: $this->requiredString($item, 'warehouse_code'),
+                    quantity: (float) ($item['quantity'] ?? 0),
+                    unitCost: null,
+                    serialUnits: $item['product_unit_ids'] ?? null,
+                    reason: "Salida manual {$documentNumber}",
+                    now: $now,
+                );
+            }
+
+            return 'applied';
+        });
+    }
+
+    /**
+     * Helper compartido: actualiza stock_balances.quantity_available segun el signo del
+     * documentType ('entry' suma, 'exit' resta), inserta el item de la entrada/salida y
+     * registra el stock_movements row. Replica el flujo de InventoryMovementService
+     * pero acoplado directamente a DB::transaction porque ese servicio asume
+     * TenantManager::require() y el handler corre dentro del match de applyOne.
+     */
+    private function applyProductStockMovement(
+        Tenant $tenant,
+        string $documentType,
+        int $productEntryId,
+        int $productExitId,
+        string $productSku,
+        string $warehouseCode,
+        float $quantity,
+        ?string $unitCost,
+        mixed $serialUnits,
+        string $reason,
+        $now,
+    ): void {
+        if ($quantity <= 0.0) {
+            return;
+        }
+
+        $product = $this->productBySku($tenant, $productSku);
+        $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
+
+        $stockBalance = DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($stockBalance) {
+            $newQuantity = (float) $stockBalance->quantity_available + ($documentType === 'entry' ? $quantity : -$quantity);
+            DB::table('stock_balances')
+                ->where('tenant_id', $tenant->id)
+                ->where('warehouse_id', $warehouse->id)
+                ->where('product_id', $product->id)
+                ->update([
+                    'quantity_available' => $newQuantity,
+                ]);
+        } else {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity_available' => $documentType === 'entry' ? $quantity : -$quantity,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+
+        $movementId = (int) DB::table('stock_movements')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => $documentType,
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'reason' => $reason,
+            'reference_type' => $documentType === 'entry' ? 'product_entry' : 'product_exit',
+            'reference_id' => $documentType === 'entry' ? $productEntryId : $productExitId,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        if ($documentType === 'entry') {
+            DB::table('product_entry_items')->insert([
+                'tenant_id' => $tenant->id,
+                'product_entry_id' => $productEntryId,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'unit_cost' => $unitCost,
+                'stock_movement_id' => $movementId,
+                'serial_units' => $serialUnits !== null ? json_encode($serialUnits) : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        } else {
+            DB::table('product_exit_items')->insert([
+                'tenant_id' => $tenant->id,
+                'product_exit_id' => $productExitId,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'stock_movement_id' => $movementId,
+                'product_unit_ids' => $serialUnits !== null ? json_encode($serialUnits) : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
     private function applyInventoryTransfer(Tenant $tenant, array $payload): string
     {
         $fromWarehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'from_warehouse_code'));
