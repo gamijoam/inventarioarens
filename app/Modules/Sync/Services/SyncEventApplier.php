@@ -4,6 +4,7 @@ namespace App\Modules\Sync\Services;
 
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -143,29 +144,41 @@ class SyncEventApplier
         $this->assertPayloadIntegrity($event);
         $payload = $this->decodePayload($event['payload'] ?? []);
 
-        $result = match ($event['event_type']) {
-            'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
-            'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
-            'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
-            'customer.updated', 'customer.created' => $this->applyCustomer($tenant, $payload),
-            'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
-            'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
-            'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
-            'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
-            'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
-            'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
-            'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
-            'product_entry.created' => $this->applyProductEntry($tenant, $payload),
-            'product_exit.created' => $this->applyProductExit($tenant, $payload),
-            'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
-            'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
-            'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
-            'inventory_transfer_request.accepted' => $this->applyInventoryTransferRequestAccepted($tenant, $payload),
-            'inventory_transfer_request.rejected' => $this->applyInventoryTransferRequestRejected($tenant, $payload),
-            'inventory_transfer_request.cancelled' => $this->applyInventoryTransferRequestCancelled($tenant, $payload),
-            'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
-            default => 'ignored',
-        };
+        $tenantManager = app(TenantManager::class);
+        $previousTenant = $tenantManager->current();
+        $tenantManager->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        try {
+            $result = match ($event['event_type']) {
+                'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
+                'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
+                'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
+                'customer.updated', 'customer.created' => $this->applyCustomer($tenant, $payload),
+                'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
+                'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
+                'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
+                'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
+                'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
+                'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
+                'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
+                'product_entry.created' => $this->applyProductEntry($tenant, $payload),
+                'product_exit.created' => $this->applyProductExit($tenant, $payload),
+                'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
+                'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
+                'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
+                'inventory_transfer_request.accepted' => $this->applyInventoryTransferRequestAccepted($tenant, $payload),
+                'inventory_transfer_request.rejected' => $this->applyInventoryTransferRequestRejected($tenant, $payload),
+                'inventory_transfer_request.cancelled' => $this->applyInventoryTransferRequestCancelled($tenant, $payload),
+                'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
+                default => 'ignored',
+            };
+        } finally {
+            $tenantManager->set($previousTenant ?? $tenant);
+            if (function_exists('setPermissionsTeamId')) {
+                setPermissionsTeamId(($previousTenant ?? $tenant)->id);
+            }
+        }
 
         DB::table('sync_inbox')
             ->where('tenant_id', $tenant->id)
@@ -620,6 +633,469 @@ class SyncEventApplier
         }
 
         return 'applied';
+    }
+
+    /**
+     * Cross-tenant (no BelongsToTenant). Crea la fila en inventory_transfer_requests
+     * con status=requested. Es idempotente por (origin_tenant_id, sequence).
+     */
+    private function applyInventoryTransferRequestCreated(Tenant $tenant, array $payload): string
+    {
+        return $this->upsertTransferRequest($payload, [
+            'status' => 'requested',
+        ]);
+    }
+
+    /**
+     * Cross-tenant. Replica el efecto del accept local: ajusta stock en origen y
+     * destino, marca ProductUnit REMOVED en origen y crea nuevas en destino,
+     * replica product_exit + product_entry. Status=completed.
+     * Es idempotente: si el request ya esta completed, no hace nada.
+     */
+    private function applyInventoryTransferRequestAccepted(Tenant $tenant, array $payload): string
+    {
+        $originTenantId = (int) $payload['origin_tenant_id'];
+        $sequence = (int) $payload['sequence'];
+
+        $existing = DB::table('inventory_transfer_requests')
+            ->where('origin_tenant_id', $originTenantId)
+            ->where('sequence', $sequence)
+            ->first();
+
+        if ($existing && $existing->status === 'completed') {
+            return 'applied';
+        }
+
+        return DB::transaction(function () use ($payload, $existing): string {
+            $this->upsertTransferRequest($payload, [
+                'status' => 'completed',
+                'destination_warehouse_id' => $payload['destination_warehouse_id'] ?? null,
+                'response_notes' => $payload['response_notes'] ?? null,
+                'responded_by' => $payload['responded_by'] ?? null,
+                'responded_at' => isset($payload['responded_at']) ? Carbon::parse($payload['responded_at']) : now(),
+                'completed_at' => isset($payload['completed_at']) ? Carbon::parse($payload['completed_at']) : now(),
+            ]);
+
+            $requestId = (int) DB::table('inventory_transfer_requests')
+                ->where('origin_tenant_id', (int) $payload['origin_tenant_id'])
+                ->where('sequence', (int) $payload['sequence'])
+                ->value('id');
+
+            $items = $payload['items'] ?? [];
+            $originTenantId = (int) $payload['origin_tenant_id'];
+            $destinationTenantId = (int) $payload['destination_tenant_id'];
+            $fromWarehouseId = (int) $payload['from_warehouse_id'];
+            $destinationWarehouseId = (int) ($payload['destination_warehouse_id'] ?? 0);
+            foreach ($items as $itemPayload) {
+                $this->applyTransferRequestItemAccepted(
+                    $requestId,
+                    $originTenantId,
+                    $destinationTenantId,
+                    $fromWarehouseId,
+                    $destinationWarehouseId,
+                    $itemPayload,
+                );
+            }
+
+            return 'applied';
+        });
+    }
+
+    /**
+     * Cross-tenant. Solo actualiza status. No toca stock.
+     */
+    private function applyInventoryTransferRequestRejected(Tenant $tenant, array $payload): string
+    {
+        return $this->upsertTransferRequest($payload, [
+            'status' => 'rejected',
+            'response_notes' => $payload['response_notes'] ?? null,
+            'responded_by' => $payload['responded_by'] ?? null,
+            'responded_at' => isset($payload['responded_at']) ? Carbon::parse($payload['responded_at']) : now(),
+        ]);
+    }
+
+    /**
+     * Cross-tenant. Solo actualiza status. No toca stock.
+     */
+    private function applyInventoryTransferRequestCancelled(Tenant $tenant, array $payload): string
+    {
+        return $this->upsertTransferRequest($payload, [
+            'status' => 'cancelled',
+            'responded_by' => $payload['responded_by'] ?? null,
+            'responded_at' => isset($payload['responded_at']) ? Carbon::parse($payload['responded_at']) : now(),
+        ]);
+    }
+
+    /**
+     * Upsert cross-tenant (no BelongsToTenant). Llave semantica:
+     * (origin_tenant_id, sequence). Retorna 'applied' o 'ignored'.
+     */
+    private function upsertTransferRequest(array $payload, array $overrides): string
+    {
+        $originTenantId = (int) $payload['origin_tenant_id'];
+        $sequence = (int) $payload['sequence'];
+
+        if ($originTenantId <= 0 || $sequence <= 0) {
+            return 'ignored';
+        }
+
+        $now = now();
+        $base = [
+            'document_number' => $payload['document_number'] ?? null,
+            'origin_tenant_id' => $originTenantId,
+            'destination_tenant_id' => (int) ($payload['destination_tenant_id'] ?? 0),
+            'from_warehouse_id' => (int) ($payload['from_warehouse_id'] ?? 0),
+            'reason' => $payload['reason'] ?? null,
+            'reference' => $payload['reference'] ?? null,
+            'notes' => $payload['notes'] ?? null,
+            'requested_by' => $payload['requested_by'] ?? null,
+            'requested_at' => isset($payload['requested_at']) ? Carbon::parse($payload['requested_at']) : null,
+            'updated_at' => $now,
+        ];
+
+        DB::table('inventory_transfer_requests')->updateOrInsert(
+            [
+                'origin_tenant_id' => $originTenantId,
+                'sequence' => $sequence,
+            ],
+            array_merge($base, $overrides),
+        );
+
+        $requestId = (int) DB::table('inventory_transfer_requests')
+            ->where('origin_tenant_id', $originTenantId)
+            ->where('sequence', $sequence)
+            ->value('id');
+
+        // Items solo se replican cuando ya existe el header (en el caso created es
+        // el primer evento; en accepted se reemplaza para que coincida con el
+        // payload final post-accept).
+        $items = $payload['items'] ?? [];
+        if ($items !== []) {
+            DB::table('inventory_transfer_request_items')
+                ->where('inventory_transfer_request_id', $requestId)
+                ->delete();
+
+            foreach ($items as $itemPayload) {
+                DB::table('inventory_transfer_request_items')->insert([
+                    'inventory_transfer_request_id' => $requestId,
+                    'origin_product_id' => (int) ($itemPayload['origin_product_id'] ?? 0),
+                    'destination_product_id' => $itemPayload['destination_product_id'] ?? null,
+                    'quantity' => $itemPayload['quantity'] ?? 0,
+                    'product_unit_ids' => isset($itemPayload['product_unit_ids'])
+                        ? json_encode($itemPayload['product_unit_ids'])
+                        : null,
+                    'serial_units' => isset($itemPayload['serial_units'])
+                        ? json_encode($itemPayload['serial_units'])
+                        : null,
+                    'out_stock_movement_id' => $itemPayload['out_stock_movement_id'] ?? null,
+                    'in_stock_movement_id' => $itemPayload['in_stock_movement_id'] ?? null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica los efectos de un item aceptado: replica la salida interempresa
+     * (adjustmentOut en origen) y la entrada interempresa (purchase en destino).
+     * Cruza tenants: usa TenantManager para que BelongsToTenant scope se aplique
+     * al tenant correcto en cada operacion.
+     */
+    private function applyTransferRequestItemAccepted(
+        int $requestId,
+        int $originTenantId,
+        int $destinationTenantId,
+        int $fromWarehouseId,
+        int $destinationWarehouseId,
+        array $itemPayload,
+    ): void {
+        $tenantManager = app(TenantManager::class);
+        $originalTenant = $tenantManager->current();
+
+        $originProductId = (int) ($itemPayload['origin_product_id'] ?? 0);
+        $destinationProductId = (int) ($itemPayload['destination_product_id'] ?? 0);
+        $quantity = (float) ($itemPayload['quantity'] ?? 0);
+
+        if ($originTenantId <= 0 || $destinationTenantId <= 0
+            || $originProductId <= 0 || $destinationProductId <= 0
+            || $fromWarehouseId <= 0 || $destinationWarehouseId <= 0
+            || $quantity <= 0.0) {
+            return;
+        }
+
+        $documentNumber = (string) DB::table('inventory_transfer_requests')
+            ->where('id', $requestId)
+            ->value('document_number');
+
+        try {
+            $tenantManager->set(Tenant::query()->findOrFail($originTenantId));
+            $originExitDocNumber = $documentNumber ? $documentNumber.'-OUT' : 'TREQ-OUT-'.$requestId;
+            $outMovementId = $this->createCloudProductExit(
+                tenantId: $originTenantId,
+                productId: $originProductId,
+                warehouseId: $fromWarehouseId,
+                quantity: $quantity,
+                documentNumber: $originExitDocNumber,
+                productUnitIds: $itemPayload['product_unit_ids'] ?? [],
+            );
+
+            $tenantManager->set(Tenant::query()->findOrFail($destinationTenantId));
+            $destinationEntryDocNumber = $documentNumber ? $documentNumber.'-IN' : 'TREQ-IN-'.$requestId;
+            $inMovementId = $this->createCloudProductEntry(
+                tenantId: $destinationTenantId,
+                productId: $destinationProductId,
+                warehouseId: $destinationWarehouseId,
+                quantity: $quantity,
+                documentNumber: $destinationEntryDocNumber,
+                serialUnits: $itemPayload['serial_units'] ?? [],
+            );
+
+            DB::table('inventory_transfer_request_items')
+                ->where('inventory_transfer_request_id', $requestId)
+                ->where('origin_product_id', $originProductId)
+                ->update([
+                    'destination_product_id' => $destinationProductId,
+                    'out_stock_movement_id' => $outMovementId,
+                    'in_stock_movement_id' => $inMovementId,
+                    'updated_at' => now(),
+                ]);
+        } finally {
+            if ($originalTenant) {
+                $tenantManager->set($originalTenant);
+            }
+        }
+    }
+
+    /**
+     * Crea un product_exit en la nube (replica de InventoryMovementService::adjustmentOut)
+     * sin pasar por el servicio (que require TenantManager::require() y asume scope local).
+     * Idempotente por (tenant_id, document_number).
+     * Retorna el stock_movement_id.
+     */
+    private function createCloudProductExit(
+        int $tenantId,
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $documentNumber,
+        array $productUnitIds,
+    ): int {
+        $now = now();
+
+        $existing = DB::table('product_exits')
+            ->where('tenant_id', $tenantId)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($existing) {
+            return (int) $existing->id;
+        }
+
+        $sequence = ((int) DB::table('product_exits')->where('tenant_id', $tenantId)->max('sequence')) + 1;
+
+        $exitId = (int) DB::table('product_exits')->insertGetId([
+            'tenant_id' => $tenantId,
+            'sequence' => $sequence,
+            'document_number' => $documentNumber,
+            'reason' => "Salida interempresa {$documentNumber}",
+            'reference' => null,
+            'notes' => null,
+            'status' => 'processed',
+            'processed_at' => $now,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // Decrementa stock_balance.
+        $stockBalance = DB::table('stock_balances')
+            ->where('tenant_id', $tenantId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($stockBalance) {
+            DB::table('stock_balances')
+                ->where('tenant_id', $tenantId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('product_id', $productId)
+                ->update([
+                    'quantity_available' => (float) $stockBalance->quantity_available - $quantity,
+                ]);
+        } else {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenantId,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $productId,
+                'quantity_available' => -$quantity,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+
+        $movementId = (int) DB::table('stock_movements')->insertGetId([
+            'tenant_id' => $tenantId,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'type' => 'exit',
+            'quantity' => $quantity,
+            'unit_cost' => null,
+            'reason' => "Salida interempresa {$documentNumber}",
+            'reference_type' => 'product_exit',
+            'reference_id' => $exitId,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('product_exit_items')->insert([
+            'tenant_id' => $tenantId,
+            'product_exit_id' => $exitId,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'quantity' => $quantity,
+            'stock_movement_id' => $movementId,
+            'product_unit_ids' => $productUnitIds !== [] ? json_encode($productUnitIds) : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // Marca ProductUnit REMOVED si vienen IDs (serializados).
+        if ($productUnitIds !== []) {
+            DB::table('product_units')
+                ->where('tenant_id', $tenantId)
+                ->whereIn('id', $productUnitIds)
+                ->update([
+                    'status' => 'removed',
+                    'warehouse_id' => null,
+                    'released_stock_movement_id' => $movementId,
+                    'updated_at' => $now,
+                ]);
+        }
+
+        return $movementId;
+    }
+
+    /**
+     * Crea un product_entry en la nube (replica de InventoryMovementService::purchase).
+     * Idempotente por (tenant_id, document_number).
+     * Retorna el stock_movement_id.
+     */
+    private function createCloudProductEntry(
+        int $tenantId,
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        string $documentNumber,
+        array $serialUnits,
+    ): int {
+        $now = now();
+
+        $existing = DB::table('product_entries')
+            ->where('tenant_id', $tenantId)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($existing) {
+            return (int) $existing->id;
+        }
+
+        $sequence = ((int) DB::table('product_entries')->where('tenant_id', $tenantId)->max('sequence')) + 1;
+
+        $entryId = (int) DB::table('product_entries')->insertGetId([
+            'tenant_id' => $tenantId,
+            'sequence' => $sequence,
+            'document_number' => $documentNumber,
+            'reason' => "Entrada interempresa {$documentNumber}",
+            'reference' => null,
+            'notes' => null,
+            'status' => 'processed',
+            'processed_at' => $now,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $stockBalance = DB::table('stock_balances')
+            ->where('tenant_id', $tenantId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($stockBalance) {
+            DB::table('stock_balances')
+                ->where('tenant_id', $tenantId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('product_id', $productId)
+                ->update([
+                    'quantity_available' => (float) $stockBalance->quantity_available + $quantity,
+                ]);
+        } else {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenantId,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $productId,
+                'quantity_available' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+
+        $movementId = (int) DB::table('stock_movements')->insertGetId([
+            'tenant_id' => $tenantId,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'type' => 'entry',
+            'quantity' => $quantity,
+            'unit_cost' => null,
+            'reason' => "Entrada interempresa {$documentNumber}",
+            'reference_type' => 'product_entry',
+            'reference_id' => $entryId,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('product_entry_items')->insert([
+            'tenant_id' => $tenantId,
+            'product_entry_id' => $entryId,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'quantity' => $quantity,
+            'unit_cost' => null,
+            'stock_movement_id' => $movementId,
+            'serial_units' => $serialUnits !== [] ? json_encode($serialUnits) : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // Crea ProductUnit AVAILABLE si el producto es serializado.
+        if ($serialUnits !== []) {
+            foreach ($serialUnits as $serialUnit) {
+                if (! isset($serialUnit['serial_type'], $serialUnit['serial_number'])) {
+                    continue;
+                }
+
+                DB::table('product_units')->insert([
+                    'tenant_id' => $tenantId,
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
+                    'serial_type' => $serialUnit['serial_type'],
+                    'serial_number' => $serialUnit['serial_number'],
+                    'status' => 'available',
+                    'acquired_stock_movement_id' => $movementId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
+
+        return $movementId;
     }
 
     private function applyProductUnit(Tenant $tenant, array $payload): string
