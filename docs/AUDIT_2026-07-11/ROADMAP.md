@@ -81,6 +81,7 @@
 | P3-14 | Structured logs en módulo Sync (P4 sync audit) | S | ☐ |
 | P3-15 | `payload_hash` verification (P0-6) — mover a P0 si es prioritario | S | ☐ |
 | **NEW-2026-07-12** | **Backend Tenancy API: CRUD de empresas + attach/detach cross-tenant** (ver `docs/TENANCY_API.md`) | L | ✅ **2026-07-12** (8 endpoints nuevos, 6 permisos, 30 tests E2E) |
+| **NEW-2026-07-12b** | **Backend Tenancy: 3 niveles SaaS (Master/Group Owner/Tenant Admin)** (ver `docs/TENANCY_API.md` §1-§5) | L | ✅ **2026-07-12** (4 endpoints nuevos, 4 permisos, parent_id + is_platform_admin, 14 tests E2E nuevos) |
 
 ---
 

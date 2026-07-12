@@ -1,53 +1,83 @@
-# TENANCY API — Backend para creacion de empresas y gestion cross-tenant
+# TENANCY API — Backend para creacion de empresas, grupos y gestion cross-tenant
 
 > **Fecha:** 2026-07-12
-> **Backend score:** Backend ~8.5/10 (sin cambios en este PR, se mantienen logros previos).
 > **Para:** Frontend (WPF + Web Admin), programadores que necesiten crear o administrar empresas via API.
 
 ---
 
-## 1. Vision general
+## 1. Vision general — Modelo de 3 niveles
 
-Este documento describe los **endpoints cross-tenant** para que un Owner o Administrador pueda:
-
-1. **Crear una empresa desde cero** con su configuracion inicial (branch, warehouse, exchange rate BCV, usuario admin).
-2. **Listar todas las empresas** del sistema.
-3. **Modificar o desactivar** una empresa existente.
-4. **Asociar usuarios** (nuevos o existentes) a otra empresa, asignarles roles en esa empresa.
-5. **Listar usuarios de una empresa** cualquiera.
-6. **Desasociar usuarios** de una empresa.
-
-**Quien puede usar estos endpoints:** usuarios con rol `Owner` o `Administrador` (los unicos que tienen los permisos `tenants.*` y `tenants.users.*`).
-
----
-
-## 2. Permisos necesarios
-
-Todos los endpoints de tenancy requieren el header `Authorization: Bearer <token>` + alguno de estos permisos:
-
-| Permiso | Habilita |
-|---|---|
-| `tenants.view` | GET /api/tenants, GET /api/tenants/{id}, GET /api/tenants/{id}/users |
-| `tenants.create` | POST /api/tenants (registrar empresa completa) |
-| `tenants.update` | PATCH /api/tenants/{id} |
-| `tenants.delete` | DELETE /api/tenants/{id} (soft delete: status = inactive) |
-| `tenants.users.attach` | POST /api/tenants/{id}/users |
-| `tenants.users.detach` | DELETE /api/tenants/{id}/users/{userId} |
-
-Los permisos solo estan en el catalogo de `Owner` y `Administrador` por defecto. Gerente, Vendedor, Almacen y Auditor **NO** pueden acceder a estos endpoints.
-
-> **404** si no envias Authorization.
-> **403** si estas autenticado pero no tienes el permiso requerido.
-
----
-
-## 3. Endpoints
-
-### 3.1 Listar todas las empresas
+Este modulo implementa el patron SaaS multi-tenant con separacion de roles:
 
 ```
-GET /api/tenants
-Authorization: Bearer <token>
+NIVEL 1 — SaaS Master (tú, el desarrollador)
+  Permisos: tenants.master.*
+  Endpoints: /api/master/groups
+  Crea GRUPOS (tenant raiz) y asigna el Group Owner inicial.
+
+NIVEL 2 — Group Owner (jefe de grupo / holding)
+  Permisos: tenants.group.* (heredados de Owner en el grupo)
+  Endpoints: /api/groups/{slug}/tenants
+  Crea EMPRESAS spinoff dentro de su grupo.
+
+NIVEL 3 — Tenant Admin (admin de empresa normal)
+  Permisos: tenants.* y tenants.users.*
+  Endpoints: /api/tenants/* (CRUD) y /api/tenants/{id}/users (cross-tenant)
+  NO puede crear empresas. Solo gestiona usuarios dentro de su tenant.
+```
+
+## 2. Modelo de datos
+
+- `tenants.parent_id` (nullable, FK a `tenants.id`) — si es NULL, el tenant es un grupo raiz; si tiene valor, es spinoff.
+- `users.is_platform_admin` (boolean) — marca usuarios que operan FUERA de cualquier tenant (SaaS master).
+- `tenants.is_group` = `parent_id IS NULL`.
+- `tenants.is_spinoff` = `parent_id IS NOT NULL`.
+
+**Invariantes:**
+- Un spinoff NO puede tener spinoffs (1 nivel maximo por diseno).
+- Un spinoff NO puede cambiar de grupo (regla de diseno).
+- El Group Owner se identifica como el primer `Owner` de la empresa raiz del grupo.
+
+---
+
+## 3. Permisos
+
+### Nivel 1 (SaaS Master — sin tenant)
+
+| Permiso | Habilita | Quien lo tiene |
+|---|---|---|
+| `tenants.master.create` | POST /api/master/groups | Solo `users.is_platform_admin = true` |
+| `tenants.master.view` | GET /api/master/groups | Solo `users.is_platform_admin = true` |
+
+### Nivel 2 (Group Owner — asignado via rol `Owner` en grupo)
+
+| Permiso | Habilita | Quien lo tiene |
+|---|---|---|
+| (via rol `Owner` del grupo) | POST/GET /api/groups/{slug}/tenants | User con rol `Owner` en el grupo |
+
+### Nivel 3 (Tenant Admin — admin de empresa)
+
+| Permiso | Habilita | Quien lo tiene |
+|---|---|---|
+| `tenants.view` | GET /api/tenants, /api/tenants/{id} | Owner, Administrador |
+| `tenants.create` | POST /api/tenants (legacy) | Owner, Administrador |
+| `tenants.update` | PATCH /api/tenants/{id} | Owner, Administrador |
+| `tenants.delete` | DELETE /api/tenants/{id} | Owner, Administrador |
+| `tenants.users.attach` | POST /api/tenants/{id}/users | Owner, Administrador |
+| `tenants.users.detach` | DELETE /api/tenants/{id}/users/{user} | Owner, Administrador |
+
+**404** si no envias Authorization.
+**403** si estas autenticado pero no tienes el permiso requerido.
+
+---
+
+## 4. Endpoints — Nivel 1 (SaaS Master)
+
+### 4.1 Listar grupos
+
+```
+GET /api/master/groups
+Authorization: Bearer <platform-admin-token>
 ```
 
 **Response 200:**
@@ -56,511 +86,357 @@ Authorization: Bearer <token>
   "data": [
     {
       "id": 1,
-      "name": "Demo Caracas Norte",
-      "slug": "demo-caracas-norte",
+      "name": "Arens Holding",
+      "slug": "arens-holding",
       "domain": null,
       "status": "active",
-      "plan": "demo",
+      "plan": "enterprise",
+      "parent_id": null,
+      "is_group": true,
+      "spinoffs_count": 3,
       "users_count": 5,
-      "created_at": "2026-07-12T10:30:00.000000Z",
-      "updated_at": "2026-07-12T10:30:00.000000Z"
-    },
-    {
-      "id": 2,
-      "name": "Demo Valencia Sur",
-      "slug": "demo-valencia-sur",
-      "domain": "sur.miinventariofacil.com",
-      "status": "active",
-      "plan": "premium",
-      "users_count": 12,
-      "created_at": "2026-07-12T11:15:00.000000Z",
-      "updated_at": "2026-07-12T11:15:00.000000Z"
+      "created_at": "2026-07-12T10:30:00.000000Z"
     }
   ],
-  "meta": {
-    "total": 2,
-    "per_page": 25,
-    "current_page": 1
-  }
+  "meta": { "total": 1, "per_page": 25, "current_page": 1 }
 }
 ```
 
-Paginacion: `?page=2`. Tamano fijo 25 por pagina.
-
----
-
-### 3.2 Crear empresa desde cero (registro completo)
+### 4.2 Crear grupo (tenant raiz)
 
 ```
-POST /api/tenants
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Payload minimo (solo admin):**
-```json
-{
-  "name": "Demo Valencia Sur",
-  "slug": "demo-valencia-sur",
-  "admin": {
-    "name": "Owner Valencia Sur",
-    "email": "owner.valencia.sur@demo.test",
-    "password": "Secret123"
-  }
-}
-```
-
-**Payload completo (con setup inicial):**
-```json
-{
-  "name": "Demo Valencia Sur",
-  "slug": "demo-valencia-sur",
-  "domain": "sur.miinventariofacil.com",
-  "plan": "premium",
-  "admin": {
-    "name": "Owner Valencia Sur",
-    "email": "owner.valencia.sur@demo.test",
-    "password": "Secret123"
-  },
-  "branch": {
-    "name": "Principal Valencia Sur",
-    "code": "VLS"
-  },
-  "warehouse": {
-    "name": "Almacen Valencia Sur",
-    "code": "VLS-01"
-  },
-  "exchange_rate_type": {
-    "code": "BCV",
-    "name": "Banco Central de Venezuela"
-  }
-}
-```
-
-**Validaciones:**
-- `name`: required, string, max 150.
-- `slug`: required, `^[a-z0-9-]+$`, unique en `tenants`.
-- `domain`: optional, string, max 150, unique en `tenants`.
-- `plan`: optional, string, max 50. Default `standard`.
-- `admin.email`: required, email valido.
-- `admin.password`: optional, min 8 chars. Si no viene, se genera uno aleatorio de 32 chars (debe pedirselo al usuario luego via reset password).
-- `branch`, `warehouse`, `exchange_rate_type`: opcionales. Si pasas `warehouse` sin `branch`, el warehouse **no se crea** (branch es requerido).
-- Si pasas `exchange_rate_type`, se crea con `is_default = true` y `is_active = true`.
-
-**Efectos secundarios (todo en una sola transaccion):**
-1. Crea fila en `tenants` con `status = active`.
-2. Si `branch`: crea branch con `status = active`.
-3. Si `warehouse` + `branch`: crea warehouse con `status = active`.
-4. Si `exchange_rate_type`: crea tipo de tasa con `is_default = true`.
-5. Crea el usuario admin si no existe, o lo actualiza (name, password).
-6. Lo asocia a la nueva empresa via `tenant_user` con `status = active` (syncWithoutDetaching).
-7. Crea el rol `Administrador` en el team de la nueva empresa con todos los 95 permisos.
-8. Le asigna ese rol al usuario admin en la nueva empresa.
-9. Registra `audit_log` con action `tenant.created`.
-
-**Response 201:**
-```json
-{
-  "data": {
-    "id": 16,
-    "name": "Demo Valencia Sur",
-    "slug": "demo-valencia-sur",
-    "domain": "sur.miinventariofacil.com",
-    "status": "active",
-    "plan": "premium",
-    "users_count": 1,
-    "created_at": "2026-07-12T12:00:00.000000Z",
-    "updated_at": "2026-07-12T12:00:00.000000Z"
-  }
-}
-```
-
-**Errores:**
-- `422 Ya existe una empresa con ese slug.` — slug duplicado.
-- `422 El slug solo puede contener letras minusculas, numeros y guiones.` — slug invalido.
-- `403` — sin permiso `tenants.create`.
-
-**Idempotencia:** si el slug ya existe, retorna 422 (no actualiza). Si el admin email ya existe, lo reutiliza (no crea duplicado).
-
-**Login inmediato:** el admin puede hacer login inmediatamente con sus credenciales via `POST /api/auth/login` con `X-Tenant: <slug>`.
-
----
-
-### 3.3 Ver una empresa
-
-```
-GET /api/tenants/{tenant}
-Authorization: Bearer <token>
-```
-
-`{tenant}` puede ser ID numerico o slug.
-
-**Response 200:** (mismo objeto que en index)
-
-**Errores:**
-- `404` — empresa no encontrada.
-
----
-
-### 3.4 Modificar empresa
-
-```
-PATCH /api/tenants/{tenant}
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Payload (todos los campos son opcionales):**
-```json
-{
-  "name": "Demo Valencia Sur (Renombrada)",
-  "slug": "demo-valencia-sur-v2",
-  "domain": null,
-  "status": "active",
-  "plan": "enterprise"
-}
-```
-
-**Validaciones:**
-- `name`: optional, string, max 150.
-- `slug`: optional, `^[a-z0-9-]+$`, unique en `tenants` (excluyendo la fila actual).
-- `domain`: optional, unique en `tenants` (excluyendo la fila actual).
-- `status`: optional, `active|inactive`.
-- `plan`: optional, string, max 50.
-
-**Efectos:** actualiza la fila + `audit_log` con action `tenant.updated`.
-
-**Response 200:** (objeto actualizado)
-
----
-
-### 3.5 Desactivar empresa (soft delete)
-
-```
-DELETE /api/tenants/{tenant}
-Authorization: Bearer <token>
-```
-
-Marca `status = inactive`. NO borra la fila ni los datos relacionados.
-
-**Idempotente:** llamar 2 veces da el mismo resultado.
-
-**Response 204** (sin contenido).
-
-**Efectos:** registra `audit_log` con action `tenant.deactivated`.
-
-> **Nota:** Una empresa `inactive` sigue existiendo en la DB. Sus usuarios NO pueden hacer login (el middleware `ResolveTenant` la rechaza por status check). Pero los datos historicos se preservan para auditoria.
-
----
-
-### 3.6 Listar usuarios de una empresa
-
-```
-GET /api/tenants/{tenant}/users
-Authorization: Bearer <token>
-```
-
-**Response 200:**
-```json
-{
-  "data": [
-    {
-      "id": 5,
-      "name": "Ana Gerente",
-      "email": "ana@example.test",
-      "status": "active",
-      "roles": [
-        {"id": 12, "name": "Gerente"}
-      ],
-      "created_at": "2026-07-10T08:00:00.000000Z"
-    }
-  ],
-  "meta": {
-    "total": 1,
-    "per_page": 25,
-    "current_page": 1
-  }
-}
-```
-
-Los `roles` retornados son los del usuario **dentro de esta empresa** (multi-tenant scoped via `team_id`).
-
----
-
-### 3.7 Asociar usuario a una empresa
-
-```
-POST /api/tenants/{tenant}/users
-Authorization: Bearer <token>
+POST /api/master/groups
+Authorization: Bearer <platform-admin-token>
 Content-Type: application/json
 ```
 
 **Payload:**
 ```json
 {
-  "user_id": 5,
-  "roles": ["Vendedor", "Almacen"]
-}
-```
-
-O crear usuario nuevo:
-```json
-{
-  "email": "nuevo@example.test",
-  "name": "Nuevo Usuario",
-  "password": "Secret123",
-  "roles": ["Vendedor"]
+  "name": "Arens Holding",
+  "slug": "arens-holding",
+  "plan": "enterprise",
+  "group_owner": {
+    "name": "Jefe Holding",
+    "email": "jefe@arens.test",
+    "password": "Secret123"
+  },
+  "branch": { "name": "Principal", "code": "PRIN" },
+  "warehouse": { "name": "Almacen Principal", "code": "PRIN-01" },
+  "exchange_rate_type": { "code": "BCV", "name": "Banco Central" }
 }
 ```
 
 **Validaciones:**
-- `user_id` o `email`: requerido (uno de los dos).
-- Si `email` viene y el usuario NO existe, se crea con `name` y `password` (o password aleatorio si falta).
-- Si `user_id` viene, debe existir.
-- `roles`: opcional. Si pasa, debe ser uno de los 5 roles base (`Owner`, `Administrador`, `Gerente`, `Vendedor`, `Almacen`, `Auditor`). Si el rol no existe en esta empresa, se auto-crea con los permisos por defecto de `BasePermissions::ROLE_PERMISSIONS`.
-- `status`: opcional. Default `active`. Si el usuario ya estaba asociado pero inactivo, lo reactiva.
-
-**Efectos (todo en transaccion):**
-1. Encuentra o crea el usuario.
-2. Lo asocia al tenant via `tenant_user` (syncWithoutDetaching).
-3. Si pasaron roles, los sincroniza dentro del team del tenant.
-4. Registra `audit_log` con action `tenant.user_attached`.
-
-**Response 201:**
-```json
-{
-  "data": {
-    "id": 5,
-    "name": "Ana Gerente",
-    "email": "ana@example.test",
-    "status": "active",
-    "roles": [
-      {"id": 12, "name": "Vendedor"}
-    ],
-    "created_at": "2026-07-10T08:00:00.000000Z"
-  }
-}
-```
-
-**Errores:**
-- `422` rol no base del sistema.
-- `403` sin permiso `tenants.users.attach`.
-
----
-
-### 3.8 Desasociar usuario de una empresa
-
-```
-DELETE /api/tenants/{tenant}/users/{user}
-Authorization: Bearer <token>
-```
-
-`{user}` es el ID del usuario.
+- `group_owner.email` y `group_owner.name`: required.
+- El slug debe ser unico y formato `^[a-z0-9-]+$`.
+- Si `group_owner.email` ya existe, se reutiliza el user (no duplica).
+- Si `group_owner.password` no viene, se genera uno aleatorio de 32 chars.
 
 **Efectos (en transaccion):**
-1. Desasocia todos los roles del usuario dentro del team de este tenant.
-2. Elimina el pivot `tenant_user`.
-3. Registra `audit_log` con action `tenant.user_detached`.
+1. Crea tenant con `parent_id = null` (es grupo).
+2. Crea branch + warehouse + exchange rate BCV si vienen.
+3. Asocia el group_owner via `tenant_user` con `status = active`.
+4. Le crea el rol `Owner` en el team del grupo con todos los 95 permisos.
+5. Registra `audit_log` con action `tenant_group.created`.
 
-**Response 204** (sin contenido).
+**Response 201:** (objeto del grupo, mismo shape que 4.1)
 
 **Errores:**
-- `422 El usuario no pertenece a la empresa X.` si el pivot no existe.
+- `403 Platform admin access required.` — el user no es `is_platform_admin`.
+- `422 Ya existe una empresa con ese slug.` — slug duplicado.
 
 ---
 
-## 4. Errores comunes y como manejarlos
+## 5. Endpoints — Nivel 2 (Group Owner)
 
-### 4.1 Validacion (422)
+### 5.1 Listar empresas del grupo
 
+```
+GET /api/groups/{group}/tenants
+Authorization: Bearer <group-owner-token>
+```
+
+`{group}` puede ser ID o slug. El user debe ser Owner del grupo (sino 403). Si `{group}` no es un grupo raiz (es spinoff), retorna 404.
+
+**Response 200:**
 ```json
 {
-  "message": "The given data was invalid.",
-  "errors": {
-    "slug": ["Ya existe una empresa con ese slug."],
-    "admin.email": ["El correo del administrador es obligatorio."]
-  }
+  "data": [
+    {
+      "id": 2,
+      "name": "Arens Valencia",
+      "slug": "arens-valencia",
+      "status": "active",
+      "plan": "premium",
+      "parent_id": 1,
+      "is_group": false,
+      "users_count": 4,
+      "created_at": "..."
+    }
+  ],
+  "meta": { "total": 1, "per_page": 25, "current_page": 1 }
 }
 ```
 
-### 4.2 Sin autenticacion (401)
+### 5.2 Crear empresa spinoff en el grupo
 
+```
+POST /api/groups/{group}/tenants
+Authorization: Bearer <group-owner-token>
+Content-Type: application/json
+```
+
+**Payload:**
 ```json
 {
-  "message": "Unauthenticated."
+  "name": "Arens Valencia centro",
+  "slug": "arens-valencia-centro",
+  "domain": null,
+  "plan": "premium",
+  "admin": {
+    "name": "Admin Valencia Centro",
+    "email": "admin.valencia.centro@arens.test",
+    "password": "Secret123"
+  },
+  "branch": { "name": "Valencia Centro", "code": "VAL" },
+  "warehouse": { "name": "Almacen Valencia Centro", "code": "VAL-01" },
+  "exchange_rate_type": { "code": "BCV", "name": "Banco Central" }
 }
 ```
 
-### 4.3 Sin permiso (403)
+**Validaciones:**
+- `{group}` debe existir y ser grupo raiz.
+- El user debe ser Owner del grupo (sino 403).
+- El slug debe ser unico globalmente.
 
-```json
-{
-  "message": "This action is unauthorized."
-}
-```
+**Efectos (en transaccion):**
+1. Crea tenant con `parent_id = {group->id}`.
+2. Crea branch + warehouse + exchange rate BCV si vienen.
+3. Asocia el admin via `tenant_user` con `status = active`.
+4. Le crea el rol `Administrador` en el team del spinoff con todos los 95 permisos.
+5. Registra `audit_log` con action `tenant.spun_off_from_group`.
 
-### 4.4 Tenant no encontrado (404)
+**Response 201:** (objeto del spinoff)
 
-```json
-{
-  "message": "No query results for model [App\\Modules\\Tenancy\\Models\\Tenant]."
-}
-```
+**Errores:**
+- `403 User is not an owner of this group.`
+- `404 Group not found.` o `Tenant is not a group root.`
+- `422 Ya existe una empresa con ese slug.`
 
 ---
 
-## 5. Flujo completo end-to-end (ejemplo)
+## 6. Endpoints — Nivel 3 (Tenant Admin)
 
-### Caso: Owner crea empresa "Demo Maracaibo" y asocia usuarios existentes
+### 6.1 Listar todas las empresas (legacy)
+
+```
+GET /api/tenants
+Authorization: Bearer <admin-token>
+```
+
+Requiere `tenants.view`. Lista todas las empresas del sistema (no solo del tenant actual).
+
+### 6.2 Crear empresa desde cero (legacy)
+
+```
+POST /api/tenants
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+```
+
+**Payload:** mismo que `POST /api/master/groups` pero usa `admin` en vez de `group_owner`.
+
+Requiere `tenants.create`. Crea tenant con `parent_id = NULL` (es grupo raiz). El admin se asigna con rol `Administrador`.
+
+### 6.3 Ver / Modificar / Desactivar empresa
+
+```
+GET    /api/tenants/{tenant}    # tenants.view
+PATCH  /api/tenants/{tenant}    # tenants.update
+DELETE /api/tenants/{tenant}    # tenants.delete (soft delete)
+```
+
+`{tenant}` puede ser ID o slug.
+
+### 6.4 Listar / Asociar / Desasociar usuarios
+
+```
+GET    /api/tenants/{tenant}/users
+POST   /api/tenants/{tenant}/users
+DELETE /api/tenants/{tenant}/users/{user}
+```
+
+Ver detalles completos en `docs/TENANCY_API.md` (version anterior) o `app/Modules/AccessControl/Services/AccessControlService.php`.
+
+---
+
+## 7. Como promover un user a Platform Admin (SaaS Master)
+
+Solo tu (el desarrollador) puede hacerlo, via tinker o SQL:
+
+```php
+php artisan tinker
+>>> \App\Models\User::where('email', 'tu@correo.com')->update(['is_platform_admin' => true]);
+>>> exit
+```
+
+Tambien puedes hacerlo via SQL directo:
+```sql
+UPDATE users SET is_platform_admin = TRUE WHERE email = 'tu@correo.com';
+```
+
+**Importante:** El user promovido a platform admin NO debe tener `tenant_id` en su `auth_tokens`. El token se crea sin tenant (nullable FK).
+
+---
+
+## 8. Flujo end-to-end (ejemplo completo)
+
+### Caso: el SaaS Master crea el grupo "Arens Holding" y el Group Owner crea empresas hijas
 
 ```bash
-# 1. Login como Owner (ya tiene rol Owner en "Demo Caracas Norte")
+# === Paso 1: el desarrollador promueve su user a platform admin (via tinker) ===
+
+# === Paso 2: login como platform admin ===
+# (El token no lleva X-Tenant porque opera fuera de cualquier tenant)
 curl -X POST https://app.miinventariofacil.com/api/auth/login \
   -H "Content-Type: application/json" \
-  -H "X-Tenant: demo-caracas-norte" \
-  -d '{"email":"owner@example.test","password":"secret"}'
+  -d '{"email":"tu@correo.com","password":"secret","device_name":"master"}'
 
-# Response: { "data": { "token": "abc123..." } }
+# Response: { "data": { "token": "MASTER_TOKEN" } }
 
-# 2. Crear la empresa nueva
-curl -X POST https://app.miinventariofacil.com/api/tenants \
-  -H "Authorization: Bearer abc123..." \
+# === Paso 3: crear el grupo Arens Holding ===
+curl -X POST https://app.miinventariofacil.com/api/master/groups \
+  -H "Authorization: Bearer MASTER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Demo Maracaibo",
-    "slug": "demo-maracaibo",
-    "plan": "premium",
-    "admin": {
-      "name": "Owner Maracaibo",
-      "email": "owner.maracaibo@example.test",
+    "name": "Arens Holding",
+    "slug": "arens-holding",
+    "plan": "enterprise",
+    "group_owner": {
+      "name": "Jefe Holding",
+      "email": "jefe@arens.test",
       "password": "Secret123"
     },
-    "branch": {
-      "name": "Principal Maracaibo",
-      "code": "MAR"
-    },
-    "warehouse": {
-      "name": "Almacen Maracaibo",
-      "code": "MAR-01"
-    },
-    "exchange_rate_type": {
-      "code": "BCV",
-      "name": "Banco Central de Venezuela"
-    }
+    "branch": {"name": "Principal", "code": "PRIN"},
+    "warehouse": {"name": "Almacen Principal", "code": "PRIN-01"}
   }'
 
-# Response 201 con la nueva empresa.
+# Response 201 con el grupo creado.
 
-# 3. El admin hace login inmediato en la nueva empresa
+# === Paso 4: el Group Owner hace login ===
 curl -X POST https://app.miinventariofacil.com/api/auth/login \
   -H "Content-Type: application/json" \
-  -H "X-Tenant: demo-maracaibo" \
-  -d '{"email":"owner.maracaibo@example.test","password":"Secret123"}'
+  -H "X-Tenant: arens-holding" \
+  -d '{"email":"jefe@arens.test","password":"Secret123","device_name":"jefe"}'
 
-# Response: { "data": { "token": "xyz789...", "tenant": {...}, "roles": ["Administrador"] } }
+# Response: { "data": { "token": "JEFE_TOKEN", "tenant": {...}, "roles": ["Owner"] } }
 
-# 4. Owner asocia usuario existente de otra empresa a esta nueva
-curl -X POST https://app.miinventariofacil.com/api/tenants/{NEW_TENANT_ID}/users \
-  -H "Authorization: Bearer abc123..." \
+# === Paso 5: el Group Owner crea una empresa spinoff ===
+curl -X POST https://app.miinventariofacil.com/api/groups/arens-holding/tenants \
+  -H "Authorization: Bearer JEFE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": 5,
-    "roles": ["Vendedor"]
+    "name": "Arens Valencia",
+    "slug": "arens-valencia",
+    "admin": {
+      "name": "Admin Valencia",
+      "email": "admin.valencia@arens.test",
+      "password": "Secret123"
+    },
+    "branch": {"name": "Valencia", "code": "VAL"},
+    "warehouse": {"name": "Almacen Valencia", "code": "VAL-01"}
   }'
 
-# Response 201 con el usuario asociado.
+# Response 201 con el spinoff.
+
+# === Paso 6: el admin del spinoff hace login ===
+curl -X POST https://app.miinventariofacil.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant: arens-valencia" \
+  -d '{"email":"admin.valencia@arens.test","password":"Secret123"}'
+
+# Response: { "data": { "token": "VAL_TOKEN", "tenant": {...}, "roles": ["Administrador"] } }
+
+# === Paso 7: el Group Owner ve sus spinoffs ===
+curl -X GET https://app.miinventariofacil.com/api/groups/arens-holding/tenants \
+  -H "Authorization: Bearer JEFE_TOKEN"
+
+# Response: lista con "Arens Valencia" + futuros spinoffs.
 ```
 
 ---
 
-## 6. Comandos Artisan complementarios
+## 9. Auditoria
 
-Ademas de la API, existen 2 comandos Artisan para administracion directa desde SSH:
-
-### 6.1 `php artisan access:promote-admin {email}`
-
-Asigna el rol `Administrador` (con todos los permisos) a un usuario en sus empresas activas. Util cuando un usuario ya esta asociado pero sin permisos.
-
-```bash
-php artisan access:promote-admin gerente.valencia@demo.test --tenant=demo-valencia
-```
-
-### 6.2 `php artisan sync:prepare-local {slug} {nombre} {email}`
-
-Usado por el instalador WPF para bootstrap inicial de un nodo local nuevo. Crea empresa + usuario + rol admin en una sola operacion. **Solo recomendado para bootstrap**, no para uso normal.
-
----
-
-## 7. Auditoria
-
-Todas las acciones quedan registradas en `audit_logs` con:
-
-| Action | Cuando se dispara | Payload (new_values) |
+| Action | Cuando | Payload |
 |---|---|---|
-| `tenant.created` | POST /api/tenants | name, slug, admin_email, branch_code, warehouse_code, exchange_rate_type_code |
+| `tenant_group.created` | POST /api/master/groups | name, slug, group_owner_email, branch_code, warehouse_code |
+| `tenant.created` | POST /api/tenants (legacy) | name, slug, admin_email, branch_code, warehouse_code, exchange_rate_type_code |
 | `tenant.updated` | PATCH /api/tenants/{id} | name, slug, domain, status, plan |
 | `tenant.deactivated` | DELETE /api/tenants/{id} | status=inactive |
+| `tenant.spun_off_from_group` | POST /api/groups/{slug}/tenants | name, slug, group_slug, group_id, admin_email, branch_code, warehouse_code |
 | `tenant.user_attached` | POST /api/tenants/{id}/users | tenant_slug, email, status, roles |
 | `tenant.user_detached` | DELETE /api/tenants/{id}/users/{user} | tenant_slug, old_status |
 
 ---
 
-## 8. Lo que NO hace este modulo
+## 10. Multi-tenancy — Implications
 
-- **No crea productos**. Despues de crear la empresa, el admin debe ir a Productos y crear los SKUs. (Esto se hara via sync desde la nube cuando el nodo local tenga productos.)
-- **No crea clientes**. Igual: via sync o manualmente.
-- **No migra data** desde otra empresa.
-- **No factura**. La facturacion sigue siendo gestionada externamente (Stripe, etc.) usando `tenant.plan` como referencia.
-
----
-
-## 9. Multi-tenancy implications
-
-- **NO usar `BelongsToTenant` en Tenant**: el modelo Tenant es la raiz, no es tenant-scoped.
-- **`tenant_user` pivot tampoco**: el usuario pertenece a multiples tenants.
-- **`users` tampoco**: los usuarios son globales.
-- **Todo lo demas (branches, warehouses, products, etc.)**: usa `BelongsToTenant` para que cada operacion se scope automaticamente al tenant del header `X-Tenant`.
+- `Tenant` es la raiz, NO usa `BelongsToTenant`.
+- `tenant_user` pivot NO usa `BelongsToTenant` (un user esta en muchos tenants).
+- `users` NO usa `BelongsToTenant`.
+- `auth_tokens.tenant_id` es **nullable** (los tokens de Platform Admin no tienen tenant).
+- Todo lo demas (branches, warehouses, products, etc.) usa `BelongsToTenant` con scope por `X-Tenant`.
+- Un Group Owner hace login con `X-Tenant: <grupo_slug>` y opera con sus permisos de Owner solo en el contexto del grupo. Para ver spinoffs usa `/api/groups/{slug}/tenants`.
 
 ---
 
-## 10. Tests
+## 11. Tests
 
-30 tests E2E en `tests/Feature/Tenancy/`:
+44 tests E2E en `tests/Feature/Tenancy/`:
 
-- `TenantApiTest.php` (9 tests): CRUD basico + permisos + validacion.
+- `TenantApiTest.php` (9 tests): CRUD legacy + permisos + validacion.
 - `TenantRegistrationTest.php` (9 tests): creacion completa con setup + admin role + login + audit.
 - `CrossTenantUserAttachTest.php` (12 tests): attach/detach/list + roles + reactivacion.
+- `MasterGroupApiTest.php` (7 tests): SaaS Master CRUD de grupos + audit + validacion.
+- `GroupSpinoffApiTest.php` (7 tests): Group Owner CRUD de spinoffs + ownership check + audit.
 
-Cobertura: happy paths, casos de error, validacion, idempotencia, cross-tenant, audit logs.
+Cobertura: happy paths, casos de error, validacion, idempotencia, ownership, cross-tenant, audit logs.
 
 ---
 
-## 11. Cambios backend (resumen para code review)
+## 12. Cambios backend (resumen para code review)
 
 | Archivo | Tipo | Descripcion |
 |---|---|---|
-| `app/Support/Permissions/BasePermissions.php` | mod | 6 permisos nuevos: tenants.view, tenants.create, tenants.update, tenants.delete, tenants.users.attach, tenants.users.detach |
-| `app/Modules/Tenancy/Models/Tenant.php` | mod | Relaciones inversas branches() y warehouses() |
-| `app/Modules/Tenancy/routes.php` | NEW | 8 endpoints nuevos (CRUD + users) |
-| `app/Modules/Tenancy/Requests/StoreTenantRequest.php` | NEW | Validacion del registro completo |
-| `app/Modules/Tenancy/Requests/UpdateTenantRequest.php` | NEW | Validacion del PATCH |
-| `app/Modules/Tenancy/Requests/AttachUserToTenantRequest.php` | NEW | Validacion del attach user |
-| `app/Modules/Tenancy/Resources/TenantResource.php` | NEW | Resource shape |
-| `app/Modules/Tenancy/Services/TenantRegistrationService.php` | NEW | Logica de registro completo + tenant context management |
-| `app/Modules/Tenancy/Services/CrossTenantUserService.php` | NEW | Logica de attach/detach cross-tenant |
-| `app/Modules/Tenancy/Controllers/TenantController.php` | NEW | Controller CRUD |
-| `app/Modules/Tenancy/Controllers/CrossTenantUserController.php` | NEW | Controller cross-tenant user management |
-| `routes/api.php` | mod | Carga Tenancy routes con solo `api.auth` middleware (sin `tenant`) |
-| `tests/Feature/Tenancy/*.php` | NEW | 30 tests E2E |
+| `database/migrations/2026_07_12_010000_*` | NEW | parent_id en tenants + is_platform_admin en users |
+| `database/migrations/2026_07_12_020000_*` | NEW | auth_tokens.tenant_id nullable |
+| `app/Support/Permissions/BasePermissions.php` | mod | 10 permisos nuevos: tenants.view, tenants.create, tenants.update, tenants.delete, tenants.users.attach, tenants.users.detach, tenants.master.create, tenants.master.view, tenants.group.create, tenants.group.view |
+| `app/Models/User.php` | mod | scope platformAdmins(), isPlatformAdmin(), cast boolean |
+| `app/Modules/Tenancy/Models/Tenant.php` | mod | relaciones parent/children, helpers isGroup/isSpinoff/isOwnedBy, resolveRouteBinding acepta slug |
+| `app/Modules/Tenancy/Middleware/EnsurePlatformAdmin.php` | NEW | verifica is_platform_admin |
+| `app/Modules/Tenancy/Middleware/EnsureGroupOwner.php` | NEW | verifica Owner del grupo |
+| `app/Modules/Tenancy/Services/TenantRegistrationService.php` | NEW | registro completo (Nivel 3 legacy) |
+| `app/Modules/Tenancy/Services/CrossTenantUserService.php` | NEW | attach/detach cross-tenant |
+| `app/Modules/Tenancy/Services/TenantGroupService.php` | NEW | SaaS Master: crea grupo + asigna Group Owner |
+| `app/Modules/Tenancy/Services/TenantSpinoffService.php` | NEW | Group Owner: crea spinoff |
+| `app/Modules/Tenancy/Controllers/{Tenant,CrossTenantUser,Master,Group}Controller.php` | NEW | 4 controllers |
+| `app/Modules/Tenancy/Requests/*Request.php` | NEW | 4 form requests |
+| `app/Modules/Tenancy/Resources/{Tenant,Group,Spinoff}Resource.php` | NEW | 3 resources |
+| `app/Modules/Tenancy/routes.php` | mod | 12 endpoints: 8 legacy + 2 master + 2 group |
+| `tests/Feature/Tenancy/*Test.php` | NEW | 44 tests E2E |
 
-**Total:** +1200 lineas, 0 cambios breaking, backward compatible.
+**Total:** +2200 lineas, 0 cambios breaking, backward compatible.
 
 ---
 
-## 12. Roadmap inmediato
+## 13. Roadmap inmediato
 
-- [ ] UI en portal admin (Botón "Crear empresa" + form).
-- [ ] Audit log con UI para Owner/Administrador.
+- [ ] UI en portal admin (SaaS Master): "Crear grupo" + lista de grupos.
+- [ ] UI en portal admin (Group Owner): "Crear empresa en mi grupo" + lista de spinoffs.
+- [ ] UI en portal admin (Tenant Admin): gestion de usuarios cross-tenant.
+- [ ] Audit log viewer para Owner/Administrador.
 - [ ] Opcion de clonar empresa (copy estructura base a tenant nuevo).
 - [ ] Limite de empresas por plan (`tenants.plan`).
 - [ ] Suspension automatica si plan expira.

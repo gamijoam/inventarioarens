@@ -1,7 +1,11 @@
 <?php
 
 use App\Modules\Tenancy\Controllers\CrossTenantUserController;
+use App\Modules\Tenancy\Controllers\GroupController;
+use App\Modules\Tenancy\Controllers\MasterController;
 use App\Modules\Tenancy\Controllers\TenantController;
+use App\Modules\Tenancy\Middleware\EnsureGroupOwner;
+use App\Modules\Tenancy\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('api.auth')->group(function (): void {
@@ -15,3 +19,17 @@ Route::middleware('api.auth')->group(function (): void {
     Route::post('tenants/{tenant}/users', [CrossTenantUserController::class, 'store']);
     Route::delete('tenants/{tenant}/users/{user}', [CrossTenantUserController::class, 'destroy']);
 });
+
+Route::middleware(['api.auth', EnsurePlatformAdmin::class])
+    ->prefix('master')
+    ->group(function (): void {
+        Route::get('groups', [MasterController::class, 'listGroups']);
+        Route::post('groups', [MasterController::class, 'storeGroup']);
+    });
+
+Route::middleware(['api.auth', EnsureGroupOwner::class])
+    ->prefix('groups/{group}')
+    ->group(function (): void {
+        Route::get('tenants', [GroupController::class, 'listSpinoffs']);
+        Route::post('tenants', [GroupController::class, 'storeSpinoff']);
+    });
