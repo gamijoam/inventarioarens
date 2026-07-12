@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Net.Http;
@@ -69,9 +69,9 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
     public IReadOnlyList<ProductExitReasonOption> Reasons { get; } =
     [
         ProductExitReasonOption.Default,
-        new("damaged", "Dañado"),
+        new("damaged", "DaÃ±ado"),
         new("lost", "Extraviado"),
-        new("warranty", "Garantía"),
+        new("warranty", "GarantÃ­a"),
         new("administrative", "Administrativo"),
         new("other", "Otro"),
     ];
@@ -143,8 +143,9 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
                 request!);
 
             WasSaved = true;
-            StatusMessage = $"Salida registrada: {response.Data.DocumentNumber ?? "sin número"}.";
+            StatusMessage = $"Salida registrada: {response.Data.DocumentNumber ?? "sin nÃºmero"}.";
             Saved?.Invoke(this, EventArgs.Empty);
+            Close();
         }
         catch (ApiException exception)
         {
@@ -158,7 +159,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La salida tardó demasiado en responder. Intenta nuevamente.";
+            StatusMessage = "La salida tardÃ³ demasiado en responder. Intenta nuevamente.";
             IsStatusError = true;
         }
         finally
@@ -168,6 +169,11 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
@@ -219,7 +225,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
 
         if (SelectedWarehouse is null)
         {
-            return Fail("Selecciona un almacén.");
+            return Fail("Selecciona un almacÃ©n.");
         }
 
         if (!TryReadDecimal(QuantityBox.Text, out decimal quantity) || quantity <= 0)
@@ -232,7 +238,7 @@ public partial class InventoryProductExitWindow : Window, INotifyPropertyChanged
         {
             if (quantity != decimal.Truncate(quantity))
             {
-                return Fail("La cantidad de un producto serializado debe ser un número entero.");
+                return Fail("La cantidad de un producto serializado debe ser un nÃºmero entero.");
             }
 
             List<long> selectedIds = SelectedSerials()
@@ -410,3 +416,4 @@ public sealed record ProductExitReasonOption(string Value, string Label)
 {
     public static ProductExitReasonOption Default { get; } = new("internal_use", "Uso interno");
 }
+

@@ -30,6 +30,13 @@ public partial class PriceListsView : UserControl, INotifyPropertyChanged
         DataContext = this;
     }
 
+    public event EventHandler? BackToModulesRequested;
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        BackToModulesRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<PriceListOption> PriceLists { get; } = new();

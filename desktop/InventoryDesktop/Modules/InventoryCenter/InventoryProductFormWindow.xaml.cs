@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Net.Http;
@@ -36,7 +36,7 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
 
     public bool WasSaved { get; private set; }
 
-    public string ModeLabel => productId is null ? "NUEVO" : "EDICIÓN";
+    public string ModeLabel => productId is null ? "NUEVO" : "EDICIÃ“N";
 
     public string TitleLabel => productId is null ? "Nuevo producto" : "Editar producto";
 
@@ -161,7 +161,7 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La operación tardó demasiado. Intenta nuevamente.";
+            StatusMessage = "La operaciÃ³n tardÃ³ demasiado. Intenta nuevamente.";
             IsStatusError = true;
         }
         finally
@@ -171,6 +171,11 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
@@ -207,7 +212,7 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
         {
             if (!IsStatusError)
             {
-                StatusMessage = "No se pudieron cargar las garantías. Puedes guardar sin garantía o intentar de nuevo.";
+                StatusMessage = "No se pudieron cargar las garantÃ­as. Puedes guardar sin garantÃ­a o intentar de nuevo.";
             }
         }
     }
@@ -259,7 +264,7 @@ public partial class InventoryProductFormWindow : Window, INotifyPropertyChanged
         {
             if (!TryReadDecimal(BasePriceBox.Text, out decimal parsedPrice) || parsedPrice < 0)
             {
-                return Fail("El precio base no es válido.");
+                return Fail("El precio base no es vÃ¡lido.");
             }
 
             basePrice = parsedPrice;
@@ -315,7 +320,8 @@ public sealed record ProductOption(string Value, string Label)
 
     public static ProductOption SerializedTracking { get; } = new("serialized", "Serializado / IMEI");
 
-    public static ProductOption UsdCurrency { get; } = new("USD", "Dólares (USD)");
+    public static ProductOption UsdCurrency { get; } = new("USD", "DÃ³lares (USD)");
 
-    public static ProductOption VesCurrency { get; } = new("VES", "Bolívares (VES)");
+    public static ProductOption VesCurrency { get; } = new("VES", "BolÃ­vares (VES)");
 }
+

@@ -54,6 +54,7 @@ public partial class ShellView : UserControl
         PosContent.ExitRequested += (_, _) => ShowHome();
         InventoryCenterContent.BackToModulesRequested += (_, _) => ShowHome();
         InventoryMovementsContent.BackToModulesRequested += (_, _) => ShowHome();
+        PriceListsContent.BackToModulesRequested += (_, _) => ShowHome();
         PriceListsContent.Configure(session.ApiClient);
         CurrencyRatesContent.Configure(session.ApiClient, RunSyncForCurrentTenantAsync);
         TransferReceptionContent.Configure(session.ApiClient);

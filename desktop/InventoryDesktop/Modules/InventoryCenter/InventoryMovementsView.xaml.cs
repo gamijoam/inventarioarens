@@ -12,6 +12,20 @@ public partial class InventoryMovementsView : UserControl
         InitializeComponent();
     }
 
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        BackToModulesRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void SearchBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            ApplyFilters_Click(sender, new RoutedEventArgs());
+            e.Handled = true;
+        }
+    }
+
     private InventoryCenterViewModel? ViewModel => DataContext as InventoryCenterViewModel;
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)

@@ -944,6 +944,11 @@ public partial class InventoryProductDetailWindow : Window, INotifyPropertyChang
         Close();
     }
 
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))

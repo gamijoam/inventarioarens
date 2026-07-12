@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
@@ -121,8 +121,8 @@ public partial class InventoryProductKardexWindow : Window, INotifyPropertyChang
     public string EmptyStateTitle => IsStatusError ? "No se pudo cargar el Kardex" : "Sin movimientos en este filtro";
 
     public string EmptyStateMessage => IsStatusError
-        ? "Revisa la conexión con la API o los permisos del usuario."
-        : "Prueba otro almacén o rango de fechas para revisar el historial.";
+        ? "Revisa la conexiÃ³n con la API o los permisos del usuario."
+        : "Prueba otro almacÃ©n o rango de fechas para revisar el historial.";
 
     public Brush StatusBrush => IsStatusError
         ? new SolidColorBrush(Color.FromRgb(217, 54, 92))
@@ -196,7 +196,7 @@ public partial class InventoryProductKardexWindow : Window, INotifyPropertyChang
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La carga del Kardex tardó demasiado. Intenta nuevamente.";
+            StatusMessage = "La carga del Kardex tardÃ³ demasiado. Intenta nuevamente.";
             IsStatusError = true;
         }
         finally
@@ -246,4 +246,10 @@ public partial class InventoryProductKardexWindow : Window, INotifyPropertyChang
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }
+

@@ -3,6 +3,7 @@
 namespace App\Modules\InventoryTransfers\Models;
 
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class TenantTransferSetting extends Model
 {
+    use BelongsToTenant;
+
     public const MODE_SIMPLE = 'simple';
     public const MODE_LOGISTICS = 'logistics';
 

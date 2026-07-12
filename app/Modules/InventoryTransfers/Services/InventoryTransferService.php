@@ -16,6 +16,7 @@ use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -339,6 +340,15 @@ class InventoryTransferService
             }
 
             $transfer->loadMissing(['fromWarehouse', 'guide', 'items.product']);
+
+            $totalPrepared = (float) $transfer->items
+                ->sum(fn ($item) => (float) ($item->prepared_quantity ?? 0));
+
+            if ($totalPrepared <= 0.0) {
+                throw ValidationException::withMessages([
+                    'items' => 'No se puede despachar: ningun item tiene cantidad preparada mayor a cero.',
+                ]);
+            }
 
             foreach ($transfer->items as $item) {
                 /** @var InventoryTransferItem $item */
@@ -1256,11 +1266,12 @@ class InventoryTransferService
 
     private function nextSequence(): int
     {
-        $lastSequence = InventoryTransfer::query()
-            ->orderByDesc('sequence')
-            ->lockForUpdate()
-            ->value('sequence');
+        $tenantId = (int) app(TenantManager::class)->require()->id;
 
-        return ((int) $lastSequence) + 1;
+        DB::statement('SELECT pg_advisory_xact_lock(?, ?)', [100, $tenantId]);
+
+        return ((int) InventoryTransfer::query()
+            ->orderByDesc('sequence')
+            ->value('sequence')) + 1;
     }
 }

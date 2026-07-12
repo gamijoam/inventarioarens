@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
@@ -85,7 +85,7 @@ public partial class ProductPriceHistoryWindow : Window, INotifyPropertyChanged
             }
 
             StatusMessage = Rows.Count == 0
-                ? "Este producto todavía no tiene cambios de precio registrados."
+                ? "Este producto todavÃ­a no tiene cambios de precio registrados."
                 : $"{Rows.Count} cambios de precio encontrados.";
         }
         catch (ApiException exception)
@@ -98,7 +98,7 @@ public partial class ProductPriceHistoryWindow : Window, INotifyPropertyChanged
         }
         catch (TaskCanceledException)
         {
-            SetError("La carga del historial tardó demasiado. Intenta nuevamente.");
+            SetError("La carga del historial tardÃ³ demasiado. Intenta nuevamente.");
         }
     }
 
@@ -124,4 +124,10 @@ public partial class ProductPriceHistoryWindow : Window, INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }
+

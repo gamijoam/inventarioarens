@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Net.Http;
@@ -120,8 +120,9 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
                 request!);
 
             WasSaved = true;
-            StatusMessage = $"Entrada registrada: {response.Data.DocumentNumber ?? "sin número"}.";
+            StatusMessage = $"Entrada registrada: {response.Data.DocumentNumber ?? "sin nÃºmero"}.";
             Saved?.Invoke(this, EventArgs.Empty);
+            Close();
         }
         catch (ApiException exception)
         {
@@ -135,7 +136,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         }
         catch (TaskCanceledException)
         {
-            StatusMessage = "La entrada tardó demasiado en responder. Intenta nuevamente.";
+            StatusMessage = "La entrada tardÃ³ demasiado en responder. Intenta nuevamente.";
             IsStatusError = true;
         }
         finally
@@ -145,6 +146,11 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void BackToModules_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
@@ -192,7 +198,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
 
         if (SelectedWarehouse is null)
         {
-            return Fail("Selecciona un almacén.");
+            return Fail("Selecciona un almacÃ©n.");
         }
 
         if (!TryReadDecimal(QuantityBox.Text, out decimal quantity) || quantity <= 0)
@@ -205,7 +211,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         {
             if (!TryReadDecimal(UnitCostBox.Text, out decimal parsedCost) || parsedCost < 0)
             {
-                return Fail("El costo unitario no es válido.");
+                return Fail("El costo unitario no es vÃ¡lido.");
             }
 
             unitCost = parsedCost;
@@ -253,7 +259,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
 
         if (quantity != decimal.Truncate(quantity))
         {
-            return Fail("La cantidad de un producto serializado debe ser un número entero.");
+            return Fail("La cantidad de un producto serializado debe ser un nÃºmero entero.");
         }
 
         List<string> rawLines = ReadSerialLines(includeEmpty: false);
@@ -302,7 +308,7 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
             string serial = rawLine.Trim();
             if (string.IsNullOrWhiteSpace(serial))
             {
-                SerialPreview.Add(new SerialPreviewItem(lineNumber, "(línea vacía)", "Vacía", false));
+                SerialPreview.Add(new SerialPreviewItem(lineNumber, "(lÃ­nea vacÃ­a)", "VacÃ­a", false));
             }
             else if (counts.TryGetValue(serial, out int count) && count > 1)
             {
@@ -327,12 +333,12 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
         isSerialSummaryError = errors > 0 || countMismatch;
 
         SerialSummary = countMismatch
-            ? $"{valid} IMEI/seriales válidos de {expected} requeridos."
-            : $"{valid} IMEI/seriales válidos detectados.";
+            ? $"{valid} IMEI/seriales vÃ¡lidos de {expected} requeridos."
+            : $"{valid} IMEI/seriales vÃ¡lidos detectados.";
 
         if (errors > 0)
         {
-            SerialSummary += $" {errors} línea(s) requieren atención.";
+            SerialSummary += $" {errors} lÃ­nea(s) requieren atenciÃ³n.";
         }
 
         RaisePropertyChanged(nameof(SerialSummaryBrush));
@@ -418,3 +424,4 @@ public partial class InventoryProductEntryWindow : Window, INotifyPropertyChange
 }
 
 public sealed record SerialPreviewItem(int LineNumber, string SerialNumber, string StatusLabel, bool IsUsable);
+
