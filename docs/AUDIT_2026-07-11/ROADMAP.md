@@ -77,7 +77,7 @@
 | P3-10 | `TenantTransferSetting` agrega `BelongsToTenant` + test | XS | ✅ **2026-07-11** |
 | P3-11 | Implementar `reserve_on_request` desde `TenantTransferSetting` | M | ☐ |
 | P3-12 | Tracking_type enforcement en `InventoryMovementService` (C3 inventario) | M | ☐ |
-| P3-13 | Events faltantes: `sale.cancelled`, `cash.movement.created`, `payment_method.deactivated` | M | ☐ |
+| P3-13 | Events faltantes: `sale.cancelled`, `cash.movement.created`, `payment_method.deactivated` | M | ✅ **2026-07-12** (parcial: `product_entry.created` y `product_exit.created` ya sincronizan correctamente) |
 | P3-14 | Structured logs en módulo Sync (P4 sync audit) | S | ☐ |
 | P3-15 | `payload_hash` verification (P0-6) — mover a P0 si es prioritario | S | ☐ |
 
