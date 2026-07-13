@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Config;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Core.ViewModels;
 
@@ -374,6 +375,8 @@ public sealed class SyncWorkerViewModel : ViewModelBase
             List<string> commandArguments = new()
             {
                 action,
+                "-PhpPath",
+                ConfigStore.TryRead()?.ResolvePhpPath() ?? PersistedConfig.DefaultPhpPath,
                 "-TenantSlug",
                 TenantSlug,
                 "-NodeCode",
@@ -582,6 +585,16 @@ public sealed class SyncWorkerViewModel : ViewModelBase
 
     private static string? FindRepoRoot()
     {
+        string? configured = ConfigStore.TryRead()?.RepoRoot;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            string normalized = NormalizeRepoRoot(configured);
+            if (normalized is not null)
+            {
+                return normalized;
+            }
+        }
+
         DirectoryInfo? current = new(AppContext.BaseDirectory);
         while (current is not null)
         {
@@ -607,6 +620,25 @@ public sealed class SyncWorkerViewModel : ViewModelBase
         }
 
         return null;
+    }
+
+    private static string? NormalizeRepoRoot(string rawPath)
+    {
+        string expanded = Environment.ExpandEnvironmentVariables(rawPath).Trim('"', '\'');
+        if (string.IsNullOrWhiteSpace(expanded))
+        {
+            return null;
+        }
+
+        try
+        {
+            string full = Path.GetFullPath(expanded);
+            return File.Exists(Path.Combine(full, "artisan")) ? full : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string QuoteForCmd(string value)
