@@ -20,7 +20,8 @@ Si querés que opencode los arregle, son cambios chicos y aislados:
 | 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** | ✅ Resuelto (`883d76d`) |
 | 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto (`883d76d`) |
 | 4 | Botón "Sincronizar" no hace nada en el .exe publicado | `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs` | `FindRepoRoot` (línea 583) | **Deployment**, no bug de código | **Bloqueante en test, OK en prod** | ⏳ Documentado (siguiente commit) |
-| 5 | "Cambiar empresa" muestra "Error al cambiar de empresa" | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 (post-fix #2) | Race con `Unloaded` re-revocando el token nuevo | **Bloqueante** | ✅ Resuelto (commit siguiente) |
+| 5 | "Cambiar empresa" muestra "Error al cambiar de empresa" | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 (post-fix #2) | Race con `Unloaded` re-revocando el token nuevo | **Bloqueante** | ✅ Resuelto (`52cfe24`) |
+| 6 | "Cambiar empresa" devuelve 403 (permiso denegado) | `app/Modules/Tenancy/routes.php` | 12 | **Backend**: ruta `/api/tenants` no tiene `tenant` middleware | **Bloqueante** | ✅ Resuelto (siguiente commit) |
 
 ---
 
@@ -249,15 +250,13 @@ Si los 3 casos funcionan, los bugs estan cerrados.
 
 ## Trabajo de backend requerido
 
-**Cero**. Los 5 bugs son frontend. El backend responde correctamente
-(verificado vía `curl` en sesión previa):
-- `GET /api/auth/me` devuelve 200 con datos correctos.
-- `POST /api/auth/switch-tenant` devuelve 201 con nuevo token.
-- `POST /api/auth/platform-login` emite tokens sin tenant.
+**Cero bugs frontend pendientes**, pero hubo **1 bug backend** que se
+encontró en la sesión 2026-07-13 (#6). Total 6 bugs (5 frontend + 1 backend)
+todos resueltos.
 
-Si en el futuro aparecen bugs de los que NO estoy seguro, los
-marco con **"requiere investigación de backend"** en este mismo
-documento.
+El backend responde correctamente a nivel de controllers y
+endpoints individuales. El problema #6 era de enrutamiento:
+faltaba el middleware `tenant` en un grupo de rutas.
 
 ---
 
@@ -312,6 +311,85 @@ funciona `InventorySyncInstaller`).
 
 **Severidad**: bloqueante para el flujo de sync en builds
 publicados. No crash, no es bug — es feature gap de deployment.
+
+---
+
+## Bug 6 — "Cambiar empresa" devuelve 403 (permiso denegado) — **BACKEND BUG**
+
+**Síntoma**:
+Después de aplicar el fix #5 (cambio de empresa no cierra la app),
+el usuario sigue viendo un error. El log muestra:
+
+```
+[ERROR] SwitchTenant fallo.
+InventoryDesktop.Core.Api.ApiException
+   at ApiClient.ReadResponseAsync[TResponse]
+   at ApiClient.GetAsync[TResponse]
+   at TenantsApi.GetMyTenantsAsync(ApiClient)
+   at ShellView.SwitchTenant_Click
+```
+
+El endpoint `GET /api/tenants` responde 403 Forbidden.
+
+**Causa raíz**:
+El grupo de rutas en `app/Modules/Tenancy/routes.php:12` declaraba
+solo `api.auth` como middleware, NO `api.auth + tenant`:
+
+```php
+// ANTES (incorrecto)
+Route::middleware('api.auth')->group(function (): void {
+    Route::get('tenants', [TenantController::class, 'index']);
+    ...
+});
+```
+
+Sin el middleware `tenant`, el `ResolveTenant` no se ejecutaba
+para `/api/tenants`. Eso significa que:
+
+- `app(TenantManager::class)->current()` era null.
+- `setPermissionsTeamId($tenant->id)` NO se ejecutaba.
+- El Spatie team era null.
+
+En el controller, `$request->user()->can('tenants.view')` usa
+Spatie para verificar el permiso. Spatie usa el team_id actual
+para filtrar los roles. Con team_id null, no se encuentran roles
+del usuario, así que el `can()` retorna false. El `abort_unless`
+devuelve 403.
+
+**Por qué el bug pasó inadvertido**:
+- El controlador `TenantController` fue añadido con un grupo de
+  rutas simplificado. La ruta solo tiene `api.auth` (autenticación)
+  pero no `tenant` (resolución de tenant + set del team).
+- El controller funcionaba para requests con un user que tuviera
+  permisos globales (Platform Admin, que pasa por otra ruta). Pero
+  para tenant users fallaba silenciosamente.
+
+**Fix aplicado**:
+
+```php
+// DESPUES (correcto)
+Route::middleware(['api.auth', 'tenant'])->group(function (): void {
+    Route::get('tenants', [TenantController::class, 'index']);
+    ...
+});
+```
+
+Después del fix, `getPermissionsTeamId()` retorna `$tenant->id` (1
+en este caso), el team se setea, y `$user->can('tenants.view')`
+retorna true correctamente.
+
+**Verificacion**:
+- `php artisan optimize:clear` para refrescar la cache de rutas.
+- `GET /api/tenants` con X-Tenant: demo-valencia ahora retorna 200
+  con la lista de 5 tenants.
+- 24/24 tests pasando en `MasterGroupApiTest`, `TenantApiTest`,
+  `TenantIsolationTest`.
+
+**Severidad**: bloqueante. Sin este fix, el flujo de "Cambiar
+empresa" del ShellView no funciona. El WPF lo reporta como un
+error genérico "Error al cambiar de empresa" — el mensaje
+muestra el catch del frontend pero el error real era un 403 del
+backend.
 
 ---
 

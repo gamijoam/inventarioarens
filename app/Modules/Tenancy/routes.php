@@ -9,7 +9,7 @@ use App\Modules\Tenancy\Middleware\EnsureGroupOwner;
 use App\Modules\Tenancy\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('api.auth')->group(function (): void {
+Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     Route::get('tenants', [TenantController::class, 'index']);
     Route::post('tenants', [TenantController::class, 'store']);
     Route::get('tenants/{tenant}', [TenantController::class, 'show']);
