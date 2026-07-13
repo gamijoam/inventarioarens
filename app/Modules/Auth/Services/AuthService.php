@@ -138,15 +138,17 @@ class AuthService
         }
     }
 
-    public function currentSession(User $user, Tenant $tenant): array
+    public function currentSession(User $user, ?Tenant $tenant): array
     {
-        setPermissionsTeamId($tenant->id);
+        if ($tenant !== null) {
+            setPermissionsTeamId($tenant->id);
+        }
 
         return [
             'user' => $user,
             'tenant' => $tenant,
-            'roles' => $this->roles($user),
-            'permissions' => $this->permissions($user),
+            'roles' => $tenant ? $this->roles($user) : [],
+            'permissions' => $tenant ? $this->permissions($user) : [],
         ];
     }
 

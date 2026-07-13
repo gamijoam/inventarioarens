@@ -24,10 +24,21 @@ Route::middleware('api.auth')->group(function (): void {
 Route::middleware(['api.auth', EnsurePlatformAdmin::class])
     ->prefix('master')
     ->group(function (): void {
+        Route::get('stats', [MasterController::class, 'stats']);
+
         Route::get('groups', [MasterController::class, 'listGroups']);
         Route::post('groups', [MasterController::class, 'storeGroup']);
+        Route::get('groups/{group}', [MasterController::class, 'showGroup']);
+        Route::patch('groups/{group}', [MasterController::class, 'updateGroup']);
+        Route::delete('groups/{group}', [MasterController::class, 'destroyGroup']);
+        Route::get('groups/{group}/tenants', [MasterController::class, 'listGroupSpinoffs']);
+
         Route::get('admins', [PlatformAdminController::class, 'index']);
         Route::post('admins', [PlatformAdminController::class, 'store']);
+        Route::get('admins/{admin}', [PlatformAdminController::class, 'show']);
+        Route::patch('admins/{admin}', [PlatformAdminController::class, 'update']);
+        Route::delete('admins/{admin}', [PlatformAdminController::class, 'destroy']);
+        Route::post('admins/{admin}/reset-password', [PlatformAdminController::class, 'resetPassword']);
     });
 
 Route::middleware(['api.auth', EnsureGroupOwner::class])

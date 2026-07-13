@@ -9,20 +9,23 @@ class AuthSessionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $tenant = $this['tenant'] ?? null;
+
         return [
             'user' => [
                 'id' => $this['user']->id,
                 'name' => $this['user']->name,
                 'email' => $this['user']->email,
+                'is_platform_admin' => (bool) $this['user']->is_platform_admin,
             ],
-            'tenant' => [
-                'id' => $this['tenant']->id,
-                'name' => $this['tenant']->name,
-                'slug' => $this['tenant']->slug,
-                'domain' => $this['tenant']->domain,
-            ],
-            'roles' => $this['roles'],
-            'permissions' => $this['permissions'],
+            'tenant' => $tenant ? [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'slug' => $tenant->slug,
+                'domain' => $tenant->domain,
+            ] : null,
+            'roles' => $this['roles'] ?? [],
+            'permissions' => $this['permissions'] ?? [],
         ];
     }
 }
