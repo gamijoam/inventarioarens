@@ -25,7 +25,7 @@ escrito en **Laravel 13 / PHP 8.3-8.4 / PostgreSQL**. Tiene tres superficies de 
 - VPS nube: `217.216.80.158` (Contabo Ubuntu 24.04), Nginx + PHP-FPM en `/opt/inventarioarens-cloud/public`
 - DB nube: PostgreSQL 16 nativo (NO Docker) en `127.0.0.1:5432`, DB `inventory_arens`, user `postgres`
 - Dominio público: **`https://app.miinventariofacil.com/api`** (HTTPS Let's Encrypt)
-- SSH key para VPS: `C:\Users\gafit\.ssh\webadmin-vps` (user `webadmin`)
+- SSH al VPS: `root@217.216.80.158` con key `C:\Users\gafit\.ssh\webadmin-vps` (instalada en `~/.ssh/authorized_keys` el 2026-07-13). **NO existe usuario `webadmin`** en el host: los scripts de deploy usan root directo. `scripts/deploy-platform-master.sh` ya está actualizado para no usar `sudo -u webadmin`.
 
 ---
 
