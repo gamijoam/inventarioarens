@@ -20,5 +20,7 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
 });
 
 Route::middleware('api.auth')->group(function (): void {
+    Route::get('auth/me', [AuthController::class, 'me']);
+    Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::post('auth/switch-tenant', [AuthController::class, 'switchTenant']);
 });
