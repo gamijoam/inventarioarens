@@ -151,6 +151,105 @@ class MasterGroupApiTest extends TestCase
             ->assertJsonValidationErrors(['slug']);
     }
 
+    public function test_platform_admin_can_create_spinoff_under_group(): void
+    {
+        $token = $this->makePlatformAdminToken();
+        $group = Tenant::create([
+            'name' => 'Arens Holding',
+            'slug' => 'arens-holding',
+            'status' => 'active',
+            'plan' => 'enterprise',
+        ]);
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson("/api/master/groups/{$group->slug}/tenants", [
+                'name' => 'Arens Valencia',
+                'slug' => 'arens-valencia',
+                'plan' => 'premium',
+                'admin' => [
+                    'name' => 'Admin Valencia',
+                    'email' => 'admin.valencia@arens.test',
+                    'password' => 'Secret123',
+                ],
+                'branch' => ['name' => 'Valencia', 'code' => 'VAL'],
+                'warehouse' => ['name' => 'Almacen Valencia', 'code' => 'VAL-01'],
+            ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.slug', 'arens-valencia');
+        $response->assertJsonPath('data.parent_id', $group->id);
+        $response->assertJsonPath('data.is_group', false);
+
+        $this->assertDatabaseHas('tenants', [
+            'slug' => 'arens-valencia',
+            'parent_id' => $group->id,
+            'plan' => 'premium',
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_regular_user_cannot_create_spinoff_via_master_route(): void
+    {
+        $token = $this->makeRegularUserToken();
+        $group = Tenant::create([
+            'name' => 'Arens Holding',
+            'slug' => 'arens-holding',
+            'status' => 'active',
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson("/api/master/groups/{$group->slug}/tenants", [
+                'name' => 'Arens Valencia',
+                'slug' => 'arens-valencia',
+                'admin' => ['name' => 'Admin', 'email' => 'admin@arens.test'],
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_create_spinoff_rejects_non_group_tenant(): void
+    {
+        $token = $this->makePlatformAdminToken();
+        $parent = Tenant::create([
+            'name' => 'Parent',
+            'slug' => 'parent-group',
+            'status' => 'active',
+        ]);
+        $spinoff = Tenant::create([
+            'name' => 'Already a spinoff',
+            'slug' => 'already-spin',
+            'status' => 'active',
+            'parent_id' => $parent->id,
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson("/api/master/groups/{$spinoff->slug}/tenants", [
+                'name' => 'New Valencia',
+                'slug' => 'new-valencia',
+                'admin' => ['name' => 'Admin', 'email' => 'admin@arens.test'],
+            ])
+            ->assertNotFound();
+    }
+
+    public function test_create_spinoff_rejects_duplicate_slug(): void
+    {
+        $token = $this->makePlatformAdminToken();
+        $group = Tenant::create([
+            'name' => 'Arens Holding',
+            'slug' => 'arens-holding',
+            'status' => 'active',
+        ]);
+        Tenant::create(['name' => 'Existing', 'slug' => 'existing-slug', 'status' => 'active']);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson("/api/master/groups/{$group->slug}/tenants", [
+                'name' => 'New Valencia',
+                'slug' => 'existing-slug',
+                'admin' => ['name' => 'Admin', 'email' => 'admin@arens.test'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['slug']);
+    }
+
     private function makePlatformAdminToken(): string
     {
         $admin = User::factory()->create([

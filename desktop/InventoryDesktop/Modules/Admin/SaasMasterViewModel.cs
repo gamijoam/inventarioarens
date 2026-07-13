@@ -112,7 +112,7 @@ public sealed class SaasMasterViewModel : ViewModelBase
 
         try
         {
-            SpinoffListResponse response = await apiClient.GetAsync<SpinoffListResponse>($"groups/{groupSlug}/tenants");
+            SpinoffListResponse response = await apiClient.GetAsync<SpinoffListResponse>($"master/groups/{groupSlug}/tenants");
             Spinoffs.Clear();
             foreach (SpinoffResource spinoff in response.Data)
             {
@@ -177,7 +177,7 @@ public sealed class SaasMasterViewModel : ViewModelBase
 
         try
         {
-            SingleSpinoffResponse response = await apiClient.PostAsync<CreateSpinoffRequest, SingleSpinoffResponse>($"groups/{groupSlug}/tenants", request);
+            SingleSpinoffResponse response = await apiClient.PostAsync<CreateSpinoffRequest, SingleSpinoffResponse>($"master/groups/{groupSlug}/tenants", request);
             Spinoffs.Insert(0, response.Data);
             SelectedSpinoff = response.Data;
             StatusMessage = $"Spinoff '{response.Data.Name}' creado en '{groupSlug}'.";

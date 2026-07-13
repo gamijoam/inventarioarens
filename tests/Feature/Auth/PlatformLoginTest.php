@@ -113,7 +113,7 @@ class PlatformLoginTest extends TestCase
             ->assertJsonFragment(['email' => $admin->email]);
     }
 
-    public function test_platform_token_does_not_work_on_tenant_scoped_endpoints(): void
+    public function test_platform_token_works_on_auth_me_without_tenant(): void
     {
         User::create([
             'name' => 'SaaS Admin',
@@ -129,8 +129,11 @@ class PlatformLoginTest extends TestCase
 
         $token = $login->json('data.token');
 
-        $this->withToken($token)
+        $response = $this->withToken($token)
             ->getJson('/api/auth/me')
-            ->assertNotFound();
+            ->assertOk();
+
+        $response->assertJsonPath('data.user.is_platform_admin', true);
+        $response->assertJsonPath('data.tenant', null);
     }
 }

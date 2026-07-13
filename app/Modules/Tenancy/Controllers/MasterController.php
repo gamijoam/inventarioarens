@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\StoreGroupRequest;
+use App\Modules\Tenancy\Requests\StoreSpinoffRequest;
 use App\Modules\Tenancy\Requests\UpdateGroupRequest;
 use App\Modules\Tenancy\Resources\GroupResource;
 use App\Modules\Tenancy\Resources\SpinoffResource;
@@ -113,6 +114,36 @@ class MasterController extends Controller
         return SpinoffResource::collection($this->spinoffService->listSpinoffs($group));
     }
 
+    public function createGroupSpinoff(StoreSpinoffRequest $request, Tenant $group): JsonResponse
+    {
+        abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($group->isGroup(), Response::HTTP_NOT_FOUND, 'Tenant is not a group root.');
+
+        $actor = $request->user();
+        $tenant = $this->auditWithGroupContext($group, function () use ($group, $request): Tenant {
+            return $this->spinoffService->createSpinoff($group, $request->validated(), $request->user());
+        });
+
+        $this->audit->record(
+            action: 'tenant_group.spinoff_created_by_platform_admin',
+            entity: $tenant,
+            user: $actor,
+            newValues: [
+                'group_slug' => $group->slug,
+                'group_id' => $group->id,
+                'spinoff_slug' => $tenant->slug,
+                'spinoff_id' => $tenant->id,
+                'actor_is_platform_admin' => true,
+            ],
+        );
+
+        $tenant->loadCount('users');
+
+        return SpinoffResource::make($tenant)
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
     public function stats(Request $request): JsonResponse
     {
         abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
@@ -139,7 +170,7 @@ class MasterController extends Controller
         ]]);
     }
 
-    private function auditWithGroupContext(Tenant $group, \Closure $callback): void
+    private function auditWithGroupContext(Tenant $group, \Closure $callback): mixed
     {
         $manager = app(\App\Support\Tenancy\TenantManager::class);
         $previous = $manager->current();
@@ -152,7 +183,7 @@ class MasterController extends Controller
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         try {
-            $callback();
+            return $callback();
         } finally {
             if ($previous) {
                 $manager->set($previous);
