@@ -1,0 +1,391 @@
+<UserControl x:Class="InventoryDesktop.Modules.Admin.SaasMasterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid Background="#F1F5F9" Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                Padding="20,16">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <materialDesign:PackIcon Kind="AccountGroup" Foreground="#7C3AED" Width="22" Height="22" VerticalAlignment="Center" />
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Text="SaaS Master" FontSize="18" FontWeight="Bold" Foreground="#1E293B" />
+                        <TextBlock Text="Gestion de grupos, spinoffs y platform admins" FontSize="11" Foreground="#64748B" FontWeight="Light" />
+                    </StackPanel>
+                </StackPanel>
+                <Button DockPanel.Dock="Right"
+                        Content="Cerrar"
+                        MinWidth="100"
+                        Height="36"
+                        Margin="12,0,0,0"
+                        materialDesign:ButtonAssist.CornerRadius="8"
+                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Click="Close_Click"
+                        FontWeight="SemiBold" />
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Padding="8,4" Background="#EEF0FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="6" Margin="0,0,0,12">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="InfoCircleOutline" Foreground="{StaticResource AccentStrongBrush}" Width="12" Height="12" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Foreground="{StaticResource AccentStrongBrush}"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <TabControl Grid.Row="1"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        materialDesign:ColorZoneAssist.Mode="PrimaryLight"
+                        Style="{StaticResource MaterialDesignFilledTabControl}"
+                        SelectionChanged="TabControl_SelectionChanged">
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Domain" Width="14" Height="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Grupos y Spinoffs" Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="420" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Margin="0,0,12,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="20,16,20,12" LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Height="36"
+                                            MinWidth="140"
+                                            materialDesign:ButtonAssist.CornerRadius="8"
+                                            Background="#7C3AED"
+                                            BorderBrush="#7C3AED"
+                                            Foreground="White"
+                                            Click="NewGroup_Click"
+                                            FontWeight="SemiBold">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="PlusCircleOutline" Foreground="White" Width="14" Height="14" VerticalAlignment="Center" />
+                                            <TextBlock Text="Nuevo grupo" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <materialDesign:PackIcon Kind="Domain" Foreground="#7C3AED" Width="16" Height="16" VerticalAlignment="Center" />
+                                        <TextBlock Text="Grupos SaaS" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid Grid.Row="1"
+                                          x:Name="GroupsGrid"
+                                          ItemsSource="{Binding Groups}"
+                                          SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          IsReadOnly="True"
+                                          AlternationCount="2"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="None"
+                                          RowHeight="44"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          SelectionMode="Single"
+                                          Margin="0,0,0,0">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#F8FAFC" />
+                                            <Setter Property="BorderBrush" Value="#E2E8F0" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Setter Property="Padding" Value="14,10" />
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="FontSize" Value="10" />
+                                            <Setter Property="Foreground" Value="#475569" />
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Padding" Value="14,6" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Setter Property="Background" Value="White" />
+                                            <Style.Triggers>
+                                                <Trigger Property="AlternationIndex" Value="1">
+                                                    <Setter Property="Background" Value="#F8FAFC" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="GRUPO" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#1E293B" />
+                                                        <TextBlock Text="{Binding Slug}" FontSize="11" Foreground="#94A3B8" FontWeight="Medium" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="SPINOFFS" Binding="{Binding SpinoffsCount}" Width="100" />
+                                        <DataGridTextColumn Header="USERS" Binding="{Binding UsersCount}" Width="80" />
+                                        <DataGridTextColumn Header="PLAN" Binding="{Binding Plan}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Background="White"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Margin="12,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="20,16,20,12" LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Height="36"
+                                            MinWidth="120"
+                                            materialDesign:ButtonAssist.CornerRadius="8"
+                                            Background="#4D35FF"
+                                            BorderBrush="#4D35FF"
+                                            Foreground="White"
+                                            IsEnabled="{Binding HasSelectedGroup}"
+                                            Click="NewSpinoff_Click"
+                                            FontWeight="SemiBold">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="PlusCircleOutline" Foreground="White" Width="14" Height="14" VerticalAlignment="Center" />
+                                            <TextBlock Text="Nuevo spinoff" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <materialDesign:PackIcon Kind="DomainPlus" Foreground="#4D35FF" Width="16" Height="16" VerticalAlignment="Center" />
+                                        <TextBlock Text="Spinoffs del grupo" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid Grid.Row="1"
+                                          x:Name="SpinoffsGrid"
+                                          ItemsSource="{Binding Spinoffs}"
+                                          SelectedItem="{Binding SelectedSpinoff, Mode=TwoWay}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          IsReadOnly="True"
+                                          AlternationCount="2"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="None"
+                                          RowHeight="44"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          SelectionMode="Single">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#F8FAFC" />
+                                            <Setter Property="BorderBrush" Value="#E2E8F0" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Setter Property="Padding" Value="14,10" />
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="FontSize" Value="10" />
+                                            <Setter Property="Foreground" Value="#475569" />
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Padding" Value="14,6" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Setter Property="Background" Value="White" />
+                                            <Style.Triggers>
+                                                <Trigger Property="AlternationIndex" Value="1">
+                                                    <Setter Property="Background" Value="#F8FAFC" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="EMPRESA" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#1E293B" />
+                                                        <TextBlock Text="{Binding Slug}" FontSize="11" Foreground="#94A3B8" FontWeight="Medium" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="80" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <Border Background="#F8FAFC"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="20"
+                                        Margin="20"
+                                        VerticalAlignment="Bottom"
+                                        HorizontalAlignment="Center"
+                                        Visibility="{Binding Spinoffs.Count, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Selecciona un grupo para ver sus spinoffs."
+                                               Foreground="#94A3B8"
+                                               FontSize="11"
+                                               FontWeight="Medium" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ShieldAccountOutline" Width="14" Height="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Platform Admins" Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="0,12,0,0">
+                        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="20,16,20,12" LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Height="36"
+                                            MinWidth="180"
+                                            materialDesign:ButtonAssist.CornerRadius="8"
+                                            Background="#7C3AED"
+                                            BorderBrush="#7C3AED"
+                                            Foreground="White"
+                                            Click="NewPlatformAdmin_Click"
+                                            FontWeight="SemiBold">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="PlusCircleOutline" Foreground="White" Width="14" Height="14" VerticalAlignment="Center" />
+                                            <TextBlock Text="Nuevo Platform Admin" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <materialDesign:PackIcon Kind="ShieldAccount" Foreground="#7C3AED" Width="16" Height="16" VerticalAlignment="Center" />
+                                        <TextBlock Text="Platform Admins" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid Grid.Row="1"
+                                          x:Name="PlatformAdminsGrid"
+                                          ItemsSource="{Binding PlatformAdmins}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          IsReadOnly="True"
+                                          AlternationCount="2"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="None"
+                                          RowHeight="44"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          SelectionMode="Single">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#F8FAFC" />
+                                            <Setter Property="BorderBrush" Value="#E2E8F0" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Setter Property="Padding" Value="14,10" />
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="FontSize" Value="10" />
+                                            <Setter Property="Foreground" Value="#475569" />
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Padding" Value="14,6" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Setter Property="Background" Value="White" />
+                                            <Style.Triggers>
+                                                <Trigger Property="AlternationIndex" Value="1">
+                                                    <Setter Property="Background" Value="#F8FAFC" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="ADMIN" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#1E293B" />
+                                                        <TextBlock Text="{Binding Email}" FontSize="11" Foreground="#94A3B8" FontWeight="Medium" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60" />
+                                        <DataGridTextColumn Header="CREADO" Binding="{Binding CreatedAt}" Width="160" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <Border Background="#F8FAFC"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="20"
+                                        Margin="20"
+                                        VerticalAlignment="Bottom"
+                                        HorizontalAlignment="Center"
+                                        Visibility="{Binding PlatformAdmins.Count, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="No hay platform admins registrados."
+                                               Foreground="#94A3B8"
+                                               FontSize="11"
+                                               FontWeight="Medium" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

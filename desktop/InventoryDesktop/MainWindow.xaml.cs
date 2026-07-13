@@ -1,21 +1,22 @@
 using System.Windows;
+using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
+using InventoryDesktop.Modules.Admin;
 using InventoryDesktop.Modules.Auth;
 
 namespace InventoryDesktop;
 
 public partial class MainWindow : Window
 {
-    private readonly LoginView loginView = new();
-    private ShellWindow? shellWindow;
-
     public MainWindow()
     {
         InitializeComponent();
         AppLogger.Info("MainWindow creada.");
+        var loginView = new LoginView();
         AppContent.Content = loginView;
-        loginView.LoginSucceeded += LoginSucceeded;
+        loginView.LoginSucceeded += (_, session) => OnLoginSucceeded(loginView, session);
+        loginView.PlatformAdminLoginSucceeded += (_, session) => OnPlatformAdminLoginSucceeded(loginView, session);
         Closed += (_, _) =>
         {
             AppLogger.Info("MainWindow cerrada por el usuario. Apagando aplicacion.");
@@ -23,32 +24,55 @@ public partial class MainWindow : Window
         };
     }
 
-    private void LoginSucceeded(object? sender, DesktopSession session)
+    private void OnLoginSucceeded(LoginView loginView, DesktopSession session)
     {
         try
         {
-            AppLogger.Info($"Login correcto para tenant '{session.TenantName}'. Abriendo ShellWindow.");
-            if (shellWindow is { IsVisible: true })
-            {
-                shellWindow.Activate();
-                loginView.ShowError("El panel principal ya esta abierto.");
-                AppLogger.Info("ShellWindow ya estaba abierta; se activo la ventana existente.");
-                return;
-            }
+            AppLogger.Info($"Login correcto para tenant '{session.TenantName}'. Reemplazando LoginView por ShellView.");
 
-            shellWindow = new ShellWindow();
-            shellWindow.Closed += (_, _) => shellWindow = null;
-            shellWindow.Show();
-            shellWindow.Activate();
-            AppLogger.Info("ShellWindow mostrada. Cargando contenido del panel.");
-            shellWindow.LoadSession(session);
-            AppLogger.Info("ShellWindow cargo el panel principal correctamente.");
-            loginView.ShowError("Sesion iniciada. El panel principal se abrio en otra ventana.");
+            var shellView = new ShellView(session);
+            AppContent.Content = shellView;
+
+            Title = $"Sistema de Inventario - {session.TenantName}";
+            AppLogger.Info("ShellView mostrada en MainWindow. LoginView descartada.");
         }
         catch (Exception exception)
         {
-            AppLogger.Error("No se pudo abrir el panel principal.", exception);
+            AppLogger.Error("No se pudo cargar ShellView.", exception);
             loginView.ShowError($"No se pudo abrir el panel principal. {exception.Message}");
+        }
+    }
+
+    private void OnPlatformAdminLoginSucceeded(LoginView loginView, DesktopSession session)
+    {
+        try
+        {
+            AppLogger.Info("Login de Platform Admin correcto. Abriendo SaaS Master.");
+
+            var adminClient = new ApiClient();
+            adminClient.Configure(session.ApiBaseUrl, session.Login.Token, tenantSlug: null);
+
+            var saasMaster = new SaasMasterWindow(adminClient)
+            {
+                Owner = this,
+            };
+            saasMaster.Closed += (_, _) =>
+            {
+                Title = "Sistema de Inventario";
+                var newLogin = new LoginView();
+                AppContent.Content = newLogin;
+                newLogin.LoginSucceeded += (_, s) => OnLoginSucceeded(newLogin, s);
+                newLogin.PlatformAdminLoginSucceeded += (_, s) => OnPlatformAdminLoginSucceeded(newLogin, s);
+            };
+            saasMaster.Show();
+
+            Title = $"Sistema de Inventario - Modo Programador ({session.UserName})";
+            AppLogger.Info("SaaS Master abierta en MainWindow.");
+        }
+        catch (Exception exception)
+        {
+            AppLogger.Error("No se pudo abrir el panel SaaS Master.", exception);
+            loginView.ShowError($"No se pudo abrir el panel de programador. {exception.Message}");
         }
     }
 }

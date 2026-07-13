@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('auth/tenants', [AuthController::class, 'tenants'])->middleware('throttle:auth');
 
+Route::post('auth/platform-login', [AuthController::class, 'platformLogin'])->middleware('throttle:auth');
+
 Route::middleware('tenant')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
 });

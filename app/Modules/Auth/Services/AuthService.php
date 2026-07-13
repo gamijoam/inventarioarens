@@ -150,6 +150,90 @@ class AuthService
         ];
     }
 
+    /**
+     * Login for Platform Admins (SaaS Master 3er nivel).
+     *
+     * Emite un AuthToken con tenant_id = null (token global). Solo se permite
+     * si el usuario tiene is_platform_admin=true. No requiere header X-Tenant
+     * porque opera sobre todos los grupos/spinoffs.
+     */
+    public function platformLogin(string $email, string $password, Request $request): array
+    {
+        $user = User::query()
+            ->where('email', Str::lower($email))
+            ->first();
+
+        if (! $user || ! Hash::check($password, $user->password)) {
+            $this->consumeDummyBcryptTime();
+
+            $this->audit->record(
+                action: 'auth.platform_login.failed',
+                user: null,
+                oldValues: null,
+                newValues: [
+                    'email' => $email,
+                    'reason' => 'invalid_credentials',
+                    'ip_address' => $request->ip(),
+                ],
+            );
+
+            throw ValidationException::withMessages([
+                'email' => 'Las credenciales no son validas.',
+            ]);
+        }
+
+        if (! $user->is_platform_admin) {
+            $this->audit->record(
+                action: 'auth.platform_login.failed',
+                user: $user,
+                oldValues: null,
+                newValues: [
+                    'email' => $email,
+                    'reason' => 'not_platform_admin',
+                    'ip_address' => $request->ip(),
+                ],
+            );
+
+            throw ValidationException::withMessages([
+                'email' => 'Este usuario no es Platform Admin.',
+            ]);
+        }
+
+        $plainToken = Str::random(80);
+        $token = AuthToken::create([
+            'tenant_id' => null,
+            'user_id' => $user->id,
+            'name' => $request->input('device_name', 'platform-desktop'),
+            'token_hash' => hash('sha256', $plainToken),
+            'abilities' => ['platform'],
+            'expires_at' => now()->addDays(30),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        $this->audit->record(
+            action: 'auth.platform_login.success',
+            entity: $user,
+            user: $user,
+            newValues: [
+                'token_id' => $token->id,
+                'token_name' => $token->name,
+                'expires_at' => $token->expires_at?->toISOString(),
+                'ip_address' => $request->ip(),
+            ],
+        );
+
+        return [
+            'token' => $plainToken,
+            'token_type' => 'Bearer',
+            'expires_at' => $token->expires_at?->toISOString(),
+            'user' => $user,
+            'tenant' => null,
+            'roles' => $this->roles($user),
+            'permissions' => $this->permissions($user),
+        ];
+    }
+
     public function revokeCurrentToken(?AuthToken $token): void
     {
         if ($token) {

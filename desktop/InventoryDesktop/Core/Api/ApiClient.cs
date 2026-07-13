@@ -19,6 +19,8 @@ public sealed class ApiClient
 
     public Uri BaseUri { get; private set; } = new("http://127.0.0.1:8000/api/");
 
+    public string? TenantSlug => tenantSlug;
+
     public void Configure(string apiBaseUrl, string? bearerToken = null, string? tenantSlug = null)
     {
         if (!apiBaseUrl.EndsWith("/", StringComparison.Ordinal))
@@ -29,6 +31,18 @@ public sealed class ApiClient
         BaseUri = new Uri(apiBaseUrl, UriKind.Absolute);
         this.bearerToken = bearerToken;
         this.tenantSlug = tenantSlug;
+    }
+
+    public void ConfigureSession(string? bearerToken, string? tenantSlug)
+    {
+        this.bearerToken = bearerToken;
+        this.tenantSlug = tenantSlug;
+    }
+
+    public void ClearSession()
+    {
+        bearerToken = null;
+        tenantSlug = null;
     }
 
     public async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest payload, CancellationToken cancellationToken = default)
@@ -71,6 +85,15 @@ public sealed class ApiClient
         {
             await ReadResponseAsync<object>(response, cancellationToken);
         }
+    }
+
+    public async Task<TResponse> PostNoPayloadAsync<TResponse>(string path, CancellationToken cancellationToken = default)
+    {
+        using PerformanceTrace trace = PerformanceTrace.Start($"API POST {path}", 350);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Post, path);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<TResponse>(response, cancellationToken);
     }
 
     public async Task<TResponse> GetAsync<TResponse>(string path, CancellationToken cancellationToken = default)

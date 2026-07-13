@@ -16,7 +16,7 @@ internal static class Program
         RegexOptions.Compiled);
 
     private static readonly Regex EventHandlerAttrRegex = new(
-        @"\s+(?<name>Click|TextChanged|PasswordChanged|KeyDown|LostKeyboardFocus|GotKeyboardFocus|GotFocus|LostFocus|SelectionChanged|Loaded|Unloaded|TextInput|PreviewTextInput|PreviewKeyDown|PreviewMouseDown|MouseDoubleClick|KeyUp|MouseDown|Closing|Closed|SizeChanged|LayoutUpdated|SourceInitialized|Initialized|ContentRendered)\s*=\s*""[^""]*""",
+        @"\s+(?<name>Click|TextChanged|PasswordChanged|KeyDown|LostKeyboardFocus|GotKeyboardFocus|GotFocus|LostFocus|SelectionChanged|Loaded|Unloaded|TextInput|PreviewTextInput|PreviewKeyDown|PreviewMouseDown|MouseDoubleClick|KeyUp|MouseDown|Closing|Closed|SizeChanged|LayoutUpdated|SourceInitialized|Initialized|ContentRendered|IsKeyboardFocusWithinChanged|IsKeyboardFocusedChanged)\s*=\s*""[^""]*""",
         RegexOptions.Compiled);
 
     private static readonly HashSet<string> ResourceErrorSubstrings = new(StringComparer.OrdinalIgnoreCase)

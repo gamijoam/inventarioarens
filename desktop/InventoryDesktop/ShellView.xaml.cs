@@ -6,8 +6,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
+using InventoryDesktop.Core.Services;
+using InventoryDesktop.Modules.Admin;
 using InventoryDesktop.Modules.CashRegister;
 using InventoryDesktop.Modules.Currency;
 using InventoryDesktop.Modules.Customers;
@@ -17,11 +20,16 @@ using InventoryDesktop.Modules.POS;
 using InventoryDesktop.Modules.Sync;
 using MaterialDesignThemes.Wpf;
 
+// Disambiguate: Sync namespace has its own TenantOption/LoginData duplicates
+using AuthTenantOption = InventoryDesktop.Modules.Auth.TenantOption;
+using AuthLoginData = InventoryDesktop.Modules.Auth.LoginData;
+
 namespace InventoryDesktop;
 
 public partial class ShellView : UserControl
 {
     private readonly DesktopSession session;
+    private readonly SessionService sessionService;
     private readonly InventoryCenterViewModel inventoryCenterViewModel;
     private readonly InventoryCenterViewModel inventoryMovementsViewModel;
     private readonly CashRegisterViewModel cashRegisterViewModel;
@@ -36,6 +44,8 @@ public partial class ShellView : UserControl
         InitializeComponent();
         this.session = session;
         DataContext = session;
+
+        sessionService = new SessionService(session.ApiClient, new TokenVault());
 
         inventoryCenterViewModel = new InventoryCenterViewModel(session.ApiClient);
         inventoryMovementsViewModel = new InventoryCenterViewModel(session.ApiClient);
@@ -57,6 +67,7 @@ public partial class ShellView : UserControl
         PriceListsContent.BackToModulesRequested += (_, _) => ShowHome();
         CurrencyRatesContent.BackToModulesRequested += (_, _) => ShowHome();
         CashRegisterContent.BackToModulesRequested += (_, _) => ShowHome();
+        CustomersContent.BackToModulesRequested += (_, _) => ShowHome();
         PriceListsContent.Configure(session.ApiClient);
         CurrencyRatesContent.Configure(session.ApiClient, RunSyncForCurrentTenantAsync);
         TransferReceptionContent.Configure(session.ApiClient);
@@ -68,7 +79,37 @@ public partial class ShellView : UserControl
             await SyncWorkerContent.EnsureAutomaticWorkerAsync();
             await RefreshSyncIndicatorAsync();
             await PromptInitialSyncIfNeededAsync();
+            await RefreshMeAsync();
         };
+        Unloaded += async (_, _) =>
+        {
+            await LogoutAsync();
+        };
+    }
+
+    private async Task RefreshMeAsync()
+    {
+        AuthLoginData? fresh = await sessionService.GetCurrentUserAsync();
+        if (fresh is not null)
+        {
+            sessionService.PersistSession(new DesktopSession(
+                ApiClient: session.ApiClient,
+                Login: fresh,
+                ApiBaseUrl: session.ApiBaseUrl));
+            AppLogger.Info($"Sesion refrescada para '{fresh.Tenant.Name}'.");
+        }
+    }
+
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            await sessionService.LogoutAsync();
+        }
+        catch (Exception exception)
+        {
+            AppLogger.Error("LogoutAsync fallo.", exception);
+        }
     }
 
     private static ObservableCollection<ModuleCardInfo> BuildModuleCards()
@@ -269,6 +310,97 @@ public partial class ShellView : UserControl
     {
         ShowSync();
         await SyncWorkerContent.LoadAsync();
+    }
+
+    private async void SwitchTenant_Click(object sender, RoutedEventArgs e)
+    {
+        if (!session.HasPermission("tenants.view"))
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "No tienes permiso para cambiar de empresa.",
+                "Acceso denegado",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            AuthTenantOption[] tenants = await TenantsApi.GetMyTenantsAsync(session.ApiClient);
+            if (tenants.Length <= 1)
+            {
+                MessageBox.Show(
+                    Window.GetWindow(this),
+                    "Solo tienes una empresa asociada. No hay otras empresas a las que cambiar.",
+                    "Cambiar empresa",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SwitchTenantDialog(tenants, session.TenantSlug)
+            {
+                Owner = Window.GetWindow(this),
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            string newTenantSlug = dialog.SelectedTenantSlug;
+            if (string.IsNullOrWhiteSpace(newTenantSlug) || newTenantSlug == session.TenantSlug)
+            {
+                return;
+            }
+
+            AuthLoginData? fresh = await sessionService.SwitchTenantAsync(newTenantSlug);
+            if (fresh is null)
+            {
+                MessageBox.Show(
+                    Window.GetWindow(this),
+                    "No se pudo cambiar de empresa.",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+
+            Window.GetWindow(this)?.Close();
+        }
+        catch (Exception exception)
+        {
+            AppLogger.Error("SwitchTenant fallo.", exception);
+            MessageBox.Show(
+                Window.GetWindow(this),
+                $"Error al cambiar de empresa: {exception.Message}",
+                "Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private void SaasMaster_Click(object sender, RoutedEventArgs e)
+    {
+        if (!session.IsPlatformAdmin)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "Solo Platform Admin puede acceder al modo programador.",
+                "Acceso denegado",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var apiClientForAdmin = new ApiClient();
+        apiClientForAdmin.Configure(session.ApiBaseUrl, session.Login.Token, tenantSlug: null);
+
+        var window = new SaasMasterWindow(apiClientForAdmin)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        window.Show();
     }
 
     private void ShowHome()

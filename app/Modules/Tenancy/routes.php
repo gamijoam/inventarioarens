@@ -3,6 +3,7 @@
 use App\Modules\Tenancy\Controllers\CrossTenantUserController;
 use App\Modules\Tenancy\Controllers\GroupController;
 use App\Modules\Tenancy\Controllers\MasterController;
+use App\Modules\Tenancy\Controllers\PlatformAdminController;
 use App\Modules\Tenancy\Controllers\TenantController;
 use App\Modules\Tenancy\Middleware\EnsureGroupOwner;
 use App\Modules\Tenancy\Middleware\EnsurePlatformAdmin;
@@ -25,6 +26,8 @@ Route::middleware(['api.auth', EnsurePlatformAdmin::class])
     ->group(function (): void {
         Route::get('groups', [MasterController::class, 'listGroups']);
         Route::post('groups', [MasterController::class, 'storeGroup']);
+        Route::get('admins', [PlatformAdminController::class, 'index']);
+        Route::post('admins', [PlatformAdminController::class, 'store']);
     });
 
 Route::middleware(['api.auth', EnsureGroupOwner::class])

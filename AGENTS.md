@@ -177,6 +177,7 @@ WPF guarda el token en `Core/Security/TokenVault.cs` (DPAPI del Windows user act
 | Vite | 8.0 (requiere Node 20.19+ o 22.12+) |
 | Tailwind | 4.0 (vía `@tailwindcss/vite`) |
 | Playwright | 1.61 |
+| MaterialDesignThemes | 5.2.1 (WPF login redesign 2026-07-12 + tenancy 3 niveles UI 2026-07-13) |
 | desktop | C# .NET 8 WPF (`net8.0-windows`) + MaterialDesignThemes 5.2.1 |
 | Composer scripts | `composer setup`, `composer dev`, `composer test` |
 | pnpm scripts | `pnpm run build`, `pnpm run dev`, `pnpm e2e`, `pnpm e2e:install` |
@@ -517,7 +518,25 @@ php artisan sync:prepare-local demo-valencia "Demo Valencia" admin@test.test
 php artisan sync:issue-token demo-valencia admin@test.test --name=worker --days=365
 php artisan sync:run demo-valencia
 php artisan sync:apply-inbox demo-valencia --limit=200
+
+# Tenant Admin (Administrador dentro de una empresa existente)
+# Asigna rol Administrador con todos los permisos al user en sus empresas.
 php artisan access:promote-admin gerente.valencia@demo.test
+
+# Platform Admin (SaaS Master, nivel global, controla todos los grupos/spinoffs)
+# Crea el user si no existe, o lo promueve a Platform Admin si ya existe.
+php artisan access:create-platform-admin "Nombre Admin" admin@arens.test                  # pass aleatoria
+php artisan access:create-platform-admin "Nombre Admin" admin@arens.test --password=Secret1234
+# Promover user existente a Platform Admin: usar el mismo create-platform-admin
+# (si el email ya existe y NO es platform admin, lo marca is_platform_admin=true).
+php artisan access:create-platform-admin "Mi Admin" usuario@yaexiste.com --password=Secret1234
+# Endpoints (requieren EnsurePlatformAdmin):
+#   GET  /api/master/admins   - lista Platform Admins
+#   POST /api/master/admins   - crea uno nuevo (o promueve si ya existe). Devuelve initial_password si fue creado.
+# Endpoint SIN tenant middleware (login global sin empresa):
+#   POST /api/auth/platform-login - login exclusivo para Platform Admins.
+#     Emite un AuthToken con tenant_id=null (no scoped). Solo sirve para /api/master/*.
+#     Si el user no es platform_admin responde 422.
 
 # VPS
 ssh -i C:\Users\gafit\.ssh\webadmin-vps webadmin@217.216.80.158

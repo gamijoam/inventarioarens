@@ -3,9 +3,11 @@
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Requests\LoginRequest;
+use App\Modules\Auth\Requests\PlatformLoginRequest;
 use App\Modules\Auth\Requests\SwitchTenantRequest;
 use App\Modules\Auth\Requests\TenantLookupRequest;
 use App\Modules\Auth\Resources\AuthSessionResource;
+use App\Modules\Auth\Resources\PlatformSessionResource;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
@@ -41,6 +43,26 @@ class AuthController extends Controller
         return response()->json([
             'data' => array_merge(
                 AuthSessionResource::make($session)->resolve($request),
+                [
+                    'token' => $session['token'],
+                    'token_type' => $session['token_type'],
+                    'expires_at' => $session['expires_at'],
+                ]
+            ),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function platformLogin(PlatformLoginRequest $request): JsonResponse
+    {
+        $session = $this->auth->platformLogin(
+            $request->validated('email'),
+            $request->validated('password'),
+            $request
+        );
+
+        return response()->json([
+            'data' => array_merge(
+                PlatformSessionResource::make($session)->resolve($request),
                 [
                     'token' => $session['token'],
                     'token_type' => $session['token_type'],

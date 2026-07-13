@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Net.Http;
 using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
+using InventoryDesktop.Core.Services;
 using InventoryDesktop.Core.ViewModels;
 
 namespace InventoryDesktop.Modules.Auth;
@@ -16,8 +18,11 @@ public sealed class LoginViewModel : ViewModelBase
     private string statusMessage = "";
     private bool isBusy;
     private bool hasError;
+    private bool isPlatformAdminMode;
 
     public event EventHandler<DesktopSession>? LoginSucceeded;
+
+    public event EventHandler<DesktopSession>? PlatformAdminLoginSucceeded;
 
     public string ApiBaseUrl
     {
@@ -28,7 +33,14 @@ public sealed class LoginViewModel : ViewModelBase
     public string Email
     {
         get => email;
-        set => SetProperty(ref email, value);
+        set
+        {
+            if (SetProperty(ref email, value))
+            {
+                RaisePropertyChanged(nameof(IsPlatformAdminModeVisible));
+                RaisePropertyChanged(nameof(IsLoginEnabled));
+            }
+        }
     }
 
     public ObservableCollection<TenantOption> Tenants { get; } = new();
@@ -77,7 +89,23 @@ public sealed class LoginViewModel : ViewModelBase
 
     public bool HasStatusInfo => !string.IsNullOrWhiteSpace(StatusMessage);
 
-    public bool IsLoginEnabled => !IsBusy;
+    public bool IsLoginEnabled => !IsBusy && (!string.IsNullOrWhiteSpace(Email) || IsPlatformAdminMode);
+
+    public bool IsPlatformAdminMode
+    {
+        get => isPlatformAdminMode;
+        set
+        {
+            if (SetProperty(ref isPlatformAdminMode, value))
+            {
+                RaisePropertyChanged(nameof(IsPlatformAdminModeVisible));
+                RaisePropertyChanged(nameof(IsLoginEnabled));
+            }
+        }
+    }
+
+    public bool IsPlatformAdminModeVisible =>
+        IsPlatformAdminMode || Email.Contains("@admin.") || Email.StartsWith("admin@", StringComparison.OrdinalIgnoreCase);
 
     public void SetError(string message)
     {
@@ -118,6 +146,12 @@ public sealed class LoginViewModel : ViewModelBase
 
     public async Task LoginAsync(string password)
     {
+        if (IsPlatformAdminMode)
+        {
+            await LoginPlatformAdminAsync(password);
+            return;
+        }
+
         if (!ValidateCredentials(password))
         {
             return;
@@ -144,6 +178,44 @@ public sealed class LoginViewModel : ViewModelBase
         }
 
         await RunAsync(() => LoginWithSelectedTenantAsync(password));
+    }
+
+    private async Task LoginPlatformAdminAsync(string password)
+    {
+        if (string.IsNullOrWhiteSpace(ApiBaseUrl))
+        {
+            SetError("Debes indicar la URL base de la API.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            SetError("El correo es obligatorio para el modo programador.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            SetError("La contraseña es obligatoria.");
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            apiClient.Configure(ApiBaseUrl);
+            LoginResponse response = await apiClient.PostAsync<LoginRequest, LoginResponse>(
+                "auth/platform-login",
+                new LoginRequest(Email.Trim(), password, Environment.MachineName));
+
+            tokenVault.Save(response.Data.Token);
+            apiClient.Configure(ApiBaseUrl, response.Data.Token, response.Data.Tenant?.Slug);
+            StatusMessage = $"Sesión iniciada como {response.Data.User.Name} (Platform Admin).";
+            HasError = false;
+
+            var session = new DesktopSession(apiClient, response.Data, ApiBaseUrl);
+            new SessionService(apiClient, tokenVault).PersistSession(session);
+            PlatformAdminLoginSucceeded?.Invoke(this, session);
+        });
     }
 
     private async Task FetchTenantsAsync()
@@ -180,7 +252,10 @@ public sealed class LoginViewModel : ViewModelBase
         apiClient.Configure(ApiBaseUrl, response.Data.Token, response.Data.Tenant.Slug);
         StatusMessage = $"Sesión iniciada en {response.Data.Tenant.Name} como {response.Data.User.Name}.";
         HasError = false;
-        LoginSucceeded?.Invoke(this, new DesktopSession(apiClient, response.Data, ApiBaseUrl));
+
+        var session = new DesktopSession(apiClient, response.Data, ApiBaseUrl);
+        new SessionService(apiClient, tokenVault).PersistSession(session);
+        LoginSucceeded?.Invoke(this, session);
     }
 
     private bool ValidateCredentials(string password)
