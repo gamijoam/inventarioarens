@@ -3274,7 +3274,6 @@ button {
 .admin-shell--v2 .payables-admin,
 .admin-shell--v2 .customers-admin,
 .admin-shell--v2 .suppliers-admin,
-.admin-shell--v2 .access-admin,
 .admin-shell--v2 .cash-admin,
 .admin-shell--v2 .sync-admin { display: none !important; }
 
