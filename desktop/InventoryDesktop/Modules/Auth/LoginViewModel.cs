@@ -177,12 +177,11 @@ public sealed class LoginViewModel : ViewModelBase
 
     public void ResolveApiBaseUrl()
     {
-        PersistedSession? persisted = tokenVault.ReadSession();
         PersistedConfig? config = ConfigStore.TryRead();
 
-        string resolved = !string.IsNullOrWhiteSpace(persisted?.ApiBaseUrl)
-            ? persisted!.ApiBaseUrl
-            : config?.ApiBaseUrl ?? apiBaseUrl;
+        string resolved = !string.IsNullOrWhiteSpace(config?.ApiBaseUrl)
+            ? config!.ApiBaseUrl
+            : apiBaseUrl;
 
         if (!string.IsNullOrWhiteSpace(resolved))
         {

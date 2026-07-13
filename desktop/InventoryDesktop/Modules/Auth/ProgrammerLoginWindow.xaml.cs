@@ -78,19 +78,20 @@ public partial class ProgrammerLoginWindow : Window, INotifyPropertyChanged
 
     private string ResolveApiBaseUrl()
     {
-        PersistedSession? persisted = tokenVault.ReadSession();
-        if (!string.IsNullOrWhiteSpace(persisted?.ApiBaseUrl))
-        {
-            return persisted!.ApiBaseUrl;
-        }
-
         PersistedConfig? config = ConfigStore.TryRead();
-        if (config is not null && !string.IsNullOrWhiteSpace(config.ApiBaseUrl))
+        if (config is null)
         {
-            return config.ApiBaseUrl;
+            return PersistedConfig.DefaultApiBaseUrl;
         }
 
-        return PersistedConfig.DefaultApiBaseUrl;
+        if (!string.IsNullOrWhiteSpace(config.PlatformApiBaseUrl))
+        {
+            return config.PlatformApiBaseUrl!;
+        }
+
+        return !string.IsNullOrWhiteSpace(config.ApiBaseUrl)
+            ? config.ApiBaseUrl
+            : PersistedConfig.DefaultApiBaseUrl;
     }
 
     private async void Accept_Click(object sender, RoutedEventArgs e)
