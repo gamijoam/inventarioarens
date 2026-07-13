@@ -366,12 +366,103 @@ Patrón estándar:
 - `POST /api/inventory-transfers/{id}/cancel` — cancelar.
 - `POST /api/inventory-transfers/{id}/resolve-differences` — resolver diferencias.
 
-### Traslados inter-company
-- `GET/POST /api/inventory-transfer-requests`.
-- `GET /api/inventory-transfer-requests/{id}`.
-- `POST /api/inventory-transfer-requests/{id}/accept` — aceptar.
-- `POST /api/inventory-transfer-requests/{id}/reject` — rechazar.
-- `POST /api/inventory-transfer-requests/{id}/cancel` — cancelar.
+### Traslados inter-company (entre empresas)
+- `GET /api/inventory-transfer-requests` — listar (devuelve las que el tenant actual es origen O destino).
+- `POST /api/inventory-transfer-requests` — crear solicitud (status inicial: `requested`).
+- `GET /api/inventory-transfer-requests/{id}` — ver detalle (requiere que el tenant sea origen o destino).
+- `POST /api/inventory-transfer-requests/{id}/accept` — aceptar (solo destino, mueve stock entre tenants).
+- `POST /api/inventory-transfer-requests/{id}/reject` — rechazar (solo destino, sin movimiento de stock).
+- `POST /api/inventory-transfer-requests/{id}/cancel` — cancelar (solo origen, sin movimiento de stock).
+
+**Modelos de payload (crear / aceptar):**
+
+`POST /api/inventory-transfer-requests`:
+```json
+{
+  "destination_tenant_slug": "tenant-b",        // o destination_user_email (una u otra, required_without)
+  "destination_user_email": "admin@b.com",     // alternativa: email de un usuario del tenant destino
+  "from_warehouse_id": 5,
+  "reason": "Traslado por venta especial",
+  "reference": "PO-123",
+  "notes": "Mover 5 unidades del modelo X",
+  "items": [
+    {
+      "product_id": 10,
+      "quantity": 5,
+      "product_unit_ids": [42, 43, 44, 45, 46]   // solo si el producto es serialized (IMEI/serial)
+    }
+  ]
+}
+```
+
+`POST /api/inventory-transfer-requests/{id}/accept`:
+```json
+{
+  "destination_warehouse_id": 7,                // almacén destino en el tenant destino
+  "response_notes": "Recibido OK",
+  "items": [
+    {
+      "request_item_id": 12,                  // id del item en la solicitud original
+      "destination_product_id": 22            // producto en el catálogo del tenant destino (puede ser otro id)
+    },
+    {
+      "request_item_id": 13,
+      "destination_product_id": 22
+    }
+  ]
+}
+```
+
+**Reglas críticas del UI (para evitar que el usuario se confunda):**
+- Un usuario NO puede transferir a su mismo tenant (request rechazada con 422).
+- Solo el tenant **destino** ve los botones "Aceptar" / "Rechazar".
+- Solo el tenant **origen** ve el botón "Cancelar".
+- El catálogo de productos del destino es independiente: cada tenant tiene sus propios `product_id`. El sistema valida que el producto destino tenga el mismo `tracking_type` (serialized o quantity) que el origen.
+- Los IMEIs/seriales se capturan como **snapshot** al crear la solicitud. Si el destino los acepta, se crean como nuevos `ProductUnit` con el mismo `serial_type`+`serial_number` en el tenant destino (si ya existe, error 422).
+
+**Estados de la solicitud (4):**
+- `requested` — creada por origen, esperando respuesta del destino
+- `rejected` — destino la rechazó (sin movimiento de stock)
+- `cancelled` — origen la canceló antes de que el destino responda
+- `completed` — destino la aceptó (movimiento de stock entre tenants se ejecutó)
+
+**Shape del resource (InventoryTransferRequestResource):**
+```json
+{
+  "id": 42,
+  "sequence": 1,
+  "document_number": "TREQ-1-000001",
+  "origin_tenant_id": 1,
+  "destination_tenant_id": 2,
+  "from_warehouse_id": 5,
+  "destination_warehouse_id": 7,
+  "status": "completed",
+  "reason": "...",
+  "reference": "...",
+  "notes": "...",
+  "response_notes": "...",
+  "requested_by": 10,
+  "responded_by": 22,
+  "requested_at": "2026-07-11T10:00:00-04:00",
+  "responded_at": "2026-07-11T14:30:00-04:00",
+  "completed_at": "2026-07-11T14:30:00-04:00",
+  "items": [
+    {
+      "id": 1,
+      "origin_product_id": 10,
+      "destination_product_id": 22,
+      "quantity": "5.0000",
+      "product_unit_ids": [42, 43, 44, 45, 46],
+      "serial_units": [
+        {"serial_type": "imei", "serial_number": "860001000001"},
+        ...
+      ],
+      "out_stock_movement_id": 100,
+      "in_stock_movement_id": 101
+    }
+  ]
+}
+```
 
 ### Kardex
 - `GET /api/kardex/products/{id}?date_from=&date_to=&warehouse_id=` — historial.
