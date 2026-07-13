@@ -3088,16 +3088,66 @@
                                     <div class="panel-heading">
                                         <div>
                                             <h4 id="admin-access-selected-user-title">Usuario seleccionado</h4>
-                                            <p>Selecciona un usuario para cambiar sus perfiles o estado.</p>
+                                            <p>Selecciona un usuario para cambiar sus perfiles, permisos extra o capacidades.</p>
                                         </div>
                                     </div>
-                                    <label class="field">
-                                        <span>Perfiles asignados</span>
-                                        <select id="admin-access-selected-user-roles" multiple size="7"></select>
-                                    </label>
-                                    <div class="access-actions">
-                                        <button class="primary-button" type="button" id="admin-access-save-user-roles">Guardar perfiles</button>
-                                        <button class="ghost-button" type="button" id="admin-access-toggle-user-status">Activar / inactivar</button>
+
+                                    <div class="access-subtabs" role="tablist" aria-label="Detalle del usuario">
+                                        <button class="access-subtab is-active" type="button" data-user-subtab="roles">Perfiles</button>
+                                        <button class="access-subtab" type="button" data-user-subtab="overrides">Permisos extra</button>
+                                        <button class="access-subtab" type="button" data-user-subtab="capabilities">Capacidades</button>
+                                    </div>
+
+                                    <div class="access-subpanel" data-user-subpanel="roles">
+                                        <label class="field">
+                                            <span>Perfiles asignados</span>
+                                            <select id="admin-access-selected-user-roles" multiple size="7"></select>
+                                        </label>
+                                        <div class="access-actions">
+                                            <button class="primary-button" type="button" id="admin-access-save-user-roles">Guardar perfiles</button>
+                                            <button class="ghost-button" type="button" id="admin-access-toggle-user-status">Activar / inactivar</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="access-subpanel" data-user-subpanel="overrides" hidden>
+                                        <div class="panel-heading">
+                                            <h5>Permisos extra (overrides)</h5>
+                                            <p>Asigna permisos individuales que el usuario tiene ADEMAS de sus perfiles, o quitale permisos que sus perfiles le darian.</p>
+                                        </div>
+                                        <div class="overrides-editor">
+                                            <div class="override-section override-section--add">
+                                                <label class="field">
+                                                    <span>Buscar permiso del catalogo</span>
+                                                    <select id="admin-access-overrides-add" data-overrides-add></select>
+                                                </label>
+                                                <div class="access-actions">
+                                                    <button class="primary-button" type="button" id="admin-access-overrides-allow-btn">+ Asignar (allow)</button>
+                                                    <button class="ghost-button" type="button" id="admin-access-overrides-deny-btn">+ Asignar (deny)</button>
+                                                </div>
+                                            </div>
+                                            <div class="override-section">
+                                                <h6>Extras (allow) <span class="status-pill" id="admin-access-overrides-extras-count">0</span></h6>
+                                                <ul id="admin-access-overrides-extras" class="override-list"></ul>
+                                            </div>
+                                            <div class="override-section">
+                                                <h6>Denegados (deny) <span class="status-pill" id="admin-access-overrides-denied-count">0</span></h6>
+                                                <ul id="admin-access-overrides-denied" class="override-list"></ul>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="access-subpanel" data-user-subpanel="capabilities" hidden>
+                                        <div class="panel-heading">
+                                            <h5>Capacidades efectivas</h5>
+                                            <p>Lo que el usuario puede hacer REALMENTE = permisos de sus perfiles + extras - denegados.</p>
+                                        </div>
+                                        <div id="admin-access-capabilities-summary" class="capabilities-summary">
+                                            <p class="access-empty">Selecciona un usuario y abre esta pestana para ver sus capacidades.</p>
+                                        </div>
+                                        <details class="capabilities-detail">
+                                            <summary>Ver lista completa de permisos efectivos</summary>
+                                            <pre id="admin-access-capabilities-json" class="capabilities-json"></pre>
+                                        </details>
                                     </div>
                                 </section>
                             </div>

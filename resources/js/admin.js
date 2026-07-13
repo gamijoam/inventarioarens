@@ -488,6 +488,17 @@ const elements = {
     accessCreateRole: document.querySelector('#admin-access-create-role'),
     accessSelectedRoleTitle: document.querySelector('#admin-access-selected-role-title'),
     accessSaveRolePermissions: document.querySelector('#admin-access-save-role-permissions'),
+    accessUserSubtabs: Array.from(document.querySelectorAll('[data-user-subtab]')),
+    accessUserSubpanels: Array.from(document.querySelectorAll('[data-user-subpanel]')),
+    accessOverridesAdd: document.querySelector('#admin-access-overrides-add'),
+    accessOverridesAllowBtn: document.querySelector('#admin-access-overrides-allow-btn'),
+    accessOverridesDenyBtn: document.querySelector('#admin-access-overrides-deny-btn'),
+    accessOverridesExtras: document.querySelector('#admin-access-overrides-extras'),
+    accessOverridesExtrasCount: document.querySelector('#admin-access-overrides-extras-count'),
+    accessOverridesDenied: document.querySelector('#admin-access-overrides-denied'),
+    accessOverridesDeniedCount: document.querySelector('#admin-access-overrides-denied-count'),
+    accessCapabilitiesSummary: document.querySelector('#admin-access-capabilities-summary'),
+    accessCapabilitiesJson: document.querySelector('#admin-access-capabilities-json'),
 };
 
 const permissionProfiles = {
@@ -958,6 +969,11 @@ function resetTenantScopedState() {
     state.access.permissions = [];
     state.access.selectedUser = null;
     state.access.selectedRole = null;
+    state.access.permissionCatalog = null;
+    state.access.permissionCatalogLoaded = false;
+    state.access.userOverrides = null;
+    state.access.userEffective = null;
+    state.access.activeUserSubtab = 'roles';
 
     if (elements.inventoryEditor) {
         elements.inventoryEditor.hidden = true;
@@ -2208,7 +2224,7 @@ function movementRow(movement) {
         <td><strong>${escapeHtml(formatDateTime(movement.created_at))}</strong><small>#${escapeHtml(movement.id)}</small></td>
         <td><strong>${escapeHtml(movement.product_name || 'Producto eliminado')}</strong><small>${escapeHtml(movement.product_sku || '')}</small></td>
         <td><span class="status-pill" data-tone="neutral">${escapeHtml(movementTypeLabel(movement.type))}</span></td>
-        <td><strong>${stockNumber(movement.quantity)}</strong><small>${movement.unit_cost === null ? '' : `Costo ${escapeHtml(money(movement.unit_cost))}`}</small></td>
+        <td><strong>${stockNumber(movement.quantity)}</strong><small>Costo ${formatCost(movement.unit_cost)}</small></td>
         <td><strong>${escapeHtml(warehouse)}</strong><small>${escapeHtml(movement.branch_name || '')}</small></td>
         <td><strong>${escapeHtml(movement.reason || 'Sin motivo')}</strong><small>${escapeHtml(reference || 'Sin referencia')}</small></td>
         <td><strong>${escapeHtml(movement.created_by_name || 'Sistema')}</strong><small>${escapeHtml(movement.created_by_email || '')}</small></td>
@@ -6052,6 +6068,336 @@ async function loadAccessControl() {
     }
 }
 
+// =====================================================================
+// Access Control - Fase 1+2 backend features:
+//   - Permission catalog (jerarquico, cacheado)
+//   - User permission overrides (allow / deny individuales)
+//   - Effective permissions (preview de capacidades reales)
+//   - Field masking helper (costos)
+// =====================================================================
+
+const PERMISSION_CATALOG_URL = '/api/permission-catalog';
+const PERMISSIONS_DANGER_EFFECTS = new Set(['cancel', 'delete', 'void']);
+
+function formatCost(value) {
+    if (value === null || value === undefined || value === '') {
+        return '<span class="access-cost-masked">—</span>';
+    }
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+        return escapeHtml(String(value));
+    }
+    return `$${num.toFixed(2)}`;
+}
+
+async function loadPermissionCatalog(force = false) {
+    if (state.access.permissionCatalogLoaded && !force) {
+        return state.access.permissionCatalog;
+    }
+    const session = state.session;
+    if (!session) {
+        return null;
+    }
+    try {
+        const resp = await api(PERMISSION_CATALOG_URL, { headers: authHeaders(session) });
+        const data = resp?.data || resp;
+        state.access.permissionCatalog = data;
+        state.access.permissionCatalogLoaded = true;
+        return data;
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudo cargar el catalogo de permisos: ' + normalizeError(error), 'error');
+        return null;
+    }
+}
+
+function renderOverridesCatalogOptions() {
+    if (!elements.accessOverridesAdd) {
+        return;
+    }
+    const catalog = state.access.permissionCatalog;
+    if (!catalog || !Array.isArray(catalog.modules)) {
+        elements.accessOverridesAdd.replaceChildren();
+        return;
+    }
+    const existing = new Set((state.access.userOverrides?.items || []).map((item) => item.permission));
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Selecciona un permiso del catalogo...';
+    elements.accessOverridesAdd.replaceChildren(placeholder);
+    catalog.modules.forEach((mod) => {
+        const group = document.createElement('optgroup');
+        group.label = mod.label || mod.module;
+        (mod.actions || []).forEach((action) => {
+            const opt = document.createElement('option');
+            opt.value = action.permission;
+            const danger = action.danger === 'high' || PERMISSIONS_DANGER_EFFECTS.has(action.verb);
+            opt.textContent = `${action.label} (${action.permission})${danger ? ' - PELIGROSO' : ''}`;
+            if (existing.has(action.permission)) {
+                opt.disabled = true;
+                opt.textContent += ' (ya asignado)';
+            }
+            group.append(opt);
+        });
+        if (group.children.length > 0) {
+            elements.accessOverridesAdd.append(group);
+        }
+    });
+}
+
+async function loadUserOverrides(user) {
+    const session = state.session;
+    if (!session || !user) {
+        return;
+    }
+    const tenantId = user.tenant_id || session.tenant?.id;
+    if (!tenantId) {
+        return;
+    }
+    try {
+        const resp = await api(`/api/tenants/${tenantId}/users/${user.id}/overrides`, { headers: authHeaders(session) });
+        const data = resp?.data || resp;
+        state.access.userOverrides = data;
+        renderOverridesEditor(data);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudieron cargar los overrides: ' + normalizeError(error), 'error');
+    }
+}
+
+function renderOverridesEditor(data) {
+    if (!elements.accessOverridesExtras) {
+        return;
+    }
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const extras = items.filter((i) => i.effect === 'allow');
+    const denied = items.filter((i) => i.effect === 'deny');
+
+    if (extras.length === 0) {
+        elements.accessOverridesExtras.replaceChildren(emptyOverrideItem('Sin extras. Todos los permisos efectivos vienen de los perfiles.'));
+    } else {
+        elements.accessOverridesExtras.replaceChildren(...extras.map((i) => overrideListItem(i, 'allow')));
+    }
+    if (denied.length === 0) {
+        elements.accessOverridesDenied.replaceChildren(emptyOverrideItem('Sin denegaciones. Los perfiles rinden todos los permisos.'));
+    } else {
+        elements.accessOverridesDenied.replaceChildren(...denied.map((i) => overrideListItem(i, 'deny')));
+    }
+    elements.accessOverridesExtrasCount.textContent = String(extras.length);
+    elements.accessOverridesDeniedCount.textContent = String(denied.length);
+    renderOverridesCatalogOptions();
+}
+
+function emptyOverrideItem(text) {
+    const li = document.createElement('li');
+    li.className = 'override-list-empty';
+    li.textContent = text;
+    return li;
+}
+
+function overrideListItem(item, effect) {
+    const li = document.createElement('li');
+    const perm = document.createElement('span');
+    perm.className = 'override-perm';
+    perm.textContent = item.permission;
+    const badge = document.createElement('span');
+    badge.className = `override-effect override-effect--${effect}`;
+    badge.textContent = effect === 'allow' ? 'ALLOW' : 'DENY';
+    const remove = document.createElement('button');
+    remove.className = 'override-remove';
+    remove.type = 'button';
+    remove.title = 'Quitar override';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => removeUserOverride(item.permission));
+    li.append(perm, badge, remove);
+    return li;
+}
+
+async function addUserOverride(effect) {
+    const select = elements.accessOverridesAdd;
+    if (!select || !select.value) {
+        return;
+    }
+    const user = state.access.selectedUser;
+    if (!user) {
+        setStatus(elements.accessStatus, 'Selecciona un usuario antes de asignar overrides.', 'error');
+        return;
+    }
+    const session = state.session;
+    const tenantId = user.tenant_id || session.tenant?.id;
+    const items = (state.access.userOverrides?.items || []).filter((i) => i.permission !== select.value);
+    items.push({ permission: select.value, effect });
+    try {
+        await api(`/api/tenants/${tenantId}/users/${user.id}/overrides`, {
+            method: 'PUT',
+            headers: authHeaders(session),
+            body: JSON.stringify({ items }),
+        });
+        setStatus(elements.accessStatus, `Override ${effect.toUpperCase()} aplicado a ${select.value}.`, 'success');
+        await loadUserOverrides(user);
+        await loadUserEffective(user);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudo guardar el override: ' + normalizeError(error), 'error');
+    } finally {
+        select.value = '';
+    }
+}
+
+async function removeUserOverride(permission) {
+    const user = state.access.selectedUser;
+    if (!user) {
+        return;
+    }
+    const session = state.session;
+    const tenantId = user.tenant_id || session.tenant?.id;
+    try {
+        await api(`/api/tenants/${tenantId}/users/${user.id}/overrides/${encodeURIComponent(permission)}`, {
+            method: 'DELETE',
+            headers: authHeaders(session),
+        });
+        setStatus(elements.accessStatus, `Override removido: ${permission}.`, 'success');
+        await loadUserOverrides(user);
+        await loadUserEffective(user);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudo remover el override: ' + normalizeError(error), 'error');
+    }
+}
+
+async function loadUserEffective(user) {
+    const session = state.session;
+    if (!session || !user) {
+        return;
+    }
+    const tenantId = user.tenant_id || session.tenant?.id;
+    if (!tenantId) {
+        return;
+    }
+    try {
+        const resp = await api(`/api/tenants/${tenantId}/users/${user.id}/effective-permissions`, { headers: authHeaders(session) });
+        const data = resp?.data || resp;
+        state.access.userEffective = data;
+        renderCapabilityPreview(data);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudieron cargar las capacidades: ' + normalizeError(error), 'error');
+    }
+}
+
+function renderCapabilityPreview(data) {
+    if (!elements.accessCapabilitiesSummary) {
+        return;
+    }
+    if (!data) {
+        elements.accessCapabilitiesSummary.replaceChildren(emptyAccessNode('p', 'Selecciona un usuario y abre esta pestana para ver sus capacidades.', 'access-empty'));
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+
+    const stats = document.createElement('div');
+    stats.className = 'capabilities-stats';
+    stats.append(
+        statBox('Permisos efectivos', data.permission_count || 0),
+        statBox('De perfiles', data.base_count || 0),
+        statBox('Extras (allow)', (data.extras || []).length),
+        statBox('Denegados (deny)', (data.denied || []).length),
+    );
+    fragment.append(stats);
+
+    if (Array.isArray(data.roles) && data.roles.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'capabilities-section';
+        const h = document.createElement('h6');
+        h.textContent = `Perfiles (${data.roles.length})`;
+        section.append(h);
+        section.append(chipList(data.roles.map((r) => ({ label: r })), 'perfil'));
+        fragment.append(section);
+    }
+
+    if (Array.isArray(data.extras) && data.extras.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'capabilities-section';
+        const h = document.createElement('h6');
+        h.textContent = `Extras (${data.extras.length})`;
+        section.append(h);
+        section.append(chipList(data.extras.map((p) => ({ label: p })), 'extra'));
+        fragment.append(section);
+    }
+
+    if (Array.isArray(data.denied) && data.denied.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'capabilities-section';
+        const h = document.createElement('h6');
+        h.textContent = `Denegados (${data.denied.length})`;
+        section.append(h);
+        section.append(chipList(data.denied.map((p) => ({ label: p })), 'deny'));
+        fragment.append(section);
+    }
+
+    elements.accessCapabilitiesSummary.replaceChildren(fragment);
+    if (elements.accessCapabilitiesJson) {
+        elements.accessCapabilitiesJson.textContent = JSON.stringify(data, null, 2);
+    }
+}
+
+function statBox(label, value) {
+    const div = document.createElement('div');
+    div.className = 'capabilities-stat';
+    const l = document.createElement('span');
+    l.className = 'capabilities-stat__label';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'capabilities-stat__value';
+    v.textContent = String(value);
+    div.append(l, v);
+    return div;
+}
+
+function chipList(items, variant) {
+    const ul = document.createElement('ul');
+    ul.className = 'capabilities-chips';
+    items.forEach(({ label }) => {
+        const li = document.createElement('li');
+        li.className = 'capabilities-chip';
+        if (variant === 'extra') {
+            li.classList.add('capabilities-chip--extra');
+        } else if (variant === 'deny') {
+            li.classList.add('capabilities-chip--deny');
+        }
+        li.textContent = label;
+        ul.append(li);
+    });
+    return ul;
+}
+
+function emptyAccessNode(tag, text, cls) {
+    const el = document.createElement(tag);
+    if (cls) {
+        el.className = cls;
+    }
+    el.textContent = text;
+    return el;
+}
+
+function setActiveUserSubtab(subtab) {
+    state.access.activeUserSubtab = subtab;
+    elements.accessUserSubtabs.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.userSubtab === subtab);
+    });
+    elements.accessUserSubpanels.forEach((panel) => {
+        panel.hidden = panel.dataset.userSubpanel !== subtab;
+    });
+}
+
+async function loadUserSubtabData(subtab) {
+    const user = state.access.selectedUser;
+    if (!user) {
+        return;
+    }
+    if (subtab === 'overrides') {
+        await loadPermissionCatalog();
+        await loadUserOverrides(user);
+    } else if (subtab === 'capabilities') {
+        await loadUserEffective(user);
+    }
+}
+
 function renderAccessControl() {
     setAccessTab('users');
     renderAccessUsers();
@@ -6059,6 +6405,13 @@ function renderAccessControl() {
     renderAccessRoleOptions(elements.accessSelectedUserRoles, state.access.selectedUser?.roles?.map((role) => role.name) || []);
     renderAccessRoles();
     renderPermissionCatalog();
+    setActiveUserSubtab(state.access.activeUserSubtab || 'roles');
+    if (state.access.selectedUser) {
+        loadUserSubtabData(state.access.activeUserSubtab || 'roles');
+    } else {
+        renderOverridesEditor(null);
+        renderCapabilityPreview(null);
+    }
     applyAccessPermissions();
 }
 
@@ -6130,6 +6483,11 @@ function selectAccessUser(user) {
     elements.accessToggleUserStatus.textContent = user.status === 'active' ? 'Inactivar usuario' : 'Activar usuario';
     renderAccessUsers();
     setStatus(elements.accessStatus, `Usuario seleccionado: ${user.email}.`, 'neutral');
+    state.access.userOverrides = null;
+    state.access.userEffective = null;
+    renderOverridesEditor(null);
+    renderCapabilityPreview(null);
+    loadUserSubtabData(state.access.activeUserSubtab || 'roles');
 }
 
 async function createAccessUser() {
@@ -6396,6 +6754,12 @@ function applyAccessPermissions() {
     elements.accessToggleUserStatus.disabled = !canUpdateUser || !state.access.selectedUser;
     elements.accessCreateRole.disabled = !canCreateRole;
     elements.accessSaveRolePermissions.disabled = !canUpdateRole || !state.access.selectedRole;
+    if (elements.accessOverridesAllowBtn) {
+        elements.accessOverridesAllowBtn.disabled = !canUpdateUser || !state.access.selectedUser;
+    }
+    if (elements.accessOverridesDenyBtn) {
+        elements.accessOverridesDenyBtn.disabled = !canUpdateUser || !state.access.selectedUser;
+    }
 }
 
 function collectionData(payload) {
@@ -6944,6 +7308,15 @@ elements.accessSaveUserRoles?.addEventListener('click', saveAccessUserRoles);
 elements.accessToggleUserStatus?.addEventListener('click', toggleAccessUserStatus);
 elements.accessCreateRole?.addEventListener('click', createAccessRole);
 elements.accessSaveRolePermissions?.addEventListener('click', saveAccessRolePermissions);
+elements.accessUserSubtabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const subtab = btn.dataset.userSubtab;
+        setActiveUserSubtab(subtab);
+        loadUserSubtabData(subtab);
+    });
+});
+elements.accessOverridesAllowBtn?.addEventListener('click', () => addUserOverride('allow'));
+elements.accessOverridesDenyBtn?.addEventListener('click', () => addUserOverride('deny'));
 elements.tenant?.addEventListener('change', () => {
     state.selectedTenant = state.tenants.find((tenant) => tenant.slug === elements.tenant.value) ?? null;
 });
