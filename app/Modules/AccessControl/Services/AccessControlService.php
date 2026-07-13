@@ -315,6 +315,55 @@ class AccessControlService
             ->all();
     }
 
+    /**
+     * Clona un rol existente (sea base o custom del mismo tenant) en uno nuevo
+     * con los mismos permisos. El clon queda como custom del tenant.
+     */
+    public function duplicateRole(Role $source, string $newName, User $actor): Role
+    {
+        $tenant = app(TenantManager::class)->require();
+        $teamColumn = $this->teamColumn();
+
+        // Quitar el global scope de Spatie para chequear el team_id real del source.
+        $sourceTeam = \Spatie\Permission\Models\Role::query()->withoutGlobalScopes()
+            ->whereKey($source->id)
+            ->value($teamColumn);
+
+        if ($sourceTeam === null || (int) $sourceTeam !== (int) $tenant->id) {
+            abort(404, 'Rol no pertenece a esta empresa.');
+        }
+
+        // Re-cargar con permisos (sin scope para que no filtre por team actual).
+        $source = \Spatie\Permission\Models\Role::query()->withoutGlobalScopes()
+            ->with(['permissions'])
+            ->findOrFail($source->id);
+
+        return DB::transaction(function () use ($source, $newName, $actor, $teamColumn, $tenant): Role {
+            $clone = Role::create([
+                'name' => $newName,
+                'guard_name' => 'web',
+                $teamColumn => $tenant->id,
+            ]);
+
+            $permissions = $source->permissions->pluck('name')->all();
+            $clone->syncPermissions($permissions);
+
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+            $clone = $this->role($clone->id);
+
+            $this->audit->record('access.role.duplicated', $clone, $actor, [
+                'source_role_id' => $source->id,
+                'source_role_name' => $source->name,
+            ], [
+                'name' => $clone->name,
+                'permission_count' => count($permissions),
+            ]);
+
+            return $clone;
+        });
+    }
+
     public function userPermissions(User $user): array
     {
         setPermissionsTeamId(app(TenantManager::class)->require()->id);

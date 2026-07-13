@@ -28,6 +28,7 @@
 | P4 — API DX + tests | 10 | 0 | **10** | bajo (mes 2) |
 | **NEW — Tenancy API** | **1** | **1** | 0 | cerrado |
 | **NEW — Tenancy 3 niveles** | **1** | **1** | 0 | cerrado |
+| **NEW — Permissions jerarquicos + field masking (Fase 1 + 2)** | **2** | **2** | 0 | cerrado (arbol + overrides + field masking + 18 tests) |
 
 ---
 

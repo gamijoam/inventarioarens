@@ -13,7 +13,7 @@ class KardexController extends Controller
     public function product(KardexProductRequest $request, Product $product, KardexService $kardex): JsonResponse
     {
         return response()->json([
-            'data' => $kardex->product($product, $request->validated()),
+            'data' => $kardex->product($product, $request->validated(), $request),
         ]);
     }
 }

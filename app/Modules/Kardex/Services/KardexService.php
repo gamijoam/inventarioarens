@@ -26,7 +26,7 @@ class KardexService
         'reserved',
     ];
 
-    public function product(Product $product, array $filters = []): array
+    public function product(Product $product, array $filters = [], ?\Illuminate\Http\Request $request = null): array
     {
         $warehouseId = isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null;
         $dateFrom = $filters['date_from'] ?? null;
@@ -47,7 +47,7 @@ class KardexService
             ->orderBy('created_at')
             ->orderBy('id')
             ->get()
-            ->map(function (StockMovement $movement) use (&$runningBalance): array {
+            ->map(function (StockMovement $movement) use (&$runningBalance, $request): array {
                 $quantityIn = $this->quantityIn($movement);
                 $quantityOut = $this->quantityOut($movement);
                 $runningBalance += $quantityIn - $quantityOut;
@@ -63,7 +63,9 @@ class KardexService
                     'quantity_in' => round($quantityIn, 4),
                     'quantity_out' => round($quantityOut, 4),
                     'running_balance' => round($runningBalance, 4),
-                    'unit_cost' => $movement->unit_cost === null ? null : (float) $movement->unit_cost,
+                    'unit_cost' => $request->user()?->can('finance.costs.view')
+                        ? ($movement->unit_cost === null ? null : (float) $movement->unit_cost)
+                        : null,
                     'reason' => $movement->reason,
                     'reference_type' => $movement->reference_type,
                     'reference_id' => $movement->reference_id,

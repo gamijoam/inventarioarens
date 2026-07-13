@@ -11,6 +11,8 @@ class PurchaseItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $canSeeCosts = (bool) ($request->user()?->can('finance.costs.view') ?? false);
+
         return [
             'id' => $this->id,
             'purchase_order_id' => $this->purchase_order_id,
@@ -18,10 +20,10 @@ class PurchaseItemResource extends JsonResource
             'product_id' => $this->product_id,
             'quantity' => $this->quantity,
             'received_quantity' => $this->received_quantity,
-            'unit_cost' => $this->unit_cost,
-            'total_cost' => $this->total_cost,
-            'base_unit_cost' => $this->base_unit_cost,
-            'base_total_cost' => $this->base_total_cost,
+            'unit_cost' => $this->when($canSeeCosts, $this->unit_cost),
+            'total_cost' => $this->when($canSeeCosts, $this->total_cost),
+            'base_unit_cost' => $this->when($canSeeCosts, $this->base_unit_cost),
+            'base_total_cost' => $this->when($canSeeCosts, $this->base_total_cost),
             'serial_units' => $this->serial_units,
             'stock_movement_id' => $this->stock_movement_id,
             'product' => ProductResource::make($this->whenLoaded('product')),

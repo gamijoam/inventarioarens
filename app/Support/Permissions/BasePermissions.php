@@ -101,6 +101,7 @@ class BasePermissions
         'tenants.master.view',
         'tenants.group.create',
         'tenants.group.view',
+        'finance.costs.view',
         'settings.manage',
         'sync.issue_token',
         'ai.use',

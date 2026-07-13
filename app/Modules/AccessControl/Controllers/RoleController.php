@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
@@ -66,6 +68,71 @@ class RoleController extends Controller
         $this->service->deleteRole($this->service->role($role), $request->user());
 
         return response()->noContent();
+    }
+
+    /**
+     * Clona un rol existente (base o custom) en uno nuevo dentro del mismo tenant.
+     * POST /api/access/roles/{role}/duplicate
+     */
+    public function duplicate(Request $request, Role $role): JsonResponse
+    {
+        $this->authorizePermission($request, 'roles.create');
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+        ]);
+
+        $name = trim((string) $request->input('name'));
+
+        if (Role::query()->where('name', $name)->where($this->teamColumn(), $this->currentTenantId())->exists()) {
+            throw ValidationException::withMessages([
+                'name' => "Ya existe un rol con el nombre '{$name}' en esta empresa.",
+            ]);
+        }
+
+        $newRole = $this->service->duplicateRole($role, $name, $request->user());
+
+        return RoleResource::make($newRole)
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    /**
+     * Devuelve metadata de capacidades del rol para preview.
+     * GET /api/access/roles/{role}/preview
+     */
+    public function preview(Request $request, Role $role): JsonResponse
+    {
+        $this->authorizePermission($request, 'roles.view');
+
+        $permissions = $role->permissions->pluck('name')->all();
+        $modules = [];
+        foreach ($permissions as $permission) {
+            $module = explode('.', $permission)[0] ?? 'other';
+            $modules[$module] = true;
+        }
+
+        return response()->json([
+            'data' => [
+                'role_id' => $role->id,
+                'name' => $role->name,
+                'permission_count' => count($permissions),
+                'module_count' => count($modules),
+                'modules' => array_keys($modules),
+                'wildcards_count' => 0,
+                'protected' => in_array($role->name, \App\Modules\AccessControl\Services\AccessControlService::PROTECTED_ROLES, true),
+            ],
+        ]);
+    }
+
+    private function teamColumn(): string
+    {
+        return config('permission.column_names.team_foreign_key', 'team_id');
+    }
+
+    private function currentTenantId(): int
+    {
+        return (int) app(\App\Support\Tenancy\TenantManager::class)->require()->id;
     }
 
     private function authorizePermission(Request $request, string $permission): void
