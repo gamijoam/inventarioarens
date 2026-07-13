@@ -169,16 +169,29 @@ Funciona. Pero hay un problema de arquitectura que vale resolver antes de multip
 
 **Hard constraint en cualquiera de las 3 olas**: el fallback a `http://127.0.0.1:8000/api/` debe seguir vivo (ver §0). Nunca romper el default local.
 
+### 4.1 Estado de implementación
+
+| Decisión | Estado | Commit |
+|---|---|---|
+| §0 Fallback local Laragon | Implementado | `eb44310d` |
+| Corto plazo (ocultar URL del LoginView) | Implementado | `eb44310d` |
+| Mediano plazo Opción B (ProgrammerLoginWindow + Ctrl+Shift+P) | Implementado | `eb44310d` |
+| `inventorydesktop.config.json` schema + ConfigStore | Implementado | `eb44310d` |
+| InventorySyncInstaller escribe config al preparar | Implementado | `eb44310d` |
+| Largo plazo Opción C (sync mirror) | Pendiente | - |
+| Build "edición programador" para activar `allowProgrammerMode=true` | Pendiente (manipular manualmente el config) | - |
+
+**Cómo activar el modo programador en un equipo ya instalado**: editar `desktop/InventoryDesktop/inventorydesktop.config.json` (o el equivalente next-to-exe en prod) y cambiar `allowProgrammerMode` a `true`. El atajo `Ctrl+Shift+P` queda activo al siguiente arranque.
+
 ---
 
-## 5. Lo que NO se hizo en este chat (a propósito)
+## 5. Lo que NO se hizo (todavía)
 
-- No se ocultó el campo de URL del LoginView (queda pendiente — Q1, Q2, Q3 abiertas).
-- No se migró a un archivo `inventorydesktop.config` (Q3 abierta).
-- No se extendió el motor de sync (Q1, Q4 abiertas).
-- No se cambió el `InventorySyncInstaller` (Q5 abierta).
+- No se extendió el motor de sync con un mirror de Platform Admin (Q4 abierta / Opción C).
+- No existe un build diferenciado "edición programador" del Installer con `allowProgrammerMode=true` por default. Para activar el modo programador hoy se edita manualmente el `inventorydesktop.config.json` post-instalación, o se modifica `SaveDesktopConfig` en `InventorySyncInstaller`.
+- No se creó el flujo de "primera vez" que detecta ausencia de config y crea uno por defecto. Quien ejecuta por primera vez la app con `dotnet run --project desktop/InventoryDesktop` sigue cayendo al fallback `http://127.0.0.1:8000/api/` (correcto, documentado en §0).
 
-La pieza nueva que **sí** se implementó y debe quedar commiteada es **el endpoint `POST /api/auth/platform-login`** + el panel SaaS Master en WPF. Esos sí resuelven un problema concreto y testeable: permiten crear grupos/spinoffs/programadores desde el desktop ya autenticado.
+Las piezas **implementadas y commiteadas** están resumidas en §4.1.
 
 ---
 
