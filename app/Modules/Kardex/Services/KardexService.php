@@ -2,11 +2,16 @@
 
 namespace App\Modules\Kardex\Services;
 
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 
 class KardexService
 {
+    public function __construct(private readonly ScopeResolver $scopes)
+    {
+    }
+
     private const IN_TYPES = [
         'purchase',
         'sale_return',
@@ -33,14 +38,14 @@ class KardexService
         $dateTo = $filters['date_to'] ?? null;
 
         $openingBalance = $dateFrom
-            ? $this->signedMovements($product, $warehouseId)
+            ? $this->applyUserScope($this->signedMovements($product, $warehouseId), $request)
                 ->whereDate('created_at', '<', $dateFrom)
                 ->get()
                 ->sum(fn (StockMovement $movement): float => $this->signedQuantity($movement))
             : 0.0;
 
         $runningBalance = (float) $openingBalance;
-        $movements = $this->signedMovements($product, $warehouseId)
+        $movements = $this->applyUserScope($this->signedMovements($product, $warehouseId), $request)
             ->with(['warehouse', 'product'])
             ->when($dateFrom, fn ($query) => $query->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('created_at', '<=', $dateTo))
@@ -89,6 +94,22 @@ class KardexService
         return StockMovement::query()
             ->where('product_id', $product->id)
             ->when($warehouseId, fn ($query) => $query->where('warehouse_id', $warehouseId));
+    }
+
+    /**
+     * Aplica el scope del user actual a la query de movimientos antes de ejecutar.
+     * Llamar desde product() antes de obtener opening balance y movements.
+     */
+    private function applyUserScope($query, ?\Illuminate\Http\Request $request)
+    {
+        if ($request === null) {
+            return $query;
+        }
+        $user = $request->user();
+        if (! $user) {
+            return $query;
+        }
+        return $this->scopes->applyWarehouseScope($query, $user, 'warehouse_id');
     }
 
     private function quantityIn(StockMovement $movement): float

@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryTransfers\Controllers;
 
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Requests\CancelInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\DispatchInventoryTransferRequest;
@@ -20,18 +21,32 @@ use Illuminate\Support\Facades\Gate;
 
 class InventoryTransferController extends Controller
 {
+    public function __construct(private readonly ScopeResolver $scopes)
+    {
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', InventoryTransfer::class);
 
-        return InventoryTransferResource::collection(
-            InventoryTransfer::query()
-                ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
-                ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
-                ->when($request->query('validation_mode'), fn ($query, string $mode) => $query->where('validation_mode', $mode))
-                ->latest('processed_at')
-                ->paginate(25)
-        );
+        $query = InventoryTransfer::query()
+            ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
+            ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
+            ->when($request->query('validation_mode'), fn ($query, string $mode) => $query->where('validation_mode', $mode))
+            ->latest('processed_at');
+
+        // Filtrar por scope del user: una transferencia es visible si su
+        // from_warehouse_id O to_warehouse_id esta dentro de los warehouses
+        // permitidos del user.
+        $warehouseIds = $this->scopes->warehouseIdsFor($request->user());
+        if ($warehouseIds !== null) {
+            $query->where(function ($q) use ($warehouseIds): void {
+                $q->whereIn('from_warehouse_id', $warehouseIds)
+                    ->orWhereIn('to_warehouse_id', $warehouseIds);
+            });
+        }
+
+        return InventoryTransferResource::collection($query->paginate(25));
     }
 
     public function store(StoreInventoryTransferRequest $request, InventoryTransferService $service): JsonResponse

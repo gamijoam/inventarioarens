@@ -3,6 +3,7 @@
 namespace App\Modules\CashRegister\Controllers;
 
 use App\Models\User;
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -13,21 +14,28 @@ use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 
 class CashRegisterSessionController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function __construct(private readonly ScopeResolver $scopes)
+    {
+    }
+
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', CashRegisterSession::class);
 
-        return CashRegisterSessionResource::collection(
-            CashRegisterSession::query()
-                ->with(['branch', 'cashRegister'])
-                ->latest()
-                ->paginate(25)
+        $query = CashRegisterSession::query()
+            ->with(['branch', 'cashRegister'])
+            ->latest();
+
+        $query = $this->scopes->applyBranchScope($query, $request->user(), 'branch_id');
+
+        return CashRegisterSessionResource::collection($query->paginate(25)
         );
     }
 

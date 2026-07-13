@@ -2,6 +2,7 @@
 
 namespace App\Modules\AccountsReceivable\Controllers;
 
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Requests\RegisterAccountsReceivablePaymentRequest;
 use App\Modules\AccountsReceivable\Resources\AccountsReceivablePaymentResource;
@@ -17,6 +18,10 @@ use Illuminate\Validation\Rule;
 
 class AccountsReceivableController extends Controller
 {
+    public function __construct(private readonly ScopeResolver $scopes)
+    {
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', AccountsReceivable::class);
@@ -39,30 +44,38 @@ class AccountsReceivableController extends Controller
         $limit = (int) ($filters['limit'] ?? 25);
         $search = trim((string) ($filters['search'] ?? ''));
 
-        return AccountsReceivableResource::collection(
-            AccountsReceivable::query()
-                ->with(['customer', 'sale'])
-                ->when($search !== '', function ($query) use ($search): void {
-                    $query->where(function ($innerQuery) use ($search): void {
-                        $innerQuery
-                            ->where('document_number', 'ilike', "%{$search}%")
-                            ->orWhereHas('customer', function ($customerQuery) use ($search): void {
-                                $customerQuery
-                                    ->where('name', 'ilike', "%{$search}%")
-                                    ->orWhere('document_number', 'ilike', "%{$search}%");
-                            })
-                            ->orWhereHas('sale', function ($saleQuery) use ($search): void {
-                                $saleQuery->where('document_number', 'ilike', "%{$search}%");
-                            });
-                    });
-                })
-                ->when(($filters['status'] ?? 'all') !== 'all', fn ($query) => $query->where('status', $filters['status']))
-                ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
-                ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
-                ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
-                ->latest()
-                ->paginate($limit)
-        );
+        $query = AccountsReceivable::query()
+            ->with(['customer', 'sale'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($innerQuery) use ($search): void {
+                    $innerQuery
+                        ->where('document_number', 'ilike', "%{$search}%")
+                        ->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                            $customerQuery
+                                ->where('name', 'ilike', "%{$search}%")
+                                ->orWhere('document_number', 'ilike', "%{$search}%");
+                        })
+                        ->orWhereHas('sale', function ($saleQuery) use ($search): void {
+                            $saleQuery->where('document_number', 'ilike', "%{$search}%");
+                        });
+                });
+            })
+            ->when(($filters['status'] ?? 'all') !== 'all', fn ($query) => $query->where('status', $filters['status']))
+            ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
+            ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
+            ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
+            ->latest();
+
+        // Scope por customer_group: filtrar CxC cuyos clientes pertenezcan a los grupos del user.
+        $groupIds = $this->scopes->customerGroupIdsFor($request->user());
+        if ($groupIds !== null) {
+            $query->whereIn('customer_id', function ($sub) use ($groupIds): void {
+                $sub->select('id')->from('customers')
+                    ->whereIn('customer_group_id', $groupIds);
+            });
+        }
+
+        return AccountsReceivableResource::collection($query->paginate($limit));
     }
 
     public function show(AccountsReceivable $accountsReceivable): AccountsReceivableResource
