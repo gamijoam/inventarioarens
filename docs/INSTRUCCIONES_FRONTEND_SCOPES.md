@@ -281,31 +281,50 @@ El backend YA filtra las queries con scope (a partir de esta sesion). El fronten
 
 ---
 
-## 5. `scope_status` en `effective-permissions`
+## 5. `scope_status` y `scopes` en `effective-permissions`
 
-El endpoint `GET /api/tenants/{tenant}/users/{user}/effective-permissions` ahora incluye un campo nuevo `scope_status`:
+El endpoint `GET /api/tenants/{tenant}/users/{user}/effective-permissions` ahora incluye **dos campos nuevos** sobre scopes:
 
 ```json
 {
   "data": {
-    "permissions": ["sales.view", ...],
+    "permissions": ["sales.view", "sales.create", "pos.view", "inventory.adjust", ...],
     "permission_count": 22,
     "base_permissions": ["sales.view", "sales.create", "sales.cancel", "pos.view", ...],
     "base_count": 22,
-    "extras": [],
-    "denied": [],
+    "extras": ["inventory.adjust"],
+    "denied": ["sales.cancel"],
     "roles": ["Vendedor"],
-    "scope_status": "none"
+    "scope_status": "restrict",
+    "scopes": {
+      "branches": [1, 3],
+      "warehouses": [2, 4, 5],
+      "customer_groups": [1],
+      "vendor_of": [1, 2],
+      "branches_count": 2,
+      "warehouses_count": 3,
+      "customer_groups_count": 1,
+      "vendor_of_count": 2
+    }
   }
 }
 ```
 
-**`scope_status` valores:**
+### 5.1 `scope_status` valores
 - `"none"` — sin scope asignado, ve todo (default-allow).
 - `"allow"` — scope asignado pero vacio, ve todo.
 - `"restrict"` — scope asignado con IDs, ve solo esos.
 
 **Para el frontend:** si `scope_status === "none"`, mostrar banner amarillo "Recomendado asignar scopes para restringir acceso".
+
+### 5.2 `scopes` objeto
+
+Devuelve los IDs exactos asignados a cada categoría. Si un user no tiene scope en una categoría, el array viene vacío (`[]`).
+
+**Para el frontend:**
+- En la lista de branches/warehouses/groups (la que ya tienes del GET /api/branches, /api/warehouses, /api/customer-groups), marca como "selected" los IDs que están en `scopes.<categoria>`.
+- Muestra un contador: "3 branches asignadas" usando `scopes.<categoria>_count`.
+- En el editor de scopes, pre-selecciona los checkboxes correctos.
 
 ---
 

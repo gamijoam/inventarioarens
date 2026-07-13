@@ -61,7 +61,8 @@ class CapabilityResolver
 
         ksort($effective);
 
-        $scopeStatus = app(\App\Modules\AccessControl\Services\ScopeResolver::class)->statusFor($user);
+        $scopeResolver = app(\App\Modules\AccessControl\Services\ScopeResolver::class);
+        $scopeStatus = $scopeResolver->statusFor($user);
 
         return [
             'permissions' => array_keys($effective),
@@ -72,6 +73,30 @@ class CapabilityResolver
             'denied' => $denies,
             'roles' => $this->rolesFor($user, $tenant->id),
             'scope_status' => $scopeStatus,
+            'scopes' => $this->scopesFor($user, $scopeResolver, $tenant->id),
+        ];
+    }
+
+    /**
+     * Devuelve los IDs de branches/warehouses/groups asignados al user (si los tiene).
+     * Si no tiene scope, retorna listas vacias.
+     */
+    private function scopesFor(User $user, \App\Modules\AccessControl\Services\ScopeResolver $resolver, int $tenantId): array
+    {
+        $branchIds = $resolver->branchIdsFor($user) ?? [];
+        $warehouseIds = $resolver->warehouseIdsFor($user) ?? [];
+        $groupIds = $resolver->customerGroupIdsFor($user) ?? [];
+        $vendorIds = $resolver->vendorOfGroupIdsFor($user) ?? [];
+
+        return [
+            'branches' => $branchIds,
+            'warehouses' => $warehouseIds,
+            'customer_groups' => $groupIds,
+            'vendor_of' => $vendorIds,
+            'branches_count' => count($branchIds),
+            'warehouses_count' => count($warehouseIds),
+            'customer_groups_count' => count($groupIds),
+            'vendor_of_count' => count($vendorIds),
         ];
     }
 
