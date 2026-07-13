@@ -420,6 +420,31 @@
 
 ---
 
+## P5 - Access Control v2 (Frontend) - 2026-07-13
+
+Frontend del modulo de Access Control. Backend operativo desde 2026-07-12 con 618 tests.
+
+| # | Acción | Esfuerzo | Status |
+|---|---|---:|---|
+| **NEW-2026-07-13a** | Frontend Ola 1: Permission Catalog (jerarquico) + User Overrides editor + Effective Permissions preview + Field Masking helper (`formatCost`) | M | ✅ **2026-07-13** (`331a827`) |
+| **NEW-2026-07-13b** | Frontend Ola 2: User Scopes editor (4 categorias: branches/warehouses/customer-groups/vendor-of) + status banner + scope badge en user list + nuevo endpoint `GET /api/customer-groups` | M | ✅ **2026-07-13** (`11504c3`) |
+| **NEW-2026-07-13c** | Frontend Ola 3: Role Duplicate (`POST /api/roles/{role}/duplicate`) + Role Preview (`GET /api/roles/{role}/preview`) + ROADMAP update | S | ✅ **2026-07-13** (commit siguiente) |
+
+### Cambios backend asociados a P5
+- `app/Modules/Customers/Controllers/CustomerGroupController.php` (NEW) + `CustomerGroupResource.php` (NEW) + rutas en `routes.php` para soportar `GET /api/customer-groups` que el frontend necesitaba.
+
+### Cambios frontend asociados a P5
+- `resources/views/admin.blade.php`: 4 sub-tabs nuevos (Permisos extra, Capacidades, Scopes) + columna Scope en user list.
+- `resources/css/admin.css`: +370 lineas para los nuevos componentes.
+- `resources/js/admin.js`: +9 funciones nuevas (loadPermissionCatalog, loadUserOverrides, addUserOverride, removeUserOverride, loadUserEffective, loadUserScopes, saveUserScopes, duplicateRole, loadRolePreview) + state para catalog/scopes/overrides/effective.
+
+### Verificacion P5
+- `npm run build`: 0 errors, admin.js bundle 277KB.
+- `php artisan test ScopeApiTest`: 10/10 pasando.
+- `php artisan route:list /api/permission-catalog, /api/customer-groups`: registrados.
+
+---
+
 ## Anti-patrones prohibidos (AGENTS.md §9.5 + §14)
 
 - ❌ Marcar tarea como completa sin correr tests.

@@ -6858,16 +6858,70 @@ function accessRoleRow(role) {
     const isSelected = state.access.selectedRole?.id === role.id;
 
     row.className = isSelected ? 'is-selected' : '';
+    const actionButtons = `<button class="ghost-button ghost-button--compact" type="button" data-access-role="${role.id}">Permisos</button>`
+        + `<button class="ghost-button ghost-button--compact" type="button" data-access-role-duplicate="${role.id}" title="Duplicar este perfil con un nombre nuevo">Duplicar</button>`;
     row.innerHTML = `
-        <td><strong>${escapeHtml(role.name)}</strong></td>
+        <td><strong>${escapeHtml(role.name)}</strong>${role.is_protected ? ' <span class="access-chip access-chip--locked" title="Rol base del sistema, no se puede eliminar">Base</span>' : ''}</td>
         <td>${number((role.permissions || []).length)}</td>
-        <td>${role.is_protected ? '<span class="access-chip access-chip--locked">Base</span>' : '<span class="access-chip">Personalizado</span>'}</td>
-        <td><button class="ghost-button" type="button" data-access-role="${role.id}">Permisos</button></td>
+        <td>${role.is_protected ? '<span class="access-chip">Base</span>' : '<span class="access-chip">Personalizado</span>'}</td>
+        <td>${actionButtons}</td>
     `;
 
-    row.querySelector('[data-access-role]')?.addEventListener('click', () => selectAccessRole(role));
+    row.querySelector('[data-access-role]')?.addEventListener('click', (event) => {
+        if (event.target.closest('[data-access-role-duplicate]')) {
+            return;
+        }
+        selectAccessRole(role);
+    });
+    row.querySelector('[data-access-role-duplicate]')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        duplicateRole(role);
+    });
 
     return row;
+}
+
+async function duplicateRole(role) {
+    const session = state.session;
+    if (!session || !role) {
+        return;
+    }
+    const defaultName = role.is_protected ? `${role.name} (copia)` : `${role.name} v2`;
+    const newName = (window.prompt(`Duplicar el perfil "${role.name}".\nNombre para el nuevo perfil:`, defaultName) || '').trim();
+    if (!newName) {
+        return;
+    }
+    setStatus(elements.accessStatus, `Duplicando perfil "${role.name}" como "${newName}"...`);
+    try {
+        const resp = await api(`/api/roles/${role.id}/duplicate`, {
+            method: 'POST',
+            headers: authHeaders(session),
+            body: JSON.stringify({ name: newName }),
+        });
+        const data = resp?.data || resp;
+        setStatus(elements.accessStatus, `Perfil duplicado: ${data.name}.`, 'success');
+        await loadAccessControl();
+        const newRole = state.access.roles.find((r) => r.id === data.id);
+        if (newRole) {
+            selectAccessRole(newRole);
+        }
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudo duplicar el perfil: ' + normalizeError(error), 'error');
+    }
+}
+
+async function loadRolePreview(role) {
+    const session = state.session;
+    if (!session || !role) {
+        return null;
+    }
+    try {
+        const resp = await api(`/api/roles/${role.id}/preview`, { headers: authHeaders(session) });
+        return resp?.data || resp;
+    } catch (error) {
+        AppLogger?.warn?.(`No se pudo cargar preview del rol ${role.id}: ${error?.message || error}`);
+        return null;
+    }
 }
 
 function selectAccessRole(role) {
