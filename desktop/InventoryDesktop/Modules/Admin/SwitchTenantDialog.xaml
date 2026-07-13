@@ -10,6 +10,9 @@
         WindowStartupLocation="CenterOwner"
         Background="#F1F5F9"
         ResizeMode="CanResize">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+    </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
