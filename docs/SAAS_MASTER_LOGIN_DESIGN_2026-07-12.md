@@ -31,6 +31,39 @@ ApiBaseUrl = fromSession ?? fromConfig ?? "http://127.0.0.1:8000/api/";
 
 Si alguien refactoriza esto en el futuro y rompe el fallback local, la app deja de servir para desarrollo. **Esa regresión es P0**.
 
+### 0.1 Wave 3.1 — Separar URLs por modo (commits `9076735`)
+
+User feedback 2026-07-13: el WPF regular (cajero) **debe** conectar al backend **local** (Laragon), no a la nube. La nube es **solo** para el modo Platform Admin. El config previo tenía `apiBaseUrl` apuntando a la nube global, lo que hacía que el flujo del cajero tirara contra la nube en vez del backend local + sync worker.
+
+Nueva regla (Wave 3.1): dos URLs distintas en el config.
+
+```json
+{
+  "apiBaseUrl": "http://127.0.0.1:8000/api/",
+  "platformApiBaseUrl": "https://app.miinventariofacil.com/api/",
+  "allowProgrammerMode": true
+}
+```
+
+| Campo | Quién lo consume | Default | Notas |
+|---|---|---|---|
+| `apiBaseUrl` | LoginView (cajero) | `http://127.0.0.1:8000/api/` | Backend local + sync worker. |
+| `platformApiBaseUrl` | ProgrammerLoginWindow (Ctrl+Shift+P) | (null → fallback a apiBaseUrl) | Backend nube / SaaS Master. |
+| `allowProgrammerMode` | LoginView hotkey | false | Gate del atajo Ctrl+Shift+P. |
+
+**Resolución de URL — LoginView (tenant)**:
+1. `config.ApiBaseUrl` si está seteado.
+2. `PersistedConfig.DefaultApiBaseUrl` (`http://127.0.0.1:8000/api/`).
+
+La sesión persistida (TokenVault) ya no se usa para decidir la URL del LoginView: si el último fue un Platform Admin y quedó la URL nube persistida, el cajero no debe heredarla. Cada ventana de login resuelve su URL desde el config, no desde la sesión.
+
+**Resolución de URL — ProgrammerLoginWindow (platform)**:
+1. `config.PlatformApiBaseUrl` si está seteado.
+2. `config.ApiBaseUrl` (fallback para configs viejos sin `PlatformApiBaseUrl`).
+3. `PersistedConfig.DefaultApiBaseUrl` (caso degenenerate: developer que solo tiene el default).
+
+Esta separación hace que el cajero SIEMPRE caiga al backend local (con sync al cloud) y el programador SIEMPRE caiga al cloud directo. El frontend queda alineado con el patrón de la arquitectura: Local-First + sync para operación, nube directa para administración.
+
 ---
 
 ## 1. Contexto
