@@ -21,7 +21,8 @@ Si querés que opencode los arregle, son cambios chicos y aislados:
 | 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto (`883d76d`) |
 | 4 | Botón "Sincronizar" no hace nada en el .exe publicado | `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs` | `FindRepoRoot` (línea 583) | **Deployment**, no bug de código | **Bloqueante en test, OK en prod** | ⏳ Documentado (siguiente commit) |
 | 5 | "Cambiar empresa" muestra "Error al cambiar de empresa" | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 (post-fix #2) | Race con `Unloaded` re-revocando el token nuevo | **Bloqueante** | ✅ Resuelto (`52cfe24`) |
-| 6 | "Cambiar empresa" devuelve 403 (permiso denegado) | `app/Modules/Tenancy/routes.php` | 12 | **Backend**: ruta `/api/tenants` no tiene `tenant` middleware | **Bloqueante** | ✅ Resuelto (siguiente commit) |
+| 6 | "Cambiar empresa" devuelve 403 (permiso denegado) | `app/Modules/Tenancy/routes.php` | 12 | **Backend**: ruta `/api/tenants` no tiene `tenant` middleware | **Bloqueante** | ✅ Resuelto (`d6394204`) |
+| 7 | `XamlParseException: Provide value on 'Syste...'` al cambiar empresa | `desktop/InventoryDesktop/Modules/Admin/SwitchTenantDialog.xaml` | 71 | StaticResource `BoolToVisConverter` no definido | **Bloqueante** | ✅ Resuelto (`0673356e`) |
 
 ---
 
@@ -390,6 +391,72 @@ empresa" del ShellView no funciona. El WPF lo reporta como un
 error genérico "Error al cambiar de empresa" — el mensaje
 muestra el catch del frontend pero el error real era un 403 del
 backend.
+
+---
+
+## Bug 7 — `XamlParseException` al hacer click en "Cambiar empresa" (frontend)
+
+**Síntoma**:
+Después de aplicar el fix #6 (middleware `tenant` en backend), el
+usuario todavía ve un error al hacer click en "Cambiar empresa".
+El log muestra:
+
+```
+[ERROR] Excepcion no controlada en Dispatcher.
+System.Windows.Markup.XamlParseException: Provide value on 'Syste...
+   at System.Windows.FrameworkElement.ApplyTemplate()
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   ...
+```
+
+**Causa raíz**:
+El `SwitchTenantDialog.xaml:71` referencia un StaticResource
+inexistente:
+
+```xaml
+Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVisConverter}}"
+```
+
+`BoolToVisConverter` no está definido en el
+`SwitchTenantDialog.Resources`, en `App.Resources`, ni en
+ninguna otra parte. Existen otros nombres similares en la app:
+
+- `SaasMasterView.xaml` define `BoolToVis` (sin sufijo).
+- `ShellView.xaml` define `BooleanToVisibilityConverter` (otro nombre).
+
+El smoke test del XamlSmoke no detectaba este problema porque
+el parser estático es permisivo: deferred bindings con
+StaticResource no resueltos pasan la fase de parse, pero explotan
+en el measure pass cuando WPF intenta resolver el converter y
+aplicarlo a la propiedad `Visibility`.
+
+**Por qué se manifestaba después del fix #5**:
+Antes del fix #5, el flujo de "Cambiar empresa" moría antes
+(la app se cerraba). Después del fix, la app continúa y
+`new SwitchTenantDialog(tenants, ...).ShowDialog()` llega a
+ejecutarse. El dialog renderiza, WPF intenta resolver el
+converter, falla, lanza XamlParseException.
+
+**Fix aplicado**:
+
+```xaml
+<Window x:Class="..." ...>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+    </Window.Resources>
+    <Grid Margin="20"> ... </Grid>
+</Window>
+```
+
+**Verificación**:
+- `dotnet build`: 0 errors.
+- XamlSmoke: `SwitchTenantDialog.xaml` OK, Fallos reales 0.
+- Probable: el XamlSmoke no detecta este tipo de error por su parser
+  permisivo, pero ahora el test sería redundante porque el resource
+  está declarado.
+
+**Severidad**: bloqueante. Sin este fix, el dialog de "Cambiar
+empresa" no se renderiza.
 
 ---
 
