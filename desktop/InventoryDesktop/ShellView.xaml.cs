@@ -36,6 +36,7 @@ public partial class ShellView : UserControl
     private readonly CustomersViewModel customersViewModel;
     private readonly PosViewModel posViewModel;
     private bool initialSyncPromptShown;
+    private bool isBeingReplaced;
 
     public ObservableCollection<ModuleCardInfo> ModuleCards { get; } = BuildModuleCards();
 
@@ -83,6 +84,10 @@ public partial class ShellView : UserControl
         };
         Unloaded += async (_, _) =>
         {
+            if (isBeingReplaced)
+            {
+                return;
+            }
             await LogoutAsync();
         };
     }
@@ -382,6 +387,7 @@ public partial class ShellView : UserControl
                 ApiClient: session.ApiClient,
                 Login: fresh,
                 ApiBaseUrl: session.ApiBaseUrl);
+            isBeingReplaced = true;
             owner.Content = new ShellView(newSession);
         }
         catch (Exception exception)

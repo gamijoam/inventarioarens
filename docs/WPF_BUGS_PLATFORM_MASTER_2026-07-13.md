@@ -2,8 +2,8 @@
 
 > **Autor del análisis**: opencode (frontend)
 > **Fecha**: 2026-07-13
-> **Status**: ✅ RESUELTO (commit `bdf6f5b`)
-> **Audiencia**: equipo de frontend WPF (3 bugs C# detectados). No es trabajo de backend Laravel.
+> **Status**: ✅ Bugs #1-#3 RESUELTOS (commit `883d76d`); bug #5 RESUELTO (commit siguiente); bug #4 = deployment, requiere InventorySyncInstaller o `dotnet run` desde fuente.
+> **Audiencia**: equipo de frontend WPF. No es trabajo de backend Laravel.
 
 ## TL;DR
 
@@ -16,9 +16,11 @@ Si querés que opencode los arregle, son cambios chicos y aislados:
 
 | # | Bug | Archivo | Línea | Tipo | Severidad | Status |
 |---|-----|---------|-------|------|-----------|--------|
-| 1 | NullReferenceException en `RefreshMeAsync` al iniciar sesión | `desktop/InventoryDesktop/ShellView.xaml.cs` | 99 | NullRef sin guard | **Crash** | ✅ Resuelto |
-| 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** | ✅ Resuelto |
-| 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto |
+| 1 | NullReferenceException en `RefreshMeAsync` al iniciar sesión | `desktop/InventoryDesktop/ShellView.xaml.cs` | 99 | NullRef sin guard | **Crash** | ✅ Resuelto (`883d76d`) |
+| 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** | ✅ Resuelto (`883d76d`) |
+| 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto (`883d76d`) |
+| 4 | Botón "Sincronizar" no hace nada en el .exe publicado | `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs` | `FindRepoRoot` (línea 583) | **Deployment**, no bug de código | **Bloqueante en test, OK en prod** | ⏳ Documentado (siguiente commit) |
+| 5 | "Cambiar empresa" muestra "Error al cambiar de empresa" | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 (post-fix #2) | Race con `Unloaded` re-revocando el token nuevo | **Bloqueante** | ✅ Resuelto (commit siguiente) |
 
 ---
 
@@ -247,7 +249,7 @@ Si los 3 casos funcionan, los bugs estan cerrados.
 
 ## Trabajo de backend requerido
 
-**Cero**. Los 3 bugs son frontend. El backend responde correctamente
+**Cero**. Los 5 bugs son frontend. El backend responde correctamente
 (verificado vía `curl` en sesión previa):
 - `GET /api/auth/me` devuelve 200 con datos correctos.
 - `POST /api/auth/switch-tenant` devuelve 201 con nuevo token.
@@ -256,3 +258,117 @@ Si los 3 casos funcionan, los bugs estan cerrados.
 Si en el futuro aparecen bugs de los que NO estoy seguro, los
 marco con **"requiere investigación de backend"** en este mismo
 documento.
+
+---
+
+## Bug 4 — Sincronizar no hace nada en el .exe publicado
+
+**Síntoma**:
+El usuario hace click en "Sincronizar" o "Sincronizar esta empresa"
+en el ShellView. Aparece un `SyncProgressWindow` brevemente y luego
+se cierra con un mensaje en el status: "No se encontro
+scripts\sync-worker.cmd en el proyecto." El inventario local nunca
+se actualiza.
+
+**Causa raíz**:
+El `SyncWorkerViewModel.ExecuteWorkerAsync` necesita correr un
+proceso externo (cmd.exe que invoca `scripts\sync-worker.cmd`) que
+a su vez llama `php artisan sync:run`. Para encontrar ese script,
+usa `FindRepoRoot()` que sube directorios desde
+`AppContext.BaseDirectory` buscando el archivo `artisan`.
+
+Cuando el WPF corre desde el .exe publicado en
+`C:\Users\gafit\Desktop\InventoryDesktop-PlatformAdmin-Test\`, no
+hay `artisan` en ningún directorio padre. `FindRepoRoot` devuelve
+null, `ResolveScriptPath` devuelve string vacío, y
+`ExecuteWorkerAsync` sale temprano con el mensaje de error.
+
+**No es un bug de código** — es la naturaleza de cómo se distribuye
+el WPF. El sync worker **no se puede embeber en el .exe** porque
+es un script PHP + cmd.exe que corre sobre el proyecto Laravel.
+
+**Soluciones posibles**:
+
+| Solución | Comandos | Costo | Adecuada para |
+|---|---|---|---|
+| **A. Correr la app desde el proyecto** | `cd C:\Users\gafit\Documents\INVENTARIOARENS`; `dotnet run --project desktop/InventoryDesktop` | 0 cambios | Dev/test |
+| **B. Correr `InventorySyncInstaller`** | Ejecutar `desktop\InventorySyncInstaller\bin\...exe`, completar wizard | 0 cambios | Produccion / Cliente |
+| **C. Patch: agregar `repoRoot` al config** | Editar `inventorydesktop.config.json` y agregar campo `repoRoot`; `FindRepoRoot` lo lee primero. | ~30 min | Casos puntuales |
+
+**Solución recomendada (corto plazo)**: Opción A para los tests
+del usuario. Abrir una terminal en
+`C:\Users\gafit\Documents\INVENTARIOARENS` y correr:
+
+```powershell
+dotnet run --project desktop/InventoryDesktop
+```
+
+La app va a tener acceso a `artisan` (vía `bin/Debug/.../artisan`
+caminando hacia arriba) y el sync worker va a funcionar.
+
+**Solución recomendada (largo plazo)**: hacer el Installer de WPF
+real para que distribuya el proyecto completo (similar a como
+funciona `InventorySyncInstaller`).
+
+**Severidad**: bloqueante para el flujo de sync en builds
+publicados. No crash, no es bug — es feature gap de deployment.
+
+---
+
+## Bug 5 — "Cambiar empresa" muestra "Error al cambiar de empresa" (regresión post-fix #2)
+
+**Síntoma** (regresión reportada el 2026-07-13 después del commit `883d76d`):
+Al hacer click en "Cambiar empresa", seleccionar otra empresa, la app muestra
+"Error al cambiar de empresa: <exception.Message>" en un MessageBox.
+
+**Causa raíz**:
+El fix #2 (`883d76d`) reemplaza el ShellView via
+`owner.Content = new ShellView(newSession)`. Esto dispara el
+`Unloaded` event del ShellView viejo, cuyo handler ejecuta:
+
+```csharp
+Unloaded += async (_, _) =>
+{
+    await LogoutAsync();  // <-- revoca el token
+};
+```
+
+Pero ANTES de que el Unloaded handler corra, el código del
+`SwitchTenant_Click` ya reconfiguró el `apiClient` con el token
+nuevo. Cuando `LogoutAsync` llama `POST /api/auth/logout` con ese
+`apiClient`, está revocando el **token nuevo**, no el viejo.
+
+Resultado: el nuevo ShellView queda con un token recién revocado.
+El primer call que haga (RefreshMeAsync, etc.) devuelve 401, y la
+app termina en el catch block del `SwitchTenant_Click` con un error
+genérico.
+
+**Fix aplicado**:
+
+```csharp
+private bool isBeingReplaced;
+
+public ShellView(DesktopSession session)
+{
+    ...
+    Unloaded += async (_, _) =>
+    {
+        if (isBeingReplaced)
+        {
+            return;  // Skip logout - we're being swapped, not closed.
+        }
+        await LogoutAsync();
+    };
+}
+
+private async void SwitchTenant_Click(object sender, RoutedEventArgs e)
+{
+    ...
+    isBeingReplaced = true;  // <-- ANTES del owner.Content = ...
+    owner.Content = new ShellView(newSession);
+}
+```
+
+**Verificacion**: build OK, smoke test verde. Probar manualmente
+que el switch tenant ahora mantiene la sesion y la app sigue
+operativa despues del cambio.
