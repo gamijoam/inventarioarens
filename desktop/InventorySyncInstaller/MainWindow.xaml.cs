@@ -84,6 +84,7 @@ public partial class MainWindow : Window
 
             SetState("Guardando", "Guardando configuración", "Registrando servidor, empresa y frecuencia de sincronización.", 3);
             SaveSyncConfiguration(selectedTenant.Slug, cloudUrl, syncToken, nodeCode, nodeName, installationCode, interval);
+            SaveDesktopConfig(cloudUrl);
 
             SetState("Preparando", "Deteniendo sincronización anterior", "Si esta empresa tenía un worker abierto, se detendrá antes de continuar.", 4);
             await RunWorkerAsync("stop", selectedTenant.Slug, nodeCode, nodeName, installationCode, cloudUrl, syncToken, interval);
@@ -595,6 +596,34 @@ public partial class MainWindow : Window
         AppendLog($"Configuracion guardada para {tenantSlug}.");
     }
 
+    private void SaveDesktopConfig(string cloudUrl)
+    {
+        try
+        {
+            string desktopDir = Path.Combine(repoRoot, "desktop", "InventoryDesktop");
+            string configPath = Path.Combine(desktopDir, "inventorydesktop.config.json");
+
+            InstallerDesktopConfigFile file = File.Exists(configPath)
+                ? JsonSerializer.Deserialize<InstallerDesktopConfigFile>(File.ReadAllText(configPath), jsonOptions) ?? new InstallerDesktopConfigFile()
+                : new InstallerDesktopConfigFile();
+
+            file.ApiBaseUrl = cloudUrl.TrimEnd('/') + "/";
+            file.AllowProgrammerMode = false;
+
+            Directory.CreateDirectory(desktopDir);
+            File.WriteAllText(configPath, JsonSerializer.Serialize(file, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                WriteIndented = true,
+            }));
+
+            AppendLog($"Configuracion del desktop guardada en {configPath}.");
+        }
+        catch (Exception exception)
+        {
+            AppendLog($"No se pudo escribir inventorydesktop.config.json: {exception.Message}");
+        }
+    }
+
     private async Task RunUiAsync(Func<Task> action)
     {
         ToggleBusy(true);
@@ -964,4 +993,13 @@ public sealed class SyncTenantConfiguration
 
     [JsonPropertyName("updated_at")]
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class InstallerDesktopConfigFile
+{
+    [JsonPropertyName("apiBaseUrl")]
+    public string ApiBaseUrl { get; set; } = "";
+
+    [JsonPropertyName("allowProgrammerMode")]
+    public bool AllowProgrammerMode { get; set; }
 }

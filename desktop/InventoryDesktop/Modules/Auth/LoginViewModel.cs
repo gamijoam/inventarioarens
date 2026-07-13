@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Net.Http;
 using InventoryDesktop.Core.Api;
+using InventoryDesktop.Core.Config;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.Security;
 using InventoryDesktop.Core.Services;
@@ -12,7 +13,7 @@ public sealed class LoginViewModel : ViewModelBase
 {
     private readonly ApiClient apiClient = new();
     private readonly TokenVault tokenVault = new();
-    private string apiBaseUrl = "http://127.0.0.1:8000/api/";
+    private string apiBaseUrl = PersistedConfig.DefaultApiBaseUrl;
     private string email = "";
     private TenantOption? selectedTenant;
     private string statusMessage = "";
@@ -146,12 +147,6 @@ public sealed class LoginViewModel : ViewModelBase
 
     public async Task LoginAsync(string password)
     {
-        if (IsPlatformAdminMode)
-        {
-            await LoginPlatformAdminAsync(password);
-            return;
-        }
-
         if (!ValidateCredentials(password))
         {
             return;
@@ -179,6 +174,28 @@ public sealed class LoginViewModel : ViewModelBase
 
         await RunAsync(() => LoginWithSelectedTenantAsync(password));
     }
+
+    public void ResolveApiBaseUrl()
+    {
+        PersistedSession? persisted = tokenVault.ReadSession();
+        PersistedConfig? config = ConfigStore.TryRead();
+
+        string resolved = !string.IsNullOrWhiteSpace(persisted?.ApiBaseUrl)
+            ? persisted!.ApiBaseUrl
+            : config?.ApiBaseUrl ?? apiBaseUrl;
+
+        if (!string.IsNullOrWhiteSpace(resolved))
+        {
+            apiBaseUrl = resolved;
+            RaisePropertyChanged(nameof(ApiBaseUrl));
+        }
+    }
+
+    public void OpenPlatformAdminSession(DesktopSession session)
+    {
+        PlatformAdminLoginSucceeded?.Invoke(this, session);
+    }
+
 
     private async Task LoginPlatformAdminAsync(string password)
     {

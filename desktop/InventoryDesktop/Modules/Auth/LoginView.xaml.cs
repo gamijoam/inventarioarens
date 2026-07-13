@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using InventoryDesktop.Core.Config;
 using InventoryDesktop.Core.Security;
 using MaterialDesignThemes.Wpf;
 
@@ -10,7 +11,6 @@ namespace InventoryDesktop.Modules.Auth;
 public partial class LoginView : UserControl
 {
     private readonly LoginViewModel viewModel = new();
-    private readonly TokenVault tokenVault = new();
     private readonly DispatcherTimer emailLookupTimer = new() { Interval = TimeSpan.FromMilliseconds(550) };
 
     public LoginView()
@@ -22,10 +22,11 @@ public partial class LoginView : UserControl
         emailLookupTimer.Tick += EmailLookupTimer_Tick;
         Loaded += (_, _) =>
         {
-            RestorePersistedApiBaseUrl();
+            viewModel.ResolveApiBaseUrl();
             EmailInput.Focus();
         };
         PreviewKeyDown += LoginView_PreviewKeyDown;
+        PreviewKeyDown += LoginView_Hotkeys;
     }
 
     public event EventHandler<DesktopSession>? LoginSucceeded;
@@ -35,40 +36,6 @@ public partial class LoginView : UserControl
     public void ShowError(string message)
     {
         viewModel.SetError(message);
-    }
-
-    private void RestorePersistedApiBaseUrl()
-    {
-        PersistedSession? persisted = tokenVault.ReadSession();
-        if (persisted is null || string.IsNullOrWhiteSpace(persisted.ApiBaseUrl))
-        {
-            return;
-        }
-
-        viewModel.ApiBaseUrl = persisted.ApiBaseUrl;
-    }
-
-    private void ApiBaseUrlInput_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if ((bool)e.NewValue)
-        {
-            return;
-        }
-
-        string trimmed = viewModel.ApiBaseUrl?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(trimmed) || trimmed == viewModel.ApiBaseUrl)
-        {
-            return;
-        }
-
-        viewModel.ApiBaseUrl = trimmed;
-        PersistedSession? existing = tokenVault.ReadSession();
-        if (existing is null)
-        {
-            return;
-        }
-
-        tokenVault.SaveSession(existing with { ApiBaseUrl = trimmed });
     }
 
     private async void Login_Click(object sender, RoutedEventArgs e)
@@ -88,6 +55,39 @@ public partial class LoginView : UserControl
         {
             e.Handled = true;
             await viewModel.LoginAsync(PasswordInput.Password);
+        }
+    }
+
+    private async void LoginView_Hotkeys(object sender, KeyEventArgs e)
+    {
+        if (e.KeyboardDevice.Modifiers != (ModifierKeys.Control | ModifierKeys.Shift) || e.Key != Key.P)
+        {
+            return;
+        }
+
+        PersistedConfig? config = ConfigStore.TryRead();
+        if (config is null || !config.AllowProgrammerMode)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await OpenProgrammerLoginAsync();
+    }
+
+    private async System.Threading.Tasks.Task OpenProgrammerLoginAsync()
+    {
+        Window? owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            return;
+        }
+
+        var programmer = new ProgrammerLoginWindow { Owner = owner };
+        bool? result = programmer.ShowDialog();
+        if (result == true && programmer.ResultSession is { } session)
+        {
+            viewModel.OpenPlatformAdminSession(session);
         }
     }
 
