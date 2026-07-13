@@ -530,13 +530,25 @@ php artisan access:create-platform-admin "Nombre Admin" admin@arens.test --passw
 # Promover user existente a Platform Admin: usar el mismo create-platform-admin
 # (si el email ya existe y NO es platform admin, lo marca is_platform_admin=true).
 php artisan access:create-platform-admin "Mi Admin" usuario@yaexiste.com --password=Secret1234
-# Endpoints (requieren EnsurePlatformAdmin):
-#   GET  /api/master/admins   - lista Platform Admins
-#   POST /api/master/admins   - crea uno nuevo (o promueve si ya existe). Devuelve initial_password si fue creado.
-# Endpoint SIN tenant middleware (login global sin empresa):
+# Endpoints (requieren EnsurePlatformAdmin) — ver docs/INSTRUCCIONES_FRONTEND_SAAS_MASTER.md
+#   GET  /api/master/stats                       - stats globales del SaaS
+#   GET  /api/master/groups                      - lista grupos (parent_id=NULL)
+#   POST /api/master/groups                      - crea grupo + setup + group_owner
+#   GET  /api/master/groups/{group}             - detalle de un grupo
+#   PATCH /api/master/groups/{group}             - editar grupo
+#   DELETE /api/master/groups/{group}            - soft delete
+#   GET  /api/master/groups/{group}/tenants      - listar spinoffs desde master
+#   GET  /api/master/admins                      - lista Platform Admins
+#   POST /api/master/admins                      - crea/promueve
+#   GET  /api/master/admins/{admin}              - detalle
+#   PATCH /api/master/admins/{admin}              - editar
+#   POST /api/master/admins/{admin}/reset-password - reset + revoca sesiones
+#   DELETE /api/master/admins/{admin}             - revocar (no self)
+# Endpoints SIN tenant middleware (login global sin empresa):
 #   POST /api/auth/platform-login - login exclusivo para Platform Admins.
 #     Emite un AuthToken con tenant_id=null (no scoped). Solo sirve para /api/master/*.
 #     Si el user no es platform_admin responde 422.
+#   GET  /api/auth/me             - funciona tambien para Platform Admin (tenant=null)
 
 # VPS
 ssh -i C:\Users\gafit\.ssh\webadmin-vps webadmin@217.216.80.158
