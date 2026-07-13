@@ -3049,6 +3049,7 @@
                                                     <th>Usuario</th>
                                                     <th>Estado</th>
                                                     <th>Perfiles</th>
+                                                    <th>Scope</th>
                                                     <th>Acción</th>
                                                 </tr>
                                             </thead>
@@ -3096,6 +3097,7 @@
                                         <button class="access-subtab is-active" type="button" data-user-subtab="roles">Perfiles</button>
                                         <button class="access-subtab" type="button" data-user-subtab="overrides">Permisos extra</button>
                                         <button class="access-subtab" type="button" data-user-subtab="capabilities">Capacidades</button>
+                                        <button class="access-subtab" type="button" data-user-subtab="scopes">Scopes</button>
                                     </div>
 
                                     <div class="access-subpanel" data-user-subpanel="roles">
@@ -3148,6 +3150,47 @@
                                             <summary>Ver lista completa de permisos efectivos</summary>
                                             <pre id="admin-access-capabilities-json" class="capabilities-json"></pre>
                                         </details>
+                                    </div>
+
+                                    <div class="access-subpanel" data-user-subpanel="scopes" hidden>
+                                        <div class="panel-heading">
+                                            <h5>Scopes del usuario</h5>
+                                            <p>Limita que sucursales, almacenes y grupos de cliente puede ver el usuario. Si una categoria esta vacia, ve TODO (default-allow).</p>
+                                        </div>
+                                        <div id="admin-access-scope-status-banner" class="scope-status-banner" hidden></div>
+                                        <div class="scopes-editor">
+                                            <div class="scope-section">
+                                                <h6>Sucursales (branches) <span class="status-pill" id="admin-access-scope-branches-count">0</span></h6>
+                                                <p class="scope-help">Limita las sucursales donde este usuario puede ver/operar ventas, traslados y caja.</p>
+                                                <div class="scope-checklist" id="admin-access-scope-branches-list">
+                                                    <p class="access-empty">Cargando sucursales...</p>
+                                                </div>
+                                            </div>
+                                            <div class="scope-section">
+                                                <h6>Almacenes (warehouses) <span class="status-pill" id="admin-access-scope-warehouses-count">0</span></h6>
+                                                <p class="scope-help">Limita los depositos de los que este usuario puede ver stock y movimientos.</p>
+                                                <div class="scope-checklist" id="admin-access-scope-warehouses-list">
+                                                    <p class="access-empty">Cargando almacenes...</p>
+                                                </div>
+                                            </div>
+                                            <div class="scope-section">
+                                                <h6>Grupos de cliente <span class="status-pill" id="admin-access-scope-customer-groups-count">0</span></h6>
+                                                <p class="scope-help">Limita los grupos de cliente que este usuario puede ver.</p>
+                                                <div class="scope-checklist" id="admin-access-scope-customer-groups-list">
+                                                    <p class="access-empty">Cargando grupos de cliente...</p>
+                                                </div>
+                                            </div>
+                                            <div class="scope-section">
+                                                <h6>Vendor de grupos (cobranza) <span class="status-pill" id="admin-access-scope-vendor-of-count">0</span></h6>
+                                                <p class="scope-help">El usuario es VENDOR de estos grupos: solo ve CxC y ventas de clientes en estos grupos.</p>
+                                                <div class="scope-checklist" id="admin-access-scope-vendor-of-list">
+                                                    <p class="access-empty">Cargando grupos...</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="access-actions">
+                                            <button class="primary-button" type="button" id="admin-access-save-scopes">Guardar scopes</button>
+                                        </div>
                                     </div>
                                 </section>
                             </div>

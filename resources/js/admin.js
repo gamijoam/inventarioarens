@@ -499,6 +499,16 @@ const elements = {
     accessOverridesDeniedCount: document.querySelector('#admin-access-overrides-denied-count'),
     accessCapabilitiesSummary: document.querySelector('#admin-access-capabilities-summary'),
     accessCapabilitiesJson: document.querySelector('#admin-access-capabilities-json'),
+    accessScopeStatusBanner: document.querySelector('#admin-access-scope-status-banner'),
+    accessScopeBranchesList: document.querySelector('#admin-access-scope-branches-list'),
+    accessScopeBranchesCount: document.querySelector('#admin-access-scope-branches-count'),
+    accessScopeWarehousesList: document.querySelector('#admin-access-scope-warehouses-list'),
+    accessScopeWarehousesCount: document.querySelector('#admin-access-scope-warehouses-count'),
+    accessScopeCustomerGroupsList: document.querySelector('#admin-access-scope-customer-groups-list'),
+    accessScopeCustomerGroupsCount: document.querySelector('#admin-access-scope-customer-groups-count'),
+    accessScopeVendorOfList: document.querySelector('#admin-access-scope-vendor-of-list'),
+    accessScopeVendorOfCount: document.querySelector('#admin-access-scope-vendor-of-count'),
+    accessSaveScopes: document.querySelector('#admin-access-save-scopes'),
 };
 
 const permissionProfiles = {
@@ -973,6 +983,8 @@ function resetTenantScopedState() {
     state.access.permissionCatalogLoaded = false;
     state.access.userOverrides = null;
     state.access.userEffective = null;
+    state.access.userScopes = null;
+    state.access.scopeCatalog = null;
     state.access.activeUserSubtab = 'roles';
 
     if (elements.inventoryEditor) {
@@ -6375,6 +6387,232 @@ function emptyAccessNode(tag, text, cls) {
     return el;
 }
 
+async function loadScopeCatalog(force = false) {
+    if (state.access.scopeCatalog && !force) {
+        return state.access.scopeCatalog;
+    }
+    const session = state.session;
+    if (!session) {
+        return null;
+    }
+    try {
+        const [branches, warehouses, customerGroups] = await Promise.all([
+            api('/api/branches', { headers: authHeaders(session) }),
+            api('/api/warehouses', { headers: authHeaders(session) }),
+            api('/api/customer-groups', { headers: authHeaders(session) }),
+        ]);
+        state.access.scopeCatalog = {
+            branches: collectionData(branches),
+            warehouses: collectionData(warehouses),
+            customerGroups: collectionData(customerGroups),
+        };
+        return state.access.scopeCatalog;
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudo cargar el catalogo de scopes: ' + normalizeError(error), 'error');
+        return null;
+    }
+}
+
+async function loadUserScopes(user) {
+    const session = state.session;
+    if (!session || !user) {
+        return;
+    }
+    const tenantId = user.tenant_id || session.tenant?.id;
+    if (!tenantId) {
+        return;
+    }
+    try {
+        const resp = await api(`/api/tenants/${tenantId}/users/${user.id}/scopes`, { headers: authHeaders(session) });
+        const data = resp?.data || resp;
+        state.access.userScopes = data;
+        await loadScopeCatalog();
+        renderUserScopes(data);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudieron cargar los scopes: ' + normalizeError(error), 'error');
+    }
+}
+
+function renderUserScopes(data) {
+    if (!elements.accessScopeBranchesList) {
+        return;
+    }
+    const user = state.access.selectedUser;
+    const tenantId = user?.tenant_id || state.session?.tenant?.id;
+    const catalog = state.access.scopeCatalog || { branches: [], warehouses: [], customerGroups: [] };
+    const branches = Array.isArray(data?.branches) ? data.branches : [];
+    const warehouses = Array.isArray(data?.warehouses) ? data.warehouses : [];
+    const customerGroups = Array.isArray(data?.customer_groups) ? data.customer_groups : [];
+    const vendorOf = Array.isArray(data?.vendor_of) ? data.vendor_of : [];
+    const expanded = data?.expanded || {};
+
+    renderScopeList(
+        elements.accessScopeBranchesList,
+        elements.accessScopeBranchesCount,
+        catalog.branches,
+        branches,
+        expanded.branches || [],
+        tenantId,
+    );
+    renderScopeList(
+        elements.accessScopeWarehousesList,
+        elements.accessScopeWarehousesCount,
+        catalog.warehouses,
+        warehouses,
+        expanded.warehouses || [],
+        tenantId,
+    );
+    renderScopeList(
+        elements.accessScopeCustomerGroupsList,
+        elements.accessScopeCustomerGroupsCount,
+        catalog.customerGroups,
+        customerGroups,
+        expanded.customer_groups || [],
+        tenantId,
+    );
+    renderScopeList(
+        elements.accessScopeVendorOfList,
+        elements.accessScopeVendorOfCount,
+        catalog.customerGroups,
+        vendorOf,
+        expanded.vendor_of || [],
+        tenantId,
+    );
+
+    if (elements.accessScopeStatusBanner) {
+        const status = scopeStatusOf(data);
+        if (status === 'none') {
+            elements.accessScopeStatusBanner.hidden = false;
+            elements.accessScopeStatusBanner.textContent = 'Sin asignacion: el usuario ve TODO. Recomendado asignar al menos 1 para restringir.';
+        } else if (status === 'allow') {
+            elements.accessScopeStatusBanner.hidden = false;
+            elements.accessScopeStatusBanner.textContent = 'Scopes vacios: el usuario ve TODO en estas categorias.';
+        } else {
+            elements.accessScopeStatusBanner.hidden = true;
+        }
+    }
+}
+
+function renderScopeList(container, countEl, allItems, selectedIds, expanded, tenantId) {
+    if (!container) {
+        return;
+    }
+    if (!Array.isArray(allItems) || allItems.length === 0) {
+        container.replaceChildren(emptyAccessNode('p', 'No hay recursos disponibles. Crea sucursales, almacenes o grupos de cliente primero.', 'access-empty'));
+        if (countEl) {
+            countEl.textContent = '0';
+        }
+        return;
+    }
+    const selected = new Set((selectedIds || []).map(Number));
+    const codeById = new Map();
+    (expanded || []).forEach((item) => {
+        codeById.set(Number(item.id), item.code || '');
+    });
+    const fragment = document.createDocumentFragment();
+    allItems.forEach((item) => {
+        const id = Number(item.id);
+        const label = document.createElement('label');
+        label.className = 'scope-check';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = String(id);
+        input.dataset.scopeItem = String(id);
+        if (selected.has(id)) {
+            input.checked = true;
+        }
+        const code = codeById.get(id) || item.code || '';
+        const text = document.createElement('span');
+        text.textContent = item.name || `Item ${id}`;
+        label.append(input, text);
+        if (code) {
+            const codeEl = document.createElement('span');
+            codeEl.className = 'scope-check__code';
+            codeEl.textContent = `(${code})`;
+            label.append(codeEl);
+        }
+        fragment.append(label);
+    });
+    container.replaceChildren(fragment);
+    if (countEl) {
+        countEl.textContent = String(selectedIds?.length || 0);
+    }
+}
+
+function scopeStatusOf(data) {
+    if (!data) {
+        return 'none';
+    }
+    const total = (data.branches?.length || 0)
+        + (data.warehouses?.length || 0)
+        + (data.customer_groups?.length || 0)
+        + (data.vendor_of?.length || 0);
+    if (total === 0) {
+        return 'none';
+    }
+    const allEmpty = ['branches', 'warehouses', 'customer_groups', 'vendor_of']
+        .every((key) => Array.isArray(data[key]) && data[key].length === 0);
+    return allEmpty ? 'allow' : 'restrict';
+}
+
+async function saveUserScopes() {
+    const user = state.access.selectedUser;
+    if (!user) {
+        return;
+    }
+    const session = state.session;
+    const tenantId = user.tenant_id || session.tenant?.id;
+    if (!tenantId) {
+        return;
+    }
+    const readIds = (containerId) => Array.from(document.querySelectorAll(`#${containerId} input[data-scope-item]:checked`))
+        .map((input) => Number(input.value));
+    const body = {
+        branch_ids: readIds('admin-access-scope-branches-list'),
+        warehouse_ids: readIds('admin-access-scope-warehouses-list'),
+        customer_group_ids: readIds('admin-access-scope-customer-groups-list'),
+        vendor_of_ids: readIds('admin-access-scope-vendor-of-list'),
+    };
+    setStatus(elements.accessStatus, 'Guardando scopes...');
+    setButtonLoading(elements.accessSaveScopes, true, 'Guardando...');
+    try {
+        await api(`/api/tenants/${tenantId}/users/${user.id}/scopes`, {
+            method: 'PUT',
+            headers: authHeaders(session),
+            body: JSON.stringify(body),
+        });
+        setStatus(elements.accessStatus, 'Scopes guardados.', 'success');
+        await loadUserScopes(user);
+    } catch (error) {
+        setStatus(elements.accessStatus, 'No se pudieron guardar los scopes: ' + normalizeError(error), 'error');
+    } finally {
+        setButtonLoading(elements.accessSaveScopes, false);
+    }
+}
+
+function renderScopeBadge(user) {
+    const scopes = user?.scopes;
+    if (!scopes) {
+        return '';
+    }
+    const status = scopeStatusOf(scopes);
+    if (status === 'none') {
+        return '<span class="scope-badge scope-badge--none" title="Sin scopes asignados">Sin scope</span>';
+    }
+    if (status === 'allow') {
+        const total = (scopes.branches?.length || 0)
+            + (scopes.warehouses?.length || 0)
+            + (scopes.customer_groups?.length || 0)
+            + (scopes.vendor_of?.length || 0);
+        return `<span class="scope-badge scope-badge--allow" title="Scopes vacios en ${total} categorias">Vacio</span>`;
+    }
+    const total = (scopes.branches?.length || 0)
+        + (scopes.warehouses?.length || 0)
+        + (scopes.customer_groups?.length || 0)
+        + (scopes.vendor_of?.length || 0);
+    return `<span class="scope-badge scope-badge--restrict" title="Restringido a ${total} recursos">Restringido</span>`;
+}
+
 function setActiveUserSubtab(subtab) {
     state.access.activeUserSubtab = subtab;
     elements.accessUserSubtabs.forEach((btn) => {
@@ -6395,6 +6633,8 @@ async function loadUserSubtabData(subtab) {
         await loadUserOverrides(user);
     } else if (subtab === 'capabilities') {
         await loadUserEffective(user);
+    } else if (subtab === 'scopes') {
+        await loadUserScopes(user);
     }
 }
 
@@ -6434,7 +6674,7 @@ function renderAccessUsers() {
     }
 
     if (!users.length) {
-        elements.accessUsersTable.innerHTML = '<tr><td colspan="4"><strong>Sin usuarios visibles</strong><small>No hay usuarios cargados o tu usuario no tiene permiso para verlos.</small></td></tr>';
+        elements.accessUsersTable.innerHTML = '<tr><td colspan="5"><strong>Sin usuarios visibles</strong><small>No hay usuarios cargados o tu usuario no tiene permiso para verlos.</small></td></tr>';
         return;
     }
 
@@ -6451,6 +6691,7 @@ function accessUserRow(user) {
         <td><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></td>
         <td><span class="status-pill" data-tone="${user.status === 'active' ? 'success' : 'warning'}">${user.status === 'active' ? 'Activo' : 'Inactivo'}</span></td>
         <td>${roles.length ? roles.map((role) => `<span class="access-chip">${escapeHtml(role)}</span>`).join('') : '<small>Sin perfiles</small>'}</td>
+        <td>${renderScopeBadge(user)}</td>
         <td><button class="ghost-button" type="button" data-access-user="${user.id}">Seleccionar</button></td>
     `;
 
@@ -6485,8 +6726,10 @@ function selectAccessUser(user) {
     setStatus(elements.accessStatus, `Usuario seleccionado: ${user.email}.`, 'neutral');
     state.access.userOverrides = null;
     state.access.userEffective = null;
+    state.access.userScopes = null;
     renderOverridesEditor(null);
     renderCapabilityPreview(null);
+    renderUserScopes(null);
     loadUserSubtabData(state.access.activeUserSubtab || 'roles');
 }
 
@@ -7317,6 +7560,7 @@ elements.accessUserSubtabs.forEach((btn) => {
 });
 elements.accessOverridesAllowBtn?.addEventListener('click', () => addUserOverride('allow'));
 elements.accessOverridesDenyBtn?.addEventListener('click', () => addUserOverride('deny'));
+elements.accessSaveScopes?.addEventListener('click', saveUserScopes);
 elements.tenant?.addEventListener('change', () => {
     state.selectedTenant = state.tenants.find((tenant) => tenant.slug === elements.tenant.value) ?? null;
 });
