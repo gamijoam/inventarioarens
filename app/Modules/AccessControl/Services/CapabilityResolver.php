@@ -61,6 +61,8 @@ class CapabilityResolver
 
         ksort($effective);
 
+        $scopeStatus = app(\App\Modules\AccessControl\Services\ScopeResolver::class)->statusFor($user);
+
         return [
             'permissions' => array_keys($effective),
             'permission_count' => count($effective),
@@ -69,6 +71,7 @@ class CapabilityResolver
             'extras' => $extras,
             'denied' => $denies,
             'roles' => $this->rolesFor($user, $tenant->id),
+            'scope_status' => $scopeStatus,
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Modules\Customers\Models;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'name',
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Model;
     'fiscal_address',
     'is_generic',
     'is_active',
+    'customer_group_id',
+    'zone_id',
 ])]
 class Customer extends Model
 {
@@ -32,5 +35,10 @@ class Customer extends Model
             'is_generic' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function customerGroup(): BelongsTo
+    {
+        return $this->belongsTo(CustomerGroup::class, 'customer_group_id');
     }
 }

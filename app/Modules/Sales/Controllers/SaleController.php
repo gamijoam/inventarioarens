@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sales\Controllers;
 
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Requests\StoreSaleRequest;
 use App\Modules\Sales\Resources\SaleResource;
@@ -14,15 +15,22 @@ use Illuminate\Support\Facades\Gate;
 
 class SaleController extends Controller
 {
+    public function __construct(private readonly ScopeResolver $scopes)
+    {
+    }
+
     public function index(): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Sale::class);
 
-        return SaleResource::collection(
-            Sale::query()
-                ->with(['customer', 'items.product', 'items.warehouse'])
-                ->latest()
-                ->paginate(25)
+        $query = Sale::query()
+            ->with(['customer', 'items.product', 'items.warehouse'])
+            ->latest();
+
+        $query = $this->scopes->applyBranchScope($query, request()->user(), 'branch_id');
+        $query = $this->scopes->applyVendorScope($query, request()->user(), 'created_by');
+
+        return SaleResource::collection($query->paginate(25)
         );
     }
 
