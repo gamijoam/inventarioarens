@@ -7,6 +7,32 @@
 
 ---
 
+## 0. ⚠️ NO OLVIDAR — requisito no negociable de default local
+
+El campo "Servidor de la API" del LoginView (y cualquier mecanismo que lo reemplace en Ola 3) **siempre** debe resolver, en este orden de prioridad, a uno de los siguientes:
+
+1. URL persistida de la última sesión exitosa (`TokenVault.ReadSession().ApiBaseUrl`).
+2. URL del archivo `inventorydesktop.config.json` (Ola 3).
+3. **`http://127.0.0.1:8000/api/`** — Laragon local.
+
+El default local es **obligatorio** porque:
+
+- Sin él, un dev/integrador que recién baja el repo, abre la WPF sin haber corrido el instalador ni haber escrito config, no podría loguearse. La app se volvería inusable en entorno de desarrollo.
+- Los builders (`dotnet run`) están pensados contra Laragon (`C:\laragon\bin\php\...`). El config de Ola 3 lo escribe solo el `InventorySyncInstaller` cuando se despliega; nunca debe escribir el config un `dotnet run` de dev.
+
+**Regla para Ola 3**: el `ConfigStore` (helper que lee el config) DEBE devolver `null` cuando el archivo no existe. El `LoginViewModel.ApiBaseUrl` mantiene su valor por defecto `http://127.0.0.1:8000/api/` y solo se sobrescribe cuando `ConfigStore` devuelve algo distinto de null.
+
+```csharp
+// Pseudocódigo del comportamiento esperado (no implementar aún):
+var fromConfig = ConfigStore.TryRead("apiBaseUrl");     // null si no existe el archivo
+var fromSession = TokenVault.ReadSession()?.ApiBaseUrl;  // null si es fresh install
+ApiBaseUrl = fromSession ?? fromConfig ?? "http://127.0.0.1:8000/api/";
+```
+
+Si alguien refactoriza esto en el futuro y rompe el fallback local, la app deja de servir para desarrollo. **Esa regresión es P0**.
+
+---
+
 ## 1. Contexto
 
 Se implementó el login de **Platform Admin** en WPF (commit pendiente) con la siguiente ruta feliz:
@@ -140,6 +166,8 @@ Funciona. Pero hay un problema de arquitectura que vale resolver antes de multip
 - **Corto plazo (esta semana)**: cerrar la puerta a la confusión operativa haciendo lo mínimo — **ocultar la sección "Servidor de la API"** en LoginView para tenants donde `allowProgrammerMode` no esté habilitado. Esto se logra con un binding simple.
 - **Mediano plazo (próximo sprint)**: ejecutar la **Opción B** (panel programador en ventana separada, lanzado por flag). Resuelve el problema sin sobrediseñar.
 - **Largo plazo (cuando haya tracción en SaaS Master)**: ejecutar la **Opción C** (sync de Platform Admin mirror). Es la única que justifica la complejidad si realmente se necesita offline.
+
+**Hard constraint en cualquiera de las 3 olas**: el fallback a `http://127.0.0.1:8000/api/` debe seguir vivo (ver §0). Nunca romper el default local.
 
 ---
 
