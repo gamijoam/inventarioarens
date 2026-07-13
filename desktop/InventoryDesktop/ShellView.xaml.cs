@@ -90,14 +90,20 @@ public partial class ShellView : UserControl
     private async Task RefreshMeAsync()
     {
         AuthLoginData? fresh = await sessionService.GetCurrentUserAsync();
-        if (fresh is not null)
+        if (fresh is null)
         {
-            sessionService.PersistSession(new DesktopSession(
-                ApiClient: session.ApiClient,
-                Login: fresh,
-                ApiBaseUrl: session.ApiBaseUrl));
-            AppLogger.Info($"Sesion refrescada para '{fresh.Tenant.Name}'.");
+            return;
         }
+
+        sessionService.PersistSession(new DesktopSession(
+            ApiClient: session.ApiClient,
+            Login: fresh,
+            ApiBaseUrl: session.ApiBaseUrl));
+
+        string label = fresh.Tenant is { } tenant
+            ? tenant.Name
+            : "Platform Admin";
+        AppLogger.Info($"Sesion refrescada para '{label}'.");
     }
 
     private async Task LogoutAsync()
@@ -366,7 +372,17 @@ public partial class ShellView : UserControl
                 return;
             }
 
-            Window.GetWindow(this)?.Close();
+            Window owner = Window.GetWindow(this)
+                ?? throw new InvalidOperationException("ShellView no esta dentro de una Window.");
+            session.ApiClient.Configure(
+                session.ApiBaseUrl,
+                fresh.Token,
+                fresh.Tenant?.Slug);
+            var newSession = new DesktopSession(
+                ApiClient: session.ApiClient,
+                Login: fresh,
+                ApiBaseUrl: session.ApiBaseUrl);
+            owner.Content = new ShellView(newSession);
         }
         catch (Exception exception)
         {

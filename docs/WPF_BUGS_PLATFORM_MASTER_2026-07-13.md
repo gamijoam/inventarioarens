@@ -2,7 +2,7 @@
 
 > **Autor del análisis**: opencode (frontend)
 > **Fecha**: 2026-07-13
-> **Status**: pendiente de fix
+> **Status**: ✅ RESUELTO (commit `bdf6f5b`)
 > **Audiencia**: equipo de frontend WPF (3 bugs C# detectados). No es trabajo de backend Laravel.
 
 ## TL;DR
@@ -14,11 +14,11 @@ devuelve datos correctos. El problema está en cómo la UI consume esos datos.
 
 Si querés que opencode los arregle, son cambios chicos y aislados:
 
-| # | Bug | Archivo | Línea | Tipo | Severidad |
-|---|-----|---------|-------|------|-----------|
-| 1 | NullReferenceException en `RefreshMeAsync` al iniciar sesión | `desktop/InventoryDesktop/ShellView.xaml.cs` | 99 | NullRef sin guard | **Crash** |
-| 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** |
-| 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** |
+| # | Bug | Archivo | Línea | Tipo | Severidad | Status |
+|---|-----|---------|-------|------|-----------|--------|
+| 1 | NullReferenceException en `RefreshMeAsync` al iniciar sesión | `desktop/InventoryDesktop/ShellView.xaml.cs` | 99 | NullRef sin guard | **Crash** | ✅ Resuelto |
+| 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** | ✅ Resuelto |
+| 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto |
 
 ---
 
@@ -219,17 +219,31 @@ entrar al modo programador.
 
 ---
 
-## Resumen de cambios sugeridos
+## Resumen de cambios aplicados (commit `bdf6f5b`)
 
-Si opencode los arregla, son 3 archivos tocados:
+3 archivos tocados, 3 bugs resueltos:
 
-| Archivo | Bug | Cambio |
+| Archivo | Bug | Cambio aplicado |
 |---|---|---|
-| `desktop/InventoryDesktop/ShellView.xaml.cs` línea 99 | #1 | Null-check de `fresh.Tenant` |
-| `desktop/InventoryDesktop/ShellView.xaml.cs` línea 369 | #2 | Reemplazar el ShellView en vez de cerrar la ventana |
-| `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` línea 73-77 | #3 | Cambiar `Email` por `EmailInput?.Text` en `CanAccept` |
+| `desktop/InventoryDesktop/ShellView.xaml.cs` | #1 | Null-check de `fresh.Tenant`: si es null, label = "Platform Admin"; sino `tenant.Name`. |
+| `desktop/InventoryDesktop/ShellView.xaml.cs` | #2 | Reemplaza `Window.GetWindow(this)?.Close()` por `owner.Content = new ShellView(newSession)`. Reconfigura el apiClient con el token nuevo antes de reemplazar. |
+| `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | #3 | `CanAccept` ahora usa `EmailInput?.Text` (que se actualiza en cada keystroke) en vez de la property `Email` (que se seteaba tarde en `Accept_Click`). La property `Email` queda solo como observable de support. |
 
-Estimado: **15-20 min de trabajo + 5 min de smoke test + 5 min de commit**.
+Tiempo real: ~20 min. Build + smoke test verdes:
+- `dotnet build`: 0 errors, 8 warnings (preexistentes).
+- `dotnet run XamlSmoke`: Fallos reales 0.
+- WPF Release re-publicada, config actualizado en el escritorio.
+
+### Verificacion manual recomendada
+
+1. Login como `gerente.valencia@demo.test` (cajero) → no debe haber NRE
+   visible (revisar logs en `%APPDATA%/.../logs/`).
+2. Click en "Cambiar empresa" → seleccionar otra empresa → la app debe
+   permanecer abierta, header actualizado, módulos recalculados.
+3. `Ctrl+Shift+P` → escribir `platform@test.com` + `PlatformTest123` → el
+   botón "Ingresar" debe habilitarse al escribir el email válido.
+
+Si los 3 casos funcionan, los bugs estan cerrados.
 
 ## Trabajo de backend requerido
 

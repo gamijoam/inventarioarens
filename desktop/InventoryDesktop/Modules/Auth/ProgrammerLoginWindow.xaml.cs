@@ -72,7 +72,7 @@ public partial class ProgrammerLoginWindow : Window, INotifyPropertyChanged
 
     public bool CanAccept =>
         !IsBusy
-        && !string.IsNullOrWhiteSpace(Email)
+        && !string.IsNullOrWhiteSpace(EmailInput?.Text)
         && EmailInput?.Text.Contains('@') == true
         && !string.IsNullOrEmpty(PasswordInput?.Password);
 
@@ -102,7 +102,7 @@ public partial class ProgrammerLoginWindow : Window, INotifyPropertyChanged
         }
 
         IsBusy = true;
-        Email = EmailInput.Text.Trim().ToLowerInvariant();
+        string email = EmailInput.Text.Trim().ToLowerInvariant();
         string password = PasswordInput.Password;
         string apiBaseUrl = ResolveApiBaseUrl();
 
@@ -111,7 +111,7 @@ public partial class ProgrammerLoginWindow : Window, INotifyPropertyChanged
             apiClient.Configure(apiBaseUrl);
             LoginResponse response = await apiClient.PostAsync<LoginRequest, LoginResponse>(
                 "auth/platform-login",
-                new LoginRequest(Email, password, Environment.MachineName));
+                new LoginRequest(email, password, Environment.MachineName));
 
             tokenVault.Save(response.Data.Token);
             apiClient.Configure(apiBaseUrl, response.Data.Token, response.Data.Tenant?.Slug);
