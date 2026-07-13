@@ -1106,11 +1106,19 @@ function activatePortalSection(section) {
 
     // v2: toggle v2-page sections so only the matching one is visible.
     // If the section has no v2 page yet (e.g. sales, transfers), fall back
-    // to overview so the workspace doesn't render empty.
+    // to overview so the workspace doesn't render empty. EXCEPT for the
+    // access module (selectedSection === 'users') which lives in the
+    // old admin-users-module element, not in a v2-page.
     const hasV2Page = !!document.querySelector(`.v2-page[data-portal-section="${selectedSection}"]`);
-    const v2SectionToShow = hasV2Page ? selectedSection : 'overview';
+    const v2SectionToShow = hasV2Page
+        ? selectedSection
+        : (isAccess ? null : 'overview');
     document.querySelectorAll('.v2-page[data-portal-section]').forEach((page) => {
-        page.hidden = page.dataset.portalSection !== v2SectionToShow;
+        if (v2SectionToShow === null) {
+            page.hidden = true;
+        } else {
+            page.hidden = page.dataset.portalSection !== v2SectionToShow;
+        }
     });
 
     elements.portalNavItems.forEach((item) => {
