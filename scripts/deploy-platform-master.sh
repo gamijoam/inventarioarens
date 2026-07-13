@@ -13,25 +13,25 @@ PHP_BIN="/usr/bin/php8.4"
 cd "${APP_DIR}"
 
 echo "=== [1/6] Pull ==="
-sudo -u webadmin git pull --ff-only
+git pull --ff-only
 
 echo "=== [2/6] Composer install (solo si hay cambios en composer.lock/.json) ==="
 if git diff HEAD@{1} --name-only -- composer.lock composer.json 2>/dev/null | grep -q .; then
-  sudo -u webadmin composer install --no-dev --no-interaction --optimize-autoloader
+  composer install --no-dev --no-interaction --optimize-autoloader
 else
   echo "  (sin cambios en composer, se salta composer install)"
 fi
 
 echo "=== [3/6] Migraciones pendientes ==="
-sudo -u webadmin ${PHP_BIN} artisan migrate --force
+${PHP_BIN} artisan migrate --force
 
 echo "=== [4/6] Limpiar caches ==="
-sudo -u webadmin ${PHP_BIN} artisan optimize:clear
-sudo -u webadmin ${PHP_BIN} artisan config:cache
-sudo -u webadmin ${PHP_BIN} artisan route:cache
+${PHP_BIN} artisan optimize:clear
+${PHP_BIN} artisan config:cache
+${PHP_BIN} artisan route:cache
 
 echo "=== [5/6] Verificar rutas nuevas ==="
-sudo -u webadmin ${PHP_BIN} artisan route:list --path=master 2>&1 | head -20
+${PHP_BIN} artisan route:list --path=master 2>&1 | head -20
 
 echo "=== [6/6] Smoke test del endpoint platform-login ==="
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' \
