@@ -16,6 +16,11 @@ public static class AppLogger
         Write("INFO", message);
     }
 
+    public static void Warn(string message)
+    {
+        Write("WARN", message);
+    }
+
     public static void Error(string message, Exception exception)
     {
         Write("ERROR", $"{message}{Environment.NewLine}{exception}");

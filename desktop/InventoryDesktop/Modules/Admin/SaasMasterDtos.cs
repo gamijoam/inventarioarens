@@ -104,3 +104,51 @@ public sealed record CreatePlatformAdminRequest(
 public sealed record PlatformAdminStoreResponse(
     [property: JsonPropertyName("data")] PlatformAdminResource Data,
     [property: JsonPropertyName("initial_password")] string? InitialPassword);
+
+public sealed record MasterStatsTotals(
+    [property: JsonPropertyName("platform_admins")] int PlatformAdmins,
+    [property: JsonPropertyName("total_tenants")] int TotalTenants,
+    [property: JsonPropertyName("total_groups")] int TotalGroups,
+    [property: JsonPropertyName("total_spinoffs")] int TotalSpinoffs,
+    [property: JsonPropertyName("active_tenants")] int ActiveTenants,
+    [property: JsonPropertyName("inactive_tenants")] int InactiveTenants);
+
+public sealed record MasterStatsResponse(
+    [property: JsonPropertyName("totals")] MasterStatsTotals Totals,
+    [property: JsonPropertyName("groups_by_plan")] IReadOnlyDictionary<string, int> GroupsByPlan);
+
+public sealed record MasterStatsEnvelope(
+    [property: JsonPropertyName("data")] MasterStatsResponse Data);
+
+public sealed record UpdateGroupRequest(
+    [property: JsonPropertyName("name")] string? Name = null,
+    [property: JsonPropertyName("slug")] string? Slug = null,
+    [property: JsonPropertyName("domain")] string? Domain = null,
+    [property: JsonPropertyName("plan")] string? Plan = null,
+    [property: JsonPropertyName("status")] string? Status = null);
+
+public sealed record UpdatePlatformAdminRequest(
+    [property: JsonPropertyName("name")] string? Name = null,
+    [property: JsonPropertyName("email")] string? Email = null,
+    [property: JsonPropertyName("is_platform_admin")] bool? IsPlatformAdmin = null);
+
+public sealed record ResetPlatformAdminPasswordRequest(
+    [property: JsonPropertyName("password")] string? Password = null);
+
+public sealed record ResetPasswordResponseData(
+    [property: JsonPropertyName("user_id")] long UserId,
+    [property: JsonPropertyName("email")] string Email,
+    [property: JsonPropertyName("initial_password")] string? InitialPassword,
+    [property: JsonPropertyName("sessions_revoked")] bool SessionsRevoked);
+
+public sealed record ResetPasswordResponse(
+    [property: JsonPropertyName("data")] ResetPasswordResponseData Data);
+
+public sealed record LogoutResponseData(
+    [property: JsonPropertyName("revoked")] bool Revoked);
+
+public sealed record LogoutResponse(
+    [property: JsonPropertyName("data")] LogoutResponseData Data);
+
+public sealed record SinglePlatformAdminResponse(
+    [property: JsonPropertyName("data")] PlatformAdminResource Data);

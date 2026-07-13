@@ -5,6 +5,7 @@ using System.Windows;
 using InventoryDesktop.Core.Api;
 using InventoryDesktop.Core.Diagnostics;
 using InventoryDesktop.Core.ViewModels;
+using InventoryDesktop.Modules.Auth;
 using MaterialDesignThemes.Wpf;
 
 namespace InventoryDesktop.Modules.Admin;
@@ -17,6 +18,8 @@ public sealed class SaasMasterViewModel : ViewModelBase
     private bool isBusy;
     private GroupResource? selectedGroup;
     private SpinoffResource? selectedSpinoff;
+    private PlatformAdminResource? currentAdmin;
+    private MasterStatsResponse? stats;
 
     public SaasMasterViewModel(ApiClient apiClient)
     {
@@ -28,6 +31,26 @@ public sealed class SaasMasterViewModel : ViewModelBase
     public ObservableCollection<GroupResource> Groups { get; }
     public ObservableCollection<SpinoffResource> Spinoffs { get; }
     public ObservableCollection<PlatformAdminResource> PlatformAdmins { get; } = new();
+
+    public PlatformAdminResource? CurrentAdmin
+    {
+        get => currentAdmin;
+        private set => SetProperty(ref currentAdmin, value);
+    }
+
+    public MasterStatsResponse? Stats
+    {
+        get => stats;
+        private set
+        {
+            if (SetProperty(ref stats, value))
+            {
+                RaisePropertyChanged(nameof(HasStats));
+            }
+        }
+    }
+
+    public bool HasStats => Stats is not null;
 
     public string StatusMessage
     {
@@ -260,5 +283,295 @@ public sealed class SaasMasterViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    public async Task LoadStatsAsync()
+    {
+        IsBusy = true;
+        IsStatusError = false;
+        try
+        {
+            MasterStatsEnvelope envelope = await apiClient.GetAsync<MasterStatsEnvelope>("master/stats");
+            Stats = envelope.Data;
+            StatusMessage = $"Stats cargados: {Stats.Totals.TotalGroups} grupo(s), {Stats.Totals.TotalSpinoffs} spinoff(s).";
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudieron cargar las stats: {exception.Message}";
+            AppLogger.Error("LoadStatsAsync falló.", exception);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task LoadCurrentAdminAsync()
+    {
+        try
+        {
+            CurrentSessionResponse response = await apiClient.GetAsync<CurrentSessionResponse>("auth/me");
+            CurrentAdmin = new PlatformAdminResource(
+                Id: response.Data.User.Id,
+                Name: response.Data.User.Name,
+                Email: response.Data.User.Email,
+                IsPlatformAdmin: response.Data.User.IsPlatformAdmin,
+                IsActive: true,
+                AuthTokensCount: 0,
+                LastLoginAt: null,
+                CreatedAt: null,
+                UpdatedAt: null);
+        }
+        catch (ApiException exception)
+        {
+            AppLogger.Warn($"LoadCurrentAdminAsync no critico: {exception.Message}");
+        }
+    }
+
+    public async Task<GroupResource?> LoadGroupDetailAsync(string groupSlug)
+    {
+        if (string.IsNullOrWhiteSpace(groupSlug))
+        {
+            return null;
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        try
+        {
+            SingleGroupResponse response = await apiClient.GetAsync<SingleGroupResponse>($"master/groups/{groupSlug}");
+            int index = IndexOfGroup(response.Data.Id);
+            if (index >= 0)
+            {
+                Groups[index] = response.Data;
+            }
+            SelectedGroup = response.Data;
+            StatusMessage = $"Grupo '{response.Data.Name}' actualizado.";
+            return response.Data;
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo cargar el detalle del grupo: {exception.Message}";
+            AppLogger.Error($"LoadGroupDetailAsync({groupSlug}) falló.", exception);
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> UpdateGroupAsync(string groupSlug, UpdateGroupRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(groupSlug) || request is null)
+        {
+            return false;
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Actualizando grupo '{groupSlug}'...";
+        try
+        {
+            SingleGroupResponse response = await apiClient.PatchAsync<UpdateGroupRequest, SingleGroupResponse>($"master/groups/{groupSlug}", request);
+            int index = IndexOfGroup(response.Data.Id);
+            if (index >= 0)
+            {
+                Groups[index] = response.Data;
+            }
+            SelectedGroup = response.Data;
+            StatusMessage = $"Grupo '{response.Data.Name}' actualizado.";
+            return true;
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo actualizar el grupo: {exception.Message}";
+            AppLogger.Error($"UpdateGroupAsync({groupSlug}) falló.", exception);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> SoftDeleteGroupAsync(string groupSlug)
+    {
+        if (string.IsNullOrWhiteSpace(groupSlug))
+        {
+            return false;
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Desactivando grupo '{groupSlug}'...";
+        try
+        {
+            await apiClient.DeleteAsync($"master/groups/{groupSlug}");
+            GroupResource? updated = await LoadGroupDetailAsync(groupSlug);
+            if (updated is not null && string.Equals(updated.Status, "inactive", StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = $"Grupo '{updated.Name}' desactivado.";
+                return true;
+            }
+            return true;
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo desactivar el grupo: {exception.Message}";
+            AppLogger.Error($"SoftDeleteGroupAsync({groupSlug}) falló.", exception);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<(bool ok, string? initialPassword)> UpdateAdminAsync(long adminId, UpdatePlatformAdminRequest request)
+    {
+        if (request is null)
+        {
+            return (false, null);
+        }
+
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Actualizando admin #{adminId}...";
+        try
+        {
+            SinglePlatformAdminResponse response = await apiClient.PatchAsync<UpdatePlatformAdminRequest, SinglePlatformAdminResponse>($"master/admins/{adminId}", request);
+            int index = IndexOfAdmin(response.Data.Id);
+            if (index >= 0)
+            {
+                PlatformAdmins[index] = response.Data;
+            }
+            StatusMessage = $"Admin '{response.Data.Email}' actualizado.";
+            return (true, null);
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo actualizar el admin: {exception.Message}";
+            AppLogger.Error($"UpdateAdminAsync({adminId}) falló.", exception);
+            return (false, null);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<(bool ok, string? initialPassword)> ResetAdminPasswordAsync(long adminId, string? password)
+    {
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Reseteando contrasena del admin #{adminId}...";
+        try
+        {
+            ResetPasswordResponse response = await apiClient.PostAsync<ResetPlatformAdminPasswordRequest, ResetPasswordResponse>(
+                $"master/admins/{adminId}/reset-password",
+                new ResetPlatformAdminPasswordRequest(password));
+            StatusMessage = response.Data.InitialPassword is { Length: > 0 }
+                ? $"Contrasena reseteada. Inicial: {response.Data.InitialPassword}"
+                : "Contrasena reseteada.";
+            return (true, response.Data.InitialPassword);
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo resetear la contrasena: {exception.Message}";
+            AppLogger.Error($"ResetAdminPasswordAsync({adminId}) falló.", exception);
+            return (false, null);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> RevokeAdminAsync(long adminId)
+    {
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = $"Revocando admin #{adminId}...";
+        try
+        {
+            await apiClient.DeleteAsync($"master/admins/{adminId}");
+            PlatformAdminResource? stillThere = PlatformAdmins.FirstOrDefault(a => a.Id == adminId);
+            if (stillThere is not null)
+            {
+                int idx = IndexOfAdmin(adminId);
+                if (idx >= 0)
+                {
+                    PlatformAdmins[idx] = stillThere with { IsPlatformAdmin = false, IsActive = false };
+                }
+            }
+            StatusMessage = $"Admin #{adminId} revocado.";
+            return true;
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"No se pudo revocar el admin: {exception.Message}";
+            AppLogger.Error($"RevokeAdminAsync({adminId}) falló.", exception);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> LogoutAsync()
+    {
+        IsBusy = true;
+        IsStatusError = false;
+        StatusMessage = "Cerrando sesion de Platform Admin...";
+        try
+        {
+            await apiClient.PostNoPayloadAsync<LogoutResponse>("auth/logout");
+            StatusMessage = "Sesion cerrada.";
+            return true;
+        }
+        catch (ApiException exception)
+        {
+            IsStatusError = true;
+            StatusMessage = $"Logout fallo: {exception.Message}";
+            AppLogger.Error("LogoutAsync falló.", exception);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private int IndexOfGroup(long id)
+    {
+        for (int i = 0; i < Groups.Count; i++)
+        {
+            if (Groups[i].Id == id)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int IndexOfAdmin(long id)
+    {
+        for (int i = 0; i < PlatformAdmins.Count; i++)
+        {
+            if (PlatformAdmins[i].Id == id)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 }
