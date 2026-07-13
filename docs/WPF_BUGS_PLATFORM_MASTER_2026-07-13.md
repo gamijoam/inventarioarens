@@ -19,7 +19,7 @@ Si querés que opencode los arregle, son cambios chicos y aislados:
 | 1 | NullReferenceException en `RefreshMeAsync` al iniciar sesión | `desktop/InventoryDesktop/ShellView.xaml.cs` | 99 | NullRef sin guard | **Crash** | ✅ Resuelto (`883d76d`) |
 | 2 | "Cambiar empresa" cierra la app en vez de mantenerla abierta | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 | UX defectuosa | **Bloqueante** | ✅ Resuelto (`883d76d`) |
 | 3 | Botón "Ingresar" del ProgrammerLoginWindow queda deshabilitado | `desktop/InventoryDesktop/Modules/Auth/ProgrammerLoginWindow.xaml.cs` | 73-77 | Lógica de validación | **Bloqueante** | ✅ Resuelto (`883d76d`) |
-| 4 | Botón "Sincronizar" no hace nada en el .exe publicado | `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs` | `FindRepoRoot` (línea 583) | **Deployment**, no bug de código | **Bloqueante en test, OK en prod** | ⏳ Documentado (siguiente commit) |
+| 4 | Botón "Sincronizar" no hace nada en el .exe publicado | `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs` | `FindRepoRoot` (línea 583) | **Deployment**, no bug de código | **Bloqueante en test, OK en prod** | ✅ Resuelto (`217f892`): `PersistedConfig.RepoRoot` y `PersistedConfig.PhpPath` |
 | 5 | "Cambiar empresa" muestra "Error al cambiar de empresa" | `desktop/InventoryDesktop/ShellView.xaml.cs` | 369 (post-fix #2) | Race con `Unloaded` re-revocando el token nuevo | **Bloqueante** | ✅ Resuelto (`52cfe24`) |
 | 6 | "Cambiar empresa" devuelve 403 (permiso denegado) | `app/Modules/Tenancy/routes.php` | 12 | **Backend**: ruta `/api/tenants` no tiene `tenant` middleware | **Bloqueante** | ✅ Resuelto (`d6394204`) |
 | 7 | `XamlParseException: Provide value on 'Syste...'` al cambiar empresa | `desktop/InventoryDesktop/Modules/Admin/SwitchTenantDialog.xaml` | 71 | StaticResource `BoolToVisConverter` no definido | **Bloqueante** | ✅ Resuelto (`0673356e`) |
@@ -293,25 +293,28 @@ es un script PHP + cmd.exe que corre sobre el proyecto Laravel.
 |---|---|---|---|
 | **A. Correr la app desde el proyecto** | `cd C:\Users\gafit\Documents\INVENTARIOARENS`; `dotnet run --project desktop/InventoryDesktop` | 0 cambios | Dev/test |
 | **B. Correr `InventorySyncInstaller`** | Ejecutar `desktop\InventorySyncInstaller\bin\...exe`, completar wizard | 0 cambios | Produccion / Cliente |
-| **C. Patch: agregar `repoRoot` al config** | Editar `inventorydesktop.config.json` y agregar campo `repoRoot`; `FindRepoRoot` lo lee primero. | ~30 min | Casos puntuales |
+| **C. Configurar `repoRoot` en `inventorydesktop.config.json`** | Editar el JSON al lado del .exe: `"repoRoot": "C:\\Users\\gafit\\Documents\\INVENTARIOARENS"` | 0 cambios (commit `217f892`) | Casos puntuales, sin wizard |
 
-**Solución recomendada (corto plazo)**: Opción A para los tests
-del usuario. Abrir una terminal en
-`C:\Users\gafit\Documents\INVENTARIOARENS` y correr:
+**Solución aplicada (commit `217f892`)**: opción C implementada
+con `PersistedConfig.RepoRoot`. El usuario edita el
+`inventorydesktop.config.json` y le pone el path al proyecto.
+`SyncWorkerViewModel.FindRepoRoot()` lo lee primero, y si encuentra
+`artisan` ahí, lo usa. El sync worker se invoca desde ahí.
 
-```powershell
-dotnet run --project desktop/InventoryDesktop
+Adicionalmente se agregó `PersistedConfig.PhpPath` (con default
+`C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe`) que el WPF
+pasa al worker como `-PhpPath`. Si el usuario tiene PHP en otra
+ruta, puede sobreescribirlo en el config.
+
+**Verificacion manual** (commit message):
+```
+PS> cd C:\Users\gafit\Documents\INVENTARIOARENS
+PS> .\scripts\sync-worker.cmd status -PhpPath ... -TenantSlug demo-valencia ...
+==> Worker de sincronizacion: ACTIVO
 ```
 
-La app va a tener acceso a `artisan` (vía `bin/Debug/.../artisan`
-caminando hacia arriba) y el sync worker va a funcionar.
-
-**Solución recomendada (largo plazo)**: hacer el Installer de WPF
-real para que distribuya el proyecto completo (similar a como
-funciona `InventorySyncInstaller`).
-
 **Severidad**: bloqueante para el flujo de sync en builds
-publicados. No crash, no es bug — es feature gap de deployment.
+publicados. ✅ Resuelto con config en lugar de patches.
 
 ---
 
