@@ -11,7 +11,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { Eye, Package, Search } from 'lucide-react';
+import { Download, Eye, Package, Search } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -29,6 +29,7 @@ import { cn } from '@/lib/cn';
 import { useProducts } from '@/features/inventory-center/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { BulkActionsMenu } from '@/features/inventory-center/bulk-actions/BulkActionsMenu';
+import { useExportProducts } from '@/features/inventory-center/useExportProducts';
 import type { Product } from '@/features/inventory-center/schemas';
 
 type TrackingFilter = 'all' | 'quantity' | 'serialized';
@@ -41,6 +42,12 @@ interface InventorySearch {
   stock: StockFilter;
   status: StatusFilter;
   page: number;
+  brand_id: number | undefined;
+  category_id: number | undefined;
+  tag_id: number | undefined;
+  low_stock_threshold: number | undefined;
+  sort_by: string | undefined;
+  sort_dir: 'asc' | 'desc' | undefined;
 }
 
 export const Route = createFileRoute('/_authed/inventory/')({
@@ -59,6 +66,35 @@ export const Route = createFileRoute('/_authed/inventory/')({
       ? (search.status as StatusFilter)
       : 'all',
     page: typeof search.page === 'number' ? search.page : 1,
+    brand_id:
+      typeof search.brand_id === 'number'
+        ? (search.brand_id)
+        : typeof search.brand_id === 'string'
+          ? Number(search.brand_id) || undefined
+          : undefined,
+    category_id:
+      typeof search.category_id === 'number'
+        ? (search.category_id)
+        : typeof search.category_id === 'string'
+          ? Number(search.category_id) || undefined
+          : undefined,
+    tag_id:
+      typeof search.tag_id === 'number'
+        ? (search.tag_id)
+        : typeof search.tag_id === 'string'
+          ? Number(search.tag_id) || undefined
+          : undefined,
+    low_stock_threshold:
+      typeof search.low_stock_threshold === 'number'
+        ? (search.low_stock_threshold)
+        : typeof search.low_stock_threshold === 'string'
+          ? Number(search.low_stock_threshold) || undefined
+          : undefined,
+    sort_by: typeof search.sort_by === 'string' ? (search.sort_by) : undefined,
+    sort_dir:
+      search.sort_dir === 'asc' || search.sort_dir === 'desc'
+        ? (search.sort_dir)
+        : undefined,
   }),
 });
 
@@ -83,6 +119,7 @@ function InventoryListPage() {
   );
 
   const { data, isLoading, isError } = useProducts(filters);
+  const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
     void navigate({ search: { ...search, ...patch, page: 1 } });
@@ -110,11 +147,23 @@ function InventoryListPage() {
       title="Centro de Inventario"
       description="Listado de productos con stock, precios y estado."
       actions={
-        <Can I={PERMISSIONS.PRODUCTS_CREATE}>
-          <Button onClick={() => setCreateOpen(true)} data-testid="new-product">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Download className="size-4" />}
+            onClick={() => exportProducts.exportCsv(filters)}
+            loading={exportProducts.isExporting}
+            data-testid="export-csv"
+          >
+            Exportar CSV
+          </Button>
+          <Can I={PERMISSIONS.PRODUCTS_CREATE}>
+            <Button onClick={() => setCreateOpen(true)} data-testid="new-product">
             + Nuevo producto
           </Button>
-        </Can>
+          </Can>
+        </div>
       }
     >
       <BulkActionsMenu
@@ -395,3 +444,10 @@ function TableSkeleton() {
     </div>
   );
 }
+
+
+
+
+
+
+

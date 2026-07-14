@@ -70,7 +70,19 @@ function ProductDetailPage() {
               onClick={() =>
                 navigate({
                   to: '/inventory',
-                  search: { search: '', tracking: 'all', stock: 'all', status: 'all', page: 1 },
+                  search: {
+                    search: '',
+                    tracking: 'all',
+                    stock: 'all',
+                    status: 'all',
+                    page: 1,
+                    brand_id: undefined,
+                    category_id: undefined,
+                    tag_id: undefined,
+                    low_stock_threshold: undefined,
+                    sort_by: undefined,
+                    sort_dir: undefined,
+                  },
                 })
               }
             >
@@ -90,7 +102,19 @@ function ProductDetailPage() {
       breadcrumb={
         <Link
           to="/inventory"
-          search={{ search: '', tracking: 'all', stock: 'all', status: 'all', page: 1 }}
+          search={{
+            search: '',
+            tracking: 'all',
+            stock: 'all',
+            status: 'all',
+            page: 1,
+            brand_id: undefined,
+            category_id: undefined,
+            tag_id: undefined,
+            low_stock_threshold: undefined,
+            sort_by: undefined,
+            sort_dir: undefined,
+          }}
           className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary"
         >
           <ArrowLeft className="size-3" aria-hidden="true" />
@@ -416,3 +440,4 @@ function MovementsTab({ movements }: { movements: ProductMovement[] }) {
     </Card>
   );
 }
+
