@@ -256,7 +256,7 @@ function CategoryFormDialog({
               required
               defaultValue={category?.slug ?? ''}
               placeholder="electronica"
-              pattern="[a-z0-9-]+"
+              pattern="[-a-z0-9]+"
             />
           </div>
           <div className="space-y-1.5">
