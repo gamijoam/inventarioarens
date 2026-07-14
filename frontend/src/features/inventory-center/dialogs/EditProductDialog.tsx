@@ -7,6 +7,7 @@
  *  - open / onOpenChange: controlan visibilidad.
  *  - onSuccess?: callback tras guardar.
  */
+import { useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -28,10 +29,22 @@ export interface EditProductDialogProps {
 
 export function EditProductDialog({ product, open, onOpenChange, onSuccess }: EditProductDialogProps) {
   const { data: tags = [] } = useTags();
+
+  // Memoizamos los initialValues para evitar recrear el objeto en cada
+  // render. Si no se memoiza, productToFormValues retorna una referencia
+  // nueva cada vez y useProductForm (con [formId] en deps) se dispara
+  // + veces -> loop infinito de re-renders.
+  // Solo recalcular si cambia el id del producto.
+  const initialValues = useMemo(
+    () => productToFormValues(product),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [product.id],
+  );
+
   const { form, onSubmit, isSubmitting } = useProductForm({
     mode: 'edit',
     productId: product.id,
-    initialValues: productToFormValues(product),
+    initialValues,
     onSuccess: () => {
       onOpenChange(false);
       onSuccess?.();

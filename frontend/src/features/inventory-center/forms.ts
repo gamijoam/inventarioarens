@@ -9,7 +9,7 @@
  * - Mapea errores del backend a campos del form.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
@@ -25,53 +25,76 @@ export interface UseProductFormOptions {
   onSuccess?: (data: unknown) => void;
 }
 
+// Defaults sensatos para create. Fijos (no dependen del render) para que
+// useForm no los recree cada vez.
+const CREATE_DEFAULTS: StoreProductValues = {
+  name: '',
+  description: '',
+  long_description: '',
+  sku: '',
+  barcode: '',
+  image_url: '',
+  tracking_type: 'quantity',
+  unit_of_measure: 'unit',
+  track_stock: true,
+  brand_id: undefined,
+  category_ids: [],
+  tag_ids: [],
+  base_price: undefined,
+  sale_currency: 'USD',
+  sale_exchange_rate_type_id: undefined,
+  min_stock: undefined,
+  max_stock: undefined,
+  reorder_quantity: undefined,
+  warranty_policy_id: undefined,
+  is_active: true,
+};
+
 export function useProductForm({
   mode,
   productId,
   initialValues,
   onSuccess,
 }: UseProductFormOptions) {
-  // Defaults sensatos para create.
-  const defaults = useMemo<StoreProductValues>(
-    () => ({
-      name: '',
-      description: '',
-      long_description: '',
-      sku: '',
-      barcode: '',
-      image_url: '',
-      tracking_type: 'quantity',
-      unit_of_measure: 'unit',
-      track_stock: true,
-      brand_id: undefined,
-      category_ids: [],
-      tag_ids: [],
-      base_price: undefined,
-      sale_currency: 'USD',
-      sale_exchange_rate_type_id: undefined,
-      min_stock: undefined,
-      max_stock: undefined,
-      reorder_quantity: undefined,
-      warranty_policy_id: undefined,
-      is_active: true,
-      ...initialValues,
-    }),
-    [initialValues],
-  );
+  // Construimos defaultValues una sola vez por montaje del form (o cuando
+  // cambia productId en modo edit). El padre SIEMPRE debe memoizar
+  // initialValues O pasar solo los campos primitivos para que la
+  // dependencia no cambie de referencia cada render.
+  const formId = mode === 'edit' && productId !== undefined ? productId : null;
+
+  const stableDefaults = useMemo<StoreProductValues>(() => {
+    if (mode === 'edit' && initialValues) {
+      return { ...CREATE_DEFAULTS, ...initialValues };
+    }
+    return CREATE_DEFAULTS;
+    // Solo recalcular si cambia el id del producto en modo edit. Si el
+    // padre pasa initialValues con referencia nueva cada render, sera
+    // responsabilidad del padre memoizarlo (recomendado).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]);
 
   const form = useForm<StoreProductInput, unknown, StoreProductValues>({
     resolver: zodResolver(StoreProductSchema),
-    defaultValues: defaults as StoreProductInput,
+    defaultValues: stableDefaults as StoreProductInput,
     mode: 'onBlur',
   });
 
-  // Sincroniza initialValues cuando cambian (modo edit).
+  // Cuando cambia el productId en modo edit, reseteamos el form con
+  // los nuevos initialValues. NO dependemos de initialValues directamente
+  // porque su referencia cambia cada render y eso causa el loop infinito
+  // ('Maximum update depth exceeded') que vimos reportado por el usuario.
+  const handleReset = useCallback(
+    (values: Partial<StoreProductValues>) => {
+      form.reset({ ...CREATE_DEFAULTS, ...values });
+    },
+    [form],
+  );
   useEffect(() => {
-    if (initialValues) {
-      form.reset({ ...defaults, ...initialValues });
+    if (mode === 'edit' && initialValues && formId !== null) {
+      handleReset(initialValues);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialValues]);
+  }, [formId]);
 
   const create = useCreateProduct();
   const update = useUpdateProduct();

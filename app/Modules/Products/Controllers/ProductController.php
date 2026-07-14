@@ -2,20 +2,21 @@
 
 namespace App\Modules\Products\Controllers;
 
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Requests\StoreProductRequest;
 use App\Modules\Products\Requests\SyncProductPricesRequest;
 use App\Modules\Products\Requests\UpdateProductRequest;
-use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductPriceListResource;
+use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -34,18 +35,42 @@ class ProductController extends Controller
         $normalizedSearch = mb_strtolower($search);
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
 
+        $query = Product::query()
+            ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags'])
+            ->withCount('units');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($normalizedSearch): void {
+                $q->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
+                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
+                    ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"]);
+            });
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->integer('brand_id'));
+        }
+
+        if ($request->filled('category_id')) {
+            $query->whereHas('categories', fn ($q) => $q->where('categories.id', $request->integer('category_id')));
+        }
+
+        if ($request->filled('tag_id')) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', $request->integer('tag_id')));
+        }
+
+        if ($request->filled('tracking_type')) {
+            $query->where('tracking_type', $request->string('tracking_type'));
+        }
+
+        if ($request->filled('is_active')) {
+            $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
+        } else {
+            $query->where('is_active', true);
+        }
+
         return ProductResource::collection(
-            Product::query()
-                ->with(['saleExchangeRateType', 'warrantyPolicy'])
-                ->when($search !== '', function ($query) use ($normalizedSearch): void {
-                    $query->where(function ($query) use ($normalizedSearch): void {
-                        $query
-                            ->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"]);
-                    });
-                })
-                ->orderBy('name')
-                ->paginate($limit)
+            $query->orderBy('name')->paginate($limit)
         );
     }
 
@@ -53,17 +78,36 @@ class ProductController extends Controller
     {
         Gate::authorize('create', Product::class);
 
-        $data = $this->prepareProductData($request->validated());
+        $data = $request->validated();
+        $categoryIds = $data['category_ids'] ?? [];
+        $tagIds = $data['tag_ids'] ?? [];
+        $data = $this->prepareProductData($data);
         $userId = $request->user()?->id;
 
-        $product = DB::transaction(function () use ($data, $userId, $syncCatalog): Product {
+        // Defensa explicita: forzamos tenant_id al tenant del request
+        // (resuelto por el middleware ResolveTenant desde X-Tenant).
+        // Esto previene que un cliente envie un tenant_id diferente en
+        // el body o que el TenantManager::current() (que es global al
+        // request) apunte a otro tenant por algun bug.
+        $tenantId = app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+        $data['tenant_id'] = $tenantId;
+
+        $product = DB::transaction(function () use ($data, $categoryIds, $tagIds, $userId, $syncCatalog): Product {
             $created = Product::create($data)
                 ->refresh()
-                ->load(['saleExchangeRateType', 'warrantyPolicy']);
+                ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
+
+            if ($categoryIds !== []) {
+                $created->categories()->syncWithPivotValues($categoryIds, ['tenant_id' => $created->tenant_id]);
+            }
+            if ($tagIds !== []) {
+                $created->tags()->syncWithPivotValues($tagIds, ['tenant_id' => $created->tenant_id]);
+            }
+
             $this->recordAudit($created, ProductAudit::ACTION_CREATED, [], $created->only($this->auditedFields()), $userId);
             $syncCatalog->productCreated($created);
 
-            return $created;
+            return $created->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
         });
 
         return ProductResource::make($product)
@@ -128,7 +172,7 @@ class ProductController extends Controller
             ->unique()
             ->values();
 
-        $priceLists = \App\Modules\Products\Models\PriceList::query()
+        $priceLists = PriceList::query()
             ->whereIn('id', $priceListIds)
             ->get()
             ->keyBy('id');
@@ -252,6 +296,47 @@ class ProductController extends Controller
         return response()->noContent();
     }
 
+    public function syncCategories(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $data = $request->validate([
+            'category_ids' => ['present', 'array'],
+            'category_ids.*' => ['integer', 'exists:categories,id'],
+        ]);
+
+        $product->categories()->syncWithPivotValues($data['category_ids'], ['tenant_id' => $product->tenant_id]);
+
+        return response()->json([
+            'data' => $product->categories()->get()->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'slug' => $c->slug,
+            ])->all(),
+        ]);
+    }
+
+    public function syncTags(Request $request, Product $product): JsonResponse
+    {
+        Gate::authorize('update', $product);
+
+        $data = $request->validate([
+            'tag_ids' => ['present', 'array'],
+            'tag_ids.*' => ['integer', 'exists:tags,id'],
+        ]);
+
+        $product->tags()->syncWithPivotValues($data['tag_ids'], ['tenant_id' => $product->tenant_id]);
+
+        return response()->json([
+            'data' => $product->tags()->get()->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'slug' => $t->slug,
+                'color' => $t->color,
+            ])->all(),
+        ]);
+    }
+
     private function auditedFields(): array
     {
         return [
@@ -270,6 +355,12 @@ class ProductController extends Controller
     {
         $sku = trim((string) ($data['sku'] ?? ''));
         $data['sku'] = $sku !== '' ? $sku : $this->generateSkuFromName((string) $data['name']);
+
+        if (isset($data['barcode'])) {
+            $data['barcode'] = trim((string) $data['barcode']) ?: null;
+        }
+
+        unset($data['category_ids'], $data['tag_ids']);
 
         return $data;
     }
