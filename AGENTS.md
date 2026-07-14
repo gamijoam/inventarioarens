@@ -574,9 +574,23 @@ php artisan key:generate
 php artisan migrate --force
 php artisan db:seed --class=MultiCompanyLoginDemoSeeder --force
 php artisan db:seed --class=DemoDataSeeder --force
+php artisan dev:reset-demo-passwords            # gabo1234 (default) para TODOS los demo users
 php artisan optimize:clear
 php artisan route:clear
 php artisan config:cache
+```
+
+### Demo users (login dev)
+
+Todos los usuarios demo usan el **mismo password** para evitar confusion:
+
+| Email | Tenant | Password |
+|---|---|---|
+| `gabo@gabo.com` | `mi-empresa` | `gabo1234` |
+| `grupoprueba@grupoprueba.com` | `grupo-prueba` | `gabo1234` |
+
+Para resetear a otro valor: `php artisan dev:reset-demo-passwords --password=miclave1234`
+(o `php scripts/reset-demo-passwords.php miclave1234`).
 
 # Tests
 php vendor/bin/phpunit
