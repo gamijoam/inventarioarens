@@ -21,12 +21,10 @@ import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
+import { PricesEditor } from '@/features/inventory-center/components/PricesEditor';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
-import { getMany } from '@/api/client';
-import { useQuery } from '@tanstack/react-query';
-import { z } from 'zod';
-import type { ProductStock, ProductSerial, ProductMovement, ProductPrice } from '@/features/inventory-center/schemas';
+import type { ProductStock, ProductSerial, ProductMovement } from '@/features/inventory-center/schemas';
 
 export const Route = createFileRoute('/_authed/inventory/$productId')({
   component: ProductDetailPage,
@@ -46,16 +44,6 @@ function ProductDetailPage() {
   const { data: serialsData = [] } = useProductSerials(id);
   const { data: recent_movements = [] } = useProductMovements(id);
   const serials: ProductSerial[] = serialsData;
-  const { data: pricesData = [] } = useQuery<ProductPrice[]>({
-    queryKey: ['products', id, 'prices'],
-    queryFn: async () => {
-      const data = await getMany<unknown>(`/products/${id}/prices`);
-      const { ProductPriceSchema } = await import('@/features/inventory-center/schemas');
-      return z.array(ProductPriceSchema).parse(data);
-    },
-    enabled: id > 0,
-  });
-  const prices: ProductPrice[] = pricesData;
 
   if (isLoading) {
     return (
@@ -189,7 +177,7 @@ function ProductDetailPage() {
         )}
 
         <TabsContent value="prices" className="space-y-4">
-          <PricesTab prices={prices} />
+          <PricesTab productId={id} />
         </TabsContent>
 
         <TabsContent value="movements" className="space-y-4">
@@ -354,48 +342,8 @@ function SerialsTab({
   );
 }
 
-function PricesTab({ prices }: { prices: ProductPrice[] }) {
-  if (prices.length === 0) {
-    return (
-      <EmptyState
-        title="Sin listas de precio"
-        description="Este producto no tiene precios asignados a listas."
-      />
-    );
-  }
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Precios por lista</CardTitle>
-        <CardDescription>Configura precios diferenciados por lista.</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <table className="w-full table-dense">
-          <thead className="border-b border-border bg-bg/60 text-left">
-            <tr>
-              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Lista</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Precio</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Tasa</th>
-            </tr>
-          </thead>
-          <tbody>
-            {prices.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-b-0">
-                <td className="px-3 py-2">
-                  <div className="font-medium">{p.price_list_name}</div>
-                  <div className="text-xs text-text-muted">{p.price_list_code}</div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{formatMoney(p)}</td>
-                <td className="px-3 py-2 text-right text-text-muted">
-                  {p.exchange_rate ? `@ ${p.exchange_rate}` : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
-  );
+function PricesTab({ productId }: { productId: number }) {
+  return <PricesEditor productId={productId} />;
 }
 
 function MovementsTab({ movements }: { movements: ProductMovement[] }) {
