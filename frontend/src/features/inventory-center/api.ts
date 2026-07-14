@@ -1,93 +1,427 @@
 /**
- * API del Centro de Inventario.
- * Endpoints:
- *   GET /api/inventory-center/summary       (listado + metricas)
- *   GET /api/inventory-center/products/{id} (detalle completo)
- *   GET /api/inventory-center/products/{id}/serials
- *   GET /api/inventory-center/products/{id}/movements
- *   GET /api/inventory-center/products/{id}/stock-by-warehouse
+ * API completa del modulo de inventario.
+ * Endpoints cubiertos (ver docs/INVENTORY_CATALOG_API.md, INVENTORY_ALERTS_API.md):
+ *   - GET    /api/products                            (listado con filtros)
+ *   - GET    /api/products/{id}
+ *   - POST   /api/products                            (crear)
+ *   - PATCH  /api/products/{id}                       (actualizar)
+ *   - DELETE /api/products/{id}                       (soft delete)
+ *   - GET    /api/products/{id}/stock-status
+ *   - GET    /api/inventory-center/reorder-suggestions
+ *   - GET    /api/inventory-center/alerts-summary
+ *   - POST   /api/inventory-center/products/bulk-action
+ *   - GET    /api/brands
+ *   - POST   /api/brands
+ *   - GET    /api/categories                          (lista plana)
+ *   - GET    /api/categories/tree                     (arbol)
+ *   - GET    /api/tags
+ *   - GET    /api/warranty-policies
+ *   - GET    /api/currency/rate-types
+ *   - GET    /api/price-lists?active_only=1
+ *   - GET    /api/warehouses
  */
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
-import { getPaginated, getOne } from '@/api/client';
-import { useSessionStore } from '@/stores/session';
+import { deleteOne, getMany, getOne, patchOne, postOne } from '@/api/client';
 import {
+  AlertsSummarySchema,
+  BrandSchema,
+  CategorySchema,
+  ExchangeRateTypeSchema,
+  PaginatedProductsSchema,
+  PriceListSchema,
+  ProductSchema,
+  ProductStockStatusSchema,
+  ReorderSuggestionsResponseSchema,
+  TagSchema,
+  WarehouseSchema,
+  WarrantyPolicySchema,
   type InventoryFilters,
-  type Product,
-  type ProductDetail,
-  type ProductMovement,
-  type ProductSerial,
-  type ProductStock,
 } from './schemas';
+import { catalogKeys, productKeys } from './queries';
 
-export const inventoryKeys = {
-  all: ['inventory'] as const,
-  lists: () => [...inventoryKeys.all, 'list'] as const,
-  list: (filters: InventoryFilters) => [...inventoryKeys.lists(), filters] as const,
-  details: () => [...inventoryKeys.all, 'detail'] as const,
-  detail: (id: number) => [...inventoryKeys.details(), id] as const,
-  serials: (id: number) => [...inventoryKeys.all, 'serials', id] as const,
-  movements: (id: number) => [...inventoryKeys.all, 'movements', id] as const,
-};
-
-/** Hook: listado de productos con filtros. */
-export function useProducts(filters: InventoryFilters) {
-  return useQuery({
-    queryKey: inventoryKeys.list(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set('page', String(filters.page));
-      params.set('per_page', String(filters.per_page));
-      if (filters.search) params.set('search', filters.search);
-      if (filters.tracking_type !== 'all') params.set('tracking_type', filters.tracking_type);
-      if (filters.stock_status !== 'all') params.set('stock_status', filters.stock_status);
-      if (filters.status !== 'all') params.set('status', filters.status);
-
-      return getPaginated<Product>(`/inventory-center/summary?${params.toString()}`);
-    },
-    placeholderData: (prev) => prev,
-  });
-}
-
-/** Hook: detalle completo del producto. */
-export function useProductDetail(productId: number) {
-  return useQuery({
-    queryKey: inventoryKeys.detail(productId),
-    queryFn: () => getOne<ProductDetail>(`/inventory-center/products/${productId}`),
-    enabled: Number.isFinite(productId) && productId > 0,
-  });
-}
+// =====================================================================
+// Hooks de detalle (movimientos, seriales, kardex, stock-by-warehouse).
+// Cada hook hace su propia query. La page los combina.
+// =====================================================================
 
 export function useProductSerials(productId: number) {
   return useQuery({
-    queryKey: inventoryKeys.serials(productId),
-    queryFn: () =>
-      getPaginated<ProductSerial>(`/inventory-center/products/${productId}/serials`),
+    queryKey: productKeys.serials(productId),
+    queryFn: async () => {
+      const data = await getMany<unknown>(`/inventory-center/products/${productId}/serials`);
+      const { ProductSerialSchema } = await import('./schemas');
+      return z.array(ProductSerialSchema).parse(data);
+    },
+    enabled: Number.isFinite(productId) && productId > 0,
   });
 }
 
 export function useProductMovements(productId: number) {
   return useQuery({
-    queryKey: inventoryKeys.movements(productId),
-    queryFn: () =>
-      getOne<{ data: ProductMovement[] }>(`/inventory-center/products/${productId}/movements`).then(
-        (r) => r.data,
-      ),
+    queryKey: productKeys.movements(productId),
+    queryFn: async () => {
+      const data = await getOne<{ data: { id: number; warehouse_id: number | null; warehouse_name: string | null; type: string; quantity: string | number; unit_cost: string | null; reference: string | null; created_at: string; user_name: string | null }[] }>(
+        `/inventory-center/products/${productId}/movements`,
+      );
+      return data.data;
+    },
+    enabled: Number.isFinite(productId) && productId > 0,
   });
 }
 
 export function useProductStockByWarehouse(productId: number) {
   return useQuery({
-    queryKey: [...inventoryKeys.detail(productId), 'stock'] as const,
-    queryFn: () =>
-      getOne<{ data: ProductStock[] }>(
+    queryKey: productKeys.stockByWarehouse(productId),
+    queryFn: async () => {
+      const data = await getOne<{ data: { warehouse_id: number; warehouse_code: string; warehouse_name: string; quantity: string | number; reserved: string | number | null; damaged: string | number | null }[] }>(
         `/inventory-center/products/${productId}/stock-by-warehouse`,
-      ).then((r) => r.data),
+      );
+      return data.data;
+    },
     enabled: Number.isFinite(productId) && productId > 0,
   });
 }
 
-/** Helper para invalidar queries desde mutaciones. */
-export function getActiveTenantSlug(): string | undefined {
-  return useSessionStore.getState().tenant?.slug;
+// =====================================================================
+// Productos
+// =====================================================================
+
+function toQueryString(filters: Partial<InventoryFilters>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value == null || value === '' || value === 'all') continue;
+    params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+export function useProducts(filters: InventoryFilters) {
+  return useQuery({
+    queryKey: productKeys.list(filters as Record<string, unknown>),
+    queryFn: async () => {
+      const query = toQueryString(filters);
+      const response = await getMany<unknown>(`/products${query ? `?${query}` : ''}`);
+      // Validar shape con Zod en runtime.
+      return PaginatedProductsSchema.parse({ data: response });
+    },
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useProduct(productId: number) {
+  return useQuery({
+    queryKey: productKeys.detail(productId),
+    queryFn: async () => {
+      const data = await getOne<unknown>(`/products/${productId}`);
+      return ProductSchema.parse(data);
+    },
+    enabled: Number.isFinite(productId) && productId > 0,
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/products', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/products/${id}`, input),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/products/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+export function useProductStockStatus(productId: number) {
+  return useQuery({
+    queryKey: productKeys.stockStatus(productId),
+    queryFn: async () => {
+      const data = await getOne<unknown>(`/inventory-center/products/${productId}/stock-status`);
+      return ProductStockStatusSchema.parse(data);
+    },
+    enabled: Number.isFinite(productId) && productId > 0,
+  });
+}
+
+export function useReorderSuggestions(warehouseId?: number) {
+  return useQuery({
+    queryKey: [...productKeys.reorder(), { warehouseId: warehouseId ?? null }],
+    queryFn: async () => {
+      const query = warehouseId ? `?warehouse_id=${warehouseId}` : '';
+      const data = await getOne<unknown>(`/inventory-center/reorder-suggestions${query}`);
+      return ReorderSuggestionsResponseSchema.parse(data);
+    },
+  });
+}
+
+export function useAlertsSummary() {
+  return useQuery({
+    queryKey: productKeys.alertsSummary(),
+    queryFn: async () => {
+      const data = await getOne<unknown>('/inventory-center/alerts-summary');
+      return AlertsSummarySchema.parse(data);
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useBulkAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      product_ids: number[];
+      action: string;
+      payload?: Record<string, unknown>;
+    }) => postOne<typeof input, { data: { affected: number } }>(
+      '/inventory-center/products/bulk-action',
+      input,
+    ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+// =====================================================================
+// Catalogos auxiliares (lookups para forms + pagina /catalogs)
+// =====================================================================
+
+export function useBrands() {
+  return useQuery({
+    queryKey: catalogKeys.brands(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/brands');
+      return z.array(BrandSchema).parse(data);
+    },
+  });
+}
+
+export function useCategoriesTree() {
+  return useQuery({
+    queryKey: catalogKeys.categoryTree(),
+    queryFn: async () => {
+      const data = await getOne<unknown>('/categories/tree');
+      return z.array(CategorySchema).parse(data);
+    },
+  });
+}
+
+export function useCategories() {
+  return useQuery({
+    queryKey: catalogKeys.categories(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/categories');
+      return z.array(CategorySchema).parse(data);
+    },
+  });
+}
+
+export function useTags() {
+  return useQuery({
+    queryKey: catalogKeys.tags(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/tags');
+      return TagSchema.array().parse(data);
+    },
+  });
+}
+
+export function useWarrantyPolicies() {
+  return useQuery({
+    queryKey: catalogKeys.warrantyPolicies(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/warranty-policies');
+      return z.array(WarrantyPolicySchema).parse(data);
+    },
+  });
+}
+
+export function useExchangeRateTypes() {
+  return useQuery({
+    queryKey: catalogKeys.exchangeRateTypes(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/currency/rate-types');
+      return z.array(ExchangeRateTypeSchema).parse(data);
+    },
+  });
+}
+
+export function usePriceLists(activeOnly = true) {
+  return useQuery({
+    queryKey: [...catalogKeys.priceLists(), { activeOnly }],
+    queryFn: async () => {
+      const query = activeOnly ? '?active_only=1' : '';
+      const data = await getMany<unknown>(`/price-lists${query}`);
+      return z.array(PriceListSchema).parse(data);
+    },
+  });
+}
+
+export function useWarehouses() {
+  return useQuery({
+    queryKey: catalogKeys.warehouses(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/warehouses');
+      return z.array(WarehouseSchema).parse(data);
+    },
+  });
+}
+
+// CRUDs de catalogos (para la pagina /inventory/catalogs)
+export function useCreateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/brands', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
+    },
+  });
+}
+
+export function useUpdateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/brands/${id}`, input),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.brand(id) });
+    },
+  });
+}
+
+export function useDeleteBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/brands/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
+    },
+  });
+}
+
+export function useCreateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/categories', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/categories/${id}`, input),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.category(id) });
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/categories/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
+    },
+  });
+}
+
+export function useCreateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/tags', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+    },
+  });
+}
+
+export function useUpdateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/tags/${id}`, input),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.tag(id) });
+    },
+  });
+}
+
+export function useDeleteTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/tags/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+    },
+  });
+}
+
+// =====================================================================
+// Sync de relaciones (categorias/tags) por producto
+// =====================================================================
+
+export function useSyncProductCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, category_ids }: { id: number; category_ids: number[] }) =>
+      patchOne<{ category_ids: number[] }, { data: number[] }>(
+        `/products/${id}/categories`,
+        { category_ids },
+      ),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+export function useSyncProductTags() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, tag_ids }: { id: number; tag_ids: number[] }) =>
+      patchOne<{ tag_ids: number[] }, { data: number[] }>(
+        `/products/${id}/tags`,
+        { tag_ids },
+      ),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
 }

@@ -29,7 +29,7 @@ import { useProducts } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
 
 type TrackingFilter = 'all' | 'quantity' | 'serialized';
-type StockFilter = 'all' | 'available' | 'low' | 'none';
+type StockFilter = 'all' | 'available' | 'low' | 'critical' | 'out' | 'overstock';
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 interface InventorySearch {
@@ -47,7 +47,9 @@ export const Route = createFileRoute('/_authed/inventory/')({
     tracking: ['all', 'quantity', 'serialized'].includes(search.tracking as string)
       ? (search.tracking as TrackingFilter)
       : 'all',
-    stock: ['all', 'available', 'low', 'none'].includes(search.stock as string)
+    stock: ['all', 'available', 'low', 'critical', 'out', 'overstock'].includes(
+      search.stock as string,
+    )
       ? (search.stock as StockFilter)
       : 'all',
     status: ['all', 'active', 'inactive'].includes(search.status as string)
@@ -68,7 +70,7 @@ function InventoryListPage() {
       search: search.search,
       tracking_type: search.tracking,
       stock_status: search.stock,
-      status: search.status,
+      active_status: search.status,
       page: search.page,
       per_page: 25,
     }),
@@ -149,7 +151,9 @@ function InventoryListPage() {
             <option value="all">Todos los stocks</option>
             <option value="available">Con stock</option>
             <option value="low">Bajo stock</option>
-            <option value="none">Sin stock</option>
+            <option value="critical">Critico</option>
+            <option value="out">Sin stock</option>
+            <option value="overstock">Sobre stock</option>
           </select>
           <select
             className={selectClass}
@@ -284,15 +288,19 @@ function useColumns() {
           );
         },
       }),
-      columnHelper.accessor('total_stock', {
-        header: 'Stock',
-        cell: (info) => {
-          const v = info.getValue();
-          if (v == null) return <span className="text-text-muted">—</span>;
+      columnHelper.accessor(
+        (row) => {
+          const v = (row as { available?: string | number | null }).available;
+          if (v == null) return '—';
           const n = typeof v === 'string' ? parseFloat(v) : v;
-          return <span className="tabular-nums">{Number.isNaN(n) ? '—' : n}</span>;
+          return Number.isNaN(n) ? '—' : String(n);
         },
-      }),
+        {
+          id: 'stock',
+          header: 'Stock',
+          cell: (info) => <span className="tabular-nums">{String(info.getValue())}</span>,
+        },
+      ),
       columnHelper.accessor('base_price', {
         header: 'Precio base',
         cell: (info) => formatMoney(info.getValue()),

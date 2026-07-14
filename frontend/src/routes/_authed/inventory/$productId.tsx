@@ -20,7 +20,10 @@ import { formatCost, formatMoney } from '@/lib/money';
 import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-import { useProductDetail, useProductSerials } from '@/features/inventory-center/api';
+import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
+import { getMany } from '@/api/client';
+import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
 import type { ProductStock, ProductSerial, ProductMovement, ProductPrice } from '@/features/inventory-center/schemas';
 
 export const Route = createFileRoute('/_authed/inventory/$productId')({
@@ -31,8 +34,24 @@ function ProductDetailPage() {
   const { productId } = Route.useParams();
   const id = parseInt(productId, 10);
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useProductDetail(id);
   const [activeTab, setActiveTab] = useState('general');
+
+  // Hooks (siempre antes de cualquier return condicional).
+  const { data: product, isLoading, isError } = useProduct(id);
+  const { data: stock_by_warehouse = [] } = useProductStockByWarehouse(id);
+  const { data: serialsData = [] } = useProductSerials(id);
+  const { data: recent_movements = [] } = useProductMovements(id);
+  const serials: ProductSerial[] = serialsData;
+  const { data: pricesData = [] } = useQuery<ProductPrice[]>({
+    queryKey: ['products', id, 'prices'],
+    queryFn: async () => {
+      const data = await getMany<unknown>(`/products/${id}/prices`);
+      const { ProductPriceSchema } = await import('@/features/inventory-center/schemas');
+      return z.array(ProductPriceSchema).parse(data);
+    },
+    enabled: id > 0,
+  });
+  const prices: ProductPrice[] = pricesData;
 
   if (isLoading) {
     return (
@@ -43,7 +62,7 @@ function ProductDetailPage() {
     );
   }
 
-  if (isError || !data) {
+  if (isError || !product) {
     return (
       <PageLayout title="Producto no encontrado">
         <EmptyState
@@ -67,8 +86,6 @@ function ProductDetailPage() {
       </PageLayout>
     );
   }
-
-  const { product, stock_by_warehouse, serials, recent_movements, prices } = data;
 
   return (
     <PageLayout
@@ -124,13 +141,13 @@ function ProductDetailPage() {
               <Field label="Precio base">{formatMoney(product.base_price)}</Field>
               <Field label="Moneda de venta preferida">{product.sale_currency ?? '—'}</Field>
               <Field label="Vendible">
-                <Badge variant={product.is_sellable !== false ? 'success' : 'default'}>
-                  {product.is_sellable !== false ? 'Sí' : 'No'}
+                <Badge variant={product.is_active ? 'success' : 'default'}>
+                  {product.is_active ? 'Sí' : 'No'}
                 </Badge>
               </Field>
               <Field label="Tiene garantía">
-                <Badge variant={product.has_warranty ? 'info' : 'default'}>
-                  {product.has_warranty ? 'Sí' : 'No'}
+                <Badge variant={product.warranty_policy_id ? 'info' : 'default'}>
+                  {product.warranty_policy_id ? 'Sí' : 'No'}
                 </Badge>
               </Field>
               <Field label="Última actualización">
@@ -241,9 +258,8 @@ function SerialsTab({
   productId: number;
   initialSerials: ProductSerial[];
 }) {
-  const { data, isLoading } = useProductSerials(productId);
-
-  const serials = data?.data ?? initialSerials;
+  const { data: serialList = [], isLoading } = useProductSerials(productId);
+  const serials: ProductSerial[] = serialList.length > 0 ? serialList : initialSerials;
   if (isLoading) return <Spinner label="Cargando seriales..." />;
   if (serials.length === 0) {
     return (
@@ -271,7 +287,7 @@ function SerialsTab({
             </tr>
           </thead>
           <tbody>
-            {serials.map((s) => (
+            {serials.map((s: ProductSerial) => (
               <tr key={s.id} className="border-b border-border last:border-b-0">
                 <td className="px-3 py-2 font-mono text-xs">{s.serial_number}</td>
                 <td className="px-3 py-2 text-text-muted">{s.serial_type}</td>
