@@ -50,6 +50,8 @@ export function lookupTenants(payload: TenantLookupRequest) {
  * se hidrate.
  */
 export function login(slug: string, payload: LoginRequest) {
+  // Debug: ayuda a diagnosticar "tenant not found" cuando el slug esta mal.
+  console.warn('[AUTH] login() called with X-Tenant:', slug, 'email:', payload.email);
   return postOne<LoginRequest, LoginResponse['data']>('/auth/login', payload, {
     headers: { 'X-Tenant': slug },
   });

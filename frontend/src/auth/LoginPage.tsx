@@ -98,11 +98,33 @@ export function LoginPage() {
       if (status === 401 || status === 422) {
         useSessionStore.getState().clearSession();
       }
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesión.';
+      const message = formatLoginError(err, selectedTenant.slug);
       setError(message);
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  /**
+   * Helper: limpia el cache del navegador (localStorage + cookies stale)
+   * y recarga la pagina. Util cuando hay un tenant stale del lookup que
+   * ya no existe en el backend.
+   */
+  const handleClearCache = () => {
+    try {
+      // Limpiar todo el localStorage relacionado a la app.
+      window.localStorage.removeItem('inventory_session');
+      // Limpiar todas las cookies del origin actual.
+      document.cookie.split('; ').forEach((c) => {
+        const name = c.split('=')[0];
+        if (name) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        }
+      });
+    } catch {
+      // ignore
+    }
+    window.location.reload();
   };
 
   return (
@@ -150,6 +172,17 @@ export function LoginPage() {
               <AlertTitle>No pudimos iniciar sesión</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+
+          {error && (
+            <button
+              type="button"
+              onClick={handleClearCache}
+              className="w-full rounded border border-border bg-surface px-3 py-2 text-xs text-text-muted hover:bg-bg"
+              data-testid="login-clear-cache"
+            >
+              ¿Persiste el error? Limpiar caché del navegador y reintentar
+            </button>
           )}
 
           <div className="space-y-2">
@@ -235,6 +268,42 @@ export function LoginPage() {
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/**
+ * Formatea el mensaje de error del login segun el status code + body.
+ *
+ * El backend retorna diferentes mensajes segun el caso:
+ *  - 401: credenciales invalidas (email/password).
+ *  - 404: tenant no existe (slug mal escrito o eliminado).
+ *  - 422: tenant existe pero user no pertenece, o password no cumple reglas.
+ *  - 429: rate limit alcanzado.
+ *  - 5xx: error del servidor.
+ */
+function formatLoginError(err: unknown, slug: string): string {
+  const status = (err as { status?: number })?.status;
+  const message = (err as Error)?.message ?? 'Error al iniciar sesión.';
+
+  switch (status) {
+    case 401:
+      return 'Email o contraseña incorrectos.';
+    case 403:
+      return 'Tu cuenta no está activa. Contacta al administrador.';
+    case 404:
+      return `La empresa "${slug}" no existe. Selecciona otra empresa o limpia el caché.`;
+    case 422: {
+      // Mensaje del backend: "El usuario no pertenece a esta empresa
+      // o esta inactivo." o errores de validacion.
+      if (/no pertenece|inactiv/i.test(message)) {
+        return `Tu email no tiene acceso a la empresa "${slug}". Verifica que seleccionaste la empresa correcta.`;
+      }
+      return message;
+    }
+    case 429:
+      return 'Demasiados intentos. Espera unos minutos antes de reintentar.';
+    default:
+      return message;
+  }
 }
 
 interface TenantPickerProps {
