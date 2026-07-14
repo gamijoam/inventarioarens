@@ -5,12 +5,12 @@
  *
  * Secciones:
  *  1. Identificacion (name, sku, barcode, image_url)
- *  2. Catalogos (brand, categories, tags)
+ *  2. Catalogos (brand, categories, tags) — con inline create.
  *  3. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
  *  4. Precios (base_price, sale_currency, sale_exchange_rate_type)
  *  5. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
-import { Controller, type UseFormReturn } from 'react-hook-form';
+import { type UseFormReturn } from 'react-hook-form';
 import { useMemo } from 'react';
 import { Link2, Tag as TagIcon, Tags as TagsIcon } from 'lucide-react';
 
@@ -21,7 +21,9 @@ import { Switch } from '@/components/ui/Switch';
 import { Combobox } from '@/components/ui/Combobox';
 import { TreeSelect } from '@/components/ui/TreeSelect';
 import { Label } from '@/components/ui/Label';
+import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
+import { Controller, useController } from 'react-hook-form';
 
 import {
   SALE_CURRENCIES,
@@ -36,6 +38,7 @@ import {
   useExchangeRateTypes,
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
+import { InlineCatalogCreate } from './InlineCatalogCreate';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -66,7 +69,7 @@ export function ProductForm({
   // Convertir brand/warranty/rate a options.
   const brandOptions = useMemo(
     () => [
-      { value: '', label: 'ÔÇö Sin marca ÔÇö' },
+      { value: '', label: '— Sin marca —' },
       ...brands.map((b) => ({ value: String(b.id), label: b.name })),
     ],
     [brands],
@@ -74,7 +77,7 @@ export function ProductForm({
 
   const warrantyOptions = useMemo(
     () => [
-      { value: '', label: 'ÔÇö Sin garant├¡a ÔÇö' },
+      { value: '', label: '— Sin garantía —' },
       ...warrantyPolicies.map((w) => ({ value: String(w.id), label: w.name })),
     ],
     [warrantyPolicies],
@@ -82,13 +85,13 @@ export function ProductForm({
 
   const rateTypeOptions = useMemo(
     () => [
-      { value: '', label: 'ÔÇö Heredar del sistema ÔÇö' },
+      { value: '', label: '— Heredar del sistema —' },
       ...rateTypes.map((r) => ({ value: String(r.id), label: `${r.code} (${r.name})` })),
     ],
     [rateTypes],
   );
 
-  // Tags son din├ímicos; el form mantiene un array de IDs pero necesitamos los
+  // Tags son dinámicos; el form mantiene un array de IDs pero necesitamos los
   // options disponibles (que vienen del padre via prop).
   const tagSelectOptions = tagOptions;
 
@@ -109,10 +112,10 @@ export function ProductForm({
           <Field name="name" label="Nombre" required error={form.formState.errors.name?.message}>
             <Input {...form.register('name')} placeholder="iPhone 15" />
           </Field>
-          <Field name="sku" label="SKU" hint="Opcional, unico por empresa" error={form.formState.errors.sku?.message}>
+          <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
             <Input {...form.register('sku')} placeholder="IPH15-128" />
           </Field>
-          <Field name="barcode" label="Codigo de barras" hint="Opcional, unico por empresa">
+          <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
             <Input {...form.register('barcode')} placeholder="0194253714750" />
           </Field>
           <Field name="image_url" label="URL de imagen" error={form.formState.errors.image_url?.message}>
@@ -130,65 +133,91 @@ export function ProductForm({
       </fieldset>
 
       {/* ============================================================ */}
-      {/* 2. Catalogos                                                   */}
+      {/* 2. Catalogos (con inline create)                             */}
       {/* ============================================================ */}
       <fieldset className="space-y-3">
-        <SectionLegend>Catalogos</SectionLegend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field name="brand_id" label="Marca" error={form.formState.errors.brand_id?.message}>
-            <Select
-              value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                form.setValue('brand_id', v === '' ? undefined : Number(v), {
-                  shouldValidate: true,
-                });
-              }}
-            >
-              {brandOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
+        <SectionLegend>Catálogos</SectionLegend>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="brand_id">Marca</Label>
+            <InlineCatalogCreate
+              kind="brand"
+              onCreated={(id) => form.setValue('brand_id', id, { shouldValidate: true })}
+            />
+          </div>
+          <Select
+            id="brand_id"
+            value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              form.setValue('brand_id', v === '' ? undefined : Number(v), {
+                shouldValidate: true,
+              });
+            }}
+          >
+            {brandOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          {form.formState.errors.brand_id?.message && (
+            <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
+          )}
         </div>
-          <Field
-          name="category_ids"
-          label="Categorias"
-          hint="Jerárquicas: selecciona las hojas o ramas que apliquen"
-        >
-            <Controller
-              control={form.control}
-              name="category_ids"
-              render={({ field }) => {
-                // El form devuelve unknown[] generico; hacemos cast a TreeLike[]
-                // para que el compilador no se queje del shape.
-                const tree = categoryTree as unknown as TreeLike[];
-                return (
-                  <TreeSelect
-                    nodes={tree.map(toNode)}
-                    value={(field.value ?? [])}
-                    onChange={(v) => field.onChange(v)}
-                  />
-                );
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label>Categorías</Label>
+            <InlineCatalogCreate
+              kind="category"
+              onCreated={() => {
+                // Para categorias, append al array. El usuario tendra que
+                // seleccionarla manualmente en el tree (siguiente iteracion
+                // mejorar el auto-select en TreeSelect).
               }}
             />
-          </Field>
-        <Field name="tag_ids" label="Tags" hint="Selecciona varios (typeahead arriba)">
+          </div>
+          <Controller
+            control={form.control}
+            name="category_ids"
+            render={({ field }) => {
+              const tree = categoryTree as unknown as TreeLike[];
+              return (
+                <TreeSelect
+                  nodes={tree.map(toNode)}
+                  value={field.value ?? []}
+                  onChange={(v) => field.onChange(v)}
+                />
+              );
+            }}
+          />
+          <p className="text-xs text-text-muted">Jerárquicas: selecciona las hojas o ramas que apliquen</p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label>Tags</Label>
+            <InlineCatalogCreate
+              kind="tag"
+              onCreated={() => {
+                // Auto-select requeriria que el Combobox soporte un nuevo value.
+                // Por ahora el usuario debe volver a seleccionarlo.
+              }}
+            />
+          </div>
           <Controller
             control={form.control}
             name="tag_ids"
             render={({ field }) => (
               <Combobox
                 options={tagSelectOptions}
-                value={(field.value ?? [])}
+                value={field.value ?? []}
                 onChange={field.onChange}
                 placeholder="Buscar tags..."
               />
             )}
           />
-        </Field>
+          <p className="text-xs text-text-muted">Selecciona varios (typeahead arriba)</p>
+        </div>
       </fieldset>
 
       {/* ============================================================ */}
@@ -216,16 +245,7 @@ export function ProductForm({
             </Select>
           </Field>
         </div>
-        <Controller
-          control={form.control}
-          name="track_stock"
-          render={({ field }) => (
-            <div className="flex items-center gap-2">
-              <Switch id="track_stock" checked={Boolean(field.value)} onCheckedChange={field.onChange} />
-              <Label htmlFor="track_stock">Trackear stock de este producto</Label>
-            </div>
-          )}
-        />
+        <SwitchField form={form} name="track_stock" label="Trackear stock de este producto" />
         <div className="grid grid-cols-3 gap-3">
           <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
             <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
@@ -285,10 +305,10 @@ export function ProductForm({
       {/* 5. Garantia + Estado                                          */}
       {/* ============================================================ */}
       <fieldset className="space-y-3">
-        <SectionLegend>Garantia y estado</SectionLegend>
+        <SectionLegend>Garantía y estado</SectionLegend>
         <Field
           name="warranty_policy_id"
-          label="Politica de garantia"
+          label="Política de garantía"
           error={form.formState.errors.warranty_policy_id?.message}
         >
           <Select
@@ -307,39 +327,50 @@ export function ProductForm({
             ))}
           </Select>
         </Field>
-        <Controller
-          control={form.control}
-          name="is_active"
-          render={({ field }) => (
-            <div className="flex items-center gap-2">
-              <Switch id="is_active" checked={Boolean(field.value)} onCheckedChange={field.onChange} />
-              <Label htmlFor="is_active">Producto activo (visible en ventas)</Label>
-            </div>
-          )}
-        />
+        <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
       </fieldset>
 
       {/* Botones de accion */}
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="rounded border border-border-strong bg-surface px-3 py-2 text-sm hover:bg-bg disabled:opacity-50"
-          >
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
-          </button>
+          </Button>
         )}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-        >
-          {isSubmitting ? 'Guardando...' : submitLabel}
-        </button>
+        <Button type="submit" loading={isSubmitting}>
+          {submitLabel}
+        </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * SwitchField: renderiza un Switch conectado a un campo del form.
+ *
+ * Usa useController de RHF internamente (en lugar de <Controller>) para
+ * evitar el bug "Cannot read properties of null (reading _names)" en
+ * React 18 Strict Mode que sufria <Controller> (ver BrandsManager).
+ */
+function SwitchField({
+  form,
+  name,
+  label,
+}: {
+  form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
+  name: 'is_active' | 'track_stock';
+  label: string;
+}) {
+  const { field } = useController({ name, control: form.control });
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        id={name}
+        checked={Boolean(field.value)}
+        onCheckedChange={field.onChange}
+      />
+      <Label htmlFor={name}>{label}</Label>
+    </div>
   );
 }
 

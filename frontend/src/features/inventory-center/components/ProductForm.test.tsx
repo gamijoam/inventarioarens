@@ -54,10 +54,10 @@ describe('<ProductForm>', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText('Identificacion')).toBeInTheDocument();
-    expect(screen.getByText('Catalogos')).toBeInTheDocument();
+    expect(screen.getByText('Catálogos')).toBeInTheDocument();
     expect(screen.getByText('Control de stock')).toBeInTheDocument();
     expect(screen.getByText('Precios')).toBeInTheDocument();
-    expect(screen.getByText('Garantia y estado')).toBeInTheDocument();
+    expect(screen.getByText('Garantía y estado')).toBeInTheDocument();
   });
 
   it('muestra el nombre prellenado en initialValues', () => {
@@ -95,9 +95,9 @@ describe('<ProductForm>', () => {
     expect(onSubmit).toHaveBeenCalled();
   });
 
-  it('muestra "Guardando..." cuando isSubmitting=true', () => {
+  it('muestra el spinner cuando isSubmitting=true', () => {
     const form = makeForm();
-    render(
+    const { container } = render(
       <QueryClientProvider client={new QueryClient()}>
         <ProductForm
           form={form}
@@ -108,6 +108,7 @@ describe('<ProductForm>', () => {
         />
       </QueryClientProvider>,
     );
-    expect(screen.getByText(/Guardando\.\.\./)).toBeInTheDocument();
+    // El Button en estado loading muestra un Spinner (svg con class animate-spin).
+    expect(container.querySelector('svg.animate-spin')).toBeInTheDocument();
   });
 });
