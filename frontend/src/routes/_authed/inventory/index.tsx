@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import { formatMoney } from '@/lib/money';
@@ -27,6 +28,7 @@ import { cn } from '@/lib/cn';
 
 import { useProducts } from '@/features/inventory-center/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
+import { BulkActionsMenu } from '@/features/inventory-center/bulk-actions/BulkActionsMenu';
 import type { Product } from '@/features/inventory-center/schemas';
 
 type TrackingFilter = 'all' | 'quantity' | 'serialized';
@@ -66,6 +68,7 @@ function InventoryListPage() {
 
   const [searchInput, setSearchInput] = useState(search.search);
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const filters = useMemo(
     () => ({
@@ -89,7 +92,7 @@ function InventoryListPage() {
     void navigate({ search: { ...search, page } });
   };
 
-  const columns = useColumns();
+  const columns = useColumns(selectedIds, setSelectedIds, data?.data ?? []);
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -114,6 +117,12 @@ function InventoryListPage() {
         </Can>
       }
     >
+      <BulkActionsMenu
+        selectedIds={Array.from(selectedIds)}
+        onClearSelection={() => setSelectedIds(new Set())}
+        onSuccess={() => setSelectedIds(new Set())}
+      />
+
       {/* Filtros */}
       <Card>
         <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -266,11 +275,46 @@ const selectClass = cn(
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
 );
 
-function useColumns() {
+function useColumns(
+  selectedIds: Set<number>,
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>,
+  data: Product[],
+) {
   const columnHelper = createColumnHelper<Product>();
 
   return useMemo(
     () => [
+      columnHelper.display({
+        id: 'select',
+        header: () => (
+          <Checkbox
+            checked={selectedIds.size > 0 && selectedIds.size === data.length}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setSelectedIds(new Set(data.map((p: Product) => p.id)));
+              } else {
+                setSelectedIds(new Set());
+              }
+            }}
+            aria-label="Seleccionar todo"
+          />
+        ),
+        cell: (info) => (
+          <Checkbox
+            checked={selectedIds.has(info.row.original.id)}
+            onCheckedChange={(checked) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (checked) next.add(info.row.original.id);
+                else next.delete(info.row.original.id);
+                return next;
+              });
+            }}
+            aria-label={`Seleccionar ${info.row.original.name}`}
+            data-testid={`select-${info.row.original.id}`}
+          />
+        ),
+      }),
       columnHelper.accessor('sku', {
         header: 'SKU',
         cell: (info) => (
@@ -335,7 +379,10 @@ function useColumns() {
         ),
       }),
     ],
-    [columnHelper],
+    // selectedIds y setSelectedIds se incluyen como deps intencionalmente:
+    // cambian cuando el user selecciona/deselecciona filas y la tabla
+    // debe re-renderizar los checkboxes de cada fila.
+    [columnHelper, selectedIds, setSelectedIds, data],
   );
 }
 
