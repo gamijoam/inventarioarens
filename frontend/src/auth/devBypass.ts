@@ -47,6 +47,10 @@ const ALL_PERMISSIONS = new Set<string>(Object.values(PERMISSIONS));
 /**
  * Setea una sesion fake con todos los permisos.
  *
+ * IDEMPOTENTE: si la sesion ya esta aplicada (detectada por user.email
+ * === 'dev@local'), no hace nada. Esto previene re-renders infinitos
+ * cuando se llama desde useEffect.
+ *
  * En el modelo cookie, NO podemos setear la cookie httpOnly desde JS,
  * asi que esto solo puebla el store local. Para que las requests peguen
  * contra el backend real, usa dev_token via curl/scripts.
@@ -56,6 +60,14 @@ const ALL_PERMISSIONS = new Set<string>(Object.values(PERMISSIONS));
  */
 export function applyDevSession(): void {
   if (typeof window === 'undefined') return;
+
+  // Idempotencia: si ya aplicamos la sesion fake en este render session,
+  // no aplicar de nuevo. Asi evitamos loops infinitos de re-render cuando
+  // se llama desde useEffect[].
+  const current = useSessionStore.getState();
+  if (current.user?.email === 'dev@local' && current.tenant?.slug?.startsWith('dev')) {
+    return;
+  }
 
   let tenantSlug = 'dev';
   try {

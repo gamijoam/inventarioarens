@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { useEffect, useMemo } from 'react';
 
 import { AuthedLayout } from '@/components/layout/AuthedLayout';
 import { useSessionStore } from '@/stores/session';
@@ -52,26 +53,47 @@ function AuthedLayoutComponent() {
   const user = useSessionStore((s) => s.user);
   const tenant = useSessionStore((s) => s.tenant);
 
-  const permissionValue = buildPermissionValue(
-    Array.from(permissions),
-    roles,
-    scopeStatus,
-    scopes,
+  // En modo bypass, inyectamos la sesion fake UNA vez via useEffect.
+  // ANTES lo haciamos en render, lo que causaba "Cannot update a component
+  // while rendering a different component" + loop infinito de re-renders.
+  useEffect(() => {
+    if (isAuthDisabled()) {
+      applyDevSession();
+    }
+  }, []);
+
+  const isHydrated = Boolean(user && tenant && permissions.size > 0);
+
+  // permissionValue debe ser estable para no remontar PermissionProvider.
+  // Lo computamos desde el state actual (que ya se actualiza via setSession
+  // cuando llega la respuesta de login o el effect de bypass).
+  const permissionValue = useMemo(
+    () =>
+      buildPermissionValue(
+        Array.from(permissions),
+        roles,
+        scopeStatus,
+        scopes,
+      ),
+    [permissions, roles, scopeStatus, scopes],
   );
 
-  // En modo bypass, inyectamos la sesion fake para que PermissionProvider
-  // tenga todos los permisos desde el primer render.
-  if (isAuthDisabled()) {
-    applyDevSession();
-  }
-
-  // Doble verificacion: si llegamos aqui sin user/tenant (caso edge:
-  // cookie set pero localStorage vacio tras clear manual), mostrar un
-  // brevisimo mensaje. El beforeLoad ya redirige en el caso comun.
-  if (!user || !tenant) {
+  // Doble verificacion: edge case de cookie set pero localStorage vacio
+  // tras clear manual -> el beforeLoad ya redirige en el caso comun.
+  // Esto es solo un fallback visual para el breve instante mientras
+  // el useEffect del bypass aplica la sesion fake.
+  if (!isHydrated && isAuthDisabled()) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg">
         <div className="text-sm text-text-muted">Inicializando sesion...</div>
+      </div>
+    );
+  }
+
+  if (!user || !tenant) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="text-sm text-text-muted">Cargando sesion...</div>
       </div>
     );
   }
