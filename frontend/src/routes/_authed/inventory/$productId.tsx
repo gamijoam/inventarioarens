@@ -21,6 +21,7 @@ import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
+import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { getMany } from '@/api/client';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -35,6 +36,7 @@ function ProductDetailPage() {
   const id = parseInt(productId, 10);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
+  const [editOpen, setEditOpen] = useState(false);
 
   // Hooks (siempre antes de cualquier return condicional).
   const { data: product, isLoading, isError } = useProduct(id);
@@ -103,7 +105,12 @@ function ProductDetailPage() {
       }
       actions={
         <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-          <Button variant="outline" leftIcon={<Edit className="size-4" />}>
+          <Button
+            variant="outline"
+            leftIcon={<Edit className="size-4" />}
+            onClick={() => setEditOpen(true)}
+            data-testid="edit-product"
+          >
             Editar
           </Button>
         </Can>
@@ -175,6 +182,14 @@ function ProductDetailPage() {
           <MovementsTab movements={recent_movements} />
         </TabsContent>
       </Tabs>
+
+      {product && (
+        <EditProductDialog
+          product={product}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
     </PageLayout>
   );
 }
