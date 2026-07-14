@@ -86,6 +86,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowed Origins for CSRF Protection
+    |--------------------------------------------------------------------------
+    |
+    | Lista de origins (scheme://host[:port]) desde los cuales el backend
+    | acepta requests autenticados via cookie httpOnly. Cada origin debe
+    | ser confiable desde el punto de vista del propietario del SaaS.
+    |
+    | En produccion esto deberia contener SOLO el origin publico del SaaS
+    | (ej: "https://app.miinventariofacil.com"). En desarrollo se incluyen
+    | los puertos comunes de Vite dev server (5173) y otros.
+    |
+    | Si un request trae una cookie httpOnly pero el Origin del navegador
+    | NO esta en esta lista, el backend rechaza con 403 csrf_required.
+    | Ver app/Modules/Auth/Middleware/AuthenticateApiToken.php.
+    |
+    | Formato: variable de entorno CSV: "https://prod.com,http://localhost:5173"
+    */
+    'allowed_origins_for_csrf' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('APP_ALLOWED_ORIGINS_FOR_CSRF', ''))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

@@ -134,6 +134,53 @@ class CookieAuthTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_cookie_request_with_origin_in_allowlist_is_accepted(): void
+    {
+        // Caso tipico: dev usa Vite en :5173 mientras APP_URL es :8000 (o :80).
+        // Ambos origins deben estar en APP_ALLOWED_ORIGINS_FOR_CSRF.
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        // Patcheamos config para el test.
+        config([
+            'app.allowed_origins_for_csrf' => [
+                'http://localhost:5173',  // Vite dev (browser origin)
+                'http://localhost',       // APP_URL fallback
+            ],
+        ]);
+
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://localhost:5173')  // ← Vite origin
+            ->getJson('/api/auth/me')
+            ->assertOk();
+    }
+
+    public function test_cookie_origin_check_normalizes_ports(): void
+    {
+        // El check debe comparar scheme + host + port exactamente.
+        // http://localhost:5173 != http://localhost (puertos diferentes).
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        config([
+            'app.allowed_origins_for_csrf' => ['http://localhost'],
+        ]);
+
+        // Browser envia :5173 pero la allowlist solo tiene :80 (default).
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://localhost:5173')
+            ->getJson('/api/auth/me')
+            ->assertStatus(403);  // blocked por mismatch de puerto
+    }
+
     public function test_bearer_still_works_without_csrf_headers(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

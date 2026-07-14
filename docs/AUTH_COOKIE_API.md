@@ -69,7 +69,7 @@ Requests autenticados via **cookie** deben incluir AMBOS headers:
 | Header | Valor | Por que |
 |---|---|---|
 | `X-Requested-With` | `XMLHttpRequest` | Los formularios HTML nativos no pueden setear este header. |
-| `Origin` | `${APP_URL}` (ej: `https://app.miinventariofacil.com`) | El origin debe coincidir con el configurado en el backend. |
+| `Origin` | Uno de los origins en `app.allowed_origins_for_csrf` (CSV en `.env`: `APP_ALLOWED_ORIGINS_FOR_CSRF`). En dev suele ser `http://localhost:5173` (Vite); en prod, solo el origin publico (ej: `https://app.miinventariofacil.com`). | Defense-in-depth: bloquea requests cross-origin que SI podrian setear X-Requested-With via JS (ej: XSS en otro origin). |
 
 Requests autenticados via **Bearer** NO requieren estos headers (porque el token NO se envia automaticamente, no hay riesgo CSRF).
 
@@ -100,7 +100,7 @@ PERO **adicionalmente** el response de login/platform-login/switch-tenant incluy
 El backend emite `Set-Cookie: auth_token=...` solo si el request de login cumple **al menos una** de estas condiciones:
 
 1. Trae header `X-Requested-With: XMLHttpRequest`, O
-2. Trae header `Origin` que matchea `config('app.url')`
+2. Trae header `Origin` que matchea uno de los origins en `app.allowed_origins_for_csrf` (config desde `APP_ALLOWED_ORIGINS_FOR_CSRF` en `.env`)
 
 Y **NO** trae `Authorization: Bearer` (los clientes API no reciben cookie).
 
@@ -308,6 +308,48 @@ Si testeas `RequireAuth`, el store necesita tener `permissions.size > 0` para qu
 - **Shape del response JSON no cambia**. Login/me/switch-tenant retornan los mismos campos.
 - **Tests E2E del backend (`tests/Feature/Auth/AuthApiTest.php`) siguen pasando con Bearer**.
 - **CSRF solo se exige a requests via cookie**. Bearer esta exento.
+
+## Configuracion del backend (CSRF Origin Allowlist)
+
+El backend valida el header `Origin` contra una lista de origins permitidos.
+Esto evita que un XSS en otro dominio pueda hacer requests autenticados via
+cookie (que el navegador envia automaticamente).
+
+### Variable de entorno
+
+```
+# .env (production)
+APP_ALLOWED_ORIGINS_FOR_CSRF=https://app.miinventariofacil.com
+
+# .env (dev local con Vite)
+APP_ALLOWED_ORIGINS_FOR_CSRF=http://localhost,http://localhost:5173,http://localhost:8000,http://127.0.0.1:5173,http://127.0.0.1:8000
+```
+
+Sin la variable configurada, el backend cae en fallback a `app.url` (un solo
+origin), que es estricto pero valido.
+
+### Por que no comparar solo con `app.url`?
+
+En desarrollo, `app.url=http://localhost` (backend en :8000) pero el navegador
+abre `http://localhost:5173` (Vite dev server). El proxy de Vite redirige a
+backend, pero el `Origin` que envia el navegador es `:5173`. Si solo se
+compara contra `app.url`, todos los requests CSRF-protected darian 403.
+
+La allowlist resuelve esto sin comprometer seguridad: cada origin debe ser
+explicitado por el operador del SaaS via `.env`.
+
+### Que pasa en produccion?
+
+Solo el origin publico del SaaS deberia estar en `APP_ALLOWED_ORIGINS_FOR_CSRF`.
+Cualquier origin adicional que el backend ACEPTABA requests autenticadas via cookie
+es un agujero CSRF.
+
+### Tests relevantes
+
+`tests/Feature/Auth/CookieAuthTest.php`:
+- `test_cookie_request_with_origin_in_allowlist_is_accepted`: Vite origin pasa.
+- `test_cookie_origin_check_normalizes_ports`: puerto incorrecto = 403.
+- `test_cookie_request_with_wrong_origin_is_rejected`: origin malicioso = 403.
 
 ---
 

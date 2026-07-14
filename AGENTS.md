@@ -168,6 +168,14 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
    devuelve Bearer token + user + tenant + roles + permisos efectivos.
 3. Cada llamada: `Authorization: Bearer <token>` + `X-Tenant: <slug>`.
 
+**Modalidades de transporte del token** (2026-07-14, Plan C hibrido):
+- `Authorization: Bearer <token>` (header) — usado por sync worker, Postman, scripts PHP.
+- Cookie httpOnly `auth_token=<token>` — usado por el frontend SPA (navegador).
+  El backend acepta ambas simultaneamente. CSRF protection solo aplica a requests
+  autenticados via cookie (exige `X-Requested-With: XMLHttpRequest` + Origin en la
+  allowlist `app.allowed_origins_for_csrf` configurada via `APP_ALLOWED_ORIGINS_FOR_CSRF`
+  en `.env`). Ver `docs/AUTH_COOKIE_API.md` para el contrato completo y la guia de integracion.
+
 **Platform Admin** (SaaS Master, sin tenant): `POST /api/auth/platform-login` emite token con
 `tenant_id = null` para acceder a `/api/master/*`.
 

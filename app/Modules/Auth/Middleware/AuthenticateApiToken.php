@@ -109,10 +109,18 @@ public function handle(Request $request, Closure $next): Response
      *      cualquier ataque CSRF basado en form-submission fallara aqui.
      *      Requests AJAX de fetch/axios siempre lo setean (lo seteamos
      *      por defecto en el cliente HTTP).
-     *   2. Header `Origin` (o `Referer` como fallback) que coincida con
-     *      el origin configurado en `app.url`. Esto bloquea requests
-     *      cross-origin que SII podrian setear el header X-Requested-With
+     *   2. Header `Origin` (o `Referer` como fallback) que este en la lista
+     *      `app.allowed_origins_for_csrf` (config/app.php). Esto bloquea
+     *      requests cross-origin que SI podrian setear el header X-Requested-With
      *      via JavaScript (ej: si el atacante tiene un XSS en otro origen).
+     *
+     *      En produccion, esta lista deberia contener SOLO el origin publico
+     *      del SaaS (ej: "https://app.miinventariofacil.com"). En desarrollo
+     *      se incluyen los puertos comunes de Vite (5173) y otros.
+     *
+     *      Si `app.allowed_origins_for_csrf` esta vacio, se hace fallback a
+     *      `app.url` (single-origin check), lo cual es estricto pero seguro.
+     *      Configurar via .env: APP_ALLOWED_ORIGINS_FOR_CSRF="origin1,origin2".
      */
     private function assertCsrfProtection(Request $request): void
     {
@@ -123,12 +131,13 @@ public function handle(Request $request, Closure $next): Response
             ]);
         }
 
-        $expectedOrigin = $this->extractOriginFromAppUrl();
-        if ($expectedOrigin === null) {
-            // Si no podemos determinar el origin esperado, dejamos pasar.
-            // Esto ocurre solo en tests o setups extremos. En prod, app.url
-            // SIEMPRE esta definido.
-            return;
+        $allowedOrigins = $this->getAllowedOrigins();
+        if ($allowedOrigins === []) {
+            // Sin origins permitidos configurados = no podemos validar nada.
+            // Bloqueamos por seguridad (deberia estar configurado siempre).
+            abort(403, 'CSRF: no allowed origins configured.', [
+                'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
+            ]);
         }
 
         $actualOrigin = $request->header('Origin') ?? $request->header('Referer');
@@ -138,23 +147,48 @@ public function handle(Request $request, Closure $next): Response
             ]);
         }
 
-        // Comparamos solo el origin (scheme + host + port), no el path.
         $actualOriginNormalized = $this->extractOriginFromUrl((string) $actualOrigin);
-        if ($actualOriginNormalized !== $expectedOrigin) {
-            abort(403, 'CSRF: Origin mismatch.', [
+        if ($actualOriginNormalized === null) {
+            abort(403, 'CSRF: Origin malformed.', [
+                'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
+            ]);
+        }
+
+        if (! in_array($actualOriginNormalized, $allowedOrigins, true)) {
+            abort(403, 'CSRF: Origin not in allowlist.', [
                 'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
             ]);
         }
     }
 
-    private function extractOriginFromAppUrl(): ?string
+    /**
+     * Retorna la lista de origins permitidos para CSRF.
+     *
+     * Prioridad:
+     *   1. `app.allowed_origins_for_csrf` (CSV desde .env) si tiene valores.
+     *   2. `app.url` (fallback single-origin si la lista esta vacia).
+     *
+     * Cada entry se normaliza a "scheme://host[:port]" para comparacion exacta.
+     */
+    private function getAllowedOrigins(): array
     {
-        $appUrl = (string) config('app.url', '');
-        if ($appUrl === '') {
-            return null;
+        $raw = config('app.allowed_origins_for_csrf', []);
+        if (is_array($raw) && $raw !== []) {
+            $normalized = [];
+            foreach ($raw as $origin) {
+                $n = $this->extractOriginFromUrl((string) $origin);
+                if ($n !== null) {
+                    $normalized[] = $n;
+                }
+            }
+
+            return array_values(array_unique($normalized));
         }
 
-        return $this->extractOriginFromUrl($appUrl);
+        // Fallback a app.url (single-origin estricto).
+        $fallback = $this->extractOriginFromUrl((string) config('app.url', ''));
+
+        return $fallback !== null ? [$fallback] : [];
     }
 
     private function extractOriginFromUrl(string $url): ?string
