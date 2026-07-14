@@ -1,13 +1,26 @@
 /**
  * Hook de autenticacion que combina session store + endpoints.
  * Centraliza los flujos de login, logout, switchTenant y refresh de me().
+ *
+ * Diseno:
+ * - Usa selectores especificos del store para evitar re-renders innecesarios.
+ * - Lee valores actuales del store con useSessionStore.getState() en handlers
+ *    imperativos para evitar stale closures.
+ * - El refresh automatico al montar (post-refresh de pagina) lo hace
+ *    RequireAuth.tsx via useQuery. Este hook solo expone refreshSession
+ *    para que Topbar pueda recargar permisos manualmente.
  */
-import { useCallback, useEffect } from 'react';
-
-import { login as apiLogin, logout as apiLogout, me as apiMe, switchTenant as apiSwitchTenant } from '@/api/endpoints/auth';
-import { useSessionStore } from '@/stores/session';
+import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { LoginRequest } from '@/api/endpoints/auth';
+
+import {
+  login as apiLogin,
+  logout as apiLogout,
+  me as apiMe,
+  switchTenant as apiSwitchTenant,
+  type LoginRequest,
+} from '@/api/endpoints/auth';
+import { useSessionStore } from '@/stores/session';
 
 interface UseAuthResult {
   isAuthenticated: boolean;
@@ -24,16 +37,22 @@ interface UseAuthResult {
  * permissions/scopes via GET /api/auth/me.
  */
 export function useAuth(): UseAuthResult {
-  const session = useSessionStore();
+  const token = useSessionStore((s) => s.token);
+  const permissions = useSessionStore((s) => s.permissions);
   const queryClient = useQueryClient();
 
+  const isAuthenticated = Boolean(token);
+  const isReady = permissions.size > 0 || !token;
+
   const refreshSession = useCallback(async () => {
-    if (!session.token) return;
+    const current = useSessionStore.getState();
+    if (!current.token) return;
     try {
       const me = await apiMe();
-      if (!session.token) return;
-      session.setSession({
-        token: session.token,
+      const stillActive = useSessionStore.getState();
+      if (!stillActive.token) return;
+      stillActive.setSession({
+        token: stillActive.token,
         expiresAt: me.expires_at,
         user: me.user,
         tenant: me.tenant,
@@ -45,21 +64,21 @@ export function useAuth(): UseAuthResult {
     } catch {
       // Si falla (401), el interceptor ya limpia la sesion.
     }
-  }, [session]);
+  }, []);
 
   const signIn = useCallback(
     async (tenantSlug: string, payload: LoginRequest) => {
+      const current = useSessionStore.getState();
       // Seteamos el tenant ANTES de la request para que el interceptor
-      // pueda inyectar el header `X-Tenant` que el backend exige.
-      // Si el login falla, clearSession() limpia esto.
-      session.setTenant({
+      // pueda inyectar el header X-Tenant que el backend exige.
+      current.setTenant({
         id: 0,
         slug: tenantSlug,
         name: tenantSlug,
         is_active: true,
       });
       const data = await apiLogin(tenantSlug, payload);
-      session.setSession({
+      useSessionStore.getState().setSession({
         token: data.token,
         expiresAt: data.expires_at,
         user: data.user,
@@ -72,7 +91,7 @@ export function useAuth(): UseAuthResult {
       // Invalidamos todas las queries para forzar re-fetch con el nuevo tenant.
       queryClient.clear();
     },
-    [session, queryClient],
+    [queryClient],
   );
 
   const signOut = useCallback(async () => {
@@ -81,15 +100,15 @@ export function useAuth(): UseAuthResult {
     } catch {
       // Ignorar errores de logout (ya limpiamos la sesion local).
     } finally {
-      session.clearSession();
+      useSessionStore.getState().clearSession();
       queryClient.clear();
     }
-  }, [session, queryClient]);
+  }, [queryClient]);
 
   const switchTo = useCallback(
     async (slug: string) => {
       const data = await apiSwitchTenant(slug);
-      session.setSession({
+      useSessionStore.getState().setSession({
         token: data.token,
         expiresAt: data.expires_at,
         user: data.user,
@@ -101,22 +120,11 @@ export function useAuth(): UseAuthResult {
       });
       queryClient.clear();
     },
-    [session, queryClient],
+    [queryClient],
   );
 
-  // Si hay token persistido pero no hay permissions cargadas, refrescar.
-  // El useEffect depende de session.token para que se dispare cuando
-  // el signIn setea el token (en sesion nueva via login).
-  const isReady = session.permissions.size > 0 || !session.token;
-  useEffect(() => {
-    if (session.token && session.permissions.size === 0) {
-      void refreshSession();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.token]);
-
   return {
-    isAuthenticated: session.isAuthenticated(),
+    isAuthenticated,
     isReady,
     signIn,
     signOut,

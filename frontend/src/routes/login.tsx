@@ -4,7 +4,9 @@ import { LoginPage } from '@/auth/LoginPage';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
-    // Si ya hay sesion persistida, redirigir al dashboard.
+    // Si hay sesion persistida (token en localStorage), redirigir al dashboard.
+    // NO validamos contra el backend aca: si el token esta expirado, RequireAuth
+    // se encargara de limpiar la sesion al hacer /api/auth/me y redirigir de vuelta.
     try {
       const raw = localStorage.getItem('inventory_session');
       if (raw) {

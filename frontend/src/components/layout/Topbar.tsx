@@ -17,7 +17,9 @@ import { useSessionStore } from '@/stores/session';
 import { cn } from '@/lib/cn';
 
 export function Topbar() {
-  const { user, tenant, roles } = useSessionStore();
+  const user = useSessionStore((s) => s.user);
+  const tenant = useSessionStore((s) => s.tenant);
+  const roles = useSessionStore((s) => s.roles);
   const { signOut, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
@@ -117,7 +119,7 @@ interface TenantSwitcherProps {
 }
 
 function TenantSwitcher(_props: TenantSwitcherProps = {}) {
-  const { user } = useSessionStore();
+  const user = useSessionStore((s) => s.user);
   // Por simplicidad, el listado de tenants propios requiere un endpoint adicional.
   // En esta fase mostramos el tenant activo. En una fase posterior se agregara
   // un selector completo con busqueda via /api/auth/tenants.

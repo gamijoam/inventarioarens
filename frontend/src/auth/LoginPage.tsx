@@ -24,7 +24,6 @@ const DEBOUNCE_MS = 500;
 
 export function LoginPage() {
   const { signIn, isAuthenticated } = useAuth();
-  const session = useSessionStore();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -90,7 +89,7 @@ export function LoginPage() {
       await navigate({ to: '/dashboard' });
     } catch (err) {
       // Si el login falla por tenant, limpiamos el temporal.
-      session.clearSession();
+      useSessionStore.getState().clearSession();
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión.';
       setError(message);
     } finally {

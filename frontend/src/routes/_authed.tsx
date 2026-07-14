@@ -12,7 +12,10 @@ export const Route = createFileRoute('/_authed')({
 });
 
 function AuthedLayoutComponent() {
-  const { permissions, roles, scopeStatus, scopes } = useSessionStore();
+  const permissions = useSessionStore((s) => s.permissions);
+  const roles = useSessionStore((s) => s.roles);
+  const scopeStatus = useSessionStore((s) => s.scopeStatus);
+  const scopes = useSessionStore((s) => s.scopes);
   const permissionValue = buildPermissionValue(
     Array.from(permissions),
     roles,
