@@ -676,3 +676,64 @@ Documentación detallada en `docs/AUDIT_2026-07-11/`:
 **Regla de oro:** después de cada fix, actualizar el item correspondiente en `ROADMAP.md` cambiando
 `- [ ]` → `- [x] — FECHA — descripción corta`. Si el fix descubre un nuevo issue, agregarlo al final
 del documento de auditoría correspondiente.
+## Setup de sync (operador) [2026-07-14]
+
+### One-liner para emitir token de sync
+
+En el VPS, el comando \php artisan sync:ensure-and-token <tenant-slug>\ hace TODO:
+
+- Crea el tenant (si no existe).
+- Crea el user (default: \gabo@gabo.com\, is_platform_admin=true).
+- Vincula user <-> tenant (status=active).
+- Crea el SyncNode.
+- **Revoca** cualquier token valido anterior para esa combinacion (rotacion OAuth-style).
+- **Emite uno nuevo** (365 dias por default) y lo imprime en stdout como \TOKEN=xxxxx\.
+
+Ejemplos:
+
+\\\ash
+# En el VPS:
+php artisan sync:ensure-and-token mi-empresa
+php artisan sync:ensure-and-token grupo-prueba --user=admin@local --node-name=POS-01
+\\\
+
+### Wrapper local (Windows) - automatizacion
+
+El script \scripts/sync_token.py\ automatiza la obtencion del token sin tener que entrar al VPS a cada rato.
+
+Uso:
+
+\\\powershell
+cd C:\\Users\\gafit\\Documents\\INVENTARIOARENS
+python scripts/sync_token.py <tenant-slug>            # SSH + emit + update .env
+python scripts/sync_token.py <tenant-slug> --print    # solo imprime, no toca .env
+python scripts/sync_token.py <tenant-slug> --run      # emite + .env + ejecuta sync:run local
+python scripts/sync_token.py <tenant-slug> --user <email>     # user custom
+python scripts/sync_token.py <tenant-slug> --node-name <name> # node name custom
+\\\
+
+El wrapper:
+1. SSH al VPS (paramiko con password).
+2. Ejecuta \php artisan sync:ensure-and-token\ y parsea el \TOKEN=...\ del output.
+3. Actualiza \SYNC_CLOUD_URL\ y \SYNC_CLOUD_TOKEN\ en el \.env\ local.
+4. Opcionalmente corre \php artisan sync:run <slug>\ en el local.
+
+### Worker daemon en el VPS (configurado 2026-07-14)
+
+Systemd timer \inventarioarens-sync.timer\ activo, corre cada 15 segundos y
+llama a \php artisan sync:apply-all-inboxes --limit=200\. Procesa los inbox
+de TODOS los tenants activos.
+
+\\\ash
+ssh root@217.216.80.158 \"tail -f /var/log/inventarioarens-sync.log\"
+\\\
+
+## Limitacion arquitectural: token por tenant
+
+El sync actual **no soporta 1 token para multiples tenants** porque el middleware
+\	enant\ exige \	oken->tenant_id === tenant->id\. Esto es por seguridad:
+si un token de tenant A filtra, no puede usarse para escribir en tenant B.
+
+Para multi-tenant se necesitaria un token de plataforma (is_platform_admin)
+o refactor de las rutas de sync para saltar el middleware \	enant\. No
+recomendado para produccion.
