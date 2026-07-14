@@ -10,14 +10,21 @@ use Illuminate\Validation\Validator;
 class InventoryCenterBulkActionRequest extends FormRequest
 {
     public const ACTION_ACTIVATE = 'activate';
+
     public const ACTION_DEACTIVATE = 'deactivate';
+
     public const ACTION_ASSIGN_WARRANTY_POLICY = 'assign_warranty_policy';
+
     public const ACTION_ASSIGN_EXCHANGE_RATE_TYPE = 'assign_exchange_rate_type';
+
     public const ACTION_FILL_MISSING_PRICE_LIST = 'fill_missing_price_list';
+
     public const ACTION_UPDATE_PRICE_LIST = 'update_price_list';
 
     public const PRICE_STRATEGY_BASE_PRICE = 'base_price';
+
     public const PRICE_STRATEGY_FIXED_PRICE = 'fixed_price';
+
     public const PRICE_STRATEGY_PERCENT_OVER_BASE = 'percent_over_base';
 
     public function authorize(): bool

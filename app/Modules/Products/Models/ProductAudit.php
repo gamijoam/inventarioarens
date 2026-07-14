@@ -19,7 +19,9 @@ class ProductAudit extends Model
     use BelongsToTenant;
 
     public const ACTION_CREATED = 'created';
+
     public const ACTION_UPDATED = 'updated';
+
     public const ACTION_DEACTIVATED = 'deactivated';
 
     protected function casts(): array

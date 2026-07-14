@@ -9,15 +9,27 @@ use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'name',
+    'description',
+    'long_description',
     'sku',
+    'barcode',
+    'unit_of_measure',
+    'track_stock',
     'tracking_type',
+    'brand_id',
     'base_price',
     'sale_currency',
     'sale_exchange_rate_type_id',
+    'min_stock',
+    'max_stock',
+    'reorder_quantity',
+    'average_cost',
+    'image_url',
     'warranty_policy_id',
     'is_active',
 ])]
@@ -26,15 +38,37 @@ class Product extends Model
     use BelongsToTenant;
 
     public const TRACKING_QUANTITY = 'quantity';
+
     public const TRACKING_SERIALIZED = 'serialized';
 
     public const CURRENCY_USD = 'USD';
+
     public const CURRENCY_VES = 'VES';
+
+    public const UNIT_UNIT = 'unit';
+
+    public const UNIT_KG = 'kg';
+
+    public const UNIT_LT = 'lt';
+
+    public const UNIT_M = 'm';
+
+    public const ALLOWED_UNITS = [
+        self::UNIT_UNIT,
+        self::UNIT_KG,
+        self::UNIT_LT,
+        self::UNIT_M,
+    ];
 
     protected function casts(): array
     {
         return [
             'base_price' => 'decimal:4',
+            'min_stock' => 'decimal:4',
+            'max_stock' => 'decimal:4',
+            'reorder_quantity' => 'decimal:4',
+            'average_cost' => 'decimal:4',
+            'track_stock' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -54,6 +88,23 @@ class Product extends Model
         return $this->hasMany(ProductPrice::class);
     }
 
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'product_category')
+            ->withPivot('tenant_id');
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'product_tag')
+            ->withPivot('tenant_id');
+    }
+
     public function saleExchangeRateType(): BelongsTo
     {
         return $this->belongsTo(ExchangeRateType::class, 'sale_exchange_rate_type_id');
@@ -67,5 +118,15 @@ class Product extends Model
     public function requiresSerializedTracking(): bool
     {
         return $this->tracking_type === self::TRACKING_SERIALIZED;
+    }
+
+    public function hasMinStock(): bool
+    {
+        return $this->min_stock !== null;
+    }
+
+    public function hasMaxStock(): bool
+    {
+        return $this->max_stock !== null;
     }
 }

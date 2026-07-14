@@ -149,13 +149,41 @@ class InventoryCenterSummaryService
             'damaged_quantity' => $this->roundStock((float) DB::table('stock_balances')
                 ->where('tenant_id', $this->tenantManager->require()->id)
                 ->sum('quantity_damaged')),
-            'low_stock_count' => (clone $productStockQuery)
-                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= ?', [$threshold])
-                ->count('products.id'),
+            'low_stock_count' => $this->lowStockCount($productStockQuery, $threshold),
             'without_stock_count' => (clone $productStockQuery)
                 ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= 0')
                 ->count('products.id'),
+            'with_min_stock_count' => Product::query()
+                ->where('is_active', true)
+                ->whereNotNull('min_stock')
+                ->count(),
         ];
+    }
+
+    /**
+     * Cuenta productos con stock bajo. Para los que tienen min_stock propio
+     * usa ese umbral; para los demas usa el threshold global.
+     *
+     * Nota: incluye productos sin stock (available <= 0) cuando el threshold
+     * es mayor a cero, manteniendo compatibilidad con el comportamiento previo.
+     */
+    private function lowStockCount($productStockQuery, float $fallbackThreshold): int
+    {
+        $rows = (clone $productStockQuery)
+            ->selectRaw('COALESCE(stock_totals.quantity_available, 0) as quantity_available')
+            ->selectRaw('products.min_stock as min_stock_raw')
+            ->get();
+
+        $count = 0;
+        foreach ($rows as $row) {
+            $available = (float) $row->quantity_available;
+            $threshold = $row->min_stock_raw !== null ? (float) $row->min_stock_raw : $fallbackThreshold;
+            if ($threshold > 0 && $available <= $threshold) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     private function products(array $filters, float $threshold, int $limit, int $page): array
@@ -209,6 +237,8 @@ class InventoryCenterSummaryService
                 'products.base_price',
                 'products.sale_currency',
                 'products.is_active',
+                'products.min_stock',
+                'products.max_stock',
             ])
             ->selectRaw('COALESCE(stock_totals.quantity_available, 0) as quantity_available')
             ->selectRaw('COALESCE(stock_totals.quantity_reserved, 0) as quantity_reserved')
@@ -227,6 +257,7 @@ class InventoryCenterSummaryService
                 $query
                     ->whereRaw('LOWER(products.name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(products.barcode, \'\')) LIKE ?', [$like])
                     ->orWhereHas('units', function (Builder $unitQuery) use ($like): void {
                         $unitQuery->whereRaw('LOWER(product_units.serial_number) LIKE ?', [$like]);
                     });
@@ -238,10 +269,14 @@ class InventoryCenterSummaryService
         }
 
         match ($filters['stock_status'] ?? 'all') {
-            'available' => $query->whereRaw('COALESCE(stock_totals.quantity_available, 0) > ?', [$threshold]),
+            'available' => $query->where(function ($q) use ($threshold): void {
+                $q->whereRaw('COALESCE(stock_totals.quantity_available, 0) > COALESCE(products.min_stock, ?)', [$threshold]);
+            }),
             'low' => $query->whereRaw('COALESCE(stock_totals.quantity_available, 0) > 0')
-                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= ?', [$threshold]),
+                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= COALESCE(products.min_stock, ?)', [$threshold]),
             'out' => $query->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= 0'),
+            'overstock' => $query->whereNotNull('products.max_stock')
+                ->whereRaw('COALESCE(stock_totals.quantity_available, 0) > products.max_stock'),
             default => null,
         };
 
@@ -250,6 +285,10 @@ class InventoryCenterSummaryService
 
     private function productRow(Product $product, float $threshold): array
     {
+        $available = (float) $product->quantity_available;
+        $min = $product->min_stock !== null ? (float) $product->min_stock : null;
+        $max = $product->max_stock !== null ? (float) $product->max_stock : null;
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -258,13 +297,46 @@ class InventoryCenterSummaryService
             'base_price' => $product->base_price === null ? null : (float) $product->base_price,
             'sale_currency' => $product->sale_currency,
             'is_active' => (bool) $product->is_active,
+            'min_stock' => $min,
+            'max_stock' => $max,
             'stock' => [
-                'available' => $this->roundStock((float) $product->quantity_available),
+                'available' => $this->roundStock($available),
                 'reserved' => $this->roundStock((float) $product->quantity_reserved),
                 'damaged' => $this->roundStock((float) $product->quantity_damaged),
-                'status' => $this->stockStatus((float) $product->quantity_available, $threshold),
+                'status' => $this->stockStatus($available, $threshold, $min, $max),
+                'suggested_purchase' => $this->suggestedPurchase($available, $min, $max),
             ],
         ];
+    }
+
+    private function stockStatus(float $available, float $threshold, ?float $min, ?float $max): string
+    {
+        if ($available <= 0) {
+            return 'out';
+        }
+
+        if ($max !== null && $available > $max) {
+            return 'overstock';
+        }
+
+        $effectiveMin = $min ?? $threshold;
+        if ($available <= $effectiveMin) {
+            return $min !== null && $available <= $min / 2 ? 'critical' : 'low';
+        }
+
+        return 'available';
+    }
+
+    private function suggestedPurchase(float $available, ?float $min, ?float $max): ?float
+    {
+        if ($max !== null) {
+            return max(0, $max - $available);
+        }
+        if ($min !== null) {
+            return max(0, $min - $available);
+        }
+
+        return null;
     }
 
     private function alerts(float $threshold): array
@@ -454,15 +526,6 @@ class InventoryCenterSummaryService
             ->selectRaw('SUM(quantity_damaged) as quantity_damaged')
             ->where('tenant_id', $this->tenantManager->require()->id)
             ->groupBy('product_id');
-    }
-
-    private function stockStatus(float $available, float $threshold): string
-    {
-        if ($available <= 0) {
-            return 'out';
-        }
-
-        return $available <= $threshold ? 'low' : 'available';
     }
 
     private function roundStock(float $value): float

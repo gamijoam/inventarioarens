@@ -16,9 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryMovementService
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     public function purchase(
         Warehouse $warehouse,
@@ -120,8 +118,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId);
     }
 
@@ -133,8 +130,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
@@ -157,8 +153,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
@@ -181,8 +176,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
@@ -204,8 +198,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return $this->increaseAvailable(
             type: 'transfer_in',
             warehouse: $warehouse,
@@ -227,8 +220,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): StockMovement
-    {
+    ): StockMovement {
         return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
@@ -252,8 +244,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
-    ): array
-    {
+    ): array {
         return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): array {
             $this->validateOperation($fromWarehouse, $product, $quantity);
             $this->assertSameTenant($toWarehouse);
@@ -393,14 +384,14 @@ class InventoryMovementService
         $tenantId = app(TenantManager::class)->require()->id;
 
         if ((int) $model->tenant_id !== (int) $tenantId) {
-            throw new CrossTenantInventoryReferenceException();
+            throw new CrossTenantInventoryReferenceException;
         }
     }
 
     private function assertPositiveQuantity(float $quantity): void
     {
         if ($quantity <= 0) {
-            throw new InvalidStockQuantityException();
+            throw new InvalidStockQuantityException;
         }
     }
 

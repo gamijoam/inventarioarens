@@ -2,8 +2,8 @@
 
 namespace App\Modules\Products\Models;
 
-use App\Support\Tenancy\Concerns\BelongsToTenant;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;

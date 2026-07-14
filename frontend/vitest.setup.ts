@@ -47,3 +47,19 @@ if (typeof globalThis.sessionStorage === 'undefined') {
 }
 
 import '@testing-library/jest-dom/vitest';
+
+// Polyfill ResizeObserver (usado por Radix UI para posicionamiento de Popovers, Dialogs, etc).
+// jsdom no lo implementa, asi que lo definimos manualmente.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  // El polyfill de ResizeObserver no extiende la clase nativa (no tiene callback
+  // en el constructor), asi que necesitamos un type cast para asignarlo.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  globalThis.ResizeObserver = class ResizeObserver {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    observe() {}
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    unobserve() {}
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

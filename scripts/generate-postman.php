@@ -542,10 +542,10 @@ function exampleBodyFor(string $action, string $uri): array
             'name' => 'Mi Grupo Empresarial',
             'slug' => 'mi-grupo',
             'plan' => 'standard',
-            'owner' => [
+            'group_owner' => [
                 'name' => 'Owner del Grupo',
                 'email' => 'owner@grupo.test',
-                'password' => 'Secret123',
+                'password' => 'OwnerInicial2026!',
             ],
         ];
     }
@@ -554,6 +554,11 @@ function exampleBodyFor(string $action, string $uri): array
             'name' => 'Empresa Spinoff',
             'slug' => 'empresa-spinoff',
             'plan' => 'standard',
+            'admin' => [
+                'name' => 'Admin Del Spinoff',
+                'email' => 'admin@spinoff.test',
+                'password' => 'AdminSpinoff2026!',
+            ],
         ];
     }
     if (str_contains($action, 'MasterController') && $method === 'updategroup') {
@@ -597,26 +602,111 @@ function exampleBodyFor(string $action, string $uri): array
 function queryStringFor(string $uri): array
 {
     $query = [];
-    if (str_contains($uri, '{')) {
-        $uri = preg_replace('/\{[^}]+\}/', '1', $uri);
-    }
     if (str_contains($uri, 'stock/low')) {
         $query[] = ['key' => 'threshold', 'value' => '5', 'disabled' => false];
     }
     if (str_contains($uri, 'rates/current')) {
-        $query[] = ['key' => 'rate_type_code', 'value' => 'BCV', 'disabled' => false];
+        $query[] = ['key' => 'rate_type_code', 'value' => '{{rate_type_code}}', 'disabled' => false];
     }
     if (str_contains($uri, 'events/pull')) {
-        $query[] = ['key' => 'node_code', 'value' => 'LOCAL-PC-01', 'disabled' => false];
+        $query[] = ['key' => 'node_code', 'value' => '{{node_code}}', 'disabled' => false];
         $query[] = ['key' => 'limit', 'value' => '50', 'disabled' => false];
     }
     if (str_contains($uri, 'sync/status')) {
-        $query[] = ['key' => 'node_code', 'value' => 'LOCAL-PC-01', 'disabled' => false];
+        $query[] = ['key' => 'node_code', 'value' => '{{node_code}}', 'disabled' => false];
     }
     if (str_contains($uri, 'sync/local-readiness') && ! str_ends_with($uri, '/local-readiness')) {
-        $query[] = ['key' => 'installation_code', 'value' => 'LOCAL-PC-01', 'disabled' => false];
+        $query[] = ['key' => 'installation_code', 'value' => '{{installation_code}}', 'disabled' => false];
     }
     return $query;
+}
+
+function uriToPostmanPath(string $uri): array
+{
+    $segments = explode('/', substr($uri, 4));
+    $path = [];
+    $vars = [];
+    foreach ($segments as $i => $segment) {
+        if (preg_match('/\{([^}]+)\}/', $segment, $m)) {
+            $varName = Str::snake($m[1]);
+            if ($varName === 'accounts_payable') {
+                $varName = 'accounts_payable_id';
+            } elseif ($varName === 'accounts_receivable') {
+                $varName = 'accounts_receivable_id';
+            } elseif ($varName === 'cash_register') {
+                $varName = 'cash_register_id';
+            } elseif ($varName === 'cash_register_session') {
+                $varName = 'cash_register_session_id';
+            } elseif ($varName === 'price_list') {
+                $varName = 'price_list_id';
+            } elseif ($varName === 'payment_method') {
+                $varName = 'payment_method_id';
+            } elseif ($varName === 'customer_group') {
+                $varName = 'customer_group_id';
+            } elseif ($varName === 'inventory_transfer') {
+                $varName = 'inventory_transfer_id';
+            } elseif ($varName === 'warranty_policy') {
+                $varName = 'warranty_policy_id';
+            } elseif ($varName === 'warranty_claim') {
+                $varName = 'warranty_claim_id';
+            } elseif ($varName === 'purchase_order') {
+                $varName = 'purchase_order_id';
+            } elseif ($varName === 'pos_order') {
+                $varName = 'pos_order_id';
+            } elseif ($varName === 'tenant') {
+                $varName = 'tenant_id';
+            } elseif ($varName === 'user') {
+                $varName = 'user_id';
+            } elseif ($varName === 'role') {
+                $varName = 'role_id';
+            } elseif ($varName === 'branch') {
+                $varName = 'branch_id';
+            } elseif ($varName === 'warehouse') {
+                $varName = 'warehouse_id';
+            } elseif ($varName === 'customer') {
+                $varName = 'customer_id';
+            } elseif ($varName === 'supplier') {
+                $varName = 'supplier_id';
+            } elseif ($varName === 'product') {
+                $varName = 'product_id';
+            } elseif ($varName === 'sale') {
+                $varName = 'sale_id';
+            } elseif ($varName === 'group') {
+                $varName = 'group_id';
+            } elseif ($varName === 'admin') {
+                $varName = 'user_id';
+            } elseif ($varName === 'accountsPayable') {
+                $varName = 'accounts_payable_id';
+            } elseif ($varName === 'accountsReceivable') {
+                $varName = 'accounts_receivable_id';
+            } elseif ($varName === 'cashRegister') {
+                $varName = 'cash_register_id';
+            } elseif ($varName === 'cashRegisterSession') {
+                $varName = 'cash_register_session_id';
+            } elseif ($varName === 'priceList') {
+                $varName = 'price_list_id';
+            } elseif ($varName === 'paymentMethod') {
+                $varName = 'payment_method_id';
+            } elseif ($varName === 'customerGroup') {
+                $varName = 'customer_group_id';
+            } elseif ($varName === 'inventoryTransfer') {
+                $varName = 'inventory_transfer_id';
+            } elseif ($varName === 'warrantyPolicy') {
+                $varName = 'warranty_policy_id';
+            } elseif ($varName === 'warrantyClaim') {
+                $varName = 'warranty_claim_id';
+            } elseif ($varName === 'purchaseOrder') {
+                $varName = 'purchase_order_id';
+            } elseif ($varName === 'posOrder') {
+                $varName = 'pos_order_id';
+            }
+            $vars[] = ['key' => $varName, 'value' => '{{' . $varName . '}}'];
+            $path[] = ':' . $varName;
+        } else {
+            $path[] = $segment;
+        }
+    }
+    return ['path' => $path, 'vars' => $vars];
 }
 
 function headersFor(array $middleware, string $uri): array
@@ -670,21 +760,30 @@ foreach ($grouped as $modKey => $routes) {
                 $body = ['mode' => 'raw', 'raw' => '{}', 'options' => ['raw' => ['language' => 'json']]];
             }
 
+            $pathInfo = uriToPostmanPath($uriClean);
+            $rawPath = '{{base_url}}/' . implode('/', $pathInfo['path']);
+            $rawQuery = queryStringFor($uriClean);
+            $raw = $rawPath . (! empty($rawQuery) ? '?' . http_build_query(array_column($rawQuery, 'value', 'key')) : '');
+
             $item = [
                 'name' => str_pad($method, 6) . ' /' . substr($uriClean, 4),
                 'request' => [
                     'method' => $method,
                     'header' => headersFor($r['middleware'], $uriClean),
                     'url' => [
-                        'raw' => '{{base_url}}/' . substr($uriClean, 4) . (queryStringFor($uriClean) ? '?' . http_build_query(array_column(queryStringFor($uriClean), 'value', 'key')) : ''),
+                        'raw' => $raw,
                         'host' => ['{{base_url}}'],
-                        'path' => explode('/', substr($uriClean, 4)),
+                        'path' => $pathInfo['path'],
                     ],
                 ],
             ];
 
-            if (queryStringFor($uriClean)) {
-                $item['request']['url']['query'] = queryStringFor($uriClean);
+            if (! empty($pathInfo['vars'])) {
+                $item['request']['url']['variable'] = $pathInfo['vars'];
+            }
+
+            if (! empty($rawQuery)) {
+                $item['request']['url']['query'] = $rawQuery;
             }
 
             if ($body !== null) {

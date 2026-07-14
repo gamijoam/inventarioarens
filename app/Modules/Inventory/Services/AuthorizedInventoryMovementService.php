@@ -11,9 +11,7 @@ use Illuminate\Support\Facades\Gate;
 
 class AuthorizedInventoryMovementService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
-    {
-    }
+    public function __construct(private readonly InventoryMovementService $inventory) {}
 
     /**
      * @throws AuthorizationException

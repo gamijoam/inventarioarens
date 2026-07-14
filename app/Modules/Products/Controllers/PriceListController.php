@@ -7,6 +7,7 @@ use App\Modules\Products\Requests\StorePriceListRequest;
 use App\Modules\Products\Requests\UpdatePriceListRequest;
 use App\Modules\Products\Resources\PriceListResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -106,7 +107,7 @@ class PriceListController extends Controller
     {
         return collect($paymentMethodIds)
             ->unique()
-            ->mapWithKeys(fn (int $id): array => [$id => ['tenant_id' => app(\App\Support\Tenancy\TenantManager::class)->require()->id]])
+            ->mapWithKeys(fn (int $id): array => [$id => ['tenant_id' => app(TenantManager::class)->require()->id]])
             ->all();
     }
 }

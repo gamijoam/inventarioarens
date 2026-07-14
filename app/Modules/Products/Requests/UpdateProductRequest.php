@@ -16,6 +16,9 @@ class UpdateProductRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'long_description' => ['sometimes', 'nullable', 'string', 'max:50000'],
+
             'sku' => [
                 'sometimes',
                 'required',
@@ -25,13 +28,44 @@ class UpdateProductRequest extends FormRequest
                     ->where('tenant_id', $tenantId)
                     ->ignore($product?->id),
             ],
+            'barcode' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('products', 'barcode')
+                    ->where('tenant_id', $tenantId)
+                    ->ignore($product?->id)
+                    ->whereNotNull('barcode'),
+            ],
+            'image_url' => ['sometimes', 'nullable', 'url', 'max:500'],
+
+            'unit_of_measure' => [
+                'sometimes',
+                'string',
+                Rule::in(Product::ALLOWED_UNITS),
+            ],
+            'track_stock' => ['sometimes', 'boolean'],
             'tracking_type' => [
                 'sometimes',
                 'required',
                 'string',
                 Rule::in([Product::TRACKING_QUANTITY, Product::TRACKING_SERIALIZED]),
             ],
+
+            'brand_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('brands', 'id')->where('tenant_id', $tenantId),
+            ],
+
             'base_price' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'min_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'max_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'reorder_quantity' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'average_cost' => ['prohibited'],
+
             'sale_currency' => [
                 'sometimes',
                 'required',
@@ -64,19 +98,17 @@ class UpdateProductRequest extends FormRequest
     {
         return [
             'name.required' => 'El nombre del producto es obligatorio.',
-            'name.max' => 'El nombre del producto no puede superar 255 caracteres.',
             'sku.required' => 'El SKU del producto es obligatorio.',
             'sku.unique' => 'Ya existe un producto con este SKU en la empresa actual.',
-            'sku.max' => 'El SKU no puede superar 255 caracteres.',
-            'tracking_type.required' => 'El tipo de control es obligatorio.',
+            'barcode.unique' => 'Ya existe un producto con este codigo de barras en la empresa actual.',
             'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',
-            'base_price.numeric' => 'El precio base debe ser numérico.',
+            'unit_of_measure.in' => 'La unidad de medida debe ser unit, kg, lt o m.',
             'base_price.gte' => 'El precio base no puede ser negativo.',
-            'sale_currency.required' => 'La moneda de venta es obligatoria.',
+            'min_stock.gte' => 'El stock minimo no puede ser negativo.',
+            'max_stock.gte' => 'El stock maximo no puede ser negativo.',
+            'average_cost.prohibited' => 'El costo promedio se calcula automaticamente, no se puede asignar manualmente.',
+            'brand_id.exists' => 'La marca seleccionada no pertenece a la empresa actual.',
             'sale_currency.in' => 'La moneda de venta debe ser USD o VES.',
-            'sale_currency.size' => 'La moneda de venta debe tener 3 caracteres.',
-            'sale_exchange_rate_type_id.exists' => 'El tipo de tasa seleccionado no pertenece a la empresa actual.',
-            'warranty_policy_id.exists' => 'La política de garantía seleccionada no pertenece a la empresa actual.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
         ];
     }

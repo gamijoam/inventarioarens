@@ -2,17 +2,20 @@
 
 namespace App\Modules\InventoryCenter\Controllers;
 
-use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
+use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductSerialsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
+use App\Modules\InventoryCenter\Requests\ReorderSuggestionsRequest;
+use App\Modules\InventoryCenter\Services\InventoryAlertService;
 use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
 use App\Modules\InventoryCenter\Services\InventoryCenterMovementService;
 use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\Products\Models\Product;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
@@ -101,6 +104,31 @@ class InventoryCenterController extends Controller
 
         return response()->json([
             'data' => $service->stockByWarehousePage($product),
+        ]);
+    }
+
+    public function productStockStatus(Product $product, InventoryAlertService $alerts): JsonResponse
+    {
+        Gate::authorize('view', $product);
+
+        return response()->json([
+            'data' => $alerts->stockStatus($product),
+        ]);
+    }
+
+    public function reorderSuggestions(ReorderSuggestionsRequest $request, InventoryAlertService $alerts): JsonResponse
+    {
+        return response()->json([
+            'data' => $alerts->reorderSuggestions($request->validated()),
+        ]);
+    }
+
+    public function alertsSummary(Request $request, InventoryAlertService $alerts): JsonResponse
+    {
+        $threshold = (float) $request->input('fallback_threshold', 3);
+
+        return response()->json([
+            'data' => $alerts->summary($threshold),
         ]);
     }
 }
