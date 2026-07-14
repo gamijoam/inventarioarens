@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ProductForm: formulario completo de producto (create + edit).
  * Renderiza todos los campos del backend (ver docs/INVENTORY_CATALOG_API.md).
  * Usa react-hook-form + zodResolver via useProductForm().
@@ -66,7 +66,7 @@ export function ProductForm({
   // Convertir brand/warranty/rate a options.
   const brandOptions = useMemo(
     () => [
-      { value: '', label: '— Sin marca —' },
+      { value: '', label: 'ÔÇö Sin marca ÔÇö' },
       ...brands.map((b) => ({ value: String(b.id), label: b.name })),
     ],
     [brands],
@@ -74,7 +74,7 @@ export function ProductForm({
 
   const warrantyOptions = useMemo(
     () => [
-      { value: '', label: '— Sin garantía —' },
+      { value: '', label: 'ÔÇö Sin garant├¡a ÔÇö' },
       ...warrantyPolicies.map((w) => ({ value: String(w.id), label: w.name })),
     ],
     [warrantyPolicies],
@@ -82,13 +82,13 @@ export function ProductForm({
 
   const rateTypeOptions = useMemo(
     () => [
-      { value: '', label: '— Heredar del sistema —' },
+      { value: '', label: 'ÔÇö Heredar del sistema ÔÇö' },
       ...rateTypes.map((r) => ({ value: String(r.id), label: `${r.code} (${r.name})` })),
     ],
     [rateTypes],
   );
 
-  // Tags son dinámicos; el form mantiene un array de IDs pero necesitamos los
+  // Tags son din├ímicos; el form mantiene un array de IDs pero necesitamos los
   // options disponibles (que vienen del padre via prop).
   const tagSelectOptions = tagOptions;
 
