@@ -23,7 +23,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { deleteOne, getMany, getOne, patchOne, postOne } from '@/api/client';
+import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import {
   AlertsSummarySchema,
   BrandSchema,
@@ -102,9 +102,11 @@ export function useProducts(filters: InventoryFilters) {
     queryKey: productKeys.list(filters as Record<string, unknown>),
     queryFn: async () => {
       const query = toQueryString(filters);
-      const response = await getMany<unknown>(`/products${query ? `?${query}` : ''}`);
-      // Validar shape con Zod en runtime.
-      return PaginatedProductsSchema.parse({ data: response });
+      // El backend pagina con LengthAwarePaginator, asi que retorna
+      // { data: [...], meta: {...}, links: {...} }. Usamos getPaginated
+      // para preservar el shape completo antes de validar con Zod.
+      const response = await getPaginated<unknown>(`/products${query ? `?${query}` : ''}`);
+      return PaginatedProductsSchema.parse(response);
     },
     placeholderData: (prev) => prev,
     staleTime: 0,

@@ -1,21 +1,3 @@
-import { type ReactNode, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from '@tanstack/react-router';
-
-import { Spinner } from '@/components/ui/Spinner';
-import { useSessionStore } from '@/stores/session';
-import { me as apiMe } from '@/api/endpoints/auth';
-
-// Activar debug logs con: localStorage.setItem('auth_debug', '1') y refrescar.
-const DEBUG = typeof window !== 'undefined' && localStorage.getItem('auth_debug') === '1';
-const log = (...args: unknown[]) => {
-  if (DEBUG) console.warn('[AUTH]', ...args);
-};
-
-interface RequireAuthProps {
-  children: ReactNode;
-}
-
 /**
  * Guard: protege las rutas autenticadas.
  *
@@ -36,7 +18,29 @@ interface RequireAuthProps {
  *    que no se duplica el fetch.
  * - El retry queda en false para que un token expirado se limpie rapido
  *    sin esperar 3 reintentos.
+ *
+ * Bypass de dev: este componente NO maneja el bypass; lo hace el layout
+ * _authed.tsx, que muestra children directamente sin pasar por aca cuando
+ * isAuthDisabled() es true.
  */
+import { type ReactNode, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from '@tanstack/react-router';
+
+import { Spinner } from '@/components/ui/Spinner';
+import { useSessionStore } from '@/stores/session';
+import { me as apiMe } from '@/api/endpoints/auth';
+
+// Activar debug logs con: localStorage.setItem('auth_debug', '1') y refrescar.
+const DEBUG = typeof window !== 'undefined' && localStorage.getItem('auth_debug') === '1';
+const log = (...args: unknown[]) => {
+  if (DEBUG) console.warn('[AUTH]', ...args);
+};
+
+interface RequireAuthProps {
+  children: ReactNode;
+}
+
 export function RequireAuth({ children }: RequireAuthProps) {
   const router = useRouter();
   const token = useSessionStore((s) => s.token);
@@ -70,8 +74,6 @@ export function RequireAuth({ children }: RequireAuthProps) {
         expiresAt: me.expires_at ?? null,
         user: me.user,
         tenant: me.tenant,
-        // El backend retorna roles como strings (slugs) o como objetos Role
-        // dependiendo del endpoint. Normalizamos a string[] siempre.
         roles: Array.isArray(me.roles)
           ? me.roles.map((r: unknown) =>
               typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
