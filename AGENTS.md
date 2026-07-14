@@ -100,6 +100,10 @@ INVENTARIOARENS/
 - ❌ `tests/e2e/`, `playwright.config.js` — único spec del portal admin.
 - ❌ `package.json`, `pnpm-lock.yaml`, `vite.config.js`, `.npmrc`, `node_modules/`, `.pnpm-store/`, `public/build/` — bundler Vite + Playwright.
 
+**Carpetas/tablas agregadas el 2026-07-14** (Fase 1 inventario):
+- ✅ `brands`, `categories`, `tags`, `product_tag`, `product_category` (5 tablas nuevas para catalog).
+- ✅ Columnas nuevas en `products`: `barcode`, `description`, `long_description`, `unit_of_measure`, `track_stock`, `brand_id`, `min_stock`, `max_stock`, `reorder_quantity`, `average_cost`, `image_url`.
+
 ---
 
 ## 4. Multi-tenancy — Cómo funciona
@@ -225,24 +229,110 @@ ModuleName/
   `pos.checkout`, `cash_register.open`).
 - Cada policy/método importante valida con `Gate::authorize` o `$request->user()->can(...)`.
 
-### 8.5 Bootstrap inicial del SaaS
+### 8.5 Catalogo de inventario (Fase 1)
 
-`POST /api/bootstrap` es el **único endpoint público** del sistema. Sirve para arrancar el SaaS desde
-una base de datos completamente vacía sin necesidad de SSH al servidor para correr seeders.
+Tablas `brands`, `categories` (con `parent_id` jerarquico), `tags` + pivots `product_tag` y
+`product_category`. Modelo `Product` extendido con:
 
-- **Habilitado solo si** `APP_BOOTSTRAP_TOKEN` está definido en `.env` del backend.
-- **Throttle**: `throttle:bootstrap` (3 req/hora por IP).
-- **Falla con 422** si la BD ya tiene cualquier `User` o `Tenant`.
-- Compara el token con `hash_equals()` y permite pasarlo en el body (`bootstrap_token`) o en el header
-  `X-Bootstrap-Token`.
-- Loguea intentos exitosos (`bootstrap.completed`) y rechazados (`bootstrap.rejected`) en `audit_logs`.
-- Después del primer uso exitoso se desactiva vaciando la variable de entorno.
+- `barcode` UNIQUE por tenant (lector de codigo de barras).
+- `description` (corto) y `long_description` (HTML, max 50000).
+- `unit_of_measure` ∈ `unit/kg/lt/m`.
+- `track_stock` boolean (default true).
+- `brand_id` FK nullable a `brands`.
+- `min_stock`, `max_stock`, `reorder_quantity` decimales nullable — base del sistema de alertas.
+- `average_cost` WAC recalculado por `InventoryValuationService` (no se puede asignar manualmente).
+- `image_url` URL opcional.
 
-Crea el primer **Platform Admin** (`is_platform_admin=true`) y, opcionalmente, también un tenant inicial
-con el admin asignado como `Administrador` con los 101 permisos.
+Endpoints (24 nuevos):
 
-**Tests**: `tests/Feature/Bootstrap/BootstrapApiTest.php` (17 tests, 81 aserciones).
-**Docs**: `docs/BOOTSTRAP_API.md`.
+```
+GET    /api/brands                         CRUD marcas
+POST   /api/brands
+GET    /api/brands/{brand}
+PATCH  /api/brands/{brand}
+DELETE /api/brands/{brand}
+
+GET    /api/categories                     CRUD categorias (con tree jerarquico)
+GET    /api/categories/tree                arbol con children[]
+POST   /api/categories
+GET    /api/categories/{category}
+PATCH  /api/categories/{category}
+DELETE /api/categories/{category}
+
+GET    /api/tags                           CRUD tags (con color #RRGGBB)
+POST   /api/tags
+GET    /api/tags/{tag}
+PATCH  /api/tags/{tag}
+DELETE /api/tags/{tag}
+
+PATCH  /api/products/{product}/categories  reemplaza categorias (syncWithPivotValues)
+PATCH  /api/products/{product}/tags       reemplaza tags
+
+GET    /api/products?brand_id=&category_id=&tag_id=&search=&tracking_type=
+                                              filtros server-side nuevos
+
+GET    /api/inventory-center/products/{id}/stock-status
+GET    /api/inventory-center/reorder-suggestions
+GET    /api/inventory-center/alerts-summary
+```
+
+**WAC**: `InventoryValuationService::recalculate(Product)` actualiza `products.average_cost`
+desde los `stock_movements` con `unit_cost`. Considera: purchase, purchase_return,
+adjustment_in/out, transfer_in/out, return_in/out.
+
+**Alertas**: `InventoryAlertService` calcula status por producto:
+- `out` (available <= 0), `critical` (available <= min/2), `low` (available <= min),
+  `available`, `overstock` (available > max).
+
+**Tests**: `tests/Feature/Products/{Brand,Category,Tag,ProductCatalog}ApiTest.php` (40 tests) +
+`tests/Feature/Inventory/InventoryValuationTest.php` (3 tests) +
+`tests/Feature/InventoryCenter/InventoryAlertsTest.php` (7 tests).
+
+**Docs**: `docs/INVENTORY_CATALOG_API.md` y `docs/INVENTORY_ALERTS_API.md`.
+
+### 8.5.1 Inventario fisico y alertas (Fase 3)
+
+Tablas `warehouse_locations` (jerarquica), `stock_counts` + `stock_count_items` (cycle count),
+`alert_history` (historial de alertas). `stock_balances.location_id` FK nullable con UNIQUE
+parcial (con/sin location).
+
+Endpoints (14 nuevos):
+
+```
+GET    /api/warehouses/{warehouse}/locations
+POST   /api/warehouses/{warehouse}/locations
+GET    /api/warehouses/{warehouse}/locations/{location}
+PATCH  /api/warehouses/{warehouse}/locations/{location}
+DELETE /api/warehouses/{warehouse}/locations/{location}
+
+GET    /api/stock-counts                    lista con filtros
+POST   /api/stock-counts                    crea (status=draft)
+GET    /api/stock-counts/{count}
+PATCH  /api/stock-counts/{count}
+DELETE /api/stock-counts/{count}            cancela
+POST   /api/stock-counts/{count}/snapshot   copia stock a items
+POST   /api/stock-counts/{count}/start      draft -> capturing
+POST   /api/stock-counts/{count}/capture    bulk captura
+POST   /api/stock-counts/{count}/complete   genera adjustments + status=completed
+
+GET    /api/alert-history                   lista con filtros
+GET    /api/alert-history/{alert}
+POST   /api/alert-history/{alert}/dismiss
+```
+
+**Cycle count**: `StockCountService` maneja todo el flujo. Al completar genera automaticamente
+`StockMovement` de tipo `adjustment_in` o `adjustment_out` por la diferencia entre
+`system_quantity` y `counted_quantity`, con `reference_type='stock_count'` para trazabilidad.
+
+**Alert history**: `AlertHistoryService::snapshotAlerts($tenantId)` escanea productos activos
+con stock bajo/sin stock y crea registros. Deduplicacion automatica: misma (alert_type,
+subject_type, subject_id) en 24h no se duplica.
+
+**Tests**: `tests/Feature/Warehouses/WarehouseLocationApiTest.php` (5 tests) +
+`tests/Feature/Inventory/StockCountApiTest.php` (6 tests) +
+`tests/Feature/Inventory/AlertHistoryServiceTest.php` (4 tests).
+
+**Docs**: `docs/INVENTORY_PHASE3.md`.
 
 ### 8.6 Dinero
 - **Doble cuenta** en cada movimiento monetario: `*_base_amount` (USD) + `*_local_amount` (VES).
@@ -545,7 +635,7 @@ Si pasa algo que afecte decisiones futuras (nueva convención, nuevo VPS, nueva 
 6. Contexto del VPS/proyecto → actualizar §1, §2 y `.harness/docs/INVENTARIOARENS_PROJECT_FACTS.md`.
 7. Si se introduce un nuevo frontend → crear nueva sección §X con su stack, estructura y reglas,
    y actualizar §3.
-8. **Frontend en construcción desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
+8. **Frontend en construcci [FASE 0, 1 y 2A COMPLETADAS al 2026-07-14]ón desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
    ☐ → 🔄 → ✅ al avanzar, y `docs/IMPLEMENTATION_LOG.md` con cada entrega.
 
 ---
