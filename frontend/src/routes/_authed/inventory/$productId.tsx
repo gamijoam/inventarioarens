@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, createFileRoute } from '@tanstack/react-router';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -22,6 +22,7 @@ import { cn } from '@/lib/cn';
 
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
+import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import { getMany } from '@/api/client';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -37,6 +38,7 @@ function ProductDetailPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Hooks (siempre antes de cualquier return condicional).
   const { data: product, isLoading, isError } = useProduct(id);
@@ -104,16 +106,28 @@ function ProductDetailPage() {
         </Link>
       }
       actions={
-        <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-          <Button
-            variant="outline"
-            leftIcon={<Edit className="size-4" />}
-            onClick={() => setEditOpen(true)}
-            data-testid="edit-product"
-          >
-            Editar
-          </Button>
-        </Can>
+        <div className="flex items-center gap-2">
+          <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
+            <Button
+              variant="outline"
+              leftIcon={<Edit className="size-4" />}
+              onClick={() => setEditOpen(true)}
+              data-testid="edit-product"
+            >
+              Editar
+            </Button>
+          </Can>
+          <Can I={PERMISSIONS.PRODUCTS_DELETE}>
+            <Button
+              variant="danger"
+              leftIcon={<Trash2 className="size-4" />}
+              onClick={() => setDeleteOpen(true)}
+              data-testid="delete-product"
+            >
+              Eliminar
+            </Button>
+          </Can>
+        </div>
       }
     >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -188,6 +202,15 @@ function ProductDetailPage() {
           product={product}
           open={editOpen}
           onOpenChange={setEditOpen}
+        />
+      )}
+
+      {product && (
+        <DeleteProductDialog
+          productId={product.id}
+          productName={product.name}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
         />
       )}
     </PageLayout>
