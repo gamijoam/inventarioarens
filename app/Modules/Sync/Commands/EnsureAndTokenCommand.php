@@ -120,20 +120,37 @@ class EnsureAndTokenCommand extends Command
             $this->line("[OK] SyncNode existente: {$node->code} (id={$node->id})");
         }
 
-        // 5. Emitir token.
-        $session = app(SyncTokenService::class)->issue(
-            tenant: $tenant,
-            user: $user,
-            name: $nodeName,
-            days: $days,
-            ipAddress: 'cli',
-            userAgent: 'sync:ensure-and-token',
-        );
+        // 5. Reusar token valido existente si hay (idempotente).
+        // Un token es valido si: no revocado + no expirado + pertenece a este user+tenant.
+        $existing = AuthToken::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('user_id', $user->id)
+            ->where('name', $nodeName)
+            ->whereNull('revoked_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            $this->info("[REUSE] Token existente (id={$existing->id}, vence {$existing->expires_at})");
+            $session = ['token' => $existing->token];
+        } else {
+            // 5b. Emitir token nuevo.
+            $session = app(SyncTokenService::class)->issue(
+                tenant: $tenant,
+                user: $user,
+                name: $nodeName,
+                days: $days,
+                ipAddress: 'cli',
+                userAgent: 'sync:ensure-and-token',
+            );
+            $this->info("[NEW] Token emitido (vence en {$days} dias)");
+        }
 
         // 6. Output estructurado.
         $this->newLine();
         $this->line('========================================================');
-        $this->line('SYNC TOKEN emitido para tenant "' . $tenant->slug . '"');
+        $this->line('SYNC TOKEN para tenant "' . $tenant->slug . '"');
         $this->line('========================================================');
         $this->line('  Tenant ID:    ' . $tenant->id);
         $this->line('  Tenant slug:  ' . $tenant->slug);
@@ -141,7 +158,6 @@ class EnsureAndTokenCommand extends Command
         $this->line('  User email:   ' . $user->email);
         $this->line('  Node ID:      ' . $node->id);
         $this->line('  Node code:    ' . $node->code);
-        $this->line('  Vence:        ' . $days . ' dias');
         $this->newLine();
         $this->line('  TOKEN=' . $session['token']);
         $this->newLine();
