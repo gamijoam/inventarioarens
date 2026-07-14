@@ -3,7 +3,7 @@
  * Solo UI; la logica de mutaciones viene de los hooks en api.ts.
  */
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
@@ -210,19 +210,18 @@ function BrandFormDialog({
           <Field label="Descripcion" error={form.formState.errors.description?.message}>
             <Textarea {...form.register('description')} rows={2} />
           </Field>
-          <Controller
-            name="is_active"
-            render={({ field }: { field: { value: unknown; onChange: (v: boolean) => void } }) => (
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="brand-active"
-                  checked={Boolean(field.value)}
-                  onCheckedChange={field.onChange}
-                />
-                <Label htmlFor="brand-active">Marca activa</Label>
-              </div>
-            )}
-          />
+          {/* Usamos watch + setValue en vez de <Controller> de RHF.
+              El Controller dispara un bug "Cannot read properties of null
+              (reading '_names')" en React 18 Strict Mode cuando el dialog
+              se desmonta (al cerrarse). Ver docs/INVENTORY_MODULE_DEFERRED.md. */}
+          <div className="flex items-center gap-2">
+            <Switch
+              id="brand-active"
+              checked={Boolean(form.watch('is_active'))}
+              onCheckedChange={(v) => form.setValue('is_active', v)}
+            />
+            <Label htmlFor="brand-active">Marca activa</Label>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancelar
