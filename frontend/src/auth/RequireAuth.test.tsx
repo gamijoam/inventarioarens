@@ -62,14 +62,19 @@ beforeEach(() => {
 });
 
 describe('<RequireAuth>', () => {
-  it('muestra spinner inicial si no hay sesion', () => {
+  it('muestra spinner inicial si no hay sesion', async () => {
     render(
       <RequireAuth>
         <div>contenido protegido</div>
       </RequireAuth>,
       { wrapper: makeWrapper() },
     );
+    // Antes de que el effect de no-token dispare la navegacion, muestra spinner.
     expect(screen.queryByText('contenido protegido')).not.toBeInTheDocument();
+    // El effect termina navegando a /login.
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
+    });
   });
 
   it('renderiza children directamente si ya hay token + permissions cargadas', () => {
@@ -147,5 +152,22 @@ describe('<RequireAuth>', () => {
     });
 
     expect(useSessionStore.getState().token).toBeNull();
+  });
+
+  it('redirige a /login cuando no hay token (caso: usuario borro localStorage)', async () => {
+    // El store arranca sin token (initial state). Renderizamos RequireAuth
+    // y esperamos que el effect de "no-token" navegue a /login.
+    render(
+      <RequireAuth>
+        <div>contenido protegido</div>
+      </RequireAuth>,
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
+    });
+
+    expect(apiMeMock).not.toHaveBeenCalled();
   });
 });
