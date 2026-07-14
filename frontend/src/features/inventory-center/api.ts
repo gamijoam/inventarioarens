@@ -107,6 +107,8 @@ export function useProducts(filters: InventoryFilters) {
       return PaginatedProductsSchema.parse({ data: response });
     },
     placeholderData: (prev) => prev,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
