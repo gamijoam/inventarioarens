@@ -363,6 +363,20 @@ const ProductTagRefSchema = z.object({
   color: z.string().nullable().optional(),
 });
 
+/**
+ * Schema del producto en respuesta del backend.
+ *
+ * IMPORTANTE: los campos decimales (base_price, min_stock, max_stock,
+ * reorder_quantity, suggested_purchase, average_cost) son retornados
+ * por el backend como NUMEROS (float). Anteriormente estaban tipados como
+ * string en este schema, lo que causaba que Zod fallara la validacion y
+ * la query de useProducts quedara en estado de error -> inventario vacio.
+ *
+ * Tambien eran .int() para stock levels, pero el backend devuelve floats.
+ *
+ * Para robustez: aceptamos z.number() | z.string() (unido) y los normalizamos
+ * a number via z.coerce.number() cuando aplique.
+ */
 export const ProductSchema = z.object({
   id: z.number().int().positive(),
   tenant_id: z.number().int().positive(),
@@ -379,18 +393,21 @@ export const ProductSchema = z.object({
   brand: ProductBrandRefSchema.nullable().optional(),
   categories: z.array(ProductCategoryRefSchema).optional(),
   tags: z.array(ProductTagRefSchema).optional(),
-  base_price: z.string().nullable().optional(),
+  // Decimales: el backend castea a (float). Aceptamos number | string
+  // para tolerancia (algunos endpoints legacy pueden enviar string).
+  base_price: z.union([z.number(), z.string()]).nullable().optional(),
   sale_currency: z.enum(SALE_CURRENCIES).nullable().optional(),
   sale_exchange_rate_type_id: z.number().int().nullable().optional(),
   sale_exchange_rate_type: z
     .object({ id: z.number(), code: z.string(), name: z.string(), is_default: z.boolean(), is_active: z.boolean() })
     .nullable()
     .optional(),
-  min_stock: z.number().int().nullable().optional(),
-  max_stock: z.number().int().nullable().optional(),
-  reorder_quantity: z.number().int().nullable().optional(),
-  suggested_purchase: z.number().nullable().optional(),
-  average_cost: z.string().nullable().optional(),
+  // Stock levels: number | string (toleramos ambos), null permitido.
+  min_stock: z.union([z.number(), z.string()]).nullable().optional(),
+  max_stock: z.union([z.number(), z.string()]).nullable().optional(),
+  reorder_quantity: z.union([z.number(), z.string()]).nullable().optional(),
+  suggested_purchase: z.union([z.number(), z.string()]).nullable().optional(),
+  average_cost: z.union([z.number(), z.string()]).nullable().optional(),
   average_cost_visible: z.boolean().optional(),
   warranty_policy_id: z.number().int().nullable().optional(),
   warranty_policy: z
@@ -398,7 +415,7 @@ export const ProductSchema = z.object({
     .nullable()
     .optional(),
   can_change_tracking_type: z.boolean().optional(),
-  units_count: z.number().int().optional(),
+  units_count: z.union([z.number(), z.string()]).optional(),
   is_active: z.boolean(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),

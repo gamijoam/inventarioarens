@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { StoreProductSchema, BulkActionSchema } from './schemas';
+import {
+  ProductSchema,
+  PaginatedProductsSchema,
+  StoreProductSchema,
+  BulkActionSchema,
+} from './schemas';
 
 describe('StoreProductSchema', () => {
   const valid = {
@@ -98,5 +103,104 @@ describe('BulkActionSchema', () => {
       action: 'activate',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('ProductSchema (response del backend)', () => {
+  // Caso real: backend retorna base_price/min_stock/etc como numero (float).
+  // Anteriormente ProductSchema esperaba string para base_price y .int() para
+  // stock levels, lo que causaba que la validacion Zod fallara y useProducts
+  // quedara en error state -> inventario aparecia vacio.
+  const backendSample = {
+    id: 5,
+    tenant_id: 1,
+    name: 'Adaptador Bluetooth',
+    sku: 'ADP-BT-VAL',
+    barcode: null,
+    description: null,
+    long_description: null,
+    image_url: null,
+    tracking_type: 'quantity',
+    unit_of_measure: 'unit',
+    track_stock: true,
+    brand_id: null,
+    brand: null,
+    categories: [],
+    tags: [],
+    base_price: 5000,
+    sale_currency: 'USD',
+    sale_exchange_rate_type_id: 1,
+    sale_exchange_rate_type: {
+      id: 1,
+      code: 'BCV',
+      name: 'Banco Central de Venezuela',
+      is_default: true,
+      is_active: true,
+    },
+    min_stock: null,
+    max_stock: null,
+    reorder_quantity: null,
+    suggested_purchase: null,
+    average_cost: null,
+    average_cost_visible: true,
+    warranty_policy_id: null,
+    warranty_policy: null,
+    can_change_tracking_type: true,
+    units_count: 0,
+    is_active: true,
+    created_at: '2026-07-14T15:59:02+00:00',
+    updated_at: '2026-07-14T15:59:02+00:00',
+  };
+
+  it('acepta el shape exacto que retorna el backend (base_price como numero)', () => {
+    const result = ProductSchema.parse(backendSample);
+    expect(result.id).toBe(5);
+    expect(result.base_price).toBe(5000);
+  });
+
+  it('acepta stock levels con decimales (no solo enteros)', () => {
+    const withFloatStock = {
+      ...backendSample,
+      min_stock: 5.5,
+      max_stock: 100.25,
+      reorder_quantity: 50.0,
+    };
+    expect(() => ProductSchema.parse(withFloatStock)).not.toThrow();
+  });
+
+  it('acepta base_price como string (tolerancia con endpoints legacy)', () => {
+    const withStringPrice = { ...backendSample, base_price: '799.00' };
+    expect(() => ProductSchema.parse(withStringPrice)).not.toThrow();
+  });
+});
+
+describe('PaginatedProductsSchema', () => {
+  it('acepta el shape completo del backend (data, meta, links)', () => {
+    const backendPaginated = {
+      data: [
+        {
+          id: 1,
+          tenant_id: 1,
+          name: 'Test',
+          tracking_type: 'quantity',
+          is_active: true,
+        },
+      ],
+      meta: {
+        current_page: 1,
+        from: 1,
+        last_page: 1,
+        per_page: 25,
+        to: 1,
+        total: 1,
+      },
+      links: {
+        first: 'http://localhost/api/products?page=1',
+        last: 'http://localhost/api/products?page=1',
+        prev: null,
+        next: null,
+      },
+    };
+    expect(() => PaginatedProductsSchema.parse(backendPaginated)).not.toThrow();
   });
 });
