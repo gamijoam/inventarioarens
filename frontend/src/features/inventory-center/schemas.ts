@@ -480,15 +480,65 @@ export const ProductMovementSchema = z.object({
 });
 export type ProductMovement = z.infer<typeof ProductMovementSchema>;
 
-export const ProductPriceSchema = z.object({
-  id: z.number(),
-  price_list_id: z.number(),
-  price_list_code: z.string(),
-  price_list_name: z.string(),
-  amount: z.string(),
-  currency: z.enum(SALE_CURRENCIES),
-  exchange_rate: z.string().nullable().optional(),
-});
+/**
+ * Schema del precio por lista (price_list_id) de un producto.
+ * Shape real del backend (verificado 2026-07-14):
+ * {
+ *   "id": number,
+ *   "tenant_id": number,
+ *   "product_id": number,
+ *   "price_list_id": number,
+ *   "price_list": { id, name, code, is_default, is_active },
+ *   "price": number,
+ *   "currency": "USD" | "VES",
+ *   "exchange_rate_type_id": number | null,
+ *   "exchange_rate_type": object | null,
+ *   "is_active": bool,
+ *   "created_at": string,
+ *   "updated_at": string,
+ * }
+ */
+export const ProductPriceSchema = z
+  .object({
+    id: z.number(),
+    tenant_id: z.number().int().optional(),
+    product_id: z.number().int().optional(),
+    price_list_id: z.number().int(),
+    // Aceptamos ambas formas: price_list anidado (nuevo) o planos (legacy).
+    price_list: z
+      .object({
+        id: z.number().int(),
+        name: z.string(),
+        code: z.string(),
+        is_default: z.boolean().optional(),
+        is_active: z.boolean().optional(),
+      })
+      .optional(),
+    price_list_code: z.string().optional(),
+    price_list_name: z.string().optional(),
+    // El backend retorna `price` (number). Aceptamos `amount` (string) por
+    // compatibilidad legacy. Normalizamos a `amount: string`.
+    price: z.union([z.number(), z.string()]).optional(),
+    amount: z.union([z.number(), z.string()]).optional(),
+    currency: z.enum(SALE_CURRENCIES),
+    exchange_rate: z.union([z.number(), z.string()]).nullable().optional(),
+    exchange_rate_type_id: z.number().int().nullable().optional(),
+    exchange_rate_type: z.unknown().nullable().optional(),
+    is_active: z.boolean().optional(),
+    created_at: z.string().optional(),
+    updated_at: z.string().optional(),
+  })
+  .transform((p) => ({
+    id: p.id,
+    price_list_id: p.price_list_id,
+    price_list_code:
+      p.price_list?.code ?? p.price_list_code ?? '',
+    price_list_name:
+      p.price_list?.name ?? p.price_list_name ?? '',
+    amount: String(p.price ?? p.amount ?? ''),
+    currency: p.currency,
+    exchange_rate: p.exchange_rate ?? null,
+  }));
 export type ProductPrice = z.infer<typeof ProductPriceSchema>;
 
 export const ProductDetailSchema = z.object({

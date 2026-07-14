@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Save, X, Copy } from 'lucide-react';
+import { useSessionStore } from '@/stores/session';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -41,18 +42,27 @@ export function PricesEditor({ productId }: PricesEditorProps) {
   const qc = useQueryClient();
 
   // Carga los precios del producto.
+  // Shape real del backend (verificado 2026-07-14):
+  // { "data": [{ id, tenant_id, product_id, price_list_id, price_list: {...},
+  //              price: number, currency, exchange_rate_type_id, exchange_rate_type,
+  //              is_active, created_at, updated_at }, ...] }
   const pricesQuery = useQuery({
     queryKey: [...productKeys.detail(productId), 'prices'],
     queryFn: async () => {
-      const data = await fetch(`/api/products/${productId}/prices`, {
+      const { tenant } = useSessionStore.getState();
+      // Plan C: la cookie httpOnly se envia con credentials: 'include'.
+      const res = await fetch(`/api/products/${productId}/prices`, {
+        credentials: 'include',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${(window as unknown as { __token?: string }).__token ?? ''}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(tenant?.slug ? { 'X-Tenant': tenant.slug } : {}),
         },
       });
-      if (!data.ok) throw new Error('Error al cargar precios');
-      const json = (await data.json()) as { data: unknown };
-      return z.array(ProductPriceSchema).parse(json.data);
+      if (!res.ok) throw new Error('Error al cargar precios');
+      const json: unknown = await res.json();
+      const data = (json as { data?: unknown }).data;
+      return z.array(ProductPriceSchema).parse(data);
     },
     enabled: productId > 0,
   });
