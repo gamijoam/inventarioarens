@@ -147,7 +147,7 @@ class EnsureAndTokenCommand extends Command
             ipAddress: 'cli',
             userAgent: 'sync:ensure-and-token',
         );
-        $this->info("[NEW] Token emitido (vence en {$days} dias, id={$session['id']})");
+        $this->info("[NEW] Token emitido (vence en {$days} dias)");
 
         // 6. Output estructurado.
         $this->newLine();
@@ -160,7 +160,6 @@ class EnsureAndTokenCommand extends Command
         $this->line('  User email:   ' . $user->email);
         $this->line('  Node ID:      ' . $node->id);
         $this->line('  Node code:    ' . $node->code);
-        $this->line('  Token ID:     ' . $session['id']);
         $this->newLine();
         $this->line('  TOKEN=' . $session['token']);
         $this->newLine();
