@@ -1,17 +1,28 @@
 @import 'tailwindcss';
 
 /* ============================================================================
- * Design tokens — INVENTARIOARENS Frontend
- * Ver docs/FRONTEND_ARQUITECTURA.md §10.
+ * PALETA DE COLORES — INVENTARIOARENS Frontend
+ * ----------------------------------------------------------------------------
+ * Para cambiar TODA la paleta del sitio, modifica SOLO el bloque
+ * `@theme` debajo. Cada color tiene un nombre semantico que describe
+ * su rol en la UI (no su tono). Cambiar `--color-primary` cambia TODOS
+ * los lugares donde se usa "el morado de marca".
+ *
+ * Convenciones de nombres:
+ *   - color-X          = color base (sin "fg" ni "border")
+ *   - color-X-fg       = color del texto/foreground cuando va SOBRE color-X
+ *   - color-X-hover    = estado hover del boton/link
+ *
+ * El tema es SOLO CLARO (sin dark mode, segun decision del usuario 2026-07-13).
  * ============================================================================ */
 
 @theme {
-  /* Paleta principal (mantenemos el morado/violeta del branding) */
-  --color-primary: #4d35ff;
-  --color-primary-hover: #3a28cc;
-  --color-primary-foreground: #ffffff;
+  /* === Marca (cambiar aqui = toda la UI cambia) === */
+  --color-primary: #4d35ff;          /* Morado principal — botones primarios, links, focus ring */
+  --color-primary-hover: #3a28cc;    /* Hover del primary */
+  --color-primary-foreground: #ffffff; /* Texto sobre primary */
 
-  /* Estados */
+  /* === Estados semanticos === */
   --color-success: #16a34a;
   --color-success-foreground: #ffffff;
   --color-warning: #f59e0b;
@@ -21,23 +32,23 @@
   --color-info: #0ea5e9;
   --color-info-foreground: #ffffff;
 
-  /* Neutros light */
-  --color-bg: #fafafa;
-  --color-surface: #ffffff;
-  --color-surface-elevated: #ffffff;
-  --color-border: #e5e5e5;
-  --color-border-strong: #d4d4d4;
-  --color-text-primary: #171717;
-  --color-text-secondary: #404040;
-  --color-text-muted: #737373;
-  --color-text-inverted: #fafafa;
+  /* === Neutros (fondos, superficies, bordes, texto) === */
+  --color-bg: #fafafa;               /* Fondo general de la pagina */
+  --color-surface: #ffffff;          /* Cards, modales, sheets */
+  --color-surface-elevated: #ffffff; /* Cards con sombra elevada */
+  --color-border: #e5e5e5;           /* Bordes sutiles */
+  --color-border-strong: #d4d4d4;    /* Bordes de inputs, separadores */
+  --color-text-primary: #171717;     /* Texto principal */
+  --color-text-secondary: #404040;   /* Texto secundario */
+  --color-text-muted: #737373;       /* Texto deshabilitado, placeholders */
+  --color-text-inverted: #fafafa;    /* Texto claro sobre fondos oscuros */
 
-  /* Tipografía */
+  /* === Tipografia === */
   --font-sans:
     'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
 
-  /* Spacing */
+  /* === Spacing === */
   --spacing-0_5: 0.125rem;
   --spacing-1: 0.25rem;
   --spacing-1_5: 0.375rem;
@@ -52,7 +63,7 @@
   --spacing-12: 3rem;
   --spacing-16: 4rem;
 
-  /* Border radius */
+  /* === Border radius === */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius: 8px;
@@ -61,32 +72,15 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  /* Sombras */
+  /* === Sombras === */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
 
-  /* Transiciones */
+  /* === Transiciones === */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ============================================================================
- * Dark mode
- * ============================================================================ */
-@layer base {
-  .dark {
-    --color-bg: #0a0a0a;
-    --color-surface: #171717;
-    --color-surface-elevated: #1f1f1f;
-    --color-border: #262626;
-    --color-border-strong: #404040;
-    --color-text-primary: #fafafa;
-    --color-text-secondary: #d4d4d4;
-    --color-text-muted: #a3a3a3;
-    --color-text-inverted: #171717;
-  }
 }
 
 /* ============================================================================
@@ -122,7 +116,6 @@
     flex-direction: column;
   }
 
-  /* Inputs con border sutil por defecto */
   input,
   textarea,
   select {
@@ -131,13 +124,11 @@
     color: inherit;
   }
 
-  /* Focus ring consistente */
   :focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
 
-  /* Scrollbar discreto */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -158,7 +149,6 @@
  * Utilidades custom
  * ============================================================================ */
 @layer utilities {
-  /* Tabla densa (12-13px) */
   .table-dense {
     font-size: 13px;
     line-height: 1.4;
@@ -168,7 +158,6 @@
     padding: 6px 10px;
   }
 
-  /* Truncar texto */
   .truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

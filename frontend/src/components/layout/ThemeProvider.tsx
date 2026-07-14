@@ -1,50 +1,41 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  ThemeContext,
-  STORAGE_KEY,
-  applyTheme,
-  getSystemTheme,
-  type Theme,
-  type ThemeContextValue,
-} from './theme-context';
+/**
+ * ThemeProvider simplificado: solo tema claro.
+ * Decision del usuario (2026-07-13): no usar dark mode por ahora.
+ *
+ * Se mantiene la arquitectura de Context para futuro soporte de multiples
+ * temas sin romper la API. Solo hay un tema por el momento.
+ */
+import { createContext, useEffect, useState, type ReactNode } from 'react';
+
+export type Theme = 'light';
+
+export interface ThemeContextValue {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+}
+
+export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+ThemeContext.displayName = 'ThemeContext';
 
 interface ThemeProviderProps {
   children: ReactNode;
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'system';
-    return (localStorage.getItem(STORAGE_KEY) as Theme) || 'system';
-  });
-  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => getSystemTheme());
-
-  const resolvedTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
+  // Solo soportamos 'light' por ahora. Si en el futuro agregamos dark,
+  // la logica va aqui (clase .dark en <html>, etc.).
+  const [theme] = useState<Theme>('light');
 
   useEffect(() => {
-    applyTheme(resolvedTheme);
-  }, [resolvedTheme]);
+    // Aseguramos que nunca quede la clase .dark en <html>.
+    document.documentElement.classList.remove('dark');
+  }, []);
 
-  useEffect(() => {
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => setSystemTheme(e.matches ? 'dark' : 'light');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
-
-  const setTheme = (next: Theme) => {
-    setThemeState(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, next);
-    }
+  const setTheme = (_next: Theme) => {
+    // No-op hasta que se implemente multi-tema.
   };
 
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-  };
-
-  const value: ThemeContextValue = { theme, resolvedTheme, setTheme, toggleTheme };
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>
+  );
 }

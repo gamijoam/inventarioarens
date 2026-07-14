@@ -1,20 +1,14 @@
-import { Moon, Sun } from 'lucide-react';
 import { useTheme } from './use-theme';
-import { Button } from '@/components/ui/Button';
 
-export function ThemeToggle() {
-  const { resolvedTheme, toggleTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
-
+/**
+ * Indicador discreto del tema activo. Solo se muestra "Tema claro".
+ * Reservado para futuro: boton de toggle cuando se agregue dark mode.
+ */
+export function ThemeIndicator() {
+  const { theme } = useTheme();
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={toggleTheme}
-      aria-label={isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-      title={isDark ? 'Tema claro' : 'Tema oscuro'}
-    >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </Button>
+    <span className="text-xs text-text-muted" aria-label={`Tema: ${theme}`}>
+      Tema: <span className="font-medium text-text-secondary capitalize">{theme}</span>
+    </span>
   );
 }

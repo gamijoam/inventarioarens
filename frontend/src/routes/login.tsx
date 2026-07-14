@@ -1,7 +1,10 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/')({
+import { LoginPage } from '@/auth/LoginPage';
+
+export const Route = createFileRoute('/login')({
   beforeLoad: () => {
+    // Si ya hay sesion persistida, redirigir al dashboard.
     try {
       const raw = localStorage.getItem('inventory_session');
       if (raw) {
@@ -12,9 +15,9 @@ export const Route = createFileRoute('/')({
         }
       }
     } catch (err) {
+      // Si redirect falla por no estar en el contexto del router, ignorar.
       if ((err as { isRedirect?: boolean }).isRedirect) throw err;
     }
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
-    throw redirect({ to: '/login' });
   },
+  component: LoginPage,
 });
