@@ -2,6 +2,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Building2, Lock, Mail, ShieldCheck } from 'lucide-react';
 
+import { useSessionStore } from '@/stores/session';
+import {
+  APP_NAME,
+  APP_TAGLINE,
+  APP_DESCRIPTION,
+  APP_FEATURES,
+} from '@/config/branding';
+
 import { lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +24,7 @@ const DEBOUNCE_MS = 500;
 
 export function LoginPage() {
   const { signIn, isAuthenticated } = useAuth();
+  const session = useSessionStore();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -73,13 +82,15 @@ export function LoginPage() {
 
     setLoginLoading(true);
     try {
-      await signIn({
+      await signIn(selectedTenant.slug, {
         email,
         password,
         device_name: window.navigator.userAgent.slice(0, 100),
       });
       await navigate({ to: '/dashboard' });
     } catch (err) {
+      // Si el login falla por tenant, limpiamos el temporal.
+      session.clearSession();
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión.';
       setError(message);
     } finally {
@@ -95,22 +106,16 @@ export function LoginPage() {
           <div className="flex size-10 items-center justify-center rounded-md bg-white/15">
             <ShieldCheck className="size-5" aria-hidden="true" />
           </div>
-          INVENTARIOARENS
+          {APP_NAME}
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-3xl font-bold leading-tight">
-            Sistema de Inventario multi-tenant
-          </h2>
-          <p className="text-base text-primary-foreground/80">
-            Punto de venta, gestión de productos, traslados, cuentas por cobrar/pagar y
-            sincronización local ↔ nube.
-          </p>
+          <h2 className="text-3xl font-bold leading-tight">{APP_TAGLINE}</h2>
+          <p className="text-base text-primary-foreground/80">{APP_DESCRIPTION}</p>
           <ul className="space-y-2 text-sm text-primary-foreground/80">
-            <li>• Venta en mostrador con pagos mixtos USD/VES</li>
-            <li>• Catálogo por cantidad o serializado (IMEI)</li>
-            <li>• Traslados inter-almacén con reserva de stock</li>
-            <li>• Sync bidireccional con outbox + ACK</li>
+            {APP_FEATURES.map((feature) => (
+              <li key={feature}>• {feature}</li>
+            ))}
           </ul>
         </div>
 

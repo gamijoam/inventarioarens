@@ -12,7 +12,7 @@ import type { LoginRequest } from '@/api/endpoints/auth';
 interface UseAuthResult {
   isAuthenticated: boolean;
   isReady: boolean;
-  signIn: (payload: LoginRequest) => Promise<void>;
+  signIn: (tenantSlug: string, payload: LoginRequest) => Promise<void>;
   signOut: () => Promise<void>;
   switchTo: (slug: string) => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -48,8 +48,17 @@ export function useAuth(): UseAuthResult {
   }, [session]);
 
   const signIn = useCallback(
-    async (payload: LoginRequest) => {
-      const data = await apiLogin(payload);
+    async (tenantSlug: string, payload: LoginRequest) => {
+      // Seteamos el tenant ANTES de la request para que el interceptor
+      // pueda inyectar el header `X-Tenant` que el backend exige.
+      // Si el login falla, clearSession() limpia esto.
+      session.setTenant({
+        id: 0,
+        slug: tenantSlug,
+        name: tenantSlug,
+        is_active: true,
+      });
+      const data = await apiLogin(tenantSlug, payload);
       session.setSession({
         token: data.token,
         expiresAt: data.expires_at,

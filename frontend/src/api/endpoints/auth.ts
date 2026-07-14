@@ -27,9 +27,15 @@ export function lookupTenants(payload: TenantLookupRequest) {
   );
 }
 
-/** POST /api/auth/login — Inicia sesion con email + password + X-Tenant header. */
-export function login(payload: LoginRequest) {
-  return postOne<LoginRequest, LoginResponse['data']>('/auth/login', payload);
+/**
+ * POST /api/auth/login — Inicia sesion.
+ * El backend REQUIERE el header `X-Tenant: <slug>` (vía TenantManager::require()
+ * en el controller), por eso pasamos el slug del tenant seleccionado.
+ */
+export function login(slug: string, payload: LoginRequest) {
+  return postOne<LoginRequest, LoginResponse['data']>('/auth/login', payload, {
+    headers: { 'X-Tenant': slug },
+  });
 }
 
 /** POST /api/auth/logout — Cierra la sesion actual (revoca el token). */

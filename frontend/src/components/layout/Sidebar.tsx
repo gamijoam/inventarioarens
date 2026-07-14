@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/cn';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
+import { APP_NAME, APP_SHORT_NAME } from '@/config/branding';
 
 interface NavItem {
   to: string;
@@ -55,8 +56,8 @@ export function Sidebar() {
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">INVENTARIOARENS</p>
-            <p className="truncate text-xs text-text-muted">Sistema de inventario</p>
+            <p className="truncate text-sm font-semibold">{APP_NAME}</p>
+            <p className="truncate text-xs text-text-muted">{APP_SHORT_NAME}</p>
           </div>
         )}
       </div>
