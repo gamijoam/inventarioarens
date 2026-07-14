@@ -1,6 +1,36 @@
 /**
  * KardexTab: muestra el kardex (historial cronologico de movimientos de stock)
  * de un producto. Usa GET /api/kardex/products/{id}.
+ *
+ * Shape real del backend (verificado 2026-07-14):
+ * {
+ *   "data": {
+ *     "product_id": 5,
+ *     "product_name": "...",
+ *     "warehouse_id": null,
+ *     "opening_balance": 0,
+ *     "closing_balance": -38,
+ *     "movements": [
+ *       {
+ *         "id": 3,
+ *         "date": "2026-07-14T...",
+ *         "warehouse_id": 1,
+ *         "warehouse_name": "Almacen Principal",
+ *         "product_id": 5,
+ *         "product_name": "...",
+ *         "type": "purchase" | "sale" | "entry" | "exit" | "adjustment" | etc,
+ *         "quantity_in": 2,    // number entradas
+ *         "quantity_out": 0,   // number salidas
+ *         "running_balance": 2,// saldo hasta este movimiento
+ *         "unit_cost": 5,      // number o string
+ *         "reason": "...",
+ *         "reference_type": "sync_snapshot",
+ *         "reference_id": 75
+ *       },
+ *       ...
+ *     ]
+ *   }
+ * }
  */
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -13,27 +43,45 @@ import { formatRelative } from '@/lib/format';
 import { formatCost } from '@/lib/money';
 import { useSessionStore } from '@/stores/session';
 
-const KardexEntrySchema = z.object({
+// Shape real del kardex: data es un objeto con metadata + movements[].
+const KardexMovementSchema = z.object({
   id: z.number(),
   date: z.string(),
-  type: z.string(),
+  warehouse_id: z.number().int().nullable().optional(),
   warehouse_name: z.string().nullable().optional(),
-  warehouse_code: z.string().nullable().optional(),
-  quantity: z.union([z.string(), z.number()]),
-  unit_cost: z.string().nullable().optional(),
-  balance_after: z.union([z.string(), z.number()]).nullable().optional(),
-  reference: z.string().nullable().optional(),
-  user_name: z.string().nullable().optional(),
+  product_id: z.number().int(),
+  product_name: z.string().optional(),
+  type: z.string(),
+  quantity_in: z.union([z.number(), z.string()]).optional(),
+  quantity_out: z.union([z.number(), z.string()]).optional(),
+  running_balance: z.union([z.number(), z.string()]).optional(),
+  unit_cost: z.union([z.number(), z.string()]).nullable().optional(),
+  reason: z.string().nullable().optional(),
+  reference_type: z.string().nullable().optional(),
+  reference_id: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 const KardexResponseSchema = z.object({
-  data: z.array(KardexEntrySchema),
+  data: z.object({
+    product_id: z.number().int(),
+    product_name: z.string().optional(),
+    warehouse_id: z.number().int().nullable().optional(),
+    opening_balance: z.union([z.number(), z.string()]).optional(),
+    closing_balance: z.union([z.number(), z.string()]).optional(),
+    movements: z.array(KardexMovementSchema),
+  }),
 });
 
 export interface KardexTabProps {
   productId: number;
   dateFrom?: string;
   dateTo?: string;
+}
+
+function toNum(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return parseFloat(v);
+  return 0;
 }
 
 export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
@@ -64,7 +112,12 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
   if (isLoading) return <Spinner label="Cargando kardex..." />;
   if (isError)
     return <EmptyState title="Error al cargar kardex" description="Reintenta en unos segundos." />;
-  const entries = data?.data ?? [];
+
+  const dataObj = data?.data;
+  const entries = dataObj?.movements ?? [];
+  const opening = toNum(dataObj?.opening_balance);
+  const closing = toNum(dataObj?.closing_balance);
+
   if (entries.length === 0) {
     return (
       <EmptyState
@@ -78,7 +131,9 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
     <Card>
       <CardHeader>
         <CardTitle>Kardex</CardTitle>
-        <CardDescription>Historial cronologico de entradas y salidas ({entries.length}).</CardDescription>
+        <CardDescription>
+          Historial cronologico de entradas y salidas ({entries.length}). Saldo: {opening} → {closing}.
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <table className="w-full table-dense">
@@ -87,45 +142,64 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Fecha</th>
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Tipo</th>
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Almacen</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Cantidad</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Costo unit.</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Saldo</th>
-              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Referencia</th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                Entrada
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                Salida
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                Saldo
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                Costo unit.
+              </th>
+              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                Ref.
+              </th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
-              <tr key={e.id} className="border-b border-border last:border-b-0">
-                <td className="px-3 py-2 text-text-muted">{formatRelative(e.date)}</td>
-                <td className="px-3 py-2">
-                  <Badge
-                    variant={
-                      e.type.startsWith('in')
-                        ? 'success'
-                        : e.type.startsWith('out')
-                          ? 'warning'
-                          : 'default'
-                    }
-                  >
-                    {e.type}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-text-muted">
-                  {e.warehouse_name ?? '—'}
-                  {e.warehouse_code && (
-                    <span className="ml-1 text-xs text-text-muted">({e.warehouse_code})</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{e.quantity}</td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {e.unit_cost == null ? '—' : formatCost(e.unit_cost)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {e.balance_after ?? '—'}
-                </td>
-                <td className="px-3 py-2 text-xs text-text-muted">{e.reference ?? '—'}</td>
-              </tr>
-            ))}
+            {entries.map((e) => {
+              const inQty = toNum(e.quantity_in);
+              const outQty = toNum(e.quantity_out);
+              const balance = toNum(e.running_balance);
+              return (
+                <tr key={e.id} className="border-b border-border last:border-b-0">
+                  <td className="px-3 py-2 text-text-muted">{formatRelative(e.date)}</td>
+                  <td className="px-3 py-2">
+                    <Badge
+                      variant={
+                        e.type.startsWith('in') || e.type === 'purchase' || e.type === 'entry'
+                          ? 'success'
+                          : e.type.startsWith('out') ||
+                              e.type === 'sale' ||
+                              e.type === 'exit'
+                            ? 'warning'
+                            : 'default'
+                      }
+                    >
+                      {e.type}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-text-muted">{e.warehouse_name ?? '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-success">
+                    {inQty > 0 ? `+${inQty}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-warning">
+                    {outQty > 0 ? `-${outQty}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{balance}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {e.unit_cost == null ? '—' : formatCost(e.unit_cost)}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-text-muted">
+                    {e.reference_type ?? '—'}
+                    {e.reference_id != null ? ` #${e.reference_id}` : ''}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CardContent>
