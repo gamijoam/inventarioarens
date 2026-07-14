@@ -2,12 +2,11 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
   beforeLoad: () => {
-    // Bypass de dev: enviar directo al dashboard.
+    // Bypass activo por defecto. Para forzar el flujo de login real:
+    //   localStorage.setItem('dev_enforce_auth', '1')
     const enforce = localStorage.getItem('dev_enforce_auth') === '1';
     const bypass =
-      import.meta.env.VITE_AUTH_DISABLED === 'true' ||
-      (import.meta.env.DEV && !enforce) ||
-      localStorage.getItem('dev_skip_auth') === '1';
+      import.meta.env.VITE_AUTH_DISABLED === 'true' || !enforce;
 
     if (bypass) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error

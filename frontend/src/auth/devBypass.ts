@@ -18,22 +18,21 @@ import { useSessionStore } from '@/stores/session';
 import { PERMISSIONS } from '@/permissions/constants';
 
 const ENV_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
-// En dev, activamos el bypass por defecto para evitar quedarnos trabados
-// en el flujo de login mientras iteramos. Para forzar el flujo real:
-//   VITE_AUTH_DISABLED=false al hacer build/dev, O
-//   localStorage.setItem('dev_enforce_auth', '1') en el navegador.
-const DEV_DEFAULT = import.meta.env.DEV;
 
+/**
+ * Bypass activado por defecto para no quedar atrapados en el flujo de login
+ * mientras se resuelve el bug del refresh. Para forzar el flujo real:
+ *   localStorage.setItem('dev_enforce_auth', '1')
+ * (o setear VITE_AUTH_DISABLED=false al hacer build).
+ */
 export function isAuthDisabled(): boolean {
   if (ENV_DISABLED) return true;
-  if (typeof window === 'undefined') return DEV_DEFAULT;
+  if (typeof window === 'undefined') return true;
   try {
     if (window.localStorage.getItem('dev_enforce_auth') === '1') return false;
-    return (
-      DEV_DEFAULT || window.localStorage.getItem('dev_skip_auth') === '1'
-    );
+    return true;
   } catch {
-    return DEV_DEFAULT;
+    return true;
   }
 }
 

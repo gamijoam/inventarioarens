@@ -66,8 +66,8 @@ describe('devBypass', () => {
     expect(isAuthDisabled()).toBe(false);
   });
 
-  it('isAuthDisabled respeta dev_skip_auth=1 (fuerza bypass)', () => {
-    localStorage.setItem('dev_skip_auth', '1');
+  it('isAuthDisabled retorna true por defecto (bypass activo)', () => {
+    // sin flags seteados -> bypass activo
     expect(isAuthDisabled()).toBe(true);
   });
 });
