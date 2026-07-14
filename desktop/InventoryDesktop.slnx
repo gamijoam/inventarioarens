@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="InventoryDesktop/InventoryDesktop.csproj" />
-  <Project Path="InventoryDesktop.XamlSmoke/InventoryDesktop.XamlSmoke.csproj" />
-  <Project Path="InventorySyncInstaller/InventorySyncInstaller.csproj" />
-</Solution>

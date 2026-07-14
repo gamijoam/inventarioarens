@@ -60,70 +60,6 @@ Regla importante:
 - las APIs protegidas usan el middleware `api.auth` antes de resolver permisos de negocio;
 - el frontend debe tratarse como cliente de APIs, sin autoridad para saltarse permisos.
 
-### Frontend
-
-Responsabilidad:
-
-- mostrar la pantalla inicial de login;
-- consultar empresas disponibles para el usuario;
-- iniciar sesion contra las APIs del modulo `Auth`;
-- conservar la sesion en navegador en esta primera fase;
-- mostrar el panel principal cuando la sesion esta activa;
-- agrupar la navegacion por modulos operativos;
-- filtrar opciones visibles usando los permisos efectivos del usuario;
-- consumir datos reales del dashboard y del centro de inventario cuando existe sesion API real.
-- permitir crear y editar productos desde el Centro de Inventario usando las APIs del modulo `Products`.
-
-Archivos principales:
-
-- `resources/views/welcome.blade.php`
-- `resources/css/app.css`
-- `resources/js/app.js`
-
-Regla importante:
-
-- el frontend no reemplaza permisos ni validaciones del backend;
-- toda accion real debe pasar por APIs protegidas con `api.auth` y `tenant`;
-- el diseno usa la paleta morada/azul del login de referencia, pero ahora como login central profesional sin imagen lateral;
-- el panel principal se organiza por Operacion, Inventario, Finanzas y Administracion;
-- la visibilidad de menu, accesos rapidos y acciones superiores depende de permisos enviados por Auth;
-- `FRONTEND_DEV_BYPASS_LOGIN=true` permite revisar el frontend local sin credenciales, solo en `APP_ENV=local`.
-- el Centro de Inventario consume `GET /api/inventory-center/summary` y conserva datos demo solo para el bypass local.
-- el formulario de productos usa `POST /api/products`, `GET /api/products/{product}` y `PATCH /api/products/{product}`;
-- las opciones de tasa y garantia se leen desde `Currency` y `Warranties` cuando el usuario tiene permiso para verlas;
-- el frontend solo oculta o muestra acciones por permisos, pero la autoridad real sigue en policies y validaciones del backend.
-
-### Desktop
-
-Responsabilidad:
-
-- servir como cliente principal de escritorio para el sistema de inventario;
-- conectarse al backend Laravel mediante HTTP/JSON;
-- manejar login, seleccion de empresa y token Bearer;
-- organizar pantallas por modulos operativos igual que el backend;
-- mostrar un centro de modulos despues del login para elegir el area de trabajo;
-- habilitar o bloquear tarjetas de modulo segun permisos efectivos del usuario;
-- consumir APIs existentes sin conectarse directo a PostgreSQL.
-
-Archivos principales:
-
-- `desktop/InventoryDesktop/InventoryDesktop.csproj`
-- `desktop/InventoryDesktop/MainWindow.xaml`
-- `desktop/InventoryDesktop/Core/Api/ApiClient.cs`
-- `desktop/InventoryDesktop/Core/Security/TokenVault.cs`
-- `desktop/InventoryDesktop/Modules/Auth/LoginViewModel.cs`
-- `desktop/InventoryDesktop/Modules/Auth/AuthDtos.cs`
-
-Regla importante:
-
-- WPF es un cliente de APIs, no una fuente de verdad;
-- todas las operaciones reales deben pasar por Laravel con `Authorization: Bearer <token>` y `X-Tenant`;
-- el modulo `Auth` del escritorio debe respetar el contrato real de Laravel, donde las respuestas vienen envueltas en `data`;
-- las siguientes pantallas de escritorio se implementaran por modulo: Centro de Inventario, Entradas y Salidas, POS, Caja y Reportes.
-- el flujo recomendado es `Login -> Centro de modulos -> Modulo seleccionado`.
-- la navegacion principal del escritorio queda basada en tarjetas de modulos, sin menu lateral permanente.
-- cada modulo debe ofrecer una forma clara de volver al centro de modulos o tener navegacion interna propia.
-
 ### Dashboard
 
 Responsabilidad:
@@ -152,32 +88,28 @@ Regla importante:
 
 Responsabilidad:
 
-- exponer APIs de lectura para el futuro portal web administrativo;
-- servir la primera interfaz web del portal administrativo en `/admin`;
+- exponer APIs de lectura y operacion para el futuro portal web administrativo;
 - resumir ventas, POS, caja, inventario y sincronizacion por empresa;
 - servir como contrato de datos para metricas gerenciales en la nube;
-- evitar que la web consulte PostgreSQL directamente;
 - entregar alertas operativas sin cargar listas completas;
-- administrar productos, precios y permisos usando las APIs protegidas del backend.
+- administrar productos, precios, traslados y permisos usando las APIs protegidas del backend.
 
 Archivos principales:
 
 - `app/Modules/AdminPortal/Controllers/AdminDashboardController.php`
+- `app/Modules/AdminPortal/Controllers/AdminOperationalReportController.php`
+- `app/Modules/AdminPortal/Controllers/AdminPosSalesController.php`
+- `app/Modules/AdminPortal/Controllers/AdminTransfersController.php`
 - `app/Modules/AdminPortal/Requests/AdminDashboardRequest.php`
 - `app/Modules/AdminPortal/Services/AdminDashboardService.php`
 - `app/Modules/AdminPortal/routes.php`
-- `resources/views/admin.blade.php`
-- `resources/css/admin.css`
-- `resources/js/admin.js`
 
 Regla importante:
 
 - el modulo no consulta PostgreSQL directamente; lee y escribe mediante APIs protegidas;
 - requiere permisos de lectura gerencial u operativa como `reports.view`, `finance_reports.view`, `sales.view`, `products.view` o `cash_register.view`;
 - todas las consultas filtran por tenant actual;
-- usa agregados SQL para evitar N+1 y no enviar catalogos completos al portal web.
-- la interfaz web consume APIs protegidas; no consulta PostgreSQL directamente ni reemplaza permisos del backend.
-- el portal administrativo debe seguir la guia de alta densidad documentada en `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`: textos de 12px a 14px, tablas compactas, controles delgados y minimo espacio vacio.
+- usa agregados SQL para evitar N+1 y no enviar catalogos completos al cliente.
 
 ### InventoryCenter
 
@@ -328,9 +260,6 @@ Archivos principales:
 - `app/Modules/Sync/Services/SyncWorkerService.php`
 - `app/Modules/Sync/routes.php`
 - `database/migrations/2026_07_06_130000_create_sync_tenant_readiness_table.php`
-- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml`
-- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerView.xaml.cs`
-- `desktop/InventoryDesktop/Modules/Sync/SyncWorkerViewModel.cs`
 - `scripts/sync-worker.ps1`
 - `scripts/sync-worker.cmd`
 - `scripts/sync-smoke-test.ps1`
@@ -338,10 +267,8 @@ Archivos principales:
 - `scripts/configure-sync-cloud-local.ps1`
 - `docs/SYNC_WORKER_WINDOWS_2026-07-05.md`
 - `docs/SYNC_SMOKE_TEST_LOCAL_NUBE_2026-07-05.md`
-- `docs/SYNC_CONTROL_WPF_2026-07-05.md`
 - `docs/SYNC_OUTBOX_INVENTARIO_PRECIOS_2026-07-06.md`
 - `docs/SYNC_CONFIGURACION_NUBE_OPERATIVA_2026-07-06.md`
-- `docs/SYNC_PRODUCTOS_WEB_GARANTIAS_ACK_2026-07-07.md`
 
 APIs:
 
@@ -372,8 +299,7 @@ Regla importante:
 - `sync_outbox` entrega eventos pendientes hasta que el receptor confirme con `ack`;
 - un nodo no recibe eventos originados por si mismo;
 - el worker puede aplicar eventos soportados de productos, precios, tasas y metodos de pago;
-- la app WPF muestra un semaforo de sincronizacion por empresa e instalacion local en el centro de modulos;
-- la app WPF permite iniciar, detener y revisar estado/log del worker desde el modulo tecnico `Sincronizacion`;
+- el futuro frontend web debera mostrar un semaforo de sincronizacion por empresa e instalacion local y permitir iniciar/detener/revisar el worker;
 - `sync_tenant_readiness` registra si una empresa esta pendiente, sincronizando, lista, con advertencia o error en una instalacion local;
 - ningun evento se comparte entre empresas.
 
@@ -826,8 +752,6 @@ Archivos principales:
 - `app/Modules/POS/Resources/PosPaymentResource.php`
 - `app/Modules/POS/Services/PosCheckoutService.php`
 - `app/Modules/POS/routes.php`
-- `desktop/InventoryDesktop/Modules/POS/PosView.xaml`
-- `desktop/InventoryDesktop/Modules/POS/PosViewModel.cs`
 
 Regla importante:
 
@@ -843,7 +767,6 @@ Regla importante:
 - pagos `pending`, como financiadoras externas, dejan la orden abierta y la venta en borrador;
 - pagos `pending` no generan cobros automaticos ni cuenta por cobrar porque la venta sigue en borrador;
 - cada pago en `VES` debe guardar la tasa exacta usada.
-- La primera fase WPF arma carrito local y cotiza productos, pero no crea ventas ni pagos hasta integrar checkout y caja.
 
 ### CashRegister
 
@@ -1006,10 +929,6 @@ Archivos principales:
 - `app/Modules/InventoryTransfers/Resources/InventoryTransferItemResource.php`
 - `app/Modules/InventoryTransfers/Services/InventoryTransferService.php`
 - `app/Modules/InventoryTransfers/routes.php`
-- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferDtos.cs`
-- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionView.xaml`
-- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionView.xaml.cs`
-- `desktop/InventoryDesktop/Modules/InventoryTransfers/InventoryTransferReceptionViewModel.cs`
 
 Regla importante:
 
@@ -1021,10 +940,10 @@ Regla importante:
 - si se prepara menos de lo solicitado, se debe registrar un motivo de diferencia;
 - al despachar un traslado logistico, el sistema descuenta lo reservado del origen y registra `transfer_out`;
 - el destino recibe stock cuando se ejecuta la recepcion logistica y se genera `transfer_in`;
-- la app de escritorio puede listar guias logisticas despachadas y confirmar recepcion completa o con diferencias justificadas;
 - un traslado interno no vende ni retira mercancia, solo cambia su almacen cuando llega a una fase que ejecute el movimiento;
 - los IMEIs trasladados deben estar disponibles en el almacen origen;
-- las transferencias entre empresas se implementaran como solicitud interempresa con aceptacion/rechazo.
+- las transferencias entre empresas se implementan como solicitud interempresa con aceptacion/rechazo
+  (ver `InventoryTransferRequests`).
 
 ### InventoryTransferRequests
 

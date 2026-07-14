@@ -48,55 +48,6 @@ Campos principales:
 - `is_active`: si queda vigente.
 - `source`: fuente del valor, por ejemplo Manual o BCV.
 
-## Portal web administrativo
-
-Se agrego el modulo `Tasas` en el portal administrativo web.
-
-Desde esta pantalla se puede:
-
-- Consultar tipos de tasa.
-- Crear tipos de tasa.
-- Editar nombre, codigo, estado y valor predeterminado.
-- Desactivar tipos de tasa.
-- Registrar una nueva tasa vigente.
-- Revisar historial reciente.
-
-La pantalla sigue la regla de interfaz administrativa de alta densidad: tablas compactas, controles reducidos y sin bloques decorativos grandes.
-
-### Correccion de visibilidad en nube
-
-Se corrigio el registro de secciones del portal administrativo para que `Tasas` quede disponible dentro del menu web.
-
-El problema detectado era visual y de inicializacion:
-
-- El boton `Tasas` existia en la vista Blade.
-- El panel HTML del modulo tambien existia.
-- En `resources/js/admin.js` faltaba registrar la seccion `rates` dentro de `portalSections`.
-- Ademas, el estado `state.rates` estaba declarado dos veces, por lo que la segunda declaracion pisaba la configuracion operativa del modulo.
-
-Con la correccion:
-
-- `Tasas` abre su panel propio en el portal administrativo.
-- El estado del modulo conserva `loaded`, `selectedType`, `rateTypes` y `rates`.
-- `Reportes` tambien queda registrado como seccion valida del portal para evitar que vuelva al resumen al hacer clic.
-
-Para que se vea en produccion, despues de hacer `pull` en el VPS se debe compilar el frontend con `npm run build` y limpiar cache si aplica.
-
-## Escritorio local
-
-Se agrego una pantalla de consulta en la app WPF para revisar tasas vigentes desde el local.
-
-La pantalla local no crea ni modifica tasas. Su objetivo es operativo:
-
-- confirmar la tasa vigente antes de vender;
-- detectar tipos de tasa activos sin valor vigente;
-- sincronizar manualmente la empresa si se sospecha que falta una actualizacion;
-- mantener al POS y al equipo local alineados con la configuracion administrativa de la nube.
-
-Documentacion especifica:
-
-- `docs/MODULO_TASAS_ESCRITORIO_2026-07-08.md`
-
 ## Sincronizacion
 
 Los cambios de tasas generan eventos de sincronizacion:
@@ -131,7 +82,7 @@ Cobertura agregada:
 
 ## Pendiente natural
 
-- Validar visualmente el modulo en el VPS.
 - Conectar el uso de tasas con reportes financieros avanzados.
-- Revisar reglas de conflicto si una tasa cambia localmente y tambien desde la web.
+- Revisar reglas de conflicto si una tasa cambia localmente y tambien desde la nube.
 - Agregar filtros por tipo de tasa y fecha si el historial crece demasiado.
+- Cuando se construya el nuevo frontend web, agregar pantalla de administracion de tasas consumiendo estos endpoints.

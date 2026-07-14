@@ -8,13 +8,20 @@
 ## 1. Qué es este proyecto
 
 **INVENTARIOARENS** es un SaaS modular **multi-tenant** de gestión de inventario + punto de venta,
-escrito en **Laravel 13 / PHP 8.3-8.4 / PostgreSQL**. Tiene tres superficies de cliente:
+escrito en **Laravel 13 / PHP 8.3-8.4 / PostgreSQL**. Es un **backend API REST puro** que se consume
+desde un cliente HTTP.
 
-| Cliente | Stack | Función |
-|---|---|---|
-| **WPF Escritorio** (`desktop/InventoryDesktop/`) | C# .NET 8 + MVVM manual + DPAPI + MaterialDesignThemes 5.2.1 | Operación: POS, caja, traslados, inventario, clientes, sync |
-| **WPF Configurador** (`desktop/InventorySyncInstaller/`) | C# .NET 8 standalone | Bootstrap inicial de PC: valida requisitos, crea DB, registra tenant, instala worker |
-| **Portal Web Admin** (`/admin` → `resources/views/admin.blade.php`) | Blade + JS vanilla + Tailwind 4 + Vite 8 | Gerencia: productos, precios, usuarios, roles, reportes, CxC/CxP, traslados (drawer), compras |
+**Estado del frontend (2026-07-13)**: se eliminaron por completo los frontends anteriores
+(portal web Blade/JS vanilla + WPF escritorio). El nuevo cliente frontend se construirá en una
+fase posterior como **aplicación web moderna** (SPA/PWA) que se ejecuta en navegador — tanto local
+como en la nube — y consume este backend vía `/api/*`. **Mientras tanto, no hay frontend en este repo.**
+
+| Capa | Stack |
+|---|---|
+| Backend | Laravel 13 + PHP 8.3+ + PostgreSQL 16 (prod) / 17 (docker dev) / 15 (CI) |
+| Auth | `Authorization: Bearer <token>` + `X-Tenant: <slug>` |
+| Multi-tenant | Single-DB con `tenant_id` + global scope |
+| Frontend | **(pendiente)** — nueva app web por construir |
 
 **Contexto de mercado (Venezuelano)**: moneda base **USD**, operativa **VES**, con tipos de tasa
 (`BCV`, `PARALELO`, tienda) y snapshot de rate en cada movimiento monetario.
@@ -40,7 +47,7 @@ distintos. Esto ya causó errores graves en sesiones previas:
 | MiInventarioFácil (OTRO) | `212.28.176.157` | FastAPI 2.2.0 | `invensoft_qa` / `invensoft_prod` | `bloqueo_vps_mavis` |
 
 Antes de tocar la nube, **confirmar siempre**:
-1. SSH al VPS correcto: `ssh -i webadmin-vps webadmin@217.216.80.158`
+1. SSH al VPS correcto: `ssh -i webadmin-vps root@217.216.80.158`
 2. DB correcta: `inventory_arens` (no `invensoft_*` ni `invensoft_qa`).
 3. Backend correcto: Laravel (no FastAPI).
 
@@ -55,10 +62,10 @@ INVENTARIOARENS/
 ├── app/
 │   ├── Http/Controllers/Controller.php   ← SOLO base. El resto de controllers vive en módulos.
 │   ├── Models/User.php                   ← ÚNICO model fuera de módulos.
-│   ├── Modules/                          ← 34 módulos con MVC propio cada uno.
-│   ├── Providers/                        ← AppServiceProvider + TenancyServiceProvider.
+│   ├── Modules/                          ← 35 módulos con MVC propio cada uno.
+│   ├── Providers/                        ← AppServiceProvider.
 │   └── Support/
-│       ├── Permissions/BasePermissions.php          ← Catálogo de 95 permisos + 5 roles.
+│       ├── Permissions/BasePermissions.php          ← Catálogo de 101 permisos + 6 roles.
 │       ├── Performance/PerformanceProbe.php          ← Métricas PERF OK/LENTO BACKEND.
 │       └── Tenancy/                                   ← TenantManager, TenantScope, BelongsToTenant trait.
 ├── bootstrap/
@@ -66,35 +73,31 @@ INVENTARIOARENS/
 │   └── providers.php
 ├── config/                                ← app, auth, cache, database, filesystems, queue, session, services.
 ├── database/
-│   ├── migrations/                        ← 72 migraciones (cronología 2026-07-02 → 2026-07-10).
+│   ├── migrations/                        ← 72+ migraciones (cronología 2026-07-02 → hoy).
 │   ├── seeders/{DatabaseSeeder,RolesAndPermissionsSeeder,DemoDataSeeder,MultiCompanyLoginDemoSeeder}.php
 │   └── factories/UserFactory.php
-├── desktop/
-│   ├── InventoryDesktop/                  ← App WPF principal (MVVM manual).
-│   ├── InventorySyncInstaller/            ← Configurador WPF standalone.
-│   └── InventoryDesktop.slnx
-├── docs/                                  ← ~70 .md de diseño, implementación e historia.
-├── resources/
-│   ├── views/{welcome,admin}.blade.php    ← Solo 2 vistas. Todo lo demás es JS que peg?
-│   ├── js/{app,admin}.js                  ← Frontend vanilla JS (~338KB admin).
-│   └── css/admin.css                      ← Estilos alta densidad.
+├── docs/                                  ← ~40 .md de diseño, implementación, auditoría e historia.
 ├── routes/
-│   ├── web.php                            ← Solo `GET /` y `GET /admin`.
 │   ├── api.php                            ← Thin aggregator; carga routes.php de cada módulo bajo 'api.auth'+'tenant'.
 │   └── console.php
-├── scripts/                               ← PowerShell/VBS del sync worker + bootstrap VPS.
+├── scripts/                               ← PowerShell/VBS del sync worker + bootstrap VPS + backfills.
 ├── tests/                                 ← ~390 tests Feature con --process-isolation.
+│   └── Feature/                           ← Agrupados por módulo.
 ├── storage/app/sync-worker/               ← (generado) sync-config.json por empresa.
-├── public/build/                          ← NO en git. Regenerar con `pnpm run build`.
 ├── .harness/                              ← DE OTRO AGENTE. NO TOCAR sin OK del usuario.
-├── .agents/                               ← VACÍA. Eliminable si se limpia.
-├── .codex/                                ← DE OTRO AGENTE. Solo temp_sync_probe.php. NO TOCAR sin OK.
+├── .codex/                                ← DE OTRO AGENTE. NO TOCAR sin OK.
 ├── .githooks/pre-push                     ← Hook de tests pre-push. NO TOCAR.
-├── .github/workflows/ci.yml               ← CI: phpunit + playwright jobs.
+├── .github/workflows/ci.yml               ← CI: phpunit job.
 ├── docker-compose.yml                     ← Stack dev local (app, app_test, postgres 17).
-├── BUILD.md, composer.json, package.json, phpunit.xml, vite.config.js, README.md
+├── BUILD.md, composer.json, phpunit.xml, README.md
 └── AGENTS.md                              ← ESTE ARCHIVO.
 ```
+
+**Carpetas eliminadas el 2026-07-13** (frontend anterior):
+- ❌ `resources/views/`, `resources/js/`, `resources/css/` — Blade + JS vanilla del portal web admin y welcome.
+- ❌ `desktop/`, `desktop/InventoryDesktop.slnx` — los 3 proyectos WPF (app, XamlSmoke, configurador).
+- ❌ `tests/e2e/`, `playwright.config.js` — único spec del portal admin.
+- ❌ `package.json`, `pnpm-lock.yaml`, `vite.config.js`, `.npmrc`, `node_modules/`, `.pnpm-store/`, `public/build/` — bundler Vite + Playwright.
 
 ---
 
@@ -136,7 +139,7 @@ INVENTARIOARENS/
   - Productos — campos separados entre cloud-managed y local-operational.
   - Clientes — upsert por documento/teléfono/UUID.
 - **Token de sync** vs **token de usuario**:
-  - Token de usuario: `POST /api/auth/login`, expiración 30 días, WPF lo guarda con DPAPI en `TokenVault.cs`.
+  - Token de usuario: `POST /api/auth/login`, expiración 30 días.
   - Token de sync: `POST /api/sync/tokens` (requiere manager auth), típicamente 365 días, vive en
     `storage/app/sync-worker/sync-config.json` **por empresa**.
 - **ACK solo después de aplicar**: eventos fallidos permanecen en `sync_inbox` para retry.
@@ -153,14 +156,15 @@ INVENTARIOARENS/
 
 ## 6. Autenticación
 
-Compartida por WPF y Web (mismo backend):
+Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 
 1. `POST /api/auth/tenants {email}` (sin auth) → lista de tenants donde el user está `active`.
 2. Usuario selecciona empresa → `POST /api/auth/login` con `X-Tenant: <slug>` + password →
    devuelve Bearer token + user + tenant + roles + permisos efectivos.
 3. Cada llamada: `Authorization: Bearer <token>` + `X-Tenant: <slug>`.
 
-WPF guarda el token en `Core/Security/TokenVault.cs` (DPAPI del Windows user actual).
+**Platform Admin** (SaaS Master, sin tenant): `POST /api/auth/platform-login` emite token con
+`tenant_id = null` para acceder a `/api/master/*`.
 
 ---
 
@@ -174,51 +178,9 @@ WPF guarda el token en `Core/Security/TokenVault.cs` (DPAPI del Windows user act
 | PHPUnit | 12.5.12 |
 | Pint | 1.27 |
 | PostgreSQL | 16 (prod + local) / 17-alpine (docker dev) / 15 (CI) |
-| Vite | 8.0 (requiere Node 20.19+ o 22.12+) |
-| Tailwind | 4.0 (vía `@tailwindcss/vite`) |
-| Playwright | 1.61 |
-| MaterialDesignThemes | 5.2.1 (WPF login redesign 2026-07-12 + tenancy 3 niveles UI 2026-07-13) |
-| desktop | C# .NET 8 WPF (`net8.0-windows`) + MaterialDesignThemes 5.2.1 |
 | Composer scripts | `composer setup`, `composer dev`, `composer test` |
-| pnpm scripts | `pnpm run build`, `pnpm run dev`, `pnpm e2e`, `pnpm e2e:install` |
 
-**Importante**: NO usar `Alpine.js` ni `Livewire` — el frontend es **JS vanilla + Blade + Tailwind**.
-
----
-
-## 7.1 Disciplina obligatoria tras cambios de XAML (WPF)
-
-**Regla innegociable** (introducida el 2026-07-11 tras el incidente del `-140` en `HorizontalAlignment`
-que crasheaba la app en runtime pero pasaba el build):
-
-1. **Después de editar cualquier archivo `.xaml` bajo `desktop/InventoryDesktop/`** se debe correr el
-   smoke test XAML **antes** de dar la tarea por terminada:
-
-   ```bash
-   dotnet run --project desktop/InventoryDesktop.XamlSmoke/InventoryDesktop.XamlSmoke.csproj
-   ```
-
-2. **El smoke test detecta** (entre otros):
-   - Valores enum inválidos en propiedades (`HorizontalAlignment="-140"`, `Visibility="Foo"`, etc.).
-   - Tipos desconocidos o mal escritos.
-   - Attached properties mal aplicadas.
-   - Sintaxis XAML rota.
-
-3. **El smoke test NO detecta** (por diseño — son limitaciones del parser sin code-behind cargado):
-   - Handlers `Click="X_Click"` que no existen en el code-behind. Para esos, abrir la app con
-     `dotnet run --project desktop/InventoryDesktop` y disparar la acción manualmente.
-   - `StaticResource` no encontrados (App.xaml no se carga en el smoke test).
-
-4. **Antes de reportar como listo**, el log del smoke test debe mostrar `Fallos reales: 0`.
-   Warnings de recursos son aceptables.
-
-5. Si el smoke test NO pasa, **NO marcar el cambio como completado** ni commitear.
-
-**¿Por qué no basta con `dotnet build`?** Porque el build solo compila XAML en BAML cuando hay code-behind
-referenciado por `x:Class`. Validaciones runtime (parseo de propiedades) corren cuando WPF instancia
-los controles, momento en el cual la app crashea con `XamlParseException`. El smoke test invoca el
-parser XAML estáticamente sobre cada `.xaml` con `x:Class` y atributos de event handlers stripped,
-lo que reproduce exactamente esos crashes sin necesidad de arrancar la GUI.
+**Ya NO hay**: Vite, Tailwind, Playwright, npm/pnpm, MaterialDesignThemes, WPF.
 
 ---
 
@@ -241,31 +203,52 @@ ModuleName/
 ```
 
 ### 8.2 Routing
-- `routes/web.php` es MÍNIMO (solo `/` y `/admin`). No agregar rutas de negocio acá.
 - `routes/api.php` es un aggregator; cada módulo declara su `routes.php` y se carga acá.
-- Todas las rutas de API van bajo los middlewares `['api.auth', 'tenant']` excepto `auth/*` público.
+- Todas las rutas de API van bajo los middlewares `['api.auth', 'tenant']` excepto:
+  - `auth/*` (login, me, logout, switch-tenant)
+  - `bootstrap/*` (POST /api/bootstrap, **único endpoint realmente público**; requiere `APP_BOOTSTRAP_TOKEN` en .env y BD vacía)
 - Todas las rutas están prefijadas con `/api` automáticamente.
+- **No hay** `routes/web.php` — fue eliminado el 2026-07-13 junto con el frontend web. Si se reintroduce, debe ser solo para servir el bundle del nuevo frontend.
 
 ### 8.3 Modelos
 - Modelos nuevos de negocio **deben** `use BelongsToTenant`.
 - Constantes en MAYÚSCULAS con `_` (e.g. `STATUS_ACTIVE`, `TRACKING_SERIALIZED`).
 - Llaves foráneas compuestas con `tenant_id` cuando la tabla padre es tenant-scoped.
 
-### 8.4 Permisos (95 totales)
+### 8.4 Permisos (101 totales)
 - Catálogo maestro: `App\Support\Permissions\BasePermissions::PERMISSIONS`.
-- 5 roles predefinidos: `Owner`, `Administrador` (todos los perms), `Gerente` (casi todos excepto
-  `users.create/update/delete`, `roles.*`, `settings.manage`, `ai.configure`), `Vendedor`
-  (sales/POS/caja), `Almacen` (inventario/traslados/compras), `Auditor` (read-only).
+- 6 roles predefinidos: `Owner`, `Administrador` (todos los perms), `Gerente` (78 perms; casi todos
+  excepto `users.create/update/delete`, `roles.*`, `settings.manage`, `ai.configure`),
+  `Vendedor` (32; sales/POS/caja), `Almacen` (37; inventario/traslados/compras), `Auditor` (26; read-only).
 - Cada permission se nombra como `<modulo>.<verbo>` (e.g. `inventory_transfers.prepare`,
   `pos.checkout`, `cash_register.open`).
 - Cada policy/método importante valida con `Gate::authorize` o `$request->user()->can(...)`.
 
-### 8.5 Dinero
+### 8.5 Bootstrap inicial del SaaS
+
+`POST /api/bootstrap` es el **único endpoint público** del sistema. Sirve para arrancar el SaaS desde
+una base de datos completamente vacía sin necesidad de SSH al servidor para correr seeders.
+
+- **Habilitado solo si** `APP_BOOTSTRAP_TOKEN` está definido en `.env` del backend.
+- **Throttle**: `throttle:bootstrap` (3 req/hora por IP).
+- **Falla con 422** si la BD ya tiene cualquier `User` o `Tenant`.
+- Compara el token con `hash_equals()` y permite pasarlo en el body (`bootstrap_token`) o en el header
+  `X-Bootstrap-Token`.
+- Loguea intentos exitosos (`bootstrap.completed`) y rechazados (`bootstrap.rejected`) en `audit_logs`.
+- Después del primer uso exitoso se desactiva vaciando la variable de entorno.
+
+Crea el primer **Platform Admin** (`is_platform_admin=true`) y, opcionalmente, también un tenant inicial
+con el admin asignado como `Administrador` con los 101 permisos.
+
+**Tests**: `tests/Feature/Bootstrap/BootstrapApiTest.php` (17 tests, 81 aserciones).
+**Docs**: `docs/BOOTSTRAP_API.md`.
+
+### 8.6 Dinero
 - **Doble cuenta** en cada movimiento monetario: `*_base_amount` (USD) + `*_local_amount` (VES).
 - Snapshot del rate: `exchange_rate_type_id`, `exchange_rate_type_code`, `exchange_rate` numérico.
 - NUNCA recalcular historicos — el rate congelado en su fila es la verdad.
 
-### 8.6 Estilo
+### 8.7 Estilo
 - Pint 1.27 (`vendor/bin/pint` antes de commit).
 - No emojis en código a menos que el usuario lo pida.
 - No agregar comentarios a menos que el usuario lo pida.
@@ -290,18 +273,11 @@ php vendor/bin/phpunit tests/Feature/AdminPortal/AdminTransferActionsTest.php
 php vendor/bin/phpunit --process-isolation
 ```
 
-### 9.2 Correr E2E (portal web)
-```bash
-pnpm e2e:install   # solo primera vez (~150MB chromium)
-pnpm e2e           # todos
-pnpm e2e tests/e2e/portal-translados.spec.js   # uno solo
-```
+**No hay tests E2E** (Playwright fue eliminado con el frontend web). Si se reintroduce un frontend,
+agregar specs E2E en una carpeta dedicada (probablemente `tests/e2e/` o `frontend/tests/e2e/` según
+dónde viva el código del cliente).
 
-**Vars de entorno útiles**: `BASE_URL` (default `http://127.0.0.1:8000`), `E2E_USER`
-(default `gerente.valencia@demo.test`), `E2E_PASSWORD` (default `password`),
-`E2E_TENANT_SLUG` (default `demo-valencia`).
-
-### 9.3 Tests cross-tenant (OBLIGATORIOS al agregar endpoints)
+### 9.2 Tests cross-tenant (OBLIGATORIOS al agregar endpoints)
 Patrón: crear tenant A y tenant B, usuario en cada uno con permisos completos, intentar acción
 cross-tenant, esperar 403 (o 404 si oculta existencia), verificar que el recurso en A no cambió.
 
@@ -309,11 +285,11 @@ cross-tenant, esperar 403 (o 404 si oculta existencia), verificar que el recurso
 php vendor/bin/phpunit --filter "cross_tenant|other_tenant|detail_audit|standard_api_index_does_not_leak"
 ```
 
-### 9.4 Pre-push gate
+### 9.3 Pre-push gate
 `bin/pre-push.php` corre toda la suite antes de cada push. NO hacer push si falla (emergencia:
 `git push --no-verify`, solo con justificación).
 
-### 9.5 Disciplina de tests (OBLIGATORIA)
+### 9.4 Disciplina de tests (OBLIGATORIA)
 
 **Regla innegociable**: la suite de pruebas **SIEMPRE se debe ejecutar** después de crear nuevas
 cosas o funciones para verificar que **no se rompe la funcionalidad existente**.
@@ -324,7 +300,7 @@ acompañado de sus tests correspondientes**. Sin tests, no se considera terminad
 Reglas concretas:
 
 1. **Después de cualquier cambio de código** (controller, service, model, request, policy, route,
-   migration, sync event, comando Artisan, frontend JS), correr **al menos** los tests del módulo
+   migration, sync event, comando Artisan), correr **al menos** los tests del módulo
    afectado ANTES de declararlo listo:
    ```bash
    php vendor/bin/phpunit tests/Feature/<ModuloAfectado>/
@@ -333,7 +309,7 @@ Reglas concretas:
 
 2. **Funcionalidad nueva = tests nuevos obligatorios**. Mínimo:
    - Test Feature del endpoint nuevo (happy path + caso de error/validación + caso de permiso).
-   - Si es multi-tenant: test cross-tenant (ver §9.3).
+   - Si es multi-tenant: test cross-tenant (ver §9.2).
    - Si es sync: test que cubra el evento en `sync_outbox` y su aplicación por el applier.
    - Si es POS / caja / inventario: test que verifique el movimiento de stock (`StockMovement`)
      y el saldo (`StockBalance`) resultante.
@@ -342,8 +318,7 @@ Reglas concretas:
 
 3. **Tests deben vivir junto al código que prueban**:
    - Backend: `tests/Feature/<Modulo>/<Concepto>Test.php`.
-   - E2E (UI portal): `tests/e2e/<portal-seccion>.spec.js`.
-   - Nombrar siguiendo la convención existente (PascalCase, sufijo `Test` / `Spec`).
+   - Frontend (cuando exista): vivir en el repo del frontend, no en este.
 
 4. **Antes de pedir confirmación de "listo" al usuario**, el agente **debe** mostrar el resultado de
    los tests (verde o rojo, cuántos pasaron/fallaron). No entregar trabajo sin verificar.
@@ -383,31 +358,33 @@ cd inventarioarens
 composer install
 cp .env.example .env
 php artisan key:generate
-pnpm install
-pnpm run build           # CRÍTICO para que la web tenga CSS/JS
+php artisan migrate --force
 ```
 
-### 10.2 Dev con HMR
+**No hay** `pnpm install` ni `pnpm run build` — el frontend se sirve aparte (o se construirá
+en una fase posterior). El repo es **backend puro**.
+
+### 10.2 Dev con hot reload (opcional)
 ```bash
-pnpm run dev             # Vite dev server con HMR
-php artisan serve        # Laravel dev server (en otra terminal)
+php artisan serve        # Laravel dev server
+php artisan queue:listen --tries=1 --timeout=0
+php artisan pail --timeout=0
+# O todo junto:
+composer dev
 ```
 
 ### 10.3 Deploy al VPS (`217.216.80.158`)
 ```bash
-ssh -i webadmin-vps webadmin@217.216.80.158
+ssh -i webadmin-vps root@217.216.80.158
 cd /opt/inventarioarens-cloud
 sudo /usr/bin/env git pull
-sudo /usr/bin/env pnpm install --frozen-lockfile
-sudo /usr/bin/env pnpm run build
+sudo /usr/bin/env composer install --no-dev --optimize-autoloader
 sudo /usr/bin/env php artisan optimize:clear
+sudo /usr/bin/env php artisan migrate --force
 ```
 
 **🚫 JAMÁS usar `php artisan view:cache`** — cachea Blade y los cambios no se ven hasta el próximo
 `view:clear`. `optimize:clear` ya lo hace.
-
-**`public/build/` no está en git** — se regenera en cada setup/deploy para evitar mismatch de
-hashes entre Windows y Linux.
 
 ### 10.4 Stack del VPS
 - Nginx + PHP-FPM 8.4 + PostgreSQL 16 nativo (NO Docker).
@@ -421,25 +398,23 @@ hashes entre Windows y Linux.
 
 | Síntoma | Causa probable | Fix |
 |---|---|---|
-| CSS/JS no carga en web | Falta `pnpm run build` | Build en server |
-| Cambios `.blade.php` no se ven | `view:cache` activo | `php artisan optimize:clear` |
-| 401 en API tras deploy | Sesión cacheada | `php artisan optimize:clear` |
+| 401 en API tras deploy | Sesión cacheada con token viejo | `php artisan optimize:clear` |
 | Worker abre ventana negra | Scheduled Task apunta al .cmd directo, no al VBS | Re-registrar con `scripts/sync-worker-task.ps1 install -TenantSlug <slug>` |
 | Cambios locales no llegan a la nube | Worker no corriendo o token vencido | `php artisan sync:status {tenant}` + reinstalar task |
 | Evento `ignored` en sync_inbox | Falta tipo conocido por el applier | `php artisan sync:apply-inbox <tenant> --limit=200` |
 | Tests "duplicate table" local | Concurrencia en DB testing | Correr archivo por archivo o `--process-isolation` |
-| Producto no aparece en POS local | Nodo no recibió foto inicial | Forzar pull: `php artisan sync:run {tenant} --pull-only` |
-| Login WPF falla con 401 multi-tenant | Token no coincide con X-Tenant | Re-loguear seleccionando empresa correcta |
+| Login falla con 401 multi-tenant | Token no coincide con X-Tenant | Re-loguear seleccionando empresa correcta |
 
 ---
 
 ## 12. Documentos de referencia (docs/)
 
 **Arquitectura y diseño** (leer antes de cambios estructurales):
-- `docs/ARCHITECTURE.md` — fuente de verdad arquitectural.
+- `docs/ARCHITECTURE.md` — fuente de verdad arquitectural del backend.
 - `docs/MODULES.md` — mapa de módulos.
 - `docs/API.md` — referencia de endpoints.
 - `docs/IMPLEMENTATION_LOG.md` — bitácora cronológica de cambios.
+- `docs/BOOTSTRAP_API.md` — endpoints del módulo Bootstrap (instalación inicial de tenants).
 
 **Infra y deploy**:
 - `docs/BUILD.md` — setup local + deploy + CI.
@@ -447,39 +422,41 @@ hashes entre Windows y Linux.
 - `docs/ENTORNO_LOCAL_LARAGON_POSTGRES_2026-07-05.md`
 - `docs/DOMINIO_APP_MIINVENTARIOFACIL_VPS_2026-07-07.md`
 - `docs/API_NUBE_PERMANENTE_Y_PRUEBA_DOMINIO_2026-07-07.md`
+- `docs/DEPLOY_PLATFORM_MASTER_2026-07-13.md`
 
 **Dominio**:
 - `docs/AISLAMIENTO_MULTIEMPRESA_2026-07-05.md` — multi-tenancy.
-- `docs/PERMISOS_MODULOS_WPF_2026-07-05.md`
-- `docs/MODULO_CAJA_WPF_Y_DATOS_DEMO_2026-07-05.md`
 - `docs/MODULO_METODOS_PAGO.md`
 - `docs/MODULO_TASAS_CAMBIO_2026-07-08.md`
-- `docs/PLAN_MODULO_TRASLADOS_LOGISTICOS_2026-07-09.md` + fases 1-7.
+- `docs/PLAN_MODULO_TRASLADOS_LOGISTICOS_2026-07-09.md` + fases 1-7 (backend).
+- `docs/PERMISSIONS_HIERARCHY_DESIGN_2026-07-13.md`
+- `docs/SCOPES_DESIGN_2026-07-13.md`
 
 **Sync**:
 - `docs/SINCRONIZACION_LOCAL_NUBE_2026-07-05.md` — diseño general.
 - `docs/SYNC_API_TRANSPORTE_2026-07-05.md` — endpoints.
 - `docs/SYNC_AUTO_WORKER_Y_API_PERMANENTE_2026-07-06.md`
 - `docs/SYNC_WORKER_WINDOWS_TAREA_PROGRAMADA_2026-07-06.md`
+- `docs/SYNC_WORKER_WINDOWS_OPERACION_2026-07-06.md`
+- `docs/SYNC_OPERATIVO_POR_EMPRESA_2026-07-06.md`
+- `docs/SYNC_SMOKE_TEST_LOCAL_NUBE_2026-07-05.md`
+- `docs/SYNC_WORKER_LOCAL_NUBE_2026-07-05.md`
 
-**Portal admin web**:
-- `docs/PORTAL_ADMIN_FRONTEND_BASE_2026-07-07.md`
-- `docs/PORTAL_ADMIN_BACKEND_DASHBOARD_2026-07-07.md`
-- `docs/PORTAL_ADMIN_USUARIOS_PERMISOS_2026-07-07.md`
-- `docs/PORTAL_ADMIN_REPARACION_PERMISOS_VPS_2026-07-07.md`
-- `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`
-- `docs/IMPLEMENTACION_PORTAL_TRASLADOS_FASE_1_LISTADO_2026-07-10.md`
-- `docs/IMPLEMENTACION_PORTAL_TRASLADOS_FASE_2_DETALLE_2026-07-10.md`
+**SaaS Master / Platform Admin**:
+- `docs/INSTRUCCIONES_FRONTEND_SAAS_MASTER.md` — contrato API para `/api/master/*`.
+- `docs/INSTRUCCIONES_FRONTEND_PERMISSIONS.md` — 3 niveles de permisos.
+- `docs/INSTRUCCIONES_FRONTEND_SCOPES.md` — scopes por recurso.
 
-**POS**:
-- `docs/POS_RENDIMIENTO_2026-07-05.md`
-- `docs/POS_PAGOS_MIXTOS_TASAS_2026-07-09.md`
-- `docs/POS_IMEI_ESCANEO_Y_CHECKOUT_2026-07-08.md`
-- `docs/POS_FOCO_PERMANENTE_BUSCADOR_2026-07-08.md`
+**Auditoría backend 2026-07-11**:
+- `docs/AUDIT_2026-07-11/00_RESUMEN_EJECUTIVO.md`
+- `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` — contrato API para futuro frontend.
+- `docs/AUDIT_2026-07-11/ROADMAP.md` — items P0-P4.
+- `docs/AUDIT_2026-07-11/{01..10}_*.md` — auditorías detalle por módulo.
 
-**Demo data**:
-- `docs/DATOS_DEMO_MULTIEMPRESA_2026-07-05.md`
-- `docs/DEMO_DATA.md`
+**Frontend nuevo (pendiente de construir)**:
+- Stack por decidir: SPA (React/Vue/Svelte) o PWA, servido aparte o vía Laravel.
+- Debe consumir los endpoints documentados en `docs/API.md` y respetar
+  `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` + `docs/INSTRUCCIONES_FRONTEND_*.md`.
 
 ---
 
@@ -494,23 +471,12 @@ php artisan db:seed --class=MultiCompanyLoginDemoSeeder --force
 php artisan db:seed --class=DemoDataSeeder --force
 php artisan optimize:clear
 php artisan route:clear
-php artisan view:clear
 php artisan config:cache
-
-# Frontend
-pnpm install
-pnpm run build
-pnpm run dev
-
-# WPF desktop
-dotnet run --project desktop/InventoryDesktop/InventoryDesktop.csproj
-dotnet run --project desktop/InventoryDesktop.XamlSmoke/InventoryDesktop.XamlSmoke.csproj   # smoke test XAML post-cambio de .xaml
 
 # Tests
 php vendor/bin/phpunit
 php vendor/bin/phpunit --filter "cross_tenant"
 php vendor/bin/phpunit --process-isolation
-pnpm e2e
 vendor/bin/pint                       # code style
 
 # Sync
@@ -520,39 +486,15 @@ php artisan sync:run demo-valencia
 php artisan sync:apply-inbox demo-valencia --limit=200
 
 # Tenant Admin (Administrador dentro de una empresa existente)
-# Asigna rol Administrador con todos los permisos al user en sus empresas.
 php artisan access:promote-admin gerente.valencia@demo.test
 
-# Platform Admin (SaaS Master, nivel global, controla todos los grupos/spinoffs)
-# Crea el user si no existe, o lo promueve a Platform Admin si ya existe.
-php artisan access:create-platform-admin "Nombre Admin" admin@arens.test                  # pass aleatoria
+# Platform Admin (SaaS Master, nivel global)
+php artisan access:create-platform-admin "Nombre Admin" admin@arens.test
 php artisan access:create-platform-admin "Nombre Admin" admin@arens.test --password=Secret1234
-# Promover user existente a Platform Admin: usar el mismo create-platform-admin
-# (si el email ya existe y NO es platform admin, lo marca is_platform_admin=true).
-php artisan access:create-platform-admin "Mi Admin" usuario@yaexiste.com --password=Secret1234
-# Endpoints (requieren EnsurePlatformAdmin) — ver docs/INSTRUCCIONES_FRONTEND_SAAS_MASTER.md
-#   GET  /api/master/stats                       - stats globales del SaaS
-#   GET  /api/master/groups                      - lista grupos (parent_id=NULL)
-#   POST /api/master/groups                      - crea grupo + setup + group_owner
-#   GET  /api/master/groups/{group}             - detalle de un grupo
-#   PATCH /api/master/groups/{group}             - editar grupo
-#   DELETE /api/master/groups/{group}            - soft delete
-#   GET  /api/master/groups/{group}/tenants      - listar spinoffs desde master
-#   GET  /api/master/admins                      - lista Platform Admins
-#   POST /api/master/admins                      - crea/promueve
-#   GET  /api/master/admins/{admin}              - detalle
-#   PATCH /api/master/admins/{admin}              - editar
-#   POST /api/master/admins/{admin}/reset-password - reset + revoca sesiones
-#   DELETE /api/master/admins/{admin}             - revocar (no self)
-# Endpoints SIN tenant middleware (login global sin empresa):
-#   POST /api/auth/platform-login - login exclusivo para Platform Admins.
-#     Emite un AuthToken con tenant_id=null (no scoped). Solo sirve para /api/master/*.
-#     Si el user no es platform_admin responde 422.
-#   GET  /api/auth/me             - funciona tambien para Platform Admin (tenant=null)
 
 # VPS
-ssh -i C:\Users\gafit\.ssh\webadmin-vps webadmin@217.216.80.158
-ssh -i C:\Users\gafit\.ssh\webadmin-vps webadmin@217.216.80.158 "sudo -u postgres psql -d inventory_arens -c 'SELECT 1'"
+ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158
+ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158 "sudo -u postgres psql -d inventory_arens -c 'SELECT 1'"
 
 # Diagnóstico local
 Test-NetConnection 217.216.80.158 -Port 5432
@@ -567,20 +509,18 @@ Test-NetConnection app.miinventariofacil.com -Port 443
 - ❌ Crear modelos de negocio sin `use BelongsToTenant`.
 - ❌ Crear FKs a tablas tenant-scoped sin composite `['tenant_id', 'id']`.
 - ❌ Usar `php artisan view:cache`.
-- ❌ Commitear `public/build/`.
 - ❌ Saltar el pre-push hook sin justificación documentada.
 - ❌ Confundir INVENTARIOARENS con MiInventarioFácil (ver §2).
 - ❌ Tocar `.harness/`, `.codex/`, `.githooks/`, `.github/workflows/` sin OK explícito.
-- ❌ Agregar Alpine.js o Livewire sin conversación previa.
 - ❌ Recalcular rates históricos — los snapshots son la verdad.
 - ❌ Sobreescribir ventas/pagos/caja (deben ser append-only + auditados).
 - ❌ Borrar `.env` ni `.env.example`.
-- ❌ Entregar código nuevo o modificados sin correr tests (ver §9.5).
+- ❌ Entregar código nuevo o modificados sin correr tests (ver §9.4).
 - ❌ Crear feature/herramienta sin sus tests asociados.
-- ❌ Agregar nuevos NuGets al proyecto WPF `InventoryDesktop/` sin conversación previa. **Único
-  autorizado**: `MaterialDesignThemes 5.2.1` (introducido el 2026-07-11 para rediseño de login —
-  paleta `#4D35FF` se mantiene vía override de `MaterialDesign.Brush.Primary.*`). Cualquier otro
-  paquete debe consultarse primero.
+- ❌ Recrear frontend dentro de este repo sin conversación previa. El frontend nuevo se construirá
+  como proyecto separado (probablemente en otro directorio o repo) que consuma este backend vía
+  `/api/*`. Si el usuario pide meter el frontend en este repo, abrir conversación sobre stack
+  (React/Vue/Svelte/SvelteKit/Next/etc.) y tooling antes de empezar.
 
 ---
 
@@ -595,6 +535,10 @@ Si pasa algo que afecte decisiones futuras (nueva convención, nuevo VPS, nueva 
 4. Deploy/CI → actualizar §10 + §13.
 5. Reglas críticas operativas → agregar a §11 o §14.
 6. Contexto del VPS/proyecto → actualizar §1, §2 y `.harness/docs/INVENTARIOARENS_PROJECT_FACTS.md`.
+7. Si se introduce un nuevo frontend → crear nueva sección §X con su stack, estructura y reglas,
+   y actualizar §3.
+
+---
 
 ## 16. Auditoría de backend 2026-07-11
 
@@ -605,7 +549,7 @@ Documentación detallada en `docs/AUDIT_2026-07-11/`:
 - **Resumen ejecutivo:** `docs/AUDIT_2026-07-11/00_RESUMEN_EJECUTIVO.md`.
 - **Auditorías detalle:** `01_MULTI_TENANCY.md` (8.5), `02_AUTH_SEGURIDAD.md` (6.5), `03_SYNC_ENGINE.md` (6), `04_INVENTARIO_IMEI.md` (6), `05_POS_CAJA_TASAS.md` (7), `06_TRASLADOS.md` (7), `07_CXC_CXP_GARANTIAS.md` (6.5), `08_API_DESIGN.md` (7), `09_PERFORMANCE.md` (5.5), `10_CALIDAD_TESTS.md` (6-7).
 - **Roadmap tachable:** `docs/AUDIT_2026-07-11/ROADMAP.md` (P0/P1/P2/P3/P4 con status).
-- **Contrato para frontend:** `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` (lo que la IA frontend necesita saber).
+- **Contrato para frontend:** `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` (referencia útil para el frontend nuevo).
 
 **Regla de oro:** después de cada fix, actualizar el item correspondiente en `ROADMAP.md` cambiando
 `- [ ]` → `- [x] — FECHA — descripción corta`. Si el fix descubre un nuevo issue, agregarlo al final

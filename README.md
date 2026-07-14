@@ -1,58 +1,149 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# INVENTARIOARENS
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Backend SaaS modular multi-tenant de **gestión de inventario + punto de venta**, escrito en
+**Laravel 13 + PHP 8.3+ + PostgreSQL**. Es una **API REST pura** pensada para ser consumida
+desde un cliente HTTP (web, móvil o CLI).
 
-## About Laravel
+> **Estado (2026-07-13)**: el frontend anterior (portal web Blade/JS vanilla + escritorio WPF) fue
+> eliminado por completo. El nuevo cliente frontend se construirá como proyecto separado en una
+> fase posterior. Este repo es **backend puro**.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Qué hace
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Multi-tenant**: una sola base de datos con `tenant_id` + scope global. Un usuario puede pertenecer
+  a varias empresas con roles distintos en cada una (Spatie Permission con `teams = tenant_id`).
+- **Catálogo + inventario**: productos por tenant con control por cantidad o por unidades serializadas
+  (IMEI/serial), stock por almacén, kardex, traslados internos y solicitudes interempresa.
+- **Punto de venta**: ventas en mostrador con pagos mixtos USD/VES, snapshot de tasa por movimiento,
+  cajas físicas multi-sucursal, sesiones de apertura/cierre y conciliaciones.
+- **Compras y cuentas por pagar**: órdenes de compra, recepción parcial o total, devoluciones,
+  generación automática de CxP al recibir.
+- **Ventas y cuentas por cobrar**: confirmación de ventas, devoluciones, generación automática de CxC,
+  cobros parciales o totales, comprobantes históricos.
+- **Multi-moneda venezolano**: USD como base, VES como operativa, tipos de tasa configurables
+  (`BCV`, `PARALELO`, tienda) con snapshot en cada movimiento monetario.
+- **Sync local ↔ nube**: patrón Local-First + Outbox bidireccional para nodos locales que operan
+  offline y sincronizan cuando hay conexión.
+- **SaaS Master**: Platform Admins globales que gestionan grupos de empresas y spinoffs sin
+  pertenecer a un tenant específico.
+- **Warranties / IMEI / seriales**: políticas de garantía por tenant, claims con resolución
+  (reemplazo/rechazo/reembolso), trazabilidad por unidad física.
+- **Reportes operativos**: stock, bajo stock, movimientos, dashboards ejecutivos, finanzas (CxC/CxP).
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Stack
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Capa | Versión |
+|---|---|
+| PHP | 8.3+ (recomendado 8.4) |
+| Laravel | 13.8 |
+| Base de datos | PostgreSQL 16 (prod + local), 17-alpine (docker dev), 15 (CI) |
+| Permisos | spatie/laravel-permission 8.1 con `teams` |
+| Tests | PHPUnit 12.5.12 |
+| Linter | Pint 1.27 |
+| Multi-tenancy | `BelongsToTenant` trait + `TenantScope` + middleware `api.auth` + `tenant` |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+**No incluye** frontend en el repo. Se consume vía API REST bajo `/api/*`.
 
-## Agentic Development
+---
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Quick start
 
 ```bash
-composer require laravel/boost --dev
+git clone https://github.com/gamijoam/inventarioarens.git
+cd inventarioarens
+composer install
+cp .env.example .env
+php artisan key:generate
 
-php artisan boost:install
+# Ajustar .env con tus credenciales locales de PostgreSQL
+php artisan migrate --force
+
+# (Opcional) sembrar datos demo
+php artisan db:seed --class=MultiCompanyLoginDemoSeeder --force
+php artisan db:seed --class=DemoDataSeeder --force
+
+# Levantar
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Más detalle en [`BUILD.md`](./BUILD.md).
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Endpoints
 
-## Code of Conduct
+Catálogo completo en [`docs/API.md`](./docs/API.md). Superficies principales:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Prefijo | Descripción |
+|---|---|
+| `/api/auth/*` | Login multi-tenant, switch-tenant, sesiones, logout. |
+| `/api/auth/platform-login` | Login exclusivo para Platform Admins (SaaS Master). |
+| `/api/master/*` | CRUD de grupos, spinoffs y Platform Admins (sin tenant). |
+| `/api/products`, `/api/price-lists` | Catálogo y precios. |
+| `/api/inventory-center/*` | Centro de Inventario (summary, productos, serials, movimientos, audits). |
+| `/api/inventory/*` | Movimientos crudos de inventario (compras, ventas, ajustes, reservas, traslados). |
+| `/api/inventory-transfers/*`, `/api/inventory-transfer-requests/*` | Traslados internos y solicitudes interempresa. |
+| `/api/cash-register/*` | Cajas físicas, sesiones, movimientos, cierre. |
+| `/api/pos/*` | Punto de venta (checkouts, órdenes, pagos). |
+| `/api/sales/*`, `/api/sales-returns/*` | Ventas y devoluciones de venta. |
+| `/api/purchases/*`, `/api/purchase-returns/*` | Compras y devoluciones de compra. |
+| `/api/accounts-receivable/*`, `/api/accounts-payable/*` | CxC y CxP. |
+| `/api/payment-receipts/*` | Comprobantes históricos. |
+| `/api/financial-adjustments/*` | Ajustes financieros. |
+| `/api/warranty-policies/*`, `/api/warranty-claims/*` | Garantías. |
+| `/api/customers/*`, `/api/suppliers/*`, `/api/customer-groups/*` | Terceros. |
+| `/api/branches/*`, `/api/warehouses/*` | Sucursales y almacenes. |
+| `/api/currency/rate-types/*`, `/api/currency/rates/*` | Tipos de tasa y valores. |
+| `/api/payment-methods/*` | Métodos de pago. |
+| `/api/users/*`, `/api/roles/*`, `/api/permissions/*` | AccessControl. |
+| `/api/sync/*` | Sync worker local↔nube (push, pull, ack, status, tokens). |
+| `/api/dashboard/summary`, `/api/admin-portal/*` | Dashboards gerenciales. |
+| `/api/reports/*`, `/api/finance-reports/*`, `/api/kardex/*` | Reportes. |
+| `/api/tenants/*` | CRUD de tenants (cross-tenant desde Platform Admin). |
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Tests
 
-## License
+```bash
+php vendor/bin/phpunit                          # suite completa
+php vendor/bin/phpunit tests/Feature/Inventory/ # un módulo
+php vendor/bin/phpunit --process-isolation      # si hay "duplicate table" en local
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Hay un set explícito de tests cross-tenant. Ver sección "Tests cross-tenant" en [`BUILD.md`](./BUILD.md).
+
+---
+
+## Documentación
+
+- [`AGENTS.md`](./AGENTS.md) — contexto persistente para opencode (este archivo).
+- [`BUILD.md`](./BUILD.md) — setup local, deploy, CI, troubleshooting.
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — fuente de verdad arquitectural.
+- [`docs/MODULES.md`](./docs/MODULES.md) — mapa de los 34 módulos backend.
+- [`docs/API.md`](./docs/API.md) — referencia completa de endpoints por módulo.
+- [`docs/IMPLEMENTATION_LOG.md`](./docs/IMPLEMENTATION_LOG.md) — bitácora cronológica de cambios.
+- [`docs/AUDIT_2026-07-11/`](./docs/AUDIT_2026-07-11/) — auditoría de backend (10 áreas, score 6.8/10).
+- [`docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md`](./docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md) — contrato API para el frontend nuevo.
+
+---
+
+## Infraestructura
+
+- **Local**: Windows + Laragon + PHP 8.4.23 + PostgreSQL 16 (`127.0.0.1:5434`, DB `inventory_arens`).
+- **VPS nube**: `217.216.80.158` (Contabo Ubuntu 24.04), Nginx + PHP-FPM 8.4, PostgreSQL 16 nativo.
+- **Dominio público**: `https://app.miinventariofacil.com/api` (HTTPS Let's Encrypt).
+- **SSH al VPS**: `ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158`.
+
+⚠️ **No confundir con MiInventarioFácil** (otro SaaS en VPS distinto, FastAPI/Python). Ver
+[`AGENTS.md` §2](./AGENTS.md) para la tabla de identificación.
+
+---
+
+## Licencia
+
+MIT (heredado del skeleton de Laravel).

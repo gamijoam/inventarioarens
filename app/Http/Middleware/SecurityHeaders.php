@@ -53,13 +53,10 @@ class SecurityHeaders
 
     private function buildWebCsp(): string
     {
-        $viteClient = "'self'";
-        $viteHmr = 'ws://localhost:5173 http://localhost:5173';
-
         if (app()->environment('local')) {
-            $script = "'self' 'unsafe-inline' 'unsafe-eval' {$viteHmr}";
+            $script = "'self' 'unsafe-inline' 'unsafe-eval'";
             $style = "'self' 'unsafe-inline'";
-            $connect = "'self' {$viteHmr}";
+            $connect = "'self'";
         } else {
             $script = "'self'";
             $style = "'self' 'unsafe-inline'";

@@ -4,7 +4,6 @@
 
 - `docs/MODULES.md`: mapa modular del proyecto, responsabilidades actuales y modulos planificados.
 - `docs/API.md`: catalogo de APIs actuales, clasificado por modulo.
-- `docs/ARQUITECTURA_ESCRITORIO_WEB_SYNC_2026-07-07.md`: decision sobre la separacion entre aplicacion de escritorio, portal web administrativo y sincronizacion local-nube.
 
 Regla actual de rutas:
 
@@ -16,45 +15,6 @@ Regla actual de rutas:
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
 
-## Cliente de escritorio WPF
-
-El sistema tendra una aplicacion de escritorio en C# con WPF como cliente principal.
-
-Decision complementaria:
-
-- la aplicacion de escritorio es el area operativa del negocio;
-- el portal web es el area administrativa y gerencial;
-- la sincronizacion local-nube conecta ambos mundos sin obligar al local a depender de internet para vender;
-- la referencia completa vive en `docs/ARQUITECTURA_ESCRITORIO_WEB_SYNC_2026-07-07.md`.
-
-Decision:
-
-- Laravel sigue siendo el backend central y la unica capa autorizada para escribir reglas de negocio.
-- PostgreSQL no debe ser consumido directamente desde la aplicacion de escritorio.
-- WPF consume las APIs HTTP/JSON de Laravel.
-- El login usa `POST /api/auth/tenants` y `POST /api/auth/login`.
-- Las llamadas protegidas envian `Authorization: Bearer <token>` y `X-Tenant: <slug>`.
-- El token se guarda localmente usando proteccion del usuario de Windows.
-
-Estructura inicial:
-
-```txt
-desktop/InventoryDesktop
-|-- Core
-|   |-- Api
-|   |-- Security
-|   `-- ViewModels
-|-- Modules
-|   |-- Auth
-|   `-- InventoryCenter
-|-- App.xaml
-`-- MainWindow.xaml
-```
-
-Regla:
-
-- el cliente WPF puede mejorar experiencia, velocidad y flujo visual, pero permisos, tenant, stock, auditoria, tasas, caja y ventas se validan siempre en Laravel.
-
 ## Dashboard ejecutivo
 
 El dashboard inicial usa `GET /api/dashboard/summary` para cargar la portada del sistema con una sola llamada protegida. El objetivo es evitar que el frontend dispare varias consultas independientes al iniciar sesion.
@@ -65,7 +25,7 @@ Reglas:
 - las sumas y conteos se calculan en base de datos;
 - el stock bajo se consulta con limite y relaciones especificas;
 - no se cargan colecciones completas para tarjetas de resumen;
-- el frontend usa esta API cuando la sesion es real y conserva datos demo solo para `FRONTEND_DEV_BYPASS_LOGIN`.
+- el frontend consume esta API una vez autenticado el usuario.
 
 ## Centro de Inventario conectado a datos reales
 
@@ -78,7 +38,6 @@ Reglas:
 - el stock se agrega desde `stock_balances` por producto;
 - el listado de productos se limita por parametro y nunca supera 50 registros por llamada;
 - los filtros iniciales son busqueda, tipo de control y estado de stock;
-- el frontend solo usa datos demo en el bypass local;
 - tenant y permisos se validan igual que en el resto de APIs protegidas.
 
 ## Reportes iniciales
@@ -311,7 +270,7 @@ El primer patrón de policy es `App\Modules\Products\Policies\ProductPolicy`:
 
 ## Autenticacion
 
-El modulo `Auth` emite tokens de API propios para el frontend web. No se guarda el token plano en base de datos: se persiste `token_hash` en `auth_tokens` y el valor visible solo se devuelve en el login.
+El modulo `Auth` emite tokens de API propios para los clientes (web, móvil, CLI). No se guarda el token plano en base de datos: se persiste `token_hash` en `auth_tokens` y el valor visible solo se devuelve en el login.
 
 Reglas arquitectonicas:
 
@@ -324,40 +283,23 @@ Reglas arquitectonicas:
 - el frontend debe consumir estas APIs y mostrar opciones segun permisos, pero la autoridad real siempre queda en backend;
 - las rutas protegidas usan `api.auth` y `tenant` para que policies, permisos y tenant se resuelvan juntos.
 
-## Frontend inicial
+## Frontend (pendiente de construccion)
 
-El frontend inicial vive dentro del mismo proyecto Laravel usando Vite, Blade, CSS y JavaScript ligero.
+El frontend nuevo se construira como proyecto separado en una fase posterior. Sera una aplicacion
+web moderna (SPA o PWA) que se ejecuta en navegador — tanto local como en la nube — y consume este
+backend via `/api/*`.
 
-Archivos principales:
-
-- `resources/views/welcome.blade.php`
-- `resources/css/app.css`
-- `resources/js/app.js`
-
-Reglas arquitectonicas:
+Reglas arquitectonicas esperadas:
 
 - el frontend consume las APIs del backend;
 - no decide permisos criticos, solo muestra u oculta interfaz segun la sesion recibida;
 - el login usa `POST /api/auth/tenants` para resolver empresas disponibles;
 - el login usa `POST /api/auth/login` con `X-Tenant` para obtener token;
-- la sesion se guarda en el navegador para la primera fase;
-- la pantalla de acceso se mantiene como un login central profesional, sin panel visual lateral;
-- al iniciar sesion se renderiza un shell principal con navegacion agrupada por modulos;
-- el frontend filtra opciones visibles segun permisos efectivos, pero no sustituye validaciones del backend;
+- cada llamada lleva `Authorization: Bearer <token>` + `X-Tenant: <slug>`;
 - el backend sigue validando token, tenant, roles, permisos y policies en cada peticion protegida.
 
-## Portal administrativo web
-
-El portal administrativo web vive en `/admin` y consume APIs protegidas de Laravel. Su objetivo es monitoreo, gestion y operacion gerencial por empresa, no presentacion comercial.
-
-Reglas de interfaz:
-
-- debe seguir la guia `docs/GUIA_UI_ALTA_DENSIDAD_PORTAL_ADMIN_2026-07-07.md`;
-- la UI se diseña como herramienta administrativa de alta densidad;
-- textos generales entre 12px y 14px;
-- tablas, filtros, botones, inputs y selects compactos;
-- se evita hero grande, tarjetas infladas y exceso de espacio vacio;
-- cada modulo nuevo del portal debe probarse visualmente al 100% de zoom antes de cerrarse.
+El contrato API detallado para el frontend esta en
+`docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` y `docs/INSTRUCCIONES_FRONTEND_*.md`.
 
 ## Pruebas de seguridad actuales
 

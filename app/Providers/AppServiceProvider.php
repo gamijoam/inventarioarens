@@ -52,7 +52,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -69,8 +68,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->assertNoBypassLoginOutsideLocal();
-
         Gate::policy(AccountsPayable::class, AccountsPayablePolicy::class);
         Gate::policy(AccountsReceivable::class, AccountsReceivablePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
@@ -118,19 +115,15 @@ class AppServiceProvider extends ServiceProvider
                 }),
             ];
         });
-    }
 
-    /**
-     * Defensa en profundidad: el bypass login solo puede existir en entorno local.
-     * Si en producción (testing/staging/production) está activo, falla loud en boot.
-     */
-    private function assertNoBypassLoginOutsideLocal(): void
-    {
-        if (! app()->environment('local') && (bool) env('FRONTEND_DEV_BYPASS_LOGIN', false)) {
-            throw new RuntimeException(
-                'FRONTEND_DEV_BYPASS_LOGIN solo puede estar activo cuando APP_ENV=local. '
-                .'Entorno actual: '.app()->environment().'. Verifica tu archivo .env.'
-            );
-        }
+        RateLimiter::for('bootstrap', function (Request $request): array {
+            return [
+                Limit::perHour(3)->by($request->ip())->response(function (): \Illuminate\Http\JsonResponse {
+                    return response()->json([
+                        'message' => 'Demasiados intentos de bootstrap. Por favor intente en 1 hora.',
+                    ], 429);
+                }),
+            ];
+        });
     }
 }
