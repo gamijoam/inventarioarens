@@ -20,7 +20,7 @@ class ApplyAllSyncInboxesCommand extends Command
 
     public function handle(): int
     {
-        $tenants = Tenant::query()->where('is_active', true)->get();
+        $tenants = Tenant::query()->where('status', 'active')->get();
         if ($tenants->isEmpty()) {
             $this->info('No hay tenants activos. Nada que hacer.');
             return self::SUCCESS;
