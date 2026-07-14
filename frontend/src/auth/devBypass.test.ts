@@ -59,6 +59,31 @@ describe('devBypass (Plan C: cookie httpOnly no manipulable)', () => {
     expect(useSessionStore.getState().tenant?.slug).toBe('mi-empresa');
   });
 
+  it('applyDevSession NO sobrescribe una sesion real existente (post-login)', () => {
+    // Simulamos login real: store tiene user real (gabo@gabo.com).
+    useSessionStore.setState({
+      user: {
+        id: 1,
+        email: 'gabo@gabo.com',
+        name: 'Gabo',
+        is_active: true,
+      },
+      tenant: {
+        id: 1,
+        slug: 'mi-empresa',
+        name: 'Mi Empresa',
+        is_active: true,
+      },
+    });
+
+    applyDevSession();
+
+    // La sesion real debe quedar intacta, no sobrescrita con dev@local.
+    const state = useSessionStore.getState();
+    expect(state.user?.email).toBe('gabo@gabo.com');
+    expect(state.tenant?.slug).toBe('mi-empresa');
+  });
+
   it('isAuthDisabled respeta dev_enforce_auth=1 (fuerza flujo real)', () => {
     localStorage.setItem('dev_enforce_auth', '1');
     expect(isAuthDisabled()).toBe(false);

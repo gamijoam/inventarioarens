@@ -61,11 +61,13 @@ const ALL_PERMISSIONS = new Set<string>(Object.values(PERMISSIONS));
 export function applyDevSession(): void {
   if (typeof window === 'undefined') return;
 
-  // Idempotencia: si ya aplicamos la sesion fake en este render session,
-  // no aplicar de nuevo. Asi evitamos loops infinitos de re-render cuando
-  // se llama desde useEffect[].
+  // NO sobrescribir si ya hay una sesion real (login con backend).
+  // Esto evita que el bypass pisotee una sesion valida despues de login.
+  // Bug historico: despues de hacer login real con gabo@gabo.com, el
+  // bypass seguia activo y sobrescribia la sesion con tenant 'dev' (fake)
+  // que el backend rechaza con 404 "Tenant not found".
   const current = useSessionStore.getState();
-  if (current.user?.email === 'dev@local' && current.tenant?.slug?.startsWith('dev')) {
+  if (current.user !== null) {
     return;
   }
 
