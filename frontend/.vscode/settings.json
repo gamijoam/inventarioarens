@@ -1,0 +1,10 @@
+{
+  "name": "INVENTARIOARENS Frontend",
+  "$schema": "https://open-vsx.org/api/zyrouge/remark/rehype",
+  "useTabs": false,
+  "tabSize": 2,
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100
+}

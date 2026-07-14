@@ -1,0 +1,8 @@
+# Ignore generated and build artifacts
+dist
+node_modules
+coverage
+playwright-report
+test-results
+src/routeTree.gen.ts
+pnpm-lock.yaml
