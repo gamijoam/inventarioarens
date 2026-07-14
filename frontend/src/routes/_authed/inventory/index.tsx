@@ -26,6 +26,7 @@ import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 
 import { useProducts } from '@/features/inventory-center/api';
+import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import type { Product } from '@/features/inventory-center/schemas';
 
 type TrackingFilter = 'all' | 'quantity' | 'serialized';
@@ -64,6 +65,7 @@ function InventoryListPage() {
   const navigate = useNavigate({ from: Route.fullPath });
 
   const [searchInput, setSearchInput] = useState(search.search);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const filters = useMemo(
     () => ({
@@ -106,7 +108,9 @@ function InventoryListPage() {
       description="Listado de productos con stock, precios y estado."
       actions={
         <Can I={PERMISSIONS.PRODUCTS_CREATE}>
-          <Button>+ Nuevo producto</Button>
+          <Button onClick={() => setCreateOpen(true)} data-testid="new-product">
+            + Nuevo producto
+          </Button>
         </Can>
       }
     >
@@ -251,6 +255,8 @@ function InventoryListPage() {
           </div>
         </div>
       )}
+
+      <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
     </PageLayout>
   );
 }
