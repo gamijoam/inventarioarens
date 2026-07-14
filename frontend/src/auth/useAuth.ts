@@ -104,14 +104,16 @@ export function useAuth(): UseAuthResult {
     [session, queryClient],
   );
 
-  // Al montar, si hay token persistido pero no hay permissions cargadas, refrescar.
+  // Si hay token persistido pero no hay permissions cargadas, refrescar.
+  // El useEffect depende de session.token para que se dispare cuando
+  // el signIn setea el token (en sesion nueva via login).
   const isReady = session.permissions.size > 0 || !session.token;
   useEffect(() => {
     if (session.token && session.permissions.size === 0) {
       void refreshSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [session.token]);
 
   return {
     isAuthenticated: session.isAuthenticated(),
