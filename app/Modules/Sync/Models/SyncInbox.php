@@ -4,7 +4,7 @@ namespace App\Modules\Sync\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Modules\Tenancy\Concerns\BelongsToTenant;
+use App\\Support\\Tenancy\\Concerns\\BelongsToTenant;
 use App\Modules\Tenancy\Models\Tenant;
 
 class SyncInbox extends Model
