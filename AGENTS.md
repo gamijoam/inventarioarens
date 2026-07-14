@@ -12,16 +12,16 @@ escrito en **Laravel 13 / PHP 8.3-8.4 / PostgreSQL**. Es un **backend API REST p
 desde un cliente HTTP.
 
 **Estado del frontend (2026-07-13)**: se eliminaron por completo los frontends anteriores
-(portal web Blade/JS vanilla + WPF escritorio). El nuevo cliente frontend se construirá en una
-fase posterior como **aplicación web moderna** (SPA/PWA) que se ejecuta en navegador — tanto local
-como en la nube — y consume este backend vía `/api/*`. **Mientras tanto, no hay frontend en este repo.**
+(portal web Blade/JS vanilla + WPF escritorio). El nuevo cliente frontend se está diseñando y
+construirá como **aplicación web moderna SPA** (Vite + React 18 + TS) que vive en `frontend/` dentro
+de este repo y consume el backend vía `/api/*`. Diseño completo en `docs/FRONTEND_*.md`.
 
 | Capa | Stack |
 |---|---|
 | Backend | Laravel 13 + PHP 8.3+ + PostgreSQL 16 (prod) / 17 (docker dev) / 15 (CI) |
 | Auth | `Authorization: Bearer <token>` + `X-Tenant: <slug>` |
 | Multi-tenant | Single-DB con `tenant_id` + global scope |
-| Frontend | **(pendiente)** — nueva app web por construir |
+| Frontend | Vite + React 18 + TS + TanStack Query/Router + Tailwind 4 + Radix UI + Zustand (en `frontend/`, en construcción — Fase 0 pendiente) |
 
 **Contexto de mercado (Venezuelano)**: moneda base **USD**, operativa **VES**, con tipos de tasa
 (`BCV`, `PARALELO`, tienda) y snapshot de rate en cada movimiento monetario.
@@ -76,7 +76,8 @@ INVENTARIOARENS/
 │   ├── migrations/                        ← 72+ migraciones (cronología 2026-07-02 → hoy).
 │   ├── seeders/{DatabaseSeeder,RolesAndPermissionsSeeder,DemoDataSeeder,MultiCompanyLoginDemoSeeder}.php
 │   └── factories/UserFactory.php
-├── docs/                                  ← ~40 .md de diseño, implementación, auditoría e historia.
+├── docs/                                  ← ~45 .md de diseño, implementación, auditoría e historia.
+├── frontend/                             ← NUEVO (Fase 0 pendiente). SPA React + TS + TanStack + Tailwind.
 ├── routes/
 │   ├── api.php                            ← Thin aggregator; carga routes.php de cada módulo bajo 'api.auth'+'tenant'.
 │   └── console.php
@@ -453,8 +454,14 @@ sudo /usr/bin/env php artisan migrate --force
 - `docs/AUDIT_2026-07-11/ROADMAP.md` — items P0-P4.
 - `docs/AUDIT_2026-07-11/{01..10}_*.md` — auditorías detalle por módulo.
 
-**Frontend nuevo (pendiente de construir)**:
-- Stack por decidir: SPA (React/Vue/Svelte) o PWA, servido aparte o vía Laravel.
+**Frontend nuevo (en construcción desde 2026-07-13)**:
+- Stack acordado: **Vite + React 18 + TS + TanStack (Query/Router/Table) + Tailwind 4 + Radix UI + Zustand**.
+- Vive en `frontend/` dentro de este repo (no en repo separado).
+- **Diseño completo** en:
+  - `docs/FRONTEND_ARQUITECTURA.md` — stack, estructura, patrones, deploy.
+  - `docs/FRONTEND_PERMISSIONS.md` — sistema de permisos (3 niveles + scopes + field masking).
+  - `docs/FRONTEND_FASES.md` — roadmap por fases (Fase 0 setup → Fase 7 reportes).
+  - `frontend/README.md` — setup y comandos.
 - Debe consumir los endpoints documentados en `docs/API.md` y respetar
   `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` + `docs/INSTRUCCIONES_FRONTEND_*.md`.
 
@@ -517,10 +524,11 @@ Test-NetConnection app.miinventariofacil.com -Port 443
 - ❌ Borrar `.env` ni `.env.example`.
 - ❌ Entregar código nuevo o modificados sin correr tests (ver §9.4).
 - ❌ Crear feature/herramienta sin sus tests asociados.
-- ❌ Recrear frontend dentro de este repo sin conversación previa. El frontend nuevo se construirá
-  como proyecto separado (probablemente en otro directorio o repo) que consuma este backend vía
-  `/api/*`. Si el usuario pide meter el frontend en este repo, abrir conversación sobre stack
-  (React/Vue/Svelte/SvelteKit/Next/etc.) y tooling antes de empezar.
+- ❌ Cambiar el stack del frontend (`docs/FRONTEND_ARQUITECTURA.md` §2) sin abrir conversación previa.
+  El stack Vite + React 18 + TS + TanStack + Tailwind 4 + Radix UI + Zustand está acordado el
+  2026-07-13. Cambios requieren re-evaluación.
+- ❌ Implementar features del frontend sin tests asociados (ver §9.4). Fase 1 incluye tests E2E
+  obligatorios de login + inventario.
 
 ---
 
@@ -537,6 +545,8 @@ Si pasa algo que afecte decisiones futuras (nueva convención, nuevo VPS, nueva 
 6. Contexto del VPS/proyecto → actualizar §1, §2 y `.harness/docs/INVENTARIOARENS_PROJECT_FACTS.md`.
 7. Si se introduce un nuevo frontend → crear nueva sección §X con su stack, estructura y reglas,
    y actualizar §3.
+8. **Frontend en construcción desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
+   ☐ → 🔄 → ✅ al avanzar, y `docs/IMPLEMENTATION_LOG.md` con cada entrega.
 
 ---
 
