@@ -48,7 +48,7 @@ export function BulkActionsMenu({ selectedIds, onClearSelection, onSuccess }: Bu
           variant="ghost"
           size="icon-sm"
           onClick={onClearSelection}
-          aria-label="Limpiar seleccion"
+          aria-label="Limpiar selección"
         >
           <X className="size-4" aria-hidden="true" />
         </Button>

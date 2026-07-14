@@ -28,7 +28,7 @@ export function ProductRelations({ product }: ProductRelationsProps) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-text-muted">
-            Este producto a&uacute;n no tiene marca, categor&iacute;as, tags ni garant&iacute;a asignados.
+            Este producto aún no tiene marca, categorías, tags ni garantía asignados.
           </p>
         </CardContent>
       </Card>
@@ -49,7 +49,7 @@ export function ProductRelations({ product }: ProductRelationsProps) {
         )}
 
         {product.categories && product.categories.length > 0 && (
-          <Field icon={<TagsIcon className="size-4" />} label="Categorias">
+          <Field icon={<TagsIcon className="size-4" />} label="Categorías">
             <div className="flex flex-wrap gap-1">
               {product.categories.map((c) => (
                 <Badge key={c.id} variant="info" className="font-normal">
@@ -78,11 +78,11 @@ export function ProductRelations({ product }: ProductRelationsProps) {
         )}
 
         {product.warranty_policy && (
-          <Field icon={<ShieldCheck className="size-4" />} label="Garantia">
+          <Field icon={<ShieldCheck className="size-4" />} label="Garantía">
             <span className="font-medium">{product.warranty_policy.name}</span>
             <span className="ml-2 text-xs text-text-muted">
               {product.warranty_policy.duration_days
-                ? `${product.warranty_policy.duration_days} dias`
+                ? `${product.warranty_policy.duration_days} días`
                 : ''}
               {product.warranty_policy.coverage_type
                 ? ` · ${product.warranty_policy.coverage_type}`

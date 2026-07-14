@@ -66,8 +66,8 @@ export function CategoriesManager() {
 
       {tree.length === 0 ? (
         <EmptyState
-          title="Sin categorias"
-          description="Crea la primera categoria raiz para empezar a organizar tu catalogo."
+          title="Sin categorías"
+          description="Crea la primera categoría raíz para empezar a organizar tu catálogo."
         />
       ) : (
         <div className="rounded-lg border border-border bg-surface p-2">
@@ -87,10 +87,10 @@ export function CategoriesManager() {
             try {
               if (editing) {
                 await updateCategory.mutateAsync({ id: editing.id, ...values });
-                toast.success('Categoria actualizada.');
+                toast.success('Categoría actualizada.');
               } else {
                 await createCategory.mutateAsync(values);
-                toast.success('Categoria creada.');
+                toast.success('Categoría creada.');
               }
               setCreating(null);
               setEditing(null);
@@ -117,7 +117,7 @@ export function CategoriesManager() {
             try {
               await deleteCategory.mutateAsync(deleting.id);
               setDeleting(null);
-              toast.success('Categoria eliminada.');
+              toast.success('Categoría eliminada.');
             } catch (err) {
               toast.error(err instanceof Error ? err.message : 'Error al eliminar.');
             }
@@ -165,8 +165,8 @@ export function CategoriesManager() {
                 size="icon-sm"
                 variant="ghost"
                 onClick={() => setCreating({ parentId: c.id })}
-                aria-label="Anadir subcategoria"
-                title="Anadir subcategoria"
+                aria-label="Añadir subcategoría"
+                title="Añadir subcategoría"
               >
                 <Plus className="size-3.5" />
               </Button>
@@ -215,9 +215,9 @@ function CategoryFormDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Editar categoria' : 'Nueva categoria'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
           <DialogDescription>
-            Las categorias se organizan en jerarquia. Define parent_id para crear subcategorias.
+            Las categorías se organizan en jerarquía. Define parent_id para crear subcategorías.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -260,13 +260,13 @@ function CategoryFormDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cat-parent">Categoria padre</Label>
+            <Label htmlFor="cat-parent">Categoría padre</Label>
             <Select
               id="cat-parent"
               name="parent_id"
               defaultValue={String(category?.parent_id ?? defaultParentId ?? '')}
             >
-              <option value="">(Sin padre - categoria raiz)</option>
+              <option value="">(Sin padre - categoría raíz)</option>
               {renderOptions(tree, '', 0)}
             </Select>
           </div>
@@ -280,7 +280,7 @@ function CategoryFormDialog({
               name="is_active"
               defaultChecked={category?.is_active ?? true}
             />
-            <Label htmlFor="cat-active">Categoria activa</Label>
+            <Label htmlFor="cat-active">Categoría activa</Label>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>

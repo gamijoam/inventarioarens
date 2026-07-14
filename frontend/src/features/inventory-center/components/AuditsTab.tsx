@@ -73,9 +73,9 @@ const AUDIT_LABELS: Record<string, string> = {
   price_changed: 'Precio cambiado',
   deactivated: 'Desactivado',
   activated: 'Activado',
-  category_synced: 'Categorias sincronizadas',
+  category_synced: 'Categorías sincronizadas',
   tag_synced: 'Tags sincronizados',
-  warranty_changed: 'Garantia cambiada',
+  warranty_changed: 'Garantía cambiada',
   stock_adjusted: 'Stock ajustado',
 };
 

@@ -119,11 +119,11 @@ export function ProductForm({
             <Input {...form.register('image_url')} placeholder="https://..." />
           </Field>
         </div>
-        <Field name="description" label="Descripcion corta" error={form.formState.errors.description?.message}>
+        <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
           <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
         </Field>
         {!compact && (
-          <Field name="long_description" label="Descripcion larga" hint="Hasta 50000 caracteres (HTML permitido)">
+          <Field name="long_description" label="Descripción larga" hint="Hasta 50000 caracteres (HTML permitido)">
             <Textarea {...form.register('long_description')} rows={4} placeholder="<p>Flagship 2023</p>" />
           </Field>
         )}
@@ -156,7 +156,7 @@ export function ProductForm({
           <Field
           name="category_ids"
           label="Categorias"
-          hint="Jerarquicas: selecciona las hojas o ramas que apliquen"
+          hint="Jerárquicas: selecciona las hojas o ramas que apliquen"
         >
             <Controller
               control={form.control}
@@ -227,10 +227,10 @@ export function ProductForm({
           )}
         />
         <div className="grid grid-cols-3 gap-3">
-          <Field name="min_stock" label="Stock minimo" error={form.formState.errors.min_stock?.message}>
+          <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
             <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
           </Field>
-          <Field name="max_stock" label="Stock maximo" error={form.formState.errors.max_stock?.message}>
+          <Field name="max_stock" label="Stock máximo" error={form.formState.errors.max_stock?.message}>
             <Input type="number" min="0" {...form.register('max_stock', { valueAsNumber: true })} />
           </Field>
           <Field name="reorder_quantity" label="Cantidad a reordenar" error={form.formState.errors.reorder_quantity?.message}>
