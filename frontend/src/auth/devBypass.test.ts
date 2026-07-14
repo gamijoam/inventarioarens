@@ -16,7 +16,6 @@ const emptyScopes = {
 
 beforeEach(() => {
   useSessionStore.setState({
-    token: null,
     user: null,
     tenant: null,
     roles: [],
@@ -35,23 +34,22 @@ beforeEach(() => {
   }
 });
 
-describe('devBypass', () => {
-  it('applyDevSession inyecta sesion con todos los permisos', () => {
+describe('devBypass (Plan C: cookie httpOnly no manipulable)', () => {
+  it('applyDevSession inyecta sesion con todos los permisos en el store local', () => {
     applyDevSession();
 
     const state = useSessionStore.getState();
-    expect(state.token).toBeTruthy();
-    expect(state.permissions.size).toBeGreaterThan(0);
     expect(state.user?.email).toBe('dev@local');
     expect(state.tenant?.slug).toBe('dev');
+    expect(state.permissions.size).toBeGreaterThan(0);
     expect(state.roles).toContain('Administrador');
   });
 
-  it('applyDevSession usa dev_token del localStorage cuando existe', () => {
-    localStorage.setItem('dev_token', 'real-bearer-from-backend');
+  it('applyDevSession NO setea token (vive en cookie, no en store)', () => {
+    // Verificamos que el store Plan C no expone token.
     applyDevSession();
-
-    expect(useSessionStore.getState().token).toBe('real-bearer-from-backend');
+    const state = useSessionStore.getState();
+    expect('token' in state).toBe(false);
   });
 
   it('applyDevSession usa dev_tenant_slug del localStorage cuando existe', () => {
@@ -67,7 +65,6 @@ describe('devBypass', () => {
   });
 
   it('isAuthDisabled retorna true por defecto (bypass activo)', () => {
-    // sin flags seteados -> bypass activo
     expect(isAuthDisabled()).toBe(true);
   });
 });

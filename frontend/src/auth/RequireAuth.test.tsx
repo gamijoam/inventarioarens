@@ -5,11 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type * as Router from '@tanstack/react-router';
 
 import { RequireAuth } from './RequireAuth';
-import { useSessionStore } from '@/stores/session';
-
-vi.mock('@/api/endpoints/auth', () => ({
-  me: vi.fn(),
-}));
+import { useSessionStore, AUTH_COOKIE_NAME } from '@/stores/session';
 
 const navigateMock = vi.fn();
 vi.mock('@tanstack/react-router', async () => {
@@ -19,9 +15,6 @@ vi.mock('@tanstack/react-router', async () => {
     useRouter: () => ({ navigate: navigateMock }),
   };
 });
-
-import { me as apiMe } from '@/api/endpoints/auth';
-const apiMeMock = vi.mocked(apiMe);
 
 function makeWrapper() {
   const queryClient = new QueryClient({
@@ -47,10 +40,8 @@ const emptyScopes = {
 };
 
 beforeEach(() => {
-  apiMeMock.mockReset();
   navigateMock.mockReset();
   useSessionStore.setState({
-    token: null,
     user: null,
     tenant: null,
     roles: [],
@@ -59,28 +50,16 @@ beforeEach(() => {
     scopes: emptyScopes,
     expiresAt: null,
   });
+  // Limpiar cookie.
+  if (typeof document !== 'undefined') {
+    document.cookie = `${AUTH_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  }
 });
 
-describe('<RequireAuth>', () => {
-  it('muestra spinner inicial si no hay sesion', async () => {
-    render(
-      <RequireAuth>
-        <div>contenido protegido</div>
-      </RequireAuth>,
-      { wrapper: makeWrapper() },
-    );
-    // Antes de que el effect de no-token dispare la navegacion, muestra spinner.
-    expect(screen.queryByText('contenido protegido')).not.toBeInTheDocument();
-    // El effect termina navegando a /login.
-    await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
-    });
-  });
-
-  it('renderiza children directamente si ya hay token + permissions cargadas', () => {
+describe('<RequireAuth> (Plan C: cookie httpOnly + store hidratado)', () => {
+  it('renderiza children directamente si ya hay store hidratado (sessión vigente)', () => {
     useSessionStore.getState().setSession({
-      token: 'token-ok',
-      expiresAt: '2030-01-01T00:00:00Z',
+      expiresAt: '2099-01-01T00:00:00Z',
       user: { id: 1, email: 'u@e.com', name: 'User', is_active: true },
       tenant: { id: 1, slug: 'demo', name: 'Demo', is_active: true },
       roles: ['Administrador'],
@@ -97,19 +76,33 @@ describe('<RequireAuth>', () => {
     );
 
     expect(screen.getByText('contenido protegido')).toBeInTheDocument();
-    expect(apiMeMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('dispara /me y rehidrata permissions cuando hay token pero NO permissions (post-refresh)', async () => {
-    useSessionStore.setState({ token: 'token-stale' });
+  it('muestra spinner + redirige a /login si NO hay cookie httpOnly', async () => {
+    // Sin cookie, sin user -> debe redirigir.
+    render(
+      <RequireAuth>
+        <div>contenido protegido</div>
+      </RequireAuth>,
+      { wrapper: makeWrapper() },
+    );
 
-    apiMeMock.mockResolvedValueOnce({
+    expect(screen.queryByText('contenido protegido')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
+    });
+  });
+
+  it('redirige a /login si expiresAt ya paso', async () => {
+    document.cookie = `${AUTH_COOKIE_NAME}=stale; path=/`;
+    useSessionStore.setState({
+      expiresAt: '2020-01-01T00:00:00Z', // expirado
       user: { id: 1, email: 'u@e.com', name: 'User', is_active: true },
       tenant: { id: 1, slug: 'demo', name: 'Demo', is_active: true },
-      roles: [{ id: 1, name: 'Administrador', slug: 'admin', is_protected: true }],
-      permissions: ['products.view', 'products.create'],
-      expires_at: '2030-01-01T00:00:00Z',
-      scope_status: 'none',
+      roles: [],
+      permissions: new Set(['products.view']),
+      scopeStatus: 'none',
       scopes: emptyScopes,
     });
 
@@ -120,25 +113,28 @@ describe('<RequireAuth>', () => {
       { wrapper: makeWrapper() },
     );
 
-    expect(screen.queryByText('contenido protegido')).not.toBeInTheDocument();
-    expect(apiMeMock).toHaveBeenCalledTimes(1);
-
     await waitFor(() => {
-      expect(screen.getByText('contenido protegido')).toBeInTheDocument();
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
     });
-
-    const state = useSessionStore.getState();
-    expect(state.permissions.has('products.view')).toBe(true);
-    expect(state.permissions.has('products.create')).toBe(true);
-    expect(state.user?.email).toBe('u@e.com');
+    // El store se limpio por la sesion expirada.
+    expect(useSessionStore.getState().user).toBeNull();
   });
 
-  it('limpia sesion y redirige a /login si /me falla (401)', async () => {
-    useSessionStore.setState({ token: 'token-expirado' });
-
-    const error = new Error('Unauthorized') as Error & { status?: number };
-    error.status = 401;
-    apiMeMock.mockRejectedValueOnce(error);
+  it('permite renderizar children si hay cookie httpOnly + store hidratado aunque /me no se haya llamado', () => {
+    // Caso tipico post-refresh: el usuario abrio la pagina, el store
+    // se rehidrato desde localStorage, la cookie esta presente, pero
+    // /me no se ha llamado todavia. Los datos persistidos son suficientes
+    // para renderizar la UI.
+    document.cookie = `${AUTH_COOKIE_NAME}=valid; path=/`;
+    useSessionStore.getState().setSession({
+      expiresAt: '2099-01-01T00:00:00Z',
+      user: { id: 1, email: 'u@e.com', name: 'User', is_active: true },
+      tenant: { id: 1, slug: 'demo', name: 'Demo', is_active: true },
+      roles: ['Administrador'],
+      permissions: ['products.view', 'products.create'],
+      scopeStatus: 'none',
+      scopes: emptyScopes,
+    });
 
     render(
       <RequireAuth>
@@ -147,27 +143,8 @@ describe('<RequireAuth>', () => {
       { wrapper: makeWrapper() },
     );
 
-    await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
-    });
-
-    expect(useSessionStore.getState().token).toBeNull();
-  });
-
-  it('redirige a /login cuando no hay token (caso: usuario borro localStorage)', async () => {
-    // El store arranca sin token (initial state). Renderizamos RequireAuth
-    // y esperamos que el effect de "no-token" navegue a /login.
-    render(
-      <RequireAuth>
-        <div>contenido protegido</div>
-      </RequireAuth>,
-      { wrapper: makeWrapper() },
-    );
-
-    await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' });
-    });
-
-    expect(apiMeMock).not.toHaveBeenCalled();
+    expect(screen.getByText('contenido protegido')).toBeInTheDocument();
+    // No debe navegar ni mostrar spinner.
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

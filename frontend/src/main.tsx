@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { APP_NAME } from '@/config/branding';
 import { routeTree } from './routeTree.gen';
+import { registerUnauthorizedHandler } from '@/api/client';
 
 import '@/styles/globals.css';
 
@@ -41,6 +42,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+// Registrar handler de 401 que navega via SPA (no window.location.href).
+// window.location.href causa full reload que pierde el cache de TanStack Query.
+// Aqui es donde tenemos acceso al router context.
+registerUnauthorizedHandler(() => {
+  // Solo navegar si no estamos ya en /login (evitar loops en errores de /me).
+  if (window.location.pathname !== '/login') {
+    void router.navigate({ to: '/login' });
+  }
+});
+
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Elemento #root no encontrado en el DOM.');
 
@@ -52,5 +63,5 @@ createRoot(rootEl).render(
         <Toaster richColors position="top-right" closeButton />
       </QueryClientProvider>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

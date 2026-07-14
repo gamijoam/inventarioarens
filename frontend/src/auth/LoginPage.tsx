@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Building2, Lock, Mail, ShieldCheck } from 'lucide-react';
 
-import { useSessionStore } from '@/stores/session';
 import {
   APP_NAME,
   APP_TAGLINE,
@@ -12,6 +11,7 @@ import {
 
 import { lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
+import { useSessionStore } from '@/stores/session';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -59,7 +59,8 @@ export function LoginPage() {
     return () => window.clearTimeout(handle);
   }, [email]);
 
-  // Si ya hay sesion activa, redirigir al dashboard.
+  // Doble check: si por alguna razon el user llego aqui con sesion hidratada,
+  // redirigir al dashboard. El beforeLoad ya cubre el caso comun.
   useEffect(() => {
     if (isAuthenticated) {
       void navigate({ to: '/dashboard' });
@@ -81,6 +82,8 @@ export function LoginPage() {
 
     setLoginLoading(true);
     try {
+      // La cookie httpOnly la emite el backend automaticamente en el
+      // response del login. signIn ya no manipula tokens localmente.
       await signIn(selectedTenant.slug, {
         email,
         password,
@@ -88,8 +91,13 @@ export function LoginPage() {
       });
       await navigate({ to: '/dashboard' });
     } catch (err) {
-      // Si el login falla por tenant, limpiamos el temporal.
-      useSessionStore.getState().clearSession();
+      // El interceptor 401 del cliente NO se dispara en errores de validacion
+      // (422), asi que limpiamos manualmente solo si es un fallo de credenciales.
+      // Para errores transitorios (500, network), dejamos el store intacto.
+      const status = (err as { status?: number })?.status;
+      if (status === 401 || status === 422) {
+        useSessionStore.getState().clearSession();
+      }
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión.';
       setError(message);
     } finally {

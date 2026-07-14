@@ -1,12 +1,24 @@
 /**
  * Axios client centralizado con:
- * - Inyeccion automatica de Authorization: Bearer <token> + X-Tenant: <slug>.
- * - Manejo centralizado de 401 (logout + redirect) y 403 (toast).
- * - Transformacion de errores del backend a tipos tipados (HttpError, ValidationError).
+ * - withCredentials: true para que el navegador envie la cookie httpOnly
+ *   `auth_token` automaticamente con cada request (Plan C hibrido).
+ * - Header `X-Requested-With: XMLHttpRequest` en cada request (CSRF mitigation
+ *   cuando la auth llega via cookie; los formularios HTML nativos no pueden
+ *   setear este header).
+ * - NO inyecta `Authorization: Bearer` header. El token vive en la cookie
+ *   httpOnly; el sync worker y Postman siguen usando Bearer pero NO pasan
+ *   por este cliente (consumen la API directamente con curl/scripts).
+ * - 401 handler: callback registrado que llama router.navigate({ to: '/login' })
+ *   via SPA navigation. NO usa window.location.href para no perder cache de
+ *   TanStack Query.
  *
- * Ver docs/FRONTEND_PERMISSIONS.md §8 para el diseno completo.
+ * Ver docs/AUTH_COOKIE_API.md para el contrato completo.
  */
-import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
+import axios, {
+  type AxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import { toast } from 'sonner';
 
 import {
@@ -21,29 +33,37 @@ import { useSessionStore } from '@/stores/session';
 
 const API_BASE_URL: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api';
 
-let onUnauthorized: (() => void) | null = null;
+// Handler externo para 401 (registrado desde main.tsx para tener acceso
+// al router context de TanStack). NO usamos window.location.href porque
+// eso fuerza un full reload que pierde el cache de TanStack Query.
+type UnauthorizedHandler = () => void;
+let onUnauthorized: UnauthorizedHandler | null = null;
 
-/**
- * Permite registrar un handler externo para cuando el backend responde 401.
- * El handler se registra desde el Shell de la app y se ocupa de redirigir a /login.
- */
-export function registerUnauthorizedHandler(handler: () => void): void {
+export function registerUnauthorizedHandler(handler: UnauthorizedHandler): void {
   onUnauthorized = handler;
 }
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30_000,
-  headers: { Accept: 'application/json' as const },
+  // CRITICO: enviar cookies en requests (incluso en cross-origin via Vite proxy).
+  withCredentials: true,
+  headers: {
+    Accept: 'application/json',
+    // CRITICO: el backend exige este header para requests autenticados via
+    // cookie (mitigacion CSRF). Los formularios HTML nativos no pueden
+    // setear este header, asi que ataques CSRF via form-submit fallan.
+    'X-Requested-With': 'XMLHttpRequest',
+  },
 });
 
-// Request interceptor: inyecta Bearer + X-Tenant desde el session store.
+// Request interceptor: ya NO inyecta Authorization Bearer (el token vive
+// en la cookie httpOnly que el navegador envia automaticamente).
+// Solo inyecta X-Tenant si hay un tenant activo en el store y no viene
+// ya en los headers (para evitar duplicados).
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const { token, tenant } = useSessionStore.getState();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  if (tenant?.slug) {
+  const tenant = useSessionStore.getState().tenant;
+  if (tenant?.slug && !config.headers['X-Tenant']) {
     config.headers['X-Tenant'] = tenant.slug;
   }
   return config;
@@ -58,6 +78,10 @@ api.interceptors.response.use(
 
     switch (status) {
       case 401: {
+        // Token expirado o cookie revocada. El backend puede haber limpiado
+        // la cookie via Set-Cookie (logout) o estar pendiente de hacerlo.
+        // Limpiamos el store local y delegamos al handler externo la
+        // navegacion a /login (SPA, no full reload).
         useSessionStore.getState().clearSession();
         onUnauthorized?.();
         toast.error('Tu sesión expiró. Vuelve a iniciar sesión.');
@@ -99,19 +123,16 @@ api.interceptors.response.use(
  * Helpers de uso comun
  * ============================================================================ */
 
-/** GET que retorna el shape envuelto { data: T } del backend. */
 export async function getOne<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
   const response = await api.get<ApiResponse<T>>(path, config);
   return response.data.data;
 }
 
-/** GET que retorna un array del backend (cuando no viene paginado). */
 export async function getMany<T>(path: string, config?: AxiosRequestConfig): Promise<T[]> {
   const response = await api.get<ApiResponse<T[]>>(path, config);
   return response.data.data;
 }
 
-/** GET que retorna un Paginated<T> del backend. */
 export async function getPaginated<T>(
   path: string,
   config?: AxiosRequestConfig,
@@ -120,7 +141,6 @@ export async function getPaginated<T>(
   return response.data;
 }
 
-/** POST que retorna { data: T } del backend. */
 export async function postOne<TBody, TResponse = TBody>(
   path: string,
   body?: TBody,
@@ -130,7 +150,6 @@ export async function postOne<TBody, TResponse = TBody>(
   return response.data.data;
 }
 
-/** PATCH que retorna { data: T }. */
 export async function patchOne<TBody, TResponse = TBody>(
   path: string,
   body?: TBody,
@@ -140,7 +159,6 @@ export async function patchOne<TBody, TResponse = TBody>(
   return response.data.data;
 }
 
-/** PUT que retorna { data: T }. */
 export async function putOne<TBody, TResponse = TBody>(
   path: string,
   body?: TBody,
@@ -150,7 +168,6 @@ export async function putOne<TBody, TResponse = TBody>(
   return response.data.data;
 }
 
-/** DELETE sin body. */
 export async function deleteOne(path: string, config?: AxiosRequestConfig): Promise<void> {
   await api.delete(path, config);
 }

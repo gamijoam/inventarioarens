@@ -1,6 +1,9 @@
 /**
  * Hook useExportProducts: descarga el CSV de productos segun los filtros activos.
  * Usa la API /api/inventory-center/export.
+ *
+ * Plan C: la cookie httpOnly se envia automaticamente via fetch con
+ * `credentials: 'include'`. NO enviamos Authorization Bearer aqui.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -23,11 +26,14 @@ export function useExportProducts() {
       }
       const query = params.toString();
       const url = `/api/inventory-center/export${query ? `?${query}` : ''}`;
-      const { token, tenant } = useSessionStore.getState();
+      const { tenant } = useSessionStore.getState();
+      // credentials: 'include' envia la cookie httpOnly auth_token
+      // automaticamente. X-Requested-With es requerido por CSRF mitigation.
       const res = await fetch(url, {
+        credentials: 'include',
         headers: {
           Accept: 'text/csv',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Requested-With': 'XMLHttpRequest',
           ...(tenant?.slug ? { 'X-Tenant': tenant.slug } : {}),
         },
       });
@@ -43,7 +49,6 @@ export function useExportProducts() {
       a.remove();
       URL.revokeObjectURL(downloadUrl);
       toast.success(`Exportado como ${filename}`);
-      // Invalida cualquier cache relacionado (no es necesario pero lo dejo).
       void qc.invalidateQueries();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al exportar');

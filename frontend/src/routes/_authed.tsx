@@ -1,62 +1,86 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
 import { AuthedLayout } from '@/components/layout/AuthedLayout';
-import { RequireAuth } from '@/auth/RequireAuth';
 import { useSessionStore } from '@/stores/session';
 import { PermissionProvider, buildPermissionValue } from '@/permissions/PermissionContext';
-import { registerUnauthorizedHandler } from '@/api/client';
 import { applyDevSession, isAuthDisabled } from '@/auth/devBypass';
 
+/**
+ * Layout autenticado.
+ *
+ * El guard real (sync) ocurre en `beforeLoad` antes de cualquier render:
+ *  - Si isAuthDisabled() (dev) -> dejamos pasar sin checks.
+ *  - Si hay cookie + store hidratado -> dejamos pasar (render PermissionProvider + Outlet).
+ *  - Si NO hay cookie -> redirect a /login.
+ *
+ * NO usamos un RequireAuth async (como antes) porque el estado de sesion
+ * ya esta disponible sync desde:
+ *   1. Cookie httpOnly (browser -> server, automatica).
+ *   2. localStorage hidratado (zustand persist).
+ *
+ * Esto resuelve el bug "Cargando sesion..." tras refresh.
+ *
+ * Ver docs/AUTH_COOKIE_API.md seccion "Routing (sync detection de sesion)".
+ */
 export const Route = createFileRoute('/_authed')({
+  beforeLoad: () => {
+    if (isAuthDisabled()) {
+      // No hacemos nada: dejamos pasar.
+      return;
+    }
+
+    // Fast path: si no hay cookie httpOnly -> ni siquiera intentar renderizar.
+    // hasAuthCookie() lee document.cookie sync.
+    if (typeof document !== 'undefined') {
+      const hasCookie = document.cookie
+        .split('; ')
+        .some((c) => c.startsWith('auth_token='));
+      if (!hasCookie) {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw redirect({ to: '/login' });
+      }
+    }
+  },
   component: AuthedLayoutComponent,
 });
 
 function AuthedLayoutComponent() {
-  const authDisabled = isAuthDisabled();
+  const permissions = useSessionStore((s) => s.permissions);
+  const roles = useSessionStore((s) => s.roles);
+  const scopeStatus = useSessionStore((s) => s.scopeStatus);
+  const scopes = useSessionStore((s) => s.scopes);
+  const user = useSessionStore((s) => s.user);
+  const tenant = useSessionStore((s) => s.tenant);
 
-  // En modo bypass, inyectamos la sesion fake sincrónicamente antes de
-  // renderizar para que PermissionProvider tenga todos los permisos desde
-  // el primer render. useMemo con side-effect intencional: solo se ejecuta
-  // una vez y solo cuando bypass esta activo.
-  const permissionValue = useMemo(() => {
-    if (authDisabled && useSessionStore.getState().permissions.size === 0) {
-      applyDevSession();
-    }
-    const state = useSessionStore.getState();
-    return buildPermissionValue(
-      Array.from(state.permissions),
-      state.roles,
-      state.scopeStatus,
-      state.scopes,
-    );
-  }, [authDisabled]);
+  const permissionValue = buildPermissionValue(
+    Array.from(permissions),
+    roles,
+    scopeStatus,
+    scopes,
+  );
 
-  // El handler 401 ya redirige desde el cliente HTTP.
-  // Registramos un no-op para mantener la API consistente.
-  useEffect(() => {
-    registerUnauthorizedHandler(() => {
-      window.location.href = '/login';
-    });
-  }, []);
+  // En modo bypass, inyectamos la sesion fake para que PermissionProvider
+  // tenga todos los permisos desde el primer render.
+  if (isAuthDisabled()) {
+    applyDevSession();
+  }
 
-  if (authDisabled) {
+  // Doble verificacion: si llegamos aqui sin user/tenant (caso edge:
+  // cookie set pero localStorage vacio tras clear manual), mostrar un
+  // brevisimo mensaje. El beforeLoad ya redirige en el caso comun.
+  if (!user || !tenant) {
     return (
-      <PermissionProvider initial={permissionValue}>
-        <AuthedLayout>
-          <Outlet />
-        </AuthedLayout>
-      </PermissionProvider>
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="text-sm text-text-muted">Inicializando sesion...</div>
+      </div>
     );
   }
 
   return (
-    <RequireAuth>
-      <PermissionProvider initial={permissionValue}>
-        <AuthedLayout>
-          <Outlet />
-        </AuthedLayout>
-      </PermissionProvider>
-    </RequireAuth>
+    <PermissionProvider initial={permissionValue}>
+      <AuthedLayout>
+        <Outlet />
+      </AuthedLayout>
+    </PermissionProvider>
   );
 }

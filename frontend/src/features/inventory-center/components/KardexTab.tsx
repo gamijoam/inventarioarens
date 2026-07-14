@@ -44,12 +44,13 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
       if (dateFrom) params.set('date_from', dateFrom);
       if (dateTo) params.set('date_to', dateTo);
       const query = params.toString();
-      // Peticion directa al backend con el token del session store.
-      const { token, tenant } = useSessionStore.getState();
+      // Plan C: la cookie httpOnly se envia con credentials: 'include'.
+      const { tenant } = useSessionStore.getState();
       const res = await fetch(`/api/kardex/products/${productId}${query ? `?${query}` : ''}`, {
+        credentials: 'include',
         headers: {
           Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Requested-With': 'XMLHttpRequest',
           ...(tenant?.slug ? { 'X-Tenant': tenant.slug } : {}),
         },
       });

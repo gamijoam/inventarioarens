@@ -1,17 +1,25 @@
 /**
  * Helper de bypass de autenticacion para desarrollo.
  *
- * El backend sigue exigiendo Bearer token en todas las requests; este bypass
- * solo evita el guard del frontend para que puedas seguir iterando sin
- * pasar por la pantalla de login mientras resolvemos el bug de "Cargando
- * sesion...". Los endpoints que requieren auth seguiran fallando con 401
- * si no envias un token valido en el header Authorization.
+ * Plan C: la cookie httpOnly del navegador no es manipulable desde JS,
+ * asi que el bypass inyecta una sesion fake SOLO en el store local
+ * (user/tenant/permissions). Las requests que pegan contra el backend
+ * usan Bearer (via axios NO, pero via curl/scripts externos) o el
+ * token real guardado en `localStorage.getItem('dev_token')`.
  *
- * Activacion (en orden de prioridad):
- *  1. Variable de entorno VITE_AUTH_DISABLED=true al hacer build/dev.
- *  2. localStorage.setItem('dev_skip_auth', '1') desde la consola del navegador.
+ * Activacion (cualquiera):
+ *  - VITE_AUTH_DISABLED=true al build.
+ *  - localStorage.setItem('dev_skip_auth', '1') en el navegador.
  *
- * Para desactivar: quitar la env var y ejecutar localStorage.removeItem('dev_skip_auth').
+ * Para forzar el flujo real (ir a /login aunque haya cookie):
+ *  - localStorage.setItem('dev_enforce_auth', '1').
+ *
+ * Para usar un token Bearer real contra el backend:
+ *  - localStorage.setItem('dev_token', '<token>') y configura axios
+ *    para enviarlo via Authorization header (requiere parchar el cliente).
+ *    O mas simple: usa curl/Postman contra el backend directamente.
+ *
+ * Ver docs/AUTH_COOKIE_API.md.
  */
 
 import { useSessionStore } from '@/stores/session';
@@ -20,10 +28,8 @@ import { PERMISSIONS } from '@/permissions/constants';
 const ENV_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 /**
- * Bypass activado por defecto para no quedar atrapados en el flujo de login
- * mientras se resuelve el bug del refresh. Para forzar el flujo real:
- *   localStorage.setItem('dev_enforce_auth', '1')
- * (o setear VITE_AUTH_DISABLED=false al hacer build).
+ * true = el bypass esta activo y no se deberia gatear la UI con login.
+ * false = flujo real: se exige cookie httpOnly + sesion hidratada.
  */
 export function isAuthDisabled(): boolean {
   if (ENV_DISABLED) return true;
@@ -39,23 +45,20 @@ export function isAuthDisabled(): boolean {
 const ALL_PERMISSIONS = new Set<string>(Object.values(PERMISSIONS));
 
 /**
- * Setea una sesion fake con todos los permisos para que el resto de la UI
- * (Can, PermissionContext, queries, etc.) funcione sin pegar contra /me.
+ * Setea una sesion fake con todos los permisos.
  *
- * Token: si localStorage tiene 'dev_token' (un Bearer real del backend)
- * lo usa; si no, usa un placeholder que NO sera valido para requests
- * al backend (los endpoints protegidos responderan 401 hasta que pegues
- * un token real con `localStorage.setItem('dev_token', '<token>')`).
+ * En el modelo cookie, NO podemos setear la cookie httpOnly desde JS,
+ * asi que esto solo puebla el store local. Para que las requests peguen
+ * contra el backend real, usa dev_token via curl/scripts.
  *
- * NO se persiste en localStorage: si recargas la pagina se vuelve a aplicar.
+ * Para hacer que axios use dev_token como Bearer en vez de cookie,
+ * ver el ejemplo en docs/AUTH_COOKIE_API.md (seccion "Dev token via Bearer").
  */
 export function applyDevSession(): void {
   if (typeof window === 'undefined') return;
 
-  let realToken: string | null = null;
   let tenantSlug = 'dev';
   try {
-    realToken = window.localStorage.getItem('dev_token');
     const t = window.localStorage.getItem('dev_tenant_slug');
     if (t) tenantSlug = t;
   } catch {
@@ -63,7 +66,6 @@ export function applyDevSession(): void {
   }
 
   useSessionStore.setState({
-    token: realToken ?? 'dev-bypass-token',
     expiresAt: '2099-12-31T23:59:59Z',
     user: {
       id: 0,

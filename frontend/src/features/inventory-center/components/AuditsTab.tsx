@@ -49,11 +49,13 @@ export function AuditsTab({ productId }: AuditsTabProps) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['audits', productId],
     queryFn: async () => {
-      const { token, tenant } = useSessionStore.getState();
+      const { tenant } = useSessionStore.getState();
+      // Plan C: la cookie httpOnly se envia con credentials: 'include'.
       const res = await fetch(`/api/inventory-center/products/${productId}/audits`, {
+        credentials: 'include',
         headers: {
           Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Requested-With': 'XMLHttpRequest',
           ...(tenant?.slug ? { 'X-Tenant': tenant.slug } : {}),
         },
       });
