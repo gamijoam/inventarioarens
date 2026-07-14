@@ -22,6 +22,10 @@ import { cn } from '@/lib/cn';
 
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
 import { PricesEditor } from '@/features/inventory-center/components/PricesEditor';
+import { ProductRelations } from '@/features/inventory-center/components/ProductRelations';
+import { WacDisplay } from '@/features/inventory-center/components/WacDisplay';
+import { KardexTab } from '@/features/inventory-center/components/KardexTab';
+import { AuditsTab } from '@/features/inventory-center/components/AuditsTab';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import type { ProductStock, ProductSerial, ProductMovement } from '@/features/inventory-center/schemas';
@@ -127,6 +131,8 @@ function ProductDetailPage() {
           )}
           <TabsTrigger value="prices">Precios por lista</TabsTrigger>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
+          <TabsTrigger value="kardex">Kardex</TabsTrigger>
+          <TabsTrigger value="audits">Auditoria</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
@@ -164,6 +170,9 @@ function ProductDetailPage() {
               </Field>
             </CardContent>
           </Card>
+
+          <ProductRelations product={product} />
+          <WacDisplay product={product} />
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">
@@ -182,6 +191,14 @@ function ProductDetailPage() {
 
         <TabsContent value="movements" className="space-y-4">
           <MovementsTab movements={recent_movements} />
+        </TabsContent>
+
+        <TabsContent value="kardex" className="space-y-4">
+          <KardexTab productId={id} />
+        </TabsContent>
+
+        <TabsContent value="audits" className="space-y-4">
+          <AuditsTab productId={id} />
         </TabsContent>
       </Tabs>
 
