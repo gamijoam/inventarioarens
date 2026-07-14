@@ -66,6 +66,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : 'button';
+    // Importante: el `Slot` de Radix espera UN SOLO child. Por eso
+    // envolvemos leftIcon/children/rightIcon en un unico <span> (o
+    // <Comp> equivalente para el caso slot). Asi el child del Comp es
+    // siempre un solo React element, evitando el warning:
+    //   "Slot failed to slot onto its children. Expected a single
+    //    React element child or `Slottable`."
+    const content = (
+      <>
+        {loading ? <Spinner /> : leftIcon}
+        {children}
+        {!loading && rightIcon}
+      </>
+    );
     return (
       <Comp
         ref={ref}
@@ -73,9 +86,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled ?? loading}
         {...props}
       >
-        {loading ? <Spinner /> : leftIcon}
-        {children}
-        {!loading && rightIcon}
+        {content}
       </Comp>
     );
   }
