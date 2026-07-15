@@ -126,32 +126,64 @@ Esto modela un flujo de aprobacion de 2 pasos: el almacen crea el draft,
 un gerente aprueba al recibir la mercancia. El backend refuerza esto
 en `PurchaseOrderPolicy::receive()` con `purchases.approve`.
 
-## Frontend (FASE 1+ en construccion)
+## Frontend (✅ COMPLETO: FASE 0-5)
 
-### Estructura planeada (FASE 1+)
+### Estructura (FASE 1-5 entregadas)
 
-- `src/features/purchases/`:
-  - `schemas.ts` (StorePurchaseSchema, ReceivePurchaseSchema, etc.)
-  - `queries.ts` (purchaseKeys)
-  - `api.ts` (usePurchases, usePurchase, useCreatePurchase, useReceivePurchase, useCancelPurchase)
-  - `PurchasesManager.tsx` (CRUD + tabla + filtros)
-  - `components/PurchaseFormDialog.tsx` (dialog para crear draft)
-  - `components/ReceiveDialog.tsx` (dialog para recibir mercancia, con captura de IMEIs)
-  - `components/ImeiListInput.tsx` (helper para captura de N seriales)
-- `src/routes/_authed/purchases.tsx` (pagina con tabla)
-- `src/components/layout/Sidebar.tsx` (item "Compras" con icono ShoppingBag)
+```
+frontend/src/features/purchases/
+├── schemas.ts              # Zod schemas: PurchaseSchema, PurchaseItemSchema,
+│                           #   StorePurchaseSchema, ReceivePurchaseSchema,
+│                           #   PurchaseListFiltersSchema + constantes.
+├── schemas.test.ts         # 18 tests (parsing, validaciones, defaults).
+├── queries.ts              # purchaseKeys jerarquicos.
+├── api.ts                  # usePurchases (filtros), usePurchase,
+│                           #   useCreatePurchase, useReceivePurchase,
+│                           #   useCancelPurchase, useProductsForPurchase +
+│                           #   invalidateAffectedProducts (cache).
+├── PurchasesManager.tsx    # Tabla + filtros + filas expandibles.
+└── components/
+    ├── ProductAutocomplete.tsx   # Typeahead single-select (SKU/BC/nombre).
+    ├── SupplierAutocomplete.tsx  # Typeahead single-select.
+    ├── ImeiListInput.tsx         # N inputs dinamicos para IMEIs/seriales.
+    ├── PurchaseItemRow.tsx       # Card editable de item (sin scroll horiz).
+    ├── PurchaseFormDialog.tsx    # Dialog full-width para crear draft.
+    ├── ReceiveDialog.tsx         # Dialog para recibir mercancia.
+    ├── ReceiveItemRow.tsx        # Fila del dialog de recepcion.
+    ├── PurchaseSummary.tsx       # Card visual con Stepper + totales + progress.
+    ├── PurchaseSummary.test.tsx  # 12 tests (Stepper, totales, progress, items).
+    ├── QuickActionsBar.tsx       # Botones contextuales por estado.
+    └── QuickActionsBar.test.tsx  # 7 tests (botones segun estado).
 
-### Variantes soportadas en el form
+frontend/src/routes/_authed/purchases.tsx   # Pagina con todos los dialogs.
+frontend/src/components/layout/Sidebar.tsx   # Item "Compras" (icono ShoppingBag).
+```
 
-- **Variante A** (producto simple, ej: 50 botellas a $1.20 c/u): ya soportado
-  en backend, solo UI.
-- **Variante C** (serializado, ej: 8 telefonos con 8 IMEIs): ya soportado
-  en backend. El form mostrara un `ImeiListInput` con N inputs (uno por
-  unidad) que crece dinamicamente cuando se selecciona un producto
-  `tracking_type='serialized'`.
-- **Variante B** (empaque mayor, ej: 5 cajas x 24 unidades): **DEFERRED**.
-  Requiere migracion `units_per_purchase` en `products` + logica en
-  services. Se documenta como item roadmap P1.
+### Variantes soportadas
+
+| Variante | Soporte | Como |
+|---|---|---|
+| **A — Producto simple** | ✅ | `quantity + unit_cost` en `PurchaseItemRow`. |
+| **C — Serializado (IMEI/serial)** | ✅ | `ImeiListInput` se renderiza cuando `product.tracking_type === 'serialized'`. Auto-init con N inputs vacios segun `expectedQuantity`. Validacion por regex + unicidad. |
+| **B — Empaque mayor (cajas x unidades)** | ⏸️ Deferred | Requiere migracion `units_per_purchase` en `products` + logica en services. |
+
+### Fases del frontend (cronologia)
+
+| Fase | Commit | Descripcion |
+|---|---|---|
+| FASE 1 | `d623c383` | Listado + filtros + Sidebar + 18 tests de schemas. |
+| FASE 2 | `316437d` | PurchaseFormDialog con captura de IMEIs (variante C). |
+| FASE 3 | `422ad521` | ReceiveDialog + fix layout cards (sin scroll horiz). |
+| FASE 4 | `a31b9d95` | PurchaseSummary (Stepper visual) + QuickActionsBar + filas expandibles. |
+| FASE 5 | (este commit) | Tests de componentes (12+7) + documentacion completa. |
+
+### Fixes aplicados durante el desarrollo
+
+- `634d91bd` invalidacion de cache de productos al recibir (TanStack Query).
+- `edc3a96f` columna Stock + filtro por almacen + StockTab refresca.
+- `b0f0f55` alias `available_stock` con AS explicito en `withSum` (Eloquent usa `{relation}_sum_{column}` por defecto).
+- `898da79f` color `text-text-primary` y `font-medium` en celda Disponible del StockTab.
+- `40428b1` StockTab lee `s.available` (no `s.quantity`) + schema `ProductStockSchema` corregido al shape real del backend.
 
 ## Verificacion (FASE 0)
 

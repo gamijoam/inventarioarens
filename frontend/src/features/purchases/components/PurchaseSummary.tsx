@@ -234,7 +234,7 @@ function StatusStepper({ status }: { status: PurchaseStatus }) {
     );
   }
 
-  const steps: Array<{ key: PurchaseStatus; label: string }> = [
+  const steps: { key: PurchaseStatus; label: string }[] = [
     { key: 'draft', label: 'Borrador' },
     { key: 'partially_received', label: 'Parcial' },
     { key: 'received', label: 'Recibido' },
