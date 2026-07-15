@@ -56,7 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/transfers', label: 'Traslados', icon: Truck, permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW },
   { to: '/receivables', label: 'Cuentas por cobrar', icon: Wallet, permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW },
   { to: '/payables', label: 'Cuentas por pagar', icon: Receipt, permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW },
-  // Submenu de Acceso (Fase A: solo "Usuarios"; Fase C agrega "Roles").
+  // Submenu de Acceso (Fase A+B: usuarios; Fase C: roles y permisos).
   {
     to: '/users',
     label: 'Acceso',
@@ -64,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
     permission: PERMISSIONS.USERS_VIEW,
     children: [
       { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
+      { to: '/access/roles', label: 'Roles y Permisos', icon: ShieldCheck, permission: PERMISSIONS.ROLES_VIEW },
     ],
   },
 ];

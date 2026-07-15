@@ -150,10 +150,10 @@ describe('ChangeRolesDialog', () => {
     render(<ChangeRolesDialog open onOpenChange={vi.fn()} user={fakeUser} />, { wrapper: makeWrapper() });
     // El rol Gerente (id=2) debe estar checked.
     const gerenteCheckbox = screen.getByTestId('change-role-2');
-    expect(gerenteCheckbox.checked).toBe(true);
+    expect(gerenteCheckbox).toBeChecked();
     // El rol Owner (id=1) no.
     const ownerCheckbox = screen.getByTestId('change-role-1');
-    expect(ownerCheckbox.checked).toBe(false);
+    expect(ownerCheckbox).not.toBeChecked();
   });
 
   it('filtra los roles por busqueda', async () => {
@@ -196,7 +196,7 @@ describe('ConfirmDestructiveDialog', () => {
       { wrapper: makeWrapper() }
     );
     const submit = screen.getByTestId('confirm-destructive-submit');
-    expect(submit.disabled).toBe(true);
+    expect(submit).toBeDisabled();
 
     // Tipear mal no habilita.
     const input = screen.getByTestId('confirm-destructive-input');
@@ -221,7 +221,7 @@ describe('ConfirmDestructiveDialog', () => {
     const input = screen.getByTestId('confirm-destructive-input');
     await userEvent.type(input, 'BORRAR');
     const submit = screen.getByTestId('confirm-destructive-submit');
-    expect(submit.disabled).toBe(false);
+    expect(submit).not.toBeDisabled();
     await userEvent.click(submit);
     expect(onConfirm).toHaveBeenCalled();
   });

@@ -27,6 +27,7 @@ import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/in
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
 import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inventory/admin'
 import { Route as AuthedInventoryProductIdRouteImport } from './routes/_authed/inventory/$productId'
+import { Route as AuthedAccessRolesRouteImport } from './routes/_authed/access/roles'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -119,6 +120,11 @@ const AuthedInventoryProductIdRoute =
     path: '/inventory/$productId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedAccessRolesRoute = AuthedAccessRolesRouteImport.update({
+  id: '/access/roles',
+  path: '/access/roles',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRoute
+  '/access/roles': typeof AuthedAccessRolesRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRoute
+  '/access/roles': typeof AuthedAccessRolesRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/_authed/suppliers': typeof AuthedSuppliersRoute
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRoute
+  '/_authed/access/roles': typeof AuthedAccessRolesRoute
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/access/roles'
     | '/inventory/$productId'
     | '/inventory/admin'
     | '/inventory/catalogs'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/access/roles'
     | '/inventory/$productId'
     | '/inventory/admin'
     | '/inventory/catalogs'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/_authed/suppliers'
     | '/_authed/transfers'
     | '/_authed/users'
+    | '/_authed/access/roles'
     | '/_authed/inventory/$productId'
     | '/_authed/inventory/admin'
     | '/_authed/inventory/catalogs'
@@ -374,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryProductIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/access/roles': {
+      id: '/_authed/access/roles'
+      path: '/access/roles'
+      fullPath: '/access/roles'
+      preLoaderRoute: typeof AuthedAccessRolesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -399,6 +418,7 @@ interface AuthedRouteChildren {
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
   AuthedUsersRoute: typeof AuthedUsersRoute
+  AuthedAccessRolesRoute: typeof AuthedAccessRolesRoute
   AuthedInventoryProductIdRoute: typeof AuthedInventoryProductIdRoute
   AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
@@ -416,6 +436,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSuppliersRoute: AuthedSuppliersRoute,
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
   AuthedUsersRoute: AuthedUsersRoute,
+  AuthedAccessRolesRoute: AuthedAccessRolesRoute,
   AuthedInventoryProductIdRoute: AuthedInventoryProductIdRoute,
   AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,
