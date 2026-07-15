@@ -71,8 +71,8 @@ class TransferGuidePdfTest extends TestCase
     {
         [$user, $transfer] = $this->setupPreparedTransfer();
 
-        $service = new TransferGuidePdfService($transfer);
-        $html = $service->renderHtml();
+        $service = new TransferGuidePdfService();
+        $html = $service->renderHtml($transfer);
 
         $this->assertStringContainsString('Guia de Traslado', $html);
         $this->assertStringContainsString($transfer->document_number, $html);
@@ -96,8 +96,8 @@ class TransferGuidePdfTest extends TestCase
             'carrier_company' => 'Transportes XYZ',
         ]);
 
-        $service = new TransferGuidePdfService($transfer->refresh());
-        $html = $service->renderHtml();
+        $service = new TransferGuidePdfService();
+        $html = $service->renderHtml($transfer->refresh());
 
         $this->assertStringContainsString('Pedro Perez', $html);
         $this->assertStringContainsString('ABC-123', $html);
@@ -109,8 +109,8 @@ class TransferGuidePdfTest extends TestCase
         [$user, $transfer] = $this->setupPreparedTransfer();
         $transfer->update(['reason' => '<script>alert("xss")</script>']);
 
-        $service = new TransferGuidePdfService($transfer->refresh());
-        $html = $service->renderHtml();
+        $service = new TransferGuidePdfService();
+        $html = $service->renderHtml($transfer->refresh());
 
         // Blade escapa por defecto en {{ }} -- el <script> aparece como texto
         // y NO como HTML ejecutable.
@@ -126,8 +126,8 @@ class TransferGuidePdfTest extends TestCase
 
         [$user, $transfer] = $this->setupPreparedTransfer();
 
-        $service = new TransferGuidePdfService($transfer);
-        $bytes = $service->renderPdf();
+        $service = new TransferGuidePdfService();
+        $bytes = $service->renderPdf($transfer);
 
         $this->assertGreaterThan(100, strlen($bytes), 'PDF debe tener contenido significativo');
         $this->assertStringStartsWith('%PDF', substr($bytes, 0, 4));

@@ -18,18 +18,17 @@ use Illuminate\Support\Facades\View;
  */
 class TransferGuidePdfService
 {
-    public function __construct(
-        private readonly InventoryTransfer $transfer,
-    ) {
-    }
-
     /**
      * Renderiza la guia como HTML (string).
+     *
+     * NOTA: el transfer se pasa como parametro (no en el constructor)
+     * para evitar que Laravel autowire cree una instancia vacia del
+     * modelo que interfiera con el route binding del controller.
      */
-    public function renderHtml(): string
+    public function renderHtml(InventoryTransfer $transfer): string
     {
         return View::make('inventory_transfers.guide', [
-            'transfer' => $this->transfer->loadMissing([
+            'transfer' => $transfer->loadMissing([
                 'fromWarehouse',
                 'toWarehouse',
                 'items.product',
@@ -43,9 +42,9 @@ class TransferGuidePdfService
     /**
      * Renderiza la guia como PDF (string de bytes).
      */
-    public function renderPdf(): string
+    public function renderPdf(InventoryTransfer $transfer): string
     {
-        $html = $this->renderHtml();
+        $html = $this->renderHtml($transfer);
 
         /** @var \Barryvdh\DomPDF\ServiceProvider $dompdf */
         $dompdf = app('dompdf.wrapper');

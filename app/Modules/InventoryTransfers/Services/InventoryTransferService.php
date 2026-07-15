@@ -294,6 +294,9 @@ class InventoryTransferService
             }
 
             $preparedAt = $data['prepared_at'] ?? now();
+            if (is_string($preparedAt)) {
+                $preparedAt = \Carbon\Carbon::parse($preparedAt);
+            }
             $transferStatus = $hasDifferences
                 ? InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES
                 : InventoryTransfer::STATUS_PREPARED;
@@ -406,6 +409,9 @@ class InventoryTransferService
 
             $receptionChecklist = $this->ensureReceptionChecklist($transfer);
             $dispatchedAt = $data['dispatched_at'] ?? now();
+            if (is_string($dispatchedAt)) {
+                $dispatchedAt = \Carbon\Carbon::parse($dispatchedAt);
+            }
 
             $transfer->guide?->update([
                 'status' => InventoryTransferGuide::STATUS_DISPATCHED,
@@ -561,6 +567,9 @@ class InventoryTransferService
             }
 
             $receivedAt = $data['received_at'] ?? now();
+            if (is_string($receivedAt)) {
+                $receivedAt = \Carbon\Carbon::parse($receivedAt);
+            }
             $transferStatus = $hasDifferences
                 ? InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES
                 : InventoryTransfer::STATUS_COMPLETED;

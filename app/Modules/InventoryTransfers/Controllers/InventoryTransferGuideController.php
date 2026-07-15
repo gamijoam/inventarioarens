@@ -29,7 +29,7 @@ class InventoryTransferGuideController extends Controller
     {
         $this->authorizeAccess($transfer);
 
-        $bytes = $this->service->renderPdf();
+        $bytes = $this->service->renderPdf($transfer);
         $filename = sprintf(
             'guia-%s-%s.pdf',
             $transfer->document_number ?? $transfer->id,
@@ -47,7 +47,7 @@ class InventoryTransferGuideController extends Controller
     {
         $this->authorizeAccess($transfer);
 
-        $html = $this->service->renderHtml();
+        $html = $this->service->renderHtml($transfer);
 
         return response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
