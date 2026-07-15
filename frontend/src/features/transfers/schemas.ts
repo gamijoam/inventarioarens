@@ -104,10 +104,10 @@ const SerialUnitSchema = z.union([
 
 export const TransferItemSchema = z.object({
   id: z.number().int().positive(),
-  inventory_transfer_id: z.number().int().positive(),
+  inventory_transfer_id: z.number().int().positive().optional(),
   product_id: z.number().int().positive(),
   product: TransferProductSchema.nullable().optional(),
-  warehouse_id: z.number().int().positive(),
+  warehouse_id: z.number().int().positive().nullable().optional(),
   warehouse: TransferWarehouseSchema.nullable().optional(),
   quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
   requested_quantity: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
