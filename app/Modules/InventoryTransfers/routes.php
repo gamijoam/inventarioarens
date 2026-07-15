@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\InventoryTransfers\Controllers\InventoryTransferController;
+use App\Modules\InventoryTransfers\Controllers\InventoryTransferGuideController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('inventory-transfers/{inventoryTransfer}/prepare', [InventoryTransferController::class, 'prepare']);
@@ -16,6 +17,10 @@ Route::get('inventory-transfers/{inventoryTransfer}/checklist/{stage}', [Invento
     ->where('stage', 'preparation|reception');
 Route::post('inventory-transfers/{inventoryTransfer}/checklist/{stage}/items/{itemId}/check', [InventoryTransferController::class, 'checkChecklistItem'])
     ->where('stage', 'preparation|reception');
+
+// FASE T2: guia de traslado (PDF + HTML).
+Route::get('inventory-transfers/{inventoryTransfer}/guide.pdf', [InventoryTransferGuideController::class, 'pdf']);
+Route::get('inventory-transfers/{inventoryTransfer}/guide.html', [InventoryTransferGuideController::class, 'html']);
 
 Route::apiResource('inventory-transfers', InventoryTransferController::class)
     ->parameters(['inventory-transfers' => 'inventoryTransfer'])
