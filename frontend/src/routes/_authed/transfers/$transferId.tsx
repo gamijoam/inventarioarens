@@ -101,12 +101,12 @@ function TransferDetailPage() {
     );
   }
 
+  const isLogistic = transfer.validation_mode === 'logistics';
   const canShowPrepare = isLogistic && transfer.status === 'requested' && canPrepare;
   const canShowDispatch = isLogistic && (transfer.status === 'prepared' || transfer.status === 'prepared_with_differences') && canDispatch;
   const canShowReceive = (transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences' || transfer.status === 'dispatched') && canReceivePerm;
   const canShowCancel = (transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences') && canCancelPerm;
   const canShowAssignDriver = !transfer.driver && (transfer.status === 'prepared' || transfer.status === 'dispatched') && canAssignDriverPerm;
-  const isLogistic = transfer.validation_mode === 'logistics';
   const canShowChecklist = isLogistic;
 
   return (
