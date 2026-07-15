@@ -1,31 +1,42 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { Construction } from 'lucide-react';
+/**
+ * Pagina /transfers: gestion de traslados (InventoryTransfers).
+ * FASE T3+T4 entrega: listado con filtros + dialogs de crear, recibir,
+ * asignar transportista, descargar guia. El detalle completo (/transfers/$id)
+ * vive en la ruta $transferId.tsx.
+ */
+import { useState } from 'react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 
 import { PageLayout } from '@/components/layout/PageLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { TransfersManager } from '@/features/transfers/TransfersManager';
+import { TransferReceiveDialog } from '@/features/transfers/components/TransferReceiveDialog';
 
 export const Route = createFileRoute('/_authed/transfers')({
-  component: TransfersPlaceholderPage,
+  component: TransfersPage,
 });
 
-function TransfersPlaceholderPage() {
+function TransfersPage() {
+  const [receivingId, setReceivingId] = useState<number | null>(null);
+  const navigate = useNavigate();
+
   return (
-    <PageLayout title="Traslados" description="Próximamente en Fase 3.">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Construction className="size-4" aria-hidden="true" />
-            En construcción
-          </CardTitle>
-          <CardDescription>
-            El módulo de traslados se implementa en la Fase 3 del roadmap.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-text-muted">
-          Próximamente: listado con chips de estado, drawer de detalle, picker IMEI para serializados,
-          acciones preparar/despachar/recibir/resolver-diferencias.
-        </CardContent>
-      </Card>
+    <PageLayout
+      title="Traslados"
+      description="Movimiento de stock entre almacenes. Flujo: crear borrador -> preparar -> despachar -> recibir -> CxP."
+    >
+      <TransfersManager
+        onReceive={(id) => setReceivingId(id)}
+        onNew={() => navigate({ to: '/inventory/admin' })}
+      />
+
+      {receivingId !== null && (
+        <TransferReceiveDialog
+          transferId={receivingId}
+          open={receivingId !== null}
+          onOpenChange={(open) => { if (!open) setReceivingId(null); }}
+          onReceived={() => navigate({ to: '/transfers' })}
+        />
+      )}
     </PageLayout>
   );
 }

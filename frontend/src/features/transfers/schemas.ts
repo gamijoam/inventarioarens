@@ -273,7 +273,10 @@ export const PrepareTransferSchema = z
 export type PrepareTransferValues = z.output<typeof PrepareTransferSchema>;
 
 export const ReceiveTransferItemSchema = z.object({
-  inventory_transfer_item_id: positiveNumber,
+  // El backend (ReceiveInventoryTransferRequest) espera 'inventory_transfer_id'
+  // (el ID del item del transfer, NO del transfer). Mapeamos en el form
+  // via el alias inventory_transfer_item_id para consistencia UI.
+  inventory_transfer_id: positiveNumber,
   received_quantity: z.coerce.number().min(0).optional(),
   received_product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
   difference_reason: z.string().max(255).optional(),
