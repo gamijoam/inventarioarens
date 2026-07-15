@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { getMany, getOne, patchOne, postOne } from '@/api/client';
 import { PurchaseSchema, type Purchase, type StorePurchaseValues, type ReceivePurchaseValues } from './schemas';
 import { purchaseKeys } from './queries';
+import { productKeys } from '@/features/inventory-center/queries';
 
 // =====================================================================
 // Lookups usados por el form de crear compra
@@ -94,8 +95,12 @@ export function useCreatePurchase() {
   return useMutation({
     mutationFn: async (values: StorePurchaseValues) =>
       postOne<StorePurchaseValues, Purchase>('/purchases', values),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: purchaseKeys.lists() });
+      // Invalidar productos afectados: al crear el draft el backend recalcula
+      // el WAC? NO (solo en receive). Pero invalidamos por seguridad ya que
+      // los items pueden incluir productos con cambios.
+      invalidateAffectedProducts(qc, data);
     },
   });
 }
@@ -105,11 +110,43 @@ export function useReceivePurchase() {
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: ReceivePurchaseValues }) =>
       patchOne<ReceivePurchaseValues, Purchase>(`/purchases/${id}/receive`, values),
-    onSuccess: (_, { id }) => {
+    onSuccess: (data, { id }) => {
       void qc.invalidateQueries({ queryKey: purchaseKeys.lists() });
       void qc.invalidateQueries({ queryKey: purchaseKeys.detail(id) });
+      // CRITICO: tras recibir mercancia, el stock del producto y el WAC
+      // cambian. Invalidar TODAS las queries de producto afectadas para
+      // que el detalle en /inventory/$productId muestre el stock nuevo.
+      invalidateAffectedProducts(qc, data);
     },
   });
+}
+
+/**
+ * Invalida el cache de TanStack Query para todos los productos
+ * afectados por un Purchase. Recorre `purchase.items[].product_id`
+ * e invalida detail + stockByWarehouse + movements + serials + priceHistory
+ * + stocks para cada uno. Tambien invalida el listado global de productos.
+ */
+function invalidateAffectedProducts(qc: ReturnType<typeof useQueryClient>, purchase: Purchase): void {
+  const productIds = new Set<number>();
+  const items = (purchase as { items?: { product_id?: number }[] }).items;
+  if (Array.isArray(items)) {
+    for (const it of items) {
+      if (typeof it.product_id === 'number') productIds.add(it.product_id);
+    }
+  }
+  for (const pid of productIds) {
+    void qc.invalidateQueries({ queryKey: productKeys.detail(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.stockByWarehouse(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.movements(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.stockStatus(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.serials(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.prices(pid) });
+    void qc.invalidateQueries({ queryKey: productKeys.priceHistory(pid) });
+  }
+  // Listado global (para que la columna Stock se actualice al volver).
+  void qc.invalidateQueries({ queryKey: productKeys.lists() });
+  void qc.invalidateQueries({ queryKey: productKeys.all });
 }
 
 export function useCancelPurchase() {
