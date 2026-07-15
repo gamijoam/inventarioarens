@@ -18,7 +18,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { deleteOne, getMany, getOne, patchOne, postOne, putOne } from '@/api/client';
+import { deleteOne, getMany, getOne, postOne, putOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   ChecklistPayloadSchema,
@@ -59,14 +59,11 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
   return useQuery({
     queryKey: transferKeys.list(filters as Record<string, unknown>),
     queryFn: async () => {
-      const url = `/inventory-transfers${toQueryString(filters)}`;
-      const data = await getMany<unknown>(url);
+      const data = await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`);
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
-      // eslint-disable-next-line no-console
-      console.log('[useTransfers]', { url, count: arr.length, sample: arr[0] ?? null });
       const parsed = (await import('zod')).z.array(TransferSchema).safeParse(arr);
       if (!parsed.success) {
-        console.warn('[useTransfers] Zod rechazo:', parsed.error.issues.slice(0, 3));
+        console.warn('useTransfers: shape invalido', parsed.error.flatten());
         return [];
       }
       return parsed.data;
@@ -104,7 +101,7 @@ export function usePrepareTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: PrepareTransferValues }) =>
-      patchOne<PrepareTransferValues, Transfer>(`/inventory-transfers/${id}/prepare`, values),
+      postOne<PrepareTransferValues, Transfer>(`/inventory-transfers/${id}/prepare`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -117,7 +114,7 @@ export function useDispatchTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: { dispatched_at?: string; notes?: string } }) =>
-      patchOne(`/inventory-transfers/${id}/dispatch`, values),
+      postOne(`/inventory-transfers/${id}/dispatch`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -129,7 +126,7 @@ export function useReceiveTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: ReceiveTransferValues }) =>
-      patchOne<ReceiveTransferValues, Transfer>(`/inventory-transfers/${id}/receive`, values),
+      postOne<ReceiveTransferValues, Transfer>(`/inventory-transfers/${id}/receive`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -146,7 +143,7 @@ export function useCancelTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: CancelTransferValues }) =>
-      patchOne(`/inventory-transfers/${id}/cancel`, values),
+      postOne(`/inventory-transfers/${id}/cancel`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -158,7 +155,7 @@ export function useResolveTransferDifferences() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: number; values: { items: unknown[]; notes?: string } }) =>
-      patchOne(`/inventory-transfers/${id}/resolve-differences`, values),
+      postOne(`/inventory-transfers/${id}/resolve-differences`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
