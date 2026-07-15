@@ -6,20 +6,18 @@
  * acciones "Recibir" y "Cancelar" estan en el detalle (FASE 3).
  */
 import { useState } from 'react';
-import { Plus, Search, XCircle, Package } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Search, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import {
   usePurchases,
-  useCancelPurchase,
   type PurchaseListFilters,
 } from '@/features/purchases/api';
 import {
@@ -27,6 +25,9 @@ import {
   type Purchase,
   type PurchaseStatus,
 } from '@/features/purchases/schemas';
+import { PurchaseSummary } from './components/PurchaseSummary';
+import { QuickActionsBar } from './components/QuickActionsBar';
+import { usePurchase } from '@/features/purchases/api';
 
 const STATUS_FILTER_OPTIONS: { value: PurchaseListFilters['status']; label: string }[] = [
   { value: 'all', label: 'Todos' },
@@ -69,10 +70,14 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
     date_to: undefined,
   });
   const { data: purchases = [], isLoading } = usePurchases(filters);
-  const cancel = useCancelPurchase();
-  const [cancelling, setCancelling] = useState<Purchase | null>(null);
+  const navigate = useNavigate();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
+
+  function toggleExpand(id: number) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
 
   return (
     <>
@@ -140,6 +145,7 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
           <table className="w-full table-dense">
             <thead className="border-b border-border bg-bg/60 text-left">
               <tr>
+                <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Documento</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Fecha</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Proveedor</th>
@@ -147,7 +153,6 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
                 <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Total (USD)</th>
                 <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Recibido</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Items</th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -155,88 +160,162 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
                 const totalBase = Number(p.total_base_amount ?? 0);
                 const receivedBase = Number(p.received_base_amount ?? 0);
                 const progress = totalBase > 0 ? Math.min(100, Math.round((receivedBase / totalBase) * 100)) : 0;
+                const isExpanded = expandedId === p.id;
                 return (
-                  <tr key={p.id} className="border-b border-border last:border-b-0">
-                    <td className="px-3 py-2 font-medium">
-                      <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
-                        {p.document_number ?? `#${p.id}`}
-                      </code>
-                    </td>
-                    <td className="px-3 py-2 text-text-muted">
-                      {p.issued_at ?? '-'}
-                    </td>
-                    <td className="px-3 py-2 text-text-muted">
-                      {(p.supplier as { name?: string } | null | undefined)?.name ?? <span className="text-text-muted/60">Sin proveedor</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant={statusVariant(p.status)}>
-                        {PURCHASE_STATUS_LABELS[p.status]}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(p.total_base_amount)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className="tabular-nums text-text-muted">{formatMoney(p.received_base_amount)}</span>
-                        {p.status === 'partially_received' && (
-                          <span className="text-[10px] uppercase tracking-wide text-warning">{progress}%</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-text-muted tabular-nums">{p.items_count ?? '-'}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex justify-end gap-1">
-                        {(p.status === 'draft' || p.status === 'partially_received') && onReceive && (
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => onReceive(p.id)}
-                            aria-label={`Recibir compra ${p.document_number ?? p.id}`}
-                            title="Recibir mercancia"
-                          >
-                            <Package className="size-4 text-primary" />
-                          </Button>
-                        )}
-                        {p.status === 'draft' && (
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => setCancelling(p)}
-                            aria-label={`Cancelar compra ${p.document_number ?? p.id}`}
-                            title="Cancelar compra"
-                          >
-                            <XCircle className="size-4 text-danger" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                  <Row
+                    key={p.id}
+                    purchase={p}
+                    isExpanded={isExpanded}
+                    onToggle={() => toggleExpand(p.id)}
+                    progress={progress}
+                    onReceive={onReceive ? () => onReceive(p.id) : undefined}
+                    onCancel={() => undefined /* QuickActionsBar maneja su propio dialog */}
+                    onPayPayable={() => navigate({ to: '/payables' })}
+                  />
                 );
               })}
             </tbody>
           </table>
         </div>
       )}
+    </>
+  );
+}
 
-      {cancelling && (
-        <ConfirmDialog
-          open
-          onOpenChange={(open) => { if (!open) setCancelling(null); }}
-          title={`Cancelar compra "${cancelling.document_number ?? '#' + cancelling.id}"`}
-          description="La compra quedara en estado cancelado. No se puede deshacer."
-          confirmLabel="Cancelar compra"
-          variant="danger"
-          loading={cancel.isPending}
-          onConfirm={async () => {
-            try {
-              await cancel.mutateAsync(cancelling.id);
-              setCancelling(null);
-              toast.success('Compra cancelada.');
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : 'Error al cancelar.');
-            }
-          }}
-        />
+/**
+ * Row: fila individual de la tabla con toggle de expansion. Cuando se
+ * expande, carga el detalle del PO (con items) y muestra PurchaseSummary
+ * + QuickActionsBar en una fila <tr> aparte con colspan.
+ */
+function Row({
+  purchase,
+  isExpanded,
+  onToggle,
+  progress,
+  onReceive,
+  onCancel,
+  onPayPayable,
+}: {
+  purchase: Purchase;
+  isExpanded: boolean;
+  onToggle: () => void;
+  progress: number;
+  onReceive?: () => void;
+  onCancel: (purchase: Purchase) => void;
+  onPayPayable?: () => void;
+}) {
+  return (
+    <>
+      <tr
+        className="cursor-pointer border-b border-border hover:bg-bg/50"
+        onClick={onToggle}
+        data-testid={`purchase-row-${purchase.id}`}
+      >
+        <td className="px-2 py-2 text-text-muted">
+          {isExpanded ? (
+            <ChevronDown className="size-4" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+        </td>
+        <td className="px-3 py-2 font-medium">
+          <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
+            {purchase.document_number ?? `#${purchase.id}`}
+          </code>
+        </td>
+        <td className="px-3 py-2 text-text-muted">{purchase.issued_at ?? '-'}</td>
+        <td className="px-3 py-2 text-text-muted">
+          {(purchase.supplier as { name?: string } | null | undefined)?.name ?? (
+            <span className="text-text-muted/60">Sin proveedor</span>
+          )}
+        </td>
+        <td className="px-3 py-2">
+          <Badge variant={statusVariant(purchase.status)}>
+            {PURCHASE_STATUS_LABELS[purchase.status]}
+          </Badge>
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(purchase.total_base_amount)}</td>
+        <td className="px-3 py-2 text-right">
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="tabular-nums text-text-muted">{formatMoney(purchase.received_base_amount)}</span>
+            {purchase.status === 'partially_received' && (
+              <span className="text-[10px] uppercase tracking-wide text-warning">{progress}%</span>
+            )}
+          </div>
+        </td>
+        <td className="px-3 py-2 text-text-muted tabular-nums">{purchase.items_count ?? '-'}</td>
+      </tr>
+      {isExpanded && (
+        <tr className="border-b border-border bg-bg/20">
+          <td colSpan={7} className="px-3 py-4">
+            <ExpandedDetail
+              purchaseId={purchase.id}
+              purchase={purchase}
+              onReceive={onReceive}
+              onCancel={() => onCancel(purchase)}
+              onPayPayable={onPayPayable}
+            />
+          </td>
+        </tr>
       )}
     </>
+  );
+}
+
+/**
+ * ExpandedDetail: contenido que se muestra cuando una fila esta expandida.
+ * Carga el detalle completo del PO (con items) y muestra el PurchaseSummary
+ * + QuickActionsBar.
+ */
+function ExpandedDetail({
+  purchaseId,
+  purchase,
+  onReceive,
+  onCancel,
+  onPayPayable,
+}: {
+  purchaseId: number;
+  purchase: Purchase;
+  onReceive?: () => void;
+  onCancel: () => void;
+  onPayPayable?: () => void;
+}) {
+  const { data: detail, isLoading } = usePurchase(purchaseId);
+
+  if (isLoading && !detail) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  return (
+    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs uppercase tracking-wide text-text-muted">
+          Detalle de la compra
+        </div>
+        <QuickActionsBar
+          purchase={detail ?? purchase}
+          onReceive={onReceive}
+          onPayPayable={onPayPayable}
+          onPrint={undefined}
+        />
+      </div>
+      <PurchaseSummary purchase={detail ?? purchase} showItems />
+      {/* Boton explicito de cancelar fuera del QuickActionsBar porque ese
+          solo aparece si NO esta expanded (el padre ya tiene su propio
+          ConfirmDialog legacy). Cuando integremos FASE 5 eliminamos esto. */}
+      {purchase.status === 'draft' && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<XCircle className="size-4" />}
+            onClick={onCancel}
+            data-testid={`expanded-cancel-${purchaseId}`}
+          >
+            Cancelar compra
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
