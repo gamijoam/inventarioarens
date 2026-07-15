@@ -59,11 +59,14 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
   return useQuery({
     queryKey: transferKeys.list(filters as Record<string, unknown>),
     queryFn: async () => {
-      const data = await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`);
+      const url = `/inventory-transfers${toQueryString(filters)}`;
+      const data = await getMany<unknown>(url);
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
+      // eslint-disable-next-line no-console
+      console.log('[useTransfers]', { url, count: arr.length, sample: arr[0] ?? null });
       const parsed = (await import('zod')).z.array(TransferSchema).safeParse(arr);
       if (!parsed.success) {
-        console.warn('useTransfers: shape invalido', parsed.error.flatten());
+        console.warn('[useTransfers] Zod rechazo:', parsed.error.issues.slice(0, 3));
         return [];
       }
       return parsed.data;
