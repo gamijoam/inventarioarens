@@ -28,7 +28,7 @@ import {
   type PurchaseStatus,
 } from '@/features/purchases/schemas';
 
-const STATUS_FILTER_OPTIONS: Array<{ value: PurchaseListFilters['status']; label: string }> = [
+const STATUS_FILTER_OPTIONS: { value: PurchaseListFilters['status']; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: 'draft', label: 'Borrador' },
   { value: 'partially_received', label: 'Recibido parcial' },

@@ -17,6 +17,38 @@ import { getMany, getOne, patchOne, postOne } from '@/api/client';
 import { PurchaseSchema, type Purchase, type StorePurchaseValues, type ReceivePurchaseValues } from './schemas';
 import { purchaseKeys } from './queries';
 
+// =====================================================================
+// Lookups usados por el form de crear compra
+// =====================================================================
+
+/**
+ * Lista de productos activos para el autocomplete de PurchaseFormDialog.
+ * Trae hasta 100 (suficiente para un dropdown interactivo). Si se
+ * necesitan mas, pasar a un Combobox con paginacion server-side.
+ */
+const ProductLookupSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  sku: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  tracking_type: z.enum(['quantity', 'serialized']).optional(),
+  unit_of_measure: z.string().optional(),
+  base_price: z.union([z.number(), z.string()]).nullable().optional(),
+  is_active: z.boolean().optional(),
+});
+
+export function useProductsForPurchase() {
+  return useQuery({
+    queryKey: ['purchases', 'products-lookup'] as const,
+    queryFn: async () => {
+      const data = await getMany<unknown>('/products?per_page=100');
+      // El backend retorna paginated (data.data, data.meta), aplanamos.
+      const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
+      return z.array(ProductLookupSchema).parse(arr);
+    },
+  });
+}
+
 export interface PurchaseListFilters {
   search?: string;
   status?: 'all' | 'draft' | 'partially_received' | 'received' | 'cancelled';
