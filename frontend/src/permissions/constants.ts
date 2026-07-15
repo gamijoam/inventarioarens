@@ -103,9 +103,9 @@ export const PERMISSIONS = {
   FINANCE_REPORTS_VIEW: 'finance_reports.view',
   KARDEX_VIEW: 'kardex.view',
 
-  // Currency
+  // Currency (exchange rate types + rates historicas)
   CURRENCY_VIEW: 'currency.view',
-  CURRENCY_UPDATE: 'currency.update',
+  CURRENCY_MANAGE: 'currency.manage',
 
   // Warranties
   WARRANTY_POLICIES_VIEW: 'warranty_policies.view',

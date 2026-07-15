@@ -293,6 +293,106 @@ export function useWarehouses() {
   });
 }
 
+// =====================================================================
+// Exchange rates (rates historicas: BCV hoy, Paralelo ayer, etc.)
+// =====================================================================
+
+export function useExchangeRates(filters?: { rate_type_id?: number; from?: string; to?: string }) {
+  return useQuery({
+    queryKey: [...catalogKeys.exchangeRates(), filters ?? {}] as const,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters?.rate_type_id) params.set('rate_type_id', String(filters.rate_type_id));
+      if (filters?.from) params.set('from', filters.from);
+      if (filters?.to) params.set('to', filters.to);
+      const query = params.toString();
+      const data = await getMany<unknown>(`/currency/rates${query ? `?${query}` : ''}`);
+      // Respuesta esperada: array de rates con campo `type` (relacion cargada).
+      return data;
+    },
+  });
+}
+
+export function useExchangeRate(rateId: number) {
+  return useQuery({
+    queryKey: catalogKeys.exchangeRate(rateId),
+    queryFn: async () => {
+      const data = await getOne<unknown>(`/currency/rates/${rateId}`);
+      return data;
+    },
+    enabled: Number.isFinite(rateId) && rateId > 0,
+  });
+}
+
+export function useCreateExchangeRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/currency/rates', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+    },
+  });
+}
+
+export function useActivateExchangeRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rateId: number) =>
+      patchOne<Record<string, never>, unknown>(`/currency/rates/${rateId}/activate`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+    },
+  });
+}
+
+export function useDeactivateExchangeRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rateId: number) =>
+      patchOne<Record<string, never>, unknown>(`/currency/rates/${rateId}/deactivate`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+    },
+  });
+}
+
+// CRUDs de tipos de tasa (para la pagina /inventory/currency)
+export function useCreateExchangeRateType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/currency/rate-types', input),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateTypes() });
+      const id = (variables as { id?: number }).id;
+      if (id) void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateType(id) });
+    },
+  });
+}
+
+export function useUpdateExchangeRateType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/currency/rate-types/${id}`, input),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateTypes() });
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateType(variables.id) });
+    },
+  });
+}
+
+export function useDeleteExchangeRateType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/currency/rate-types/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateTypes() });
+    },
+  });
+}
+
 // CRUDs de catalogos (para la pagina /inventory/catalogs)
 export function useCreateBrand() {
   const qc = useQueryClient();

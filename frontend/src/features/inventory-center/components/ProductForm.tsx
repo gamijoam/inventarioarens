@@ -39,6 +39,7 @@ import {
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
 import { InlineCatalogCreate } from './InlineCatalogCreate';
+import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -282,21 +283,33 @@ export function ProductForm({
             label="Tipo de tasa"
             error={form.formState.errors.sale_exchange_rate_type_id?.message}
           >
-            <Select
-              value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
-                  shouldValidate: true,
-                });
-              }}
-            >
-              {rateTypeOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">
+                  Asignar a este producto
+                </span>
+                <InlineExchangeRateTypeCreate
+                  onCreated={(id) =>
+                    form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
+                  }
+                />
+              </div>
+              <Select
+                value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
+                    shouldValidate: true,
+                  });
+                }}
+              >
+                {rateTypeOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </Field>
         </div>
       </fieldset>

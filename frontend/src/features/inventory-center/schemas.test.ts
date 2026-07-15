@@ -4,6 +4,8 @@ import {
   PaginatedProductsSchema,
   StoreProductSchema,
   BulkActionSchema,
+  StoreExchangeRateTypeSchema,
+  StoreExchangeRateSchema,
 } from './schemas';
 
 describe('StoreProductSchema', () => {
@@ -202,5 +204,80 @@ describe('PaginatedProductsSchema', () => {
       },
     };
     expect(() => PaginatedProductsSchema.parse(backendPaginated)).not.toThrow();
+  });
+});
+
+describe('StoreExchangeRateTypeSchema', () => {
+  it('acepta codigo + name validos', () => {
+    const result = StoreExchangeRateTypeSchema.parse({
+      code: 'bcv',
+      name: 'Banco Central de Venezuela',
+    });
+    expect(result.code).toBe('BCV');
+    expect(result.is_default).toBe(false);
+    expect(result.is_active).toBe(true);
+  });
+
+  it('auto-convierte code a uppercase', () => {
+    const result = StoreExchangeRateTypeSchema.parse({ code: '  paralelo  ', name: 'Paralelo' });
+    expect(result.code).toBe('PARALELO');
+  });
+
+  it('rechaza code vacio', () => {
+    expect(() => StoreExchangeRateTypeSchema.parse({ code: '', name: 'X' })).toThrow();
+  });
+
+  it('rechaza name vacio', () => {
+    expect(() => StoreExchangeRateTypeSchema.parse({ code: 'BCV', name: '  ' })).toThrow();
+  });
+
+  it('respeta is_default y is_active explicitos', () => {
+    const result = StoreExchangeRateTypeSchema.parse({
+      code: 'BCV',
+      name: 'BCV',
+      is_default: true,
+      is_active: false,
+    });
+    expect(result.is_default).toBe(true);
+    expect(result.is_active).toBe(false);
+  });
+});
+
+describe('StoreExchangeRateSchema', () => {
+  it('acepta rate historico valido', () => {
+    const result = StoreExchangeRateSchema.parse({
+      exchange_rate_type_id: 1,
+      rate: 36.5,
+      effective_at: '2026-07-14',
+    });
+    expect(result.base_currency).toBe('USD');
+    expect(result.quote_currency).toBe('VES');
+    expect(result.source).toBe('manual');
+    expect(result.is_active).toBe(true);
+  });
+
+  it('rechaza rate <= 0', () => {
+    expect(() =>
+      StoreExchangeRateSchema.parse({ exchange_rate_type_id: 1, rate: 0, effective_at: '2026-07-14' }),
+    ).toThrow();
+    expect(() =>
+      StoreExchangeRateSchema.parse({ exchange_rate_type_id: 1, rate: -1, effective_at: '2026-07-14' }),
+    ).toThrow();
+  });
+
+  it('rechaza sin exchange_rate_type_id', () => {
+    expect(() => StoreExchangeRateSchema.parse({ rate: 36.5, effective_at: '2026-07-14' })).toThrow();
+  });
+
+  it('respeta currencies custom', () => {
+    const result = StoreExchangeRateSchema.parse({
+      exchange_rate_type_id: 1,
+      base_currency: 'EUR',
+      quote_currency: 'USD',
+      rate: 1.1,
+      effective_at: '2026-07-14',
+    });
+    expect(result.base_currency).toBe('EUR');
+    expect(result.quote_currency).toBe('USD');
   });
 });

@@ -10,6 +10,7 @@ import {
   Receipt,
   Boxes,
   Tag,
+  TrendingUp,
   ChevronLeft,
   ChevronRight,
   BoxesIcon,
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { to: '/inventory', label: 'Productos', icon: Package, permission: PERMISSIONS.PRODUCTS_VIEW },
       { to: '/inventory/catalogs', label: 'Catálogos', icon: Tag, permission: PERMISSIONS.PRODUCTS_VIEW },
+      { to: '/inventory/currency', label: 'Tipos de tasa', icon: TrendingUp, permission: PERMISSIONS.CURRENCY_VIEW },
     ],
   },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },

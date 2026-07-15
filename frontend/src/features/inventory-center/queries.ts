@@ -30,6 +30,9 @@ export const catalogKeys = {
   tag: (id: number) => [...catalogKeys.tags(), id] as const,
   warrantyPolicies: () => [...catalogKeys.all, 'warranty-policies'] as const,
   exchangeRateTypes: () => [...catalogKeys.all, 'exchange-rate-types'] as const,
+  exchangeRateType: (id: number) => [...catalogKeys.exchangeRateTypes(), id] as const,
+  exchangeRates: () => [...catalogKeys.all, 'exchange-rates'] as const,
+  exchangeRate: (id: number) => [...catalogKeys.exchangeRates(), id] as const,
   priceLists: () => [...catalogKeys.all, 'price-lists'] as const,
   warehouses: () => [...catalogKeys.all, 'warehouses'] as const,
 };

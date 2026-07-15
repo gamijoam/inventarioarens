@@ -15,7 +15,8 @@
 | Kardex | tab "Kardex" en detalle | Funcional (fix reciente del schema) |
 | Auditoria | tab "Auditoria" en detalle | Funcional (fix reciente del schema) |
 | Precios por lista | tab "Precios" en detalle | Funcional (fix reciente del token + schema) |
-| Catalogos (marcas/categorias/tags) | `/inventory/catalogs` | Existe pero no hay link en el Sidebar. FIX EN ESTE COMMIT. |
+| Catalogos (marcas/categorias/tags) | `/inventory/catalogs` | Funcional (submenu en Sidebar + inline create desde ProductForm) |
+| Tipos de tasa y rates historicas | `/inventory/currency` | **Funcional** (submenu Sidebar + inline create + 9 tests) |
 | Bulk actions | menu contextual en listado | Funcional (al menos los dialogs) |
 | Exportar CSV | boton "Exportar CSV" en listado | Funcional |
 

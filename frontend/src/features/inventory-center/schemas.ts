@@ -591,6 +591,59 @@ export const PriceListSchema = z.object({
 export type PriceList = z.infer<typeof PriceListSchema>;
 
 // =====================================================================
+// Exchange rate types (catalog: BCV, Paralelo, etc.)
+// =====================================================================
+
+export const EXCHANGE_RATE_CURRENCIES = ['USD', 'EUR', 'VES'] as const;
+
+export const StoreExchangeRateTypeSchema = z
+  .object({
+    code: z
+      .string()
+      .max(50)
+      .transform((s) => s.trim().toUpperCase())
+      .refine((s) => s.length > 0, 'El codigo es obligatorio.'),
+    name: z
+      .string()
+      .max(255)
+      .transform((s) => s.trim())
+      .refine((s) => s.length > 0, 'El nombre es obligatorio.'),
+    is_default: z.boolean().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .transform((data) => ({
+    ...data,
+    is_default: data.is_default ?? false,
+    is_active: data.is_active ?? true,
+  }));
+export type StoreExchangeRateTypeValues = z.output<typeof StoreExchangeRateTypeSchema>;
+
+// =====================================================================
+// Exchange rates (historico: BCV en fecha X, Paralelo en fecha Y, etc.)
+// =====================================================================
+
+export const StoreExchangeRateSchema = z
+  .object({
+    exchange_rate_type_id: z.coerce.number().int().positive(),
+    base_currency: z.string().default('USD'),
+    quote_currency: z.string().default('VES'),
+    rate: z.coerce.number().positive(),
+    effective_at: z
+      .string()
+      .min(1, 'La fecha efectiva es obligatoria.'),
+    source: z.string().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .transform((data) => ({
+    ...data,
+    base_currency: data.base_currency || 'USD',
+    quote_currency: data.quote_currency || 'VES',
+    source: data.source || 'manual',
+    is_active: data.is_active ?? true,
+  }));
+export type StoreExchangeRateValues = z.output<typeof StoreExchangeRateSchema>;
+
+// =====================================================================
 // Filter schemas (listado)
 // =====================================================================
 
