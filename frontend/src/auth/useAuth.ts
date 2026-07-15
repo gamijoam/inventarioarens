@@ -13,13 +13,14 @@
  * Ver docs/AUTH_COOKIE_API.md.
  */
 import { useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   login as apiLogin,
   logout as apiLogout,
   me as apiMe,
-  switchTenant as apiSwitchTenant,
+  lookupTenants,
+  switchTenantApi,
   type LoginRequest,
 } from '@/api/endpoints/auth';
 import { useSessionStore } from '@/stores/session';
@@ -123,17 +124,17 @@ export function useAuth(): UseAuthResult {
 
   const switchTo = useCallback(
     async (slug: string) => {
-      const data = await apiSwitchTenant(slug);
+      const data = await switchTenantApi(slug);
       useSessionStore.getState().setSession({
         expiresAt: data.expires_at,
-        user: data.user,
-        tenant: data.tenant,
+        user: data.user as never,
+        tenant: data.tenant as never,
         roles: data.roles.map((r: unknown) =>
           typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
         ),
         permissions: data.permissions,
-        scopeStatus: data.scope_status,
-        scopes: data.scopes,
+        scopeStatus: data.scope_status === 'deny' ? 'restrict' : data.scope_status,
+        scopes: (data.scopes ?? {}) as never,
       });
       queryClient.clear();
     },
@@ -148,4 +149,29 @@ export function useAuth(): UseAuthResult {
     switchTo,
     refreshSession,
   };
+}
+
+/**
+ * Hook que retorna los tenants disponibles para el email del user actual.
+ * Usado por el TenantSwitcher en el Topbar.
+ */
+export interface AvailableTenant {
+  id: number;
+  name: string;
+  slug: string;
+  is_active?: boolean;
+}
+
+export function useAvailableTenants() {
+  const email = useSessionStore((s) => s.user?.email);
+  return useQuery<AvailableTenant[]>({
+    queryKey: ['auth', 'available-tenants', email],
+    queryFn: async () => {
+      if (!email) return [];
+      const data = await lookupTenants({ email });
+      return data;
+    },
+    enabled: Boolean(email),
+    staleTime: 5 * 60 * 1000,
+  });
 }

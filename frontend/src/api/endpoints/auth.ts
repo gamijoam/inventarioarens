@@ -38,6 +38,14 @@ export function lookupTenants(payload: TenantLookupRequest) {
   );
 }
 
+/** POST /api/auth/switch-tenant — Cambia el tenant activo del usuario. */
+export function switchTenantApi(slug: string) {
+  return postOne<{ tenant_slug: string }, { expires_at: string; user: { id: number; name: string; email: string; is_platform_admin?: boolean }; tenant: { id: number; name: string; slug: string; is_active?: boolean }; roles: (string | { name: string })[]; permissions: string[]; scope_status: 'allow' | 'deny' | 'restrict' | 'none'; scopes: unknown }>(
+    '/auth/switch-tenant',
+    { tenant_slug: slug },
+  );
+}
+
 /**
  * POST /api/auth/login — Inicia sesion.
  *
