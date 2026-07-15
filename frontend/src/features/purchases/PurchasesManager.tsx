@@ -6,7 +6,7 @@
  * acciones "Recibir" y "Cancelar" estan en el detalle (FASE 3).
  */
 import { useState } from 'react';
-import { Plus, Search, XCircle } from 'lucide-react';
+import { Plus, Search, XCircle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -58,9 +58,10 @@ function formatMoney(value: number | string | null | undefined): string {
 
 interface PurchasesManagerProps {
   onNew?: () => void;
+  onReceive?: (purchaseId: number) => void;
 }
 
-export function PurchasesManager({ onNew }: PurchasesManagerProps = {}) {
+export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {}) {
   const [filters, setFilters] = useState<PurchaseListFilters>({
     search: '',
     status: 'all',
@@ -183,16 +184,30 @@ export function PurchasesManager({ onNew }: PurchasesManagerProps = {}) {
                     </td>
                     <td className="px-3 py-2 text-text-muted tabular-nums">{p.items_count ?? '-'}</td>
                     <td className="px-3 py-2 text-right">
-                      {p.status === 'draft' && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() => setCancelling(p)}
-                          aria-label={`Cancelar compra ${p.document_number ?? p.id}`}
-                        >
-                          <XCircle className="size-4 text-danger" />
-                        </Button>
-                      )}
+                      <div className="flex justify-end gap-1">
+                        {(p.status === 'draft' || p.status === 'partially_received') && onReceive && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => onReceive(p.id)}
+                            aria-label={`Recibir compra ${p.document_number ?? p.id}`}
+                            title="Recibir mercancia"
+                          >
+                            <Package className="size-4 text-primary" />
+                          </Button>
+                        )}
+                        {p.status === 'draft' && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => setCancelling(p)}
+                            aria-label={`Cancelar compra ${p.document_number ?? p.id}`}
+                            title="Cancelar compra"
+                          >
+                            <XCircle className="size-4 text-danger" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

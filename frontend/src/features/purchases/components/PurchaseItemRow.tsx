@@ -1,11 +1,14 @@
 /**
- * PurchaseItemRow: una fila editable de la tabla de items en
- * PurchaseFormDialog. Maneja:
- * - Autocomplete de producto (single-select con typeahead).
- * - Select de almacen.
- * - Inputs numericos para cantidad y unit_cost.
- * - Si el producto es serializado, captura de N IMEIs/seriales.
- * - Boton papelera para eliminar la fila.
+ * PurchaseItemRow: card editable de un item en PurchaseFormDialog.
+ * Cambiamos de <tr> a <div> para evitar scroll horizontal: con 7 columnas
+ * (almacen, producto, qty, cost, subtotal, IMEIs, delete) la tabla se
+ * desbordaba en pantallas < 1100px. Cada card ocupa todo el ancho
+ * y apila los campos internamente con grid responsive.
+ *
+ * Layout:
+ *   [Almacen | Producto (info)                          | (delete)]
+ *   [Cantidad | Costo unit. | Subtotal                    ]
+ *   [ImeiListInput (solo si product es serializado)        ]
  */
 import { useMemo } from 'react';
 import { Trash2, Package } from 'lucide-react';
@@ -34,6 +37,7 @@ interface PurchaseItemRowProps {
   onRemove: () => void;
   disabled?: boolean;
   canRemove: boolean;
+  index: number;
 }
 
 export function PurchaseItemRow({
@@ -42,6 +46,7 @@ export function PurchaseItemRow({
   onRemove,
   disabled,
   canRemove,
+  index,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const subtotal = useMemo(
@@ -49,115 +54,146 @@ export function PurchaseItemRow({
     [value.quantity, value.unit_cost],
   );
   const isSerialized = value.product_info?.tracking_type === 'serialized';
-  const isIntQuantity = isSerialized;
 
   return (
-    <tr className="border-b border-border align-top">
-      {/* Almacen */}
-      <td className="px-2 py-2">
-        <Select
-          value={value.warehouse_id ? String(value.warehouse_id) : ''}
-          onChange={(e) => onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })}
-          disabled={disabled}
-          className="w-32"
-        >
-          <option value="">Almacen...</option>
-          {warehouses.map((w) => (
-            <option key={w.id} value={String(w.id)}>
-              {w.code}
-            </option>
-          ))}
-        </Select>
-      </td>
+    <div
+      className="rounded-md border border-border bg-bg/30 p-3"
+      data-testid={`purchase-item-${index}`}
+    >
+      {/* Row 1: Almacen + Producto + delete */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr_auto]">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Almacen
+          </label>
+          <Select
+            value={value.warehouse_id ? String(value.warehouse_id) : ''}
+            onChange={(e) =>
+              onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })
+            }
+            disabled={disabled}
+          >
+            <option value="">Almacen...</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={String(w.id)}>
+                {w.code}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-      {/* Producto */}
-      <td className="px-2 py-2 min-w-[260px]">
-        <ProductAutocomplete
-          value={value.product_id}
-          onChange={(id, product) => onChange({
-            ...value,
-            product_id: id,
-            product_info: product ?? null,
-            // Si cambia el producto y era serializado, limpiamos seriales para re-validar.
-            serial_units: product?.tracking_type === 'serialized' ? value.serial_units : [],
-          })}
-        />
-        {value.product_info && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-text-muted">
-            <Package className="size-3" />
-            {value.product_info.unit_of_measure ?? 'unit'}
-            {value.product_info.base_price != null && (
-              <span className="ml-1">
-                Base: {Number(value.product_info.base_price).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-              </span>
+        <div className="space-y-1 min-w-0">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Producto
+          </label>
+          <ProductAutocomplete
+            value={value.product_id}
+            onChange={(id, product) =>
+              onChange({
+                ...value,
+                product_id: id,
+                product_info: product ?? null,
+                // Si cambia el producto y era serializado, limpiamos seriales
+                // para que se re-inicialicen con la cantidad del nuevo.
+                serial_units:
+                  product?.tracking_type === 'serialized' ? [] : value.serial_units,
+              })
+            }
+          />
+          {value.product_info && (
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <Package className="size-3 shrink-0" />
+              <span>{value.product_info.unit_of_measure ?? 'unit'}</span>
+          {value.product_info.base_price != null && (
+              <>
+                <span className="text-text-muted/50">|</span>
+                <span>
+                  Base: {Number(value.product_info.base_price).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                </span>
+              </>
             )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-start sm:items-end sm:pb-1">
+          {canRemove ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={onRemove}
+              disabled={disabled}
+              aria-label="Eliminar linea"
+            >
+              <Trash2 className="size-4 text-danger" />
+            </Button>
+          ) : (
+            <span className="text-xs text-text-muted">Linea 1</span>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Cantidad + Costo + Subtotal */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Cantidad
+            {isSerialized && (
+              <span className="ml-1 normal-case font-normal text-text-muted">(por IMEI)</span>
+            )}
+          </label>
+          <Input
+            type="number"
+            min={isSerialized ? 1 : 0.0001}
+            step={isSerialized ? 1 : 0.0001}
+            value={value.quantity ?? ''}
+            onChange={(e) => onChange({ ...value, quantity: Number(e.target.value) })}
+            disabled={disabled || isSerialized}
+            placeholder="0"
+            className={cn('text-right tabular-nums', isSerialized && 'bg-bg cursor-not-allowed')}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Costo unit.
+          </label>
+          <Input
+            type="number"
+            min={0.0001}
+            step={0.0001}
+            value={value.unit_cost ?? ''}
+            onChange={(e) => onChange({ ...value, unit_cost: Number(e.target.value) })}
+            disabled={disabled}
+            placeholder="0.00"
+            className="text-right tabular-nums"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Subtotal
+          </label>
+          <div className="flex h-9 items-center justify-end rounded border border-transparent bg-bg/50 px-3 text-sm font-semibold tabular-nums">
+            {subtotal > 0
+              ? subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : '-'}
           </div>
-        )}
-      </td>
+        </div>
+      </div>
 
-      {/* Cantidad */}
-      <td className="px-2 py-2">
-        <Input
-          type="number"
-          min={isIntQuantity ? 1 : 0.0001}
-          step={isIntQuantity ? 1 : 0.0001}
-          value={value.quantity ?? ''}
-          onChange={(e) => onChange({ ...value, quantity: Number(e.target.value) })}
-          disabled={disabled || isSerialized}
-          placeholder="0"
-          className={cn('w-24 text-right tabular-nums', isSerialized && 'bg-bg')}
-        />
-        {isSerialized && (
-          <p className="mt-1 text-[10px] uppercase tracking-wide text-text-muted">Por IMEI</p>
-        )}
-      </td>
-
-      {/* Costo unitario */}
-      <td className="px-2 py-2">
-        <Input
-          type="number"
-          min={0.0001}
-          step={0.0001}
-          value={value.unit_cost || ''}
-          onChange={(e) => onChange({ ...value, unit_cost: Number(e.target.value) })}
-          disabled={disabled}
-          placeholder="0.00"
-          className="w-28 text-right tabular-nums"
-        />
-      </td>
-
-      {/* Subtotal */}
-      <td className="px-2 py-2 text-right tabular-nums">
-        {subtotal > 0 ? subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
-      </td>
-
-      {/* IMEIs (si aplica) */}
-      <td className="px-2 py-2 min-w-[300px]">
-        {isSerialized && value.product_id && (
+      {/* Row 3: IMEIs (solo si producto es serializado) */}
+      {isSerialized && value.product_id && (
+        <div className="mt-3 space-y-1.5 rounded border border-border-strong/50 bg-bg/50 p-2">
           <ImeiListInput
             value={value.serial_units}
             onChange={(serial_units) => onChange({ ...value, serial_units })}
             expectedQuantity={value.quantity || 1}
             disabled={disabled}
           />
-        )}
-      </td>
-
-      {/* Acciones */}
-      <td className="px-2 py-2 text-right">
-        {canRemove && (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={onRemove}
-            disabled={disabled}
-            aria-label="Eliminar linea"
-          >
-            <Trash2 className="size-4 text-danger" />
-          </Button>
-        )}
-      </td>
-    </tr>
+        </div>
+      )}
+    </div>
   );
 }

@@ -263,7 +263,9 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
           {/* ===== ITEMS ===== */}
           <fieldset className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">Items ({items.length})</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                Items ({items.length})
+              </h3>
               <Button type="button" size="sm" variant="outline" onClick={addItem}>
                 <Plus className="size-3.5" /> Agregar linea
               </Button>
@@ -273,42 +275,28 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
               <p className="text-xs text-danger">{fieldErrors.items}</p>
             )}
 
-            <div className="rounded-lg border border-border bg-surface overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border bg-bg/60 text-left">
-                  <tr>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wide text-text-secondary">Almacen</th>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wide text-text-secondary">Producto</th>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wide text-text-secondary">Cantidad</th>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wide text-text-secondary">Costo unit.</th>
-                    <th className="px-2 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Subtotal</th>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wide text-text-secondary">IMEIs / Seriales</th>
-                    <th className="px-2 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, i) => (
-                    <PurchaseItemRow
-                      key={i}
-                      value={item}
-                      onChange={(next) => updateItem(i, next)}
-                      onRemove={() => removeItem(i)}
-                      canRemove={items.length > 1}
-                    />
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border bg-bg/40">
-                    <td colSpan={4} className="px-2 py-2 text-right text-sm font-semibold uppercase tracking-wide text-text-secondary">
-                      Total {currency}
-                    </td>
-                    <td className="px-2 py-2 text-right text-base font-bold tabular-nums">
-                      {totals.base.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-              </table>
+            {/* Lista de cards: cada item es un bloque apilado, sin scroll horizontal. */}
+            <div className="space-y-2">
+              {items.map((item, i) => (
+                <PurchaseItemRow
+                  key={i}
+                  index={i}
+                  value={item}
+                  onChange={(next) => updateItem(i, next)}
+                  onRemove={() => removeItem(i)}
+                  canRemove={items.length > 1}
+                />
+              ))}
+            </div>
+
+            {/* Total general */}
+            <div className="mt-3 flex items-center justify-end gap-3 border-t-2 border-border pt-3">
+              <span className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                Total {currency}:
+              </span>
+              <span className="text-xl font-bold tabular-nums">
+                {totals.base.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             </div>
           </fieldset>
 
