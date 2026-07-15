@@ -228,7 +228,7 @@ class InventoryCenterSummaryService
 
     private function filteredProductsQuery(array $filters, float $threshold): Builder
     {
-        $query = $this->productStockQuery($this->stockTotals())
+        $query = $this->productStockQuery($this->stockTotals($filters['warehouse_id'] ?? null))
             ->select([
                 'products.id',
                 'products.name',
@@ -517,15 +517,21 @@ class InventoryCenterSummaryService
             ->leftJoinSub($stockTotals, 'stock_totals', 'stock_totals.product_id', '=', 'products.id');
     }
 
-    private function stockTotals(): QueryBuilder
+    private function stockTotals(?int $warehouseId = null): QueryBuilder
     {
-        return DB::table('stock_balances')
+        $query = DB::table('stock_balances')
             ->select('product_id')
             ->selectRaw('SUM(quantity_available) as quantity_available')
             ->selectRaw('SUM(quantity_reserved) as quantity_reserved')
             ->selectRaw('SUM(quantity_damaged) as quantity_damaged')
             ->where('tenant_id', $this->tenantManager->require()->id)
             ->groupBy('product_id');
+
+        if ($warehouseId !== null) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        return $query;
     }
 
     private function roundStock(float $value): float

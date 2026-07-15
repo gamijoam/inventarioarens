@@ -1051,6 +1051,62 @@ class InventoryCenterSummaryApiTest extends TestCase
         return $user;
     }
 
+    public function test_summary_filters_stock_by_warehouse_id(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa W', 'slug' => 'empresa-w']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $branch = Branch::where('code', 'BR-0')->first();
+        $warehouseA = Warehouse::where('code', 'WH-A-0')->first();
+        $warehouseB = Warehouse::where('code', 'WH-B-0')->first();
+        $samsung = Product::where('sku', 'A06-0')->first();
+        $audifonos = Product::where('sku', 'AUD-0')->first();
+
+        // 1) Sin warehouse_id -> stock agregado de TODOS los almacenes.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/inventory-center/summary?low_stock_threshold=3')
+            ->assertOk()
+            ->assertJsonPath('data.metrics.available_quantity', 17); // 2+3 + 12
+
+        $this->assertStockOfProduct($tenant, $user, $samsung->id, null, 5.0);   // 2 (A) + 3 (B)
+        $this->assertStockOfProduct($tenant, $user, $audifonos->id, null, 12.0); // 12 (A) + 0 (B)
+
+        // 2) warehouse_id=A -> solo el stock del almacen A.
+        $this->assertStockOfProduct($tenant, $user, $samsung->id, $warehouseA->id, 2.0);
+        $this->assertStockOfProduct($tenant, $user, $audifonos->id, $warehouseA->id, 12.0);
+
+        // 3) warehouse_id=B -> solo el stock del almacen B.
+        //    Audifonos no tiene stock en B -> debe aparecer como out (no como 12).
+        $this->assertStockOfProduct($tenant, $user, $samsung->id, $warehouseB->id, 3.0);
+        $this->assertStockOfProduct($tenant, $user, $audifonos->id, $warehouseB->id, 0.0);
+    }
+
+    private function assertStockOfProduct(Tenant $tenant, User $user, int $productId, ?int $warehouseId, float $expectedAvailable): void
+    {
+        $url = "/api/inventory-center/summary?low_stock_threshold=3";
+        if ($warehouseId !== null) {
+            $url .= "&warehouse_id={$warehouseId}";
+        }
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson($url)
+            ->assertOk();
+
+        $products = $response->json('data.products');
+        $product = collect($products)->firstWhere('id', $productId);
+        $this->assertNotNull($product, "Producto {$productId} no aparece en el listado para warehouse_id=" . ($warehouseId ?? 'null'));
+        $this->assertEquals(
+            $expectedAvailable,
+            (float) $product['stock']['available'],
+            "Stock disponible incorrecto para producto {$productId} con warehouse_id=" . ($warehouseId ?? 'null')
+        );
+    }
+
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void
     {
         $this->useTenant($tenant);

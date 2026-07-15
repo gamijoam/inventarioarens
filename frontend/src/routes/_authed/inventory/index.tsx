@@ -114,16 +114,17 @@ function InventoryListPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const filters = useMemo(
+const filters = useMemo(
     () => ({
       search: search.search,
       tracking_type: search.tracking,
       stock_status: search.stock,
       active_status: search.status,
+      warehouse_id: search.warehouse_id,
       page: search.page,
       per_page: 25,
     }),
-    [search.search, search.tracking, search.stock, search.status, search.page],
+    [search.search, search.tracking, search.stock, search.status, search.warehouse_id, search.page],
   );
 
   const { data, isLoading, isError } = useProducts(filters);

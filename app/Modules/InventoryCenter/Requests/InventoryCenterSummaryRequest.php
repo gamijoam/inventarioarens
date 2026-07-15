@@ -21,6 +21,7 @@ class InventoryCenterSummaryRequest extends FormRequest
             'tracking_type' => ['nullable', Rule::in(['quantity', 'serialized'])],
             'stock_status' => ['nullable', Rule::in(['all', 'available', 'low', 'out'])],
             'active_status' => ['nullable', Rule::in(['active', 'inactive', 'all'])],
+            'warehouse_id' => ['nullable', 'integer', 'min:1'],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0', 'max:999999'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
             'page' => ['nullable', 'integer', 'min:1'],
