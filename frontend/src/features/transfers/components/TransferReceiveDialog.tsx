@@ -107,7 +107,7 @@ export function TransferReceiveDialog({
       const items = rows
         .filter((r) => r.receiving_quantity > 0 || r.receiving_unit_ids.length > 0)
         .map((r) => ({
-          inventory_transfer_id: r.transfer_item_id,
+          inventory_transfer_item_id: r.transfer_item_id,
           received_quantity: r.tracking_type === 'serialized' ? undefined : r.receiving_quantity,
           received_product_unit_ids: r.tracking_type === 'serialized' ? r.receiving_unit_ids : undefined,
           difference_reason: r.receiving_quantity < r.pending && r.difference_reason ? r.difference_reason : undefined,

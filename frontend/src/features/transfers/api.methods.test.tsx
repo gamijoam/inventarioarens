@@ -97,7 +97,7 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('useReceiveTransfer usa POST /receive', async () => {
     const { result } = renderHook(() => useReceiveTransfer(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { received_at: null, notes: null, items: [{ inventory_transfer_id: 1, received_quantity: 1 }] } });
+    await result.current.mutateAsync({ id: 5, values: { received_at: null, notes: null, items: [{ inventory_transfer_item_id: 1, received_quantity: 1 }] } });
     const call = apiCalls.find((c) => c.url.includes('/receive'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('POST');
