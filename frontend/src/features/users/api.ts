@@ -56,7 +56,7 @@ export function useUsers(filters: UserListFilters) {
       const data = await getMany<unknown>(`/users${toQueryString(filters)}`);
       const parsed = UserListResponseSchema.safeParse(data);
       if (!parsed.success) {
-        console.warn('useUsers: shape invalido', parsed.error.flatten());
+        console.warn('[useUsers] shape invalido', parsed.error.flatten());
         throw new Error('Respuesta del servidor invalida.');
       }
       return parsed.data;
