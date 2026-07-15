@@ -3,8 +3,15 @@
  * para descargar PDF o ver HTML. La guia solo esta disponible si el
  * transfer esta en un estado post-creacion (prepared, dispatched,
  * completed).
+ *
+ * La descarga del PDF se hace via fetch + blob para evitar problemas con
+ * el proxy de Vite (que en algunos casos convierte el Content-Type y
+ * el navegador interpreta la respuesta como JSON). Ademas, el nombre
+ * del archivo viene del header Content-Disposition del backend para
+ * evitar ambiguedades.
  */
-import { Download, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { Download, ExternalLink, Loader2 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +21,8 @@ import {
   type Transfer,
 } from '@/features/transfers/schemas';
 import { useTransferApiBaseUrl } from '@/lib/apiBaseUrl';
+import { api } from '@/api/client';
+import { toast } from 'sonner';
 
 const GUIDE_AVAILABLE_STATUSES = new Set([
   'prepared',
@@ -26,6 +35,35 @@ const GUIDE_AVAILABLE_STATUSES = new Set([
 export function TransferGuidePanel({ transfer }: { transfer: Transfer }) {
   const apiBaseUrl = useTransferApiBaseUrl();
   const isAvailable = GUIDE_AVAILABLE_STATUSES.has(transfer.status);
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      const url = `${apiBaseUrl}/inventory-transfers/${transfer.id}/guide.pdf`;
+      const response = await api.get(url, {
+        responseType: 'blob',
+        withCredentials: true,
+      });
+      const blob = response.data as Blob;
+      // Extraer filename del header Content-Disposition si esta disponible.
+      const dispo = (response.headers?.['content-disposition'] as string | undefined) ?? '';
+      const match = /filename="?([^"]+)"?/.exec(dispo);
+      const filename = match?.[1] ?? `guia-${transfer.document_number ?? transfer.id}.pdf`;
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al descargar la guia.');
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (!isAvailable) {
     return (
@@ -47,7 +85,6 @@ export function TransferGuidePanel({ transfer }: { transfer: Transfer }) {
     );
   }
 
-  const pdfUrl = `${apiBaseUrl}/inventory-transfers/${transfer.id}/guide.pdf`;
   const htmlUrl = `${apiBaseUrl}/inventory-transfers/${transfer.id}/guide.html`;
 
   return (
@@ -60,11 +97,14 @@ export function TransferGuidePanel({ transfer }: { transfer: Transfer }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
-        <a href={pdfUrl} target="_blank" rel="noopener noreferrer" download>
-          <Button leftIcon={<Download className="size-4" />}>
-            Descargar PDF
-          </Button>
-        </a>
+        <Button
+          leftIcon={downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          onClick={downloadPdf}
+          loading={downloading}
+          data-testid="guide-download-pdf"
+        >
+          Descargar PDF
+        </Button>
         <a href={htmlUrl} target="_blank" rel="noopener noreferrer">
           <Button variant="outline" leftIcon={<ExternalLink className="size-4" />}>
             Ver HTML
