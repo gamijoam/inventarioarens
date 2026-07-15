@@ -13,6 +13,7 @@ use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Purchases\Models\PurchaseOrder;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Str;
 
@@ -127,6 +128,92 @@ class SyncCatalogOutboxService
                 ])->values()->all(),
             ],
             idempotencyKey: $this->eventKey('product_exit.created', 'product_exit', $exit->id, $exit->updated_at),
+        );
+    }
+
+    /**
+     * Emite el evento de Orden de Compra en estado `draft`.
+     * La nube usa esto solo para visibilidad/trazabilidad minima (el PO es
+     * local-operational segun docs/SYNC_OPERATIONS.md §5). La recepcion
+     * de mercancia es la que efectivamente crea stock en la nube
+     * (ver purchaseOrderReceived).
+     */
+    public function purchaseOrderCreated(PurchaseOrder $order): void
+    {
+        $order->loadMissing(['supplier', 'items.product', 'items.warehouse']);
+
+        $this->outbox->record(
+            eventType: 'purchase_order.created',
+            aggregateType: 'purchase_order',
+            aggregateId: $order->id,
+            payload: [
+                'document_number' => $order->document_number,
+                'status' => $order->status,
+                'supplier_name' => $order->supplier?->name,
+                'issued_at' => $order->issued_at?->toDateString(),
+                'due_date' => $order->due_date?->toDateString(),
+                'purchase_currency' => $order->purchase_currency,
+                'exchange_rate_type_id' => $order->exchange_rate_type_id,
+                'exchange_rate' => $order->exchange_rate === null ? null : (string) $order->exchange_rate,
+                'total_base_amount' => (string) $order->total_base_amount,
+                'total_local_amount' => (string) $order->total_local_amount,
+                'items' => $order->items->map(fn ($item): array => [
+                    'sku' => $item->product?->sku,
+                    'warehouse_code' => $item->warehouse?->code,
+                    'quantity' => (string) $item->quantity,
+                    'unit_cost' => (string) $item->unit_cost,
+                    'base_unit_cost' => (string) $item->base_unit_cost,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey('purchase_order.created', 'purchase_order', $order->id, $order->updated_at),
+        );
+    }
+
+    /**
+     * Emite el evento de recepcion de Orden de Compra. Este es el evento
+     * que la nube usa para crear un `product_entries` con los items recibidos
+     * (mantiene su stock en sync). El supplier no se replica; la nube registra
+     * el nombre en `product_entries.notes` para referencia.
+     */
+    public function purchaseOrderReceived(PurchaseOrder $order): void
+    {
+        $order->loadMissing(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+
+        // Solo emitimos los items que efectivamente se recibieron en esta
+        // operacion (los que tienen `received_quantity > 0` y un stock_movement
+        // asociado). Esto evita emitir lineas pendientes en recepciones
+        // parciales y permite idempotencia: re-procesar el mismo evento NO
+        // duplica stock en la nube.
+        $items = $order->items
+            ->filter(fn ($item): bool => $item->stock_movement_id !== null)
+            ->map(fn ($item): array => [
+                'sku' => $item->product?->sku,
+                'warehouse_code' => $item->warehouse?->code,
+                'quantity' => (string) $item->received_quantity,
+                'unit_cost' => $item->base_unit_cost === null ? null : (string) $item->base_unit_cost,
+                'serial_units' => $item->serial_units ?? [],
+            ])
+            ->values()
+            ->all();
+
+        if ($items === []) {
+            return;
+        }
+
+        $this->outbox->record(
+            eventType: 'purchase_order.received',
+            aggregateType: 'purchase_order',
+            aggregateId: $order->id,
+            payload: [
+                'document_number' => $order->document_number,
+                'status' => $order->status,
+                'supplier_name' => $order->supplier?->name,
+                'purchase_currency' => $order->purchase_currency,
+                'received_at' => $order->received_at?->toISOString(),
+                'notes' => "Compra a proveedor: {$order->supplier?->name}",
+                'items' => $items,
+            ],
+            idempotencyKey: $this->eventKey('purchase_order.received', 'purchase_order', $order->id, $order->updated_at),
         );
     }
 

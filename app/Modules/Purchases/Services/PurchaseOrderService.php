@@ -8,17 +8,22 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Purchases\Models\PurchaseItem;
 use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
-    {
+    public function __construct(
+        private readonly InventoryMovementService $inventory,
+        private readonly InventoryValuationService $valuation,
+        private readonly SyncCatalogOutboxService $syncCatalog,
+    ) {
     }
 
     public function createDraft(User $user, array $data): PurchaseOrder
@@ -77,7 +82,13 @@ class PurchaseOrderService
                 'total_local_amount' => $totalLocal,
             ]);
 
-            return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse']);
+            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse']);
+
+            // Emitir evento de sync para que la nube tenga visibilidad del
+            // borrador (efecto real sobre stock ocurre en receive()).
+            $this->syncCatalog->purchaseOrderCreated($po);
+
+            return $po;
         });
     }
 
@@ -122,6 +133,12 @@ class PurchaseOrderService
                 $item->save();
 
                 $this->createProductUnits($item, $movement->id, $serialUnits);
+
+                // Recalcular WAC del producto tras cada item recibido para que
+                // `products.average_cost` refleje el costo actualizado. Idempotente
+                // y O(N movimientos) por producto, suficiente para compras normales.
+                // Si el volumen crece, mover a un Job en cola.
+                $this->valuation->recalculate($item->product);
             }
 
             [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));
@@ -138,7 +155,15 @@ class PurchaseOrderService
 
             app(AccountsPayableService::class)->createForPurchase($purchaseOrder->refresh());
 
-            return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+
+            // Emitir evento de sync para que la nube cree la entrada de stock
+            // correspondiente. Solo emite items que efectivamente se recibieron
+            // (los que tienen stock_movement_id), asi una recepcion parcial
+            // solo sincroniza lo que realmente entro a bodega.
+            $this->syncCatalog->purchaseOrderReceived($po);
+
+            return $po;
         });
     }
 

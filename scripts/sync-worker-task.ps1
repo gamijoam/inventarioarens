@@ -90,7 +90,7 @@ function Install-WorkerTask {
         -Execute "wscript.exe" `
         -Argument ("`"" + $HiddenRunner + "`" `"" + $LauncherFile + "`"")
     Register-ScheduledTask -TaskName $TaskName -Trigger $(
-        New-ScheduledTaskTrigger -AtStartup -Once:$false
+        New-ScheduledTaskTrigger -AtStartup
     ) -Action $taskAction -Settings (
         New-ScheduledTaskSettingsSet `
             -AllowStartIfOnBatteries `

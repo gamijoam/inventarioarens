@@ -5,6 +5,7 @@ namespace App\Modules\ProductEntries\Services;
 use App\Models\User;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Models\ProductEntryItem;
 use App\Modules\Products\Models\Product;
@@ -18,6 +19,7 @@ class ProductEntryService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
+        private readonly InventoryValuationService $valuation,
     )
     {
     }
@@ -67,6 +69,10 @@ class ProductEntryService
                 ]);
 
                 $this->createProductUnits($product, $warehouse, $movement->id, $item['serial_units'] ?? []);
+
+                // Recalcular WAC para mantener `products.average_cost` sincronizado
+                // con la nueva entrada. Ver PurchaseOrderService para la misma logica.
+                $this->valuation->recalculate($product);
             }
 
             $entry = $entry->refresh()->load(['items.product', 'items.warehouse']);

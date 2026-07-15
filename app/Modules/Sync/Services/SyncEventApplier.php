@@ -46,6 +46,8 @@ class SyncEventApplier
         'inventory_transfer_request.accepted',
         'inventory_transfer_request.rejected',
         'inventory_transfer_request.cancelled',
+        'purchase_order.created',
+        'purchase_order.received',
         'pos.order.pending',
         'pos.order.payment_added',
         'pos.order.paid',
@@ -164,6 +166,8 @@ class SyncEventApplier
                 'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
                 'product_entry.created' => $this->applyProductEntry($tenant, $payload),
                 'product_exit.created' => $this->applyProductExit($tenant, $payload),
+                'purchase_order.created' => $this->applyPurchaseOrderCreated($tenant, $payload),
+                'purchase_order.received' => $this->applyPurchaseOrderReceived($tenant, $payload),
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -399,6 +403,85 @@ class SyncEventApplier
 
             return 'applied';
         });
+    }
+
+    /**
+     * Aplica un `purchase_order.created` (estado `draft`) en la nube.
+     * Como el PO no afecta stock todavia, solo guardamos metadata minima
+     * para que la UI de la nube pueda mostrar la existencia de la orden
+     * sin replicar todo el modelo de PurchaseOrder local-operational.
+     * El efecto real sobre stock lo aplica `applyPurchaseOrderReceived`.
+     *
+     * Idempotente: si el (tenant, document_number) ya existe en la nube,
+     * no hace nada.
+     */
+    private function applyPurchaseOrderCreated(Tenant $tenant, array $payload): string
+    {
+        $documentNumber = $this->requiredString($payload, 'document_number');
+
+        $existing = DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($existing) {
+            return 'applied';
+        }
+
+        $now = now();
+        $issuedAt = isset($payload['issued_at']) ? Carbon::parse($payload['issued_at']) : $now->toDateString();
+        $dueDate = isset($payload['due_date']) ? Carbon::parse($payload['due_date']) : null;
+
+        DB::table('purchase_orders')->insert([
+            'tenant_id' => $tenant->id,
+            'supplier_id' => null, // suppliers no se replican en esta iteracion
+            'status' => $payload['status'] ?? 'draft',
+            'document_number' => $documentNumber,
+            'issued_at' => $issuedAt,
+            'due_date' => $dueDate,
+            'purchase_currency' => $payload['purchase_currency'] ?? 'USD',
+            'exchange_rate_type_id' => $payload['exchange_rate_type_id'] ?? null,
+            'exchange_rate' => $payload['exchange_rate'] ?? null,
+            'total_base_amount' => (float) ($payload['total_base_amount'] ?? 0),
+            'total_local_amount' => (float) ($payload['total_local_amount'] ?? 0),
+            'received_base_amount' => 0,
+            'received_local_amount' => 0,
+            'created_by' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica un `purchase_order.received` en la nube. Convierte la orden de
+     * compra local en una entrada de stock (`product_entries` + items +
+     * stock_movements) manteniendo el `document_number` original del PO.
+     * Esto preserva la trazabilidad de la fuente (la compra) y mantiene
+     * el stock sincronizado entre local y nube.
+     *
+     * Si la nube ya recibio este mismo `purchase_order.received` (por reintento
+     * o reprocesamiento), `applyProductEntry` es idempotente via
+     * (tenant_id, document_number) y no duplica stock.
+     */
+    private function applyPurchaseOrderReceived(Tenant $tenant, array $payload): string
+    {
+        $documentNumber = $this->requiredString($payload, 'document_number');
+        $supplierName = $payload['supplier_name'] ?? null;
+
+        // Mapeamos al shape que espera applyProductEntry.
+        $mapped = [
+            'document_number' => $documentNumber,
+            'reason' => "Compra a proveedor " . ($supplierName ?? ''),
+            'reference' => $documentNumber,
+            'notes' => $supplierName ? "Proveedor: {$supplierName} | Doc compra: {$documentNumber}" : null,
+            'status' => 'processed',
+            'processed_at' => $payload['received_at'] ?? now()->toISOString(),
+            'items' => $payload['items'] ?? [],
+        ];
+
+        return $this->applyProductEntry($tenant, $mapped);
     }
 
     /**
