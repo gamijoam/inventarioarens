@@ -451,11 +451,20 @@ export type PaginatedProducts = z.infer<typeof PaginatedProductsSchema>;
 // Detail (consolidado)
 // =====================================================================
 
+// ProductStockSchema refleja el shape REAL del endpoint
+// /inventory-center/products/{id}/stock-by-warehouse (auditado leyendo
+// InventoryCenterProductDetailService::stockByWarehouse()):
+//   { warehouse_id, warehouse_code, warehouse_name, branch_id, branch_name,
+//     available, reserved, damaged }
+// (NO usa 'quantity' sino 'available'). Si el backend alguna vez cambia
+// el shape, el ZodParseError hara evidente la incompatibilidad en el useQuery.
 export const ProductStockSchema = z.object({
   warehouse_id: z.number().int().positive(),
   warehouse_code: z.string(),
   warehouse_name: z.string(),
-  quantity: z.union([z.string(), z.number()]),
+  branch_id: z.number().int().nullable().optional(),
+  branch_name: z.string().nullable().optional(),
+  available: z.union([z.string(), z.number()]),
   reserved: z.union([z.string(), z.number()]).nullable().optional(),
   damaged: z.union([z.string(), z.number()]).nullable().optional(),
 });

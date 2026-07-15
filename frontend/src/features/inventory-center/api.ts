@@ -33,6 +33,7 @@ import {
   PaginatedProductsSchema,
   PriceListSchema,
   ProductSchema,
+  ProductStockSchema,
   ProductStockStatusSchema,
   ReorderSuggestionsResponseSchema,
   TagSchema,
@@ -76,10 +77,13 @@ export function useProductStockByWarehouse(productId: number) {
   return useQuery({
     queryKey: productKeys.stockByWarehouse(productId),
     queryFn: async () => {
-      const data = await getOne<{ data: { warehouse_id: number; warehouse_code: string; warehouse_name: string; quantity: string | number; reserved: string | number | null; damaged: string | number | null }[] }>(
+      const data = await getOne<{ data: unknown[] }>(
         `/inventory-center/products/${productId}/stock-by-warehouse`,
       );
-      return data.data;
+      // Validamos contra el schema tipado para garantizar shape consistente
+      // (available/reserved/damaged). Si el backend cambia, ZodParseError
+      // se propaga al UI.
+      return z.array(ProductStockSchema).parse(data.data);
     },
     enabled: Number.isFinite(productId) && productId > 0,
   });
