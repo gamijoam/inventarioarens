@@ -9,6 +9,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TransfersManager } from '@/features/transfers/TransfersManager';
+import { TransferCreateDialog } from '@/features/transfers/components/TransferCreateDialog';
 import { TransferReceiveDialog } from '@/features/transfers/components/TransferReceiveDialog';
 
 export const Route = createFileRoute('/_authed/transfers')({
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/_authed/transfers')({
 
 function TransfersPage() {
   const [receivingId, setReceivingId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
 
   return (
@@ -26,8 +28,16 @@ function TransfersPage() {
     >
       <TransfersManager
         onReceive={(id) => setReceivingId(id)}
-        onNew={() => navigate({ to: '/inventory/admin' })}
+        onNew={() => setCreating(true)}
       />
+
+      {creating && (
+        <TransferCreateDialog
+          open={creating}
+          onOpenChange={(open) => { if (!open) setCreating(false); }}
+          onCreated={(id) => navigate({ to: '/transfers/$transferId', params: { transferId: String(id) } })}
+        />
+      )}
 
       {receivingId !== null && (
         <TransferReceiveDialog

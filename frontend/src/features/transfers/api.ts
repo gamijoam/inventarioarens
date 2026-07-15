@@ -64,7 +64,6 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       const parsed = (await import('zod')).z.array(TransferSchema).safeParse(arr);
       if (!parsed.success) {
-        // eslint-disable-next-line no-console
         console.warn('useTransfers: shape invalido', parsed.error.flatten());
         return [];
       }
@@ -233,5 +232,35 @@ export function useTransferDriver(transferId: number) {
       return TransferDriverSchema.parse(transfer.driver);
     },
     enabled: Number.isFinite(transferId) && transferId > 0,
+  });
+}
+
+// =====================================================================
+// Lookups reutilizados por el dialog de crear traslado.
+// Reusamos los hooks de inventory-center (warehouses, products) que ya
+// existen. Solo re-exportamos para que el codigo del modulo de transfers
+// no tenga que importar del modulo de inventory.
+// =====================================================================
+
+export { useWarehouses } from '@/features/inventory-center/api';
+
+import {
+  ProductSchema,
+} from '@/features/inventory-center/schemas';
+
+/**
+ * Lista de productos activos (max 100) para usar en el dialog de
+ * crear traslado (autocomplete de productos). Re-exporta el schema
+ * Product del modulo de inventory-center.
+ */
+export function useProductsForTransfer() {
+  return useQuery({
+    queryKey: [...productKeys.lists(), 'for-transfer'] as const,
+    queryFn: async () => {
+      const data = await getMany<unknown>('/products?per_page=100');
+      const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
+      return (await import('zod')).z.array(ProductSchema).parse(arr);
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }

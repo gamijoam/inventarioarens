@@ -30,7 +30,7 @@ interface ItemRow {
   product_id: number;
   product_name: string;
   product_sku: string;
-  tracking_type: 'quantity' | 'serialized' | string;
+  tracking_type: string;
   pending: number;
   receiving_quantity: number;
   receiving_unit_ids: number[];
