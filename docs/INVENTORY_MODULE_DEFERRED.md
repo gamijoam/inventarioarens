@@ -17,6 +17,7 @@
 | Precios por lista | tab "Precios" en detalle | Funcional (fix reciente del token + schema) |
 | Catalogos (marcas/categorias/tags) | `/inventory/catalogs` | Funcional (submenu en Sidebar + inline create desde ProductForm) |
 | Tipos de tasa y rates historicas | `/inventory/currency` | **Funcional** (submenu Sidebar + inline create + 9 tests) |
+| Catalogos administrativos (sucursales, almacenes, garantias, listas de precios) | `/inventory/admin` | **Funcional** (submenu Sidebar + 12 tests + 3 inline creates) |
 | Bulk actions | menu contextual en listado | Funcional (al menos los dialogs) |
 | Exportar CSV | boton "Exportar CSV" en listado | Funcional |
 
@@ -41,36 +42,32 @@ de inventario, aunque el user los descubra intentando crear un producto.
 
 ### Modulo Currency (no implementado en frontend)
 
-- **Exchange rate types** (BCV, Paralelo, etc.): backend completo en
-  `app/Modules/Currency/`. El frontend no tiene pagina para crearlos. Cuando
-  el user intenta asignar `sale_exchange_rate_type_id` en un producto y no
-  hay ninguno, el dropdown esta vacio.
-  - Pendiente: crear `/currency/rate-types` o similar.
-  - Backend: `GET /api/currency/rate-types` ya existe.
+- ~~**Exchange rate types** (BCV, Paralelo, etc.)~~ **HECHO** 2026-07-14: ver `docs/CURRENCY_MODULE.md`.
 
 ### Modulo Warranties (no implementado en frontend)
 
-- **Warranty policies** (cobertura, duracion): backend completo en
-  `app/Modules/Warranties/`. El frontend no tiene pagina para crearlas.
-  - Pendiente: crear `/warranties/policies` o similar.
-  - Backend: `GET /api/warranty-policies` ya existe.
+- ~~**Warranty policies** (cobertura, duracion)~~ **HECHO** 2026-07-15: integrado en `/inventory/admin` tab "Garantias" + inline create desde ProductForm.
 
 ### Modulo Products / PriceList (no implementado en frontend)
 
-- **Price lists** (AL MAYOR, Detal, etc.): backend completo en
-  `app/Modules/Products/Controllers/PriceListController.php`. El frontend
-  no tiene pagina para crearlas. El `PricesEditor` muestra las listas
-  existentes en el dropdown, pero si no hay ninguna, aparece vacio.
-  - Pendiente: crear `/price-lists` o similar.
-  - Backend: `GET /api/price-lists?active_only=1` ya existe.
+- ~~**Price lists** (AL MAYOR, Detal, etc.)~~ **HECHO** 2026-07-15: integrado en `/inventory/admin` tab "Listas de precios" + inline create desde PricesEditor.
 
 ### Modulo Warehouses (no implementado en frontend)
 
-- **Warehouses** (Almacenes): backend completo en
-  `app/Modules/Warehouses/`. El frontend solo permite seleccionar un
-  warehouse_id en ciertos formularios pero no tiene pagina de gestion.
-  - Pendiente: crear `/warehouses` o similar.
-  - Backend: `GET /api/warehouses` ya existe.
+- ~~**Warehouses** (Almacenes)~~ **HECHO** 2026-07-15: integrado en `/inventory/admin` tab "Almacenes" + Branches como prerequisito.
+
+### Modulo Branches (no implementado en frontend)
+
+- ~~**Branches** (Sucursales)~~ **HECHO** 2026-07-15: integrado en `/inventory/admin` tab "Sucursales" + inline create desde Warehouses.
+
+### Warehouse Locations (jerarquico, deferred)
+
+- Backend completo en `app/Modules/Warehouses/Controllers/WarehouseLocationController.php`
+  (CRUD de ubicaciones dentro de almacenes: pasillo, estante, nivel). El frontend
+  no tiene UI todavia.
+  - Pendiente: agregar a `/inventory/admin` un 5to tab "Ubicaciones" o
+    gestion dentro del detalle de un almacen (modal).
+  - Backend: `GET /api/warehouses/{warehouse}/locations` ya existe.
 
 ### Tenant Switcher (en Topbar)
 

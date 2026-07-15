@@ -559,6 +559,7 @@ export const WarrantyPolicySchema = z.object({
   name: z.string(),
   duration_days: z.number().int().optional(),
   coverage_type: z.string().optional(),
+  conditions: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
 });
 export type WarrantyPolicy = z.infer<typeof WarrantyPolicySchema>;
@@ -577,6 +578,8 @@ export const WarehouseSchema = z.object({
   code: z.string(),
   name: z.string(),
   branch_id: z.number().int().nullable().optional(),
+  branch_name: z.string().nullable().optional(),
+  status: z.string().optional(),
   is_active: z.boolean().optional(),
 });
 export type Warehouse = z.infer<typeof WarehouseSchema>;
@@ -585,10 +588,22 @@ export const PriceListSchema = z.object({
   id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
+  description: z.string().nullable().optional(),
   is_default: z.boolean().optional(),
   is_active: z.boolean(),
+  sort_order: z.number().int().optional(),
+  payment_method_ids: z.array(z.number().int()).optional(),
 });
 export type PriceList = z.infer<typeof PriceListSchema>;
+
+export const BranchSchema = z.object({
+  id: z.number().int().positive(),
+  code: z.string(),
+  name: z.string(),
+  status: z.string().optional(),
+  is_active: z.boolean().optional(),
+});
+export type Branch = z.infer<typeof BranchSchema>;
 
 // =====================================================================
 // Exchange rate types (catalog: BCV, Paralelo, etc.)
@@ -636,12 +651,135 @@ export const StoreExchangeRateSchema = z
   })
   .transform((data) => ({
     ...data,
-    base_currency: data.base_currency || 'USD',
-    quote_currency: data.quote_currency || 'VES',
-    source: data.source || 'manual',
+    base_currency: data.base_currency ?? 'USD',
+    quote_currency: data.quote_currency ?? 'VES',
+    source: data.source ?? 'manual',
     is_active: data.is_active ?? true,
   }));
 export type StoreExchangeRateValues = z.output<typeof StoreExchangeRateSchema>;
+
+// =====================================================================
+// Sucursales (Branches) -- prerequisito de Warehouses
+// =====================================================================
+
+export const StoreBranchSchema = z
+  .object({
+    name: z
+      .string()
+      .max(255)
+      .transform((s) => s.trim())
+      .refine((s) => s.length > 0, 'El nombre es obligatorio.'),
+    code: z
+      .string()
+      .max(50)
+      .transform((s) => s.trim().toUpperCase())
+      .refine((s) => s.length > 0, 'El codigo es obligatorio.'),
+    status: z.enum(['active', 'inactive']).default('active'),
+  })
+  .transform((data) => ({
+    ...data,
+    status: data.status ?? 'active',
+  }));
+export type StoreBranchValues = z.output<typeof StoreBranchSchema>;
+
+// =====================================================================
+// Almacenes (Warehouses)
+// =====================================================================
+
+export const StoreWarehouseSchema = z
+  .object({
+    branch_id: z.coerce.number().int().positive('La sucursal es obligatoria.'),
+    name: z
+      .string()
+      .max(255)
+      .transform((s) => s.trim())
+      .refine((s) => s.length > 0, 'El nombre es obligatorio.'),
+    code: z
+      .string()
+      .max(50)
+      .transform((s) => s.trim().toUpperCase())
+      .refine((s) => s.length > 0, 'El codigo es obligatorio.'),
+    status: z.enum(['active', 'inactive']).default('active'),
+  })
+  .transform((data) => ({
+    ...data,
+    status: data.status ?? 'active',
+  }));
+export type StoreWarehouseValues = z.output<typeof StoreWarehouseSchema>;
+
+// =====================================================================
+// Politicas de garantia
+// =====================================================================
+
+export const WARRANTY_COVERAGE_TYPES = ['store', 'manufacturer', 'none'] as const;
+export type WarrantyCoverageType = (typeof WARRANTY_COVERAGE_TYPES)[number];
+
+export const WARRANTY_COVERAGE_LABELS: Record<WarrantyCoverageType, string> = {
+  store: 'Tienda',
+  manufacturer: 'Fabricante',
+  none: 'Sin garantia',
+};
+
+export const StoreWarrantyPolicySchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'El nombre es obligatorio.')
+      .max(150),
+    duration_days: z.coerce
+      .number()
+      .int('Debe ser un numero entero.')
+      .min(0, 'No puede ser negativo.')
+      .max(3650, 'Maximo 10 anos.'),
+    coverage_type: z.enum(WARRANTY_COVERAGE_TYPES, {
+      errorMap: () => ({ message: 'Tipo de cobertura invalido.' }),
+    }),
+    conditions: z
+      .string()
+      .max(2000)
+      .optional()
+      .transform((s) => (s?.trim() ? s.trim() : null)),
+    is_active: z.boolean().default(true),
+  })
+  .transform((data) => ({
+    ...data,
+    is_active: data.is_active ?? true,
+  }));
+export type StoreWarrantyPolicyValues = z.output<typeof StoreWarrantyPolicySchema>;
+
+// =====================================================================
+// Listas de precios (Price Lists)
+// =====================================================================
+
+export const StorePriceListSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'El nombre es obligatorio.')
+      .max(255),
+    code: z
+      .string()
+      .min(1, 'El codigo es obligatorio.')
+      .max(50)
+      .transform((s) => s.trim().toUpperCase()),
+    description: z
+      .string()
+      .max(1000)
+      .optional()
+      .transform((s) => (s?.trim() ? s.trim() : null)),
+    is_default: z.boolean().optional(),
+    is_active: z.boolean().default(true),
+    sort_order: z.coerce.number().int().min(0).default(0),
+    payment_method_ids: z.array(z.coerce.number().int().positive()).optional(),
+  })
+  .transform((data) => ({
+    ...data,
+    is_default: data.is_default ?? false,
+    is_active: data.is_active ?? true,
+    sort_order: data.sort_order ?? 0,
+    payment_method_ids: data.payment_method_ids ?? [],
+  }));
+export type StorePriceListValues = z.output<typeof StorePriceListSchema>;
 
 // =====================================================================
 // Filter schemas (listado)

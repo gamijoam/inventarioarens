@@ -21,6 +21,7 @@ import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
 import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inventory/index'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
+import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inventory/admin'
 import { Route as AuthedInventoryProductIdRouteImport } from './routes/_authed/inventory/$productId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -82,6 +83,11 @@ const AuthedInventoryCatalogsRoute = AuthedInventoryCatalogsRouteImport.update({
   path: '/inventory/catalogs',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedInventoryAdminRoute = AuthedInventoryAdminRouteImport.update({
+  id: '/inventory/admin',
+  path: '/inventory/admin',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedInventoryProductIdRoute =
   AuthedInventoryProductIdRouteImport.update({
     id: '/inventory/$productId',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/sales': typeof AuthedSalesRoute
   '/transfers': typeof AuthedTransfersRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
+  '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/': typeof AuthedInventoryIndexRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/sales': typeof AuthedSalesRoute
   '/transfers': typeof AuthedTransfersRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
+  '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory': typeof AuthedInventoryIndexRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/_authed/sales': typeof AuthedSalesRoute
   '/_authed/transfers': typeof AuthedTransfersRoute
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
+  '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/': typeof AuthedInventoryIndexRoute
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/sales'
     | '/transfers'
     | '/inventory/$productId'
+    | '/inventory/admin'
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory/'
@@ -159,6 +169,7 @@ export interface FileRouteTypes {
     | '/sales'
     | '/transfers'
     | '/inventory/$productId'
+    | '/inventory/admin'
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory'
@@ -174,6 +185,7 @@ export interface FileRouteTypes {
     | '/_authed/sales'
     | '/_authed/transfers'
     | '/_authed/inventory/$productId'
+    | '/_authed/inventory/admin'
     | '/_authed/inventory/catalogs'
     | '/_authed/inventory/currency'
     | '/_authed/inventory/'
@@ -271,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryCatalogsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/inventory/admin': {
+      id: '/_authed/inventory/admin'
+      path: '/inventory/admin'
+      fullPath: '/inventory/admin'
+      preLoaderRoute: typeof AuthedInventoryAdminRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/inventory/$productId': {
       id: '/_authed/inventory/$productId'
       path: '/inventory/$productId'
@@ -289,6 +308,7 @@ interface AuthedRouteChildren {
   AuthedSalesRoute: typeof AuthedSalesRoute
   AuthedTransfersRoute: typeof AuthedTransfersRoute
   AuthedInventoryProductIdRoute: typeof AuthedInventoryProductIdRoute
+  AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
@@ -302,6 +322,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSalesRoute: AuthedSalesRoute,
   AuthedTransfersRoute: AuthedTransfersRoute,
   AuthedInventoryProductIdRoute: AuthedInventoryProductIdRoute,
+  AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,

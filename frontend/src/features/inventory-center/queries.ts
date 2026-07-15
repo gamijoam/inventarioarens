@@ -35,4 +35,5 @@ export const catalogKeys = {
   exchangeRate: (id: number) => [...catalogKeys.exchangeRates(), id] as const,
   priceLists: () => [...catalogKeys.all, 'price-lists'] as const,
   warehouses: () => [...catalogKeys.all, 'warehouses'] as const,
+  branches: () => [...catalogKeys.all, 'branches'] as const,
 };

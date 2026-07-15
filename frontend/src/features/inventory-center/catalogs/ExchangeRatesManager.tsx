@@ -106,7 +106,11 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
 
   const openForm = () => {
     form.reset({
-      exchange_rate_type_id: Number(typeFilter) || initialTypeId || types[0]?.id || 0,
+      exchange_rate_type_id: (() => {
+        const n = Number(typeFilter);
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        return Number.isFinite(n) && n > 0 ? n : (initialTypeId || types[0]?.id || 0);
+      })(),
       base_currency: 'USD',
       quote_currency: 'VES',
       rate: 0,

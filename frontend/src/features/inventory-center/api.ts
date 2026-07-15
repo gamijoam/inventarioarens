@@ -27,6 +27,7 @@ import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/a
 import {
   AlertsSummarySchema,
   BrandSchema,
+  BranchSchema,
   CategorySchema,
   ExchangeRateTypeSchema,
   PaginatedProductsSchema,
@@ -293,6 +294,16 @@ export function useWarehouses() {
   });
 }
 
+export function useBranches() {
+  return useQuery({
+    queryKey: catalogKeys.branches(),
+    queryFn: async () => {
+      const data = await getMany<unknown>('/branches');
+      return z.array(BranchSchema).parse(data);
+    },
+  });
+}
+
 // =====================================================================
 // Exchange rates (rates historicas: BCV hoy, Paralelo ayer, etc.)
 // =====================================================================
@@ -492,6 +503,144 @@ export function useDeleteTag() {
     mutationFn: async (id: number) => deleteOne(`/tags/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+    },
+  });
+}
+
+// =====================================================================
+// Mutations de catalogos administrativos (Branches, Warehouses,
+// Warranty Policies, Price Lists). Usadas por los managers en
+// /inventory/admin y por los inline-create en ProductForm / PricesEditor.
+// =====================================================================
+
+// --- Branches ---
+export function useCreateBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/branches', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.branches() });
+    },
+  });
+}
+
+export function useUpdateBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/branches/${id}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.branches() });
+    },
+  });
+}
+
+export function useDeleteBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/branches/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.branches() });
+    },
+  });
+}
+
+// --- Warehouses ---
+export function useCreateWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/warehouses', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warehouses() });
+    },
+  });
+}
+
+export function useUpdateWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/warehouses/${id}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warehouses() });
+    },
+  });
+}
+
+export function useDeleteWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/warehouses/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warehouses() });
+    },
+  });
+}
+
+// --- Warranty Policies ---
+export function useCreateWarrantyPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/warranty-policies', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warrantyPolicies() });
+    },
+  });
+}
+
+export function useUpdateWarrantyPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/warranty-policies/${id}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warrantyPolicies() });
+    },
+  });
+}
+
+export function useDeleteWarrantyPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/warranty-policies/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.warrantyPolicies() });
+    },
+  });
+}
+
+// --- Price Lists ---
+export function useCreatePriceList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      postOne<Record<string, unknown>, unknown>('/price-lists', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
+    },
+  });
+}
+
+export function useUpdatePriceList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: number; [k: string]: unknown }) =>
+      patchOne<Record<string, unknown>, unknown>(`/price-lists/${id}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
+    },
+  });
+}
+
+export function useDeletePriceList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/price-lists/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
     },
   });
 }

@@ -15,6 +15,7 @@ import {
   ChevronRight,
   BoxesIcon,
   ChevronDown,
+  Settings,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
       { to: '/inventory', label: 'Productos', icon: Package, permission: PERMISSIONS.PRODUCTS_VIEW },
       { to: '/inventory/catalogs', label: 'Catálogos', icon: Tag, permission: PERMISSIONS.PRODUCTS_VIEW },
       { to: '/inventory/currency', label: 'Tipos de tasa', icon: TrendingUp, permission: PERMISSIONS.CURRENCY_VIEW },
+      { to: '/inventory/admin', label: 'Administración', icon: Settings, permission: PERMISSIONS.PRODUCTS_VIEW },
     ],
   },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },

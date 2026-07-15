@@ -6,6 +6,10 @@ import {
   BulkActionSchema,
   StoreExchangeRateTypeSchema,
   StoreExchangeRateSchema,
+  StoreBranchSchema,
+  StoreWarehouseSchema,
+  StoreWarrantyPolicySchema,
+  StorePriceListSchema,
 } from './schemas';
 
 describe('StoreProductSchema', () => {
@@ -279,5 +283,110 @@ describe('StoreExchangeRateSchema', () => {
     });
     expect(result.base_currency).toBe('EUR');
     expect(result.quote_currency).toBe('USD');
+  });
+});
+
+// =====================================================================
+// Catalogos administrativos: Branches, Warehouses, WarrantyPolicies, PriceLists
+// =====================================================================
+
+describe('StoreBranchSchema', () => {
+  it('normaliza code a uppercase + trim', () => {
+    const result = StoreBranchSchema.parse({ name: '  Centro  ', code: '  centro  ', status: 'active' });
+    expect(result.name).toBe('Centro');
+    expect(result.code).toBe('CENTRO');
+    expect(result.status).toBe('active');
+  });
+
+  it('rechaza code vacio', () => {
+    expect(() => StoreBranchSchema.parse({ name: 'X', code: '   ' })).toThrow();
+  });
+
+  it('default status=active', () => {
+    const result = StoreBranchSchema.parse({ name: 'X', code: 'X' });
+    expect(result.status).toBe('active');
+  });
+});
+
+describe('StoreWarehouseSchema', () => {
+  it('requiere branch_id positivo', () => {
+    expect(() => StoreWarehouseSchema.parse({ name: 'Almacen', code: 'MAIN', branch_id: 0 })).toThrow();
+    expect(() => StoreWarehouseSchema.parse({ name: 'Almacen', code: 'MAIN' })).toThrow();
+  });
+
+  it('normaliza code a uppercase + trim', () => {
+    const result = StoreWarehouseSchema.parse({ branch_id: 1, name: '  Principal  ', code: '  main  ' });
+    expect(result.name).toBe('Principal');
+    expect(result.code).toBe('MAIN');
+    expect(result.status).toBe('active');
+  });
+});
+
+describe('StoreWarrantyPolicySchema', () => {
+  it('happy path', () => {
+    const result = StoreWarrantyPolicySchema.parse({
+      name: 'Garantia 30 dias',
+      duration_days: 30,
+      coverage_type: 'store',
+      conditions: 'No aplica a danos por agua',
+      is_active: true,
+    });
+    expect(result.name).toBe('Garantia 30 dias');
+    expect(result.duration_days).toBe(30);
+    expect(result.coverage_type).toBe('store');
+    expect(result.conditions).toBe('No aplica a danos por agua');
+  });
+
+  it('rechaza duration_days negativo o mayor a 3650', () => {
+    expect(() =>
+      StoreWarrantyPolicySchema.parse({ name: 'X', duration_days: -1, coverage_type: 'store' }),
+    ).toThrow();
+    expect(() =>
+      StoreWarrantyPolicySchema.parse({ name: 'X', duration_days: 5000, coverage_type: 'store' }),
+    ).toThrow();
+  });
+
+  it('rechaza coverage_type invalido', () => {
+    expect(() =>
+      StoreWarrantyPolicySchema.parse({ name: 'X', duration_days: 30, coverage_type: 'otro' }),
+    ).toThrow();
+  });
+
+  it('conditions vacias se normalizan a null', () => {
+    const result = StoreWarrantyPolicySchema.parse({
+      name: 'X',
+      duration_days: 30,
+      coverage_type: 'none',
+      conditions: '   ',
+    });
+    expect(result.conditions).toBeNull();
+  });
+});
+
+describe('StorePriceListSchema', () => {
+  it('happy path con code uppercase automatico', () => {
+    const result = StorePriceListSchema.parse({
+      name: 'Detal',
+      code: 'retail',
+      description: 'Precio de mostrador',
+      is_default: true,
+      sort_order: 1,
+    });
+    expect(result.code).toBe('RETAIL');
+    expect(result.name).toBe('Detal');
+    expect(result.is_default).toBe(true);
+    expect(result.is_active).toBe(true);
+    expect(result.sort_order).toBe(1);
+    expect(result.payment_method_ids).toEqual([]);
+  });
+
+  it('description vacia -> null', () => {
+    const result = StorePriceListSchema.parse({ name: 'X', code: 'X', description: '   ' });
+    expect(result.description).toBeNull();
+  });
+
+  it('default sort_order = 0', () => {
+    const result = StorePriceListSchema.parse({ name: 'X', code: 'X' });
+    expect(result.sort_order).toBe(0);
   });
 });

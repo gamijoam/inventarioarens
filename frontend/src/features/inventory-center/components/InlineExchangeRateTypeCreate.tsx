@@ -75,7 +75,7 @@ export function InlineExchangeRateTypeCreate({ onCreated }: InlineExchangeRateTy
       void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRateTypes() });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
       toast.success('Tipo de tasa creado.');
-      const id = (result as unknown as { id?: number })?.id;
+      const id = (result as { id?: number })?.id;
       if (id) onCreated(id);
       reset();
       setOpen(false);

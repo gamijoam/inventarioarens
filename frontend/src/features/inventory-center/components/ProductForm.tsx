@@ -40,6 +40,7 @@ import {
 } from '@/features/inventory-center/lookups';
 import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
+import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -324,21 +325,29 @@ export function ProductForm({
           label="Política de garantía"
           error={form.formState.errors.warranty_policy_id?.message}
         >
-          <Select
-            value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
-                shouldValidate: true,
-              });
-            }}
-          >
-            {warrantyOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
+          <div className="flex items-start gap-2">
+            <Select
+              value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
+                  shouldValidate: true,
+                });
+              }}
+              className="flex-1"
+            >
+              {warrantyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+            <InlineWarrantyPolicyCreate
+              onCreated={(id) =>
+                form.setValue('warranty_policy_id', id, { shouldValidate: true })
+              }
+            />
+          </div>
         </Field>
         <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
       </fieldset>

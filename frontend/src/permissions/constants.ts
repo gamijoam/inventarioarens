@@ -111,6 +111,7 @@ export const PERMISSIONS = {
   WARRANTY_POLICIES_VIEW: 'warranty_policies.view',
   WARRANTY_POLICIES_CREATE: 'warranty_policies.create',
   WARRANTY_POLICIES_UPDATE: 'warranty_policies.update',
+  WARRANTY_POLICIES_MANAGE: 'warranty_policies.manage',
   WARRANTY_CLAIMS_VIEW: 'warranty_claims.view',
   WARRANTY_CLAIMS_REVIEW: 'warranty_claims.review',
   WARRANTY_CLAIMS_RESOLVE: 'warranty_claims.resolve',

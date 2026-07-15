@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { useProduct, useUpdateProduct, usePriceLists } from '@/features/inventory-center/api';
+import { InlinePriceListCreate } from './InlinePriceListCreate';
 import { putOne } from '@/api/client';
 import { formatMoney } from '@/lib/money';
 import { toast } from 'sonner';
@@ -137,10 +138,9 @@ export function PricesEditor({ productId }: PricesEditorProps) {
   if (priceLists.length === 0) {
     return (
       <Empty>
-        <p>Aun no hay listas de precio configuradas.</p>
-        <p className="mt-1 text-xs">
-          Crea una lista de precio desde el modulo de catalogos para poder asignar precios aqui.
-        </p>
+        <p className="mb-2">Aun no hay listas de precio configuradas.</p>
+        <p className="mb-3 text-xs">Crea una desde aca sin salir de la pantalla.</p>
+        <InlinePriceListCreate onCreated={() => { /* la query se revalida sola */ }} />
       </Empty>
     );
   }
