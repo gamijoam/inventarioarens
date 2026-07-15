@@ -14,6 +14,7 @@ export type UserStatus = z.infer<typeof UserStatusSchema>;
 export const RoleSummarySchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
+  is_protected: z.boolean().optional(),
 });
 export type RoleSummary = z.infer<typeof RoleSummarySchema>;
 

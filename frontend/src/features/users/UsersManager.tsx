@@ -16,6 +16,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
+import { useNavigate } from '@tanstack/react-router';
 import { Pencil, Search, ShieldCheck, UserCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -62,6 +63,7 @@ export function UsersManager({
   );
 
   const { data, isLoading, isError } = useUsers(filters);
+  const navigate = useNavigate();
 
   const columns = useColumns(onEdit, onChangeRoles, canEdit);
   const table = useReactTable({
@@ -156,7 +158,12 @@ export function UsersManager({
                 </thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b border-border last:border-b-0">
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
+                      onClick={() => navigate({ to: '/users/$userId', params: { userId: String(row.original.id) } })}
+                      data-testid={`users-row-${row.original.id}`}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-3 py-2">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}

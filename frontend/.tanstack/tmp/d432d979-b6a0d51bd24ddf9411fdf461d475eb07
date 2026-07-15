@@ -22,6 +22,7 @@ import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
 import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inventory/index'
+import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
@@ -93,6 +94,11 @@ const AuthedInventoryIndexRoute = AuthedInventoryIndexRouteImport.update({
   path: '/inventory/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => AuthedUsersRoute,
+} as any)
 const AuthedTransfersTransferIdRoute =
   AuthedTransfersTransferIdRouteImport.update({
     id: '/$transferId',
@@ -137,13 +143,14 @@ export interface FileRoutesByFullPath {
   '/sales': typeof AuthedSalesRoute
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
-  '/users': typeof AuthedUsersRoute
+  '/users': typeof AuthedUsersRouteWithChildren
   '/access/roles': typeof AuthedAccessRolesRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
+  '/users/$userId': typeof AuthedUsersUserIdRoute
   '/inventory/': typeof AuthedInventoryIndexRoute
 }
 export interface FileRoutesByTo {
@@ -157,13 +164,14 @@ export interface FileRoutesByTo {
   '/sales': typeof AuthedSalesRoute
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
-  '/users': typeof AuthedUsersRoute
+  '/users': typeof AuthedUsersRouteWithChildren
   '/access/roles': typeof AuthedAccessRolesRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
+  '/users/$userId': typeof AuthedUsersUserIdRoute
   '/inventory': typeof AuthedInventoryIndexRoute
 }
 export interface FileRoutesById {
@@ -179,13 +187,14 @@ export interface FileRoutesById {
   '/_authed/sales': typeof AuthedSalesRoute
   '/_authed/suppliers': typeof AuthedSuppliersRoute
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
-  '/_authed/users': typeof AuthedUsersRoute
+  '/_authed/users': typeof AuthedUsersRouteWithChildren
   '/_authed/access/roles': typeof AuthedAccessRolesRoute
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
+  '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/inventory/': typeof AuthedInventoryIndexRoute
 }
 export interface FileRouteTypes {
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/transfers/$transferId'
+    | '/users/$userId'
     | '/inventory/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/transfers/$transferId'
+    | '/users/$userId'
     | '/inventory'
   id:
     | '__root__'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/catalogs'
     | '/_authed/inventory/currency'
     | '/_authed/transfers/$transferId'
+    | '/_authed/users/$userId'
     | '/_authed/inventory/'
   fileRoutesById: FileRoutesById
 }
@@ -351,6 +363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/users/$userId': {
+      id: '/_authed/users/$userId'
+      path: '/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof AuthedUsersUserIdRouteImport
+      parentRoute: typeof AuthedUsersRoute
+    }
     '/_authed/transfers/$transferId': {
       id: '/_authed/transfers/$transferId'
       path: '/$transferId'
@@ -408,6 +427,18 @@ const AuthedTransfersRouteWithChildren = AuthedTransfersRoute._addFileChildren(
   AuthedTransfersRouteChildren,
 )
 
+interface AuthedUsersRouteChildren {
+  AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
+}
+
+const AuthedUsersRouteChildren: AuthedUsersRouteChildren = {
+  AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
+}
+
+const AuthedUsersRouteWithChildren = AuthedUsersRoute._addFileChildren(
+  AuthedUsersRouteChildren,
+)
+
 interface AuthedRouteChildren {
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
@@ -417,7 +448,7 @@ interface AuthedRouteChildren {
   AuthedSalesRoute: typeof AuthedSalesRoute
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
-  AuthedUsersRoute: typeof AuthedUsersRoute
+  AuthedUsersRoute: typeof AuthedUsersRouteWithChildren
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRoute
   AuthedInventoryProductIdRoute: typeof AuthedInventoryProductIdRoute
   AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
@@ -435,7 +466,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSalesRoute: AuthedSalesRoute,
   AuthedSuppliersRoute: AuthedSuppliersRoute,
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
-  AuthedUsersRoute: AuthedUsersRoute,
+  AuthedUsersRoute: AuthedUsersRouteWithChildren,
   AuthedAccessRolesRoute: AuthedAccessRolesRoute,
   AuthedInventoryProductIdRoute: AuthedInventoryProductIdRoute,
   AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
