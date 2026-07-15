@@ -201,7 +201,7 @@ describe('ConfirmDestructiveDialog', () => {
     // Tipear mal no habilita.
     const input = screen.getByTestId('confirm-destructive-input');
     return userEvent.type(input, 'borrar').then(() => {
-      expect(submit.disabled).toBe(true);
+      expect(submit).toBeDisabled();
     });
   });
 

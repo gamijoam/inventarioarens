@@ -194,8 +194,9 @@ describe('RoleEditor', () => {
   });
 
   it('abre con el nombre en modo editar', () => {
+    const fakeRole = fakeRoles[3]!;
     render(
-      <RoleEditor open onOpenChange={vi.fn()} role={fakeRoles[3]} />,
+      <RoleEditor open onOpenChange={vi.fn()} role={fakeRole} />,
       { wrapper: makeWrapper() }
     );
     const input = screen.getByTestId('role-editor-name');
@@ -220,8 +221,9 @@ describe('RoleEditor', () => {
   });
 
   it('deshabilita el input y submit para roles base (is_protected)', () => {
+    const fakeRole = fakeRoles[0]!;
     render(
-      <RoleEditor open onOpenChange={vi.fn()} role={fakeRoles[0]} />,
+      <RoleEditor open onOpenChange={vi.fn()} role={fakeRole} />,
       { wrapper: makeWrapper() }
     );
     expect(screen.getByTestId('role-editor-name')).toBeDisabled();
@@ -231,16 +233,18 @@ describe('RoleEditor', () => {
 
 describe('DuplicateRoleDialog', () => {
   it('pre-rellena con "<nombre> (copia)"', () => {
+    const fakeRole = fakeRoles[3]!;
     render(
-      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRoles[3]} />,
+      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRole} />,
       { wrapper: makeWrapper() }
     );
     expect(screen.getByTestId('duplicate-role-name')).toHaveValue('Cajero Senior (custom) (copia)');
   });
 
   it('muestra error si el nombre esta vacio', async () => {
+    const fakeRole = fakeRoles[3]!;
     render(
-      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRoles[3]} />,
+      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRole} />,
       { wrapper: makeWrapper() }
     );
     await userEvent.clear(screen.getByTestId('duplicate-role-name'));
@@ -250,8 +254,9 @@ describe('DuplicateRoleDialog', () => {
   });
 
   it('llama a useDuplicateRole con el id y nombre correctos', async () => {
+    const fakeRole = fakeRoles[3]!;
     render(
-      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRoles[3]} />,
+      <DuplicateRoleDialog open onOpenChange={vi.fn()} sourceRole={fakeRole} />,
       { wrapper: makeWrapper() }
     );
     await userEvent.clear(screen.getByTestId('duplicate-role-name'));

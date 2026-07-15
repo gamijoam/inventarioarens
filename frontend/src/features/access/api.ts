@@ -237,7 +237,7 @@ export function usePermissionCatalog() {
   return useQuery({
     queryKey: permissionCatalogKey,
     queryFn: async () => {
-      const data = await getOne<unknown>('/access/permission-catalog');
+      const data = await getOne<unknown>('/permission-catalog');
       // El controller envuelve en { data: ... }
       const inner = (data as { data?: unknown }).data ?? data;
       const parsed = PermissionCatalogSchema.safeParse(inner);
