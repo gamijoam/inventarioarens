@@ -77,6 +77,12 @@ class ProductResource extends JsonResource
             'can_change_tracking_type' => $this->whenCounted('units', fn (): bool => (int) $this->units_count === 0),
             'units_count' => $this->whenCounted('units', fn (): int => (int) $this->units_count),
 
+            // Suma de stock_balances.quantity_available del producto. Si
+            // el controller del index paso warehouse_id, este campo se
+            // reescribe con la suma SOLO de ese almacen (ver ProductController
+            // ::index con withSum(['stockBalances as available_stock' => ...])).
+            'available_stock' => (float) ($this->available_stock ?? 0),
+
             'is_active' => (bool) $this->is_active,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

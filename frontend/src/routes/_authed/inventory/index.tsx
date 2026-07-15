@@ -27,6 +27,7 @@ import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 
 import { useProducts } from '@/features/inventory-center/api';
+import { useWarehouses } from '@/features/inventory-center/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { BulkActionsMenu } from '@/features/inventory-center/bulk-actions/BulkActionsMenu';
 import { useExportProducts } from '@/features/inventory-center/useExportProducts';
@@ -45,6 +46,7 @@ interface InventorySearch {
   brand_id: number | undefined;
   category_id: number | undefined;
   tag_id: number | undefined;
+  warehouse_id: number | undefined;
   low_stock_threshold: number | undefined;
   sort_by: string | undefined;
   sort_dir: 'asc' | 'desc' | undefined;
@@ -84,6 +86,12 @@ export const Route = createFileRoute('/_authed/inventory/')({
         : typeof search.tag_id === 'string'
           ? Number(search.tag_id) || undefined
           : undefined,
+    warehouse_id:
+      typeof search.warehouse_id === 'number'
+        ? (search.warehouse_id)
+        : typeof search.warehouse_id === 'string'
+          ? Number(search.warehouse_id) || undefined
+          : undefined,
     low_stock_threshold:
       typeof search.low_stock_threshold === 'number'
         ? (search.low_stock_threshold)
@@ -119,6 +127,7 @@ function InventoryListPage() {
   );
 
   const { data, isLoading, isError } = useProducts(filters);
+  const { data: warehouses = [] } = useWarehouses();
   const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
@@ -129,7 +138,7 @@ function InventoryListPage() {
     void navigate({ search: { ...search, page } });
   };
 
-  const columns = useColumns(selectedIds, setSelectedIds, data?.data ?? []);
+  const columns = useColumns(selectedIds, setSelectedIds, data?.data ?? [], search);
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -174,8 +183,8 @@ function InventoryListPage() {
 
       {/* Filtros */}
       <Card>
-        <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="relative lg:col-span-2">
+        <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="relative sm:col-span-2 lg:col-span-2">
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted"
               aria-hidden="true"
@@ -216,6 +225,21 @@ function InventoryListPage() {
             <option value="critical">Critico</option>
             <option value="out">Sin stock</option>
             <option value="overstock">Sobre stock</option>
+          </select>
+          <select
+            className={selectClass}
+            value={search.warehouse_id ? String(search.warehouse_id) : ''}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+              updateSearch({ warehouse_id: e.target.value ? Number(e.target.value) : undefined })
+            }
+            data-testid="inventory-warehouse"
+          >
+            <option value="">Todos los almacenes</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={String(w.id)}>
+                {w.code}
+              </option>
+            ))}
           </select>
           <select
             className={selectClass}
@@ -328,6 +352,7 @@ function useColumns(
   selectedIds: Set<number>,
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>,
   data: Product[],
+  search: InventorySearch,
 ) {
   const columnHelper = createColumnHelper<Product>();
 
@@ -389,15 +414,34 @@ function useColumns(
       }),
       columnHelper.accessor(
         (row) => {
-          const v = (row as { available?: string | number | null }).available;
-          if (v == null) return '—';
+          // Suma de stock_balances.quantity_available. Si el listado
+          // se filtro por warehouse_id, este campo refleja SOLO ese
+          // almacen. Si el producto no tiene stock en ningun almacen,
+          // el backend retorna 0 y mostramos "Sin stock".
+          const v = row.available_stock;
+          if (v == null) return '0';
           const n = typeof v === 'string' ? parseFloat(v) : v;
-          return Number.isNaN(n) ? '—' : String(n);
+          return Number.isNaN(n) ? '0' : String(n);
         },
         {
           id: 'stock',
-          header: 'Stock',
-          cell: (info) => <span className="tabular-nums">{String(info.getValue())}</span>,
+          header: () => (
+            <span>
+              Stock
+              {search.warehouse_id && (
+                <span className="ml-1 text-[10px] font-normal text-text-muted">(filtrado)</span>
+              )}
+            </span>
+          ),
+          cell: (info) => {
+            const v = info.row.original.available_stock;
+            const n = v == null ? 0 : typeof v === 'string' ? parseFloat(v) : v;
+            return (
+              <span className={cn('tabular-nums', n <= 0 && 'text-text-muted')}>
+                {Number.isFinite(n) ? n.toFixed(0) : '0'}
+              </span>
+            );
+          },
         },
       ),
       columnHelper.accessor('base_price', {
@@ -431,7 +475,7 @@ function useColumns(
     // selectedIds y setSelectedIds se incluyen como deps intencionalmente:
     // cambian cuando el user selecciona/deselecciona filas y la tabla
     // debe re-renderizar los checkboxes de cada fila.
-    [columnHelper, selectedIds, setSelectedIds, data],
+    [columnHelper, selectedIds, setSelectedIds, data, search.warehouse_id],
   );
 }
 

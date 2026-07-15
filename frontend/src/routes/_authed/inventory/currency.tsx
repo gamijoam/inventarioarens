@@ -33,6 +33,7 @@ function CurrencyPage() {
               brand_id: undefined,
               category_id: undefined,
               tag_id: undefined,
+            warehouse_id: undefined,
               low_stock_threshold: undefined,
               sort_by: undefined,
               sort_dir: undefined,

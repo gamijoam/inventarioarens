@@ -79,6 +79,7 @@ function ProductDetailPage() {
                     brand_id: undefined,
                     category_id: undefined,
                     tag_id: undefined,
+                    warehouse_id: undefined,
                     low_stock_threshold: undefined,
                     sort_by: undefined,
                     sort_dir: undefined,
@@ -111,6 +112,7 @@ function ProductDetailPage() {
             brand_id: undefined,
             category_id: undefined,
             tag_id: undefined,
+            warehouse_id: undefined,
             low_stock_threshold: undefined,
             sort_by: undefined,
             sort_dir: undefined,
@@ -256,12 +258,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function StockTab({
+  productId,
   initialStock,
 }: {
   productId: number;
   initialStock: ProductStock[];
 }) {
-  if (initialStock.length === 0) {
+  // El padre (ProductDetailPage) ya llama useProductStockByWarehouse(productId)
+  // y nos pasa los datos como initialStock. PERO queremos datos frescos
+  // cada vez que se monta este tab, asi que llamamos la query nosotros
+  // mismos para tener cache propio e invalidacion granular.
+  const { data: freshStock = [], isLoading } = useProductStockByWarehouse(productId);
+  // Preferimos freshStock si tiene datos (puede ser array vacio si
+  // el backend retorno vacio de verdad); fallback a initialStock
+  // para evitar parpadeo durante el refetch.
+  const stock = freshStock.length > 0 || isLoading ? freshStock : initialStock;
+
+  if (isLoading && initialStock.length === 0) {
+    return <Spinner label="Cargando stock..." />;
+  }
+
+  if (stock.length === 0) {
     return (
       <EmptyState
         title="Sin stock registrado"

@@ -407,6 +407,10 @@ export const ProductSchema = z.object({
   max_stock: z.union([z.number(), z.string()]).nullable().optional(),
   reorder_quantity: z.union([z.number(), z.string()]).nullable().optional(),
   suggested_purchase: z.union([z.number(), z.string()]).nullable().optional(),
+  // Suma de stock_balances.quantity_available del producto. Si el
+  // listado se filtro por warehouse_id, este campo refleja SOLO ese
+  // almacen. number | string para tolerancia.
+  available_stock: z.union([z.number(), z.string()]).nullable().optional(),
   average_cost: z.union([z.number(), z.string()]).nullable().optional(),
   average_cost_visible: z.boolean().optional(),
   warranty_policy_id: z.number().int().nullable().optional(),
@@ -793,6 +797,7 @@ export const InventoryFiltersSchema = z.object({
   brand_id: z.coerce.number().int().positive().optional(),
   category_id: z.coerce.number().int().positive().optional(),
   tag_id: z.coerce.number().int().positive().optional(),
+  warehouse_id: z.coerce.number().int().positive().optional(),
   low_stock_threshold: z.coerce.number().min(0).max(999999).optional(),
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(25),

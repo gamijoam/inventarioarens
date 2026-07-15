@@ -4,6 +4,7 @@ namespace App\Modules\Products\Models;
 
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -76,6 +77,11 @@ class Product extends Model
     public function units(): HasMany
     {
         return $this->hasMany(ProductUnit::class);
+    }
+
+    public function stockBalances(): HasMany
+    {
+        return $this->hasMany(StockBalance::class);
     }
 
     public function audits(): HasMany

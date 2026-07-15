@@ -37,7 +37,14 @@ class ProductController extends Controller
 
         $query = Product::query()
             ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags'])
-            ->withCount('units');
+            ->withCount('units')
+            // Suma el stock disponible (quantity_available) por producto,
+            // opcionalmente filtrado por warehouse_id. Aparece como
+            // Product.available_stock en la respuesta.
+            ->withSum(
+                relation: 'stockBalances',
+                column: 'quantity_available',
+            );
 
         if ($search !== '') {
             $query->where(function ($q) use ($normalizedSearch): void {
@@ -67,6 +74,17 @@ class ProductController extends Controller
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         } else {
             $query->where('is_active', true);
+        }
+
+        // Filtro por almacen: cuando viene warehouse_id, se reescribe
+        // el withSum para que solo sume el stock de ese almacen. El
+        // listado muestra asi "productos con stock en este almacen" o
+        // "productos sin stock en este almacen" (cuando se combina con
+        // stock_status=out, etc).
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = $request->integer('warehouse_id');
+            $query->whereHas('stockBalances', fn ($q) => $q->where('warehouse_id', $warehouseId));
+            $query->withSum(['stockBalances as available_stock' => fn ($q) => $q->where('warehouse_id', $warehouseId)], 'quantity_available');
         }
 
         return ProductResource::collection(
