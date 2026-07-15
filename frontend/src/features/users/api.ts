@@ -2,12 +2,12 @@
  * API del modulo de Usuarios (TenantUser).
  *
  * Endpoints backend:
- *   GET    /api/access/users                 -> listado paginado (TanStack Query)
- *   GET    /api/access/users/{id}            -> detalle (Fase B)
- *   POST   /api/access/users                 -> crear (Fase B)
- *   PATCH  /api/access/users/{id}            -> actualizar nombre (Fase B)
- *   PATCH  /api/access/users/{id}/status     -> activar/inactivar (Fase B)
- *   PATCH  /api/access/users/{id}/roles      -> asignar roles (Fase B)
+ *   GET    /api/users                        -> listado paginado (TanStack Query)
+ *   GET    /api/users/{id}                   -> detalle (Fase B)
+ *   POST   /api/users                        -> crear (Fase B)
+ *   PATCH  /api/users/{id}                   -> actualizar nombre (Fase B)
+ *   PATCH  /api/users/{id}/status            -> activar/inactivar (Fase B)
+ *   PATCH  /api/users/{id}/roles             -> asignar roles (Fase B)
  *
  * Esta Fase A implementa solo useUsers. Las mutations quedan
  * documentadas pero las clases reales se harn en Fase B.
@@ -53,7 +53,7 @@ export function useUsers(filters: UserListFilters) {
   return useQuery({
     queryKey: userKeys.list(filters),
     queryFn: async () => {
-      const data = await getMany<unknown>(`/access/users${toQueryString(filters)}`);
+      const data = await getMany<unknown>(`/users${toQueryString(filters)}`);
       const parsed = UserListResponseSchema.safeParse(data);
       if (!parsed.success) {
         console.warn('useUsers: shape invalido', parsed.error.flatten());
@@ -71,7 +71,7 @@ export function useUsers(filters: UserListFilters) {
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation<User, Error, CreateUserInput>({
-    mutationFn: (values) => postOne<CreateUserInput, User>('/access/users', values),
+    mutationFn: (values) => postOne<CreateUserInput, User>('/users', values),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
     },
@@ -85,7 +85,7 @@ export function useUpdateUserRoles() {
   const qc = useQueryClient();
   return useMutation<User, Error, { id: number; values: UpdateUserRolesInput }>({
     mutationFn: ({ id, values }) =>
-      patchOne<UpdateUserRolesInput, User>(`/access/users/${id}/roles`, values),
+      patchOne<UpdateUserRolesInput, User>(`/users/${id}/roles`, values),
     onSuccess: async (_data, { id }) => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
       await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
@@ -100,7 +100,7 @@ export function useUpdateUserStatus() {
   const qc = useQueryClient();
   return useMutation<User, Error, { id: number; values: UpdateUserStatusInput }>({
     mutationFn: ({ id, values }) =>
-      patchOne<UpdateUserStatusInput, User>(`/access/users/${id}/status`, values),
+      patchOne<UpdateUserStatusInput, User>(`/users/${id}/status`, values),
     onSuccess: async (_data, { id }) => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
       await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
