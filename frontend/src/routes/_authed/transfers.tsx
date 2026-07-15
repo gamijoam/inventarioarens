@@ -2,10 +2,13 @@
  * Pagina /transfers: gestion de traslados (InventoryTransfers).
  * FASE T3+T4 entrega: listado con filtros + dialogs de crear, recibir,
  * asignar transportista, descargar guia. El detalle completo (/transfers/$id)
- * vive en la ruta $transferId.tsx.
+ * vive en la ruta $transferId.tsx (child route).
+ *
+ * Esta ruta actua como PARENT LAYOUT para el detalle (TanStack Router:
+ * /transfers/$transferId es child de /transfers). Por eso usa <Outlet />.
  */
 import { useState } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TransfersManager } from '@/features/transfers/TransfersManager';
@@ -20,6 +23,16 @@ function TransfersPage() {
   const [receivingId, setReceivingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  // Cuando la URL es /transfers/$transferId, este componente es el parent
+  // layout y debe renderizar <Outlet /> en lugar del listado.
+  const childMatch = /^\/transfers\/\d+$/.exec(location.pathname);
+  const isChildRouteActive = childMatch !== null;
+
+  if (isChildRouteActive) {
+    // Renderizamos SOLO el child route (el detalle), sin el listado.
+    return <Outlet />;
+  }
 
   return (
     <PageLayout
