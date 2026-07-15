@@ -70,3 +70,8 @@ export const UpdateUserStatusInputSchema = z.object({
   status: UserStatusSchema,
 });
 export type UpdateUserStatusInput = z.input<typeof UpdateUserStatusInputSchema>;
+
+export const UpdateUserInputSchema = z.object({
+  name: z.string().min(1, 'Requerido.').max(150),
+});
+export type UpdateUserInput = z.input<typeof UpdateUserInputSchema>;

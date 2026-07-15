@@ -18,13 +18,14 @@ import { getPaginated, postOne, patchOne } from '@/api/client';
 import {
   UserListResponseSchema,
   type CreateUserInput,
+  type UpdateUserInput,
   type UpdateUserRolesInput,
   type UpdateUserStatusInput,
   type UserListFilters,
   type User,
 } from './schemas';
 
-export type { UserListFilters } from './schemas';
+export type { User, UserListFilters } from './schemas';
 
 export const userKeys = {
   all: ['users'] as const,
@@ -74,6 +75,21 @@ export function useCreateUser() {
     mutationFn: (values) => postOne<CreateUserInput, User>('/users', values),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
+    },
+  });
+}
+
+/**
+ * (Fase B) Actualiza el nombre del usuario.
+ */
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation<User, Error, { id: number; values: UpdateUserInput }>({
+    mutationFn: ({ id, values }) =>
+      patchOne<UpdateUserInput, User>(`/users/${id}`, values),
+    onSuccess: async (_data, { id }) => {
+      await qc.invalidateQueries({ queryKey: userKeys.lists() });
+      await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
     },
   });
 }

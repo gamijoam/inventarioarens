@@ -16,7 +16,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { Search, UserCircle } from 'lucide-react';
+import { Pencil, Search, ShieldCheck, UserCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -25,20 +25,29 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Can } from '@/components/permissions/Can';
+import { PERMISSIONS } from '@/permissions/constants';
 
 import { useUsers, type UserListFilters } from './api';
 import type { User, UserStatus } from './schemas';
+import { StatusToggle } from './StatusToggle';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 interface UsersManagerProps {
-  // Slot para que la ruta padre monte dialogs de Fase B sin reescribir el manager.
-  // Por ahora solo se usa el listado.
+  // Callbacks para que la ruta padre abra los dialogs.
   onCreate?: () => void;
-  canCreate?: boolean;
+  onEdit?: (user: User) => void;
+  onChangeRoles?: (user: User) => void;
+  canEdit?: boolean;
 }
 
-export function UsersManager({ onCreate, canCreate = false }: UsersManagerProps = {}) {
+export function UsersManager({
+  onCreate,
+  onEdit,
+  onChangeRoles,
+  canEdit = false,
+}: UsersManagerProps = {}) {
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
 
@@ -54,7 +63,7 @@ export function UsersManager({ onCreate, canCreate = false }: UsersManagerProps 
 
   const { data, isLoading, isError } = useUsers(filters);
 
-  const columns = useColumns();
+  const columns = useColumns(onEdit, onChangeRoles, canEdit);
   const table = useReactTable({
     data: data?.data ?? [],
     columns,
@@ -95,10 +104,12 @@ export function UsersManager({ onCreate, canCreate = false }: UsersManagerProps 
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
           </Select>
-          {canCreate && onCreate && (
-            <Button onClick={onCreate} data-testid="users-new">
-              + Nuevo usuario
-            </Button>
+          {onCreate && (
+            <Can I={PERMISSIONS.USERS_CREATE}>
+              <Button onClick={onCreate} data-testid="users-new">
+                + Nuevo usuario
+              </Button>
+            </Can>
           )}
         </CardContent>
       </Card>
@@ -191,7 +202,11 @@ export function UsersManager({ onCreate, canCreate = false }: UsersManagerProps 
   );
 }
 
-function useColumns() {
+function useColumns(
+  onEdit?: (user: User) => void,
+  onChangeRoles?: (user: User) => void,
+  canEdit?: boolean,
+) {
   const columnHelper = createColumnHelper<User>();
   return useMemo(
     () => [
@@ -239,8 +254,52 @@ function useColumns() {
           return <span className="text-xs text-text-muted">{new Date(v).toLocaleDateString()}</span>;
         },
       }),
+      // Acciones (Fase B).
+      ...(canEdit
+        ? [
+            columnHelper.display({
+              id: 'actions',
+              header: '',
+              cell: (info) => (
+                <div className="flex items-center justify-end gap-1">
+                  {onEdit && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(info.row.original);
+                      }}
+                      title="Editar nombre"
+                      aria-label="Editar nombre"
+                      data-testid={`edit-user-${info.row.original.id}`}
+                    >
+                      <Pencil className="size-4 text-text-muted" aria-hidden="true" />
+                    </Button>
+                  )}
+                  {onChangeRoles && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChangeRoles(info.row.original);
+                      }}
+                      title="Cambiar roles"
+                      aria-label="Cambiar roles"
+                      data-testid={`change-roles-${info.row.original.id}`}
+                    >
+                      <ShieldCheck className="size-4 text-text-muted" aria-hidden="true" />
+                    </Button>
+                  )}
+                  <StatusToggle user={info.row.original} canEdit={canEdit} />
+                </div>
+              ),
+            }),
+          ]
+        : []),
     ],
-    [columnHelper],
+    [columnHelper, onEdit, onChangeRoles, canEdit],
   );
 }
 
