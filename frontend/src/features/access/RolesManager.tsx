@@ -150,7 +150,12 @@ export function RolesManager({
                 </thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b border-border last:border-b-0">
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
+                      onClick={() => navigate({ to: '/access/roles/$roleId', params: { roleId: String(row.original.id) } })}
+                      data-testid={`roles-row-${row.original.id}`}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-3 py-2">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}

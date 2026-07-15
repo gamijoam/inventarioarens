@@ -1,10 +1,10 @@
 /**
  * Pagina /access/roles: gestion de roles y permisos (Fase C).
- * - Listado de roles con TanStack Table.
- * - Dialogs: crear, editar nombre, duplicar, ver/editar permisos, eliminar.
+ * - /access/roles           -> listado.
+ * - /access/roles/$roleId   -> detail (renderizado via <Outlet />).
  */
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
 
 import { Can } from '@/components/permissions/Can';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -25,6 +25,15 @@ function RolesPage() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [duplicating, setDuplicating] = useState<Role | null>(null);
   const [editingPerms, setEditingPerms] = useState<Role | null>(null);
+  const location = useLocation();
+
+  // Cuando estamos en una child route (/access/roles/$roleId), solo
+  // renderizamos el <Outlet />. El listado se ve cuando NO hay child.
+  const isChildRouteActive = /^\/access\/roles\/\d+/.test(location.pathname);
+
+  if (isChildRouteActive) {
+    return <Outlet />;
+  }
 
   return (
     <PageLayout
