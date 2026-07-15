@@ -4,9 +4,17 @@
  * PurchaseFormDialog: cards editables, items con typeahead de
  * productos, captura de IMEIs para serializados.
  *
- * Validacion: en cada item se exige warehouse + product + quantity > 0.
- * Si el producto es serializado, se exige N IMEIs/seriales. El backend
- * los valida via StoreInventoryTransferRequest.
+ * Reglas del backend (StoreInventoryTransferRequest):
+ *   - from_warehouse_id (required, exists, distinto de to).
+ *   - to_warehouse_id   (required, exists, distinto de from).
+ *   - items[].product_id (required, exists).
+ *   - items[].quantity   (required, > 0).
+ *   - items[].product_unit_ids (nullable array, obligatorio si el
+ *     producto es serializado, longitud = cantidad).
+ *
+ * El almacen de cada item NO se envia: la fuente de verdad es el
+ * header (from_warehouse_id = origen de stock, to_warehouse_id =
+ * destino).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
@@ -14,7 +22,6 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Label } from '@/components/ui/Label';
 import {
   useCreateTransfer,
@@ -38,8 +45,6 @@ interface ItemRow {
   product_name: string;
   product_sku: string;
   tracking_type: string;
-  warehouse_id: number | null;
-  warehouse_label: string;
   quantity: number;
   serial_units: { serial_type: 'imei' | 'serial'; serial_number: string }[];
 }
@@ -50,8 +55,6 @@ function emptyRow(): ItemRow {
     product_name: '',
     product_sku: '',
     tracking_type: 'quantity',
-    warehouse_id: null,
-    warehouse_label: '',
     quantity: 1,
     serial_units: [],
   };
@@ -62,6 +65,8 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
   const { data: products = [] } = useProductsForTransfer();
   const create = useCreateTransfer();
 
+  const [fromWarehouseId, setFromWarehouseId] = useState<number | null>(null);
+  const [toWarehouseId, setToWarehouseId] = useState<number | null>(null);
   const [validationMode, setValidationMode] = useState<TransferValidationMode>('logistics');
   const [reason, setReason] = useState('');
   const [reference, setReference] = useState('');
@@ -72,6 +77,8 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
 
   useEffect(() => {
     if (open) {
+      setFromWarehouseId(null);
+      setToWarehouseId(null);
       setValidationMode('logistics');
       setReason('');
       setReference('');
@@ -80,19 +87,6 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       setFieldErrors({});
     }
   }, [open]);
-
-  const productOptions = useMemo(
-    () =>
-      products.map((p) => ({
-        value: p.id,
-        label: p.name,
-        sublabel: p.sku ?? '',
-        tracking_type: p.tracking_type,
-        base_price: p.base_price,
-        unit_of_measure: p.unit_of_measure,
-      })),
-    [products],
-  );
 
   const warehouseOptions = useMemo(
     () => warehouses.map((w: { id: number; code: string; name?: string }) => ({
@@ -132,14 +126,21 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     e.preventDefault();
     setFieldErrors({});
 
-    // Validacion basica client-side.
     const errs: Record<string, string> = {};
+    if (!fromWarehouseId) errs.from_warehouse_id = 'Selecciona el almacen de origen.';
+    if (!toWarehouseId) errs.to_warehouse_id = 'Selecciona el almacen de destino.';
+    if (fromWarehouseId && toWarehouseId && fromWarehouseId === toWarehouseId) {
+      errs.to_warehouse_id = 'El almacen de destino debe ser distinto del origen.';
+    }
     if (items.some((r) => !r.product_id)) errs['items.product_id'] = 'Todos los items deben tener producto.';
-    if (items.some((r) => !r.warehouse_id)) errs['items.warehouse_id'] = 'Todos los items deben tener almacen.';
     if (items.some((r) => r.quantity <= 0)) errs['items.quantity'] = 'La cantidad debe ser mayor a 0.';
     items.forEach((r, i) => {
-      if (r.tracking_type === 'serialized' && r.serial_units.filter((s) => s.serial_number.trim()).length !== Math.floor(r.quantity)) {
-        errs[`items.${i}.serial_units`] = `Debe ingresar un IMEI/serial por cada unidad (${Math.floor(r.quantity)}).`;
+      if (r.tracking_type === 'serialized') {
+        const filled = r.serial_units.filter((s) => s.serial_number.trim()).length;
+        const expected = Math.floor(r.quantity);
+        if (filled !== expected) {
+          errs[`items.${i}.serial_units`] = `Debe ingresar un IMEI/serial por cada unidad (${filled}/${expected}).`;
+        }
       }
     });
     if (Object.keys(errs).length > 0) {
@@ -152,20 +153,15 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     try {
       const apiItems: StoreTransferItem[] = items.map((r) => ({
         product_id: r.product_id ?? 0,
-        warehouse_id: r.warehouse_id ?? 0,
         quantity: r.quantity,
         product_unit_ids: r.tracking_type === 'serialized'
           ? r.serial_units.filter((s) => s.serial_number.trim()).map(() => -1 * Math.floor(Math.random() * 1e9))
-          : [],
+          : undefined,
       }));
 
-      // El from_warehouse_id/to_warehouse_id del header. Simplificacion
-      // de la UI: usamos el warehouse del primer item como origen y
-      // permitimos al user cambiarlo via un select dedicado.
-      const firstWarehouseId = items[0]?.warehouse_id ?? 0;
       const values: StoreTransferValues = {
-        from_warehouse_id: firstWarehouseId,
-        to_warehouse_id: firstWarehouseId,
+        from_warehouse_id: fromWarehouseId ?? 0,
+        to_warehouse_id: toWarehouseId ?? 0,
         validation_mode: validationMode,
         type: 'internal',
         reason: reason.trim() || null,
@@ -208,8 +204,48 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
         </div>
 
         <div className="space-y-4 p-5">
-          {/* Header */}
+          {/* Header: almacenes origen/destino + meta */}
           <fieldset className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="from-warehouse">
+                  Almacen origen <span className="text-danger">*</span>
+                </Label>
+                <select
+                  id="from-warehouse"
+                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  value={fromWarehouseId ?? ''}
+                  onChange={(e) => setFromWarehouseId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Seleccionar almacen origen...</option>
+                  {warehouseOptions.map((w) => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+                {fieldErrors.from_warehouse_id && (
+                  <p className="text-xs text-danger">{fieldErrors.from_warehouse_id}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="to-warehouse">
+                  Almacen destino <span className="text-danger">*</span>
+                </Label>
+                <select
+                  id="to-warehouse"
+                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  value={toWarehouseId ?? ''}
+                  onChange={(e) => setToWarehouseId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Seleccionar almacen destino...</option>
+                  {warehouseOptions.map((w) => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+                {fieldErrors.to_warehouse_id && (
+                  <p className="text-xs text-danger">{fieldErrors.to_warehouse_id}</p>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5 lg:col-span-2">
                 <Label htmlFor="doc-num">Numero de documento</Label>
@@ -223,14 +259,15 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="validation-mode">Modo de validacion</Label>
-                <Select
+                <select
                   id="validation-mode"
+                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
                   value={validationMode}
                   onChange={(e) => setValidationMode(e.target.value as TransferValidationMode)}
                 >
                   <option value="simple">Directo (simple)</option>
                   <option value="logistics">Logistico (4-etapas con checklist)</option>
-                </Select>
+                </select>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -276,9 +313,6 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
             {fieldErrors['items.product_id'] && (
               <p className="text-xs text-danger">{fieldErrors['items.product_id']}</p>
             )}
-            {fieldErrors['items.warehouse_id'] && (
-              <p className="text-xs text-danger">{fieldErrors['items.warehouse_id']}</p>
-            )}
             {fieldErrors['items.quantity'] && (
               <p className="text-xs text-danger">{fieldErrors['items.quantity']}</p>
             )}
@@ -289,7 +323,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                 const isSerialized = product?.tracking_type === 'serialized';
                 return (
                   <div key={idx} className="rounded-md border border-border bg-bg/30 p-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_120px_auto]">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_auto]">
                       <div className="space-y-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Producto</label>
                         <select
@@ -298,29 +332,17 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                           onChange={(e) => pickProduct(idx, Number(e.target.value))}
                         >
                           <option value="">Seleccionar producto...</option>
-                          {productOptions.map((p) => (
-                            <option key={p.value} value={p.value}>
-                              {p.label} {p.sublabel ? `(${p.sublabel})` : ''}
-                              {isSerializedForProduct(productOptions, p.value) ? ' [Serializado]' : ''}
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                              {p.sku ? ` (${p.sku})` : ''}
+                              {p.tracking_type === 'serialized' ? ' [Serializado]' : ''}
                             </option>
                           ))}
                         </select>
                         {row.product_sku && (
                           <div className="text-[10px] text-text-muted">SKU: {row.product_sku}</div>
                         )}
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Almacen</label>
-                        <select
-                          className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
-                          value={row.warehouse_id ?? ''}
-                          onChange={(e) => setRow(idx, { warehouse_id: e.target.value ? Number(e.target.value) : null })}
-                        >
-                          <option value="">Almacen...</option>
-                          {warehouseOptions.map((w) => (
-                            <option key={w.value} value={w.value}>{w.label}</option>
-                          ))}
-                        </select>
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Cantidad</label>
@@ -352,7 +374,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                     {isSerialized && row.quantity > 0 && (
                       <div className="mt-3 space-y-1.5">
                         <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                          IMEIs / seriales ({row.serial_units.length} / {Math.floor(row.quantity)})
+                          IMEIs / seriales ({row.serial_units.filter((s) => s.serial_number.trim()).length} / {Math.floor(row.quantity)})
                         </div>
                         {Array.from({ length: Math.floor(row.quantity) }).map((_, i) => (
                           <div key={i} className="flex items-center gap-2">
@@ -404,11 +426,4 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       </form>
     </div>
   );
-}
-
-function isSerializedForProduct(
-  productOptions: { value: number; tracking_type?: string }[],
-  productId: number,
-): boolean {
-  return productOptions.find((p) => p.value === productId)?.tracking_type === 'serialized';
 }

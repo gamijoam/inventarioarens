@@ -215,11 +215,10 @@ const positiveNumber = z.coerce.number().positive();
 
 export const StoreTransferItemSchema = z.object({
   product_id: positiveNumber,
-  warehouse_id: positiveNumber,
   quantity: positiveNumber,
-  product_unit_ids: z.array(z.coerce.number().int().positive()).optional().default([]),
+  product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
 });
-export type StoreTransferItem = z.output<typeof StoreTransferItemSchema>;
+export type StoreTransferItem = z.input<typeof StoreTransferItemSchema>;
 
 export const StoreTransferSchema = z
   .object({
