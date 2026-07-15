@@ -1,11 +1,16 @@
 /**
  * Pagina /transfers/$transferId: detalle de un traslado.
  * FASE T4 entrega: tabs (General, Items, Checklist, Guia) + acciones
- * contextuales (Recibir, Cancelar, Asignar Driver, Ver PDF).
+ * contextuales (Preparar, Despachar, Recibir, Cancelar, Asignar Driver).
+ *
+ * Las acciones disponibles dependen de:
+ *  - validation_mode: solo 'logistics' muestra Preparar/Despachar.
+ *  - status:           transiciones validas segun InventoryTransferService.
+ *  - permisos:         cada accion requiere su permiso correspondiente.
  */
 import { useState } from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, Package, Truck, XCircle } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Package, Send, Truck, XCircle } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -15,6 +20,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { useTransfer } from '@/features/transfers/api';
+import { useCan } from '@/permissions/useCan';
 import {
   TRANSFER_STATUS_LABELS,
   type Transfer,
@@ -23,6 +29,9 @@ import {
 import { TransferSummary } from '@/features/transfers/components/TransferSummary';
 import { TransferReceiveDialog } from '@/features/transfers/components/TransferReceiveDialog';
 import { TransferAssignDriverDialog } from '@/features/transfers/components/TransferAssignDriverDialog';
+import { TransferPrepareDialog } from '@/features/transfers/components/TransferPrepareDialog';
+import { TransferDispatchDialog } from '@/features/transfers/components/TransferDispatchDialog';
+import { TransferCancelDialog } from '@/features/transfers/components/TransferCancelDialog';
 import { TransferChecklistTab } from '@/features/transfers/components/TransferChecklistTab';
 import { TransferGuidePanel } from '@/features/transfers/components/TransferGuidePanel';
 
@@ -57,6 +66,15 @@ function TransferDetailPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [driverOpen, setDriverOpen] = useState(false);
+  const [prepareOpen, setPrepareOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  const canPrepare = useCan('inventory_transfers.prepare');
+  const canDispatch = useCan('inventory_transfers.dispatch');
+  const canReceivePerm = useCan('inventory_transfers.receive');
+  const canCancelPerm = useCan('inventory_transfers.cancel');
+  const canAssignDriverPerm = useCan('inventory_transfers.assign_driver');
 
   if (isLoading) {
     return (
@@ -83,9 +101,11 @@ function TransferDetailPage() {
     );
   }
 
-  const canReceive = transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences';
-  const canCancel = transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences';
-  const canAssignDriver = !transfer.driver && (transfer.status === 'prepared' || transfer.status === 'dispatched');
+  const canShowPrepare = isLogistic && transfer.status === 'requested' && canPrepare;
+  const canShowDispatch = isLogistic && (transfer.status === 'prepared' || transfer.status === 'prepared_with_differences') && canDispatch;
+  const canShowReceive = (transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences' || transfer.status === 'dispatched') && canReceivePerm;
+  const canShowCancel = (transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences') && canCancelPerm;
+  const canShowAssignDriver = !transfer.driver && (transfer.status === 'prepared' || transfer.status === 'dispatched') && canAssignDriverPerm;
   const isLogistic = transfer.validation_mode === 'logistics';
   const canShowChecklist = isLogistic;
 
@@ -101,18 +121,28 @@ function TransferDetailPage() {
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant(transfer.status)}>{TRANSFER_STATUS_LABELS[transfer.status]}</Badge>
-          {canReceive && (
+          {canShowPrepare && (
+            <Button size="sm" variant="outline" leftIcon={<ClipboardCheck className="size-4" />} onClick={() => setPrepareOpen(true)}>
+              Preparar
+            </Button>
+          )}
+          {canShowDispatch && (
+            <Button size="sm" variant="outline" leftIcon={<Send className="size-4" />} onClick={() => setDispatchOpen(true)}>
+              Despachar
+            </Button>
+          )}
+          {canShowReceive && (
             <Button size="sm" leftIcon={<Package className="size-4" />} onClick={() => setReceiveOpen(true)}>
               Recibir
             </Button>
           )}
-          {canAssignDriver && (
+          {canShowAssignDriver && (
             <Button size="sm" variant="outline" leftIcon={<Truck className="size-4" />} onClick={() => setDriverOpen(true)}>
               Asignar transportista
             </Button>
           )}
-          {canCancel && (
-            <Button size="sm" variant="ghost" leftIcon={<XCircle className="size-4 text-danger" />} onClick={() => setReceiveOpen(false)}>
+          {canShowCancel && (
+            <Button size="sm" variant="ghost" leftIcon={<XCircle className="size-4 text-danger" />} onClick={() => setCancelOpen(true)}>
               Cancelar
             </Button>
           )}
@@ -161,6 +191,33 @@ function TransferDetailPage() {
           transferId={transfer.id}
           open={driverOpen}
           onOpenChange={setDriverOpen}
+        />
+      )}
+
+      {prepareOpen && (
+        <TransferPrepareDialog
+          transferId={transfer.id}
+          open={prepareOpen}
+          onOpenChange={setPrepareOpen}
+          onPrepared={() => navigate({ to: '/transfers' })}
+        />
+      )}
+
+      {dispatchOpen && (
+        <TransferDispatchDialog
+          transferId={transfer.id}
+          open={dispatchOpen}
+          onOpenChange={setDispatchOpen}
+          onDispatched={() => navigate({ to: '/transfers' })}
+        />
+      )}
+
+      {cancelOpen && (
+        <TransferCancelDialog
+          transferId={transfer.id}
+          open={cancelOpen}
+          onOpenChange={setCancelOpen}
+          onCancelled={() => navigate({ to: '/transfers' })}
         />
       )}
     </PageLayout>
