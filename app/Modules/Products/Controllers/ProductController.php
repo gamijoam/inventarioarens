@@ -37,14 +37,27 @@ class ProductController extends Controller
 
         $query = Product::query()
             ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags'])
-            ->withCount('units')
-            // Suma el stock disponible (quantity_available) por producto,
-            // opcionalmente filtrado por warehouse_id. Aparece como
-            // Product.available_stock en la respuesta.
-            ->withSum(
-                relation: 'stockBalances',
-                column: 'quantity_available',
+            ->withCount('units');
+
+        // Suma de stock_balances.quantity_available. Usamos SIEMPRE el
+        // formato con AS explicito `as available_stock` para que el
+        // alias no dependa del nombre de la relacion (sin esto, el
+        // alias seria 'stock_balances_sum_quantity_available' y el
+        // ProductResource no lo encontraria). Verificado en diagnostico
+        // de bug: sin esto, available_stock siempre es null.
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = $request->integer('warehouse_id');
+            $query->whereHas('stockBalances', fn ($q) => $q->where('warehouse_id', $warehouseId));
+            $query->withSum(
+                ['stockBalances as available_stock' => fn ($q) => $q->where('warehouse_id', $warehouseId)],
+                'quantity_available',
             );
+        } else {
+            $query->withSum(
+                ['stockBalances as available_stock' => fn ($q) => $q],
+                'quantity_available',
+            );
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($normalizedSearch): void {
@@ -74,17 +87,6 @@ class ProductController extends Controller
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         } else {
             $query->where('is_active', true);
-        }
-
-        // Filtro por almacen: cuando viene warehouse_id, se reescribe
-        // el withSum para que solo sume el stock de ese almacen. El
-        // listado muestra asi "productos con stock en este almacen" o
-        // "productos sin stock en este almacen" (cuando se combina con
-        // stock_status=out, etc).
-        if ($request->filled('warehouse_id')) {
-            $warehouseId = $request->integer('warehouse_id');
-            $query->whereHas('stockBalances', fn ($q) => $q->where('warehouse_id', $warehouseId));
-            $query->withSum(['stockBalances as available_stock' => fn ($q) => $q->where('warehouse_id', $warehouseId)], 'quantity_available');
         }
 
         return ProductResource::collection(
