@@ -56,7 +56,8 @@ export function useUsers(filters: UserListFilters) {
       const data = await getMany<unknown>(`/users${toQueryString(filters)}`);
       const parsed = UserListResponseSchema.safeParse(data);
       if (!parsed.success) {
-        console.warn('[useUsers] shape invalido', parsed.error.flatten());
+        console.warn('[useUsers] shape invalido, issues:', JSON.stringify(parsed.error.issues, null, 2));
+        console.warn('[useUsers] data keys:', data && typeof data === 'object' ? Object.keys(data) : 'NO DATA', 'sample data:', JSON.stringify(data, null, 2).substring(0, 500));
         throw new Error('Respuesta del servidor invalida.');
       }
       return parsed.data;
