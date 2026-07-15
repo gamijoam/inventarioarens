@@ -7,6 +7,7 @@
  * warehouse_id. Acciones rapidas: crear borrador, recibir, cancelar.
  */
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, Search, XCircle, Package, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -71,6 +72,7 @@ interface TransfersManagerProps {
 }
 
 export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {}) {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<TransferListFilters>({
     search: '',
     status: 'all',
@@ -167,10 +169,14 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                 const totalBase = Number(t.total_base_amount ?? 0);
                 const receivedBase = Number(t.received_base_amount ?? 0);
                 const progress = totalBase > 0 ? Math.min(100, Math.round((receivedBase / totalBase) * 100)) : 0;
-                const canReceive = t.status === 'requested' || t.status === 'prepared' || t.status === 'prepared_with_differences';
+                const canReceive = t.status === 'dispatched';
                 const canCancel = t.status === 'requested' || t.status === 'prepared' || t.status === 'prepared_with_differences';
                 return (
-                  <tr key={t.id} className="border-b border-border last:border-b-0">
+                  <tr
+                    key={t.id}
+                    className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
+                    onClick={() => navigate({ to: '/transfers/$transferId', params: { transferId: String(t.id) } })}
+                  >
                     <td className="px-3 py-2 font-medium">
                       <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
                         {t.document_number ?? `#${t.id}`}
@@ -203,7 +209,10 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            onClick={() => onReceive(t.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReceive(t.id);
+                            }}
                             aria-label={`Recibir traslado ${t.document_number ?? t.id}`}
                             title="Recibir mercancia"
                           >
@@ -214,7 +223,10 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            onClick={() => setCancelling(t)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCancelling(t);
+                            }}
                             aria-label={`Cancelar traslado ${t.document_number ?? t.id}`}
                             title="Cancelar traslado"
                           >
