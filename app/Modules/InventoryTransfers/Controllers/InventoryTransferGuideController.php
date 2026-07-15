@@ -25,14 +25,14 @@ class InventoryTransferGuideController extends Controller
     ) {
     }
 
-    public function pdf(Request $request, InventoryTransfer $transfer): Response
+    public function pdf(Request $request, InventoryTransfer $inventoryTransferGuide): Response
     {
-        $this->authorizeAccess($transfer);
+        $this->authorizeAccess($inventoryTransferGuide);
 
-        $bytes = $this->service->renderPdf($transfer);
+        $bytes = $this->service->renderPdf($inventoryTransferGuide);
         $filename = sprintf(
             'guia-%s-%s.pdf',
-            $transfer->document_number ?? $transfer->id,
+            $inventoryTransferGuide->document_number ?? $inventoryTransferGuide->id,
             now()->format('Ymd-His'),
         );
 
@@ -43,11 +43,11 @@ class InventoryTransferGuideController extends Controller
         ]);
     }
 
-    public function html(Request $request, InventoryTransfer $transfer): Response
+    public function html(Request $request, InventoryTransfer $inventoryTransferGuide): Response
     {
-        $this->authorizeAccess($transfer);
+        $this->authorizeAccess($inventoryTransferGuide);
 
-        $html = $this->service->renderHtml($transfer);
+        $html = $this->service->renderHtml($inventoryTransferGuide);
 
         return response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
