@@ -87,7 +87,7 @@ export function useTransfer(id: number) {
 
 export function useCreateTransfer() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<Transfer, Error, StoreTransferValues>({
     mutationFn: async (values: StoreTransferValues) =>
       postOne<StoreTransferValues, Transfer>('/inventory-transfers', values),
     onSuccess: async () => {
@@ -99,7 +99,7 @@ export function useCreateTransfer() {
 
 export function usePrepareTransfer() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<Transfer, Error, { id: number; values: PrepareTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: PrepareTransferValues }) =>
       postOne<PrepareTransferValues, Transfer>(`/inventory-transfers/${id}/prepare`, values),
     onSuccess: (_data, { id }) => {
@@ -112,8 +112,8 @@ export function usePrepareTransfer() {
 
 export function useDispatchTransfer() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, values }: { id: number; values: { dispatched_at?: string; notes?: string } }) =>
+  return useMutation<Transfer, Error, { id: number; values: { dispatched_at?: string | null; notes?: string | null } }>({
+    mutationFn: async ({ id, values }: { id: number; values: { dispatched_at?: string | null; notes?: string | null } }) =>
       postOne(`/inventory-transfers/${id}/dispatch`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
@@ -124,7 +124,7 @@ export function useDispatchTransfer() {
 
 export function useReceiveTransfer() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<Transfer, Error, { id: number; values: ReceiveTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: ReceiveTransferValues }) =>
       postOne<ReceiveTransferValues, Transfer>(`/inventory-transfers/${id}/receive`, values),
     onSuccess: (_data, { id }) => {
@@ -141,7 +141,7 @@ export function useReceiveTransfer() {
 
 export function useCancelTransfer() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<Transfer, Error, { id: number; values: CancelTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: CancelTransferValues }) =>
       postOne(`/inventory-transfers/${id}/cancel`, values),
     onSuccess: (_data, { id }) => {
@@ -153,8 +153,8 @@ export function useCancelTransfer() {
 
 export function useResolveTransferDifferences() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, values }: { id: number; values: { items: unknown[]; notes?: string } }) =>
+  return useMutation<Transfer, Error, { id: number; values: { items: unknown[]; notes?: string | null } }>({
+    mutationFn: async ({ id, values }: { id: number; values: { items: unknown[]; notes?: string | null } }) =>
       postOne(`/inventory-transfers/${id}/resolve-differences`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
@@ -165,7 +165,7 @@ export function useResolveTransferDifferences() {
 
 export function useAssignDriver() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<TransferDriver, Error, { id: number; values: AssignDriverValues }>({
     mutationFn: async ({ id, values }: { id: number; values: AssignDriverValues }) =>
       putOne<AssignDriverValues, TransferDriver>(`/inventory-transfers/${id}/driver`, values),
     onSuccess: (_data, { id }) => {

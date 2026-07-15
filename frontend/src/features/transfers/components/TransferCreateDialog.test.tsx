@@ -46,7 +46,11 @@ function getComboboxes(): HTMLSelectElement[] {
 
 function getWarehouseSelect(which: 'from' | 'to'): HTMLSelectElement {
   // 0: from warehouse, 1: to warehouse, 2: validation_mode, 3: product (cuando hay items)
-  return getComboboxes()[which === 'from' ? 0 : 1];
+  const selects = getComboboxes();
+  const idx = which === 'from' ? 0 : 1;
+  const el = selects[idx];
+  if (!el) throw new Error(`Warehouse ${which} select not found`);
+  return el;
 }
 
 function getProductSelect(): HTMLSelectElement {
@@ -121,11 +125,11 @@ describe('TransferCreateDialog', () => {
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledTimes(1);
     });
-    const payload = mutateAsync.mock.calls[0][0];
+    const payload = mutateAsync.mock.calls[0]?.[0] as { from_warehouse_id: number; to_warehouse_id: number; items: { product_id: number }[] };
     expect(payload.from_warehouse_id).toBe(1);
     expect(payload.to_warehouse_id).toBe(2);
     expect(payload.items).toHaveLength(1);
-    expect(payload.items[0].product_id).toBe(100);
+    expect(payload.items[0]?.product_id).toBe(100);
     expect(onCreated).toHaveBeenCalledWith(999);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

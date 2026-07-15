@@ -193,8 +193,8 @@ describe('E2E: flujo logistico completo de un traslado', () => {
     expect(created.id).toBeGreaterThan(0);
     expect(created.status).toBe('requested');
     const transferId = created.id;
-    const item1 = created.items[0].id;
-    const item2 = created.items[1].id;
+    const item1 = created.items[0]?.id ?? 0;
+    const item2 = created.items[1]?.id ?? 0;
 
     // 2. PREPARAR
     const { result: prepare } = renderHook(() => usePrepareTransfer(), { wrapper });
@@ -245,13 +245,13 @@ describe('E2E: flujo logistico completo de un traslado', () => {
 
     // Verificar payloads clave
     const prepareCall = mutations[1];
-    expect(prepareCall.body).toMatchObject({
+    expect(prepareCall?.body).toMatchObject({
       items: expect.arrayContaining([
         expect.objectContaining({ inventory_transfer_item_id: item1, prepared_quantity: 5 }),
       ]),
     });
     const receiveCall = mutations[3];
-    expect(receiveCall.body).toMatchObject({
+    expect(receiveCall?.body).toMatchObject({
       items: expect.arrayContaining([
         expect.objectContaining({ inventory_transfer_item_id: item1, received_quantity: 5 }),
       ]),
@@ -308,7 +308,7 @@ describe('E2E: flujo logistico completo de un traslado', () => {
       items: [{ product_id: 100, quantity: 10 }],
     }) as { id: number; items: { id: number }[] };
     const transferId = created.id;
-    const itemId = created.items[0].id;
+    const itemId = created.items[0]?.id ?? 0;
 
     const { result: prepare } = renderHook(() => usePrepareTransfer(), { wrapper });
     const prepared = await prepare.current.mutateAsync({

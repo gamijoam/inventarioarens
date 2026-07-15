@@ -121,7 +121,7 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('useAssignDriver usa PUT /driver (backend define PUT)', async () => {
     const { result } = renderHook(() => useAssignDriver(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { name: 'Test', document_number: null, phone: null, vehicle_plate: null, carrier_company: null } });
+    await result.current.mutateAsync({ id: 5, values: { name: 'Test', document_number: null, phone: null, vehicle_plate: null, carrier_company: null, picked_up_at: null, delivered_at: null, signed_by_driver_at: null, signature_driver_url: null, signed_by_receiver_at: null, signature_receiver_url: null, notes: null } });
     const call = apiCalls.find((c) => c.url.includes('/driver'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('PUT');

@@ -316,17 +316,17 @@ export type CancelTransferValues = z.output<typeof CancelTransferSchema>;
 export const AssignDriverSchema = z
   .object({
     name: trimmedRequired(150),
-    document_number: z.string().max(50).optional(),
-    phone: z.string().max(50).optional(),
-    vehicle_plate: z.string().max(20).optional(),
-    carrier_company: z.string().max(150).optional(),
-    picked_up_at: isoDate,
-    delivered_at: isoDate,
-    signed_by_driver_at: isoDate,
-    signature_driver_url: z.string().url('URL invalida.').max(500).optional(),
-    signed_by_receiver_at: isoDate,
-    signature_receiver_url: z.string().url('URL invalida.').max(500).optional(),
-    notes: z.string().max(2000).optional(),
+    document_number: z.string().max(50).nullable().optional(),
+    phone: z.string().max(50).nullable().optional(),
+    vehicle_plate: z.string().max(20).nullable().optional(),
+    carrier_company: z.string().max(150).nullable().optional(),
+    picked_up_at: isoDate.nullable().optional(),
+    delivered_at: isoDate.nullable().optional(),
+    signed_by_driver_at: isoDate.nullable().optional(),
+    signature_driver_url: z.string().url('URL invalida.').max(500).nullable().optional(),
+    signed_by_receiver_at: isoDate.nullable().optional(),
+    signature_receiver_url: z.string().url('URL invalida.').max(500).nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
   })
   .transform((data) => ({
     ...data,
@@ -350,6 +350,7 @@ export const AssignDriverSchema = z
     notes: data.notes?.trim() || null,
   }));
 export type AssignDriverValues = z.output<typeof AssignDriverSchema>;
+export type AssignDriverInput = z.input<typeof AssignDriverSchema>;
 
 export const CheckChecklistItemSchema = z
   .object({
