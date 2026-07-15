@@ -4,7 +4,9 @@ namespace App\Modules\InventoryTransfers\Controllers;
 
 use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Requests\AssignDriverRequest;
 use App\Modules\InventoryTransfers\Requests\CancelInventoryTransferRequest;
+use App\Modules\InventoryTransfers\Requests\CheckChecklistItemRequest;
 use App\Modules\InventoryTransfers\Requests\DispatchInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\PrepareInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\ReceiveInventoryTransferRequest;
@@ -118,12 +120,103 @@ class InventoryTransferController extends Controller
         );
     }
 
+    /**
+     * FASE T1: asigna/actualiza el transportista (driver) de un traslado.
+     * El transportista NO necesita user en el sistema; solo se registran
+     * sus datos + (opcionalmente) la URL de la firma capturada.
+     */
+    public function assignDriver(
+        Request $request,
+        InventoryTransfer $inventoryTransfer,
+        AssignDriverRequest $assignRequest,
+        InventoryTransferService $service,
+    ): \App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource {
+        Gate::authorize('assignDriver', $inventoryTransfer);
+
+        $driver = $service->assignDriver(
+            $request->user(),
+            $inventoryTransfer,
+            $assignRequest->validated(),
+        );
+
+        return \App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource::make($driver);
+    }
+
+    public function removeDriver(
+        Request $request,
+        InventoryTransfer $inventoryTransfer,
+        InventoryTransferService $service,
+    ): \Illuminate\Http\Response {
+        Gate::authorize('assignDriver', $inventoryTransfer);
+        $service->removeDriver($request->user(), $inventoryTransfer);
+
+        return response()->noContent();
+    }
+
+    /**
+     * FASE T1: devuelve el checklist (preparacion o recepcion) del traslado
+     * con cada item y su progreso (% checked vs expected).
+     */
+    public function showChecklist(
+        Request $request,
+        InventoryTransfer $inventoryTransfer,
+        string $stage,
+    ): \Illuminate\Http\JsonResponse {
+        Gate::authorize('view', $inventoryTransfer);
+
+        if (! in_array($stage, ['preparation', 'reception'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'stage' => 'El stage debe ser preparation o reception.',
+            ]);
+        }
+
+        $payload = app(InventoryTransferService::class)->checklistFor(
+            $inventoryTransfer->refresh()->load(['guide.checklists.items', 'items.product']),
+            $stage,
+        );
+
+        return response()->json(['data' => $payload]);
+    }
+
+    /**
+     * FASE T1: marca 1 item del checklist como checked (transportista o
+     * receptor confirma que ese item esta listo). Endpoint independiente
+     * para soportar la UI de "checklist interactivo" donde el user
+     * clickea cada item uno a uno.
+     */
+    public function checkChecklistItem(
+        Request $request,
+        InventoryTransfer $inventoryTransfer,
+        string $stage,
+        int $itemId,
+        CheckChecklistItemRequest $checkRequest,
+        InventoryTransferService $service,
+    ): \Illuminate\Http\JsonResponse {
+        Gate::authorize('verify', $inventoryTransfer);
+
+        if (! in_array($stage, ['preparation', 'reception'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'stage' => 'El stage debe ser preparation o reception.',
+            ]);
+        }
+
+        $service->checkChecklistItem(
+            $request->user(),
+            $inventoryTransfer,
+            $stage,
+            $itemId,
+            $checkRequest->validated(),
+        );
+
+        return response()->json(['data' => $service->checklistFor($inventoryTransfer, $stage)]);
+    }
+
     public function show(InventoryTransfer $inventoryTransfer): InventoryTransferResource
     {
         Gate::authorize('view', $inventoryTransfer);
 
         return InventoryTransferResource::make(
-            $inventoryTransfer->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
+            $inventoryTransfer->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product', 'driver'])
         );
     }
 }

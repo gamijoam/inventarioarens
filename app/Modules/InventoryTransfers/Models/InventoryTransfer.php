@@ -59,36 +59,28 @@ class InventoryTransfer extends Model
     ];
 
     public const STATUS_REQUESTED = 'requested';
-    public const STATUS_IN_PREPARATION = 'in_preparation';
     public const STATUS_PREPARED = 'prepared';
     public const STATUS_PREPARED_WITH_DIFFERENCES = 'prepared_with_differences';
     public const STATUS_DISPATCHED = 'dispatched';
-    public const STATUS_IN_RECEPTION = 'in_reception';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_COMPLETED_WITH_DIFFERENCES = 'completed_with_differences';
-    public const STATUS_REJECTED = 'rejected';
     public const STATUS_CANCELLED = 'cancelled';
 
     public const ALL_STATUSES = [
         self::STATUS_REQUESTED,
-        self::STATUS_IN_PREPARATION,
         self::STATUS_PREPARED,
         self::STATUS_PREPARED_WITH_DIFFERENCES,
         self::STATUS_DISPATCHED,
-        self::STATUS_IN_RECEPTION,
         self::STATUS_COMPLETED,
         self::STATUS_COMPLETED_WITH_DIFFERENCES,
-        self::STATUS_REJECTED,
         self::STATUS_CANCELLED,
     ];
 
     public const IN_FLIGHT_STATUSES = [
         self::STATUS_REQUESTED,
-        self::STATUS_IN_PREPARATION,
         self::STATUS_PREPARED,
         self::STATUS_PREPARED_WITH_DIFFERENCES,
         self::STATUS_DISPATCHED,
-        self::STATUS_IN_RECEPTION,
     ];
 
     public const DIFFERENCES_STATUSES = [
@@ -127,6 +119,11 @@ class InventoryTransfer extends Model
     public function guide(): HasOne
     {
         return $this->hasOne(InventoryTransferGuide::class);
+    }
+
+    public function driver(): HasOne
+    {
+        return $this->hasOne(InventoryTransferDriver::class);
     }
 
     public function fromWarehouse(): BelongsTo

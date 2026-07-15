@@ -21,6 +21,8 @@ class InventoryTransferResource extends JsonResource
             'from_warehouse' => $this->whenLoaded('fromWarehouse'),
             'to_warehouse' => $this->whenLoaded('toWarehouse'),
             'guide' => $this->whenLoaded('guide'),
+            'driver' => $this->whenLoaded('driver'),
+            'checklists' => $this->whenLoaded('guide.checklists'),
             'status' => $this->status,
             'reason' => $this->reason,
             'reference' => $this->reference,

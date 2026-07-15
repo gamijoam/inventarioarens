@@ -11,8 +11,10 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklistItem;
+use App\Modules\InventoryTransfers\Models\InventoryTransferDriver;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
+use App\Modules\InventoryTransfers\Models\TenantTransferSetting;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -196,6 +198,30 @@ class InventoryTransferService
 
             $checklistItems = $preparationChecklist->items->keyBy('inventory_transfer_item_id');
             $hasDifferences = false;
+
+            // FASE T1 fix (audit H2): bloquear prepare con todos los items
+            // en 0 para que el transfer no avance a 'prepared' sin reservar
+            // nada. Permite partial-zero (algunos items en 0) si al menos
+            // uno tiene prepared_quantity > 0.
+            $hasAnyPrepared = $payloadItems->contains(function (array $payloadItem) use ($items): bool {
+                $item = $items->get((int) $payloadItem['inventory_transfer_item_id']);
+                if (! $item) {
+                    return false;
+                }
+                $product = $item->product;
+                $preparedUnitIds = $payloadItem['prepared_product_unit_ids'] ?? [];
+
+                if ($product && $product->requiresSerializedTracking()) {
+                    return count($preparedUnitIds) > 0;
+                }
+
+                return (float) ($payloadItem['prepared_quantity'] ?? 0) > 0;
+            });
+            if (! $hasAnyPrepared) {
+                throw ValidationException::withMessages([
+                    'transfer' => 'No se puede preparar: al menos un item debe tener cantidad preparada mayor a cero.',
+                ]);
+            }
 
             foreach ($payloadItems as $index => $payloadItem) {
                 /** @var InventoryTransferItem $item */
@@ -919,6 +945,184 @@ class InventoryTransferService
         });
     }
 
+    /**
+     * FASE T1: asigna o actualiza el driver (transportista) del traslado.
+     * Como la relacion es 1:1, si ya existe se actualiza; si no, se crea.
+     */
+    public function assignDriver(User $user, InventoryTransfer $transfer, array $data): InventoryTransferDriver
+    {
+        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransferDriver {
+            $driver = InventoryTransferDriver::query()
+                ->where('inventory_transfer_id', $transfer->id)
+                ->lockForUpdate()
+                ->first();
+
+            $isNew = $driver === null;
+            $before = $driver ? $driver->only(['name', 'document_number', 'phone', 'vehicle_plate', 'carrier_company']) : null;
+
+            if ($driver === null) {
+                $driver = new InventoryTransferDriver();
+                $driver->inventory_transfer_id = $transfer->id;
+                $driver->tenant_id = $transfer->tenant_id;
+            }
+
+            $driver->fill($data);
+            $driver->save();
+
+            $this->audit->record(
+                action: $isNew ? 'inventory_transfer.driver_assigned' : 'inventory_transfer.driver_updated',
+                entity: $driver,
+                user: $user,
+                oldValues: $before,
+                newValues: $driver->only(['name', 'document_number', 'phone', 'vehicle_plate', 'carrier_company']),
+            );
+
+            return $driver->refresh();
+        });
+    }
+
+    public function removeDriver(User $user, InventoryTransfer $transfer): void
+    {
+        $driver = InventoryTransferDriver::query()
+            ->where('inventory_transfer_id', $transfer->id)
+            ->first();
+
+        if ($driver === null) {
+            return;
+        }
+
+        DB::transaction(function () use ($user, $driver): void {
+            $this->audit->record(
+                action: 'inventory_transfer.driver_removed',
+                entity: $driver,
+                user: $user,
+                oldValues: $driver->only(['name', 'document_number', 'phone', 'vehicle_plate']),
+            );
+            $driver->delete();
+        });
+    }
+
+    /**
+     * FASE T1: devuelve el payload del checklist (preparation o reception)
+     * con cada item y su progreso (% checked vs expected, conteo de IMEIs).
+     */
+    public function checklistFor(InventoryTransfer $transfer, string $stage): array
+    {
+        $checklist = $transfer->guide?->checklists->firstWhere('stage', $stage);
+
+        if (! $checklist) {
+            return [
+                'stage' => $stage,
+                'status' => 'not_found',
+                'progress_percent' => 0,
+                'items' => [],
+            ];
+        }
+
+        $items = $checklist->items->map(function (InventoryTransferChecklistItem $ci): array {
+            $expected = (float) ($ci->expected_quantity ?? 0);
+            $checked = (float) ($ci->checked_quantity ?? 0);
+            $progress = $expected > 0 ? min(100, (int) round(($checked / $expected) * 100)) : 0;
+            $transferItem = $ci->inventoryTransferItem;
+            $product = $transferItem?->product;
+
+            return [
+                'id' => $ci->id,
+                'inventory_transfer_item_id' => $ci->inventory_transfer_item_id,
+                'product_id' => $ci->product_id,
+                'product_name' => $product?->name,
+                'product_sku' => $product?->sku,
+                'tracking_type' => $product?->tracking_type,
+                'expected_quantity' => $expected,
+                'checked_quantity' => $checked,
+                'difference_quantity' => (float) ($ci->difference_quantity ?? 0),
+                'expected_product_unit_ids' => $ci->expected_product_unit_ids ?? [],
+                'checked_product_unit_ids' => $ci->checked_product_unit_ids ?? [],
+                'reason' => $ci->reason,
+                'notes' => $ci->notes,
+                'progress_percent' => $progress,
+            ];
+        })->values()->all();
+
+        $totalExpected = array_sum(array_column($items, 'expected_quantity'));
+        $totalChecked = array_sum(array_column($items, 'checked_quantity'));
+        $overallProgress = $totalExpected > 0
+            ? min(100, (int) round(($totalChecked / $totalExpected) * 100))
+            : 0;
+
+        return [
+            'stage' => $stage,
+            'status' => $checklist->status,
+            'progress_percent' => $overallProgress,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * FASE T1: marca 1 item del checklist como checked. Para el checklist
+     * de preparacion, registra la cantidad confirmada por el transportista
+     * y (si aplica) los IMEIs. Para el de recepcion, lo mismo pero del
+     * receptor. NO completa el checklist automaticamente; el padre
+     * (prepare/receive) cierra el checklist con todas las items.
+     */
+    public function checkChecklistItem(
+        User $user,
+        InventoryTransfer $transfer,
+        string $stage,
+        int $itemId,
+        array $data,
+    ): void {
+        DB::transaction(function () use ($user, $transfer, $stage, $itemId, $data): void {
+            $checklist = $transfer->refresh()->guide?->checklists
+                ->firstWhere('stage', $stage);
+
+            if (! $checklist) {
+                throw ValidationException::withMessages([
+                    'checklist' => "El traslado no tiene checklist de {$stage}.",
+                ]);
+            }
+
+            $ci = $checklist->items->firstWhere('id', $itemId);
+            if (! $ci) {
+                throw ValidationException::withMessages([
+                    'item' => 'El item no pertenece a este checklist.',
+                ]);
+            }
+
+            $before = $ci->only(['checked_quantity', 'checked_product_unit_ids', 'reason', 'notes']);
+
+            $checkedQuantity = (float) ($data['checked_quantity'] ?? $ci->expected_quantity ?? 0);
+            $checkedUnitIds = $data['checked_product_unit_ids'] ?? $ci->checked_product_unit_ids ?? [];
+
+            // Si el producto es serializado, los IMEIs son la fuente de
+            // verdad de la cantidad. Forzamos el conteo para mantener
+            // consistencia.
+            $product = $ci->inventoryTransferItem?->product;
+            if ($product && $product->requiresSerializedTracking()) {
+                $checkedQuantity = count($checkedUnitIds);
+            }
+
+            $ci->checked_quantity = $checkedQuantity;
+            $ci->checked_product_unit_ids = $checkedUnitIds ?: null;
+            if (array_key_exists('reason', $data)) {
+                $ci->reason = $data['reason'];
+            }
+            if (array_key_exists('notes', $data)) {
+                $ci->notes = $data['notes'];
+            }
+            $ci->difference_quantity = max(0, (float) ($ci->expected_quantity ?? 0) - $checkedQuantity);
+            $ci->save();
+
+            $this->audit->record(
+                action: "inventory_transfer.checklist_{$stage}_item_checked",
+                entity: $ci,
+                user: $user,
+                oldValues: $before,
+                newValues: $ci->only(['checked_quantity', 'checked_product_unit_ids', 'reason', 'notes']),
+            );
+        });
+    }
+
     private function createLogisticTransfer(
         User $user,
         array $data,
@@ -991,6 +1195,58 @@ class InventoryTransferService
                 'expected_product_unit_ids' => $item->product_unit_ids,
             ]);
         });
+
+        // FASE T1 fix (audit C3): implementar reserve_on_request del
+        // TenantTransferSetting. Si el tenant lo activa, al CREAR el
+        // traslado logistico reservamos el stock inmediatamente (movement
+        // 'reserved' + ProductUnit.status = RESERVED) en vez de esperar
+        // al 'prepare' del usuario. Esto modela empresas con protocolo
+        // estricto donde el stock se aparta al solicitar.
+        $tenantSetting = TenantTransferSetting::query()
+            ->where('tenant_id', app(\App\Support\Tenancy\TenantManager::class)->require()->id)
+            ->first();
+        $reserveOnRequest = (bool) ($tenantSetting?->reserve_on_request ?? false);
+
+        if ($reserveOnRequest) {
+            $transfer->loadMissing(['items.product']);
+            foreach ($transfer->items as $item) {
+                $product = $item->product;
+                if (! $product) {
+                    continue;
+                }
+                $quantity = (float) ($item->requested_quantity ?? $item->quantity);
+                $unitIds = $item->product_unit_ids ?? [];
+
+                if ($product->requiresSerializedTracking() && count($unitIds) > 0) {
+                    try {
+                        $this->validatePreparedProductUnits($transfer, $item, $unitIds, 0);
+                    } catch (ValidationException $e) {
+                        // Si falla la validacion de IMEIs, no reservar.
+                        continue;
+                    }
+                }
+
+                $movement = $this->inventory->reserve(
+                    warehouse: $fromWarehouse,
+                    product: $product,
+                    quantity: $quantity,
+                    createdBy: $user,
+                    reason: "Reserva automatica {$transfer->guide_number}: {$transfer->reason}",
+                    referenceType: InventoryTransfer::class,
+                    referenceId: $transfer->id,
+                );
+                $this->syncCatalog->stockMovementCreated($movement);
+
+                if ($product->requiresSerializedTracking() && count($unitIds) > 0) {
+                    $this->markPreparedProductUnitsAsReserved($unitIds, $movement->id);
+                }
+
+                $item->update([
+                    'prepared_quantity' => $quantity,
+                    'prepared_product_unit_ids' => $unitIds ?: null,
+                ]);
+            }
+        }
 
         $this->audit->record(
             action: 'inventory_transfer.created',

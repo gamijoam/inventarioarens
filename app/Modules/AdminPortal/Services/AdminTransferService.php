@@ -304,12 +304,10 @@ class AdminTransferService
     public function availableActionsFor(string $status): array
     {
         return match ($status) {
-            InventoryTransfer::STATUS_REQUESTED,
-            InventoryTransfer::STATUS_IN_PREPARATION => ['prepare', 'cancel'],
+            InventoryTransfer::STATUS_REQUESTED => ['prepare', 'cancel'],
             InventoryTransfer::STATUS_PREPARED,
             InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES => ['dispatch', 'cancel'],
-            InventoryTransfer::STATUS_DISPATCHED,
-            InventoryTransfer::STATUS_IN_RECEPTION => ['receive', 'cancel'],
+            InventoryTransfer::STATUS_DISPATCHED => ['receive', 'cancel'],
             InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES => ['resolve_differences'],
             default => [],
         };
@@ -365,14 +363,11 @@ class AdminTransferService
     {
         return [
             InventoryTransfer::STATUS_REQUESTED => 'Solicitado',
-            InventoryTransfer::STATUS_IN_PREPARATION => 'En preparacion',
             InventoryTransfer::STATUS_PREPARED => 'Preparado',
             InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES => 'Preparado con diferencias',
             InventoryTransfer::STATUS_DISPATCHED => 'Despachado',
-            InventoryTransfer::STATUS_IN_RECEPTION => 'En recepcion',
             InventoryTransfer::STATUS_COMPLETED => 'Completado',
             InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES => 'Completado con diferencias',
-            InventoryTransfer::STATUS_REJECTED => 'Rechazado',
             InventoryTransfer::STATUS_CANCELLED => 'Cancelado',
         ];
     }
