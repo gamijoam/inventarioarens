@@ -60,7 +60,6 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
     queryKey: transferKeys.list(filters as Record<string, unknown>),
     queryFn: async () => {
       const data = await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`);
-      // El backend puede retornar {data: [...]} o [...] segun el controller.
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       const parsed = (await import('zod')).z.array(TransferSchema).safeParse(arr);
       if (!parsed.success) {
@@ -69,7 +68,9 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
       }
       return parsed.data;
     },
-    placeholderData: (prev) => prev,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -89,8 +90,9 @@ export function useCreateTransfer() {
   return useMutation({
     mutationFn: async (values: StoreTransferValues) =>
       postOne<StoreTransferValues, Transfer>('/inventory-transfers', values),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: transferKeys.lists() });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: transferKeys.lists() });
+      await qc.refetchQueries({ queryKey: transferKeys.lists() });
     },
   });
 }
