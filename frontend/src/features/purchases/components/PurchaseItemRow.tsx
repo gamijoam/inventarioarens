@@ -64,7 +64,7 @@ export function PurchaseItemRow({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr_auto]">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-            Almacen
+            Almacen <span className="text-danger">*</span>
           </label>
           <Select
             value={value.warehouse_id ? String(value.warehouse_id) : ''}
@@ -72,14 +72,18 @@ export function PurchaseItemRow({
               onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })
             }
             disabled={disabled}
+            className={cn(!value.warehouse_id && 'border-warning')}
           >
-            <option value="">Almacen...</option>
+            <option value="">{warehouses.length === 0 ? 'Sin almacenes (crea uno en /inventory/admin)' : 'Almacen...'}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={String(w.id)}>
                 {w.code}
               </option>
             ))}
           </Select>
+          {!value.warehouse_id && (
+            <p className="text-[10px] text-warning">Requerido.</p>
+          )}
         </div>
 
         <div className="space-y-1 min-w-0">

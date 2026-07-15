@@ -149,6 +149,14 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
       return;
     }
 
+    // Check adicional: cada item debe tener warehouse_id (Zod lo valida,
+    // pero mostramos un toast mas descriptivo si falla especificamente aqui).
+    const itemsWithoutWarehouse = items.filter((it) => !it.warehouse_id);
+    if (itemsWithoutWarehouse.length > 0) {
+      toast.error('Todos los items deben tener un almacen seleccionado.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await create.mutateAsync(parsed.data);
