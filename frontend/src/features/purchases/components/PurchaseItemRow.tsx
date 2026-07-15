@@ -153,6 +153,7 @@ export function PurchaseItemRow({
             step={isSerialized ? 1 : 0.0001}
             value={value.quantity ?? ''}
             onChange={(e) => onChange({ ...value, quantity: Number(e.target.value) })}
+            // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
             disabled={disabled || isSerialized}
             placeholder="0"
             className={cn('text-right tabular-nums', isSerialized && 'bg-bg cursor-not-allowed')}

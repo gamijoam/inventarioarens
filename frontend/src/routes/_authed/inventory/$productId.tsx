@@ -311,20 +311,34 @@ function StockTab({
               </th>
             </tr>
           </thead>
-          <tbody>
-            {initialStock.map((s) => {
-              const qty = typeof s.quantity === 'string' ? parseFloat(s.quantity) : s.quantity;
-              const res = s.reserved != null ? (typeof s.reserved === 'string' ? parseFloat(s.reserved) : s.reserved) : null;
-              const dmg = s.damaged != null ? (typeof s.damaged === 'string' ? parseFloat(s.damaged) : s.damaged) : null;
+<tbody>
+            {stock.map((s) => {
+              // El backend retorna quantity como string decimal ("30.0000") o
+              // number. Normalizamos a number y aplicamos fallback defensivo
+              // para evitar renderizar un string vacio (que se ve como un
+              // espacio en blanco). Ademas, forzamos text-text-primary para
+              // garantizar contraste contra el fondo bg-surface del Card.
+              const qtyRaw = typeof s.quantity === 'string' ? parseFloat(s.quantity) : s.quantity;
+              const qty = Number.isFinite(qtyRaw) ? qtyRaw : 0;
+              const resRaw = s.reserved != null ? (typeof s.reserved === 'string' ? parseFloat(s.reserved) : s.reserved) : null;
+              const res = resRaw != null && Number.isFinite(resRaw) ? resRaw : 0;
+              const dmgRaw = s.damaged != null ? (typeof s.damaged === 'string' ? parseFloat(s.damaged) : s.damaged) : null;
+              const dmg = dmgRaw != null && Number.isFinite(dmgRaw) ? dmgRaw : 0;
               return (
                 <tr key={s.warehouse_id} className="border-b border-border last:border-b-0">
                   <td className="px-3 py-2">
                     <div className="font-medium">{s.warehouse_name}</div>
                     <div className="text-xs text-text-muted">{s.warehouse_code}</div>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text-muted">{res ?? 0}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text-muted">{dmg ?? 0}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text-primary font-medium">
+                    {qty.toFixed(2)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text-muted">
+                    {res.toFixed(2)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text-muted">
+                    {dmg.toFixed(2)}
+                  </td>
                 </tr>
               );
             })}
