@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Settings,
   Building,
+  ShoppingBag,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -50,6 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
   { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW },
   { to: '/suppliers', label: 'Proveedores', icon: Building, permission: PERMISSIONS.SUPPLIERS_VIEW },
+  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW },
   { to: '/transfers', label: 'Traslados', icon: Truck, permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW },
   { to: '/receivables', label: 'Cuentas por cobrar', icon: Wallet, permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW },
   { to: '/payables', label: 'Cuentas por pagar', icon: Receipt, permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW },

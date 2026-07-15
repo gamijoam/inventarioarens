@@ -79,7 +79,10 @@ export const PERMISSIONS = {
   // Purchases
   PURCHASES_VIEW: 'purchases.view',
   PURCHASES_CREATE: 'purchases.create',
-  PURCHASES_RECEIVE: 'purchases.receive',
+  // El backend usa `purchases.approve` (NO `purchases.receive`) para el
+  // endpoint PATCH /api/purchases/{id}/receive. Ver AGENTS.md §8.4 nota.
+  PURCHASES_APPROVE: 'purchases.approve',
+  PURCHASES_RECEIVE: 'purchases.receive', // alias historico, NO usado por backend
   PURCHASES_CANCEL: 'purchases.cancel',
 
   // Sales Returns

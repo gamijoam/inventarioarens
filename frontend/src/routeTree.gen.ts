@@ -16,6 +16,7 @@ import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
 import { Route as AuthedSuppliersRouteImport } from './routes/_authed/suppliers'
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
+import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
@@ -57,6 +58,11 @@ const AuthedSalesRoute = AuthedSalesRouteImport.update({
 const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
   id: '/receivables',
   path: '/receivables',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPayablesRoute = AuthedPayablesRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
   '/suppliers': typeof AuthedSuppliersRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
   '/suppliers': typeof AuthedSuppliersRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/payables': typeof AuthedPayablesRoute
+  '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/sales': typeof AuthedSalesRoute
   '/_authed/suppliers': typeof AuthedSuppliersRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/purchases'
     | '/receivables'
     | '/sales'
     | '/suppliers'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/purchases'
     | '/receivables'
     | '/sales'
     | '/suppliers'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/_authed/customers'
     | '/_authed/dashboard'
     | '/_authed/payables'
+    | '/_authed/purchases'
     | '/_authed/receivables'
     | '/_authed/sales'
     | '/_authed/suppliers'
@@ -260,6 +272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReceivablesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/purchases': {
+      id: '/_authed/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof AuthedPurchasesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/payables': {
       id: '/_authed/payables'
       path: '/payables'
@@ -323,6 +342,7 @@ interface AuthedRouteChildren {
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedPayablesRoute: typeof AuthedPayablesRoute
+  AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
@@ -338,6 +358,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedPayablesRoute: AuthedPayablesRoute,
+  AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedSalesRoute: AuthedSalesRoute,
   AuthedSuppliersRoute: AuthedSuppliersRoute,
