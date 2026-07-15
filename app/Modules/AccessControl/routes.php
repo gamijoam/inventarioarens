@@ -3,6 +3,7 @@
 use App\Modules\AccessControl\Controllers\PermissionCatalogController;
 use App\Modules\AccessControl\Controllers\RoleController;
 use App\Modules\AccessControl\Controllers\TenantUserController;
+use App\Modules\AccessControl\Controllers\UserAuditController;
 use App\Modules\AccessControl\Controllers\UserOverrideController;
 use App\Modules\AccessControl\Controllers\UserScopeController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,7 @@ Route::get('tenants/{tenant}/users/{user}/overrides', [UserOverrideController::c
 Route::put('tenants/{tenant}/users/{user}/overrides', [UserOverrideController::class, 'update']);
 Route::delete('tenants/{tenant}/users/{user}/overrides/{permission}', [UserOverrideController::class, 'destroy']);
 Route::get('tenants/{tenant}/users/{user}/effective-permissions', [UserOverrideController::class, 'effectivePermissions']);
+Route::get('tenants/{tenant}/users/{user}/audits', [UserAuditController::class, 'index']);
 
 Route::get('tenants/{tenant}/users/{user}/scopes', [UserScopeController::class, 'show']);
 Route::put('tenants/{tenant}/users/{user}/scopes', [UserScopeController::class, 'replaceAll']);

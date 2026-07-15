@@ -347,6 +347,52 @@ export function useReplaceAllScopes() {
   });
 }
 
+// Audit
+
+export const UserAuditEntrySchema = z.object({
+  id: z.number().int(),
+  action: z.string(),
+  entity_type: z.string(),
+  entity_id: z.number().int(),
+  old_values: z.record(z.string(), z.unknown()).nullable().optional(),
+  new_values: z.record(z.string(), z.unknown()).nullable().optional(),
+  user_id: z.number().int().nullable().optional(),
+  ip_address: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+});
+export type UserAuditEntry = z.infer<typeof UserAuditEntrySchema>;
+
+export const UserAuditsResponseSchema = z.object({
+  data: z.array(UserAuditEntrySchema),
+  total: z.number().int(),
+});
+export type UserAuditsResponse = z.infer<typeof UserAuditsResponseSchema>;
+
+export const userAuditKeys = {
+  all: ['user-audits'] as const,
+  list: (tenantId: number, userId: number) => [...userAuditKeys.all, tenantId, userId] as const,
+};
+
+export function useUserAudits(userId: number) {
+  const tenantId = useSessionStore((s) => s.tenant?.id);
+  return useQuery({
+    queryKey: tenantId ? userAuditKeys.list(tenantId, userId) : userAuditKeys.all,
+    queryFn: async () => {
+      if (!tenantId) throw new Error('Sin tenant activo.');
+      const data = await getOne<unknown>(
+        tenantPath(tenantId, `/users/${userId}/audits`),
+      );
+      const parsed = UserAuditsResponseSchema.safeParse(data);
+      if (!parsed.success) {
+        console.warn('useUserAudits: shape invalido', parsed.error.flatten());
+        throw new Error('Respuesta del servidor invalida.');
+      }
+      return parsed.data;
+    },
+    enabled: Number.isFinite(userId) && userId > 0,
+  });
+}
+
 // Catalogo para pickers (branches/warehouses/customer-groups)
 
 export interface ScopesCatalog {
