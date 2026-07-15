@@ -6,6 +6,7 @@
  * via roles).
  */
 import { ShieldCheck } from 'lucide-react';
+import { createFileRoute } from '@tanstack/react-router';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -17,9 +18,9 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { usePermissionCatalog } from '@/features/access/api';
 import { PermissionTree } from '@/features/access/PermissionTree';
 
-export function Component() {
-  return <PermissionsPage />;
-}
+export const Route = createFileRoute('/_authed/access/permissions')({
+  component: PermissionsPage,
+});
 
 function PermissionsPage() {
   const { data, isLoading, isError } = usePermissionCatalog();
