@@ -24,6 +24,7 @@ import { cn } from '@/lib/cn';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import { APP_NAME, APP_SHORT_NAME } from '@/config/branding';
+import { ShieldCheck } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -55,6 +56,16 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/transfers', label: 'Traslados', icon: Truck, permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW },
   { to: '/receivables', label: 'Cuentas por cobrar', icon: Wallet, permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW },
   { to: '/payables', label: 'Cuentas por pagar', icon: Receipt, permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW },
+  // Submenu de Acceso (Fase A: solo "Usuarios"; Fase C agrega "Roles").
+  {
+    to: '/users',
+    label: 'Acceso',
+    icon: ShieldCheck,
+    permission: PERMISSIONS.USERS_VIEW,
+    children: [
+      { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
+    ],
+  },
 ];
 
 export function Sidebar() {
