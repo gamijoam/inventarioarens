@@ -164,6 +164,18 @@ class PurchaseOrderService
                         'profit_margin' => $previousMargin,
                     ];
                 }
+
+                // Recalcular el base_price automaticamente si el producto tiene
+                // margen definido. Asi el precio de venta refleja el nuevo WAC
+                // sin esperar a que el usuario abra el PriceReviewDialog.
+                $newWac = $item->product->average_cost === null ? null : (float) $item->product->average_cost;
+                if ($newWac !== null && $item->product->profit_margin !== null) {
+                    $newBase = round($newWac * (1 + ((float) $item->product->profit_margin / 100)), 2);
+                    if ((float) $item->product->base_price !== $newBase) {
+                        $item->product->base_price = $newBase;
+                        $item->product->save();
+                    }
+                }
             }
 
             [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));
