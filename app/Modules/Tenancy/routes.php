@@ -12,8 +12,6 @@ use Illuminate\Support\Facades\Route;
 
 /**
  * Rutas de tenant CRUD tradicional (spinoffs dentro de un grupo).
- * Requieren `tenants.create` permission (típicamente platform admins o
- * un Owner que tenga scope cross-tenant).
  */
 Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     Route::get('tenants', [TenantController::class, 'index']);
@@ -32,9 +30,11 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
  * platform admin) pueda crear SU PROPIO grupo + su primera empresa, y
  * luego administrar empresas hijas de ese grupo.
  *
- * POST /api/tenant-groups  — crea grupo + tenant inicial (self-serve).
- * GET  /api/tenant-groups  — lista grupos donde el user es Owner.
- * GET  /api/tenant-groups/{group}/spinoffs — empresas hijas del grupo.
+ * Politica de acceso por endpoint:
+ *  - POST /api/tenant-groups                   — cualquier user autenticado.
+ *  - GET  /api/tenant-groups                   — solo Owners estrictos (rol 'Owner' + attach activo).
+ *  - GET  /api/tenant-groups/{group}/spinoffs  — cualquier miembro activo del grupo.
+ *  - POST /api/tenant-groups/{group}/tenants   — solo Owners estrictos del grupo.
  *
  * Estas rutas NO requieren tenant context (X-Tenant) porque el grupo
  * es el contexto y se pasa por la URL.
@@ -42,12 +42,16 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
 Route::middleware(['api.auth'])->group(function (): void {
     Route::post('tenant-groups', [TenantGroupController::class, 'store']);
     Route::get('tenant-groups', [TenantGroupController::class, 'index']);
+
+    // GET spinoffs: cualquier miembro activo (lectura). Verificacion inline.
+    Route::get('tenant-groups/{group}/spinoffs', [TenantGroupController::class, 'spinoffs']);
 });
 
+// POST spinoffs: solo Owners estrictos.
 Route::middleware(['api.auth', EnsureGroupOwner::class])
     ->prefix('tenant-groups/{group}')
     ->group(function (): void {
-        Route::get('spinoffs', [TenantGroupController::class, 'spinoffs']);
+        Route::post('tenants', [TenantGroupController::class, 'createSpinoff']);
     });
 
 /**
@@ -76,8 +80,9 @@ Route::middleware(['api.auth', EnsurePlatformAdmin::class])
     });
 
 /**
- * Legacy: rutas /api/groups/{group}/tenants (EnsureGroupOwner)
- * para back-compat con el codigo que ya estuviera usandolas.
+ * Legacy: rutas /api/groups/{group}/tenants (EnsureGroupOwner).
+ * Mantienen la semantica estricta (Owner) para back-compat con codigo
+ * que ya estuviera usandolas.
  */
 Route::middleware(['api.auth', EnsureGroupOwner::class])
     ->prefix('groups/{group}')

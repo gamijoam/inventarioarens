@@ -20,7 +20,7 @@ const mockMutateAsync = vi.fn();
 const mockUseTenantGroups = vi.fn();
 const mockUseGroupSpinoffs = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
-const mockUseCreateSpinoff = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
+const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
 
 vi.mock('@/features/access/tenantGroupsApi', () => ({
   useTenantGroups: () =>
@@ -246,7 +246,7 @@ describe('CreateGroupDialog', () => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
     });
 
-    const payload = mockMutateAsync.mock.calls[0][0];
+    const payload = mockMutateAsync.mock.calls[0]?.[0] as { group: { name: string }; admin: { email: string }; tenant: { name: string } };
     expect(payload.group.name).toBe('Mi Holding');
     expect(payload.tenant.name).toBe('Mi Empresa');
     expect(payload.admin.email).toBe('owner@test.com');

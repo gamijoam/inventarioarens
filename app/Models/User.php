@@ -77,7 +77,9 @@ class User extends Authenticatable
             return false;
         }
 
-        return $this->hasAnyRoleInGroup($group);
+        // Solo el attach activo es suficiente. Para una verificacion estricta
+        // (rol 'Owner' explicito) usar isStrictOwnerOf().
+        return true;
     }
 
     /**

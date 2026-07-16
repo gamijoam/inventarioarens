@@ -23,6 +23,7 @@ import {
 
 import { cn } from '@/lib/cn';
 import { Can } from '@/components/permissions/Can';
+import { useTenantGroups } from '@/features/access/tenantGroupsApi';
 import { PERMISSIONS } from '@/permissions/constants';
 import { APP_NAME, APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
@@ -34,6 +35,10 @@ interface NavItem {
   permission?: string;
   // Sub-items opcionales (menu anidado).
   children?: NavItem[];
+  // Si es true, el item solo se muestra si el user autenticado es
+  // Owner de al menos un grupo (usado por "Organizaciones"). El resto
+  // de usuarios (admin de empresa, vendedor, etc) no lo ven.
+  hideIfNoOwnedGroup?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -68,15 +73,28 @@ const NAV_ITEMS: NavItem[] = [
       { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
       { to: '/access/roles', label: 'Roles y Permisos', icon: ShieldCheck, permission: PERMISSIONS.ROLES_VIEW },
       { to: '/access/permissions', label: 'Catalogo de permisos', icon: ShieldCheck, permission: PERMISSIONS.ROLES_VIEW },
-      { to: '/access/groups', label: 'Organizaciones', icon: Building2, permission: PERMISSIONS.TENANTS_VIEW },
+      { to: '/access/groups', label: 'Organizaciones', icon: Building2, permission: PERMISSIONS.TENANTS_VIEW, hideIfNoOwnedGroup: true },
     ],
   },
 ];
 
+function shouldShowItem(item: NavItem, ownedGroupIds: Set<number> | null): boolean {
+  if (!item.hideIfNoOwnedGroup) return true;
+  // Si todavia no cargo el query, ocultamos el item para evitar flicker.
+  if (ownedGroupIds === null) return false;
+  return ownedGroupIds.size > 0;
+}
+
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  // Cargamos los grupos donde soy Owner para decidir si el item
+  // "Organizaciones" debe aparecer en el sidebar.
+  const { data: tenantGroups } = useTenantGroups();
+  const ownedGroupIds = new Set((tenantGroups ?? []).map((g) => g.id));
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+
+  const visibleItems = NAV_ITEMS.filter((item) => shouldShowItem(item, ownedGroupIds));
 
   return (
     <aside
@@ -102,7 +120,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             // Si el item tiene children, renderiza submenu anidado.
             if (item.children && item.children.length > 0) {
               const isParentActive =

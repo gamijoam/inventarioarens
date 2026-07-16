@@ -60,7 +60,21 @@ class TenantGroupController extends Controller
         $groups = Tenant::query()
             ->groups()
             ->whereHas('users', function ($q) use ($user): void {
-                $q->where('users.id', $user->id)->wherePivot('status', 'active');
+                // Filtramos por la columna del pivote 'tenant_user.status' directamente,
+                // porque wherePivot() sin argumentos generaba `where "pivot" = ?` que no existe
+                // como columna en la tabla pivote.
+                $q->where('users.id', $user->id)->where('tenant_user.status', 'active');
+            })
+            // Ademas del attach activo, el user debe tener el rol 'Owner' del grupo
+            // (model_has_roles + roles.tenant_id = tenants.id).
+            ->whereIn('id', function ($sub) use ($user): void {
+                $sub->select('roles.tenant_id')
+                    ->from('roles')
+                    ->join('model_has_roles', 'model_has_roles.role_id', '=', 'roles.id')
+                    ->where('model_has_roles.model_type', User::class)
+                    ->where('model_has_roles.model_id', $user->id)
+                    ->where('roles.name', 'Owner')
+                    ->whereNotNull('roles.tenant_id');
             })
             ->withCount(['children', 'users'])
             ->orderBy('name')
@@ -81,14 +95,17 @@ class TenantGroupController extends Controller
     }
 
     /**
-     * Spinoffs (empresas hijas) de un grupo donde el user es Owner.
+     * Spinoffs (empresas hijas) de un grupo.
+     *
+     * Politica: cualquier miembro activo del grupo (no necesariamente Owner).
+     * Esto permite que admins de empresa vean el resto de empresas del holding.
      */
     public function spinoffs(Request $request, Tenant $group): JsonResponse
     {
         $user = $request->user();
         abort_unless($user instanceof User, 401);
         abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
-        abort_unless($user->isOwnerOf($group), 403, 'User is not owner of this group.');
+        abort_unless($user->belongsToTenant($group), 403, 'User is not a member of this group.');
 
         $spinoffs = Tenant::query()
             ->spinoffs()
