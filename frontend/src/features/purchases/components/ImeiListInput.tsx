@@ -2,15 +2,16 @@
  * ImeiListInput: lista de N inputs para capturar seriales/IMEIs de un
  * producto serializado. Pensado para ingreso RAPIDO en bodega:
  *
- *  - Auto-focus al primer input vacio al montar.
- *  - Enter en un input salta al siguiente (y crea uno nuevo si era el ultimo).
+ *  - Auto-inicializa N inputs cuando expectedQuantity > 0 y value vacio.
+ *  - Re-inicializa cuando cambia expectedQuantity (el usuario cambia la
+ *    cantidad del item arriba).
+ *  - Auto-focus al primer input vacio.
+ *  - Enter salta al siguiente (crea uno nuevo si era el ultimo).
  *  - Pegar varios IMEIs (uno por linea, o separados por coma/espacio)
- *    los reparte en inputs existentes o crea nuevos automaticamente.
- *  - Contador X/Y visibles para saber cuantos lleva vs la cantidad esperada.
- *  - Validacion inline (regex 6-32 alfanumericos/guion) + duplicados.
- *  - Boton "Quitar" elimina inputs extra (no los requeridos por la cantidad).
- *  - Escaneo con lector de codigo de barras: cada escaneo termina en \n o \r,
- *    asi que se trata como un paste de 1 IMEI y auto-avanza.
+ *    los reparte automaticamente.
+ *  - Backspace en input vacio va al anterior.
+ *  - Contador X/Y visibles y bordes verdes en inputs validos.
+ *  - Compatible con escaneo (cada escaneo termina en \n o \r).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
@@ -35,7 +36,6 @@ interface ImeiListInputProps {
   disabled?: boolean;
 }
 
-/** Reparte un string pegado en N tokens (1 por linea, o por coma/espacio). */
 function splitPastedSerials(raw: string): string[] {
   return raw
     .split(/[\n\r,;\s]+/g)
@@ -51,32 +51,74 @@ export function ImeiListInput({
   disabled,
 }: ImeiListInputProps) {
   const [touched, setTouched] = useState<Set<number>>(new Set());
-  const initRanRef = useRef(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Auto-inicializa con N inputs vacios la primera vez.
+  // Track the last expectedQuantity we initialized for. If it changes,
+  // re-initialize (extending or trimming the array as needed).
+  const lastInitQtyRef = useRef<number>(0);
+
+  const safeQty = Math.max(0, Math.floor(expectedQuantity));
+
+  // Auto-inicializa y RE-inicializa cuando cambia expectedQuantity.
   useEffect(() => {
-    if (initRanRef.current) return;
-    if (value.length === 0 && expectedQuantity > 0) {
-      initRanRef.current = true;
-      const initial: ImeiInput[] = Array.from({ length: expectedQuantity }, () => ({
+    if (disabled) return;
+    if (lastInitQtyRef.current === safeQty) {
+      return;
+    }
+
+    if (safeQty <= 0) {
+      lastInitQtyRef.current = safeQty;
+      return;
+    }
+
+    if (value.length === 0) {
+      const initial: ImeiInput[] = Array.from({ length: safeQty }, () => ({
         serial_type: defaultType,
         serial_number: '',
       }));
+      lastInitQtyRef.current = safeQty;
       onChange(initial);
+      return;
     }
-    if (value.length > 0) {
-      initRanRef.current = true;
-    }
-  }, [value, expectedQuantity, defaultType, onChange]);
 
-  // Auto-focus al primer input vacio.
+    // Ya hay value: ajustar tamaño si la cantidad cambió.
+    if (value.length < safeQty) {
+      const extra: ImeiInput[] = Array.from(
+        { length: safeQty - value.length },
+        () => ({ serial_type: defaultType, serial_number: '' }),
+      );
+      lastInitQtyRef.current = safeQty;
+      onChange([...value, ...extra]);
+    } else if (value.length > safeQty) {
+      // Truncar pero solo si los inputs extra están vacíos.
+      const trimmed = value.slice(0, safeQty);
+      const allKeptFull = trimmed.every((v) => v.serial_number.trim() !== '');
+      if (allKeptFull) {
+        // No se puede truncar con inputs llenos: mantener el array completo
+        // y marcar la ultima cantidad; el usuario deberá borrar manualmente.
+        lastInitQtyRef.current = value.length;
+        return;
+      }
+      lastInitQtyRef.current = safeQty;
+      onChange(trimmed);
+    } else {
+      lastInitQtyRef.current = safeQty;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeQty, defaultType, disabled]);
+
+  // Auto-focus al primer input vacio (sin interferir si el usuario está
+  // escribiendo en otro).
   useEffect(() => {
     if (disabled) return;
     const idx = value.findIndex((v) => v.serial_number.trim() === '');
     if (idx < 0) return;
     const el = inputRefs.current[idx];
-    if (el && document.activeElement?.tagName !== 'INPUT') {
+    if (!el) return;
+    if (
+      document.activeElement === document.body ||
+      document.activeElement?.tagName !== 'INPUT'
+    ) {
       el.focus();
     }
   }, [value, disabled]);
@@ -86,20 +128,17 @@ export function ImeiListInput({
     onChange(next);
   }
 
-  function setValueAndTouch(next: ImeiInput[]) {
-    onChange(next);
-  }
-
   function add() {
     const next = [...value, { serial_type: defaultType, serial_number: '' }];
-    setValueAndTouch(next);
+    onChange(next);
+    lastInitQtyRef.current = next.length;
   }
 
   function remove(index: number) {
-    if (value.length <= Math.max(1, expectedQuantity)) return;
+    if (value.length <= Math.max(1, safeQty)) return;
     const next = value.filter((_, i) => i !== index);
-    setValueAndTouch(next);
-    // Re-focus al input anterior
+    onChange(next);
+    lastInitQtyRef.current = next.length;
     setTimeout(() => {
       const target = Math.max(0, index - 1);
       inputRefs.current[target]?.focus();
@@ -110,14 +149,10 @@ export function ImeiListInput({
     return value.some((item, i) => i !== index && item.serial_number === serialNumber);
   }
 
-  /**
-   * Maneja pegar multiples IMEIs. Si el paste trae 1 solo, deja que el
-   * onChange normal opere. Si trae varios, los reparte.
-   */
   function handlePaste(e: React.ClipboardEvent<HTMLInputElement>, index: number) {
     const text = e.clipboardData.getData('text');
     const tokens = splitPastedSerials(text);
-    if (tokens.length <= 1) return; // deja que el onChange normal opere
+    if (tokens.length <= 1) return;
     e.preventDefault();
 
     const current = value[index]?.serial_number.trim() ?? '';
@@ -126,21 +161,20 @@ export function ImeiListInput({
     const next: ImeiInput[] = [...value];
     let i = startIdx;
     for (const tok of tokens) {
-      while (i < next.length && (next[i]!).serial_number.trim() !== '') i += 1;
+      while (i < next.length && next[i]!.serial_number.trim() !== '') i += 1;
       if (i >= next.length) {
         next.push({ serial_type: defaultType, serial_number: tok });
         i = next.length;
       } else {
-        next[i] = { ...(next[i]!), serial_number: tok };
+        next[i] = { ...next[i]!, serial_number: tok };
         i += 1;
       }
     }
-    setValueAndTouch(next);
-    // Marcar como touched todos los indices que recibieron datos
+    onChange(next);
+    lastInitQtyRef.current = next.length;
     const t = new Set(touched);
     for (let k = startIdx; k < i; k += 1) t.add(k);
     setTouched(t);
-    // Focus al siguiente input vacio (o al final)
     setTimeout(() => {
       const idx2 = next.findIndex((v) => v.serial_number.trim() === '');
       const target = idx2 >= 0 ? idx2 : next.length - 1;
@@ -153,7 +187,6 @@ export function ImeiListInput({
       e.preventDefault();
       const nextIdx = index + 1;
       if (nextIdx >= value.length) {
-        // Crear uno nuevo automaticamente y enfocarlo
         add();
         setTimeout(() => {
           inputRefs.current[nextIdx]?.focus();
@@ -162,14 +195,13 @@ export function ImeiListInput({
         inputRefs.current[nextIdx]?.focus();
       }
     } else if (e.key === 'Backspace' && value[index]?.serial_number === '' && index > 0) {
-      // Borrar input vacio con Backspace: ir al anterior
       e.preventDefault();
       inputRefs.current[index - 1]?.focus();
     }
   }
 
   const canAdd = value.length < 50;
-  const canRemove = value.length > Math.max(1, expectedQuantity);
+  const canRemove = value.length > Math.max(1, safeQty);
 
   const filled = useMemo(
     () => value.filter((v) => v.serial_number.trim() !== '').length,
@@ -177,6 +209,7 @@ export function ImeiListInput({
   );
   const valid = useMemo(() => {
     if (filled !== value.length) return false;
+    if (value.length !== safeQty) return false;
     for (let i = 0; i < value.length; i += 1) {
       const vi = value[i]!;
       if (!IMEI_REGEX.test(vi.serial_number)) return false;
@@ -185,7 +218,7 @@ export function ImeiListInput({
       }
     }
     return true;
-  }, [value, filled]);
+  }, [value, filled, safeQty]);
 
   return (
     <div className="space-y-2">

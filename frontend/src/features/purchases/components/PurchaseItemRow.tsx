@@ -60,92 +60,11 @@ export function PurchaseItemRow({
       className="rounded-md border border-border bg-bg/30 p-3"
       data-testid={`purchase-item-${index}`}
     >
-      {/* Row 1: Almacen + Producto + delete */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr_auto]">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-            Almacen <span className="text-danger">*</span>
-          </label>
-          <Select
-            value={value.warehouse_id ? String(value.warehouse_id) : ''}
-            onChange={(e) =>
-              onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })
-            }
-            disabled={disabled}
-            className={cn(!value.warehouse_id && 'border-warning')}
-          >
-            <option value="">{warehouses.length === 0 ? 'Sin almacenes (crea uno en /inventory/admin)' : 'Almacen...'}</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={String(w.id)}>
-                {w.code}
-              </option>
-            ))}
-          </Select>
-          {!value.warehouse_id && (
-            <p className="text-[10px] text-warning">Requerido.</p>
-          )}
-        </div>
-
-        <div className="space-y-1 min-w-0">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-            Producto
-          </label>
-          <ProductAutocomplete
-            value={value.product_id}
-            onChange={(id, product) =>
-              onChange({
-                ...value,
-                product_id: id,
-                product_info: product ?? null,
-                // Si cambia el producto y era serializado, limpiamos seriales
-                // para que se re-inicialicen con la cantidad del nuevo.
-                serial_units:
-                  product?.tracking_type === 'serialized' ? [] : value.serial_units,
-              })
-            }
-          />
-          {value.product_info && (
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <Package className="size-3 shrink-0" />
-              <span>{value.product_info.unit_of_measure ?? 'unit'}</span>
-          {value.product_info.base_price != null && (
-              <>
-                <span className="text-text-muted/50">|</span>
-                <span>
-                  Base: {Number(value.product_info.base_price).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-                </span>
-              </>
-            )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-start sm:items-end sm:pb-1">
-          {canRemove ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              onClick={onRemove}
-              disabled={disabled}
-              aria-label="Eliminar linea"
-            >
-              <Trash2 className="size-4 text-danger" />
-            </Button>
-          ) : (
-            <span className="text-xs text-text-muted">Linea 1</span>
-          )}
-        </div>
-      </div>
-
-      {/* Row 2: Cantidad + Costo + Subtotal */}
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Row 1: Cantidad + Costo + Subtotal (cantidad SIEMPRE editable) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[120px_140px_1fr]">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
             Cantidad
-            {isSerialized && (
-              <span className="ml-1 normal-case font-normal text-text-muted">(por IMEI)</span>
-            )}
           </label>
           <Input
             type="number"
@@ -153,11 +72,14 @@ export function PurchaseItemRow({
             step={isSerialized ? 1 : 0.0001}
             value={value.quantity ?? ''}
             onChange={(e) => onChange({ ...value, quantity: Number(e.target.value) })}
-            // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-            disabled={disabled || isSerialized}
+            disabled={disabled}
             placeholder="0"
-            className={cn('text-right tabular-nums', isSerialized && 'bg-bg cursor-not-allowed')}
+            className="text-right tabular-nums"
+            data-testid={`purchase-item-quantity-`}
           />
+          {isSerialized && (
+            <p className="text-[10px] text-text-muted">Serializado: solo enteros (1 por IMEI).</p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -185,6 +107,88 @@ export function PurchaseItemRow({
               ? subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               : '-'}
           </div>
+        </div>
+      </div>
+
+      {/* Row 2: Producto + Almacén + delete */}
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto]">
+        <div className="space-y-1 min-w-0">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Producto
+          </label>
+          <ProductAutocomplete
+            value={value.product_id}
+            onChange={(id, product) =>
+              onChange({
+                ...value,
+                product_id: id,
+                product_info: product ?? null,
+                serial_units:
+                  product?.tracking_type === 'serialized' ? [] : value.serial_units,
+              })
+            }
+          />
+          {value.product_info && (
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <Package className="size-3 shrink-0" />
+              <span>{value.product_info.unit_of_measure ?? 'unit'}</span>
+              {value.product_info.base_price != null && (
+                <>
+                  <span className="text-text-muted/50">|</span>
+                  <span>
+                    Base: {Number(value.product_info.base_price).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  </span>
+                </>
+              )}
+              {value.product_info.tracking_type === 'serialized' && (
+                <>
+                  <span className="text-text-muted/50">|</span>
+                  <span className="font-semibold text-warning">Serializado (IMEI)</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            Almacen <span className="text-danger">*</span>
+          </label>
+          <Select
+            value={value.warehouse_id ? String(value.warehouse_id) : ''}
+            onChange={(e) =>
+              onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })
+            }
+            disabled={disabled}
+            className={cn(!value.warehouse_id && 'border-warning')}
+          >
+            <option value="">{warehouses.length === 0 ? 'Sin almacenes (crea uno en /inventory/admin)' : 'Almacen...'}</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={String(w.id)}>
+                {w.code}
+              </option>
+            ))}
+          </Select>
+          {!value.warehouse_id && (
+            <p className="text-[10px] text-warning">Requerido.</p>
+          )}
+        </div>
+
+        <div className="flex items-start sm:items-end sm:pb-1">
+          {canRemove ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={onRemove}
+              disabled={disabled}
+              aria-label="Eliminar linea"
+            >
+              <Trash2 className="size-4 text-danger" />
+            </Button>
+          ) : (
+            <span className="text-xs text-text-muted">Linea 1</span>
+          )}
         </div>
       </div>
 
