@@ -1,14 +1,15 @@
 /**
- * GroupsTree: lista jerarquica de Tenant Groups y sus spinoffs.
+ * GroupsTree: lista jerarquica de Tenant Groups y sus spinoffs/usuarios.
  *
  * Cada grupo es un card con:
  *  - Header: nombre, slug, plan, contadores
  *  - Lista de spinoffs (empresas hijas) cargados lazy
- *  - Boton "Agregar empresa" que abre CreateSpinoffDialog
+ *  - Lista de usuarios de la organizacion (grupo + spinoffs) lazy
+ *  - Botones "Agregar empresa" y "Agregar usuario" que abren dialogs
  *
  * Acciones disponibles:
  *  - Crear grupo (en el padre de la lista)
- *  - Expandir/colapsar la lista de spinoffs
+ *  - Expandir/colapsar la lista
  *  - Refrescar lista de grupos
  */
 import { useState } from 'react';
@@ -19,6 +20,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  UserPlus,
   Users,
 } from 'lucide-react';
 
@@ -32,10 +34,13 @@ import { cn } from '@/lib/cn';
 import {
   useTenantGroups,
   useGroupSpinoffs,
+  useGroupUsers,
   type TenantGroup,
   type TenantSpinoff,
+  type GroupUser,
 } from './tenantGroupsApi';
 import { CreateSpinoffDialog } from './CreateSpinoffDialog';
+import { CreateGroupUserDialog } from './CreateGroupUserDialog';
 
 interface GroupsTreeProps {
   onCreateGroup: () => void;
@@ -55,8 +60,8 @@ export function GroupsTree({ onCreateGroup }: GroupsTreeProps) {
         <div>
           <h2 className="text-base font-semibold">Mis organizaciones</h2>
           <p className="text-xs text-text-muted">
-            Cada grupo contiene una o mas empresas. Como Owner, puedes agregar empresas
-            hijas y administrarlas todas desde aqui.
+            Cada grupo contiene una o mas empresas. Como Owner, puedes agregar empresas hijas
+            y administrarlas todas desde aqui.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -107,7 +112,6 @@ export function GroupsTree({ onCreateGroup }: GroupsTreeProps) {
               isExpanded={!!expanded[g.id]}
               onToggle={() => toggle(g.id)}
               onCreated={() => {
-                // refrescar al volver del dialog
                 void refetch();
               }}
             />
@@ -127,10 +131,12 @@ interface GroupCardProps {
 
 function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
   const [showSpinoffDialog, setShowSpinoffDialog] = useState(false);
+  const [showUserDialog, setShowUserDialog] = useState(false);
   const { data: spinoffs = [], isLoading: loadingSpinoffs } = useGroupSpinoffs(
     group.id,
     isExpanded,
   );
+  const { data: users = [], isLoading: loadingUsers } = useGroupUsers(group.id, isExpanded);
 
   return (
     <Card data-testid={`group-card-${group.id}`}>
@@ -172,6 +178,14 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
             <Plus className="size-3.5" /> Agregar empresa
           </Button>
           <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowUserDialog(true)}
+            data-testid={`group-add-user-${group.id}`}
+          >
+            <UserPlus className="size-3.5" /> Agregar usuario
+          </Button>
+          <Button
             size="icon-sm"
             variant="ghost"
             onClick={onToggle}
@@ -189,20 +203,44 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
       </CardHeader>
 
       {isExpanded && (
-        <CardContent className="border-t border-border pt-3">
-          {loadingSpinoffs ? (
-            <Spinner label="Cargando empresas..." />
-          ) : spinoffs.length === 0 ? (
-            <p className="py-2 text-xs text-text-muted">
-              Este grupo aun no tiene empresas hijas. Usa "Agregar empresa" para crear una.
-            </p>
-          ) : (
-            <ul className="space-y-1.5" data-testid={`group-spinoffs-${group.id}`}>
-              {spinoffs.map((s) => (
-                <SpinoffRow key={s.id} spinoff={s} />
-              ))}
-            </ul>
-          )}
+        <CardContent className="space-y-4 border-t border-border pt-3">
+          <div>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              Empresas hijas (spinoffs)
+            </h4>
+            {loadingSpinoffs ? (
+              <Spinner label="Cargando empresas..." />
+            ) : spinoffs.length === 0 ? (
+              <p className="py-2 text-xs text-text-muted">
+                Este grupo aun no tiene empresas hijas. Usa "Agregar empresa" para crear una.
+              </p>
+            ) : (
+              <ul className="space-y-1.5" data-testid={`group-spinoffs-${group.id}`}>
+                {spinoffs.map((s) => (
+                  <SpinoffRow key={s.id} spinoff={s} />
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              Usuarios de la organizacion
+            </h4>
+            {loadingUsers ? (
+              <Spinner label="Cargando usuarios..." />
+            ) : users.length === 0 ? (
+              <p className="py-2 text-xs text-text-muted">
+                Aun no hay usuarios en este grupo o sus empresas hijas. Usa "Agregar usuario".
+              </p>
+            ) : (
+              <ul className="space-y-1.5" data-testid={`group-users-${group.id}`}>
+                {users.map((u) => (
+                  <UserRow key={u.id} user={u} />
+                ))}
+              </ul>
+            )}
+          </div>
         </CardContent>
       )}
 
@@ -215,7 +253,64 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
           onCreated();
         }}
       />
+      <CreateGroupUserDialog
+        open={showUserDialog}
+        onOpenChange={setShowUserDialog}
+        group={group}
+        spinoffs={spinoffs}
+        onCreated={() => {
+          setShowUserDialog(false);
+          onCreated();
+        }}
+      />
     </Card>
+  );
+}
+
+function UserRow({ user }: { user: GroupUser }) {
+  return (
+    <li
+      className={cn(
+        'flex items-center justify-between gap-3 rounded border border-border bg-bg/30 px-3 py-2',
+        user.status !== 'active' && 'opacity-60',
+      )}
+      data-testid={`group-user-${user.id}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{user.name}</p>
+        <p className="font-mono text-xs text-text-muted">{user.email}</p>
+        {user.tenants && user.tenants.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {user.tenants.map((t) => (
+              <Badge
+                key={t.id}
+                variant={t.is_group ? 'default' : 'info'}
+                className="text-[10px]"
+              >
+                {t.slug}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
+        {user.roles && user.roles.length > 0 && (
+          <span className="flex flex-wrap gap-1">
+            {user.roles.map((r) => (
+              <Badge key={r.id} variant="info" className="text-[10px]">
+                {r.name}
+              </Badge>
+            ))}
+          </span>
+        )}
+        <Badge
+          variant={user.status === 'active' ? 'success' : 'warning'}
+          className="text-[10px]"
+        >
+          {user.status}
+        </Badge>
+      </div>
+    </li>
   );
 }
 

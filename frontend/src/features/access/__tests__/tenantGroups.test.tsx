@@ -33,6 +33,7 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
       isFetching: boolean;
     },
   useGroupSpinoffs: (_id: number | string, enabled?: boolean) =>
+    mockUseGroupSpinoffs(_id, enabled) as unknown as { data: unknown[]; isLoading: boolean },
     mockUseGroupSpinoffs(_id, enabled) as unknown as {
       data: unknown[];
       isLoading: boolean;

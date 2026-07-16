@@ -6,14 +6,12 @@
  *   POST   /api/tenant-groups                         -> crear grupo + tenant inicial (self-serve)
  *   GET    /api/tenant-groups/{group}/spinoffs        -> empresas hijas del grupo
  *   POST   /api/tenant-groups/{group}/tenants         -> crear spinoff dentro del grupo
+ *   GET    /api/tenant-groups/{group}/users           -> usuarios de toda la organizacion (Owner only)
+ *   POST   /api/tenant-groups/{group}/users           -> adjuntar usuario a un tenant del grupo (Owner only)
  *
  * Jerarquia explicita:
  *   Tenant Group (is_group=true, parent_id=null) -> contenedor de empresas.
  *   Tenant Spinoff (is_group=false, parent_id=group.id) -> empresa hija.
- *
- * Solo los Owners del grupo (rol "Owner" con team_id = group.id) pueden
- * crear spinoffs dentro del grupo. Para crear un grupo propio (self-serve)
- * NO se requiere ser platform admin.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -48,7 +46,27 @@ export const TenantSpinoffSchema = z.object({
 });
 export type TenantSpinoff = z.infer<typeof TenantSpinoffSchema>;
 
-const CreateGroupPayloadSchema = z.object({
+/** Shape del usuario devuelto por el endpoint de grupo. */
+export const GroupUserSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  email: z.string().email(),
+  status: z.enum(['active', 'inactive']),
+  roles: z.array(z.object({ id: z.number(), name: z.string() })).optional(),
+  tenants: z
+    .array(
+      z.object({
+        id: z.number(),
+        name: z.string(),
+        slug: z.string(),
+        is_group: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+});
+export type GroupUser = z.infer<typeof GroupUserSchema>;
+
+const _CreateGroupPayloadSchema = z.object({
   group: z.object({
     name: z.string().min(1, 'Requerido').max(255),
     slug: z
@@ -93,9 +111,9 @@ const CreateGroupPayloadSchema = z.object({
     password: z.string().min(8, 'Minimo 8 caracteres').max(255).optional(),
   }),
 });
-export type CreateGroupPayload = z.infer<typeof CreateGroupPayloadSchema>;
+export type CreateGroupPayload = z.infer<typeof _CreateGroupPayloadSchema>;
 
-const CreateSpinoffPayloadSchema = z.object({
+const _CreateSpinoffPayloadSchema = z.object({
   name: z.string().min(1, 'Requerido').max(255),
   slug: z
     .string()
@@ -128,7 +146,7 @@ const CreateSpinoffPayloadSchema = z.object({
     })
     .optional(),
 });
-export type CreateSpinoffPayload = z.infer<typeof CreateSpinoffPayloadSchema>;
+export type CreateSpinoffPayload = z.infer<typeof _CreateSpinoffPayloadSchema>;
 
 // =====================================================================
 // Hooks
@@ -144,9 +162,7 @@ export function useTenantGroups() {
     queryKey: groupsKey,
     queryFn: async (): Promise<TenantGroup[]> => {
       // BUG FIX: getOne() YA extrae `response.data.data` del body envuelto,
-      // asi que retorna el array directamente (no un objeto con `.data`).
-      // Antes el codigo hacia `Array.isArray(response?.data)` sobre un array,
-      // lo cual retornaba undefined y el query devolvia [] siempre.
+      // asi que retorna el array directamente.
       const items = await getOne<unknown[]>('/tenant-groups');
       return z.array(TenantGroupSchema).parse(Array.isArray(items) ? items : []);
     },
@@ -155,6 +171,9 @@ export function useTenantGroups() {
 
 const spinoffsKey = (groupIdOrSlug: number | string) =>
   ['access', 'tenant-groups', groupIdOrSlug, 'spinoffs'] as const;
+
+const usersKey = (groupIdOrSlug: number | string) =>
+  ['access', 'tenant-groups', groupIdOrSlug, 'users'] as const;
 
 /**
  * Lista los spinoffs (empresas hijas) de un grupo donde el user es Owner.
@@ -174,6 +193,24 @@ export function useGroupSpinoffs(groupIdOrSlug: number | string, enabled = true)
 }
 
 /**
+ * Lista los usuarios de toda la organizacion (grupo + spinoffs).
+ * Solo Owners del grupo pueden llamar este endpoint.
+ */
+export function useGroupUsers(groupIdOrSlug: number | string, enabled = true) {
+  return useQuery({
+    queryKey: usersKey(groupIdOrSlug),
+    queryFn: async (): Promise<GroupUser[]> => {
+      const response = (await getOne<{ data: unknown[] }>(
+        `/tenant-groups/${groupIdOrSlug}/users`,
+      )) as { data?: unknown[] };
+      const items = Array.isArray(response?.data) ? response.data : [];
+      return z.array(GroupUserSchema).parse(items);
+    },
+    enabled,
+  });
+}
+
+/**
  * Crea un grupo + tenant inicial en una sola transaccion (self-serve).
  * El admin del payload queda como Owner del grupo y Administrador del tenant.
  */
@@ -187,7 +224,6 @@ export function useCreateTenantGroup() {
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: groupsKey });
-      void qc.invalidateQueries({ queryKey: ['auth', 'available-tenants'] });
     },
   });
 }
@@ -205,11 +241,38 @@ export function useCreateSpinoff(groupIdOrSlug: number | string) {
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: spinoffsKey(groupIdOrSlug) });
-      void qc.invalidateQueries({ queryKey: groupsKey });
-      void qc.invalidateQueries({ queryKey: ['auth', 'available-tenants'] });
     },
   });
 }
 
-void CreateGroupPayloadSchema;
-void CreateSpinoffPayloadSchema;
+export interface GroupUserAttachInput {
+  email: string;
+  name: string;
+  password?: string;
+  tenant_slug?: string;
+  status?: 'active' | 'inactive';
+  roles?: string[];
+}
+
+/**
+ * Adjunta un usuario a un tenant existente del grupo (o crea el usuario
+ * primero si no existe). Solo Owners del grupo pueden llamar este endpoint.
+ */
+export function useAttachGroupUser(groupIdOrSlug: number | string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: GroupUserAttachInput) =>
+      postOne<GroupUserAttachInput, { data: unknown }>(
+        `/tenant-groups/${groupIdOrSlug}/users`,
+        payload,
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: usersKey(groupIdOrSlug) });
+      void qc.invalidateQueries({ queryKey: groupsKey });
+    },
+  });
+}
+
+// Referencia para evitar warning de unused.
+void _CreateGroupPayloadSchema;
+void _CreateSpinoffPayloadSchema;

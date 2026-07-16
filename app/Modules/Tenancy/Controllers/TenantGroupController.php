@@ -7,28 +7,19 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\StoreTenantGroupRequest;
 use App\Modules\Tenancy\Resources\GroupResource;
 use App\Modules\Tenancy\Resources\TenantResource;
+use App\Modules\Tenancy\Services\CrossTenantUserService;
 use App\Modules\Tenancy\Services\TenantRegistrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 
-/**
- * Endpoints para que un user autenticado (no platform admin) pueda crear
- * SU PROPIO grupo + su primera empresa en una sola transaccion.
- *
- * Pensado para el flujo "self-serve": el owner real se registra y queda
- * con:
- *  - 1 grupo raiz (is_group=true) del cual es Owner.
- *  - 1 empresa inicial (spinoff) del cual es Administrador.
- *
- * A partir de ahi puede crear mas empresas hijas via
- * POST /api/tenant-groups/{group}/tenants.
- */
 class TenantGroupController extends Controller
 {
-    public function __construct(private readonly TenantRegistrationService $service)
-    {
+    public function __construct(
+        private readonly TenantRegistrationService $service,
+        private readonly CrossTenantUserService $userService,
+    ) {
     }
 
     public function store(StoreTenantGroupRequest $request): JsonResponse
@@ -60,13 +51,8 @@ class TenantGroupController extends Controller
         $groups = Tenant::query()
             ->groups()
             ->whereHas('users', function ($q) use ($user): void {
-                // Filtramos por la columna del pivote 'tenant_user.status' directamente,
-                // porque wherePivot() sin argumentos generaba `where "pivot" = ?` que no existe
-                // como columna en la tabla pivote.
                 $q->where('users.id', $user->id)->where('tenant_user.status', 'active');
             })
-            // Ademas del attach activo, el user debe tener el rol 'Owner' del grupo
-            // (model_has_roles + roles.tenant_id = tenants.id).
             ->whereIn('id', function ($sub) use ($user): void {
                 $sub->select('roles.tenant_id')
                     ->from('roles')
@@ -96,9 +82,7 @@ class TenantGroupController extends Controller
 
     /**
      * Spinoffs (empresas hijas) de un grupo.
-     *
-     * Politica: cualquier miembro activo del grupo (no necesariamente Owner).
-     * Esto permite que admins de empresa vean el resto de empresas del holding.
+     * Cualquier miembro activo del grupo (no necesariamente Owner).
      */
     public function spinoffs(Request $request, Tenant $group): JsonResponse
     {
@@ -124,5 +108,63 @@ class TenantGroupController extends Controller
             ]);
 
         return response()->json(['data' => $spinoffs]);
+    }
+
+    /**
+     * Usuarios de toda la organizacion (grupo + spinoffs).
+     * Solo Owners del grupo.
+     */
+    public function users(Request $request, Tenant $group): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
+        abort_unless($user->isOwnerOf($group), 403, 'Only Owners of the group can list organization users.');
+
+        $users = $this->userService->listUsers($group, 'organization');
+
+        return response()->json(['data' => $users]);
+    }
+
+    /**
+     * Adjunta un usuario existente (o crea uno nuevo) a un tenant del grupo.
+     * Solo Owners del grupo.
+     */
+    public function attachUser(Request $request, Tenant $group): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
+        abort_unless($user->isOwnerOf($group), 403, 'Only Owners of the group can attach users.');
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'password' => ['nullable', 'string', 'min:8', 'max:255'],
+            'tenant_slug' => ['required', 'string', 'max:100'],
+            'status' => ['nullable', 'string', 'in:active,inactive'],
+            'roles' => ['nullable', 'array'],
+            'roles.*' => ['string', 'max:100'],
+        ]);
+
+        $targetTenant = Tenant::where('slug', $data['tenant_slug'])
+            ->where(function ($q) use ($group): void {
+                $q->where('id', $group->id)->orWhere('parent_id', $group->id);
+            })
+            ->firstOrFail();
+
+        $attached = $this->userService->attachUser(
+            $targetTenant,
+            [
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'] ?? null,
+                'roles' => $data['roles'] ?? ['Administrador'],
+                'status' => $data['status'] ?? 'active',
+            ],
+            $user,
+        );
+
+        return response()->json(['data' => $attached->only(['id', 'name', 'email'])], 201);
     }
 }
