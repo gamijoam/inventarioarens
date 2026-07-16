@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tests de Fase 2: GroupsTree + CreateGroupDialog + CreateSpinoffDialog.
  *
  * Cubre:
@@ -21,6 +21,8 @@ const mockUseTenantGroups = vi.fn();
 const mockUseGroupSpinoffs = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
+const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
+const mockUseGroupUsers = vi.fn((_id?: number | string, _enabled?: boolean) => ({ data: [ { id: 100, name: 'Test User', email: 'test@example.com', status: 'active', tenants: [] } ], isLoading: false }));
 
 vi.mock('@/features/access/tenantGroupsApi', () => ({
   useTenantGroups: () =>
@@ -33,13 +35,18 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
       isFetching: boolean;
     },
   useGroupSpinoffs: (_id: number | string, enabled?: boolean) =>
-    mockUseGroupSpinoffs(_id, enabled) as unknown as { data: unknown[]; isLoading: boolean },
     mockUseGroupSpinoffs(_id, enabled) as unknown as {
+      data: unknown[];
+      isLoading: boolean;
+    },
+  useGroupUsers: (_id: number | string, enabled?: boolean) =>
+    mockUseGroupUsers(_id, enabled) as unknown as {
       data: unknown[];
       isLoading: boolean;
     },
   useCreateTenantGroup: () => mockUseCreateTenantGroup(),
   useCreateSpinoff: (_id: number | string) => mockUseCreateSpinoff(_id),
+  useAttachGroupUser: (_id: number | string) => mockUseAttachGroupUser(_id),
 }));
 
 vi.mock('sonner', () => ({
