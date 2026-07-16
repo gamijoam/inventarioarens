@@ -33,6 +33,7 @@ class PurchaseOrderResource extends JsonResource
             'updated_at' => $this->updated_at?->toISOString(),
             'supplier' => SupplierResource::make($this->whenLoaded('supplier')),
             'items' => PurchaseItemResource::collection($this->whenLoaded('items')),
+            'price_review_items' => $this->getAttribute('price_review_items') ?? [],
         ];
     }
 }

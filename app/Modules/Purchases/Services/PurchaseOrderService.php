@@ -107,6 +107,8 @@ class PurchaseOrderService
             }
 
             $receipts = $this->receiptItems($purchaseOrder, $data['items'] ?? null);
+            $priceReviewItems = [];
+            $priceReviewThreshold = (float) config('inventory.price_review_threshold', 5);
 
             foreach ($receipts as $receipt) {
                 /** @var PurchaseItem $item */
@@ -134,11 +136,34 @@ class PurchaseOrderService
 
                 $this->createProductUnits($item, $movement->id, $serialUnits);
 
+                $previousWac = $item->product->average_cost === null ? null : (float) $item->product->average_cost;
+                $previousBasePrice = $item->product->base_price === null ? null : (float) $item->product->base_price;
+                $previousMargin = $item->product->profit_margin === null ? null : (float) $item->product->profit_margin;
+                $newUnitCost = (float) $item->base_unit_cost;
+
                 // Recalcular WAC del producto tras cada item recibido para que
                 // `products.average_cost` refleje el costo actualizado. Idempotente
                 // y O(N movimientos) por producto, suficiente para compras normales.
                 // Si el volumen crece, mover a un Job en cola.
                 $this->valuation->recalculate($item->product);
+                $item->product->refresh();
+
+                if (
+                    $previousWac !== null
+                    && $previousWac > 0
+                    && $previousMargin !== null
+                    && abs((($newUnitCost - $previousWac) / $previousWac) * 100) >= $priceReviewThreshold
+                ) {
+                    $priceReviewItems[] = [
+                        'item_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'product_name' => $item->product->name,
+                        'previous_wac' => round($previousWac, 4),
+                        'previous_base_price' => $previousBasePrice,
+                        'new_unit_cost' => round($newUnitCost, 4),
+                        'profit_margin' => $previousMargin,
+                    ];
+                }
             }
 
             [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));
@@ -156,6 +181,7 @@ class PurchaseOrderService
             app(AccountsPayableService::class)->createForPurchase($purchaseOrder->refresh());
 
             $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+            $po->setAttribute('price_review_items', $priceReviewItems);
 
             // Emitir evento de sync para que la nube cree la entrada de stock
             // correspondiente. Solo emite items que efectivamente se recibieron
