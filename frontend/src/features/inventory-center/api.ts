@@ -716,7 +716,6 @@ export function useUpdateProductProfitMargin() {
         if ('base_price' in data) next.base_price = data.base_price;
         return next;
       });
-      void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
