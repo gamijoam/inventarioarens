@@ -19,11 +19,36 @@ class CrossTenantUserController extends Controller
     {
     }
 
+    /**
+     * Lista usuarios de un tenant.
+     *
+     * Query params:
+     *   - scope=tenant        (default): solo el tenant especifico.
+     *   - scope=organization  : si el tenant es un grupo o tiene parent, retorna
+     *                           usuarios del grupo + todos sus spinoffs.
+     *                           Solo valido para usuarios con rol "Owner" del
+     *                           grupo raiz (o de cualquier spinoff).
+     */
     public function index(Request $request, Tenant $tenant): AnonymousResourceCollection
     {
         $this->authorizePermission($request, 'tenants.view');
 
-        return TenantUserResource::collection($this->service->listUsers($tenant));
+        $scope = $request->query('scope', 'tenant');
+        if (! in_array($scope, ['tenant', 'organization'], true)) {
+            $scope = 'tenant';
+        }
+
+        if ($scope === 'organization') {
+            $user = $request->user();
+            $root = $tenant->isGroup() ? $tenant : $tenant->parent;
+            abort_unless(
+                $root !== null && $user?->isOwnerOf($root),
+                Response::HTTP_FORBIDDEN,
+                'Solo los Owners del grupo pueden ver usuarios de toda la organizacion.',
+            );
+        }
+
+        return TenantUserResource::collection($this->service->listUsers($tenant, $scope));
     }
 
     public function store(AttachUserToTenantRequest $request, Tenant $tenant): JsonResponse

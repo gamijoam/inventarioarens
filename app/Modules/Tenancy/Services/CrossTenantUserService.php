@@ -21,9 +21,34 @@ class CrossTenantUserService
     {
     }
 
-    public function listUsers(Tenant $tenant): mixed
+    /**
+     * Lista usuarios del tenant.
+     *
+     * @param  'tenant'|'organization'  $scope
+     *         - 'tenant' (default): solo usuarios del tenant especifico.
+     *         - 'organization': usuarios del grupo + todos sus spinoffs.
+     *           Solo valido si el $tenant es un grupo o si tiene parent_id.
+     */
+    public function listUsers(Tenant $tenant, string $scope = 'tenant'): mixed
     {
         $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        if ($scope === 'organization') {
+            $tenantIds = $this->resolveOrganizationTenantIds($tenant);
+
+            return User::query()
+                ->whereHas('tenants', function ($query) use ($tenantIds): void {
+                    $query->whereIn('tenant_user.tenant_id', $tenantIds);
+                })
+                ->with(['roles' => function ($query) use ($teamColumn, $tenantIds): void {
+                    $query->whereIn("roles.{$teamColumn}", $tenantIds);
+                }, 'tenants' => function ($query) use ($tenantIds): void {
+                    $query->whereIn('tenants.id', $tenantIds)
+                        ->select('tenants.id', 'tenants.name', 'tenants.slug', 'tenants.is_group');
+                }])
+                ->orderBy('name')
+                ->paginate(25);
+        }
 
         return $tenant->users()
             ->with(['roles' => function ($query) use ($teamColumn, $tenant): void {
@@ -31,6 +56,23 @@ class CrossTenantUserService
             }])
             ->orderBy('name')
             ->paginate(25);
+    }
+
+    /**
+     * Si $tenant es un grupo: retorna [group_id, spinoff_1, spinoff_2, ...].
+     * Si $tenant es un spinoff: retorna [parent_group_id, ...spinoffs del parent, tenant_id].
+     */
+    private function resolveOrganizationTenantIds(Tenant $tenant): array
+    {
+        $root = $tenant->isGroup() ? $tenant : $tenant->parent;
+        if (! $root) {
+            return [$tenant->id];
+        }
+
+        $ids = [$root->id];
+        $spinoffIds = $root->spinoffs()->pluck('id')->all();
+
+        return array_values(array_unique(array_merge($ids, $spinoffIds)));
     }
 
     /**

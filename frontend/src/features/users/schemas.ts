@@ -24,6 +24,14 @@ export const UserSchema = z.object({
   email: z.string().email(),
   status: UserStatusSchema,
   roles: z.array(RoleSummarySchema),
+  // Presente solo cuando scope=organization. Lista de tenants donde
+  // el user aparece (puede ser el grupo + sus spinoffs).
+  tenants: z.array(z.object({
+    id: z.number().int(),
+    name: z.string(),
+    slug: z.string(),
+    is_group: z.boolean().optional(),
+  })).optional(),
   created_at: z.string().nullable().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
@@ -32,6 +40,8 @@ export const UserListFiltersSchema = z.object({
   search: z.string().default(''),
   role_id: z.coerce.number().int().positive().optional(),
   status: z.enum(['all', 'active', 'inactive']).default('all'),
+  // 'tenant' = solo del tenant actual; 'organization' = grupo + spinoffs (Owner only).
+  scope: z.enum(['tenant', 'organization']).default('tenant'),
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(100).default(25),
 });

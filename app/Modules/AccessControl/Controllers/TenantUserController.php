@@ -8,6 +8,7 @@ use App\Modules\AccessControl\Requests\UpdateTenantUserRolesRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserStatusRequest;
 use App\Modules\AccessControl\Resources\TenantUserResource;
 use App\Modules\AccessControl\Services\AccessControlService;
+
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -20,11 +21,22 @@ class TenantUserController extends Controller
     {
     }
 
+    /**
+     * Lista usuarios del tenant actual.
+     *
+     * Query params:
+     *   - scope=tenant        (default): solo usuarios del tenant actual.
+     *   - scope=organization  : si el tenant es un grupo o spinoff, retorna
+     *                           usuarios del grupo + todos sus spinoffs.
+     *                           Solo valido para Owners del grupo.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorizePermission($request, 'users.view');
 
         return TenantUserResource::collection($this->service->tenantUsers()->paginate(25));
+
+        return TenantUserResource::collection($users);
     }
 
     public function store(StoreTenantUserRequest $request): JsonResponse

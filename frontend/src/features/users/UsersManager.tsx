@@ -51,15 +51,17 @@ export function UsersManager({
 }: UsersManagerProps = {}) {
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [scope, setScope] = useState<'tenant' | 'organization'>('tenant');
 
   const filters = useMemo<UserListFilters>(
     () => ({
       search: searchInput,
       status,
+      scope,
       page: 1,
       per_page: 25,
     }),
-    [searchInput, status],
+    [searchInput, status, scope],
   );
 
   const { data, isLoading, isError } = useUsers(filters);
@@ -105,6 +107,17 @@ export function UsersManager({
             <option value="all">Todos los estados</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
+          </Select>
+          <Select
+            value={scope}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+              setScope(e.target.value as 'tenant' | 'organization')
+            }
+            data-testid="users-scope-filter"
+            title="Alcance: solo tenant actual o toda la organizacion (Owner)"
+          >
+            <option value="tenant">Solo este tenant</option>
+            <option value="organization">Toda la organizacion</option>
           </Select>
           {onCreate && (
             <Can I={PERMISSIONS.USERS_CREATE}>
@@ -229,6 +242,31 @@ function useColumns(
       columnHelper.accessor('email', {
         header: 'Email',
         cell: (info) => <span className="text-text-muted">{info.getValue()}</span>,
+      }),
+      // Solo presente cuando scope=organization.
+      columnHelper.accessor('tenants', {
+        id: 'tenants',
+        header: 'Empresas',
+        enableSorting: false,
+        cell: (info) => {
+          const tenants = info.getValue();
+          if (!tenants || tenants.length === 0) {
+            return <span className="text-xs text-text-muted">-</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {tenants.map((t) => (
+                <Badge
+                  key={t.id}
+                  variant={t.is_group ? 'default' : 'info'}
+                  className="text-[10px]"
+                >
+                  {t.slug}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('roles', {
         header: 'Roles',

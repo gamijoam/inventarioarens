@@ -282,7 +282,7 @@ describe('CreateSpinoffDialog', () => {
     mockMutateAsync.mockReset();
   });
 
-  it('useTenantGroups extrae el array del body correctamente (no espera un objeto .data)', async () => {
+  it('useTenantGroups extrae el array del body correctamente (no espera un objeto .data)', () => {
     // BUG FIX: getOne() retorna el array directamente, no un objeto { data: [...] }.
     // El codigo anterior hacia `Array.isArray(response?.data)` sobre un array,
     // lo cual siempre retornaba undefined -> items = [] -> empty state.
