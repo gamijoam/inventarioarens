@@ -707,10 +707,14 @@ export function useUpdateProductProfitMargin() {
         { profit_margin },
       ),
     onSuccess: (response, vars) => {
-      const data = response.data;
+      const data = response?.data;
+      if (data == null) return;
       qc.setQueryData<unknown>(productKeys.detail(vars.id), (prev: unknown) => {
         if (prev == null || typeof prev !== 'object') return prev;
-        return { ...(prev as Record<string, unknown>), profit_margin: data.profit_margin, base_price: data.base_price };
+        const next: Record<string, unknown> = { ...(prev as Record<string, unknown>) };
+        if ('profit_margin' in data) next.profit_margin = data.profit_margin;
+        if ('base_price' in data) next.base_price = data.base_price;
+        return next;
       });
       void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });

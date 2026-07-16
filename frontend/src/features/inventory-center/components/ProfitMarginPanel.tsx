@@ -82,12 +82,13 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
     }
     setSaving(true);
     try {
-      await updateMargin.mutateAsync({ id: product.id, profit_margin: inputNum });
-      toast.success(
-        wac != null
-          ? 'Margen guardado. El precio de venta se recalculo automaticamente.'
-          : 'Margen guardado. El precio se recalculara cuando registres una compra.',
-      );
+      const res = await updateMargin.mutateAsync({ id: product.id, profit_margin: inputNum });
+      const newPrice = (res as { data?: { base_price?: number | null } } | undefined)?.data?.base_price;
+      if (newPrice != null) {
+        toast.success('Margen guardado. Precio recalculado: USD ' + Number(newPrice).toFixed(2));
+      } else {
+        toast.success('Margen guardado. Aun no hay costo registrado, el precio se recalculara al recibir la primera compra.');
+      }
       setDialogOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar el margen.');
