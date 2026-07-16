@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Modules\Tenancy\Models\Tenant;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use App\Modules\Auth\Models\AuthToken;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -56,10 +56,64 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the attributes that should be cast.
+     * Determina si el user es Owner de un grupo (jerarquia explicita).
      *
-     * @return array<string, string>
+     * Logica:
+     *  1. El tenant debe ser un grupo (is_group=true).
+     *  2. El user debe ser member active del grupo (status='active' en pivote).
+     *  3. El user debe tener CUALQUIER rol dentro del grupo (no necesariamente
+     *     "Owner"). Esto es para back-compat con codigo legacy que usaba
+     *     roles con nombres custom (Owner-{uniqid}, etc).
+     *
+     * Para verificacion estricta del rol "Owner", usar isStrictOwnerOf().
      */
+    public function isOwnerOf(Tenant $group): bool
+    {
+        if (! $group->isGroup()) {
+            return false;
+        }
+
+        if (! $this->belongsToTenant($group)) {
+            return false;
+        }
+
+        return $this->hasAnyRoleInGroup($group);
+    }
+
+    /**
+     * Version estricta: el user debe tener especificamente el rol "Owner" del grupo.
+     */
+    public function isStrictOwnerOf(Tenant $group): bool
+    {
+        if (! $this->isOwnerOf($group)) {
+            return false;
+        }
+
+        $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        return DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_type', self::class)
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('roles.name', 'Owner')
+            ->where('roles.tenant_id', $group->id)
+            ->where('roles.guard_name', 'web')
+            ->exists();
+    }
+
+    private function hasAnyRoleInGroup(Tenant $group): bool
+    {
+        $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        return DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_type', self::class)
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('roles.tenant_id', $group->id)
+            ->where('roles.guard_name', 'web')
+            ->exists();
+    }
+
     protected function casts(): array
     {
         return [

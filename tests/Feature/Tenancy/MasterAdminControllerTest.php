@@ -69,9 +69,8 @@ class MasterAdminControllerTest extends TestCase
 
     public function test_show_group_404_for_spinoff(): void
     {
-        $spinoff = Tenant::create(['name' => 'X', 'slug' => 'x', 'status' => 'active', 'parent_id' => null]);
         $realGroup = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active', 'parent_id' => null]);
-        $spinoff->update(['parent_id' => $realGroup->id]);
+        $spinoff = Tenant::create(['name' => 'X', 'slug' => 'x', 'status' => 'active', 'parent_id' => $realGroup->id, 'is_group' => false]);
 
         $token = $this->makePlatformAdminToken();
 

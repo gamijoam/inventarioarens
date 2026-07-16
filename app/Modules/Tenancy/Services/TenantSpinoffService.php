@@ -57,6 +57,7 @@ class TenantSpinoffService
                     'status' => 'active',
                     'plan' => $data['plan'] ?? $group->plan,
                     'parent_id' => $group->id,
+                    'is_group' => false,
                 ]);
 
                 $tenantManager->set($tenant);
@@ -118,6 +119,7 @@ class TenantSpinoffService
     public function listSpinoffs(Tenant $group): mixed
     {
         return Tenant::query()
+            ->spinoffs()
             ->where('parent_id', $group->id)
             ->withCount('users')
             ->orderBy('name')

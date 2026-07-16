@@ -151,14 +151,14 @@ class MasterController extends Controller
         $totals = [
             'platform_admins' => User::query()->where('is_platform_admin', true)->count(),
             'total_tenants' => Tenant::query()->count(),
-            'total_groups' => Tenant::query()->whereNull('parent_id')->count(),
-            'total_spinoffs' => Tenant::query()->whereNotNull('parent_id')->count(),
+            'total_groups' => Tenant::query()->groups()->count(),
+            'total_spinoffs' => Tenant::query()->spinoffs()->count(),
             'active_tenants' => Tenant::query()->where('status', 'active')->count(),
             'inactive_tenants' => Tenant::query()->where('status', 'inactive')->count(),
         ];
 
         $byPlan = Tenant::query()
-            ->whereNull('parent_id')
+            ->groups()
             ->selectRaw('plan, COUNT(*) AS total')
             ->groupBy('plan')
             ->pluck('total', 'plan')

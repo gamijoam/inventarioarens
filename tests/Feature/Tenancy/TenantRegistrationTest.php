@@ -58,7 +58,8 @@ class TenantRegistrationTest extends TestCase
         ];
 
         $response = $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', $payload)
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', array_merge($payload, ['parent_group_id' => $actor['host_tenant']->id]))
             ->assertCreated()
             ->json();
 
@@ -81,8 +82,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Empresa Permisos',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Empresa Permisos',
                 'slug' => 'empresa-permisos',
                 'admin' => ['name' => 'Admin', 'email' => 'admin@permisos.test', 'password' => 'Secret123'],
             ])
@@ -107,8 +108,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Empresa Login',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Empresa Login',
                 'slug' => 'empresa-login',
                 'admin' => ['name' => 'Admin', 'email' => 'login@new.test', 'password' => 'Secret123'],
             ])
@@ -148,8 +149,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Empresa Minima',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Empresa Minima',
                 'slug' => 'empresa-minima',
                 'admin' => ['name' => 'Admin', 'email' => 'min@ima.test'],
             ])
@@ -166,8 +167,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Solo Branch',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Solo Branch',
                 'slug' => 'solo-branch',
                 'admin' => ['name' => 'A', 'email' => 'a@b.test'],
                 'branch' => ['name' => 'B', 'code' => 'B01'],
@@ -184,8 +185,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'WH sin branch',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'WH sin branch',
                 'slug' => 'wh-sin-branch',
                 'admin' => ['name' => 'A', 'email' => 'a@b.test'],
                 'warehouse' => ['name' => 'WH', 'code' => 'W01'],
@@ -201,8 +202,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Sin admin',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Sin admin',
                 'slug' => 'sin-admin',
                 'admin' => ['name' => 'A'],
             ])
@@ -215,8 +216,8 @@ class TenantRegistrationTest extends TestCase
         $actor = $this->makeActorWithToken(['tenants.create']);
 
         $this->withHeader('Authorization', 'Bearer '.$actor['token'])
-            ->postJson('/api/tenants', [
-                'name' => 'Audit Test',
+            ->withHeader('X-Tenant', 'host')
+            ->postJson('/api/tenants', ['parent_group_id' => $actor['host_tenant']->id, 'name' => 'Audit Test',
                 'slug' => 'audit-test',
                 'admin' => ['name' => 'A', 'email' => 'audit@t.test'],
             ])
@@ -229,7 +230,7 @@ class TenantRegistrationTest extends TestCase
 
     private function makeActorWithToken(array $permissions): array
     {
-        $hostTenant = Tenant::create(['name' => 'Host', 'slug' => 'host', 'status' => 'active']);
+        $hostTenant = Tenant::create(['name' => 'Host', 'slug' => 'host', 'status' => 'active', 'is_group' => true]);
 
         $user = User::factory()->create(['password' => 'secret123']);
         $user->tenants()->attach($hostTenant, ['status' => 'active']);

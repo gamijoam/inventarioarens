@@ -50,6 +50,7 @@ class TenantGroupService
                     'status' => 'active',
                     'plan' => $data['plan'] ?? 'enterprise',
                     'parent_id' => null,
+                    'is_group' => true,
                 ]);
 
                 $tenantManager->set($tenant);
@@ -108,7 +109,7 @@ class TenantGroupService
     public function listGroups(): mixed
     {
         return Tenant::query()
-            ->whereNull('parent_id')
+            ->groups()
             ->withCount(['children', 'users'])
             ->orderBy('name')
             ->paginate(25);

@@ -218,7 +218,7 @@ class GroupSpinoffApiTest extends TestCase
 
         setPermissionsTeamId($group->id);
         $role = \Spatie\Permission\Models\Role::create([
-            'name' => 'Owner-'.uniqid(),
+            'name' => 'Owner',
             'guard_name' => 'web',
             config('permission.column_names.team_foreign_key', 'team_id') => $group->id,
         ]);

@@ -118,9 +118,46 @@ INVENTARIOARENS/
 - **Middleware** (en orden de ejecución):
   1. `api.auth` (`AuthenticateApiToken`) — valida `Bearer` token, hashea, verifica no expirado/revocado.
   2. `tenant` (`ResolveTenant`) — resuelve tenant desde `X-Tenant` header → route param → `?tenant=` → dominio. **Valida que el token pertenece a ese tenant** (sino 403).
-- **Spatie Permission** con `teams = tenant_id`: un mismo email tiene roles distintos por empresa.
-- **Llaves únicas compuestas**: `['tenant_id', 'sku']`, `['tenant_id', 'document_type', 'document_number']`, etc.
-- **Cross-tenant por diseño** (sin scope): `tenants`, `tenant_user`, `inventory_transfer_requests`, `auth_tokens`.
+- **Spatie Permission** con `teams = tenant_id` (la columna se llama `tenant_id` en `roles`, NO `team_id`; ver `config/permission.php`): un mismo email tiene roles distintos por empresa.
+
+### 4.1 Jerarquía de tenants: grupos vs empresas
+
+A partir de la Fase 1 (jul-2026), los tenants forman una jerarquía explicita:
+
+- **Tenant Group** (`is_group = true`, `parent_id = null`): contenedor de una o mas empresas.
+  - Tiene su propio `tenant_id` (puede operar como empresa si se quiere).
+  - Su Owner (rol "Owner" con team_id = group.id) puede crear empresas hijas via `POST /api/tenant-groups/{group}/tenants`.
+- **Tenant Spinoff** (`is_group = false`, `parent_id = group.id`): empresa hija del grupo.
+  - Su admin (rol "Administrador" con team_id = spinoff.id) opera esa empresa.
+- **Tenant standalone**: ya NO existe como concepto separado. Toda empresa es spinoff de un grupo. Para crear la primera empresa de un grupo nuevo, usar `POST /api/tenant-groups` (self-serve) que crea grupo + tenant inicial en una sola transaccion.
+
+**Endpoints clave**:
+
+- `POST /api/tenant-groups` — self-serve: crea grupo + tenant inicial. Asigna Owner al grupo y Administrador a la empresa al admin del payload.
+- `GET  /api/tenant-groups` — lista grupos donde el user autenticado es Owner.
+- `POST /api/tenant-groups/{group}/tenants` — crea un spinoff (empresa hija) del grupo. Requiere que el user sea Owner del grupo.
+- `POST /api/master/groups` — solo platform admins: crea un grupo (sin tenant inicial).
+- `POST /api/master/groups/{group}/tenants` — solo platform admins: crea spinoff bajo un grupo.
+- `POST /api/tenants` — crea un spinoff dentro de un grupo (requiere `parent_group_id` en el payload, validacion en `StoreTenantRequest`).
+
+**Reglas del modelo** (`app/Modules/Tenancy/Models/Tenant.php`):
+
+- `isGroup()` retorna `is_group === true` (NO se infiere de `parent_id IS NULL`).
+- `isSpinoff()` retorna `!isGroup() && parent_id !== null`.
+- `scopeGroups()` y `scopeSpinoffs()` para queries globales.
+- `boot()` auto-deriva `is_group` desde `parent_id` al crear (consistente con la convencion).
+- `Tenant::isOwnedBy(User)` delega a `User::isOwnerOf(group)` que verifica membresia + CUALQUIER rol dentro del grupo (back-compat). Para rol estricto usar `User::isStrictOwnerOf(group)`.
+- **Migracion**: `2026_07_16_110453_add_is_group_to_tenants_table` (backfill: tenants con `parent_id = null` se marcaron `is_group = true`).
+
+**Implicaciones para codigo nuevo**:
+
+- NO crear empresas sin `parent_group_id`. Toda empresa pertenece a un grupo.
+- NO usar `whereNull('parent_id')` para detectar grupos — usar `where('is_group', true)` o el scope `Tenant::groups()`.
+- Para que un user sea "Owner real" del grupo, usar `User::isOwnerOf(group)`.
+
+**Cross-tenant por diseño** (sin scope): `tenants`, `tenant_user`, `inventory_transfer_requests`, `auth_tokens`.
+
+
 
 **Implicaciones al escribir código**:
 - Cualquier modelo nuevo de negocio DEBE usar `use BelongsToTenant`.
