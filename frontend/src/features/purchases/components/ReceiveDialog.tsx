@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
 import { usePurchase, useReceivePurchase } from '@/features/purchases/api';
+import { PriceReviewDialog, type PriceReviewItem } from '@/features/purchases/components/PriceReviewDialog';
 import type { Purchase } from '@/features/purchases/schemas';
 import { formatMoney } from '@/lib/money';
 import {
@@ -90,6 +91,8 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
   const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
+  const [reviewItems, setReviewItems] = useState<PriceReviewItem[] | null>(null);
+  const [lastResult, setLastResult] = useState<{ data?: { price_review_items?: PriceReviewItem[] } } | null>(null);
 
   // Cuando llega el purchase, inicializar el state local.
   useEffect(() => {
@@ -154,10 +157,16 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
 
     setSubmitting(true);
     try {
-      const result = await receive.mutateAsync({ id: purchaseId, values: payload });
-      toast.success('Mercancia recibida. Stock actualizado.');
-      onReceived?.(result);
-      onOpenChange(false);
+      const result = (await receive.mutateAsync({ id: purchaseId, values: payload })) as { data?: { price_review_items?: PriceReviewItem[] } };
+      const items = result.data?.price_review_items ?? [];
+      setLastResult(result);
+      if (items.length > 0) {
+        setReviewItems(items);
+      } else {
+        toast.success('Mercancia recibida. Stock actualizado.');
+        onReceived?.(lastResult as unknown as Parameters<NonNullable<typeof onReceived>>[0]);
+        onOpenChange(false);
+      }
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message);
@@ -241,6 +250,24 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
           </DialogFooter>
         </form>
       </DialogContent>
+      {reviewItems && (
+        <PriceReviewDialog
+          items={reviewItems}
+          open={true}
+          onResolved={() => {
+            setReviewItems(null);
+            toast.success('Precios de venta revisados.');
+            onReceived?.(lastResult as unknown as Parameters<NonNullable<typeof onReceived>>[0]);
+            onOpenChange(false);
+          }}
+          onOpenChange={(o) => {
+            if (!o) {
+              setReviewItems(null);
+              onOpenChange(false);
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 }

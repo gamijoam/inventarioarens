@@ -23,7 +23,7 @@ import { cn } from '@/lib/cn';
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
 import { PricesEditor } from '@/features/inventory-center/components/PricesEditor';
 import { ProductRelations } from '@/features/inventory-center/components/ProductRelations';
-import { WacDisplay } from '@/features/inventory-center/components/WacDisplay';
+import { ProfitMarginPanel } from '@/features/inventory-center/components/ProfitMarginPanel';
 import { KardexTab } from '@/features/inventory-center/components/KardexTab';
 import { AuditsTab } from '@/features/inventory-center/components/AuditsTab';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
@@ -198,7 +198,7 @@ function ProductDetailPage() {
           </Card>
 
           <ProductRelations product={product} />
-          <WacDisplay product={product} />
+          <ProfitMarginPanel product={product} />
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">

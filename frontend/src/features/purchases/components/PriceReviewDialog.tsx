@@ -73,7 +73,7 @@ export function PriceReviewDialog({
     try {
       const newMargin = editingMargin[item.product_id];
       const args = newMargin != null
-        ? { id: item.product_id, profit_margin: newMargin as number }
+        ? { id: item.product_id, profit_margin: newMargin }
         : { id: item.product_id };
       const res = (await recalc.mutateAsync(args)) as { data: { base_price: number } };
       setResults((r) => ({
@@ -93,12 +93,12 @@ export function PriceReviewDialog({
     }
   }
 
-  async function handleKeep(item: PriceReviewItem) {
+  function handleKeep(item: PriceReviewItem) {
     setResults((r) => ({
       ...r,
       [item.product_id]: { product_id: item.product_id, decision: 'keep' },
     }));
-    toast.success(`${item.product_name}: precio de venta mantenido.`);
+    toast.success(`' + item.product_name + ': precio de venta mantenido.`);
   }
 
   async function handleUpdateMargin(item: PriceReviewItem, newMargin: number) {
