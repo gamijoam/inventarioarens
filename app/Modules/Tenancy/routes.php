@@ -47,11 +47,14 @@ Route::middleware(['api.auth'])->group(function (): void {
     Route::get('tenant-groups/{group}/spinoffs', [TenantGroupController::class, 'spinoffs']);
 });
 
-// POST spinoffs: solo Owners estrictos.
+// POST spinoffs + GET/POST users del grupo: solo Owners estrictos
+// (todos los endpoints usan el mismo grupo de middleware).
 Route::middleware(['api.auth', EnsureGroupOwner::class])
     ->prefix('tenant-groups/{group}')
     ->group(function (): void {
         Route::post('tenants', [TenantGroupController::class, 'createSpinoff']);
+        Route::get('users', [TenantGroupController::class, 'users']);
+        Route::post('users', [TenantGroupController::class, 'attachUser']);
     });
 
 /**
