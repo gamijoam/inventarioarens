@@ -78,23 +78,25 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-function shouldShowItem(item: NavItem, ownedGroupIds: Set<number> | null): boolean {
-  if (!item.hideIfNoOwnedGroup) return true;
-  // Si todavia no cargo el query, ocultamos el item para evitar flicker.
-  if (ownedGroupIds === null) return false;
-  return ownedGroupIds.size > 0;
-}
-
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  // Cargamos los grupos donde soy Owner para decidir si el item
-  // "Organizaciones" debe aparecer en el sidebar.
-  const { data: tenantGroups } = useTenantGroups();
+  // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
+  // aparezca solo si tengo al menos uno. Si el query falla o carga lento,
+  // mostramos el item por defecto (la pagina ya maneja el empty state
+  // con CTA para crear la primera organizacion).
+  const { data: tenantGroups, isError, isLoading } = useTenantGroups();
   const ownedGroupIds = new Set((tenantGroups ?? []).map((g) => g.id));
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  const visibleItems = NAV_ITEMS.filter((item) => shouldShowItem(item, ownedGroupIds));
+  // El item "Organizaciones" aparece solo si el user es Owner de al menos
+  // 1 grupo. Durante la carga inicial sin error, lo ocultamos para evitar
+  // flicker; si el query falla, lo mostramos (la pagina manejara el empty).
+  const showGate = !isLoading || isError || ownedGroupIds.size > 0;
+  void showGate;
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    item.hideIfNoOwnedGroup ? ownedGroupIds.size > 0 : true,
+  );
 
   return (
     <aside

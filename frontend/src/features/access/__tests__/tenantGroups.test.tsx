@@ -282,7 +282,7 @@ describe('CreateSpinoffDialog', () => {
     mockMutateAsync.mockReset();
   });
 
-  it('muestra banner con nombre y slug del grupo padre', async () => {
+  it('muestra banner con nombre y slug del grupo padre', () => {
     mockMutateAsync.mockResolvedValue({ data: {} });
     const group = {
       id: 1,
