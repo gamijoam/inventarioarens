@@ -89,13 +89,16 @@ export function Sidebar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  // El item "Organizaciones" aparece solo si el user es Owner de al menos
-  // 1 grupo. Durante la carga inicial sin error, lo ocultamos para evitar
-  // flicker; si el query falla, lo mostramos (la pagina manejara el empty).
-  const showGate = !isLoading || isError || ownedGroupIds.size > 0;
-  void showGate;
+  // El item "Organizaciones" aparece si:
+  //   - El query completo Y tengo grupos -> mostrar.
+  //   - El query completo Y NO tengo grupos -> ocultar.
+  //   - El query fallo -> mostrar (la pagina /access/groups maneja el empty).
+  //   - El query esta loading -> mostrar por defecto (mejor flicker
+  //     positivo que tener el item invisible hasta que cargue).
+  const loadedOwnedGroups = !isLoading && !isError && tenantGroups !== undefined;
+  const shouldHideOrgItem = loadedOwnedGroups && ownedGroupIds.size === 0;
   const visibleItems = NAV_ITEMS.filter((item) =>
-    item.hideIfNoOwnedGroup ? ownedGroupIds.size > 0 : true,
+    item.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
   );
 
   return (
