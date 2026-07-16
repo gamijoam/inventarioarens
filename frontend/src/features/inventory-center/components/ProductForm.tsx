@@ -270,6 +270,9 @@ export function ProductForm({
           <Field name="base_price" label="Precio base" error={form.formState.errors.base_price?.message}>
             <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
           </Field>
+          <Field name="profit_margin" label="Margen de ganancia (%)" error={form.formState.errors.profit_margin?.message}>
+            <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
+          </Field>
           <Field name="sale_currency" label="Moneda de venta">
             <Select {...form.register('sale_currency')}>
               {SALE_CURRENCIES.map((c) => (

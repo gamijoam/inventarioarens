@@ -20,8 +20,6 @@ import {
   useUpdateProductProfitMargin,
 } from '@/features/inventory-center/api';
 import { formatMoney } from '@/lib/money';
-import { Can } from '@/components/permissions/Can';
-import { PERMISSIONS } from '@/permissions/constants';
 import type { Product } from '../schemas';
 
 export interface ProfitMarginPanelProps {
@@ -124,37 +122,33 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-2xl font-semibold tabular-nums">{marginNum.toFixed(2)}%</span>
-                  <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setMargin(String(marginNum));
-                        setEditing(true);
-                      }}
-                      data-testid="profit-margin-edit"
-                    >
-                      Editar
-                    </Button>
-                  </Can>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setMargin(String(marginNum));
+                      setEditing(true);
+                    }}
+                    data-testid="profit-margin-edit"
+                  >
+                    Editar
+                  </Button>
                 </div>
               )
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-text-muted">Sin margen definido</span>
-                <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setMargin('25');
-                      setEditing(true);
-                    }}
-                    data-testid="profit-margin-add"
-                  >
-                    Definir margen
-                  </Button>
-                </Can>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMargin('25');
+                    setEditing(true);
+                  }}
+                  data-testid="profit-margin-add"
+                >
+                  Definir margen
+                </Button>
               </div>
             )}
           </div>
@@ -166,18 +160,16 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
               Recalcular el precio de venta aplicara el margen al costo promedio
               actual (WAC) sin redondeo. El cliente puede redondear despues.
             </p>
-            <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleRecalculate}
-                loading={recalculating}
-                data-testid="profit-margin-recalculate"
-                className="mt-2"
-              >
-                <Calculator className="size-3.5" /> Recalcular ahora
-              </Button>
-            </Can>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleRecalculate}
+              loading={recalculating}
+              data-testid="profit-margin-recalculate"
+              className="mt-2"
+            >
+              <Calculator className="size-3.5" /> Recalcular ahora
+            </Button>
           </div>
         )}
 
