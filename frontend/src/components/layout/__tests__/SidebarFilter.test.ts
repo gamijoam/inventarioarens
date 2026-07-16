@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-type QueryState = {
+interface QueryState {
   data: unknown[] | undefined;
   isLoading: boolean;
   isError: boolean;

@@ -143,11 +143,12 @@ export function useTenantGroups() {
   return useQuery({
     queryKey: groupsKey,
     queryFn: async (): Promise<TenantGroup[]> => {
-      const response = (await getOne<{ data: unknown[] }>('/tenant-groups')) as {
-        data?: unknown[];
-      };
-      const items = Array.isArray(response?.data) ? response.data : [];
-      return z.array(TenantGroupSchema).parse(items);
+      // BUG FIX: getOne() YA extrae `response.data.data` del body envuelto,
+      // asi que retorna el array directamente (no un objeto con `.data`).
+      // Antes el codigo hacia `Array.isArray(response?.data)` sobre un array,
+      // lo cual retornaba undefined y el query devolvia [] siempre.
+      const items = await getOne<unknown[]>('/tenant-groups');
+      return z.array(TenantGroupSchema).parse(Array.isArray(items) ? items : []);
     },
   });
 }
