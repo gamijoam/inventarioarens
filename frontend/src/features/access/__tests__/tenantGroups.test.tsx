@@ -282,6 +282,26 @@ describe('CreateSpinoffDialog', () => {
     mockMutateAsync.mockReset();
   });
 
+  it('muestra banner con nombre y slug del grupo padre', async () => {
+    mockMutateAsync.mockResolvedValue({ data: {} });
+    const group = {
+      id: 1,
+      name: 'Mi Grupo',
+      slug: 'mi-grupo',
+      status: 'active',
+      is_owner: true,
+    };
+    renderWithProviders(
+      <CreateSpinoffDialog open onOpenChange={vi.fn()} group={group} onCreated={vi.fn()} />,
+    );
+
+    const banner = screen.getByTestId('spinoff-parent-banner');
+    expect(banner).toBeInTheDocument();
+    expect(banner.textContent).toContain('Mi Grupo');
+    expect(banner.textContent).toContain('mi-grupo');
+    expect(banner.textContent).toContain('id: 1');
+  });
+
   it('envia payload al endpoint del grupo', async () => {
     mockMutateAsync.mockResolvedValue({
       data: { id: 10, name: 'Sucursal Caracas', slug: 'caracas', status: 'active' },

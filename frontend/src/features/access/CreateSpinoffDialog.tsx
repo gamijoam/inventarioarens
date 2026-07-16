@@ -102,10 +102,32 @@ export function CreateSpinoffDialog({
             <Building2 className="size-4" /> Agregar empresa a {group.name}
           </DialogTitle>
           <DialogDescription>
-            Esta empresa quedara como spinoff de <strong>{group.name}</strong>. Tu como
-            Owner del grupo seras Administrador de esta empresa tambien.
+            Esta empresa quedara como spinoff (hija) del grupo{' '}
+            <strong className="font-mono">{group.name}</strong>{' '}
+            <span className="font-mono text-text-muted">({group.slug})</span>.
+            Tu como Owner del grupo seras Administrador de esta empresa tambien.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Banner explicito de a que grupo pertenece esta empresa, para evitar
+            confusiones al crear spinoffs (bug: parent_id mal asignado). */}
+        <div
+          className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs"
+          data-testid="spinoff-parent-banner"
+          role="status"
+        >
+          <Building2 className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Empresa nueva -&gt; Grupo: {group.name}</p>
+            <p className="mt-0.5 font-mono text-text-muted">
+              slug grupo: {group.slug} · id: {group.id}
+            </p>
+            <p className="mt-1 text-text-secondary">
+              Si este NO es el grupo al que pertenece la empresa, cierra este dialog y
+              abrielo desde el grupo correcto.
+            </p>
+          </div>
+        </div>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <fieldset className="space-y-3">
