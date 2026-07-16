@@ -61,6 +61,7 @@ class UpdateProductRequest extends FormRequest
             ],
 
             'base_price' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'profit_margin' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'lte:999.99'],
             'min_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'max_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'reorder_quantity' => ['sometimes', 'nullable', 'numeric', 'gte:0'],

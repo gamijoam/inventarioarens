@@ -61,6 +61,7 @@ class StoreProductRequest extends FormRequest
             ],
 
             'base_price' => ['nullable', 'numeric', 'gte:0'],
+            'profit_margin' => ['nullable', 'numeric', 'gte:0', 'lte:999.99'],
             'min_stock' => ['nullable', 'numeric', 'gte:0'],
             'max_stock' => ['nullable', 'numeric', 'gte:0'],
             'reorder_quantity' => ['nullable', 'numeric', 'gte:0'],
