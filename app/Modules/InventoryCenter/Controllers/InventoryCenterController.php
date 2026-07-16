@@ -139,7 +139,7 @@ class InventoryCenterController extends Controller
     /**
      * POST /api/inventory-center/products/{product}/recalculate-price
      *
-     * Recalcula el base_price = average_cost * (1 + profit_margin / 100).
+     * Recalcula el base_price = last_purchase_cost * (1 + profit_margin / 100).
      * Acepta `profit_margin` opcional en el body para override y guardar.
      */
     public function recalculateProductPrice(
@@ -157,7 +157,7 @@ class InventoryCenterController extends Controller
                 'product_id' => $product->id,
                 'base_price' => $result['base_price'],
                 'profit_margin' => $result['profit_margin'],
-                'average_cost' => $result['wac'],
+                'last_purchase_cost' => $result['last_purchase_cost'],
             ],
         ]);
     }

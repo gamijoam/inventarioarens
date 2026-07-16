@@ -689,7 +689,7 @@ export function useRecalculateProductPrice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, profit_margin }: { id: number; profit_margin?: number | null }) =>
-      postOne<{ profit_margin?: number | null }, { data: { product_id: number; base_price: number; profit_margin: number; average_cost: number } }>(
+      postOne<{ profit_margin?: number | null }, { data: { product_id: number; base_price: number; profit_margin: number; last_purchase_cost: number } }>(
         `/inventory-center/products/${id}/recalculate-price`,
         profit_margin != null ? { profit_margin } : {},
       ),

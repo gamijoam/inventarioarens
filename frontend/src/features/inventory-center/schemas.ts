@@ -185,6 +185,7 @@ export const StoreProductSchema = z
     tag_ids: z.array(z.number().int().positive()).default([]),
     base_price: optionalNumber(0),
     profit_margin: optionalNumber(0),
+    last_purchase_cost: optionalNumber(0),
     sale_currency: z.enum(SALE_CURRENCIES).default('USD'),
     sale_exchange_rate_type_id: optionalNumber(1),
     min_stock: optionalNumber(0),
@@ -398,6 +399,7 @@ export const ProductSchema = z.object({
   // para tolerancia (algunos endpoints legacy pueden enviar string).
   base_price: z.union([z.number(), z.string()]).nullable().optional(),
   profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
+  last_purchase_cost: z.union([z.number(), z.string()]).nullable().optional(),
   sale_currency: z.enum(SALE_CURRENCIES).nullable().optional(),
   sale_exchange_rate_type_id: z.number().int().nullable().optional(),
   sale_exchange_rate_type: z

@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'max_stock',
     'reorder_quantity',
     'average_cost',
+    'last_purchase_cost',
     'image_url',
     'warranty_policy_id',
     'is_active',
@@ -74,6 +75,7 @@ class Product extends Model
             'max_stock' => 'decimal:4',
             'reorder_quantity' => 'decimal:4',
             'average_cost' => 'decimal:4',
+            'last_purchase_cost' => 'decimal:4',
             'track_stock' => 'boolean',
             'is_active' => 'boolean',
         ];

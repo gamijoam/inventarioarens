@@ -291,12 +291,12 @@ class ProductController extends Controller
             if (
                 array_key_exists('profit_margin', $data)
                 && $product->profit_margin !== null
-                && $product->average_cost !== null
+                && $product->last_purchase_cost !== null
                 && ! array_key_exists('base_price', $data)
             ) {
-                $wac = (float) $product->average_cost;
+                $cost = (float) $product->last_purchase_cost;
                 $margin = (float) $product->profit_margin;
-                $product->base_price = round($wac * (1 + ($margin / 100)), 2);
+                $product->base_price = round($cost * (1 + ($margin / 100)), 2);
                 $product->save();
                 $data['base_price'] = $product->base_price;
             }

@@ -136,6 +136,13 @@ class PurchaseOrderService
 
                 $this->createProductUnits($item, $movement->id, $serialUnits);
 
+                // Guardar el costo de esta compra como "ultimo costo de compra".
+                // Este es el input que usa la formula de precio de venta:
+                //   base_price = last_purchase_cost * (1 + profit_margin / 100)
+                // (NO usamos el WAC para el precio de venta, solo para reportes).
+                $item->product->last_purchase_cost = round((float) $item->base_unit_cost, 4);
+                $item->product->save();
+
                 $previousWac = $item->product->average_cost === null ? null : (float) $item->product->average_cost;
                 $previousBasePrice = $item->product->base_price === null ? null : (float) $item->product->base_price;
                 $previousMargin = $item->product->profit_margin === null ? null : (float) $item->product->profit_margin;
@@ -149,28 +156,29 @@ class PurchaseOrderService
                 $item->product->refresh();
 
                 if (
-                    $previousWac !== null
-                    && $previousWac > 0
-                    && $previousMargin !== null
-                    && abs((($newUnitCost - $previousWac) / $previousWac) * 100) >= $priceReviewThreshold
+                    $previousMargin !== null
+                    && $previousBasePrice !== null
+                    && $previousBasePrice > 0
+                    && abs((($newUnitCost - ($previousBasePrice / (1 + ($previousMargin / 100)))) / ($previousBasePrice / (1 + ($previousMargin / 100)))) * 100) >= $priceReviewThreshold
                 ) {
                     $priceReviewItems[] = [
                         'item_id' => $item->id,
                         'product_id' => $item->product_id,
                         'product_name' => $item->product->name,
-                        'previous_wac' => round($previousWac, 4),
+                        'previous_wac' => round($previousWac ?? 0, 4),
                         'previous_base_price' => $previousBasePrice,
                         'new_unit_cost' => round($newUnitCost, 4),
                         'profit_margin' => $previousMargin,
                     ];
                 }
 
-                // Recalcular el base_price automaticamente si el producto tiene
-                // margen definido. Asi el precio de venta refleja el nuevo WAC
-                // sin esperar a que el usuario abra el PriceReviewDialog.
-                $newWac = $item->product->average_cost === null ? null : (float) $item->product->average_cost;
-                if ($newWac !== null && $item->product->profit_margin !== null) {
-                    $newBase = round($newWac * (1 + ((float) $item->product->profit_margin / 100)), 2);
+                // Recalcular el base_price automaticamente usando el costo de
+                // esta compra (NO el WAC). El WAC se sigue recalculando aparte
+                // para reportes de margen promedio; el precio de venta refleja
+                // el costo real de la ultima compra, que es lo que el usuario
+                // espera ver en el POS y al vender.
+                if ($item->product->profit_margin !== null) {
+                    $newBase = round($newUnitCost * (1 + ((float) $item->product->profit_margin / 100)), 2);
                     if ((float) $item->product->base_price !== $newBase) {
                         $item->product->base_price = $newBase;
                         $item->product->save();

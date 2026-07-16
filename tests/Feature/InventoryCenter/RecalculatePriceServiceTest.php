@@ -45,13 +45,13 @@ class RecalculatePriceServiceTest extends TestCase
             'track_stock' => true,
             'base_price' => 100.00,
             'profit_margin' => 25.00,
-            'average_cost' => 80.00,
+            'last_purchase_cost' => 80.00,
             'sale_currency' => Product::CURRENCY_USD,
             'is_active' => true,
         ]);
     }
 
-    public function test_recalculate_uses_wac_and_margin_without_rounding(): void
+    public function test_recalculate_uses_last_purchase_cost_and_margin_without_rounding(): void
     {
         $service = app(RecalculatePriceService::class);
 
@@ -60,7 +60,7 @@ class RecalculatePriceServiceTest extends TestCase
         // Formula: 80 * (1 + 25/100) = 100.00 (sin redondeo psicologico).
         $this->assertEquals(100.00, $result['base_price']);
         $this->assertEquals(25.0, $result['profit_margin']);
-        $this->assertEquals(80.0, $result['wac']);
+        $this->assertEquals(80.0, $result['last_purchase_cost']);
         $this->assertEquals(100.00, (float) $this->product->fresh()->base_price);
     }
 
@@ -77,7 +77,7 @@ class RecalculatePriceServiceTest extends TestCase
 
     public function test_recalculate_with_decimals_keeps_exact_result(): void
     {
-        $this->product->update(['base_price' => 0, 'average_cost' => 33.33, 'profit_margin' => 33.33]);
+        $this->product->update(['base_price' => 0, 'last_purchase_cost' => 33.33, 'profit_margin' => 33.33]);
         $service = app(RecalculatePriceService::class);
 
         // 33.33 * (1 + 33.33/100) = 44.4399 -> round a 2 decimales = 44.44
@@ -95,13 +95,13 @@ class RecalculatePriceServiceTest extends TestCase
         $service->recalculate($this->product);
     }
 
-    public function test_recalculate_throws_when_no_wac(): void
+    public function test_recalculate_throws_when_no_last_purchase_cost(): void
     {
-        $this->product->update(['average_cost' => null, 'profit_margin' => 25.00]);
+        $this->product->update(['last_purchase_cost' => null, 'profit_margin' => 25.00]);
         $service = app(RecalculatePriceService::class);
 
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('No hay costo promedio');
+        $this->expectExceptionMessage('No hay costo de la ultima compra');
         $service->recalculate($this->product);
     }
 }

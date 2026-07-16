@@ -56,15 +56,15 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
 
   const marginNum = product.profit_margin == null ? null : Number(product.profit_margin);
   const basePrice = product.base_price == null ? null : Number(product.base_price);
-  const wac = product.average_cost == null ? null : Number(product.average_cost);
+  const lastCost = product.last_purchase_cost == null ? null : Number(product.last_purchase_cost);
 
   const inputNum = marginInput.trim() === '' ? NaN : Number(marginInput);
   const validInput = !Number.isNaN(inputNum) && inputNum >= 0 && inputNum <= 999.99;
 
   const projectedPrice = useMemo(() => {
-    if (!validInput || wac == null) return null;
-    return wac * (1 + inputNum / 100);
-  }, [validInput, inputNum, wac]);
+    if (!validInput || lastCost == null) return null;
+    return lastCost * (1 + inputNum / 100);
+  }, [validInput, inputNum, lastCost]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -87,7 +87,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
       if (newPrice != null) {
         toast.success('Margen guardado. Precio recalculado: USD ' + Number(newPrice).toFixed(2));
       } else {
-        toast.success('Margen guardado. Aun no hay costo registrado, el precio se recalculara al recibir la primera compra.');
+        toast.success('Margen guardado. Aun no hay costo de compra registrado, el precio se recalculara al recibir la primera compra.');
       }
       setDialogOpen(false);
     } catch (err) {
@@ -158,14 +158,14 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
             </div>
           </div>
 
-          {marginNum != null && wac != null && (
+          {marginNum != null && lastCost != null && (
             <p className="text-xs text-text-muted">
               Con el costo actual y {marginNum.toFixed(2)}% de margen, el precio
-              seria {formatMoney(wac * (1 + marginNum / 100))}.
+              seria {formatMoney(lastCost * (1 + marginNum / 100))}.
             </p>
           )}
 
-          {wac == null && (
+          {lastCost == null && (
             <p className="text-xs text-text-muted">
               Aun no hay costo registrado. Recibe una compra para que podamos
               previsualizar el precio de venta.
@@ -179,7 +179,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
             </Badge>
           )}
 
-          {marginNum != null && wac != null && (
+          {marginNum != null && lastCost != null && (
             <div>
               <Button
                 size="sm"
@@ -243,7 +243,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
                   {formatMoney(projectedPrice)}
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Costo actual {formatMoney(wac ?? 0)} &times; (1 +{' '}
+                  Costo de ultima compra {formatMoney(lastCost ?? 0)} &times; (1 +{' '}
                   {validInput ? inputNum.toFixed(2) : '—'} / 100)
                 </p>
               </div>
