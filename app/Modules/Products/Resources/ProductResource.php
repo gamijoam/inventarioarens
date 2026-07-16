@@ -48,6 +48,7 @@ class ProductResource extends JsonResource
             ])),
 
             'base_price' => $this->base_price === null ? null : (float) $this->base_price,
+            'profit_margin' => $this->profit_margin === null ? null : (float) $this->profit_margin,
             'sale_currency' => $this->sale_currency,
             'sale_exchange_rate_type_id' => $this->sale_exchange_rate_type_id,
             'sale_exchange_rate_type' => $this->whenLoaded('saleExchangeRateType', fn () => $this->saleExchangeRateType ? [

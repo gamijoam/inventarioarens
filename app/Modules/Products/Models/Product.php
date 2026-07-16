@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tracking_type',
     'brand_id',
     'base_price',
+    'profit_margin',
     'sale_currency',
     'sale_exchange_rate_type_id',
     'min_stock',
@@ -37,6 +38,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Product extends Model
 {
     use BelongsToTenant;
+
+    /** Margen de ganancia por defecto cuando el admin no define uno custom. */
+    public const DEFAULT_PROFIT_MARGIN = 25.0;
 
     public const TRACKING_QUANTITY = 'quantity';
 
@@ -65,6 +69,7 @@ class Product extends Model
     {
         return [
             'base_price' => 'decimal:4',
+            'profit_margin' => 'decimal:2',
             'min_stock' => 'decimal:4',
             'max_stock' => 'decimal:4',
             'reorder_quantity' => 'decimal:4',
@@ -72,6 +77,18 @@ class Product extends Model
             'track_stock' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Margen de ganancia efectivo (custom o default global).
+     * Si `profit_margin` es null, NO se recalcula `base_price` automaticamente.
+     */
+    public function effectiveProfitMargin(): ?float
+    {
+        if ($this->profit_margin === null) {
+            return null;
+        }
+        return (float) $this->profit_margin;
     }
 
     public function units(): HasMany

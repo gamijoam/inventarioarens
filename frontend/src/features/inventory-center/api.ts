@@ -682,3 +682,34 @@ export function useSyncProductTags() {
     },
   });
 }
+// Recalcular precio y actualizar margen (Fase profit).
+export function useRecalculateProductPrice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, profit_margin }: { id: number; profit_margin?: number | null }) =>
+      postOne<{ profit_margin?: number | null }, { data: { product_id: number; base_price: number; profit_margin: number; average_cost: number } }>(
+        `/inventory-center/products/${id}/recalculate-price`,
+        profit_margin != null ? { profit_margin } : {},
+      ),
+    onSuccess: (_: unknown, vars: { id: number; profit_margin?: number | null }) => {
+      void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+export function useUpdateProductProfitMargin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, profit_margin }: { id: number; profit_margin: number }) =>
+      patchOne<{ profit_margin: number }, { data: { product_id: number; profit_margin: number; base_price: number | null } }>(
+        `/inventory-center/products/${id}/profit-margin`,
+        { profit_margin },
+      ),
+    onSuccess: (_: unknown, vars: { id: number; profit_margin: number }) => {
+      void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
