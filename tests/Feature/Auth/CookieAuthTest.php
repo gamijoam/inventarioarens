@@ -181,6 +181,57 @@ class CookieAuthTest extends TestCase
             ->assertStatus(403);  // blocked por mismatch de puerto
     }
 
+    /**
+     * @test
+     * Bug fix: cuando Vite proxy reenvia /api/* al backend Laravel en dev,
+     * el navegador NO envia header `Origin` (porque la peticion es
+     * same-origin desde el punto de vista del browser). El backend no
+     * debe rechazar estas requests con 403 porque confiamos en
+     * `X-Requested-With: XMLHttpRequest` (que NO se puede setear desde
+     * un <form> HTML).
+     */
+    public function test_cookie_request_without_origin_header_is_accepted_for_same_origin(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        // Caso real del navegador via Vite dev proxy:
+        //   - Cookie httpOnly presente
+        //   - X-Requested-With: XMLHttpRequest presente
+        //   - Origin AUSENTE (porque browser lo omite en same-origin requests
+        //     cuando el proxy reenvia a otro puerto sin reescribir Host)
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            // intencionalmente sin Origin/Referer
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.user.email', $user->email);
+    }
+
+    /**
+     * @test
+     * Si el navegador envia un Origin y este NO esta en la allowlist,
+     * la peticion cookie-auth debe ser rechazada (CSRF cross-origin
+     * protection sigue activa para peticiones que SI declaran origin).
+     */
+    public function test_cookie_request_with_disallowed_origin_is_rejected(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'https://attacker.example.com')
+            ->getJson('/api/auth/me')
+            ->assertStatus(403);
+    }
+
     public function test_bearer_still_works_without_csrf_headers(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

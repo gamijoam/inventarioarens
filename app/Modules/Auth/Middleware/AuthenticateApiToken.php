@@ -124,6 +124,10 @@ public function handle(Request $request, Closure $next): Response
      */
     private function assertCsrfProtection(Request $request): void
     {
+        // Check 1: X-Requested-With: XMLHttpRequest es obligatorio.
+        // Los <form> HTML nativos no pueden setear este header, asi que cualquier
+        // ataque CSRF basado en form-submission fallara aqui.
+        // Requests AJAX de fetch/axios siempre lo setean.
         $xRequestedWith = $request->header('X-Requested-With');
         if ($xRequestedWith !== 'XMLHttpRequest') {
             abort(403, 'CSRF: X-Requested-With header missing or invalid.', [
@@ -131,18 +135,27 @@ public function handle(Request $request, Closure $next): Response
             ]);
         }
 
-        $allowedOrigins = $this->getAllowedOrigins();
-        if ($allowedOrigins === []) {
-            // Sin origins permitidos configurados = no podemos validar nada.
-            // Bloqueamos por seguridad (deberia estar configurado siempre).
-            abort(403, 'CSRF: no allowed origins configured.', [
-                'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
-            ]);
-        }
-
+        // Check 2: Origin/Referer. Si NO esta presente, la peticion es
+        // same-origin desde el punto de vista del navegador (ej: Vite dev
+        // server reenvia /api/* al backend sin reescribir el Host, asi que
+        // el browser no envia Origin). Confiamos en X-Requested-With como
+        // segunda linea de defensa (no se puede setear desde un <form> HTML).
         $actualOrigin = $request->header('Origin') ?? $request->header('Referer');
         if ($actualOrigin === null) {
-            abort(403, 'CSRF: Origin header missing.', [
+            // Misma proteccion anti-CSRF (X-Requested-With) sigue activa.
+            // Si el atacante quisiera bypassear esto necesitaria ejecutar
+            // JavaScript en el origen, lo cual es XSS (out of scope para CSRF).
+            return;
+        }
+
+        // Check 3: si hay Origin/Referer, validar contra allowlist
+        // (proteccion cross-origin). Sin esto, un sitio atacante podria
+        // hacer fetch con credentials si la cookie no fuera SameSite=Strict.
+        $allowedOrigins = $this->getAllowedOrigins();
+        if ($allowedOrigins === []) {
+            // Sin origins permitidos configurados = no podemos validar cross-origin.
+            // Bloqueamos por seguridad (deberia estar configurado siempre).
+            abort(403, 'CSRF: no allowed origins configured.', [
                 'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
             ]);
         }
