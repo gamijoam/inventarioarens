@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Settings,
   Building,
+  Building2,
   ShoppingBag,
 } from 'lucide-react';
 
@@ -67,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
       { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
       { to: '/access/roles', label: 'Roles y Permisos', icon: ShieldCheck, permission: PERMISSIONS.ROLES_VIEW },
       { to: '/access/permissions', label: 'Catalogo de permisos', icon: ShieldCheck, permission: PERMISSIONS.ROLES_VIEW },
+      { to: '/access/groups', label: 'Organizaciones', icon: Building2, permission: PERMISSIONS.TENANTS_VIEW },
     ],
   },
 ];

@@ -30,6 +30,7 @@ import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inven
 import { Route as AuthedInventoryProductIdRouteImport } from './routes/_authed/inventory/$productId'
 import { Route as AuthedAccessRolesRouteImport } from './routes/_authed/access/roles'
 import { Route as AuthedAccessPermissionsRouteImport } from './routes/_authed/access/permissions'
+import { Route as AuthedAccessGroupsRouteImport } from './routes/_authed/access/groups'
 import { Route as AuthedAccessRolesRoleIdRouteImport } from './routes/_authed/access/roles/$roleId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -138,6 +139,11 @@ const AuthedAccessPermissionsRoute = AuthedAccessPermissionsRouteImport.update({
   path: '/access/permissions',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAccessGroupsRoute = AuthedAccessGroupsRouteImport.update({
+  id: '/access/groups',
+  path: '/access/groups',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAccessRolesRoleIdRoute = AuthedAccessRolesRoleIdRouteImport.update({
   id: '/$roleId',
   path: '/$roleId',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
@@ -204,6 +212,7 @@ export interface FileRoutesById {
   '/_authed/suppliers': typeof AuthedSuppliersRoute
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRouteWithChildren
+  '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
   '/_authed/access/roles': typeof AuthedAccessRolesRouteWithChildren
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
     | '/inventory/$productId'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
     | '/inventory/$productId'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/_authed/suppliers'
     | '/_authed/transfers'
     | '/_authed/users'
+    | '/_authed/access/groups'
     | '/_authed/access/permissions'
     | '/_authed/access/roles'
     | '/_authed/inventory/$productId'
@@ -443,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAccessPermissionsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/access/groups': {
+      id: '/_authed/access/groups'
+      path: '/access/groups'
+      fullPath: '/access/groups'
+      preLoaderRoute: typeof AuthedAccessGroupsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/access/roles/$roleId': {
       id: '/_authed/access/roles/$roleId'
       path: '/$roleId'
@@ -498,6 +517,7 @@ interface AuthedRouteChildren {
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
   AuthedUsersRoute: typeof AuthedUsersRouteWithChildren
+  AuthedAccessGroupsRoute: typeof AuthedAccessGroupsRoute
   AuthedAccessPermissionsRoute: typeof AuthedAccessPermissionsRoute
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRouteWithChildren
   AuthedInventoryProductIdRoute: typeof AuthedInventoryProductIdRoute
@@ -517,6 +537,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSuppliersRoute: AuthedSuppliersRoute,
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
   AuthedUsersRoute: AuthedUsersRouteWithChildren,
+  AuthedAccessGroupsRoute: AuthedAccessGroupsRoute,
   AuthedAccessPermissionsRoute: AuthedAccessPermissionsRoute,
   AuthedAccessRolesRoute: AuthedAccessRolesRouteWithChildren,
   AuthedInventoryProductIdRoute: AuthedInventoryProductIdRoute,
