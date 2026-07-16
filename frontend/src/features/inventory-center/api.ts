@@ -52,9 +52,11 @@ export function useProductSerials(productId: number) {
   return useQuery({
     queryKey: productKeys.serials(productId),
     queryFn: async () => {
-      const data = await getMany<unknown>(`/inventory-center/products/${productId}/serials`);
+      // El backend devuelve { data: [...], pagination, filters } (no un array directo).
+      const response = (await getOne<unknown>('/inventory-center/products/' + productId + '/serials')) as { data?: unknown[] };
+      const items = Array.isArray(response?.data) ? response.data : [];
       const { ProductSerialSchema } = await import('./schemas');
-      return z.array(ProductSerialSchema).parse(data);
+      return z.array(ProductSerialSchema).parse(items);
     },
     enabled: Number.isFinite(productId) && productId > 0,
   });
