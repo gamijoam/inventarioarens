@@ -706,7 +706,12 @@ export function useUpdateProductProfitMargin() {
         `/inventory-center/products/${id}/profit-margin`,
         { profit_margin },
       ),
-    onSuccess: (_: unknown, vars: { id: number; profit_margin: number }) => {
+    onSuccess: (response, vars) => {
+      const data = response.data;
+      qc.setQueryData<unknown>(productKeys.detail(vars.id), (prev: unknown) => {
+        if (prev == null || typeof prev !== 'object') return prev;
+        return { ...(prev as Record<string, unknown>), profit_margin: data.profit_margin, base_price: data.base_price };
+      });
       void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
