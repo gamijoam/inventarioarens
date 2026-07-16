@@ -287,6 +287,20 @@ class ProductController extends Controller
         $product = DB::transaction(function () use ($data, $product, $userId, $syncCatalog): Product {
             $before = $product->only(array_keys($data));
             $product->update($data);
+
+            if (
+                array_key_exists('profit_margin', $data)
+                && $product->profit_margin !== null
+                && $product->average_cost !== null
+                && ! array_key_exists('base_price', $data)
+            ) {
+                $wac = (float) $product->average_cost;
+                $margin = (float) $product->profit_margin;
+                $product->base_price = round($wac * (1 + ($margin / 100)), 2);
+                $product->save();
+                $data['base_price'] = $product->base_price;
+            }
+
             $after = $product->refresh()->only(array_keys($data));
             $changes = $this->changedValues($before, $after);
 

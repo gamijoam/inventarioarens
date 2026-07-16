@@ -9,10 +9,13 @@
  * El dialog modal permite:
  *  1. Editar el margen (con preview en vivo del precio proyectado)
  *  2. Guardar el margen (PATCH /products/{id}/profit-margin)
- *  3. Recalcular el base_price con el nuevo margen
+ *  3. (Opcional) Recalcular el base_price con el nuevo margen
  *     (POST /products/{id}/recalculate-price)
+ *
+ * Si el producto ya tiene WAC, el backend recalcula el base_price
+ * automaticamente al recibir el PATCH de profit_margin.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calculator, Loader2, Save, TrendingUp, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -55,15 +58,20 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
   const basePrice = product.base_price == null ? null : Number(product.base_price);
   const wac = product.average_cost == null ? null : Number(product.average_cost);
 
-  const inputNum = Number(marginInput);
+  const inputNum = marginInput.trim() === '' ? NaN : Number(marginInput);
   const validInput = !Number.isNaN(inputNum) && inputNum >= 0 && inputNum <= 999.99;
+
   const projectedPrice = useMemo(() => {
     if (!validInput || wac == null) return null;
     return wac * (1 + inputNum / 100);
   }, [validInput, inputNum, wac]);
 
-  function openDialog() {
+  useEffect(() => {
+    if (!dialogOpen) return;
     setMarginInput(marginNum != null ? String(marginNum) : '25');
+  }, [dialogOpen, marginNum]);
+
+  function openDialog() {
     setDialogOpen(true);
   }
 
@@ -75,7 +83,11 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
     setSaving(true);
     try {
       await updateMargin.mutateAsync({ id: product.id, profit_margin: inputNum });
-      toast.success('Margen actualizado.');
+      toast.success(
+        wac != null
+          ? 'Margen guardado. El precio de venta se recalculo automaticamente.'
+          : 'Margen guardado. El precio se recalculara cuando registres una compra.',
+      );
       setDialogOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar el margen.');
@@ -84,26 +96,18 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
     }
   }
 
-  async function handleSaveAndRecalc() {
-    if (!validInput) {
-      toast.error('El margen debe estar entre 0 y 999.99.');
-      return;
-    }
-    setSaving(true);
+  async function handleRecalculate() {
     setRecalculating(true);
     try {
-      await updateMargin.mutateAsync({ id: product.id, profit_margin: inputNum });
       const res = (await recalc.mutateAsync({ id: product.id })) as {
         data: { base_price: number; profit_margin: number };
       };
       toast.success(
-        `Margen guardado y precio recalculado: ${formatMoney(res.data.base_price)}.`,
+        `Precio recalculado: ${formatMoney(res.data.base_price)} (margen ${res.data.profit_margin}%).`,
       );
-      setDialogOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar o recalcular.');
+      toast.error(err instanceof Error ? err.message : 'Error al recalcular.');
     } finally {
-      setSaving(false);
       setRecalculating(false);
     }
   }
@@ -121,8 +125,8 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
             diferente al actual.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <div className="text-xs uppercase tracking-wide text-text-muted">
                 Precio de venta
@@ -173,11 +177,24 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
               automaticamente al recibir compras con costo diferente.
             </Badge>
           )}
+
+          {marginNum != null && wac != null && (
+            <div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleRecalculate}
+                loading={recalculating}
+              >
+                <Calculator className="size-3.5" /> Recalcular ahora
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <TrendingUp className="size-4" />
@@ -190,10 +207,13 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
 
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium" htmlFor="profit-margin-input">
+              <label
+                className="mb-1 block text-sm font-medium"
+                htmlFor="profit-margin-input"
+              >
                 Porcentaje de ganancia
               </label>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Input
                   id="profit-margin-input"
                   type="number"
@@ -202,7 +222,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
                   max={999.99}
                   value={marginInput}
                   onChange={(e) => setMarginInput(e.target.value)}
-                  data-testid="profit-margin-input"
+                  placeholder="0 - 999.99"
                 />
                 <span className="text-sm">%</span>
               </div>
@@ -213,7 +233,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
               )}
             </div>
 
-            {projectedPrice != null && (
+            {projectedPrice != null ? (
               <div className="rounded-md border border-border bg-surface-muted p-3">
                 <p className="text-xs uppercase tracking-wide text-text-muted">
                   Precio de venta proyectado
@@ -226,48 +246,27 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
                   {validInput ? inputNum.toFixed(2) : '—'} / 100)
                 </p>
               </div>
-            )}
-
-            {wac == null && (
+            ) : (
               <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700">
-                No hay costo registrado todavia. No podemos previsualizar el
-                precio, pero puedes guardar el margen de todas formas.
+                No hay costo registrado todavia. Puedes guardar el margen de
+                todas formas; el precio se recalculara automaticamente al
+                recibir la primera compra.
               </p>
             )}
           </div>
 
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               variant="ghost"
               onClick={() => setDialogOpen(false)}
-              disabled={saving || recalculating}
+              disabled={saving}
             >
               <X className="size-3.5" /> Cancelar
             </Button>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                variant="outline"
-                onClick={handleSave}
-                loading={saving}
-                disabled={!validInput || recalculating}
-                data-testid="profit-margin-save"
-              >
-                <Save className="size-3.5" /> Solo guardar margen
-              </Button>
-              <Button
-                onClick={handleSaveAndRecalc}
-                loading={saving || recalculating}
-                disabled={!validInput || wac == null}
-                data-testid="profit-margin-save-recalc"
-              >
-                {recalculating ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Calculator className="size-3.5" />
-                )}
-                Guardar y recalcular precio
-              </Button>
-            </div>
+            <Button onClick={handleSave} loading={saving} disabled={!validInput}>
+              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              Guardar margen
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

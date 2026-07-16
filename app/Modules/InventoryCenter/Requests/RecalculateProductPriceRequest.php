@@ -9,8 +9,12 @@ class RecalculateProductPriceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Si viene, override del profit_margin del producto.
-            'profit_margin' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'profit_margin' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'lte:999.99'],
         ];
+    }
+
+    public function authorize(): bool
+    {
+        return true;
     }
 }
