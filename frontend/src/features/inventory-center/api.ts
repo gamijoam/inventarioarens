@@ -127,6 +127,8 @@ export function useProduct(productId: number) {
       return ProductSchema.parse(data);
     },
     enabled: Number.isFinite(productId) && productId > 0,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -716,6 +718,7 @@ export function useUpdateProductProfitMargin() {
         if ('base_price' in data) next.base_price = data.base_price;
         return next;
       });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
