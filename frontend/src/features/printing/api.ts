@@ -329,6 +329,7 @@ export async function sendTestTicketToLocalAgent(
   station: PrinterStation,
   profile: PrintProfilePayload | PrintProfile,
 ): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
+  const encodedPdf = output === 'digital' ? await previewPdfBase64(profile) : null;
   const response = await fetch('http://127.0.0.1:17777/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -336,6 +337,7 @@ export async function sendTestTicketToLocalAgent(
       job_id: `test-${Date.now()}`,
       output,
       station,
+      pdf_base64: encodedPdf,
       payload: exampleTicketPayload(profile),
     }),
   });
@@ -345,4 +347,15 @@ export async function sendTestTicketToLocalAgent(
   }
 
   return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;
+}
+
+async function previewPdfBase64(profile: PrintProfilePayload | PrintProfile): Promise<string> {
+  const response = await api.post<ArrayBuffer>('/printing/profiles/preview.pdf', profile, {
+    responseType: 'arraybuffer',
+  });
+  const bytes = new Uint8Array(response.data);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+
+  return window.btoa(binary);
 }

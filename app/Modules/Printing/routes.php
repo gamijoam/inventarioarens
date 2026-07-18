@@ -6,6 +6,8 @@ use App\Modules\Printing\Controllers\PrintProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('printing')->group(function (): void {
+    Route::post('profiles/preview.pdf', [PrintProfileController::class, 'previewPdf']);
+
     Route::apiResource('profiles', PrintProfileController::class)
         ->parameters(['profiles' => 'printProfile'])
         ->only(['index', 'store', 'update', 'destroy']);

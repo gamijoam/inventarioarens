@@ -166,6 +166,52 @@ class PrintingApiTest extends TestCase
             ->assertDontSee('Documento no fiscal', false);
     }
 
+    public function test_profile_preview_pdf_uses_profile_payload_without_unique_name_conflict(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage', 'printing.digital']);
+        $profile = $this->profile($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/printing/profiles/preview.pdf', [
+                'name' => $profile->name,
+                'paper_width_mm' => 58,
+                'characters_per_line' => 32,
+                'show_payment_rate' => false,
+            ])
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_user_can_update_printer_station(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage']);
+        $profile = $this->profile($tenant);
+        $station = $this->station($tenant, $branch, $register, $profile);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/printing/stations/{$station->id}", [
+                'name' => 'Mostrador actualizado',
+                'output_mode' => PrinterStation::OUTPUT_BOTH,
+                'printer_name' => 'EPSON-TM-T20',
+                'digital_directory' => 'Desktop\\TicketsDemo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Mostrador actualizado')
+            ->assertJsonPath('data.output_mode', PrinterStation::OUTPUT_BOTH)
+            ->assertJsonPath('data.printer_name', 'EPSON-TM-T20')
+            ->assertJsonPath('data.digital_directory', 'Desktop\\TicketsDemo');
+    }
+
     public function test_printing_resources_do_not_cross_tenants(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

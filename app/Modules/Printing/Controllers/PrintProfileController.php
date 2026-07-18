@@ -3,9 +3,11 @@
 namespace App\Modules\Printing\Controllers;
 
 use App\Modules\Printing\Models\PrintProfile;
+use App\Modules\Printing\Requests\PreviewPrintProfileRequest;
 use App\Modules\Printing\Requests\StorePrintProfileRequest;
 use App\Modules\Printing\Requests\UpdatePrintProfileRequest;
 use App\Modules\Printing\Resources\PrintProfileResource;
+use App\Modules\Printing\Services\PosTicketPrintService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,6 +44,20 @@ class PrintProfileController extends Controller
         $this->syncDefault($printProfile->refresh());
 
         return PrintProfileResource::make($printProfile->refresh());
+    }
+
+    public function previewPdf(PreviewPrintProfileRequest $request, PosTicketPrintService $service): Response
+    {
+        $profile = new PrintProfile($this->normalize([
+            'name' => $request->input('name', 'Vista previa'),
+            'paper_width_mm' => $request->integer('paper_width_mm', PrintProfile::WIDTH_80),
+            'characters_per_line' => $request->integer('characters_per_line', 48),
+            ...$request->validated(),
+        ]));
+
+        return response($service->renderPreviewPdf($profile), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     public function destroy(Request $request, PrintProfile $printProfile): Response

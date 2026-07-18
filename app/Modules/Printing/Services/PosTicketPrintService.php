@@ -62,6 +62,21 @@ class PosTicketPrintService
         return $dompdf->output();
     }
 
+    public function renderPreviewPdf(PrintProfile $profile): string
+    {
+        $snapshot = $this->previewSnapshot($profile);
+        $dompdf = app('dompdf.wrapper');
+        $dompdf->loadHTML(View::make('printing.pos-ticket', [
+            'job' => null,
+            'ticket' => $snapshot,
+        ])->render());
+        $widthPoints = ((int) data_get($snapshot, 'profile.paper_width_mm', 80)) === 58 ? 164.4 : 226.8;
+        $dompdf->setPaper([0, 0, $widthPoints, 900], 'portrait');
+        $dompdf->render();
+
+        return $dompdf->output();
+    }
+
     public function markStatus(PrintJob $job, array $data): PrintJob
     {
         $status = $data['status'];
@@ -242,6 +257,99 @@ class PosTicketPrintService
                 'exchange_rate' => $payment->exchange_rate ? (float) $payment->exchange_rate : null,
                 'reference' => $payment->reference,
             ])->values()->all(),
+        ];
+    }
+
+    private function previewSnapshot(PrintProfile $profile): array
+    {
+        $tenant = app(TenantManager::class)->require();
+
+        return [
+            'tenant' => [
+                'name' => $tenant->name,
+                'slug' => $tenant->slug,
+            ],
+            'profile' => $this->profileSnapshot($profile),
+            'copy' => false,
+            'pos_order' => [
+                'id' => 'PRUEBA',
+                'sale_id' => 'PRUEBA',
+                'status' => PosOrder::STATUS_PAID,
+                'paid_at' => now()->toISOString(),
+                'customer_name' => 'Cliente de prueba',
+                'cashier_name' => 'Cajero Demo',
+                'branch_name' => 'Sucursal Principal',
+                'cash_register_name' => 'Mostrador 1',
+            ],
+            'totals' => [
+                'total_base_amount' => 30.35,
+                'total_local_amount' => 15175,
+                'paid_base_amount' => 30.35,
+                'paid_local_amount' => 15175,
+                'balance_base_amount' => 0,
+            ],
+            'items' => [[
+                'product_name' => 'Forro iPhone 11 Transparente',
+                'sku' => 'DEMO-21-CCS',
+                'warehouse_name' => 'Principal',
+                'quantity' => 1,
+                'unit_price' => 30.35,
+                'total' => 30.35,
+                'discount' => 0,
+                'serials' => [[
+                    'serial_type' => 'IMEI',
+                    'serial_number' => 'IMEI-DEMO-001',
+                    'status' => 'available',
+                ]],
+                'warranty' => [
+                    'name' => 'Accesorios 7 dias',
+                    'duration_days' => 7,
+                    'expires_at' => now()->addDays(7)->toDateString(),
+                    'coverage_type' => 'standard',
+                ],
+            ]],
+            'payments' => [[
+                'method' => 'USD Efectivo',
+                'currency' => 'USD',
+                'amount' => 30.35,
+                'amount_base' => 30.35,
+                'amount_local' => 15175,
+                'exchange_rate_type_code' => 'BCV',
+                'exchange_rate' => 500,
+                'reference' => 'REF-DEMO',
+            ]],
+        ];
+    }
+
+    private function profileSnapshot(PrintProfile $profile): array
+    {
+        return [
+            'paper_width_mm' => (int) $profile->paper_width_mm,
+            'characters_per_line' => (int) $profile->characters_per_line,
+            'header_text' => $profile->header_text,
+            'footer_text' => $profile->footer_text,
+            'warranty_policy_text' => $profile->warranty_policy_text,
+            'legal_text' => $profile->legal_text ?: 'Documento no fiscal',
+            'logo_text' => $profile->logo_text,
+            'show_tenant_slug' => (bool) $profile->show_tenant_slug,
+            'show_sale_number' => (bool) $profile->show_sale_number,
+            'show_paid_at' => (bool) $profile->show_paid_at,
+            'show_cashier' => (bool) $profile->show_cashier,
+            'show_cash_register' => (bool) $profile->show_cash_register,
+            'show_branch' => (bool) $profile->show_branch,
+            'show_customer' => (bool) $profile->show_customer,
+            'show_item_sku' => (bool) $profile->show_item_sku,
+            'show_item_discount' => (bool) $profile->show_item_discount,
+            'show_item_serials' => (bool) $profile->show_item_serials,
+            'show_warranty_summary' => (bool) $profile->show_warranty_summary,
+            'show_total_local' => (bool) $profile->show_total_local,
+            'show_payment_rate' => (bool) $profile->show_payment_rate,
+            'show_payment_reference' => (bool) $profile->show_payment_reference,
+            'show_receivable_balance' => (bool) $profile->show_receivable_balance,
+            'show_non_fiscal_text' => (bool) $profile->show_non_fiscal_text,
+            'cut_paper' => (bool) $profile->cut_paper,
+            'open_cash_drawer' => (bool) $profile->open_cash_drawer,
+            'copies' => (int) $profile->copies,
         ];
     }
 

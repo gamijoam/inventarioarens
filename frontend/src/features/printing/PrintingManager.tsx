@@ -24,6 +24,7 @@ import {
   useCreatePrintProfile,
   usePrinterStations,
   usePrintProfiles,
+  useUpdatePrinterStation,
   useUpdatePrintProfile,
 } from './api';
 
@@ -88,9 +89,11 @@ export function PrintingManager() {
   const createProfile = useCreatePrintProfile();
   const updateProfile = useUpdatePrintProfile();
   const createStation = useCreatePrinterStation();
+  const updateStation = useUpdatePrinterStation();
   const [selectedProfileId, setSelectedProfileId] = useState<number | 'new'>('new');
   const [profile, setProfile] = useState<PrintProfilePayload>(DEFAULT_PROFILE);
   const [showPreview, setShowPreview] = useState(true);
+  const [editingStationId, setEditingStationId] = useState<number | null>(null);
   const [station, setStation] = useState<PrinterStationPayload>({
     branch_id: null,
     cash_register_id: null,
@@ -151,15 +154,63 @@ export function PrintingManager() {
       return;
     }
 
-    await createStation.mutateAsync({
+    const payload = {
       ...station,
       print_profile_id: profileId,
       code: station.code.trim() || station.name.trim(),
       printer_name: station.printer_name?.trim() || null,
       network_host: station.network_host?.trim() || null,
       digital_directory: station.digital_directory?.trim() || 'Desktop\\Tickets',
-    });
+    };
+
+    if (editingStationId) {
+      await updateStation.mutateAsync({ id: editingStationId, payload });
+      toast.success('Estacion de impresion actualizada.');
+      resetStationForm();
+      return;
+    }
+
+    await createStation.mutateAsync(payload);
     toast.success('Estacion de impresion creada.');
+    resetStationForm();
+  }
+
+  function editStation(item: PrinterStation): void {
+    setEditingStationId(item.id);
+    setStation({
+      branch_id: item.branch_id ?? null,
+      cash_register_id: item.cash_register_id ?? null,
+      print_profile_id: item.print_profile_id,
+      name: item.name,
+      code: item.code,
+      output_mode: item.output_mode,
+      printer_type: item.printer_type,
+      printer_name: item.printer_name ?? '',
+      network_host: item.network_host ?? '',
+      network_port: item.network_port ?? 9100,
+      digital_directory: item.digital_directory ?? 'Desktop\\Tickets',
+      save_html_copy: item.save_html_copy,
+      is_active: item.is_active,
+    });
+  }
+
+  function resetStationForm(): void {
+    setEditingStationId(null);
+    setStation({
+      branch_id: null,
+      cash_register_id: null,
+      print_profile_id: selectedProfile?.id || sortedProfiles[0]?.id || 0,
+      name: '',
+      code: '',
+      output_mode: 'digital',
+      printer_type: 'windows_printer',
+      printer_name: '',
+      network_host: '',
+      network_port: 9100,
+      digital_directory: 'Desktop\\Tickets',
+      save_html_copy: true,
+      is_active: true,
+    });
   }
 
   async function testAgent(): Promise<void> {
@@ -293,10 +344,13 @@ export function PrintingManager() {
                 </Select>
                 <Input value={station.printer_name ?? ''} onChange={(event) => setStation((current) => ({ ...current, printer_name: event.target.value }))} placeholder="Nombre exacto de impresora Windows" />
                 <Input value={station.digital_directory ?? ''} onChange={(event) => setStation((current) => ({ ...current, digital_directory: event.target.value }))} placeholder="Carpeta digital, ej. Desktop\\Tickets" />
-                <Button className="lg:col-span-2" disabled={createStation.isPending} onClick={() => void submitStation()}>
-                  {createStation.isPending && <Loader2 className="size-4 animate-spin" />}
-                  Crear estacion
-                </Button>
+                <div className="flex gap-2 lg:col-span-2">
+                  <Button className="flex-1" disabled={createStation.isPending || updateStation.isPending} onClick={() => void submitStation()}>
+                    {(createStation.isPending || updateStation.isPending) && <Loader2 className="size-4 animate-spin" />}
+                    {editingStationId ? 'Guardar estacion' : 'Crear estacion'}
+                  </Button>
+                  {editingStationId && <Button variant="outline" onClick={resetStationForm}>Cancelar edicion</Button>}
+                </div>
               </Can>
             </CardContent>
           </Card>
@@ -323,6 +377,9 @@ export function PrintingManager() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    <Can I={PERMISSIONS.PRINTING_MANAGE}>
+                      <Button size="sm" variant="outline" onClick={() => editStation(item)}>Editar</Button>
+                    </Can>
                     {item.output_mode !== 'thermal' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'digital')}>Probar digital</Button>}
                     {item.output_mode !== 'digital' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'thermal')}>Probar termica</Button>}
                   </div>
