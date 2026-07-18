@@ -108,6 +108,10 @@ return [
         explode(',', (string) env('APP_ALLOWED_ORIGINS_FOR_CSRF', ''))
     ))),
 
+    'accounts_payable' => [
+        'approval_threshold_base_amount' => (float) env('ACCOUNTS_PAYABLE_APPROVAL_THRESHOLD_BASE_AMOUNT', 100),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

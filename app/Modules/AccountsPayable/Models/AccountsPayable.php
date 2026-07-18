@@ -39,8 +39,11 @@ class AccountsPayable extends Model
     use BelongsToTenant;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PARTIAL = 'partial';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_OVERDUE = 'overdue';
 
     protected $table = 'accounts_payables';
@@ -83,5 +86,10 @@ class AccountsPayable extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(AccountsPayablePayment::class, 'accounts_payable_id');
+    }
+
+    public function paymentRequests(): HasMany
+    {
+        return $this->hasMany(AccountsPayablePaymentRequest::class, 'accounts_payable_id');
     }
 }

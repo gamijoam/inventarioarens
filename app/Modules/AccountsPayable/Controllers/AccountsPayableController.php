@@ -4,8 +4,11 @@ namespace App\Modules\AccountsPayable\Controllers;
 
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Requests\RegisterAccountsPayablePaymentRequest;
+use App\Modules\AccountsPayable\Requests\StoreAccountsPayablePaymentRequestRequest;
+use App\Modules\AccountsPayable\Resources\AccountsPayablePaymentRequestResource;
 use App\Modules\AccountsPayable\Resources\AccountsPayablePaymentResource;
 use App\Modules\AccountsPayable\Resources\AccountsPayableResource;
+use App\Modules\AccountsPayable\Services\AccountsPayablePaymentRequestService;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -44,7 +47,7 @@ class AccountsPayableController extends Controller
 
         return AccountsPayableResource::collection(
             AccountsPayable::query()
-                ->with(['supplier', 'purchaseOrder'])
+                ->with(['supplier', 'purchaseOrder', 'paymentRequests'])
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($innerQuery) use ($search): void {
                         $innerQuery
@@ -78,8 +81,26 @@ class AccountsPayableController extends Controller
         Gate::authorize('view', $accountsPayable);
 
         return AccountsPayableResource::make(
-            $accountsPayable->load(['supplier', 'purchaseOrder.items.product', 'payments'])
+            $accountsPayable->load(['supplier', 'purchaseOrder.items.product', 'payments', 'paymentRequests.payment'])
         );
+    }
+
+    public function preparePaymentRequest(
+        StoreAccountsPayablePaymentRequestRequest $request,
+        AccountsPayable $accountsPayable,
+        AccountsPayablePaymentRequestService $service,
+    ): JsonResponse {
+        Gate::authorize('view', $accountsPayable);
+
+        if (! $request->user()->can('accounts_payable.payment_requests.prepare')) {
+            abort(Response::HTTP_FORBIDDEN);
+        }
+
+        return AccountsPayablePaymentRequestResource::make(
+            $service->prepare($accountsPayable, $request->user(), $request->validated())
+        )
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function pay(

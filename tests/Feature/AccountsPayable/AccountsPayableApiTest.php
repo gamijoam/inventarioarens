@@ -5,6 +5,7 @@ namespace Tests\Feature\AccountsPayable;
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
+use App\Modules\AccountsPayable\Models\AccountsPayablePaymentRequest;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -280,6 +281,213 @@ class AccountsPayableApiTest extends TestCase
             ->assertCreated();
 
         $this->assertDatabaseCount('cash_register_movements', 0);
+    }
+
+    public function test_user_can_prepare_approve_and_execute_payment_request(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-REQ');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Finanzas', [
+            'purchases.create',
+            'purchases.approve',
+            'accounts_payable.view',
+            'accounts_payable.payment_requests.prepare',
+            'accounts_payable.payment_requests.approve',
+            'accounts_payable.payment_requests.execute',
+        ]);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 50);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+
+        $requestId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 20,
+                'method' => CashRegisterMovement::METHOD_TRANSFER,
+                'reference' => 'TRF-REQ-1',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', AccountsPayablePaymentRequest::STATUS_APPROVED)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('accounts_payables', [
+            'tenant_id' => $tenant->id,
+            'id' => $account->id,
+            'paid_base_amount' => '0.0000',
+            'balance_base_amount' => '50.0000',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/execute")
+            ->assertCreated()
+            ->assertJsonPath('data.status', AccountsPayablePaymentRequest::STATUS_EXECUTED);
+
+        $this->assertDatabaseHas('accounts_payables', [
+            'tenant_id' => $tenant->id,
+            'id' => $account->id,
+            'paid_base_amount' => '20.0000',
+            'balance_base_amount' => '30.0000',
+        ]);
+    }
+
+    public function test_prepared_request_reserves_balance_against_duplicate_requests(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-RESERVE');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Finanzas', [
+            'purchases.create',
+            'purchases.approve',
+            'accounts_payable.view',
+            'accounts_payable.payment_requests.prepare',
+        ]);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 50);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 40,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', AccountsPayablePaymentRequest::STATUS_PREPARED);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 20,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['amount']);
+    }
+
+    public function test_rejected_request_cannot_be_executed(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-REJECT');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Finanzas', [
+            'purchases.create',
+            'purchases.approve',
+            'accounts_payable.view',
+            'accounts_payable.payment_requests.prepare',
+            'accounts_payable.payment_requests.approve',
+            'accounts_payable.payment_requests.execute',
+        ]);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 50);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+        $requestId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 20,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/reject", ['reason' => 'Factura en revision'])
+            ->assertOk()
+            ->assertJsonPath('data.status', AccountsPayablePaymentRequest::STATUS_REJECTED);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/execute")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_cash_payment_request_requires_cash_register_on_execute(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-CASH-REQ2');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Finanzas', [
+            'purchases.create',
+            'purchases.approve',
+            'accounts_payable.view',
+            'accounts_payable.payment_requests.prepare',
+            'accounts_payable.payment_requests.approve',
+            'accounts_payable.payment_requests.execute',
+            'cash_register.move',
+        ]);
+        $session = $this->cashSession($tenant, $user, $warehouse->branch_id);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 50);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+        $requestId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 20,
+                'method' => CashRegisterMovement::METHOD_CASH,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/execute")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/execute", [
+                'cash_register_session_id' => $session->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', AccountsPayablePaymentRequest::STATUS_EXECUTED);
+    }
+
+    public function test_cash_payment_request_execution_requires_cash_move_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-CASH-NO-MOVE');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Finanzas', [
+            'purchases.create',
+            'purchases.approve',
+            'accounts_payable.view',
+            'accounts_payable.payment_requests.prepare',
+            'accounts_payable.payment_requests.approve',
+            'accounts_payable.payment_requests.execute',
+        ]);
+        $session = $this->cashSession($tenant, $user, $warehouse->branch_id);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 50);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+        $requestId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payment-requests", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 20,
+                'method' => CashRegisterMovement::METHOD_CASH,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable-payment-requests/{$requestId}/execute", [
+                'cash_register_session_id' => $session->id,
+            ])
+            ->assertForbidden();
     }
 
     public function test_accounts_payable_do_not_mix_companies_and_reject_foreign_account(): void

@@ -37,6 +37,7 @@ class AccountsPayableResource extends JsonResource
             'opened_at' => $this->opened_at?->toISOString(),
             'paid_at' => $this->paid_at?->toISOString(),
             'payments' => AccountsPayablePaymentResource::collection($this->whenLoaded('payments')),
+            'payment_requests' => AccountsPayablePaymentRequestResource::collection($this->whenLoaded('paymentRequests')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

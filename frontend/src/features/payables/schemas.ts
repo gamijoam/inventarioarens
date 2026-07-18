@@ -94,6 +94,57 @@ export const PayablePaymentSchema = z
   })
   .passthrough();
 
+export const PayablePaymentRequestStatusSchema = z.enum([
+  'prepared',
+  'approved',
+  'rejected',
+  'cancelled',
+  'executed',
+]);
+export type PayablePaymentRequestStatus = z.infer<typeof PayablePaymentRequestStatusSchema>;
+
+export const PAYABLE_PAYMENT_REQUEST_STATUS_LABELS: Record<PayablePaymentRequestStatus, string> = {
+  prepared: 'Pendiente de aprobacion',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  cancelled: 'Cancelada',
+  executed: 'Ejecutada',
+};
+
+export const PayablePaymentRequestSchema = z
+  .object({
+    id: z.number().int().positive(),
+    accounts_payable_id: z.number().int().positive(),
+    accounts_payable_payment_id: z.number().int().positive().nullable().optional(),
+    status: PayablePaymentRequestStatusSchema,
+    payment_currency: z.enum(['USD', 'VES']),
+    amount: moneyValue,
+    exchange_rate_type_id: z.number().int().positive().nullable().optional(),
+    exchange_rate_type_code: z.string().nullable().optional(),
+    exchange_rate: moneyValue,
+    amount_base: moneyValue,
+    amount_local: moneyValue,
+    method: z.string().nullable().optional(),
+    reference: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    scheduled_for: z.string().nullable().optional(),
+    cash_register_session_id: z.number().int().positive().nullable().optional(),
+    prepared_by: z.number().int().positive().nullable().optional(),
+    approved_by: z.number().int().positive().nullable().optional(),
+    rejected_by: z.number().int().positive().nullable().optional(),
+    cancelled_by: z.number().int().positive().nullable().optional(),
+    executed_by: z.number().int().positive().nullable().optional(),
+    prepared_at: z.string().nullable().optional(),
+    approved_at: z.string().nullable().optional(),
+    rejected_at: z.string().nullable().optional(),
+    cancelled_at: z.string().nullable().optional(),
+    executed_at: z.string().nullable().optional(),
+    rejection_reason: z.string().nullable().optional(),
+    cancellation_reason: z.string().nullable().optional(),
+    payment: PayablePaymentSchema.nullable().optional(),
+  })
+  .passthrough();
+
 export const PayableSchema = z
   .object({
     id: z.number().int().positive(),
@@ -118,6 +169,7 @@ export const PayableSchema = z
     opened_at: z.string().nullable().optional(),
     paid_at: z.string().nullable().optional(),
     payments: z.array(PayablePaymentSchema).optional(),
+    payment_requests: z.array(PayablePaymentRequestSchema).optional(),
     created_at: z.string().nullable().optional(),
     updated_at: z.string().nullable().optional(),
   })
@@ -135,6 +187,19 @@ export const PayPayableSchema = z.object({
   paid_at: z.string().nullable().optional(),
 });
 
+export const PayablePaymentRequestPayloadSchema = PayPayableSchema.omit({ paid_at: true }).extend({
+  scheduled_for: z.string().nullable().optional(),
+});
+
+export const ExecutePayablePaymentRequestSchema = z.object({
+  cash_register_session_id: z.number().int().positive().nullable().optional(),
+  reference: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
 export type Payable = z.infer<typeof PayableSchema>;
 export type PayablePayment = z.infer<typeof PayablePaymentSchema>;
+export type PayablePaymentRequest = z.infer<typeof PayablePaymentRequestSchema>;
 export type PayPayableValues = z.infer<typeof PayPayableSchema>;
+export type PayablePaymentRequestPayload = z.infer<typeof PayablePaymentRequestPayloadSchema>;
+export type ExecutePayablePaymentRequestValues = z.infer<typeof ExecutePayablePaymentRequestSchema>;

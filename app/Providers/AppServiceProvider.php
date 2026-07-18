@@ -2,22 +2,24 @@
 
 namespace App\Providers;
 
-use App\Modules\Branches\Models\Branch;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Models\AccountsPayablePaymentRequest;
+use App\Modules\AccountsPayable\Policies\AccountsPayablePaymentRequestPolicy;
 use App\Modules\AccountsPayable\Policies\AccountsPayablePolicy;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Policies\AccountsReceivablePolicy;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Branches\Policies\BranchPolicy;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Policies\CashRegisterPolicy;
 use App\Modules\CashRegister\Policies\CashRegisterSessionPolicy;
-use App\Modules\Customers\Models\Customer;
-use App\Modules\Customers\Policies\CustomerPolicy;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Currency\Policies\ExchangeRatePolicy;
 use App\Modules\Currency\Policies\ExchangeRateTypePolicy;
+use App\Modules\Customers\Models\Customer;
+use App\Modules\Customers\Policies\CustomerPolicy;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\FinancialAdjustments\Policies\FinancialAdjustmentPolicy;
 use App\Modules\Inventory\Policies\InventoryPolicy;
@@ -47,7 +49,9 @@ use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Suppliers\Policies\SupplierPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warehouses\Policies\WarehousePolicy;
+use App\Support\Cache\TenantReferenceCacheInvalidator;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -69,6 +73,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(AccountsPayable::class, AccountsPayablePolicy::class);
+        Gate::policy(AccountsPayablePaymentRequest::class, AccountsPayablePaymentRequestPolicy::class);
         Gate::policy(AccountsReceivable::class, AccountsReceivablePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(CashRegister::class, CashRegisterPolicy::class);
@@ -98,7 +103,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureRateLimiters();
 
-        \App\Support\Cache\TenantReferenceCacheInvalidator::register();
+        TenantReferenceCacheInvalidator::register();
     }
 
     private function configureRateLimiters(): void
@@ -108,7 +113,7 @@ class AppServiceProvider extends ServiceProvider
             $key = $request->ip().'|'.$email;
 
             return [
-                Limit::perMinute(5)->by($key)->response(function (): \Illuminate\Http\JsonResponse {
+                Limit::perMinute(5)->by($key)->response(function (): JsonResponse {
                     return response()->json([
                         'message' => 'Demasiados intentos de autenticación. Por favor intente en 1 minuto.',
                     ], 429);
@@ -118,7 +123,7 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('bootstrap', function (Request $request): array {
             return [
-                Limit::perHour(3)->by($request->ip())->response(function (): \Illuminate\Http\JsonResponse {
+                Limit::perHour(3)->by($request->ip())->response(function (): JsonResponse {
                     return response()->json([
                         'message' => 'Demasiados intentos de bootstrap. Por favor intente en 1 hora.',
                     ], 429);

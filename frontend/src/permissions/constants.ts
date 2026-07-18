@@ -101,6 +101,11 @@ export const PERMISSIONS = {
   // Accounts Payable
   ACCOUNTS_PAYABLE_VIEW: 'accounts_payable.view',
   ACCOUNTS_PAYABLE_PAY: 'accounts_payable.pay',
+  ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_VIEW: 'accounts_payable.payment_requests.view',
+  ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_PREPARE: 'accounts_payable.payment_requests.prepare',
+  ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_APPROVE: 'accounts_payable.payment_requests.approve',
+  ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_EXECUTE: 'accounts_payable.payment_requests.execute',
+  ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_CANCEL: 'accounts_payable.payment_requests.cancel',
 
   // Reports
   REPORTS_VIEW: 'reports.view',

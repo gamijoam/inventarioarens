@@ -29,13 +29,26 @@ import {
   usePaymentMethods,
   type CurrentExchangeRate,
 } from '@/features/pos/api';
-import { usePayable, usePayables, usePayPayable, type PayableListFilters } from './api';
+import {
+  useApprovePayablePaymentRequest,
+  useCancelPayablePaymentRequest,
+  useExecutePayablePaymentRequest,
+  usePayable,
+  usePayablePaymentRequests,
+  usePayables,
+  usePreparePayablePaymentRequest,
+  useRejectPayablePaymentRequest,
+  type PayableListFilters,
+} from './api';
 import { activeUsdVesRate, currentLocalBalance, numberLabel, rateLabel } from './currentBalance';
 import {
   PAYABLE_STATUS_LABELS,
+  PAYABLE_PAYMENT_REQUEST_STATUS_LABELS,
   type Payable,
+  type PayablePaymentRequest,
+  type PayablePaymentRequestPayload,
+  type PayablePaymentRequestStatus,
   type PayableStatus,
-  type PayPayableValues,
 } from './schemas';
 
 const STATUS_OPTIONS: { value: PayableListFilters['status']; label: string }[] = [
@@ -47,10 +60,27 @@ const STATUS_OPTIONS: { value: PayableListFilters['status']; label: string }[] =
   { value: 'paid', label: 'Pagadas' },
 ];
 
+const REQUEST_STATUS_OPTIONS: { value: PayablePaymentRequestStatus; label: string }[] = [
+  { value: 'prepared', label: 'Pendientes' },
+  { value: 'approved', label: 'Aprobadas' },
+  { value: 'executed', label: 'Ejecutadas' },
+  { value: 'rejected', label: 'Rechazadas' },
+  { value: 'cancelled', label: 'Canceladas' },
+];
+
 function statusVariant(status: PayableStatus): 'warning' | 'success' | 'danger' | 'info' {
   if (status === 'paid') return 'success';
   if (status === 'overdue') return 'danger';
   if (status === 'partial') return 'info';
+  return 'warning';
+}
+
+function requestStatusVariant(
+  status: PayablePaymentRequestStatus,
+): 'warning' | 'success' | 'danger' | 'info' {
+  if (status === 'executed') return 'success';
+  if (status === 'rejected' || status === 'cancelled') return 'danger';
+  if (status === 'approved') return 'info';
   return 'warning';
 }
 
@@ -82,12 +112,18 @@ export function PayablesManager() {
     page: 1,
     limit: 25,
   });
+  const [requestStatus, setRequestStatus] = useState<PayablePaymentRequestStatus>('prepared');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [paying, setPaying] = useState<Payable | null>(null);
+  const [preparing, setPreparing] = useState<Payable | null>(null);
   const { data, isLoading, isError, refetch } = usePayables(filters);
+  const canViewRequests = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_VIEW);
+  const { data: requestData } = usePayablePaymentRequests(
+    { status: requestStatus, limit: 10 },
+    { enabled: canViewRequests },
+  );
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const activeRate = activeUsdVesRate(rates);
-  const canPay = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAY);
+  const canPrepare = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_PREPARE);
   const payables = data?.data ?? [];
   const meta = data?.meta;
   const totals = useMemo(() => summarize(payables), [payables]);
@@ -183,6 +219,43 @@ export function PayablesManager() {
         <InfoTile label="Pagadas" value={String(totals.paid)} />
       </div>
 
+      {canViewRequests && (
+        <Card>
+          <CardContent className="space-y-3 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Solicitudes de pago</h2>
+                <p className="text-text-muted text-sm">
+                  Aprueba o ejecuta pagos preparados sin afectar saldos hasta la ejecucion.
+                </p>
+              </div>
+              <Select
+                value={requestStatus}
+                onChange={(event) =>
+                  setRequestStatus(event.target.value as PayablePaymentRequestStatus)
+                }
+                className="w-44"
+              >
+                {REQUEST_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {(requestData?.data ?? []).length === 0 ? (
+              <p className="text-text-muted text-sm">No hay solicitudes en este estado.</p>
+            ) : (
+              <div className="grid gap-2 lg:grid-cols-2">
+                {(requestData?.data ?? []).map((request) => (
+                  <PaymentRequestCard key={request.id} request={request} activeRate={activeRate} />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {isError ? (
         <EmptyState
           title="No se pudo cargar CxP"
@@ -231,11 +304,11 @@ export function PayablesManager() {
                     payable={payable}
                     activeRate={activeRate}
                     expanded={expandedId === payable.id}
-                    canPay={canPay}
+                    canPrepare={canPrepare}
                     onToggle={() =>
                       setExpandedId((current) => (current === payable.id ? null : payable.id))
                     }
-                    onPay={() => setPaying(payable)}
+                    onPrepare={() => setPreparing(payable)}
                   />
                 ))}
               </tbody>
@@ -273,8 +346,8 @@ export function PayablesManager() {
         </Card>
       )}
 
-      {paying && (
-        <PayPanel payable={paying} activeRate={activeRate} onClose={() => setPaying(null)} />
+      {preparing && (
+        <PayPanel payable={preparing} activeRate={activeRate} onClose={() => setPreparing(null)} />
       )}
     </div>
   );
@@ -284,16 +357,16 @@ function PayableRow({
   payable,
   activeRate,
   expanded,
-  canPay,
+  canPrepare,
   onToggle,
-  onPay,
+  onPrepare,
 }: {
   payable: Payable;
   activeRate: CurrentExchangeRate | null;
   expanded: boolean;
-  canPay: boolean;
+  canPrepare: boolean;
   onToggle: () => void;
-  onPay: () => void;
+  onPrepare: () => void;
 }) {
   const localBalance = currentLocalBalance(payable, activeRate);
 
@@ -325,13 +398,13 @@ function PayableRow({
           <Button
             size="sm"
             variant="secondary"
-            disabled={!canPay || payable.balance_base_amount <= 0}
+            disabled={!canPrepare || payable.balance_base_amount <= 0}
             onClick={(event) => {
               event.stopPropagation();
-              onPay();
+              onPrepare();
             }}
           >
-            Pagar
+            Preparar
           </Button>
         </td>
       </tr>
@@ -359,6 +432,7 @@ function PayableDetail({
   const current = data ?? payable;
   const items = current.purchase_order?.items ?? [];
   const payments = current.payments ?? [];
+  const requests = current.payment_requests ?? [];
   const localBalance = currentLocalBalance(current, activeRate);
 
   if (isLoading && !data) return <Skeleton className="h-36 w-full" />;
@@ -452,6 +526,135 @@ function PayableDetail({
           </div>
         </section>
       </div>
+      <section className="border-border bg-surface rounded border p-3">
+        <h3 className="text-sm font-semibold">Solicitudes de pago</h3>
+        <div className="mt-2 space-y-2">
+          {requests.length === 0 ? (
+            <p className="text-text-muted text-sm">Sin solicitudes preparadas.</p>
+          ) : (
+            requests.map((request) => (
+              <PaymentRequestCard key={request.id} request={request} activeRate={activeRate} />
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PaymentRequestCard({
+  request,
+  activeRate,
+}: {
+  request: PayablePaymentRequest;
+  activeRate: CurrentExchangeRate | null;
+}) {
+  const approve = useApprovePayablePaymentRequest();
+  const execute = useExecutePayablePaymentRequest();
+  const reject = useRejectPayablePaymentRequest();
+  const cancel = useCancelPayablePaymentRequest();
+  const { data: sessions = [] } = useCashSessions();
+  const canApprove = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_APPROVE);
+  const canExecute = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_EXECUTE);
+  const canCancel = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_CANCEL);
+  const canMoveCash =
+    useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const activeSession = sessions.find((session) => session.status === 'open') ?? null;
+  const isCash = isCashMethod(request.method);
+  const isBusy = approve.isPending || execute.isPending || reject.isPending || cancel.isPending;
+
+  async function approveRequest() {
+    await approve.mutateAsync(request);
+    toast.success('Solicitud aprobada.');
+  }
+
+  async function executeRequest() {
+    if (isCash && !activeSession) return toast.error('Abre una caja antes de ejecutar efectivo.');
+    if (isCash && !canMoveCash) return toast.error('Necesitas permiso de movimientos de caja.');
+    await execute.mutateAsync({
+      request,
+      values: {
+        cash_register_session_id: isCash ? (activeSession?.id ?? null) : null,
+        reference: request.reference ?? null,
+        notes: request.notes ?? null,
+      },
+    });
+    toast.success('Pago ejecutado.');
+  }
+
+  async function rejectRequest() {
+    const reason = window.prompt('Motivo de rechazo');
+    if (!reason?.trim()) return;
+    await reject.mutateAsync({ request, reason: reason.trim() });
+    toast.success('Solicitud rechazada.');
+  }
+
+  async function cancelRequest() {
+    const reason = window.prompt('Motivo de cancelacion');
+    if (!reason?.trim()) return;
+    await cancel.mutateAsync({ request, reason: reason.trim() });
+    toast.success('Solicitud cancelada.');
+  }
+
+  return (
+    <div className="border-border rounded border p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Badge variant={requestStatusVariant(request.status)}>
+              {PAYABLE_PAYMENT_REQUEST_STATUS_LABELS[request.status]}
+            </Badge>
+            <span className="text-sm font-semibold">
+              {money(request.amount, request.payment_currency === 'VES' ? 'Bs ' : '$')}
+            </span>
+          </div>
+          <p className="text-text-muted mt-1 text-xs">
+            Base {money(request.amount_base)}
+            {activeRate ? ` - Hoy ${money(request.amount_base * activeRate.rate, 'Bs ')}` : ''}
+          </p>
+          <p className="text-text-muted text-xs">
+            {request.method ?? 'Metodo pendiente'}
+            {request.reference ? ` - Ref. ${request.reference}` : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {request.status === 'prepared' && canApprove && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isBusy}
+              onClick={() => void approveRequest()}
+            >
+              Aprobar
+            </Button>
+          )}
+          {request.status === 'approved' && canExecute && (
+            <Button size="sm" disabled={isBusy} onClick={() => void executeRequest()}>
+              Ejecutar
+            </Button>
+          )}
+          {['prepared', 'approved'].includes(request.status) && canApprove && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isBusy}
+              onClick={() => void rejectRequest()}
+            >
+              Rechazar
+            </Button>
+          )}
+          {['prepared', 'approved'].includes(request.status) && canCancel && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isBusy}
+              onClick={() => void cancelRequest()}
+            >
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -465,7 +668,7 @@ function PayPanel({
   activeRate: CurrentExchangeRate | null;
   onClose: () => void;
 }) {
-  const pay = usePayPayable();
+  const prepare = usePreparePayablePaymentRequest();
   const { data: sessions = [] } = useCashSessions();
   const { data: methods = [] } = usePaymentMethods();
   const canMoveCash =
@@ -477,7 +680,7 @@ function PayPanel({
   const rateValue = activeRate?.rate && activeRate.rate > 0 ? activeRate.rate : null;
   const balanceBase = payable.balance_base_amount;
   const balanceLocal = rateValue ? balanceBase * rateValue : payable.balance_local_amount;
-  const [form, setForm] = useState<PayPayableValues>({
+  const [form, setForm] = useState<PayablePaymentRequestPayload>({
     payment_currency: 'USD',
     amount: balanceBase,
     cash_register_session_id: null,
@@ -486,7 +689,7 @@ function PayPanel({
     method: defaultMethod?.method ?? 'transfer',
     reference: '',
     notes: '',
-    paid_at: '',
+    scheduled_for: '',
   });
   const amountBase =
     form.payment_currency === 'VES' && rateValue ? form.amount / rateValue : form.amount;
@@ -500,7 +703,7 @@ function PayPanel({
   const isCash = isCashMethod(form.method);
   const cashBlocked = isCash && (!activeSession || !canMoveCash);
 
-  function patch(next: Partial<PayPayableValues>) {
+  function patch(next: Partial<PayablePaymentRequestPayload>) {
     setForm((current) => ({ ...current, ...next }));
   }
 
@@ -516,7 +719,7 @@ function PayPanel({
       return toast.error('Debes tener una caja abierta para pagar en efectivo.');
     if (isCash && !canMoveCash) return toast.error('No tienes permiso para movimientos de caja.');
     if (isOverpaying) return toast.error('El pago supera el saldo pendiente.');
-    const payload: PayPayableValues = {
+    const payload: PayablePaymentRequestPayload = {
       ...form,
       cash_register_session_id: isCash ? (activeSession?.id ?? null) : null,
       exchange_rate_type_id:
@@ -525,12 +728,12 @@ function PayPanel({
           : (form.exchange_rate_type_id ?? null),
       exchange_rate:
         form.payment_currency === 'VES' ? (activeRate?.rate ?? null) : (form.exchange_rate ?? null),
-      paid_at: form.paid_at || null,
+      scheduled_for: form.scheduled_for || null,
       reference: form.reference?.trim() || null,
       notes: form.notes?.trim() || null,
     };
-    await pay.mutateAsync({ id: payable.id, values: payload });
-    toast.success('Pago a proveedor registrado.');
+    await prepare.mutateAsync({ id: payable.id, values: payload });
+    toast.success('Solicitud de pago preparada.');
     onClose();
   }
 
@@ -538,7 +741,7 @@ function PayPanel({
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
       <div className="border-border bg-surface h-full w-full max-w-lg overflow-auto border-l p-4 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold">Registrar pago a proveedor</h2>
+          <h2 className="font-semibold">Preparar pago a proveedor</h2>
           <Button size="icon-sm" variant="ghost" onClick={onClose}>
             <X className="size-4" />
           </Button>
@@ -643,8 +846,8 @@ function PayPanel({
           />
           <Input
             type="date"
-            value={form.paid_at ?? ''}
-            onChange={(event) => patch({ paid_at: event.target.value })}
+            value={form.scheduled_for ?? ''}
+            onChange={(event) => patch({ scheduled_for: event.target.value })}
           />
           <Textarea
             value={form.notes ?? ''}
@@ -655,19 +858,19 @@ function PayPanel({
           <Button
             className="w-full"
             disabled={
-              pay.isPending ||
+              prepare.isPending ||
               isOverpaying ||
               cashBlocked ||
               (form.payment_currency === 'VES' && !rateValue)
             }
             onClick={() => void submit()}
           >
-            {pay.isPending ? (
+            {prepare.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <CreditCard className="size-4" />
             )}
-            Registrar pago
+            Preparar solicitud
           </Button>
         </div>
       </div>
