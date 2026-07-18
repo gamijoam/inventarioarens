@@ -14,12 +14,32 @@ function Ensure-Directory([string] $Path) {
 }
 
 function Write-Json($Context, [int] $StatusCode, $Body) {
+    Add-CorsHeaders $Context
     $json = $Body | ConvertTo-Json -Depth 12
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
     $Context.Response.StatusCode = $StatusCode
     $Context.Response.ContentType = 'application/json; charset=utf-8'
     $Context.Response.ContentLength64 = $bytes.Length
     $Context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+    $Context.Response.OutputStream.Close()
+}
+
+function Add-CorsHeaders($Context) {
+    $origin = $Context.Request.Headers['Origin']
+    if ([string]::IsNullOrWhiteSpace($origin)) {
+        $origin = '*'
+    }
+
+    $Context.Response.Headers.Set('Access-Control-Allow-Origin', $origin)
+    $Context.Response.Headers.Set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    $Context.Response.Headers.Set('Access-Control-Allow-Headers', 'Content-Type')
+    $Context.Response.Headers.Set('Access-Control-Max-Age', '86400')
+}
+
+function Write-Empty($Context, [int] $StatusCode) {
+    Add-CorsHeaders $Context
+    $Context.Response.StatusCode = $StatusCode
+    $Context.Response.ContentLength64 = 0
     $Context.Response.OutputStream.Close()
 }
 
@@ -135,6 +155,11 @@ Write-Host "Agente de impresion escuchando en http://127.0.0.1:$Port/"
 while ($listener.IsListening) {
     $context = $listener.GetContext()
     try {
+        if ($context.Request.HttpMethod -eq 'OPTIONS') {
+            Write-Empty $context 204
+            continue
+        }
+
         if ($context.Request.HttpMethod -eq 'GET' -and $context.Request.Url.AbsolutePath -eq '/health') {
             Write-Json $context 200 @{ ok = $true; service = 'inventarioarens-printer-agent'; port = $Port }
             continue

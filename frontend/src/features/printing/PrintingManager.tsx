@@ -112,8 +112,9 @@ export function PrintingManager() {
       const response = await fetch('http://127.0.0.1:17777/health');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       toast.success('Agente local disponible.');
-    } catch {
-      toast.error('No se detecto el agente local en 127.0.0.1:17777.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`No se detecto el agente local. Reinicia el agente actualizado y revisa el puerto 17777. ${message}`);
     }
   }
 
