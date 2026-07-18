@@ -297,7 +297,7 @@ function SpinoffsPanel({
   spinoffs: MasterTenant[];
   loading: boolean;
 }) {
-  const createSpinoff = useCreateMasterSpinoff(group?.id ?? null);
+  const createSpinoff = useCreateMasterSpinoff();
   const updateSpinoff = useUpdateMasterSpinoff();
   const deactivateSpinoff = useDeactivateMasterSpinoff();
   const [showCreate, setShowCreate] = useState(false);
@@ -316,26 +316,35 @@ function SpinoffsPanel({
           <h2 className="font-semibold">Empresas hijas</h2>
           <p className="text-text-muted text-sm">{group ? group.name : 'Selecciona una organizacion.'}</p>
         </div>
-        <Button size="sm" disabled={!group} onClick={() => setShowCreate((v) => !v)}>
+        <Button size="sm" disabled={groups.length === 0} onClick={() => setShowCreate((v) => !v)}>
           <Plus className="size-4" /> Crear
         </Button>
       </div>
 
-      {showCreate && group && (
+      {showCreate && (
         <SpinoffForm
           title="Crear empresa hija"
-          groups={[]}
+          groups={groups}
+          defaultGroupId={group?.id ?? groups[0]?.id ?? null}
           onCancel={() => setShowCreate(false)}
           onSubmit={async (values) => {
+            if (!values.parentId) {
+              toast.error('Selecciona una organizacion para la empresa hija.');
+              return;
+            }
+
             await createSpinoff.mutateAsync({
-              name: values.name,
-              slug: values.slug,
-              plan: values.plan,
-              domain: values.domain,
-              admin: {
-                name: values.ownerName || values.name,
-                email: values.ownerEmail,
-                password: values.ownerPassword || undefined,
+              groupId: values.parentId,
+              payload: {
+                name: values.name,
+                slug: values.slug,
+                plan: values.plan,
+                domain: values.domain,
+                admin: {
+                  name: values.ownerName || values.name,
+                  email: values.ownerEmail,
+                  password: values.ownerPassword || undefined,
+                },
               },
             });
             setShowCreate(false);
@@ -510,6 +519,7 @@ function SpinoffForm(props: {
   title: string;
   initial?: MasterTenant;
   groups: MasterTenant[];
+  defaultGroupId?: number | null;
   onSubmit: (values: TenantFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -521,6 +531,7 @@ function TenantForm({
   initial,
   ownerLabel,
   groups = [],
+  defaultGroupId = null,
   onSubmit,
   onCancel,
 }: {
@@ -528,6 +539,7 @@ function TenantForm({
   initial?: MasterTenant;
   ownerLabel: string;
   groups?: MasterTenant[];
+  defaultGroupId?: number | null;
   onSubmit: (values: TenantFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -537,7 +549,7 @@ function TenantForm({
     domain: initial?.domain ?? '',
     plan: initial?.plan ?? 'standard',
     status: initial?.status ?? 'active',
-    parentId: initial?.parent_id ?? null,
+    parentId: initial?.parent_id ?? defaultGroupId,
     ownerName: '',
     ownerEmail: '',
     ownerPassword: '',
@@ -589,7 +601,7 @@ function TenantForm({
           </select>
         </Field>
       )}
-      {editing && groups.length > 0 && (
+      {groups.length > 0 && (
         <Field label="Organizacion">
           <select
             className="border-border h-9 w-full rounded border bg-surface px-3 text-sm"

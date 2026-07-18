@@ -180,14 +180,14 @@ export function useDeactivateMasterGroup() {
   });
 }
 
-export function useCreateMasterSpinoff(groupId: number | null) {
+export function useCreateMasterSpinoff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateSpinoffPayload) =>
+    mutationFn: ({ groupId, payload }: { groupId: number; payload: CreateSpinoffPayload }) =>
       postOne<CreateSpinoffPayload, MasterTenant>(`/master/groups/${groupId}/tenants`, payload),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: masterKeys.groups() });
-      if (groupId != null) void qc.invalidateQueries({ queryKey: masterKeys.spinoffs(groupId) });
+      void qc.invalidateQueries({ queryKey: masterKeys.spinoffs(vars.groupId) });
       void qc.invalidateQueries({ queryKey: masterKeys.stats() });
     },
   });
