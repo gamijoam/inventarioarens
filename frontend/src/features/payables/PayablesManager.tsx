@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Textarea } from '@/components/ui/Textarea';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
+import { ValidationError } from '@/types/api';
 import {
   useCashSessions,
   useCurrentExchangeRatesForPos,
@@ -104,6 +105,11 @@ function supplierLabel(payable: Payable): string {
 
 function isCashMethod(method: string | null | undefined): boolean {
   return (method ?? '').toLowerCase() === 'cash';
+}
+
+function isTransferMethod(method: string | null | undefined): boolean {
+  const normalized = (method ?? '').toLowerCase();
+  return normalized === 'transfer' || normalized === 'transferencia';
 }
 
 export function PayablesManager() {
@@ -571,15 +577,30 @@ function PaymentRequestCard({
   async function executeRequest() {
     if (isCash && !activeSession) return toast.error('Abre una caja antes de ejecutar efectivo.');
     if (isCash && !canMoveCash) return toast.error('Necesitas permiso de movimientos de caja.');
-    await execute.mutateAsync({
-      request,
-      values: {
-        cash_register_session_id: isCash ? (activeSession?.id ?? null) : null,
-        reference: request.reference ?? null,
-        notes: request.notes ?? null,
-      },
-    });
-    toast.success('Pago ejecutado.');
+    const reference =
+      request.reference ??
+      (isTransferMethod(request.method) ? window.prompt('Referencia de transferencia') : null);
+    if (isTransferMethod(request.method) && !reference?.trim()) {
+      return toast.error('La transferencia requiere referencia antes de ejecutar.');
+    }
+
+    try {
+      await execute.mutateAsync({
+        request,
+        values: {
+          cash_register_session_id: isCash ? (activeSession?.id ?? null) : null,
+          reference: reference?.trim() || null,
+          notes: request.notes ?? null,
+        },
+      });
+      toast.success('Pago ejecutado.');
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        toast.error(error.message);
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : 'No se pudo ejecutar el pago.');
+    }
   }
 
   async function rejectRequest() {
