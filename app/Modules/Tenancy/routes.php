@@ -73,6 +73,9 @@ Route::middleware(['api.auth', EnsurePlatformAdmin::class])
         Route::delete('groups/{group}', [MasterController::class, 'destroyGroup']);
         Route::get('groups/{group}/tenants', [MasterController::class, 'listGroupSpinoffs']);
         Route::post('groups/{group}/tenants', [MasterController::class, 'createGroupSpinoff']);
+        Route::get('tenants/{tenant}', [MasterController::class, 'showSpinoff']);
+        Route::patch('tenants/{tenant}', [MasterController::class, 'updateSpinoff']);
+        Route::delete('tenants/{tenant}', [MasterController::class, 'destroySpinoff']);
 
         Route::get('admins', [PlatformAdminController::class, 'index']);
         Route::post('admins', [PlatformAdminController::class, 'store']);

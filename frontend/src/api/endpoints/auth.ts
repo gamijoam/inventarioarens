@@ -65,6 +65,11 @@ export function login(slug: string, payload: LoginRequest) {
   });
 }
 
+/** POST /api/auth/platform-login - Inicia sesion como Platform Admin sin tenant. */
+export function platformLogin(payload: LoginRequest) {
+  return postOne<LoginRequest, LoginResponse['data']>('/auth/platform-login', payload);
+}
+
 /** POST /api/auth/logout — Cierra la sesion actual (revoca el token + limpia cookie). */
 export function logout() {
   return postOne<Record<string, never>, { message: string }>('/auth/logout', {});

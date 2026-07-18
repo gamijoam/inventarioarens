@@ -8,15 +8,18 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\StoreGroupRequest;
 use App\Modules\Tenancy\Requests\StoreSpinoffRequest;
 use App\Modules\Tenancy\Requests\UpdateGroupRequest;
+use App\Modules\Tenancy\Requests\UpdateSpinoffRequest;
 use App\Modules\Tenancy\Resources\GroupResource;
 use App\Modules\Tenancy\Resources\SpinoffResource;
 use App\Modules\Tenancy\Services\TenantGroupService;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Spatie\Permission\PermissionRegistrar;
 
 class MasterController extends Controller
 {
@@ -24,8 +27,7 @@ class MasterController extends Controller
         private readonly TenantGroupService $groupService,
         private readonly TenantSpinoffService $spinoffService,
         private readonly AuditLogger $audit,
-    ) {
-    }
+    ) {}
 
     public function listGroups(Request $request): AnonymousResourceCollection
     {
@@ -86,6 +88,7 @@ class MasterController extends Controller
         });
 
         $group->loadCount(['children', 'users']);
+
         return GroupResource::make($group);
     }
 
@@ -144,6 +147,71 @@ class MasterController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
+    public function showSpinoff(Request $request, Tenant $tenant): SpinoffResource
+    {
+        abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($tenant->isSpinoff(), Response::HTTP_NOT_FOUND, 'Tenant is not a spinoff.');
+        $tenant->loadCount('users');
+
+        return SpinoffResource::make($tenant);
+    }
+
+    public function updateSpinoff(UpdateSpinoffRequest $request, Tenant $tenant): SpinoffResource
+    {
+        abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($tenant->isSpinoff(), Response::HTTP_NOT_FOUND, 'Tenant is not a spinoff.');
+
+        $oldValues = [
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+            'domain' => $tenant->domain,
+            'status' => $tenant->status,
+            'plan' => $tenant->plan,
+            'parent_id' => $tenant->parent_id,
+        ];
+
+        $data = $request->validated();
+        if (isset($data['plan']) && empty($data['plan'])) {
+            $data['plan'] = null;
+        }
+
+        $tenant->fill(collect($data)->only(['name', 'slug', 'domain', 'status', 'plan'])->all());
+        $tenant->save();
+
+        $this->audit->record('tenant_spinoff.updated_by_platform_admin', $tenant, $request->user(), $oldValues, [
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+            'domain' => $tenant->domain,
+            'status' => $tenant->status,
+            'plan' => $tenant->plan,
+            'parent_id' => $tenant->parent_id,
+        ]);
+
+        $tenant->loadCount('users');
+
+        return SpinoffResource::make($tenant);
+    }
+
+    public function destroySpinoff(Request $request, Tenant $tenant): Response
+    {
+        abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($tenant->isSpinoff(), Response::HTTP_NOT_FOUND, 'Tenant is not a spinoff.');
+
+        $oldValues = [
+            'status' => $tenant->status,
+            'parent_id' => $tenant->parent_id,
+        ];
+
+        $tenant->update(['status' => 'inactive']);
+
+        $this->audit->record('tenant_spinoff.deactivated_by_platform_admin', $tenant, $request->user(), $oldValues, [
+            'status' => 'inactive',
+            'parent_id' => $tenant->parent_id,
+        ]);
+
+        return response()->noContent();
+    }
+
     public function stats(Request $request): JsonResponse
     {
         abort_unless($request->user()?->isPlatformAdmin(), Response::HTTP_FORBIDDEN);
@@ -172,15 +240,15 @@ class MasterController extends Controller
 
     private function auditWithGroupContext(Tenant $group, \Closure $callback): mixed
     {
-        $manager = app(\App\Support\Tenancy\TenantManager::class);
+        $manager = app(TenantManager::class);
         $previous = $manager->current();
 
         $manager->set($group);
         if (function_exists('setPermissionsTeamId')) {
             setPermissionsTeamId($group->id);
         }
-        \Spatie\Permission\PermissionRegistrar::class;
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        PermissionRegistrar::class;
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         try {
             return $callback();
@@ -193,7 +261,7 @@ class MasterController extends Controller
             } else {
                 $manager->clear();
             }
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
         }
     }
 }

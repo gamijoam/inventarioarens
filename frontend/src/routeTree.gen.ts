@@ -9,9 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as MasterRouteImport } from './routes/master'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MasterLoginRouteImport } from './routes/master/login'
 import { Route as AuthedUsersRouteImport } from './routes/_authed/users'
 import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
 import { Route as AuthedSuppliersRouteImport } from './routes/_authed/suppliers'
@@ -36,6 +39,16 @@ import { Route as AuthedAccessPermissionsRouteImport } from './routes/_authed/ac
 import { Route as AuthedAccessGroupsRouteImport } from './routes/_authed/access/groups'
 import { Route as AuthedAccessRolesRoleIdRouteImport } from './routes/_authed/access/roles/$roleId'
 
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasterRoute = MasterRouteImport.update({
+  id: '/master',
+  path: '/master',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -49,6 +62,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MasterLoginRoute = MasterLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => MasterRoute,
 } as any)
 const AuthedUsersRoute = AuthedUsersRouteImport.update({
   id: '/users',
@@ -171,6 +189,8 @@ const AuthedAccessRolesRoleIdRoute = AuthedAccessRolesRoleIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/master': typeof MasterRouteWithChildren
+  '/setup': typeof SetupRoute
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
@@ -183,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
@@ -198,6 +219,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/master': typeof MasterRouteWithChildren
+  '/setup': typeof SetupRoute
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
@@ -210,6 +233,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
@@ -227,6 +251,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/master': typeof MasterRouteWithChildren
+  '/setup': typeof SetupRoute
   '/_authed/cash-register': typeof AuthedCashRegisterRoute
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
@@ -239,6 +265,7 @@ export interface FileRoutesById {
   '/_authed/suppliers': typeof AuthedSuppliersRoute
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRouteWithChildren
+  '/master/login': typeof MasterLoginRoute
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
   '/_authed/access/roles': typeof AuthedAccessRolesRouteWithChildren
@@ -256,6 +283,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/master'
+    | '/setup'
     | '/cash-register'
     | '/customers'
     | '/dashboard'
@@ -268,6 +297,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/master/login'
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
@@ -283,6 +313,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/master'
+    | '/setup'
     | '/cash-register'
     | '/customers'
     | '/dashboard'
@@ -295,6 +327,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/master/login'
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
@@ -311,6 +344,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_authed'
     | '/login'
+    | '/master'
+    | '/setup'
     | '/_authed/cash-register'
     | '/_authed/customers'
     | '/_authed/dashboard'
@@ -323,6 +358,7 @@ export interface FileRouteTypes {
     | '/_authed/suppliers'
     | '/_authed/transfers'
     | '/_authed/users'
+    | '/master/login'
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
     | '/_authed/access/roles'
@@ -340,10 +376,26 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  MasterRoute: typeof MasterRouteWithChildren
+  SetupRoute: typeof SetupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master': {
+      id: '/master'
+      path: '/master'
+      fullPath: '/master'
+      preLoaderRoute: typeof MasterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -364,6 +416,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/master/login': {
+      id: '/master/login'
+      path: '/login'
+      fullPath: '/master/login'
+      preLoaderRoute: typeof MasterLoginRouteImport
+      parentRoute: typeof MasterRoute
     }
     '/_authed/users': {
       id: '/_authed/users'
@@ -613,10 +672,23 @@ const AuthedRouteChildren: AuthedRouteChildren = {
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
+interface MasterRouteChildren {
+  MasterLoginRoute: typeof MasterLoginRoute
+}
+
+const MasterRouteChildren: MasterRouteChildren = {
+  MasterLoginRoute: MasterLoginRoute,
+}
+
+const MasterRouteWithChildren =
+  MasterRoute._addFileChildren(MasterRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
+  MasterRoute: MasterRouteWithChildren,
+  SetupRoute: SetupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -41,6 +41,12 @@ export const Route = createFileRoute('/_authed')({
         throw redirect({ to: '/login' });
       }
     }
+
+    const { user, tenant } = useSessionStore.getState();
+    if (user?.is_platform_admin && !tenant) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/master' });
+    }
   },
   component: AuthedLayoutComponent,
 });

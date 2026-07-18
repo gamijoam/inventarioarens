@@ -26,7 +26,23 @@ class BootstrapService
 
     public function isEnabled(): bool
     {
-        return (string) env(self::ENV_BOOTSTRAP_TOKEN, '') !== '';
+        return $this->bootstrapToken() !== '';
+    }
+
+    public function status(): array
+    {
+        $enabled = $this->isEnabled();
+        $userCount = (int) User::query()->count();
+        $tenantCount = (int) Tenant::query()->count();
+        $databaseEmpty = $userCount === 0 && $tenantCount === 0;
+
+        return [
+            'enabled' => $enabled,
+            'database_empty' => $databaseEmpty,
+            'can_run' => $enabled && $databaseEmpty,
+            'user_count' => $userCount,
+            'tenant_count' => $tenantCount,
+        ];
     }
 
     public function ensureCanRun(?string $providedToken, Request $request): void
@@ -44,7 +60,7 @@ class BootstrapService
             ]);
         }
 
-        $expected = (string) env(self::ENV_BOOTSTRAP_TOKEN, '');
+        $expected = $this->bootstrapToken();
         if ($expected === '') {
             throw new RuntimeException(self::ENV_BOOTSTRAP_TOKEN.' no esta definido en el entorno.');
         }
@@ -236,5 +252,18 @@ class BootstrapService
         ]);
 
         return $plainToken;
+    }
+
+    private function bootstrapToken(): string
+    {
+        $value = getenv(self::ENV_BOOTSTRAP_TOKEN);
+
+        if ($value === false) {
+            $value = $_ENV[self::ENV_BOOTSTRAP_TOKEN]
+                ?? $_SERVER[self::ENV_BOOTSTRAP_TOKEN]
+                ?? env(self::ENV_BOOTSTRAP_TOKEN, '');
+        }
+
+        return trim((string) $value);
     }
 }

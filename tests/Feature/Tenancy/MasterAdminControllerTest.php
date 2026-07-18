@@ -5,6 +5,7 @@ namespace Tests\Feature\Tenancy;
 use App\Models\User;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ class MasterAdminControllerTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
@@ -130,6 +131,70 @@ class MasterAdminControllerTest extends TestCase
         $this->assertContains('s1', $slugs);
         $this->assertContains('s2', $slugs);
         $this->assertNotContains('otro', $slugs);
+    }
+
+    public function test_show_spinoff_returns_tenant_resource(): void
+    {
+        $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active']);
+        $spinoff = Tenant::create(['name' => 'S1', 'slug' => 's1', 'status' => 'active', 'parent_id' => $group->id]);
+        $token = $this->makePlatformAdminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/master/tenants/{$spinoff->id}")
+            ->assertOk()
+            ->assertJsonPath('data.slug', 's1')
+            ->assertJsonPath('data.is_group', false)
+            ->assertJsonPath('data.parent_id', $group->id);
+    }
+
+    public function test_show_spinoff_404_for_group(): void
+    {
+        $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active']);
+        $token = $this->makePlatformAdminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/master/tenants/{$group->id}")
+            ->assertStatus(404);
+    }
+
+    public function test_update_spinoff_changes_name_plan_status(): void
+    {
+        $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active']);
+        $spinoff = Tenant::create(['name' => 'Antes', 'slug' => 'antes', 'status' => 'active', 'plan' => 'demo', 'parent_id' => $group->id]);
+        $token = $this->makePlatformAdminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->patchJson("/api/master/tenants/{$spinoff->id}", [
+                'name' => 'Despues',
+                'plan' => 'premium',
+                'status' => 'inactive',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Despues')
+            ->assertJsonPath('data.plan', 'premium')
+            ->assertJsonPath('data.status', 'inactive');
+
+        $this->assertDatabaseHas('tenants', [
+            'id' => $spinoff->id,
+            'name' => 'Despues',
+            'plan' => 'premium',
+            'status' => 'inactive',
+        ]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'tenant_spinoff.updated_by_platform_admin']);
+    }
+
+    public function test_destroy_spinoff_soft_deletes(): void
+    {
+        $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active']);
+        $spinoff = Tenant::create(['name' => 'S1', 'slug' => 's1', 'status' => 'active', 'parent_id' => $group->id]);
+        $token = $this->makePlatformAdminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->deleteJson("/api/master/tenants/{$spinoff->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseHas('tenants', ['id' => $spinoff->id, 'status' => 'inactive']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'tenant_spinoff.deactivated_by_platform_admin']);
     }
 
     public function test_show_admin_returns_admin_resource(): void
@@ -305,6 +370,7 @@ class MasterAdminControllerTest extends TestCase
     private function makePlatformAdminToken(): string
     {
         $admin = User::factory()->create(['is_platform_admin' => true]);
+
         return $this->makeTokenFor($admin);
     }
 
@@ -320,6 +386,7 @@ class MasterAdminControllerTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
         return $plainToken;
     }
 }

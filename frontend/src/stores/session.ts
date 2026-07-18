@@ -34,7 +34,7 @@ export interface SessionState {
   setSession: (data: {
     expiresAt: string;
     user: User;
-    tenant: Tenant;
+    tenant: Tenant | null;
     roles: string[];
     permissions: string[];
     scopeStatus: SessionState['scopeStatus'];
@@ -91,7 +91,7 @@ export const useSessionStore = create<SessionState>()(
 
       // Sync: indica si tenemos datos de sesion hidratados.
       // NO garantiza que la cookie este vigente (eso lo verifica el backend).
-      hasSession: () => Boolean(get().user && get().tenant),
+  hasSession: () => Boolean(get().user),
     }),
     {
       name: 'inventory_session',

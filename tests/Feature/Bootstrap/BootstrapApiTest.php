@@ -76,6 +76,29 @@ class BootstrapApiTest extends TestCase
         $this->assertDatabaseCount('auth_tokens', 1);
     }
 
+    public function test_status_reports_bootstrap_available_when_database_is_empty(): void
+    {
+        $this->getJson('/api/bootstrap/status')
+            ->assertOk()
+            ->assertJsonPath('data.enabled', true)
+            ->assertJsonPath('data.database_empty', true)
+            ->assertJsonPath('data.can_run', true)
+            ->assertJsonPath('data.user_count', 0)
+            ->assertJsonPath('data.tenant_count', 0);
+    }
+
+    public function test_status_reports_bootstrap_unavailable_when_database_has_data(): void
+    {
+        User::factory()->create();
+
+        $this->getJson('/api/bootstrap/status')
+            ->assertOk()
+            ->assertJsonPath('data.enabled', true)
+            ->assertJsonPath('data.database_empty', false)
+            ->assertJsonPath('data.can_run', false)
+            ->assertJsonPath('data.user_count', 1);
+    }
+
     public function test_returned_token_works_for_master_endpoints(): void
     {
         $login = $this->postJson('/api/bootstrap', $this->validPayload())->assertCreated();

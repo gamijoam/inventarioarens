@@ -69,6 +69,23 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
     expect(state.hasSession()).toBe(true);
   });
 
+  it('setSession permite sesion platform sin tenant activo', () => {
+    useSessionStore.getState().setSession({
+      expiresAt: '2030-01-01T00:00:00Z',
+      user: { id: 1, email: 'master@e.com', name: 'Master', is_active: true, is_platform_admin: true },
+      tenant: null,
+      roles: [],
+      permissions: [],
+      scopeStatus: 'none',
+      scopes: emptyScopes,
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.user?.is_platform_admin).toBe(true);
+    expect(state.tenant).toBeNull();
+    expect(state.hasSession()).toBe(true);
+  });
+
   it('clearSession limpia todo el state', () => {
     useSessionStore.getState().setSession({
       expiresAt: '2030-01-01',

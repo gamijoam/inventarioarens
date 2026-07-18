@@ -13,6 +13,13 @@ class BootstrapController extends Controller
 {
     public function __construct(private readonly BootstrapService $bootstrap) {}
 
+    public function status(): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->bootstrap->status(),
+        ]);
+    }
+
     public function store(BootstrapRequest $request): JsonResponse
     {
         $data = $request->validated();

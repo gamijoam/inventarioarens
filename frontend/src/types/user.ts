@@ -8,6 +8,11 @@ export interface Tenant {
   slug: string;
   name: string;
   is_active: boolean;
+  status?: string;
+  plan?: string | null;
+  domain?: string | null;
+  parent_id?: number | null;
+  is_group?: boolean;
 }
 
 export interface Role {
@@ -22,11 +27,12 @@ export interface User {
   email: string;
   name: string;
   is_active: boolean;
+  is_platform_admin?: boolean;
 }
 
 export interface UserSession {
   user: User;
-  tenant: Tenant;
+  tenant: Tenant | null;
   roles: Role[];
   permissions: string[];
   expires_at: string;
@@ -61,12 +67,12 @@ export interface TenantOption {
 export interface LoginResponse {
   data: {
     token: string;
-    expires_at: string;
+    expires_at?: string;
     user: User;
-    tenant: Tenant;
+    tenant: Tenant | null;
     roles: Role[];
     permissions: string[];
-    scope_status: UserSession['scope_status'];
-    scopes: UserScopes;
+    scope_status?: UserSession['scope_status'];
+    scopes?: UserScopes;
   };
 }

@@ -19,6 +19,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   me as apiMe,
+  platformLogin as apiPlatformLogin,
   lookupTenants,
   switchTenantApi,
   type LoginRequest,
@@ -29,6 +30,7 @@ interface UseAuthResult {
   isAuthenticated: boolean;
   isReady: boolean;
   signIn: (tenantSlug: string, payload: LoginRequest) => Promise<void>;
+  signInPlatform: (payload: LoginRequest) => Promise<void>;
   signOut: () => Promise<void>;
   switchTo: (slug: string) => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -85,6 +87,10 @@ export function useAuth(): UseAuthResult {
       // Solo necesitamos guardar el resto en el store.
       const data = await apiLogin(tenantSlug, payload);
 
+      if (!data.tenant) {
+        throw new Error('Sesion de empresa invalida.');
+      }
+
       useSessionStore.getState().setTenant({
         id: data.tenant.id,
         slug: data.tenant.slug,
@@ -93,18 +99,59 @@ export function useAuth(): UseAuthResult {
       });
 
       useSessionStore.getState().setSession({
-        expiresAt: data.expires_at,
+        expiresAt: data.expires_at ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         user: data.user,
         tenant: data.tenant,
         roles: data.roles.map((r: unknown) =>
           typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
         ),
         permissions: data.permissions,
-        scopeStatus: data.scope_status,
-        scopes: data.scopes,
+        scopeStatus: data.scope_status ?? 'none',
+        scopes: data.scopes ?? {
+          branches: [],
+          warehouses: [],
+          customer_groups: [],
+          vendor_of: [],
+          branches_count: 0,
+          warehouses_count: 0,
+          customer_groups_count: 0,
+          vendor_of_count: 0,
+        },
       });
 
       // Invalidamos todas las queries para forzar re-fetch con el nuevo tenant.
+      queryClient.clear();
+    },
+    [queryClient],
+  );
+
+  const signInPlatform = useCallback(
+    async (payload: LoginRequest) => {
+      const data = await apiPlatformLogin(payload);
+
+      useSessionStore.getState().setSession({
+        expiresAt: data.expires_at ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        user: data.user,
+        tenant: null,
+        roles: Array.isArray(data.roles)
+          ? data.roles.map((r: unknown) =>
+              typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
+            )
+          : [],
+        permissions: data.permissions ?? [],
+        scopeStatus: data.scope_status ?? 'none',
+        scopes: data.scopes ?? {
+          branches: [],
+          warehouses: [],
+          customer_groups: [],
+          vendor_of: [],
+          branches_count: 0,
+          warehouses_count: 0,
+          customer_groups_count: 0,
+          vendor_of_count: 0,
+        },
+      });
+
       queryClient.clear();
     },
     [queryClient],
@@ -145,6 +192,7 @@ export function useAuth(): UseAuthResult {
     isAuthenticated,
     isReady,
     signIn,
+    signInPlatform,
     signOut,
     switchTo,
     refreshSession,
