@@ -4,7 +4,10 @@ namespace Tests\Feature\AccountsPayable;
 
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Products\Models\Product;
@@ -193,6 +196,92 @@ class AccountsPayableApiTest extends TestCase
             ->assertJsonValidationErrors(['amount']);
     }
 
+    public function test_cash_payment_requires_open_cash_register_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-CASH-REQ');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve', 'accounts_payable.pay', 'cash_register.move']);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 10);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payments", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 5,
+                'method' => CashRegisterMovement::METHOD_CASH,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
+    }
+
+    public function test_cash_payment_creates_cash_register_outflow(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-CASH');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve', 'accounts_payable.pay', 'cash_register.move']);
+        $session = $this->cashSession($tenant, $user, $warehouse->branch_id);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 10);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+
+        $paymentId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payments", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 5,
+                'method' => CashRegisterMovement::METHOD_CASH,
+                'cash_register_session_id' => $session->id,
+                'reference' => 'EFECTIVO-CXP-1',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.amount_base', '5.0000')
+            ->json('data.id');
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_OUTFLOW,
+            'method' => CashRegisterMovement::METHOD_CASH,
+            'source_type' => AccountsPayablePayment::class,
+            'source_id' => $paymentId,
+            'amount_base' => '5.0000',
+            'reference' => 'EFECTIVO-CXP-1',
+        ]);
+
+        $this->assertDatabaseHas('cash_register_sessions', [
+            'tenant_id' => $tenant->id,
+            'id' => $session->id,
+            'expected_base_amount' => '95.0000',
+        ]);
+    }
+
+    public function test_transfer_payment_does_not_create_cash_register_movement(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-TRANSFER');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve', 'accounts_payable.pay']);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 1, 10);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-payable/{$account->id}/payments", [
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => 5,
+                'method' => CashRegisterMovement::METHOD_TRANSFER,
+                'reference' => 'BANCO-001',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseCount('cash_register_movements', 0);
+    }
+
     public function test_accounts_payable_do_not_mix_companies_and_reject_foreign_account(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -326,6 +415,23 @@ class AccountsPayableApiTest extends TestCase
         $user->tenants()->attach($tenant, ['status' => 'active']);
 
         return $user;
+    }
+
+    private function cashSession(Tenant $tenant, User $user, int $branchId): CashRegisterSession
+    {
+        $this->useTenant($tenant);
+
+        return CashRegisterSession::create([
+            'branch_id' => $branchId,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 100,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 100,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+        ]);
     }
 
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void

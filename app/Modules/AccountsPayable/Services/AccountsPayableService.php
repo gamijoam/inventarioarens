@@ -5,6 +5,9 @@ namespace App\Modules\AccountsPayable\Services;
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
@@ -106,6 +109,12 @@ class AccountsPayableService
                 ]);
             }
 
+            if (($data['method'] ?? null) === CashRegisterMovement::METHOD_CASH && empty($data['cash_register_session_id'])) {
+                throw ValidationException::withMessages([
+                    'cash_register_session_id' => 'El pago en efectivo requiere una caja abierta.',
+                ]);
+            }
+
             [$rateType, $exchangeRate, $amountBase, $amountLocal] = $this->paymentAmounts(
                 $data['payment_currency'],
                 (float) $data['amount'],
@@ -141,6 +150,11 @@ class AccountsPayableService
             $account->save();
 
             app(PaymentReceiptService::class)->issueForPayablePayment($payment, $user);
+
+            if (($data['method'] ?? null) === CashRegisterMovement::METHOD_CASH) {
+                $session = CashRegisterSession::query()->findOrFail($data['cash_register_session_id']);
+                app(CashRegisterService::class)->recordPayablePayment($session, $payment, $user);
+            }
 
             return $payment->refresh()->load('account');
         });

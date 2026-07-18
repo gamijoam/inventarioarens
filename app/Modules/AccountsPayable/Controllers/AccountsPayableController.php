@@ -7,6 +7,8 @@ use App\Modules\AccountsPayable\Requests\RegisterAccountsPayablePaymentRequest;
 use App\Modules\AccountsPayable\Resources\AccountsPayablePaymentResource;
 use App\Modules\AccountsPayable\Resources\AccountsPayableResource;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -25,6 +27,7 @@ class AccountsPayableController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in([
                 'all',
+                'open',
                 AccountsPayable::STATUS_PENDING,
                 AccountsPayable::STATUS_PARTIAL,
                 AccountsPayable::STATUS_PAID,
@@ -56,7 +59,12 @@ class AccountsPayableController extends Controller
                             });
                     });
                 })
-                ->when(($filters['status'] ?? 'all') !== 'all', fn ($query) => $query->where('status', $filters['status']))
+                ->when(($filters['status'] ?? 'all') === 'open', fn ($query) => $query->whereIn('status', [
+                    AccountsPayable::STATUS_PENDING,
+                    AccountsPayable::STATUS_PARTIAL,
+                    AccountsPayable::STATUS_OVERDUE,
+                ]))
+                ->when(! in_array(($filters['status'] ?? 'all'), ['all', 'open'], true), fn ($query) => $query->where('status', $filters['status']))
                 ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
                 ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
                 ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
@@ -81,7 +89,13 @@ class AccountsPayableController extends Controller
     ): JsonResponse {
         Gate::authorize('pay', $accountsPayable);
 
-        $payment = $service->registerPayment($accountsPayable, $request->user(), $request->validated());
+        $data = $request->validated();
+
+        if (($data['method'] ?? null) === CashRegisterMovement::METHOD_CASH && ! empty($data['cash_register_session_id'])) {
+            Gate::authorize('move', CashRegisterSession::query()->findOrFail($data['cash_register_session_id']));
+        }
+
+        $payment = $service->registerPayment($accountsPayable, $request->user(), $data);
 
         return AccountsPayablePaymentResource::make($payment)
             ->response()

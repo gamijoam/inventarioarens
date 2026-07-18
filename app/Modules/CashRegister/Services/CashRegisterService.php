@@ -3,6 +3,7 @@
 namespace App\Modules\CashRegister\Services;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
@@ -223,6 +224,45 @@ class CashRegisterService
             $session->update([
                 'expected_base_amount' => round((float) $session->expected_base_amount + (float) $payment->amount_base, 4),
                 'expected_local_amount' => round((float) $session->expected_local_amount + (float) ($payment->amount_local ?? 0), 4),
+            ]);
+
+            return $session->refresh();
+        });
+    }
+
+    public function recordPayablePayment(CashRegisterSession $session, AccountsPayablePayment $payment, User $operator): CashRegisterSession
+    {
+        return DB::transaction(function () use ($session, $payment, $operator): CashRegisterSession {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+
+            if ((int) $session->cashier_id !== (int) $operator->id) {
+                throw ValidationException::withMessages([
+                    'cash_register_session_id' => 'Solo puedes registrar pagos en tu caja abierta.',
+                ]);
+            }
+
+            CashRegisterMovement::create([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_OUTFLOW,
+                'method' => $payment->method ?? CashRegisterMovement::METHOD_OTHER,
+                'currency' => $payment->payment_currency,
+                'amount' => $payment->amount,
+                'amount_base' => $payment->amount_base,
+                'amount_local' => $payment->amount_local,
+                'exchange_rate_type_id' => $payment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                'exchange_rate' => $payment->exchange_rate,
+                'source_type' => AccountsPayablePayment::class,
+                'source_id' => $payment->id,
+                'reference' => $payment->reference,
+                'notes' => "Pago CxP #{$payment->id}",
+                'created_by' => $operator->id,
+            ]);
+
+            $session->update([
+                'expected_base_amount' => round((float) $session->expected_base_amount - (float) $payment->amount_base, 4),
+                'expected_local_amount' => round((float) $session->expected_local_amount - (float) ($payment->amount_local ?? 0), 4),
             ]);
 
             return $session->refresh();
