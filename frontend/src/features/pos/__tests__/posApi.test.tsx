@@ -4,16 +4,18 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockGetPaginated = vi.fn();
+const mockGetOne = vi.fn();
 const mockPostOne = vi.fn();
 
 vi.mock('@/api/client', () => ({
   getMany: vi.fn(),
+  getOne: (path: string) => mockGetOne(path),
   getPaginated: (path: string) => mockGetPaginated(path),
   patchOne: vi.fn(),
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosProducts } from '../api';
+import { useAvailableProductSerialsForPos, useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosProducts } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -24,6 +26,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('pos api', () => {
   beforeEach(() => {
     mockGetPaginated.mockReset();
+    mockGetOne.mockReset();
     mockPostOne.mockReset();
   });
 
@@ -68,6 +71,20 @@ describe('pos api', () => {
 
     expect(mockGetPaginated).toHaveBeenCalledWith('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
     expect(result.current.data?.[0]?.cash_register_id).toBe(5);
+  });
+
+  it('lee IMEIs disponibles por producto y almacen para POS', async () => {
+    mockGetOne.mockResolvedValue({
+      data: [{ id: 10, serial_type: 'imei', serial_number: '860001000000001', status: 'available', warehouse_id: 4 }],
+      pagination: { page: 1, total: 1 },
+    });
+
+    const { result } = renderHook(() => useAvailableProductSerialsForPos(5, 4), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockGetOne).toHaveBeenCalledWith('/inventory-center/products/5/serials?status=available&limit=100&warehouse_id=4');
+    expect(result.current.data?.[0]?.serial_number).toBe('860001000000001');
   });
 
   it('crea caja fisica en el endpoint de cash register', async () => {

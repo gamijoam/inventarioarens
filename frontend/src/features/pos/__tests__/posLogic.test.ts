@@ -6,6 +6,7 @@ import {
   clampQuantity,
   hasStockIssue,
   lineTotal,
+  missingSerialIssue,
   type PosCartLine,
 } from '../posLogic';
 
@@ -70,5 +71,12 @@ describe('POS cart logic', () => {
   it('bloquea cantidades superiores al stock disponible', () => {
     expect(clampQuantity(8, 3)).toBe(3);
     expect(hasStockIssue([{ ...baseLine, quantity: 6 }])).toBe(true);
+  });
+
+  it('bloquea productos serializados sin un IMEI por unidad', () => {
+    expect(missingSerialIssue([{ ...baseLine, tracking_type: 'serialized', quantity: 2, selected_serials: [{ id: 1, serial_number: 'IMEI-1' }] }]))
+      .toContain('requiere 2 IMEI');
+    expect(missingSerialIssue([{ ...baseLine, tracking_type: 'serialized', quantity: 1, selected_serials: [{ id: 1, serial_number: 'IMEI-1' }] }]))
+      .toBeNull();
   });
 });

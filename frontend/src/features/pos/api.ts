@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { deleteOne, getMany, getPaginated, patchOne, postOne } from '@/api/client';
+import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
 import { BranchSchema, ExchangeRateTypeSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
@@ -68,6 +68,16 @@ export const PosPaymentSchema = z.object({
 }).passthrough();
 export type PosPayment = z.infer<typeof PosPaymentSchema>;
 
+export const ProductSerialSchema = z.object({
+  id: z.number().int(),
+  serial_type: z.string().optional().nullable(),
+  serial_number: z.string(),
+  status: z.string(),
+  warehouse_id: z.number().int().nullable().optional(),
+  warehouse_name: z.string().nullable().optional(),
+}).passthrough();
+export type ProductSerial = z.infer<typeof ProductSerialSchema>;
+
 export const CurrentExchangeRateSchema = z.object({
   id: z.number().int(),
   exchange_rate_type_id: z.number().int(),
@@ -122,6 +132,7 @@ export interface CheckoutPayload {
     discount_type?: 'percent' | 'fixed' | null;
     discount_value?: number | null;
     discount_reason?: string | null;
+    product_unit_ids?: number[];
   }>;
   payments: Array<{
     payment_method_id?: number | null;
@@ -205,6 +216,7 @@ export const posKeys = {
   exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
   currentRates: () => [...posKeys.all, 'current-rates'] as const,
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
+  productSerials: (productId: number, warehouseId?: number | null) => [...posKeys.all, 'product-serials', productId, warehouseId ?? 'all'] as const,
 };
 
 export function usePosProducts(search: string, warehouseId?: number | null, options: { enabled?: boolean } = {}) {
@@ -319,6 +331,22 @@ export function useCurrentExchangeRatesForPos() {
   return useQuery({
     queryKey: posKeys.currentRates(),
     queryFn: async () => z.array(CurrentExchangeRateSchema).parse(await getMany<unknown>('/currency/rates/current')),
+  });
+}
+
+export function useAvailableProductSerialsForPos(productId: number | null, warehouseId?: number | null) {
+  return useQuery({
+    queryKey: posKeys.productSerials(productId ?? 0, warehouseId),
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: 'available', limit: '100' });
+      if (warehouseId) params.set('warehouse_id', String(warehouseId));
+      const response = await getOne<unknown>(`/inventory-center/products/${productId}/serials?${params.toString()}`);
+      const items = typeof response === 'object' && response && 'data' in response && Array.isArray((response as { data?: unknown }).data)
+        ? (response as { data: unknown[] }).data
+        : [];
+      return z.array(ProductSerialSchema).parse(items);
+    },
+    enabled: Number.isFinite(productId) && Number(productId) > 0,
   });
 }
 

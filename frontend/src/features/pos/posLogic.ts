@@ -16,6 +16,12 @@ export interface PosCartLine {
   discount_value?: number | null;
   discount_reason?: string | null;
   price_list_id?: number | null;
+  tracking_type?: string | null;
+  selected_serials?: Array<{
+    id: number;
+    serial_type?: string | null;
+    serial_number: string;
+  }>;
 }
 
 export interface PosPaymentLine {
@@ -128,6 +134,13 @@ function lastCapturedPayment(payments: PosPaymentLine[]): PosPaymentLine | null 
 
 export function hasStockIssue(lines: PosCartLine[]): boolean {
   return lines.some((line) => line.quantity > line.available_stock);
+}
+
+export function missingSerialIssue(lines: PosCartLine[]): string | null {
+  const line = lines.find((item) => item.tracking_type === 'serialized' && (item.selected_serials?.length ?? 0) !== Number(item.quantity));
+  if (!line) return null;
+
+  return `${line.name} requiere ${Number(line.quantity)} IMEI/serial seleccionado.`;
 }
 
 export function roundMoney(value: number): number {

@@ -34,8 +34,10 @@ import {
   type Customer,
   type PosOrder,
   type PosPaymentMethod,
+  type ProductSerial,
   useAddCashMovement,
   useAddPosPayments,
+  useAvailableProductSerialsForPos,
   useBranchesForPos,
   useCancelPosOrder,
   useCashRegisters,
@@ -58,6 +60,7 @@ import {
   clampQuantity,
   hasStockIssue,
   lineTotal,
+  missingSerialIssue,
   paymentBaseAmount,
   type CurrencyCode,
   type DiscountType,
@@ -66,7 +69,7 @@ import {
   roundMoney,
 } from './posLogic';
 
-type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | 'credit' | null;
+type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | 'credit' | 'serials' | null;
 type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
 
 const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
@@ -110,6 +113,7 @@ export function PosTerminal() {
   });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
+  const [serialLineId, setSerialLineId] = useState<string | null>(null);
   const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
   const [openingLocalAmount, setOpeningLocalAmount] = useState('0');
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
@@ -153,10 +157,16 @@ export function PosTerminal() {
     [sessions],
   );
   const selectedWarehouse = warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
+  const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
+  const { data: availableSerials = [], isLoading: loadingSerials } = useAvailableProductSerialsForPos(
+    serialLine?.product_id ?? null,
+    serialLine?.warehouse_id ?? null,
+  );
   const products = productPage?.data ?? [];
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const paymentTotals = useMemo(() => calculatePaymentTotals(payments, cartTotals.total), [payments, cartTotals.total]);
   const paymentSetupIssue = getPaymentSetupIssue(payments, configuredPaymentMethods);
+  const serialIssue = missingSerialIssue(cart);
   const checkoutBlockReason = getCheckoutBlockReason({
     canCheckout,
     hasSession: Boolean(activeSession),
@@ -164,6 +174,7 @@ export function PosTerminal() {
     paymentCount: payments.length,
     remaining: paymentTotals.remaining,
     hasStockIssue: hasStockIssue(cart),
+    serialIssue,
     paymentSetupIssue,
   });
   const openingRate = bestActiveRate(currentRates, exchangeRateTypes);
@@ -378,6 +389,10 @@ export function PosTerminal() {
                     key={line.id}
                     line={line}
                     onChange={(patch) => updateLine(line.id, patch)}
+                    onSerials={() => {
+                      setSerialLineId(line.id);
+                      setPanel('serials');
+                    }}
                     onRemove={() => setCart((current) => current.filter((item) => item.id !== line.id))}
                   />
                 ))}
@@ -591,6 +606,14 @@ export function PosTerminal() {
               onConfirm={() => void confirmCreditSale()}
             />
           )}
+          {panel === 'serials' && serialLine && (
+            <SerialSelectionPanel
+              line={serialLine}
+              serials={availableSerials}
+              loading={loadingSerials}
+              onToggle={(serial) => toggleSerial(serialLine.id, serial)}
+            />
+          )}
         </PanelShell>
       )}
     </div>
@@ -606,19 +629,23 @@ export function PosTerminal() {
       toast.error('Selecciona un almacen.');
       return;
     }
+    const shouldSelectSerials = product.tracking_type === 'serialized';
+    let newLineId: string | null = null;
     setCart((current) => {
       const existing = current.find((line) => line.product_id === product.id && line.warehouse_id === selectedWarehouse.id);
       if (existing) {
+        newLineId = existing.id;
         return current.map((line) =>
           line.id === existing.id
             ? { ...line, quantity: clampQuantity(line.quantity + 1, line.available_stock) }
             : line,
         );
       }
+      newLineId = crypto.randomUUID();
       return [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id: newLineId,
           product_id: product.id,
           name: product.name,
           sku: product.sku,
@@ -629,10 +656,18 @@ export function PosTerminal() {
           unit_price: Number(product.base_price ?? 0),
           currency: (product.sale_currency ?? 'USD') as CurrencyCode,
           price_list_id: null,
+          tracking_type: product.tracking_type,
+          selected_serials: [],
         },
       ];
     });
     setQuery('');
+    if (shouldSelectSerials) {
+      window.setTimeout(() => {
+        if (newLineId) setSerialLineId(newLineId);
+        setPanel('serials');
+      }, 0);
+    }
   }
 
   function updateLine(id: string, patch: Partial<PosCartLine>): void {
@@ -641,9 +676,47 @@ export function PosTerminal() {
         if (line.id !== id) return line;
         const next = { ...line, ...patch };
         next.quantity = clampQuantity(Number(next.quantity), next.available_stock);
+        if (next.tracking_type === 'serialized' && next.selected_serials && next.selected_serials.length > next.quantity) {
+          next.selected_serials = next.selected_serials.slice(0, next.quantity);
+        }
         return next;
       }),
     );
+  }
+
+  function toggleSerial(lineId: string, serial: ProductSerial): void {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.id !== lineId) return line;
+        const selected = line.selected_serials ?? [];
+        const exists = selected.some((item) => item.id === serial.id);
+        if (exists) {
+          return { ...line, selected_serials: selected.filter((item) => item.id !== serial.id) };
+        }
+        const usedInAnotherLine = current.some((item) => item.id !== lineId && item.selected_serials?.some((selectedSerial) => selectedSerial.id === serial.id));
+        if (usedInAnotherLine) {
+          toast.error('Ese IMEI/serial ya esta seleccionado en otra linea.');
+          return line;
+        }
+        if (selected.length >= line.quantity) {
+          toast.error(`Ya seleccionaste ${line.quantity} IMEI/serial para esta linea.`);
+          return line;
+        }
+        return {
+          ...line,
+          selected_serials: [
+            ...selected,
+            { id: serial.id, serial_type: serial.serial_type, serial_number: serial.serial_number },
+          ],
+        };
+      }),
+    );
+  }
+
+  function openMissingSerialPanel(): void {
+    const missing = cart.find((line) => line.tracking_type === 'serialized' && (line.selected_serials?.length ?? 0) !== Number(line.quantity));
+    if (missing) setSerialLineId(missing.id);
+    setPanel('serials');
   }
 
   function handleProductSearchEnter(): void {
@@ -708,6 +781,7 @@ export function PosTerminal() {
     if (checkoutBlockReason) {
       toast.error(checkoutBlockReason);
       if (payments.length === 0 && cart.length > 0 && canCheckout) setPanel('pay');
+      if (serialIssue) openMissingSerialPanel();
       return;
     }
     if (!activeSession) {
@@ -740,8 +814,10 @@ export function PosTerminal() {
       setPanel('customer');
       return;
     }
-    if (cart.length === 0 || hasStockIssue(cart)) {
-      toast.error('Revisa productos y stock antes de enviar a CxC.');
+    if (cart.length === 0 || hasStockIssue(cart) || serialIssue) {
+      if (serialIssue) toast.error(serialIssue);
+      else toast.error('Revisa productos y stock antes de enviar a CxC.');
+      if (serialIssue) openMissingSerialPanel();
       return;
     }
     if (paymentSetupIssue) {
@@ -808,6 +884,11 @@ export function PosTerminal() {
 
   async function holdSale(): Promise<void> {
     if (!activeSession || cart.length === 0) return;
+    if (serialIssue) {
+      toast.error(serialIssue);
+      openMissingSerialPanel();
+      return;
+    }
     if (!canCheckout) {
       toast.error('No tienes permiso pos.checkout para poner ventas en espera.');
       return;
@@ -853,6 +934,7 @@ export function PosTerminal() {
         discount_type: line.discount_type ?? null,
         discount_value: line.discount_value ?? null,
         discount_reason: line.discount_reason ?? null,
+        product_unit_ids: line.tracking_type === 'serialized' ? (line.selected_serials ?? []).map((serial) => serial.id) : [],
       })),
       payments: status === 'captured' ? payments.map(toPaymentPayload) : [],
     };
@@ -879,10 +961,22 @@ export function PosTerminal() {
   }
 }
 
-function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange: (patch: Partial<PosCartLine>) => void; onRemove: () => void }) {
+function CartLineRow({
+  line,
+  onChange,
+  onSerials,
+  onRemove,
+}: {
+  line: PosCartLine;
+  onChange: (patch: Partial<PosCartLine>) => void;
+  onSerials: () => void;
+  onRemove: () => void;
+}) {
   const stockIssue = line.quantity > line.available_stock;
+  const serialCount = line.selected_serials?.length ?? 0;
+  const serialIssue = line.tracking_type === 'serialized' && serialCount !== Number(line.quantity);
   return (
-    <div className={cn('grid gap-3 p-3 xl:grid-cols-[minmax(220px,1fr)_380px_120px_40px] xl:items-center', stockIssue && 'bg-warning/10')}>
+    <div className={cn('grid gap-3 p-3 xl:grid-cols-[minmax(220px,1fr)_440px_120px_40px] xl:items-center', (stockIssue || serialIssue) && 'bg-warning/10')}>
       <div className="min-w-0 space-y-1">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-base font-semibold">{line.name}</p>
@@ -893,7 +987,19 @@ function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
           <span>{money(line.unit_price)} c/u</span>
+          {line.tracking_type === 'serialized' && (
+            <button type="button" className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')} onClick={onSerials}>
+              IMEI {serialCount}/{line.quantity}
+            </button>
+          )}
         </div>
+        {line.tracking_type === 'serialized' && serialCount > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {line.selected_serials?.map((serial) => (
+              <Badge key={serial.id} variant="default" className="font-mono text-[10px]">{serial.serial_number}</Badge>
+            ))}
+          </div>
+        )}
       </div>
       <div className="grid gap-2 sm:grid-cols-[124px_1fr]">
         <div className="flex items-center gap-1">
@@ -909,6 +1015,11 @@ function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange
           </Select>
           <Input type="number" min="0" value={line.discount_value ?? ''} onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })} />
         </div>
+        {line.tracking_type === 'serialized' && (
+          <Button className="sm:col-span-2" variant={serialIssue ? 'secondary' : 'outline'} size="sm" onClick={onSerials}>
+            Seleccionar IMEI/serial
+          </Button>
+        )}
       </div>
       <div className="text-right">
         <p className="text-xs text-text-muted">Total linea</p>
@@ -1069,6 +1180,70 @@ function PanelShell({ title, children, onClose, wide = false }: { title: string;
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+function SerialSelectionPanel({
+  line,
+  serials,
+  loading,
+  onToggle,
+}: {
+  line: PosCartLine;
+  serials: ProductSerial[];
+  loading: boolean;
+  onToggle: (serial: ProductSerial) => void;
+}) {
+  const selectedIds = new Set((line.selected_serials ?? []).map((serial) => serial.id));
+  const complete = selectedIds.size === Number(line.quantity);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-border bg-bg/40 p-3">
+        <p className="text-lg font-semibold">{line.name}</p>
+        <p className="text-sm text-text-muted">
+          Selecciona {line.quantity} IMEI/serial disponible para confirmar esta venta.
+        </p>
+        <Badge className="mt-3" variant={complete ? 'success' : 'warning'}>
+          {selectedIds.size}/{line.quantity} seleccionados
+        </Badge>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 rounded border border-border p-3 text-sm text-text-muted">
+          <Loader2 className="size-4 animate-spin" /> Buscando IMEIs disponibles...
+        </div>
+      ) : serials.length === 0 ? (
+        <div className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
+          No hay IMEIs disponibles para este producto en el almacen seleccionado.
+        </div>
+      ) : (
+        <div className="max-h-[70vh] divide-y divide-border overflow-auto rounded border border-border">
+          {serials.map((serial) => {
+            const checked = selectedIds.has(serial.id);
+            const disabled = !checked && selectedIds.size >= Number(line.quantity);
+            return (
+              <button
+                key={serial.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => onToggle(serial)}
+                className={cn(
+                  'flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-bg disabled:cursor-not-allowed disabled:opacity-50',
+                  checked && 'bg-primary/10',
+                )}
+              >
+                <div>
+                  <p className="font-mono font-semibold">{serial.serial_number}</p>
+                  <p className="text-xs text-text-muted">{serial.serial_type?.toUpperCase() ?? 'SERIAL'} - {serial.warehouse_name ?? 'Almacen'}</p>
+                </div>
+                <Badge variant={checked ? 'success' : 'default'}>{checked ? 'Seleccionado' : serial.status}</Badge>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1516,6 +1691,8 @@ function panelTitle(panel: Panel): string {
       return 'Buscar producto';
     case 'credit':
       return 'Enviar a cuentas por cobrar';
+    case 'serials':
+      return 'IMEI / seriales';
     default:
       return '';
   }
@@ -1528,12 +1705,14 @@ function getCheckoutBlockReason(input: {
   paymentCount: number;
   remaining: number;
   hasStockIssue: boolean;
+  serialIssue: string | null;
   paymentSetupIssue: string | null;
 }): string | null {
   if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
   if (!input.hasSession) return 'No hay caja abierta para cobrar.';
   if (input.cartCount === 0) return 'Agrega al menos un producto para cobrar.';
   if (input.hasStockIssue) return 'Hay productos con stock insuficiente. La venta esta bloqueada.';
+  if (input.serialIssue) return input.serialIssue;
   if (input.paymentCount === 0) return 'Agrega al menos una linea de pago.';
   if (input.paymentSetupIssue) return input.paymentSetupIssue;
   if (input.remaining > 0) return `Falta capturar ${money(input.remaining)} para completar el pago.`;
