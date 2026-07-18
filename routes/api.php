@@ -91,6 +91,9 @@ Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/POS/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Printing/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/CashRegister/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])

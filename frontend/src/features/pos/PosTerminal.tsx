@@ -8,6 +8,7 @@ import {
   Minus,
   PauseCircle,
   Plus,
+  Printer,
   Receipt,
   RotateCcw,
   Search,
@@ -68,6 +69,14 @@ import {
   type PosPaymentLine,
   roundMoney,
 } from './posLogic';
+import {
+  type PrintJob,
+  sendJobToLocalAgent,
+  ticketPdfUrl,
+  useCreatePosPrintJob,
+  usePrinterStations,
+  useUpdatePrintJobStatus,
+} from '@/features/printing/api';
 
 type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | 'credit' | 'serials' | null;
 type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
@@ -92,6 +101,9 @@ export function PosTerminal() {
   const canMoveCash = permissions.has(PERMISSIONS.CASH_REGISTER_MOVE) || permissions.has(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
   const canCloseCash = permissions.has(PERMISSIONS.CASH_REGISTER_CLOSE);
   const canCreateCustomer = permissions.has(PERMISSIONS.CUSTOMERS_CREATE);
+  const canPrint = permissions.has(PERMISSIONS.PRINTING_PRINT);
+  const canReprint = permissions.has(PERMISSIONS.PRINTING_REPRINT);
+  const canDigital = permissions.has(PERMISSIONS.PRINTING_DIGITAL);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
@@ -112,6 +124,7 @@ export function PosTerminal() {
     fiscal_address: '',
   });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
+  const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
   const [serialLineId, setSerialLineId] = useState<string | null>(null);
   const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
@@ -136,6 +149,7 @@ export function PosTerminal() {
   const { data: configuredPaymentMethods = [] } = usePaymentMethods();
   const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
   const { data: currentRates = [] } = useCurrentExchangeRatesForPos();
+  const { data: printerStations = [] } = usePrinterStations({ enabled: canPrint || canDigital || canReprint });
   const activePaymentMethods = useMemo(
     () => configuredPaymentMethods.filter((method) => method.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
     [configuredPaymentMethods],
@@ -147,6 +161,8 @@ export function PosTerminal() {
   const openCash = useOpenCashSession();
   const addCashMovement = useAddCashMovement();
   const closeCash = useCloseCashSession();
+  const createPrintJob = useCreatePosPrintJob();
+  const updatePrintJobStatus = useUpdatePrintJobStatus();
 
   const activeCashRegisters = useMemo(
     () => cashRegisters.filter((register) => (register.status ?? 'active') === 'active'),
@@ -155,6 +171,14 @@ export function PosTerminal() {
   const activeSession = useMemo(
     () => sessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null,
     [sessions],
+  );
+  const activePrinterStation = useMemo(
+    () =>
+      printerStations.find((station) => station.is_active && activeSession?.cash_register_id && station.cash_register_id === activeSession.cash_register_id)
+      ?? printerStations.find((station) => station.is_active && activeSession?.branch_id && station.branch_id === activeSession.branch_id && !station.cash_register_id)
+      ?? printerStations.find((station) => station.is_active)
+      ?? null,
+    [activeSession, printerStations],
   );
   const selectedWarehouse = warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
   const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
@@ -564,7 +588,18 @@ export function PosTerminal() {
               }}
             />
           )}
-          {panel === 'receipt' && <ReceiptPanel order={lastReceipt} />}
+          {panel === 'receipt' && (
+            <ReceiptPanel
+              order={lastReceipt}
+              jobs={lastPrintJobs}
+              canPrint={canPrint}
+              canReprint={canReprint}
+              canDigital={canDigital}
+              busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
+              onPrint={(copy, output) => lastReceipt && createAndDispatchPrintJobs(lastReceipt, copy, output)}
+              onOpenPdf={(job) => window.open(ticketPdfUrl(job), '_blank')}
+            />
+          )}
           {panel === 'product-search' && (
             <ProductSearchPanel
               search={productSearch}
@@ -791,6 +826,7 @@ export function PosTerminal() {
     try {
       const order = await checkout.mutateAsync(buildCheckoutPayload(activeSession.id, 'captured'));
       setLastReceipt(order);
+      void createAndDispatchPrintJobs(order, false);
       clearTicket();
       setPanel('receipt');
       toast.success('Venta confirmada.');
@@ -831,6 +867,7 @@ export function PosTerminal() {
         credit_due_date: creditDueDate || null,
       });
       setLastReceipt(order);
+      void createAndDispatchPrintJobs(order, false);
       clearTicket();
       setCreditDueDate('');
       setPanel('receipt');
@@ -916,6 +953,7 @@ export function PosTerminal() {
       payments: payments.map(toPaymentPayload),
     });
     setLastReceipt(paid);
+    void createAndDispatchPrintJobs(paid, false);
     setSelectedPending(null);
     setPayments([]);
     setPanel('receipt');
@@ -958,6 +996,61 @@ export function PosTerminal() {
     setSelectedCustomer(null);
     setCustomerName('Consumidor Final');
     setSelectedPending(null);
+  }
+
+  async function createAndDispatchPrintJobs(order: PosOrder, copy: boolean, output?: 'thermal' | 'digital' | 'both'): Promise<void> {
+    if (!canPrint && !canDigital && !copy) return;
+    if (copy && !canReprint) {
+      toast.error('No tienes permiso para reimprimir tickets.');
+      return;
+    }
+
+    const requestedOutput = output ?? activePrinterStation?.output_mode ?? (canDigital ? 'digital' : 'thermal');
+    if ((requestedOutput === 'digital' || requestedOutput === 'both') && !canDigital) {
+      toast.error('No tienes permiso para generar tickets digitales.');
+      return;
+    }
+
+    try {
+      const jobs = await createPrintJob.mutateAsync({
+        orderId: order.id,
+        output: requestedOutput,
+        copy,
+        printerStationId: activePrinterStation?.id ?? null,
+      });
+      setLastPrintJobs(jobs);
+
+      await Promise.all(jobs.map(async (job) => {
+        try {
+          await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
+          const result = await sendJobToLocalAgent(job);
+          const finalStatus = job.output === 'digital' ? 'generated' : 'printed';
+          await updatePrintJobStatus.mutateAsync({
+            jobId: job.id,
+            status: finalStatus,
+            message: result.message ?? null,
+            digitalPdfPath: result.pdf_path ?? null,
+            digitalHtmlPath: result.html_path ?? null,
+          });
+          if (job.output === 'digital' && result.pdf_path) toast.success(`PDF generado: ${result.pdf_path}`);
+          if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
+        } catch (error) {
+          await updatePrintJobStatus.mutateAsync({
+            jobId: job.id,
+            status: 'failed',
+            message: error instanceof Error ? error.message : 'No se pudo imprimir.',
+          });
+          if (job.output === 'digital') {
+            window.open(ticketPdfUrl(job), '_blank');
+            toast.warning('Agente no disponible. Abrimos el PDF en el navegador.');
+            return;
+          }
+          toast.error('Agente local no disponible. Puedes reintentar desde F9.');
+        }
+      }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el ticket de impresion.');
+    }
   }
 }
 
@@ -1587,8 +1680,27 @@ function CashPanel(props: { session: CashRegisterSession; canMove: boolean; canC
   );
 }
 
-function ReceiptPanel({ order }: { order: PosOrder | null }) {
+function ReceiptPanel({
+  order,
+  jobs,
+  canPrint,
+  canReprint,
+  canDigital,
+  busy,
+  onPrint,
+  onOpenPdf,
+}: {
+  order: PosOrder | null;
+  jobs: PrintJob[];
+  canPrint: boolean;
+  canReprint: boolean;
+  canDigital: boolean;
+  busy: boolean;
+  onPrint: (copy: boolean, output?: 'thermal' | 'digital' | 'both') => void;
+  onOpenPdf: (job: PrintJob) => void;
+}) {
   if (!order) return <p className="text-sm text-text-muted">Aun no hay recibo en esta sesion.</p>;
+  const digitalJob = jobs.find((job) => job.output === 'digital');
   return (
     <div className="space-y-3">
       <div className="rounded border border-border p-3">
@@ -1598,6 +1710,37 @@ function ReceiptPanel({ order }: { order: PosOrder | null }) {
       <AmountRow label="Total" value={order.total_base_amount ?? 0} />
       <AmountRow label="Pagado" value={order.paid_base_amount ?? 0} />
       <Badge variant={order.status === 'paid' ? 'success' : 'info'}>{order.status}</Badge>
+      {jobs.length > 0 && (
+        <div className="space-y-2 rounded border border-border p-3">
+          <p className="text-sm font-semibold">Impresion</p>
+          {jobs.map((job) => (
+            <div key={job.id} className="flex items-center justify-between gap-2 text-sm">
+              <span>{job.output === 'digital' ? 'Digital' : 'Termica'} #{job.id}</span>
+              <Badge variant={job.status === 'failed' ? 'danger' : job.status === 'printed' || job.status === 'generated' ? 'success' : 'info'}>
+                {job.status}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid gap-2">
+        {canPrint && (
+          <Button disabled={busy} onClick={() => onPrint(false)}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
+            Imprimir
+          </Button>
+        )}
+        {canDigital && (
+          <Button variant="outline" disabled={busy} onClick={() => (digitalJob ? onOpenPdf(digitalJob) : onPrint(false, 'digital'))}>
+            <Receipt className="size-4" /> PDF digital
+          </Button>
+        )}
+        {canReprint && (
+          <Button variant="outline" disabled={busy} onClick={() => onPrint(true)}>
+            <RotateCcw className="size-4" /> Copia
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

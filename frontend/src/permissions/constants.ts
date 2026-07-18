@@ -41,6 +41,13 @@ export const PERMISSIONS = {
   POS_CHECKOUT: 'pos.checkout',
   POS_CANCEL: 'pos.cancel',
 
+  // Printing
+  PRINTING_VIEW: 'printing.view',
+  PRINTING_MANAGE: 'printing.manage',
+  PRINTING_PRINT: 'printing.print',
+  PRINTING_REPRINT: 'printing.reprint',
+  PRINTING_DIGITAL: 'printing.digital',
+
   // Cash Register
   CASH_REGISTER_VIEW: 'cash_register.view',
   CASH_REGISTER_OPEN: 'cash_register.open',

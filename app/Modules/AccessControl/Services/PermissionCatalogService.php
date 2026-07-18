@@ -60,6 +60,7 @@ class PermissionCatalogService
         'payment_methods' => 'Metodos de Pago',
         'payment_receipts' => 'Recibos de Pago',
         'pos' => 'Punto de Venta',
+        'printing' => 'Impresion',
         'product_entries' => 'Entradas de Producto',
         'product_exits' => 'Salidas de Producto',
         'products' => 'Productos',

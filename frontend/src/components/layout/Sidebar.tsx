@@ -25,6 +25,7 @@ import {
   RotateCcw,
   ShieldQuestion,
   BarChart3,
+  Printer,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -93,6 +94,12 @@ const NAV_ITEMS: NavItem[] = [
     permission: PERMISSIONS.SALES_RETURNS_VIEW,
   },
   { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
+  {
+    to: '/printing',
+    label: 'Impresion',
+    icon: Printer,
+    permission: PERMISSIONS.PRINTING_VIEW,
+  },
   {
     to: '/cash-register',
     label: 'Cajas',

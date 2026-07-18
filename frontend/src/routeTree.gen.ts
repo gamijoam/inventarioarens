@@ -24,6 +24,7 @@ import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
+import { Route as AuthedPrintingRouteImport } from './routes/_authed/printing'
 import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
 import { Route as AuthedPaymentMethodsRouteImport } from './routes/_authed/payment-methods'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
@@ -114,6 +115,11 @@ const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
 const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
   id: '/purchases',
   path: '/purchases',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPrintingRoute = AuthedPrintingRouteImport.update({
+  id: '/printing',
+  path: '/printing',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPosRoute = AuthedPosRouteImport.update({
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
+  '/printing': typeof AuthedPrintingRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
+  '/printing': typeof AuthedPrintingRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/_authed/payables': typeof AuthedPayablesRoute
   '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
   '/_authed/pos': typeof AuthedPosRoute
+  '/_authed/printing': typeof AuthedPrintingRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/reports': typeof AuthedReportsRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/payables'
     | '/payment-methods'
     | '/pos'
+    | '/printing'
     | '/purchases'
     | '/receivables'
     | '/reports'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/payables'
     | '/payment-methods'
     | '/pos'
+    | '/printing'
     | '/purchases'
     | '/receivables'
     | '/reports'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/_authed/payables'
     | '/_authed/payment-methods'
     | '/_authed/pos'
+    | '/_authed/printing'
     | '/_authed/purchases'
     | '/_authed/receivables'
     | '/_authed/reports'
@@ -521,6 +533,13 @@ declare module '@tanstack/react-router' {
       path: '/purchases'
       fullPath: '/purchases'
       preLoaderRoute: typeof AuthedPurchasesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/printing': {
+      id: '/_authed/printing'
+      path: '/printing'
+      fullPath: '/printing'
+      preLoaderRoute: typeof AuthedPrintingRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/pos': {
@@ -687,6 +706,7 @@ interface AuthedRouteChildren {
   AuthedPayablesRoute: typeof AuthedPayablesRoute
   AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
   AuthedPosRoute: typeof AuthedPosRoute
+  AuthedPrintingRoute: typeof AuthedPrintingRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
@@ -713,6 +733,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPayablesRoute: AuthedPayablesRoute,
   AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
   AuthedPosRoute: AuthedPosRoute,
+  AuthedPrintingRoute: AuthedPrintingRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedReportsRoute: AuthedReportsRoute,
