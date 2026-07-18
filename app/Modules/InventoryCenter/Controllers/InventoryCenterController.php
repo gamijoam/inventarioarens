@@ -7,8 +7,8 @@ use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductSerialsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
-use App\Modules\InventoryCenter\Requests\ReorderSuggestionsRequest;
 use App\Modules\InventoryCenter\Requests\RecalculateProductPriceRequest;
+use App\Modules\InventoryCenter\Requests\ReorderSuggestionsRequest;
 use App\Modules\InventoryCenter\Requests\UpdateProductProfitMarginRequest;
 use App\Modules\InventoryCenter\Services\InventoryAlertService;
 use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
@@ -17,7 +17,6 @@ use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\InventoryCenter\Services\RecalculatePriceService;
 use App\Modules\Products\Models\Product;
-use App\Modules\Products\Resources\ProductResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -179,8 +178,8 @@ class InventoryCenterController extends Controller
         $product->profit_margin = round($margin, 2);
 
         $newBasePrice = null;
-        if ($product->average_cost !== null) {
-            $newBasePrice = round(((float) $product->average_cost) * (1 + ($margin / 100)), 2);
+        if ($product->last_purchase_cost !== null) {
+            $newBasePrice = round(((float) $product->last_purchase_cost) * (1 + ($margin / 100)), 2);
             $product->base_price = $newBasePrice;
         }
 

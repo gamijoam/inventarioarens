@@ -18,7 +18,9 @@ class RecalculatePriceServiceTest extends TestCase
     use RefreshDatabase;
 
     private Tenant $tenant;
+
     private User $user;
+
     private Product $product;
 
     protected function setUp(): void
@@ -103,5 +105,25 @@ class RecalculatePriceServiceTest extends TestCase
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('No hay costo de la ultima compra');
         $service->recalculate($this->product);
+    }
+
+    public function test_profit_margin_endpoint_uses_last_purchase_cost_not_wac(): void
+    {
+        $this->product->update([
+            'average_cost' => 0,
+            'last_purchase_cost' => 500.00,
+            'base_price' => 400.00,
+        ]);
+
+        $this
+            ->actingAs($this->user)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->patchJson("/api/inventory-center/products/{$this->product->id}/profit-margin", [
+                'profit_margin' => 25.00,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.base_price', 625);
+
+        $this->assertEquals(625.00, (float) $this->product->fresh()->base_price);
     }
 }

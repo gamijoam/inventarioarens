@@ -35,6 +35,7 @@ export interface PriceReviewItem {
   product_id: number;
   product_name: string;
   previous_wac?: number | string | null;
+  previous_cost_reference?: number | string | null;
   previous_base_price?: number | string | null;
   new_unit_cost?: number | string | null;
   profit_margin?: number | string | null;
@@ -64,9 +65,25 @@ function fixed(value: unknown, digits = 2): string {
   return (numberOrNull(value) ?? 0).toFixed(digits);
 }
 
+function moneyOrDash(value: unknown, digits = 2): string {
+  const n = numberOrNull(value);
+  return n === null ? '-' : n.toFixed(digits);
+}
+
 function signedPercent(value: unknown): string {
-  const n = numberOrNull(value) ?? 0;
+  const n = numberOrNull(value);
+  if (n === null) return '-';
   return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+}
+
+function responseBasePrice(value: unknown): unknown {
+  if (value == null || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const nested = record.data;
+  if (nested != null && typeof nested === 'object' && 'base_price' in nested) {
+    return (nested as Record<string, unknown>).base_price;
+  }
+  return record.base_price;
 }
 
 export function PriceReviewDialog({
@@ -90,9 +107,8 @@ export function PriceReviewDialog({
         newMargin != null
           ? { id: item.product_id, profit_margin: newMargin }
           : { id: item.product_id };
-      const res = (await recalc.mutateAsync(args)) as {
-        data?: { base_price?: number | string | null };
-      };
+      const res = await recalc.mutateAsync(args);
+      const newBasePrice = responseBasePrice(res) ?? item.suggested_new_base_price;
       setResults((r) => ({
         ...r,
         [item.product_id]: {
@@ -102,7 +118,7 @@ export function PriceReviewDialog({
         },
       }));
       toast.success(
-        `${item.product_name}: base_price actualizado a $${fixed(res.data?.base_price)}.`,
+        `${item.product_name}: base_price actualizado a $${moneyOrDash(newBasePrice)}.`,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al recalcular.';
@@ -179,6 +195,7 @@ export function PriceReviewDialog({
             const decision = results[it.product_id];
             const pending = pendingId === it.product_id;
             const editingNew = editingMargin[it.product_id];
+            const previousCost = it.previous_cost_reference ?? it.previous_wac;
             return (
               <li
                 key={it.product_id}
@@ -189,7 +206,7 @@ export function PriceReviewDialog({
                   <div>
                     <div className="font-medium">{it.product_name}</div>
                     <div className="text-text-muted mt-1 text-xs">
-                      Costo: ${fixed(it.previous_wac)} -&gt; ${fixed(it.new_unit_cost)} (
+                      Ultimo costo: ${moneyOrDash(previousCost)} -&gt; ${moneyOrDash(it.new_unit_cost)} (
                       <span
                         className={
                           (numberOrNull(it.diff_percent) ?? 0) >= 0
@@ -204,7 +221,7 @@ export function PriceReviewDialog({
                     {it.previous_base_price !== null && it.previous_base_price !== undefined && (
                       <div className="text-text-muted text-xs">
                         Precio de venta actual: ${fixed(it.previous_base_price)} · Precio sugerido:{' '}
-                        <strong>${fixed(it.suggested_new_base_price)}</strong>
+                        <strong>${moneyOrDash(it.suggested_new_base_price)}</strong>
                       </div>
                     )}
                   </div>

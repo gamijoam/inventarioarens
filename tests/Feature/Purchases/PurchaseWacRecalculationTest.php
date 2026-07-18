@@ -42,15 +42,15 @@ class PurchaseWacRecalculationTest extends TestCase
         return [$tenant, $branch, $warehouse, $user];
     }
 
-    private function product(int $tenantId, string $sku = 'P-1', float $initialWac = 0.0): Product
+    private function product(int $tenantId, string $sku = 'P-1', float $initialWac = 0.0, array $attributes = []): Product
     {
-        return Product::create([
+        return Product::create(array_merge([
             'tenant_id' => $tenantId,
             'name' => 'P',
             'sku' => $sku,
             'tracking_type' => 'quantity',
             'average_cost' => $initialWac,
-        ]);
+        ], $attributes));
     }
 
     public function test_wac_is_recalculated_after_receiving_purchase(): void
@@ -136,5 +136,45 @@ class PurchaseWacRecalculationTest extends TestCase
         app(PurchaseOrderService::class)->receive($po2->fresh(), $user);
 
         $this->assertEquals(16.0, (float) $product->fresh()->average_cost);
+    }
+
+    public function test_receive_suggests_price_from_last_purchase_cost_and_margin(): void
+    {
+        [$tenant, , $warehouse, $user] = $this->setupTenant();
+        $product = $this->product($tenant->id, 'IPHONE-15', 0.0, [
+            'name' => 'IPHONE 15',
+            'base_price' => 400.00,
+            'profit_margin' => 25.00,
+            'last_purchase_cost' => 320.00,
+        ]);
+
+        $po = PurchaseOrder::create([
+            'tenant_id' => $tenant->id,
+            'status' => PurchaseOrder::STATUS_DRAFT,
+            'document_number' => 'PO-IPHONE-15',
+            'issued_at' => now()->toDateString(),
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'created_by' => $user->id,
+        ]);
+        $po->items()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_cost' => 500.00,
+            'total_cost' => 500.00,
+            'base_unit_cost' => 500.00,
+            'base_total_cost' => 500.00,
+        ]);
+
+        $received = app(PurchaseOrderService::class)->receive($po->fresh(), $user);
+        $reviewItem = $received->getAttribute('price_review_items')[0] ?? null;
+
+        $this->assertNotNull($reviewItem);
+        $this->assertEquals(500.0, (float) $product->fresh()->last_purchase_cost);
+        $this->assertEquals(625.00, (float) $product->fresh()->base_price);
+        $this->assertEquals(320.00, $reviewItem['previous_cost_reference']);
+        $this->assertEquals(500.00, $reviewItem['new_unit_cost']);
+        $this->assertEquals(625.00, $reviewItem['suggested_new_base_price']);
+        $this->assertEquals(56.25, $reviewItem['diff_percent']);
     }
 }

@@ -23,8 +23,7 @@ class PurchaseOrderService
         private readonly InventoryMovementService $inventory,
         private readonly InventoryValuationService $valuation,
         private readonly SyncCatalogOutboxService $syncCatalog,
-    ) {
-    }
+    ) {}
 
     public function createDraft(User $user, array $data): PurchaseOrder
     {
@@ -147,6 +146,15 @@ class PurchaseOrderService
                 $previousBasePrice = $item->product->base_price === null ? null : (float) $item->product->base_price;
                 $previousMargin = $item->product->profit_margin === null ? null : (float) $item->product->profit_margin;
                 $newUnitCost = (float) $item->base_unit_cost;
+                $previousCostReference = null;
+                if ($previousMargin !== null && $previousBasePrice !== null && $previousBasePrice > 0) {
+                    $previousCostReference = $previousBasePrice / (1 + ($previousMargin / 100));
+                } elseif ($previousWac !== null && $previousWac > 0) {
+                    $previousCostReference = $previousWac;
+                }
+                $costDiffPercent = $previousCostReference !== null && $previousCostReference > 0
+                    ? (($newUnitCost - $previousCostReference) / $previousCostReference) * 100
+                    : null;
 
                 // Recalcular WAC del producto tras cada item recibido para que
                 // `products.average_cost` refleje el costo actualizado. Idempotente
@@ -159,16 +167,22 @@ class PurchaseOrderService
                     $previousMargin !== null
                     && $previousBasePrice !== null
                     && $previousBasePrice > 0
-                    && abs((($newUnitCost - ($previousBasePrice / (1 + ($previousMargin / 100)))) / ($previousBasePrice / (1 + ($previousMargin / 100)))) * 100) >= $priceReviewThreshold
+                    && $costDiffPercent !== null
+                    && abs($costDiffPercent) >= $priceReviewThreshold
                 ) {
+                    $suggestedNewBasePrice = round($newUnitCost * (1 + ($previousMargin / 100)), 2);
+
                     $priceReviewItems[] = [
                         'item_id' => $item->id,
                         'product_id' => $item->product_id,
                         'product_name' => $item->product->name,
                         'previous_wac' => round($previousWac ?? 0, 4),
+                        'previous_cost_reference' => round($previousCostReference, 4),
                         'previous_base_price' => $previousBasePrice,
                         'new_unit_cost' => round($newUnitCost, 4),
                         'profit_margin' => $previousMargin,
+                        'suggested_new_base_price' => $suggestedNewBasePrice,
+                        'diff_percent' => round($costDiffPercent, 4),
                     ];
                 }
 

@@ -83,7 +83,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
     setSaving(true);
     try {
       const res = await updateMargin.mutateAsync({ id: product.id, profit_margin: inputNum });
-      const newPrice = (res as { data?: { base_price?: number | null } } | undefined)?.data?.base_price;
+      const newPrice = res?.base_price;
       if (newPrice != null) {
         toast.success('Margen guardado. Precio recalculado: USD ' + Number(newPrice).toFixed(2));
       } else {
@@ -101,10 +101,11 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
     setRecalculating(true);
     try {
       const res = (await recalc.mutateAsync({ id: product.id })) as {
-        data: { base_price: number; profit_margin: number };
+        base_price: number;
+        profit_margin: number;
       };
       toast.success(
-        `Precio recalculado: ${formatMoney(res.data.base_price)} (margen ${res.data.profit_margin}%).`,
+        `Precio recalculado: ${formatMoney(res.base_price)} (margen ${res.profit_margin}%).`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al recalcular.');

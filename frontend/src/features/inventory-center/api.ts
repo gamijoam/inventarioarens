@@ -692,7 +692,7 @@ export function useRecalculateProductPrice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, profit_margin }: { id: number; profit_margin?: number | null }) =>
-      postOne<{ profit_margin?: number | null }, { data: { product_id: number; base_price: number; profit_margin: number; last_purchase_cost: number } }>(
+      postOne<{ profit_margin?: number | null }, { product_id: number; base_price: number; profit_margin: number; last_purchase_cost: number }>(
         `/inventory-center/products/${id}/recalculate-price`,
         profit_margin != null ? { profit_margin } : {},
       ),
@@ -707,12 +707,12 @@ export function useUpdateProductProfitMargin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, profit_margin }: { id: number; profit_margin: number }) =>
-      patchOne<{ profit_margin: number }, { data: { product_id: number; profit_margin: number; base_price: number | null } }>(
+      patchOne<{ profit_margin: number }, { product_id: number; profit_margin: number; base_price: number | null }>(
         `/inventory-center/products/${id}/profit-margin`,
         { profit_margin },
       ),
     onSuccess: (response, vars) => {
-      const data = response?.data;
+      const data = response;
       if (data == null) return;
       qc.setQueryData<unknown>(productKeys.detail(vars.id), (prev: unknown) => {
         if (prev == null || typeof prev !== 'object') return prev;

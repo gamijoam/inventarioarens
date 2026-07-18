@@ -95,9 +95,12 @@ export const PurchasePriceReviewItemSchema = z.object({
   product_id: z.number().int().positive(),
   product_name: z.string(),
   previous_wac: z.union([z.number(), z.string()]).nullable().optional(),
+  previous_cost_reference: z.union([z.number(), z.string()]).nullable().optional(),
   previous_base_price: z.union([z.number(), z.string()]).nullable().optional(),
   new_unit_cost: z.union([z.number(), z.string()]),
   profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
+  suggested_new_base_price: z.union([z.number(), z.string()]).nullable().optional(),
+  diff_percent: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 /**
