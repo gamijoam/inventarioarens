@@ -33,7 +33,7 @@ class SalesReturnApiTest extends TestCase
         [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-001');
         StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create', 'sales_returns.view']);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales.view', 'sales_returns.create', 'sales_returns.view']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 2);
 
         $response = $this
@@ -65,6 +65,14 @@ class SalesReturnApiTest extends TestCase
             'type' => 'sale_return',
             'reference_type' => SalesReturn::class,
         ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/sales/{$sale->id}")
+            ->assertOk()
+            ->assertJsonPath('data.sales_returns.0.status', SalesReturn::STATUS_PROCESSED)
+            ->assertJsonPath('data.sales_returns.0.items.0.sale_item_id', $sale->items->first()->id);
     }
 
     public function test_sales_return_cannot_exceed_sold_quantity(): void

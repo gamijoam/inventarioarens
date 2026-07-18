@@ -75,6 +75,44 @@ function receivableVariant(status: string | undefined): 'default' | 'success' | 
   return 'default';
 }
 
+function returnedQuantityForItem(sale: Sale, itemId: number): number {
+  return (sale.sales_returns ?? []).reduce((total, salesReturn) => {
+    if (salesReturn.status !== 'processed') return total;
+    return total + (salesReturn.items ?? []).reduce((itemTotal, returnItem) => (
+      returnItem.sale_item_id === itemId ? itemTotal + Number(returnItem.quantity ?? 0) : itemTotal
+    ), 0);
+  }, 0);
+}
+
+function returnedUnitIdsForItem(sale: Sale, itemId: number): Set<number> {
+  const ids = new Set<number>();
+  for (const salesReturn of sale.sales_returns ?? []) {
+    if (salesReturn.status !== 'processed') continue;
+    for (const item of salesReturn.items ?? []) {
+      if (item.sale_item_id !== itemId) continue;
+      for (const unitId of item.product_unit_ids ?? []) ids.add(Number(unitId));
+    }
+  }
+  return ids;
+}
+
+function returnableQuantityForItem(sale: Sale, item: SaleItem): number {
+  return Math.max(0, Number(item.quantity) - returnedQuantityForItem(sale, item.id));
+}
+
+function hasReturnableItems(sale: Sale): boolean {
+  return (sale.items ?? []).some((item) => returnableQuantityForItem(sale, item) > 0);
+}
+
+function returnStatusLabel(sale: Sale): string | null {
+  const items = sale.items ?? [];
+  if (items.length === 0 || (sale.sales_returns ?? []).length === 0) return null;
+  const total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
+  const returned = items.reduce((sum, item) => sum + returnedQuantityForItem(sale, item.id), 0);
+  if (returned <= 0) return null;
+  return returned >= total ? 'Devuelta total' : 'Devuelta parcial';
+}
+
 export function SalesManager() {
   const [filters, setFilters] = useState<SaleListFilters>({
     search: '',
@@ -282,6 +320,7 @@ function SaleRow({
 }) {
   const date = sale.confirmed_at ?? sale.created_at;
   const localBalance = sale.receivable ? currentLocalBalance(sale.receivable, activeRate) : null;
+  const returnLabel = returnStatusLabel(sale);
   return (
     <>
       <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
@@ -292,7 +331,12 @@ function SaleRow({
         <td className="px-3 py-2 text-text-muted">{formatDate(date)}</td>
         <td className="px-3 py-2">{customerLabel(sale)}</td>
         <td className="px-3 py-2">
-          <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
+          <div className="flex flex-col gap-1">
+            <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
+            {returnLabel && (
+              <Badge variant={returnLabel === 'Devuelta total' ? 'success' : 'warning'}>{returnLabel}</Badge>
+            )}
+          </div>
         </td>
         <td className="px-3 py-2">
           <div className="flex flex-col gap-1">
@@ -351,6 +395,8 @@ function SaleDetail({
   const current = detail ?? sale;
   const items = current.items ?? [];
   const actor = current.pos_order?.cashier_name ?? current.created_by_name ?? 'Sin usuario';
+  const returnLabel = returnStatusLabel(current);
+  const canReturnCurrentSale = canCreateReturn && current.status === 'confirmed' && hasReturnableItems(current);
 
   if (isLoading && !detail) return <Skeleton className="h-36 w-full" />;
 
@@ -415,9 +461,15 @@ function SaleDetail({
           Total: <strong className="text-text-primary">{formatMoney(current.total_base_amount)}</strong>
           <span className="mx-2">·</span>
           {formatMoney(current.total_local_amount, 'Bs ')}
+          {returnLabel && (
+            <>
+              <span className="mx-2">·</span>
+              <Badge variant={returnLabel === 'Devuelta total' ? 'success' : 'warning'}>{returnLabel}</Badge>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {canCreateReturn && current.status === 'confirmed' && items.length > 0 && (
+          {canReturnCurrentSale && (
             <Button
               variant="secondary"
               size="sm"
@@ -426,6 +478,9 @@ function SaleDetail({
             >
               Devolver
             </Button>
+          )}
+          {canCreateReturn && current.status === 'confirmed' && items.length > 0 && !hasReturnableItems(current) && (
+            <Badge variant="success">Sin saldo por devolver</Badge>
           )}
           {canCancel && current.status === 'draft' && (
             <Button
@@ -503,10 +558,13 @@ function SalesReturnForm({
     const selected = items.flatMap((item) => {
       const line = lines[item.id];
       if (!line || line.quantity <= 0) return [];
-      const serialCount = (item.serial_units ?? []).filter((unit) => Number.isFinite(Number(unit.id))).length;
+      const remaining = returnableQuantityForItem(sale, item);
+      const returnedUnitIds = returnedUnitIdsForItem(sale, item.id);
+      const serialCount = (item.serial_units ?? [])
+        .filter((unit) => Number.isFinite(Number(unit.id)) && !returnedUnitIds.has(Number(unit.id))).length;
       return [{
         sale_item_id: item.id,
-        quantity: Math.min(line.quantity, item.quantity),
+        quantity: Math.min(line.quantity, remaining),
         condition: line.condition,
         reason: line.reason || null,
         product_unit_ids: serialCount > 0 ? line.unitIds : undefined,
@@ -557,21 +615,28 @@ function SalesReturnForm({
             <tbody>
               {items.map((item) => {
                 const line = lines[item.id] ?? { quantity: 0, condition: 'sellable' as const, reason: '', unitIds: [] };
-                const serialUnits = (item.serial_units ?? []).filter((unit) => Number.isFinite(Number(unit.id)));
+                const returned = returnedQuantityForItem(sale, item.id);
+                const remaining = returnableQuantityForItem(sale, item);
+                const returnedUnitIds = returnedUnitIdsForItem(sale, item.id);
+                const serialUnits = (item.serial_units ?? [])
+                  .filter((unit) => Number.isFinite(Number(unit.id)) && !returnedUnitIds.has(Number(unit.id)));
                 return (
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-3 py-2">
                       <div className="font-medium">{item.product_name ?? `Producto #${item.product_id}`}</div>
-                      <div className="text-xs text-text-muted">{item.product_sku ?? '-'}</div>
+                      <div className="text-xs text-text-muted">
+                        {item.product_sku ?? '-'} · Devuelto {returned} · Disponible {remaining}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right">{item.quantity}</td>
                     <td className="px-3 py-2">
                       <Input
                         type="number"
                         min="0"
-                        max={item.quantity}
+                        max={remaining}
                         value={line.quantity}
-                        onChange={(e) => patchLine(item, { quantity: Number(e.target.value || 0) })}
+                        disabled={remaining <= 0}
+                        onChange={(e) => patchLine(item, { quantity: Math.min(Number(e.target.value || 0), remaining) })}
                         className="w-24"
                       />
                     </td>
@@ -583,7 +648,7 @@ function SalesReturnForm({
                     </td>
                     <td className="px-3 py-2">
                       {serialUnits.length === 0 ? (
-                        <span className="text-xs text-text-muted">No serializado</span>
+                        <span className="text-xs text-text-muted">{remaining <= 0 ? 'Ya devuelto' : 'No serializado'}</span>
                       ) : (
                         <div className="max-h-24 space-y-1 overflow-auto">
                           {serialUnits.map((unit) => {

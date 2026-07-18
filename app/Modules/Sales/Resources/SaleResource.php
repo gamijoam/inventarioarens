@@ -5,6 +5,7 @@ namespace App\Modules\Sales\Resources;
 use App\Modules\AccountsReceivable\Resources\AccountsReceivableResource;
 use App\Modules\Customers\Resources\CustomerResource;
 use App\Modules\POS\Resources\PosPaymentResource;
+use App\Modules\SalesReturns\Resources\SalesReturnResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -52,6 +53,7 @@ class SaleResource extends JsonResource
                     : [],
             ] : null),
             'receivable' => AccountsReceivableResource::make($this->whenLoaded('receivable')),
+            'sales_returns' => SalesReturnResource::collection($this->whenLoaded('salesReturns')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

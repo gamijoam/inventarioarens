@@ -33,6 +33,7 @@ class SaleController extends Controller
                 'posOrder.payments.paymentMethod',
                 'items.product',
                 'items.warehouse',
+                'salesReturns.items',
             ])
             ->withCount('items')
             ->latest();
@@ -118,6 +119,7 @@ class SaleController extends Controller
             'items.product',
             'items.warehouse',
             'items.stockMovement',
+            'salesReturns.items',
         ]));
     }
 

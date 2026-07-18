@@ -124,6 +124,26 @@ export const SaleItemSchema = z.object({
   warranty_days: z.number().nullable().optional(),
 }).passthrough();
 
+const SaleReturnItemSummarySchema = z.object({
+  id: z.number().int().positive(),
+  sale_item_id: z.number().int().positive(),
+  product_id: z.number().int().positive().optional(),
+  quantity: moneyValue,
+  product_unit_ids: z.array(z.number()).nullable().optional(),
+  condition: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+}).passthrough();
+
+const SaleReturnSummarySchema = z.object({
+  id: z.number().int().positive(),
+  sale_id: z.number().int().positive(),
+  status: z.string(),
+  reason: z.string().nullable().optional(),
+  processed_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  items: z.array(SaleReturnItemSummarySchema).optional(),
+}).passthrough();
+
 export const SaleSchema = z.object({
   id: z.number().int().positive(),
   tenant_id: z.number().int().positive().optional(),
@@ -140,6 +160,7 @@ export const SaleSchema = z.object({
   items: z.array(SaleItemSchema).optional(),
   pos_order: SalePosOrderSchema,
   receivable: SaleReceivableSchema,
+  sales_returns: z.array(SaleReturnSummarySchema).optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
 }).passthrough();

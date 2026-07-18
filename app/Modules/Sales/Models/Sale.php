@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\POS\Models\PosOrder;
+use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -65,5 +66,10 @@ class Sale extends Model
     public function receivable(): HasOne
     {
         return $this->hasOne(AccountsReceivable::class);
+    }
+
+    public function salesReturns(): HasMany
+    {
+        return $this->hasMany(SalesReturn::class);
     }
 }
