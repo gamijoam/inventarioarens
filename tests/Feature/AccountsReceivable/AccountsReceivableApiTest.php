@@ -4,7 +4,10 @@ namespace Tests\Feature\AccountsReceivable;
 
 use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
@@ -54,6 +57,7 @@ class AccountsReceivableApiTest extends TestCase
         $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.collect', 'accounts_receivable.view']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 2);
         $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse);
 
         $this
             ->actingAs($user)
@@ -61,6 +65,7 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$account->id}/payments", [
                 'payment_currency' => Product::CURRENCY_USD,
                 'amount' => 80,
+                'cash_register_session_id' => $session->id,
                 'method' => 'transferencia',
                 'reference' => 'COBRO-001',
             ])
@@ -81,6 +86,7 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$account->id}/payments", [
                 'payment_currency' => Product::CURRENCY_USD,
                 'amount' => 120,
+                'cash_register_session_id' => $session->id,
             ])
             ->assertCreated();
 
@@ -133,6 +139,7 @@ class AccountsReceivableApiTest extends TestCase
         $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.collect']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
         $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse);
 
         $this
             ->actingAs($user)
@@ -140,6 +147,7 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$account->id}/payments", [
                 'payment_currency' => Product::CURRENCY_VES,
                 'amount' => 60000,
+                'cash_register_session_id' => $session->id,
                 'exchange_rate_type_id' => $rateType->id,
                 'method' => 'pago movil',
             ])
@@ -154,6 +162,14 @@ class AccountsReceivableApiTest extends TestCase
             'id' => $account->id,
             'status' => AccountsReceivable::STATUS_PAID,
             'collected_base_amount' => '100.0000',
+        ]);
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_INFLOW,
+            'source_type' => AccountsReceivablePayment::class,
+            'amount_base' => '100.0000',
         ]);
     }
 
@@ -189,6 +205,7 @@ class AccountsReceivableApiTest extends TestCase
         $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.collect']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
         $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse);
 
         $this
             ->actingAs($user)
@@ -196,9 +213,42 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$account->id}/payments", [
                 'payment_currency' => Product::CURRENCY_USD,
                 'amount' => 101,
+                'cash_register_session_id' => $session->id,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount']);
+    }
+
+    public function test_manual_collection_requires_open_cash_register_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, 'AR-CASH');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.collect']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
+        $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse, CashRegisterSession::STATUS_CLOSED);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-receivable/{$account->id}/payments", [
+                'payment_currency' => Product::CURRENCY_USD,
+                'amount' => 10,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/accounts-receivable/{$account->id}/payments", [
+                'payment_currency' => Product::CURRENCY_USD,
+                'amount' => 10,
+                'cash_register_session_id' => $session->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
     }
 
     public function test_accounts_receivable_do_not_mix_companies_and_reject_foreign_account(): void
@@ -214,6 +264,7 @@ class AccountsReceivableApiTest extends TestCase
         $saleA = $this->confirmedSale($tenantA, $userA, $warehouseA, $productA, 1);
         $saleB = $this->confirmedSale($tenantB, $userB, $warehouseB, $productB, 1);
         $accountB = AccountsReceivable::withoutGlobalScopes()->where('sale_id', $saleB->id)->firstOrFail();
+        $sessionA = $this->openCashSession($tenantA, $userA, $warehouseA);
 
         $this
             ->actingAs($userA)
@@ -229,6 +280,7 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$accountB->id}/payments", [
                 'payment_currency' => Product::CURRENCY_USD,
                 'amount' => 1,
+                'cash_register_session_id' => $sessionA->id,
             ])
             ->assertForbidden();
     }
@@ -242,6 +294,7 @@ class AccountsReceivableApiTest extends TestCase
         $this->grantRole($tenant, $creator, 'Ventas', ['sales.create']);
         $sale = $this->confirmedSale($tenant, $creator, $warehouse, $product, 1);
         $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse);
 
         $this
             ->actingAs($user)
@@ -255,6 +308,7 @@ class AccountsReceivableApiTest extends TestCase
             ->postJson("/api/accounts-receivable/{$account->id}/payments", [
                 'payment_currency' => Product::CURRENCY_USD,
                 'amount' => 1,
+                'cash_register_session_id' => $session->id,
             ])
             ->assertForbidden();
     }
@@ -335,5 +389,23 @@ class AccountsReceivableApiTest extends TestCase
     {
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
+    }
+
+    private function openCashSession(Tenant $tenant, User $user, Warehouse $warehouse, string $status = CashRegisterSession::STATUS_OPEN): CashRegisterSession
+    {
+        $this->useTenant($tenant);
+
+        return CashRegisterSession::create([
+            'branch_id' => $warehouse->branch_id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => $status,
+            'opening_base_amount' => 0,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 0,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+            'closed_at' => $status === CashRegisterSession::STATUS_CLOSED ? now() : null,
+        ]);
     }
 }

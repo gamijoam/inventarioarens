@@ -5,6 +5,8 @@ namespace App\Modules\AccountsReceivable\Services;
 use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
+use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
@@ -123,6 +125,14 @@ class AccountsReceivableService
             $account->save();
 
             app(PaymentReceiptService::class)->issueForReceivablePayment($payment, $user);
+
+            if (isset($data['cash_register_session_id'])) {
+                app(CashRegisterService::class)->recordReceivablePayment(
+                    CashRegisterSession::query()->findOrFail((int) $data['cash_register_session_id']),
+                    $payment,
+                    $user,
+                );
+            }
 
             return $payment->refresh()->load('account');
         });

@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
+import { useBranchesForPos, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -117,6 +117,33 @@ describe('pos api', () => {
       fiscal_address: null,
       is_active: true,
       is_generic: false,
+    });
+  });
+
+  it('envia checkout POS a credito con vencimiento opcional', async () => {
+    mockPostOne.mockResolvedValue({ id: 11, status: 'paid', sale_id: 22 });
+
+    const { result } = renderHook(() => useCheckout(), { wrapper });
+    result.current.mutate({
+      cash_register_session_id: 3,
+      customer_id: 5,
+      customer_name: 'Cliente Credito',
+      credit: true,
+      credit_due_date: '2026-08-01',
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
+      payments: [],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/pos/checkouts', {
+      cash_register_session_id: 3,
+      customer_id: 5,
+      customer_name: 'Cliente Credito',
+      credit: true,
+      credit_due_date: '2026-08-01',
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
+      payments: [],
     });
   });
 });

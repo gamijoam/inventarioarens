@@ -66,7 +66,7 @@ import {
   roundMoney,
 } from './posLogic';
 
-type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | null;
+type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | 'credit' | null;
 type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
 
 const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
@@ -83,6 +83,7 @@ export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
+  const canCollectReceivables = permissions.has(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const canCancel = permissions.has(PERMISSIONS.POS_CANCEL);
   const canOpenCash = permissions.has(PERMISSIONS.CASH_REGISTER_OPEN);
   const canMoveCash = permissions.has(PERMISSIONS.CASH_REGISTER_MOVE) || permissions.has(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
@@ -114,6 +115,7 @@ export function PosTerminal() {
   const [openingRegisterId, setOpeningRegisterId] = useState<number | ''>('');
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
+  const [creditDueDate, setCreditDueDate] = useState('');
 
   const { data: warehouses = [] } = useWarehousesForPos();
   const { data: branches = [] } = useBranchesForPos();
@@ -447,6 +449,15 @@ export function PosTerminal() {
               {checkout.isPending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-5" />}
               Cobrar
             </Button>
+            <Button
+              className="h-10 w-full"
+              variant="secondary"
+              disabled={!canCheckout || !canCollectReceivables || cart.length === 0 || hasStockIssue(cart) || checkout.isPending}
+              onClick={() => setPanel('credit')}
+            >
+              <Wallet className="size-4" />
+              Enviar a CxC
+            </Button>
           </div>
         </aside>
       </main>
@@ -546,6 +557,19 @@ export function PosTerminal() {
                 addQuickPayment(methodId);
                 setPanel(null);
               }}
+            />
+          )}
+          {panel === 'credit' && (
+            <CreditPanel
+              customer={selectedCustomer}
+              total={cartTotals.total}
+              paid={paymentTotals.paid}
+              dueDate={creditDueDate}
+              canCredit={canCheckout && canCollectReceivables}
+              busy={checkout.isPending}
+              onDueDate={setCreditDueDate}
+              onCustomer={() => setPanel('customer')}
+              onConfirm={() => void confirmCreditSale()}
             />
           )}
         </PanelShell>
@@ -679,6 +703,44 @@ export function PosTerminal() {
       toast.success('Venta confirmada.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
+    }
+  }
+
+  async function confirmCreditSale(): Promise<void> {
+    if (!activeSession) {
+      toast.error('No hay caja abierta.');
+      return;
+    }
+    if (!canCheckout || !canCollectReceivables) {
+      toast.error('Necesitas permisos de POS y CxC para vender a credito.');
+      return;
+    }
+    if (!selectedCustomer) {
+      toast.error('La venta a credito requiere un cliente registrado.');
+      setPanel('customer');
+      return;
+    }
+    if (cart.length === 0 || hasStockIssue(cart)) {
+      toast.error('Revisa productos y stock antes de enviar a CxC.');
+      return;
+    }
+    if (paymentSetupIssue) {
+      toast.error(paymentSetupIssue);
+      return;
+    }
+    try {
+      const order = await checkout.mutateAsync({
+        ...buildCheckoutPayload(activeSession.id, 'captured'),
+        credit: true,
+        credit_due_date: creditDueDate || null,
+      });
+      setLastReceipt(order);
+      clearTicket();
+      setCreditDueDate('');
+      setPanel('receipt');
+      toast.success('Venta enviada a cuentas por cobrar.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo enviar la venta a CxC.');
     }
   }
 
@@ -1324,6 +1386,61 @@ function ReceiptPanel({ order }: { order: PosOrder | null }) {
   );
 }
 
+function CreditPanel(props: {
+  customer: Customer | null;
+  total: number;
+  paid: number;
+  dueDate: string;
+  canCredit: boolean;
+  busy: boolean;
+  onDueDate: (value: string) => void;
+  onCustomer: () => void;
+  onConfirm: () => void;
+}) {
+  const balance = Math.max(0, roundMoney(props.total - props.paid));
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-border bg-bg/50 p-4">
+        <p className="text-sm text-text-muted">Saldo que ira a CxC</p>
+        <p className="mt-1 text-4xl font-bold">{money(balance)}</p>
+        <p className="mt-2 text-sm text-text-muted">
+          Lo pagado ahora entra a caja; el saldo queda pendiente para cobranza.
+        </p>
+      </div>
+      {!props.customer ? (
+        <div className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
+          La venta a credito requiere un cliente registrado.
+          <Button className="mt-3 w-full" variant="outline" onClick={props.onCustomer}>Asignar cliente</Button>
+        </div>
+      ) : (
+        <div className="rounded border border-border bg-bg/40 p-3">
+          <p className="text-xs font-semibold uppercase text-text-muted">Cliente</p>
+          <p className="mt-1 font-semibold">{props.customer.name}</p>
+          <p className="text-sm text-text-muted">{customerDocument(props.customer) ?? 'Sin documento'}</p>
+        </div>
+      )}
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor="credit-due-date">Vencimiento opcional</label>
+        <Input
+          id="credit-due-date"
+          type="date"
+          value={props.dueDate}
+          onChange={(event) => props.onDueDate(event.target.value)}
+        />
+      </div>
+      <Button
+        className="w-full"
+        disabled={!props.canCredit || !props.customer || balance <= 0 || props.busy}
+        onClick={props.onConfirm}
+      >
+        {props.busy && <Loader2 className="size-4 animate-spin" />}
+        Confirmar venta a credito
+      </Button>
+    </div>
+  );
+}
+
 function AmountRow({ label, value, muted = false, currency = 'USD' }: { label: string; value: number; muted?: boolean; currency?: CurrencyCode }) {
   return (
     <div className={cn('flex items-center justify-between', muted && 'text-text-muted')}>
@@ -1356,6 +1473,8 @@ function panelTitle(panel: Panel): string {
       return 'Ultimo recibo';
     case 'product-search':
       return 'Buscar producto';
+    case 'credit':
+      return 'Enviar a cuentas por cobrar';
     default:
       return '';
   }

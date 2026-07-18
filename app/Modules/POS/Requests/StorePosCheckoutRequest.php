@@ -16,6 +16,8 @@ class StorePosCheckoutRequest extends FormRequest
 
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
+            'credit' => ['sometimes', 'boolean'],
+            'credit_due_date' => ['nullable', 'date'],
             'cash_register_session_id' => [
                 'required',
                 'integer',
@@ -48,7 +50,7 @@ class StorePosCheckoutRequest extends FormRequest
             'items.*.discount_type' => ['nullable', 'string', Rule::in(['percent', 'fixed'])],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
             'items.*.discount_reason' => ['nullable', 'string', 'max:255'],
-            'payments' => ['required', 'array', 'min:1'],
+            'payments' => ['nullable', 'array'],
             'payments.*.payment_method_id' => [
                 'nullable',
                 'integer',

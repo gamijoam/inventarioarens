@@ -22,7 +22,9 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -34,7 +36,7 @@ class PosCheckoutService
         private readonly AccountsReceivableService $accountsReceivable,
         private readonly InventoryMovementService $inventory,
         private readonly SyncOutboxService $syncOutbox,
-        private readonly \App\Support\Cache\TenantReferenceCache $referenceCache,
+        private readonly TenantReferenceCache $referenceCache,
     ) {}
 
     public function checkout(
@@ -44,9 +46,23 @@ class PosCheckoutService
         array $payments,
         ?int $customerId = null,
         ?string $customerName = null,
+        bool $credit = false,
+        ?string $creditDueDate = null,
     ): PosOrder {
-        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
-            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName): PosOrder {
+        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate): PosOrder {
+            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate): PosOrder {
+                if ($credit && ! $customerId) {
+                    throw ValidationException::withMessages([
+                        'customer_id' => 'La venta a credito requiere un cliente registrado.',
+                    ]);
+                }
+
+                if (! $credit && count($payments) === 0) {
+                    throw ValidationException::withMessages([
+                        'payments' => 'El checkout contado requiere al menos un pago.',
+                    ]);
+                }
+
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -122,7 +138,7 @@ class PosCheckoutService
                     'paid_local_amount' => round($paidLocal, 4),
                 ]);
 
-                if ($this->coversTotal($paidBase, (float) $sale->total_base_amount)) {
+                if ($credit || $this->coversTotal($paidBase, (float) $sale->total_base_amount)) {
                     $sale = PerformanceProbe::measure(
                         'POS confirmar venta',
                         fn (): Sale => $this->sales->confirm($sale, $cashier),
@@ -135,6 +151,11 @@ class PosCheckoutService
                         400,
                         ['order_id' => $order->id]
                     );
+                    if ($creditDueDate) {
+                        AccountsReceivable::query()
+                            ->where('sale_id', $sale->id)
+                            ->update(['due_date' => $creditDueDate]);
+                    }
                     $order->update([
                         'status' => PosOrder::STATUS_PAID,
                         'paid_at' => now(),
@@ -423,7 +444,7 @@ class PosCheckoutService
 
     private function priceListsForItems(array $items)
     {
-        $tenantId = app(\App\Support\Tenancy\TenantManager::class)->current()?->id;
+        $tenantId = app(TenantManager::class)->current()?->id;
         $defaultPriceList = null;
         $priceListIds = collect($items)
             ->map(function (array $item) use (&$defaultPriceList, $tenantId): ?int {

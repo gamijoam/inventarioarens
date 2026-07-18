@@ -108,6 +108,8 @@ export interface CheckoutPayload {
   cash_register_session_id: number;
   customer_id?: number | null;
   customer_name?: string | null;
+  credit?: boolean;
+  credit_due_date?: string | null;
   items: Array<{
     warehouse_id: number;
     product_id: number;

@@ -37,9 +37,11 @@ class PosOrderController extends Controller
             cashier: $request->user(),
             cashRegisterSession: CashRegisterSession::query()->findOrFail($request->validated('cash_register_session_id')),
             items: $request->validated('items'),
-            payments: $request->validated('payments'),
+            payments: $request->validated('payments') ?? [],
             customerId: $request->validated('customer_id'),
-            customerName: $request->validated('customer_name')
+            customerName: $request->validated('customer_name'),
+            credit: (bool) $request->validated('credit', false),
+            creditDueDate: $request->validated('credit_due_date')
         );
 
         return PosOrderResource::make($order)
