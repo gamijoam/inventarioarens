@@ -380,7 +380,7 @@ class PosCheckoutService
 
         if (! $session->cash_register_id) {
             throw ValidationException::withMessages([
-                'cash_register_session_id' => 'La venta requiere una caja fisica abierta desde el modulo Caja.',
+                'cash_register_session_id' => 'Abre un turno en una caja fisica activa antes de vender en POS.',
             ]);
         }
 

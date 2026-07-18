@@ -60,7 +60,7 @@ class CashRegisterApiTest extends TestCase
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         $branch = $this->branch($tenant);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.view']);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.create', 'cash_register.open', 'cash_register.view']);
 
         $cashRegisterId = $this
             ->actingAs($user)
@@ -146,6 +146,93 @@ class CashRegisterApiTest extends TestCase
             ->postJson('/api/cash-register/sessions', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['cashier_id']);
+    }
+
+    public function test_cash_register_sessions_index_filters_by_status_and_current_cashier(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $cashRegisterA = $this->cashRegister($tenant, $branch, 'Caja A', 'CJ-A');
+        $cashRegisterB = $this->cashRegister($tenant, $branch, 'Caja B', 'CJ-B');
+        $cashierA = $this->userInTenant($tenant);
+        $cashierB = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashierA, 'Cajero A', ['cash_register.open', 'cash_register.close', 'cash_register.view']);
+        $this->grantRole($tenant, $cashierB, 'Cajero B', ['cash_register.open', 'cash_register.view']);
+
+        $openA = $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegisterA->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$openA}/close", [
+                'counted_amount' => 0,
+            ])
+            ->assertOk();
+
+        $openB = $this
+            ->actingAs($cashierB)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegisterB->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($cashierA)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/cash-register/sessions?status=open&cashier_id=me')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this
+            ->actingAs($cashierB)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/cash-register/sessions?status=open&cashier_id=me')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $openB)
+            ->assertJsonPath('data.0.status', CashRegisterSession::STATUS_OPEN);
+    }
+
+    public function test_creating_physical_cash_register_requires_create_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.view']);
+
+        $payload = [
+            'branch_id' => $branch->id,
+            'name' => 'Caja Mostrador 2',
+            'code' => 'mostrador-2',
+        ];
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/registers', $payload)
+            ->assertForbidden();
+
+        $this->grantRole($tenant, $user, 'Admin Caja', ['cash_register.create', 'cash_register.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/registers', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.code', 'MOSTRADOR-2');
     }
 
     public function test_user_can_add_movements_and_close_cash_register_with_difference(): void

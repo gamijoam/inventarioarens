@@ -120,7 +120,7 @@ export function PosTerminal() {
   const { data: warehouses = [] } = useWarehousesForPos();
   const { data: branches = [] } = useBranchesForPos();
   const { data: cashRegisters = [] } = useCashRegisters();
-  const { data: sessions = [], isLoading: loadingSessions } = useCashSessions();
+  const { data: sessions = [], isLoading: loadingSessions, refetch: refetchCashSessions } = useCashSessions();
   const { data: pendingOrders = [] } = useOpenPosOrders();
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
@@ -143,8 +143,12 @@ export function PosTerminal() {
   const addCashMovement = useAddCashMovement();
   const closeCash = useCloseCashSession();
 
+  const activeCashRegisters = useMemo(
+    () => cashRegisters.filter((register) => (register.status ?? 'active') === 'active'),
+    [cashRegisters],
+  );
   const activeSession = useMemo(
-    () => sessions.find((session) => session.status === 'open') ?? sessions[0] ?? null,
+    () => sessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null,
     [sessions],
   );
   const selectedWarehouse = warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
@@ -171,8 +175,8 @@ export function PosTerminal() {
   }, [branches, openingBranchId]);
 
   useEffect(() => {
-    if (cashRegisters[0] && openingRegisterId === '') setOpeningRegisterId(cashRegisters[0].id);
-  }, [cashRegisters, openingRegisterId]);
+    if (activeCashRegisters[0] && openingRegisterId === '') setOpeningRegisterId(activeCashRegisters[0].id);
+  }, [activeCashRegisters, openingRegisterId]);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -232,7 +236,7 @@ export function PosTerminal() {
       <OpenCashScreen
         canOpenCash={canOpenCash}
         branches={branches}
-        cashRegisters={cashRegisters}
+        cashRegisters={activeCashRegisters}
         branchId={openingBranchId}
         registerId={openingRegisterId}
         amount={openingAmount}
@@ -241,9 +245,10 @@ export function PosTerminal() {
         onAmountChange={setOpeningAmount}
         onOpen={() => {
           if (!openingBranchId) return toast.error('Selecciona una sucursal.');
+          if (!openingRegisterId) return toast.error('Selecciona una caja fisica activa.');
           openCash.mutate({
             branch_id: Number(openingBranchId),
-            cash_register_id: openingRegisterId ? Number(openingRegisterId) : null,
+            cash_register_id: Number(openingRegisterId),
             opening_currency: 'USD',
             opening_amount: Number(openingAmount || 0),
             notes: 'Apertura desde POS',
@@ -702,6 +707,7 @@ export function PosTerminal() {
       setPanel('receipt');
       toast.success('Venta confirmada.');
     } catch (error) {
+      void refetchCashSessions();
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
     }
   }
@@ -740,6 +746,7 @@ export function PosTerminal() {
       setPanel('receipt');
       toast.success('Venta enviada a cuentas por cobrar.');
     } catch (error) {
+      void refetchCashSessions();
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar la venta a CxC.');
     }
   }
@@ -799,6 +806,7 @@ export function PosTerminal() {
       clearTicket();
       toast.success('Venta puesta en espera.');
     } catch (error) {
+      void refetchCashSessions();
       toast.error(error instanceof Error ? error.message : 'No se pudo poner la venta en espera.');
     }
   }
@@ -985,8 +993,8 @@ function OpenCashScreen(props: {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg p-4">
       <div className="w-full max-w-lg rounded border border-border bg-surface p-6 shadow-sm">
-        <h1 className="text-xl font-semibold">Abrir caja</h1>
-        <p className="mt-1 text-sm text-text-muted">Para vender en POS necesitas una caja fisica abierta.</p>
+        <h1 className="text-xl font-semibold">Abrir turno POS</h1>
+        <p className="mt-1 text-sm text-text-muted">Para vender necesitas abrir tu turno en una caja fisica activa.</p>
         {!props.canOpenCash ? (
           <p className="mt-4 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">No tienes permiso para abrir caja.</p>
         ) : (
@@ -1008,7 +1016,11 @@ function OpenCashScreen(props: {
               {props.cashRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
             </Select>
             <Input type="number" min="0" value={props.amount} onChange={(event) => props.onAmountChange(event.target.value)} placeholder="Fondo inicial USD" />
-            <Button className="w-full" onClick={props.onOpen} disabled={props.busy}>
+            <Button
+              className="w-full"
+              onClick={props.onOpen}
+              disabled={props.busy || !props.branchId || !props.registerId || props.cashRegisters.length === 0}
+            >
               {props.busy && <Loader2 className="size-4 animate-spin" />} Abrir turno
             </Button>
           </div>

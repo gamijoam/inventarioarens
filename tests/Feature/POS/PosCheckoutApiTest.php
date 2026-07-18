@@ -1446,7 +1446,7 @@ class PosCheckoutApiTest extends TestCase
             ->postJson('/api/pos/checkouts', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['cash_register_session_id'])
-            ->assertJsonPath('errors.cash_register_session_id.0', 'La venta requiere una caja fisica abierta desde el modulo Caja.');
+            ->assertJsonPath('errors.cash_register_session_id.0', 'Abre un turno en una caja fisica activa antes de vender en POS.');
 
         $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id, CashRegisterSession::STATUS_CLOSED);
         $payload['cash_register_session_id'] = $session->id;

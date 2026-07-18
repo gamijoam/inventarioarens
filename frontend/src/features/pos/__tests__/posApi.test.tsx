@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
+import { useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -46,6 +46,28 @@ describe('pos api', () => {
 
     expect(result.current.fetchStatus).toBe('idle');
     expect(mockGetPaginated).not.toHaveBeenCalled();
+  });
+
+  it('lee solo sesiones abiertas del cajero actual para POS', async () => {
+    mockGetPaginated.mockResolvedValue({
+      data: [{
+        id: 3,
+        branch_id: 1,
+        cash_register_id: 5,
+        cashier_id: 9,
+        status: 'open',
+        opening_base_amount: '0.0000',
+        expected_base_amount: '0.0000',
+      }],
+      meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
+    });
+
+    const { result } = renderHook(() => useCashSessions(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockGetPaginated).toHaveBeenCalledWith('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
+    expect(result.current.data?.[0]?.cash_register_id).toBe(5);
   });
 
   it('crea caja fisica en el endpoint de cash register', async () => {

@@ -21,13 +21,13 @@ class CashRegisterPolicy
 
     public function create(User $user): bool
     {
-        return $this->hasTenantPermission($user, 'cash_register.open');
+        return $this->hasTenantPermission($user, 'cash_register.create');
     }
 
     public function update(User $user, CashRegister $cashRegister): bool
     {
         return $this->ownsResource($cashRegister)
-            && $this->hasTenantPermission($user, 'cash_register.open');
+            && $this->hasTenantPermission($user, 'cash_register.update');
     }
 
     private function hasTenantPermission(User $user, string $permission): bool

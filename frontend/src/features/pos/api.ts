@@ -261,7 +261,7 @@ export function useCashSessions() {
   return useQuery({
     queryKey: posKeys.cashSessions(),
     queryFn: async () => {
-      const response = await getPaginated<unknown>('/cash-register/sessions?status=open&per_page=25');
+      const response = await getPaginated<unknown>('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
       return z.array(CashRegisterSessionSchema).parse(response.data);
     },
   });
@@ -374,6 +374,7 @@ export function useOpenCashSession() {
       postOne<OpenCashSessionPayload, CashRegisterSession>('/cash-register/sessions', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
 }
@@ -406,6 +407,7 @@ export function useAddCashMovement() {
       postOne<CashMovementPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/movements`, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
 }
@@ -417,6 +419,7 @@ export function useCloseCashSession() {
       patchOne<CloseCashSessionPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/close`, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
 }

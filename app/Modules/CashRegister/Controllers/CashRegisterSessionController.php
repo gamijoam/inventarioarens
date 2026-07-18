@@ -33,9 +33,33 @@ class CashRegisterSessionController extends Controller
             ->with(['branch', 'cashRegister'])
             ->latest();
 
+        $status = $request->query('status');
+        if (in_array($status, [
+            CashRegisterSession::STATUS_OPEN,
+            CashRegisterSession::STATUS_CLOSED,
+            CashRegisterSession::STATUS_CANCELLED,
+        ], true)) {
+            $query->where('status', $status);
+        }
+
+        if ($request->query('cashier_id') === 'me') {
+            $query->where('cashier_id', $request->user()->id);
+        } elseif ($request->filled('cashier_id')) {
+            $query->where('cashier_id', (int) $request->query('cashier_id'));
+        }
+
+        if ($request->filled('cash_register_id')) {
+            $query->where('cash_register_id', (int) $request->query('cash_register_id'));
+        }
+
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', (int) $request->query('branch_id'));
+        }
+
         $query = $this->scopes->applyBranchScope($query, $request->user(), 'branch_id');
 
-        return CashRegisterSessionResource::collection($query->paginate(25)
+        return CashRegisterSessionResource::collection(
+            $query->paginate((int) $request->query('per_page', 25))
         );
     }
 
