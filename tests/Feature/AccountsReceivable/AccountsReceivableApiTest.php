@@ -129,6 +129,20 @@ class AccountsReceivableApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $accountA->id)
             ->assertJsonMissing(['id' => $accountB->id]);
+
+        $accountB->forceFill([
+            'status' => AccountsReceivable::STATUS_PAID,
+            'balance_base_amount' => 0,
+            'paid_at' => now(),
+        ])->save();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/accounts-receivable?status=open&limit=10')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $accountA->id])
+            ->assertJsonMissing(['id' => $accountB->id]);
     }
 
     public function test_ves_collection_uses_rate_snapshot(): void

@@ -28,12 +28,12 @@ describe('receivables api', () => {
   it('construye query de filtros de CxC', () => {
     expect(buildReceivablesQuery({
       search: 'Cliente',
-      status: 'partial',
+      status: 'open',
       due_from: '2026-07-01',
       due_to: '2026-07-31',
       page: 2,
       limit: 25,
-    })).toBe('/accounts-receivable?search=Cliente&status=partial&due_from=2026-07-01&due_to=2026-07-31&page=2&limit=25');
+    })).toBe('/accounts-receivable?search=Cliente&status=open&due_from=2026-07-01&due_to=2026-07-31&page=2&limit=25');
   });
 
   it('lee cuentas por cobrar paginadas', async () => {

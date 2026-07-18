@@ -18,9 +18,7 @@ use Illuminate\Validation\Rule;
 
 class AccountsReceivableController extends Controller
 {
-    public function __construct(private readonly ScopeResolver $scopes)
-    {
-    }
+    public function __construct(private readonly ScopeResolver $scopes) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -30,6 +28,7 @@ class AccountsReceivableController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in([
                 'all',
+                'open',
                 AccountsReceivable::STATUS_PENDING,
                 AccountsReceivable::STATUS_PARTIAL,
                 AccountsReceivable::STATUS_PAID,
@@ -60,7 +59,15 @@ class AccountsReceivableController extends Controller
                         });
                 });
             })
-            ->when(($filters['status'] ?? 'all') !== 'all', fn ($query) => $query->where('status', $filters['status']))
+            ->when(($filters['status'] ?? 'all') === 'open', fn ($query) => $query->whereIn('status', [
+                AccountsReceivable::STATUS_PENDING,
+                AccountsReceivable::STATUS_PARTIAL,
+                AccountsReceivable::STATUS_OVERDUE,
+            ]))
+            ->when(
+                ! in_array(($filters['status'] ?? 'all'), ['all', 'open'], true),
+                fn ($query) => $query->where('status', $filters['status'])
+            )
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
             ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))

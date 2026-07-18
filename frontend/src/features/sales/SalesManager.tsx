@@ -15,6 +15,13 @@ import { useCan } from '@/permissions/useCan';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
+const RECEIVABLE_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendiente',
+  partial: 'Parcial',
+  paid: 'Pagada',
+  overdue: 'Vencida',
+};
+
 const STATUS_OPTIONS: { value: SaleListFilters['status']; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: 'draft', label: 'Borradores' },
@@ -48,8 +55,21 @@ function formatDate(value: string | null | undefined): string {
 
 function customerLabel(sale: Sale): string {
   if (!sale.customer) return 'Consumidor Final';
-  const doc = sale.customer.document_number ? ` · ${sale.customer.document_number}` : '';
+  const doc = sale.customer.document_number ? ` - ${sale.customer.document_number}` : '';
   return `${sale.customer.name}${doc}`;
+}
+
+function receivableStatusLabel(sale: Sale): string {
+  if (!sale.receivable) return 'Sin CxC';
+  return RECEIVABLE_STATUS_LABELS[sale.receivable.status] ?? sale.receivable.status;
+}
+
+function receivableVariant(status: string | undefined): 'default' | 'success' | 'danger' | 'warning' | 'info' {
+  if (status === 'paid') return 'success';
+  if (status === 'overdue') return 'danger';
+  if (status === 'partial') return 'info';
+  if (status === 'pending') return 'warning';
+  return 'default';
 }
 
 export function SalesManager() {
@@ -178,6 +198,7 @@ export function SalesManager() {
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Fecha</th>
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Cliente</th>
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Estado</th>
+                  <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Cobranza</th>
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Origen</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Total USD</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Total VES</th>
@@ -260,6 +281,16 @@ function SaleRow({
         <td className="px-3 py-2">
           <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
         </td>
+        <td className="px-3 py-2">
+          <div className="flex flex-col gap-1">
+            <Badge variant={receivableVariant(sale.receivable?.status)}>{receivableStatusLabel(sale)}</Badge>
+            {sale.receivable && sale.receivable.balance_base_amount > 0 && (
+              <span className="text-xs font-medium text-warning">
+                Saldo {formatMoney(sale.receivable.balance_base_amount)} · {formatMoney(sale.receivable.balance_local_amount, 'Bs ')}
+              </span>
+            )}
+          </div>
+        </td>
         <td className="px-3 py-2 text-text-muted">{sale.pos_order ? 'POS' : 'Manual'}</td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_base_amount)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_local_amount, 'Bs ')}</td>
@@ -267,7 +298,7 @@ function SaleRow({
       </tr>
       {expanded && (
         <tr className="border-b border-border bg-bg/20">
-          <td colSpan={9} className="px-4 py-4">
+          <td colSpan={10} className="px-4 py-4">
             <SaleDetail saleId={sale.id} sale={sale} canCancel={canCancel} cancelling={cancelling} onCancel={onCancel} />
           </td>
         </tr>
@@ -370,8 +401,8 @@ function ReceivableAudit({ sale }: { sale: Sale }) {
     <section className="rounded border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Cobranza</h3>
-        <Badge variant={receivable.status === 'paid' ? 'success' : receivable.status === 'overdue' ? 'danger' : 'warning'}>
-          {receivable.status}
+        <Badge variant={receivableVariant(receivable.status)}>
+          {RECEIVABLE_STATUS_LABELS[receivable.status] ?? receivable.status}
         </Badge>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">

@@ -18,6 +18,7 @@ import { useCollectReceivable, useReceivable, useReceivables, type ReceivableLis
 import { RECEIVABLE_STATUS_LABELS, type CollectReceivableValues, type Receivable, type ReceivableStatus } from './schemas';
 
 const STATUS_OPTIONS: { value: ReceivableListFilters['status']; label: string }[] = [
+  { value: 'open', label: 'Abiertas' },
   { value: 'all', label: 'Todas' },
   { value: 'pending', label: 'Pendientes' },
   { value: 'partial', label: 'Parciales' },
@@ -37,6 +38,10 @@ function money(value: number | null | undefined, currency = '$'): string {
   return `${currency}${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function numberLabel(value: number | null | undefined): string {
+  return Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function dateLabel(value: string | null | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -51,7 +56,7 @@ function customerLabel(receivable: Receivable): string {
 }
 
 export function ReceivablesManager() {
-  const [filters, setFilters] = useState<ReceivableListFilters>({ status: 'all', page: 1, limit: 25 });
+  const [filters, setFilters] = useState<ReceivableListFilters>({ status: 'open', page: 1, limit: 25 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [collecting, setCollecting] = useState<Receivable | null>(null);
   const { data, isLoading, isError, refetch } = useReceivables(filters);
@@ -107,7 +112,7 @@ export function ReceivablesManager() {
       </Card>
 
       <div className="grid gap-3 md:grid-cols-5">
-        <InfoTile label="Saldo visible" value={money(totals.balance)} />
+        <InfoTile label="Saldo abierto" value={money(totals.balance)} />
         <InfoTile label="Vencidas" value={String(totals.overdue)} />
         <InfoTile label="Pendientes" value={String(totals.pending)} />
         <InfoTile label="Parciales" value={String(totals.partial)} />
@@ -117,7 +122,7 @@ export function ReceivablesManager() {
       {isError ? (
         <EmptyState title="No se pudo cargar CxC" description="Revisa la conexión e intenta actualizar." action={<Button onClick={() => void refetch()}>Reintentar</Button>} />
       ) : receivables.length === 0 ? (
-        <EmptyState icon={<Wallet className="size-8" />} title="Sin cuentas por cobrar" description="Las ventas a crédito o saldos pendientes aparecerán aquí." />
+        <EmptyState icon={<Wallet className="size-8" />} title="Sin cuentas por cobrar abiertas" description="Las ventas a crédito o saldos pendientes aparecerán aquí." />
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -268,9 +273,12 @@ function CollectPanel({ receivable, onClose }: { receivable: Receivable; onClose
   const activeMethods = methods.filter((method) => method.is_active !== false);
   const defaultMethod = activeMethods[0];
   const activeRate = rates.find((rate) => rate.is_active !== false && rate.base_currency === 'USD' && rate.quote_currency === 'VES') ?? rates[0] ?? null;
+  const rateValue = activeRate?.rate && activeRate.rate > 0 ? activeRate.rate : null;
+  const balanceBase = receivable.balance_base_amount;
+  const balanceLocal = rateValue ? balanceBase * rateValue : receivable.balance_local_amount;
   const [form, setForm] = useState<CollectReceivableValues>({
     payment_currency: 'USD',
-    amount: receivable.balance_base_amount,
+    amount: balanceBase,
     cash_register_session_id: activeSession?.id ?? 0,
     exchange_rate_type_id: null,
     exchange_rate: null,
@@ -279,14 +287,26 @@ function CollectPanel({ receivable, onClose }: { receivable: Receivable; onClose
     notes: '',
     paid_at: '',
   });
-  const equivalent = form.payment_currency === 'VES' && activeRate ? form.amount / activeRate.rate : form.amount;
+  const amountBase = form.payment_currency === 'VES' && rateValue ? form.amount / rateValue : form.amount;
+  const amountLocal = form.payment_currency === 'VES' ? form.amount : rateValue ? form.amount * rateValue : 0;
+  const remainingBase = Math.max(0, balanceBase - amountBase);
+  const remainingLocal = rateValue ? remainingBase * rateValue : Math.max(0, receivable.balance_local_amount - amountLocal);
+  const isOverpaying = amountBase > balanceBase + 0.0001;
 
   function patch(next: Partial<CollectReceivableValues>) {
     setForm((current) => ({ ...current, ...next }));
   }
 
+  function setCurrency(currency: 'USD' | 'VES') {
+    patch({
+      payment_currency: currency,
+      amount: currency === 'VES' && rateValue ? balanceBase * rateValue : balanceBase,
+    });
+  }
+
   async function submit() {
     if (!activeSession) return toast.error('Debes tener una caja abierta para registrar cobros.');
+    if (isOverpaying) return toast.error('El cobro supera el saldo pendiente.');
     const payload: CollectReceivableValues = {
       ...form,
       cash_register_session_id: activeSession.id,
@@ -312,13 +332,16 @@ function CollectPanel({ receivable, onClose }: { receivable: Receivable; onClose
           <div className="rounded border border-border bg-bg/50 p-4">
             <p className="text-sm text-text-muted">Saldo pendiente</p>
             <p className="mt-1 text-4xl font-bold">{money(receivable.balance_base_amount)}</p>
+            <p className="mt-1 text-sm text-text-muted">
+              {rateValue ? `${money(balanceLocal, 'Bs ')} con ${activeRate?.exchange_rate_type_code ?? 'tasa'} @ ${numberLabel(rateValue)}` : 'Sin tasa USD/VES activa'}
+            </p>
             <p className="mt-1 text-sm text-text-muted">{customerLabel(receivable)}</p>
           </div>
           {!activeSession && (
             <p className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">Abre una caja antes de registrar cobros manuales.</p>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <Select value={form.payment_currency} onChange={(event) => patch({ payment_currency: event.target.value as 'USD' | 'VES', amount: event.target.value === 'VES' && activeRate ? receivable.balance_base_amount * activeRate.rate : receivable.balance_base_amount })}>
+            <Select value={form.payment_currency} onChange={(event) => setCurrency(event.target.value as 'USD' | 'VES')}>
               <option value="USD">USD</option>
               <option value="VES">VES</option>
             </Select>
@@ -327,22 +350,36 @@ function CollectPanel({ receivable, onClose }: { receivable: Receivable; onClose
             </Select>
           </div>
           <Input type="number" min="0" value={form.amount} onChange={(event) => patch({ amount: Number(event.target.value || 0) })} placeholder="Monto" />
-          {form.payment_currency === 'VES' && (
-            <div className="rounded border border-border bg-bg/40 p-3 text-sm">
-              {activeRate ? (
-                <>
-                  <p className="font-medium">Equivale a {money(equivalent)}</p>
-                  <p className="text-xs text-text-muted">{activeRate.exchange_rate_type_code ?? 'Tasa'} @ {activeRate.rate}</p>
-                </>
-              ) : (
-                <p className="text-warning">Configura una tasa activa USD/VES antes de cobrar en bolivares.</p>
-              )}
-            </div>
+          <div className="rounded border border-border bg-bg/40 p-3 text-sm">
+            {rateValue ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-muted">Cobras</span>
+                  <strong>{form.payment_currency === 'VES' ? money(form.amount, 'Bs ') : money(form.amount)}</strong>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-muted">Equivale a</span>
+                  <strong>{form.payment_currency === 'VES' ? money(amountBase) : money(amountLocal, 'Bs ')}</strong>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-muted">Saldo quedará</span>
+                  <strong>{money(remainingBase)} · {money(remainingLocal, 'Bs ')}</strong>
+                </div>
+                <p className="text-xs text-text-muted">{activeRate?.exchange_rate_type_code ?? 'Tasa'} @ {numberLabel(rateValue)}</p>
+              </div>
+            ) : form.payment_currency === 'VES' ? (
+              <p className="text-warning">Configura una tasa activa USD/VES antes de cobrar en bolívares.</p>
+            ) : (
+              <p className="text-text-muted">El cobro en USD no requiere tasa. Configura una tasa USD/VES para ver equivalentes en bolívares.</p>
+            )}
+          </div>
+          {isOverpaying && (
+            <p className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">El monto supera el saldo pendiente. En esta fase no se registra vuelto ni saldo a favor.</p>
           )}
           <Input value={form.reference ?? ''} onChange={(event) => patch({ reference: event.target.value })} placeholder="Referencia" />
           <Input type="date" value={form.paid_at ?? ''} onChange={(event) => patch({ paid_at: event.target.value })} />
           <Textarea value={form.notes ?? ''} onChange={(event) => patch({ notes: event.target.value })} placeholder="Notas" rows={3} />
-          <Button className="w-full" disabled={!activeSession || collect.isPending || (form.payment_currency === 'VES' && !activeRate)} onClick={() => void submit()}>
+          <Button className="w-full" disabled={!activeSession || collect.isPending || isOverpaying || (form.payment_currency === 'VES' && !rateValue)} onClick={() => void submit()}>
             {collect.isPending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
             Registrar cobro
           </Button>
