@@ -368,8 +368,8 @@ export function PosTerminal() {
           <div className="min-h-0 flex-1 overflow-auto p-3">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold">Pago rapido</h3>
-                <p className="text-xs text-text-muted">Toca un metodo y se carga el restante.</p>
+                <h3 className="text-base font-semibold">Resumen de pago</h3>
+                <p className="text-xs text-text-muted">Usa F2 para agregar pagos.</p>
               </div>
               <Badge variant={paymentTotals.remaining > 0 ? 'warning' : 'success'}>
                 Resta {money(paymentTotals.remaining)}
@@ -383,25 +383,10 @@ export function PosTerminal() {
                 </Button>
               </div>
             ) : (
-              <div className="mb-3 grid grid-cols-2 gap-2">
-                {activePaymentMethods.slice(0, 8).map((method) => {
-                  const preview = previewQuickPayment(method, cartTotals.total, payments, currentRates, exchangeRateTypes);
-                  return (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => addQuickPayment(method.id)}
-                      className="min-h-20 rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold">{method.name}</span>
-                        <CreditCard className="size-4 shrink-0 text-text-muted" />
-                      </div>
-                      <p className="mt-2 text-lg font-bold">{preview.amountLabel}</p>
-                      <p className="text-xs text-text-muted">{preview.detail}</p>
-                    </button>
-                  );
-                })}
+              <div className="mb-3 rounded border border-border bg-bg/40 p-3">
+                <Button className="h-12 w-full text-base" variant="outline" onClick={() => setPanel('pay')}>
+                  <CreditCard className="size-5" /> Agregar pago (F2)
+                </Button>
               </div>
             )}
             <div className="space-y-2">
@@ -419,6 +404,13 @@ export function PosTerminal() {
             <div className="mt-4 rounded border border-border bg-bg/50 p-3">
               <AmountRow label="Pagado" value={paymentTotals.paid} />
               <AmountRow label="Restante" value={paymentTotals.remaining} />
+              {bestActiveRate(currentRates, exchangeRateTypes) && (
+                <AmountRow
+                  label={`Restante VES (${bestActiveRate(currentRates, exchangeRateTypes)?.code})`}
+                  value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', bestActiveRate(currentRates, exchangeRateTypes)?.rate ?? null)}
+                  currency="VES"
+                />
+              )}
               <div className="mt-2 rounded bg-success/10 p-3">
                 <p className="text-xs text-text-muted">Vuelto</p>
                 <p className="text-3xl font-bold text-success">{money(paymentTotals.change)}</p>
@@ -449,7 +441,7 @@ export function PosTerminal() {
       </main>
 
       {panel && (
-        <PanelShell title={panelTitle(panel)} onClose={() => setPanel(null)}>
+        <PanelShell title={panelTitle(panel)} onClose={() => setPanel(null)} wide={panel === 'pay'}>
           {panel === 'customer' && (
             <CustomerPanel
               search={customerSearch}
@@ -513,22 +505,17 @@ export function PosTerminal() {
           )}
           {panel === 'receipt' && <ReceiptPanel order={lastReceipt} />}
           {panel === 'pay' && (
-            <div className="space-y-3">
-              <p className="text-sm text-text-muted">Selecciona un metodo configurado. El POS llenara el monto restante automaticamente.</p>
-              {activePaymentMethods.length === 0 ? (
-                <Button asChild className="w-full">
-                  <Link to="/payment-methods">Configurar metodos</Link>
-                </Button>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {activePaymentMethods.map((method) => (
-                    <Button key={method.id} variant="outline" onClick={() => addQuickPayment(method.id)}>
-                      <CreditCard className="size-4" /> {method.name}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <QuickPaymentPanel
+              methods={activePaymentMethods}
+              cartTotal={cartTotals.total}
+              payments={payments}
+              currentRates={currentRates}
+              rateTypes={exchangeRateTypes}
+              onSelect={(methodId) => {
+                addQuickPayment(methodId);
+                setPanel(null);
+              }}
+            />
           )}
         </PanelShell>
       )}
@@ -595,8 +582,7 @@ export function PosTerminal() {
     const configured = paymentMethodId ? configuredPaymentMethods.find((item) => item.id === paymentMethodId) : null;
     const currencyMode = configured?.currency_mode ?? 'USD';
     const currency = currencyMode === 'VES' ? 'VES' : 'USD';
-    const defaultRateType = defaultRateTypeForPayment(exchangeRateTypes);
-    const rate = rateForType(currentRates, defaultRateType?.id ?? null);
+    const rate = bestActiveRate(currentRates, exchangeRateTypes);
     setPayments((current) => [
       ...current,
       {
@@ -612,7 +598,7 @@ export function PosTerminal() {
           ? paymentAmountForCurrency(Math.max(0, calculateCartTotals(cart).total - calculatePaymentTotals(current, calculateCartTotals(cart).total).paid), currency, rate?.rate ?? null)
           : null,
         payment_method_id: paymentMethodId ?? null,
-        exchange_rate_type_id: defaultRateType?.id ?? null,
+        exchange_rate_type_id: rate?.exchange_rate_type_id ?? null,
         exchange_rate: rate?.rate ?? null,
         reference: configured?.requires_reference ? '' : null,
         status: 'captured',
@@ -855,16 +841,94 @@ function OpenCashScreen(props: {
   );
 }
 
-function PanelShell({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function PanelShell({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
-      <div className="h-full w-full max-w-md overflow-auto border-l border-border bg-surface p-4 shadow-xl">
+      <div className={cn('h-full w-full overflow-auto border-l border-border bg-surface p-4 shadow-xl', wide ? 'max-w-4xl' : 'max-w-md')}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold">{title}</h2>
           <Button size="icon-sm" variant="ghost" onClick={onClose}><X className="size-4" /></Button>
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+function QuickPaymentPanel({
+  methods,
+  cartTotal,
+  payments,
+  currentRates,
+  rateTypes,
+  onSelect,
+}: {
+  methods: Array<{ id: number; name: string; method?: string | null; currency_mode?: 'USD' | 'VES' | 'flexible'; requires_reference?: boolean; sort_order?: number }>;
+  cartTotal: number;
+  payments: PosPaymentLine[];
+  currentRates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>;
+  rateTypes: Array<{ id: number; is_default?: boolean; is_active?: boolean; code: string }>;
+  onSelect: (methodId: number) => void;
+}) {
+  const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
+  const rate = bestActiveRate(currentRates, rateTypes);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-border bg-bg/50 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-sm text-text-muted">Restante</p>
+            <p className="text-4xl font-bold">{money(remaining)}</p>
+          </div>
+          {rate ? (
+            <div className="text-right">
+              <p className="text-sm text-text-muted">Equivalente VES</p>
+              <p className="text-2xl font-bold">Bs {paymentAmountForCurrency(remaining, 'VES', rate.rate).toFixed(2)}</p>
+              <p className="text-xs text-text-muted">{rate.code} @ {rate.rate}</p>
+            </div>
+          ) : (
+            <div className="rounded border border-warning bg-warning/10 px-3 py-2 text-sm text-warning">
+              Configura una tasa activa USD/VES antes de cobrar.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {methods.length === 0 ? (
+        <div className="rounded border border-warning bg-warning/10 p-4 text-sm text-warning">
+          No hay metodos activos para POS.
+          <Button asChild className="mt-3" variant="outline">
+            <Link to="/payment-methods">Configurar metodos</Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {methods.map((method) => {
+            const preview = previewQuickPayment(method, cartTotal, payments, currentRates, rateTypes);
+            return (
+              <button
+                key={method.id}
+                type="button"
+                onClick={() => onSelect(method.id)}
+                className="min-h-28 rounded border border-border bg-bg/40 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{method.name}</p>
+                    <p className="mt-1 text-xs text-text-muted">{methodLabel(method.method)}</p>
+                  </div>
+                  <Badge variant={method.currency_mode === 'VES' ? 'info' : 'default'}>
+                    {method.currency_mode === 'flexible' ? 'USD/VES' : method.currency_mode ?? 'USD'}
+                  </Badge>
+                </div>
+                <p className="mt-4 text-2xl font-bold">{preview.amountLabel}</p>
+                <p className="text-xs text-text-muted">{preview.detail}</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -949,11 +1013,11 @@ function ReceiptPanel({ order }: { order: PosOrder | null }) {
   );
 }
 
-function AmountRow({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
+function AmountRow({ label, value, muted = false, currency = 'USD' }: { label: string; value: number; muted?: boolean; currency?: CurrencyCode }) {
   return (
     <div className={cn('flex items-center justify-between', muted && 'text-text-muted')}>
       <span>{label}</span>
-      <span className="font-medium">{money(value)}</span>
+      <span className="font-medium">{currency === 'VES' ? `Bs ${roundMoney(value).toFixed(2)}` : money(value)}</span>
     </div>
   );
 }
@@ -1025,32 +1089,45 @@ function previewQuickPayment(
   method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
   total: number,
   payments: PosPaymentLine[],
-  rates: Array<{ exchange_rate_type_id: number; rate: number }>,
+  rates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>,
   rateTypes: Array<{ id: number; is_default?: boolean; is_active?: boolean; code: string }>,
 ): { amountLabel: string; detail: string } {
   const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
-  const rateType = defaultRateTypeForPayment(rateTypes);
-  const rate = rateForType(rates, rateType?.id ?? null);
+  const rate = bestActiveRate(rates, rateTypes);
   const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
   const amount = paymentAmountForCurrency(remaining, currency, rate?.rate ?? null);
   const amountLabel = currency === 'VES' ? `Bs ${amount.toFixed(2)}` : money(amount);
   const detail = currency === 'VES'
-    ? `${rateType?.code ?? 'Tasa'}${rate?.rate ? ` @ ${rate.rate}` : ' sin valor activo'}`
+    ? `${rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${rate.rate}` : ' sin valor activo'}`
     : methodLabel(method.method);
 
   return { amountLabel, detail };
 }
 
-function defaultRateTypeForPayment(rateTypes: Array<{ id: number; code?: string; is_default?: boolean; is_active?: boolean }>) {
-  return rateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false)
-    ?? rateTypes.find((rateType) => rateType.is_active !== false)
-    ?? rateTypes[0]
-    ?? null;
-}
+function bestActiveRate(
+  rates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>,
+  rateTypes: Array<{ id: number; code?: string; is_default?: boolean; is_active?: boolean }>,
+): { exchange_rate_type_id: number; code: string; rate: number } | null {
+  const validRates = rates.filter((rate) =>
+    Number(rate.rate) > 0
+      && (!rate.base_currency || rate.base_currency === 'USD')
+      && (!rate.quote_currency || rate.quote_currency === 'VES'),
+  );
+  if (validRates.length === 0) return null;
 
-function rateForType(rates: Array<{ exchange_rate_type_id: number; rate: number }>, rateTypeId: number | null) {
-  if (!rateTypeId) return null;
-  return rates.find((rate) => rate.exchange_rate_type_id === rateTypeId) ?? null;
+  const defaultType = rateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false);
+  const defaultRate = defaultType
+    ? validRates.find((rate) => rate.exchange_rate_type_id === defaultType.id)
+    : null;
+  const selected = defaultRate ?? validRates[0];
+  if (!selected) return null;
+  const type = rateTypes.find((rateType) => rateType.id === selected.exchange_rate_type_id);
+
+  return {
+    exchange_rate_type_id: selected.exchange_rate_type_id,
+    code: selected.exchange_rate_type_code ?? type?.code ?? 'Tasa',
+    rate: Number(selected.rate),
+  };
 }
 
 function paymentAmountForCurrency(remainingBase: number, currency: CurrencyCode, rate?: number | null): number {

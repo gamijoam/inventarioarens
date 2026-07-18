@@ -61,7 +61,7 @@ export function PaymentMethodsSetup() {
   return (
     <PageLayout
       title="Metodos de pago"
-      description="Configura las formas de cobro disponibles para POS. Las tasas BCV/Paralelo se gestionan en Tipos de tasa y se seleccionan al cobrar."
+      description="Configura una vez las formas de cobro del POS. El cajero solo vera botones rapidos para cobrar."
       actions={
         <Button asChild variant="outline">
           <Link to="/inventory/currency">
@@ -76,12 +76,13 @@ export function PaymentMethodsSetup() {
             <CardTitle className="flex items-center gap-2">
               <Plus className="size-4" /> Nuevo metodo
             </CardTitle>
-            <CardDescription>Define moneda, referencia obligatoria y orden de aparicion en POS.</CardDescription>
+            <CardDescription>Define como se comporta este boton dentro del POS.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Can I={PERMISSIONS.PAYMENT_METHODS_UPDATE} fallback={<p className="text-sm text-text-muted">No tienes permiso para editar metodos de pago.</p>}>
-              <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nombre visible" />
-              <Input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} placeholder="Codigo interno" />
+              <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nombre del boton en POS" />
+              <Input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} placeholder="Codigo interno, ej. PAGO_MOVIL" />
+              <label className="block text-xs font-semibold uppercase text-text-muted">Tipo operativo</label>
               <Select
                 value={form.method}
                 onChange={(event) => {
@@ -92,11 +93,12 @@ export function PaymentMethodsSetup() {
               >
                 {METHOD_OPTIONS.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
               </Select>
+              <label className="block text-xs font-semibold uppercase text-text-muted">Moneda aceptada</label>
               <Select value={form.currency_mode} onChange={(event) => setForm((current) => ({ ...current, currency_mode: event.target.value as PaymentMethodPayload['currency_mode'] }))}>
                 {CURRENCY_OPTIONS.map((currency) => <option key={currency.value} value={currency.value}>{currency.label}</option>)}
               </Select>
-              <Input type="number" min="0" value={form.sort_order ?? 0} onChange={(event) => setForm((current) => ({ ...current, sort_order: Number(event.target.value || 0) }))} placeholder="Orden" />
-              <ToggleLine label="Requiere referencia" checked={Boolean(form.requires_reference)} onChange={(checked) => setForm((current) => ({ ...current, requires_reference: checked }))} />
+              <Input type="number" min="0" value={form.sort_order ?? 0} onChange={(event) => setForm((current) => ({ ...current, sort_order: Number(event.target.value || 0) }))} placeholder="Orden en F2" />
+              <ToggleLine label="Pedir referencia al cobrar" checked={Boolean(form.requires_reference)} onChange={(checked) => setForm((current) => ({ ...current, requires_reference: checked }))} />
               <ToggleLine label="Activo" checked={Boolean(form.is_active)} onChange={(checked) => setForm((current) => ({ ...current, is_active: checked }))} />
               <Button
                 className="w-full"
@@ -127,7 +129,7 @@ export function PaymentMethodsSetup() {
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="size-4" /> Disponibles en POS
             </CardTitle>
-            <CardDescription>Si un metodo exige referencia, el POS la pedira antes de cobrar.</CardDescription>
+            <CardDescription>Estos botones aparecen en F2 dentro del POS, ordenados por prioridad.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
