@@ -345,7 +345,7 @@ export function PosTerminal() {
           <div className="flex items-center justify-between border-b border-border p-3">
             <div>
               <h2 className="font-semibold">Ticket actual</h2>
-              <CustomerSummary customer={selectedCustomer} customerName={customerName} />
+              <p className="text-xs text-text-muted">{selectedCustomer ? 'Cliente asignado' : customerName}</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
@@ -356,6 +356,15 @@ export function PosTerminal() {
               </Button>
             </div>
           </div>
+          <CustomerAssignmentBanner
+            customer={selectedCustomer}
+            customerName={customerName}
+            onChange={() => setPanel('customer')}
+            onClear={() => {
+              setSelectedCustomer(null);
+              setCustomerName('Consumidor Final');
+            }}
+          />
           <div className="min-h-0 flex-1 overflow-auto">
             {cart.length === 0 ? (
               <div className="flex h-full items-center justify-center p-6 text-center text-sm text-text-muted">
@@ -1025,17 +1034,55 @@ function QuickPaymentPanel({
   );
 }
 
-function CustomerSummary({ customer, customerName }: { customer: Customer | null; customerName: string }) {
+function CustomerAssignmentBanner({
+  customer,
+  customerName,
+  onChange,
+  onClear,
+}: {
+  customer: Customer | null;
+  customerName: string;
+  onChange: () => void;
+  onClear: () => void;
+}) {
   const document = customerDocument(customer);
+
   if (!customer) {
-    return <p className="text-xs text-text-muted">{customerName}</p>;
+    return (
+      <div className="border-b border-border bg-bg/30 px-3 py-2">
+        <button
+          type="button"
+          onClick={onChange}
+          className="flex w-full items-center justify-between gap-3 rounded border border-dashed border-border px-3 py-2 text-left transition-colors hover:border-primary"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold uppercase text-text-muted">Cliente</span>
+            <span className="block truncate text-sm font-medium">{customerName}</span>
+          </span>
+          <Badge variant="default">F4</Badge>
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded border border-primary/30 bg-primary/5 px-2 py-1 text-xs">
-      <UserRound className="size-3.5 shrink-0 text-primary" />
-      <span className="truncate font-medium text-text-primary">{customer.name}</span>
-      {document && <span className="shrink-0 text-text-muted">{document}</span>}
+    <div className="border-b border-primary/20 bg-primary/5 px-3 py-2">
+      <div className="flex items-center justify-between gap-3 rounded border border-primary/30 bg-surface px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <UserRound className="size-5 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge variant="info">Cliente asignado</Badge>
+              {document && <span className="truncate text-xs text-text-muted">{document}</span>}
+            </div>
+            <p className="mt-1 truncate text-sm font-semibold">{customer.name}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button variant="outline" size="sm" onClick={onChange}>Cambiar</Button>
+          <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Quitar cliente"><X className="size-4" /></Button>
+        </div>
+      </div>
     </div>
   );
 }
