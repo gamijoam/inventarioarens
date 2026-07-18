@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCreateCashRegister } from '../api';
+import { useBranchesForPos, useCreateCashRegister, useCreatePaymentMethod } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -54,6 +54,33 @@ describe('pos api', () => {
       name: 'Caja 1',
       code: 'CJ1',
       status: 'active',
+    });
+  });
+
+  it('crea metodo de pago operativo para POS', async () => {
+    mockPostOne.mockResolvedValue({ id: 7, name: 'Pago movil', code: 'PM', method: 'mobile_payment' });
+
+    const { result } = renderHook(() => useCreatePaymentMethod(), { wrapper });
+    result.current.mutate({
+      name: 'Pago movil',
+      code: 'PM',
+      method: 'mobile_payment',
+      currency_mode: 'VES',
+      requires_reference: true,
+      is_active: true,
+      sort_order: 10,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/payment-methods', {
+      name: 'Pago movil',
+      code: 'PM',
+      method: 'mobile_payment',
+      currency_mode: 'VES',
+      requires_reference: true,
+      is_active: true,
+      sort_order: 10,
     });
   });
 });

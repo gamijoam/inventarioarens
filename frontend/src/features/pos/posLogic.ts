@@ -26,6 +26,7 @@ export interface PosPaymentLine {
   received_amount?: number | null;
   reference?: string | null;
   payment_method_id?: number | null;
+  exchange_rate_type_id?: number | null;
   status?: 'captured' | 'pending' | 'failed';
 }
 

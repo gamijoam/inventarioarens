@@ -19,6 +19,7 @@ import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
 import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
+import { Route as AuthedPaymentMethodsRouteImport } from './routes/_authed/payment-methods'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
@@ -82,6 +83,11 @@ const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
 const AuthedPosRoute = AuthedPosRouteImport.update({
   id: '/pos',
   path: '/pos',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPaymentMethodsRoute = AuthedPaymentMethodsRouteImport.update({
+  id: '/payment-methods',
+  path: '/payment-methods',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPayablesRoute = AuthedPayablesRouteImport.update({
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/payables': typeof AuthedPayablesRoute
+  '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
   '/_authed/pos': typeof AuthedPosRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/payment-methods'
     | '/pos'
     | '/purchases'
     | '/receivables'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/payment-methods'
     | '/pos'
     | '/purchases'
     | '/receivables'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/_authed/customers'
     | '/_authed/dashboard'
     | '/_authed/payables'
+    | '/_authed/payment-methods'
     | '/_authed/pos'
     | '/_authed/purchases'
     | '/_authed/receivables'
@@ -400,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/pos'
       fullPath: '/pos'
       preLoaderRoute: typeof AuthedPosRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/payment-methods': {
+      id: '/_authed/payment-methods'
+      path: '/payment-methods'
+      fullPath: '/payment-methods'
+      preLoaderRoute: typeof AuthedPaymentMethodsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/payables': {
@@ -550,6 +569,7 @@ interface AuthedRouteChildren {
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedPayablesRoute: typeof AuthedPayablesRoute
+  AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
   AuthedPosRoute: typeof AuthedPosRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
@@ -572,6 +592,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedPayablesRoute: AuthedPayablesRoute,
+  AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
   AuthedPosRoute: AuthedPosRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,

@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { getMany, getPaginated, patchOne, postOne } from '@/api/client';
+import { deleteOne, getMany, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
-import { BranchSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
+import { BranchSchema, ExchangeRateTypeSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
 
 export type PosPaymentMethod = 'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'other';
@@ -18,8 +18,10 @@ export const PaymentMethodSchema = z.object({
   name: z.string(),
   code: z.string().optional().nullable(),
   method: z.string().optional().nullable(),
+  currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
   is_active: z.boolean().optional(),
   requires_reference: z.boolean().optional(),
+  sort_order: z.number().int().optional(),
 }).passthrough();
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
@@ -105,6 +107,7 @@ export interface CheckoutPayload {
     method: PosPaymentMethod;
     currency: 'USD' | 'VES';
     amount: number;
+    exchange_rate_type_id?: number | null;
     status?: 'captured' | 'pending' | 'failed';
     reference?: string | null;
   }>;
@@ -147,6 +150,16 @@ export interface CreateCashRegisterPayload {
   notes?: string | null;
 }
 
+export interface PaymentMethodPayload {
+  name: string;
+  code: string;
+  method: PosPaymentMethod;
+  currency_mode: 'USD' | 'VES' | 'flexible';
+  requires_reference?: boolean;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
 export const posKeys = {
   all: ['pos'] as const,
   products: (filters: Partial<InventoryFilters>) => [...posKeys.all, 'products', filters] as const,
@@ -154,6 +167,7 @@ export const posKeys = {
   cashSessions: () => [...posKeys.all, 'cash-sessions'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
+  exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
 };
 
@@ -255,6 +269,44 @@ export function usePaymentMethods() {
   return useQuery({
     queryKey: posKeys.paymentMethods(),
     queryFn: async () => z.array(PaymentMethodSchema).parse(await getMany<unknown>('/payment-methods')),
+  });
+}
+
+export function useExchangeRateTypesForPos() {
+  return useQuery({
+    queryKey: posKeys.exchangeRateTypes(),
+    queryFn: async () => z.array(ExchangeRateTypeSchema).parse(await getMany<unknown>('/currency/rate-types')),
+  });
+}
+
+export function useCreatePaymentMethod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PaymentMethodPayload) => postOne<PaymentMethodPayload, PaymentMethod>('/payment-methods', payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.paymentMethods() });
+    },
+  });
+}
+
+export function useUpdatePaymentMethod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: number } & Partial<PaymentMethodPayload>) =>
+      patchOne<Partial<PaymentMethodPayload>, PaymentMethod>(`/payment-methods/${id}`, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.paymentMethods() });
+    },
+  });
+}
+
+export function useDeletePaymentMethod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => deleteOne(`/payment-methods/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.paymentMethods() });
+    },
   });
 }
 

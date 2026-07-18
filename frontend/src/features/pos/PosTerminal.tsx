@@ -41,6 +41,7 @@ import {
   useCheckout,
   useCloseCashSession,
   useCustomers,
+  useExchangeRateTypesForPos,
   useOpenCashSession,
   useOpenPosOrders,
   usePaymentMethods,
@@ -106,6 +107,7 @@ export function PosTerminal() {
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: productPage, isLoading: loadingProducts } = usePosProducts(query, warehouseId);
   const { data: configuredPaymentMethods = [] } = usePaymentMethods();
+  const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
   const checkout = useCheckout();
   const addPayments = useAddPosPayments();
   const cancelOrder = useCancelPosOrder();
@@ -121,6 +123,7 @@ export function PosTerminal() {
   const products = productPage?.data ?? [];
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const paymentTotals = useMemo(() => calculatePaymentTotals(payments, cartTotals.total), [payments, cartTotals.total]);
+  const paymentSetupIssue = getPaymentSetupIssue(payments, configuredPaymentMethods);
   const checkoutBlockReason = getCheckoutBlockReason({
     canCheckout,
     hasSession: Boolean(activeSession),
@@ -128,6 +131,7 @@ export function PosTerminal() {
     paymentCount: payments.length,
     remaining: paymentTotals.remaining,
     hasStockIssue: hasStockIssue(cart),
+    paymentSetupIssue,
   });
 
   useEffect(() => {
@@ -357,17 +361,31 @@ export function PosTerminal() {
 
           <div className="min-h-0 flex-1 overflow-auto p-3">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Pagos</h3>
+              <div>
+                <h3 className="text-base font-semibold">Metodos de pago</h3>
+                <p className="text-xs text-text-muted">Selecciona metodo, moneda y tasa antes de cobrar.</p>
+              </div>
               <Button size="sm" variant="outline" onClick={() => addPaymentLine('cash')}>
-                <Plus className="size-4" /> Pago
+                <Plus className="size-4" /> Linea
               </Button>
             </div>
+            {configuredPaymentMethods.length > 0 && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {configuredPaymentMethods.filter((method) => method.is_active !== false).slice(0, 4).map((method) => (
+                  <Button key={method.id} variant="outline" className="justify-start" onClick={() => addPaymentLine((method.method ?? 'other') as PosPaymentMethod, method.id)}>
+                    <CreditCard className="size-4" />
+                    <span className="truncate">{method.name}</span>
+                  </Button>
+                ))}
+              </div>
+            )}
             <div className="space-y-2">
               {payments.map((payment) => (
                 <PaymentLineRow
                   key={payment.id}
                   payment={payment}
                   methods={configuredPaymentMethods}
+                  rateTypes={exchangeRateTypes}
                   onChange={(patch) => updatePayment(payment.id, patch)}
                   onRemove={() => setPayments((current) => current.filter((item) => item.id !== payment.id))}
                 />
@@ -535,15 +553,21 @@ export function PosTerminal() {
     );
   }
 
-  function addPaymentLine(method: PosPaymentMethod): void {
+  function addPaymentLine(method: PosPaymentMethod, paymentMethodId?: number): void {
+    const configured = paymentMethodId ? configuredPaymentMethods.find((item) => item.id === paymentMethodId) : null;
+    const currencyMode = configured?.currency_mode ?? 'USD';
+    const currency = currencyMode === 'VES' ? 'VES' : 'USD';
+    const defaultRateType = exchangeRateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false) ?? exchangeRateTypes.find((rateType) => rateType.is_active !== false) ?? exchangeRateTypes[0] ?? null;
     setPayments((current) => [
       ...current,
       {
         id: crypto.randomUUID(),
-        method,
-        currency: 'USD',
+        method: (configured?.method ?? method) as PosPaymentMethod,
+        currency,
         amount: Math.max(0, calculateCartTotals(cart).total - calculatePaymentTotals(current, calculateCartTotals(cart).total).paid),
         received_amount: method === 'cash' ? Math.max(0, calculateCartTotals(cart).total) : null,
+        payment_method_id: paymentMethodId ?? null,
+        exchange_rate_type_id: defaultRateType?.id ?? null,
         status: 'captured',
       },
     ]);
@@ -631,6 +655,7 @@ export function PosTerminal() {
       method: payment.method as PosPaymentMethod,
       currency: payment.currency,
       amount: Number(payment.amount || 0),
+      exchange_rate_type_id: payment.exchange_rate_type_id ?? null,
       status: payment.status ?? 'captured',
       reference: payment.reference ?? null,
     };
@@ -685,27 +710,75 @@ function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange
   );
 }
 
-function PaymentLineRow({ payment, methods, onChange, onRemove }: { payment: PosPaymentLine; methods: Array<{ id: number; name: string; method?: string | null }>; onChange: (patch: Partial<PosPaymentLine>) => void; onRemove: () => void }) {
+function PaymentLineRow({
+  payment,
+  methods,
+  rateTypes,
+  onChange,
+  onRemove,
+}: {
+  payment: PosPaymentLine;
+  methods: Array<{ id: number; name: string; method?: string | null; currency_mode?: 'USD' | 'VES' | 'flexible'; requires_reference?: boolean }>;
+  rateTypes: Array<{ id: number; code: string; name: string; is_default?: boolean; is_active?: boolean }>;
+  onChange: (patch: Partial<PosPaymentLine>) => void;
+  onRemove: () => void;
+}) {
+  const selectedMethod = methods.find((method) => method.id === payment.payment_method_id) ?? null;
+  const requiresReference = selectedMethod?.requires_reference || payment.method !== 'cash';
+
   return (
-    <div className="rounded border border-border bg-bg/40 p-2">
-      <div className="grid grid-cols-[1fr_96px_32px] gap-2">
-        <Select value={payment.method} onChange={(event) => onChange({ method: event.target.value })}>
-          {PAYMENT_METHODS.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+    <div className="rounded border border-border bg-bg/40 p-3">
+      <div className="grid grid-cols-[1fr_36px] gap-2">
+        <Select
+          value={payment.payment_method_id ?? ''}
+          onChange={(event) => {
+            const id = event.target.value ? Number(event.target.value) : null;
+            const method = methods.find((item) => item.id === id) ?? null;
+            const currencyMode = method?.currency_mode ?? 'USD';
+            onChange({
+              payment_method_id: id,
+              method: (method?.method ?? payment.method) as PosPaymentMethod,
+              currency: currencyMode === 'VES' ? 'VES' : 'USD',
+              reference: method?.requires_reference ? payment.reference ?? '' : payment.reference ?? null,
+            });
+          }}
+        >
+          <option value="">Metodo configurado...</option>
+          {methods.filter((method) => method.method != null).map((method) => (
+            <option key={method.id} value={method.id}>{method.name}</option>
+          ))}
         </Select>
-        <Input type="number" min="0" value={payment.amount} onChange={(event) => onChange({ amount: Number(event.target.value) })} />
         <Button size="icon-sm" variant="ghost" onClick={onRemove}><X className="size-4" /></Button>
       </div>
+
+      {!selectedMethod && (
+        <Select className="mt-2" value={payment.method} onChange={(event) => onChange({ method: event.target.value as PosPaymentMethod })}>
+          {PAYMENT_METHODS.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+        </Select>
+      )}
+
+      <div className="mt-2 grid grid-cols-[1fr_120px] gap-2">
+        <Input type="number" min="0" value={payment.amount} onChange={(event) => onChange({ amount: Number(event.target.value) })} placeholder="Monto" />
+        <Select value={payment.currency} onChange={(event) => onChange({ currency: event.target.value as CurrencyCode })}>
+          <option value="USD">USD</option>
+          <option value="VES">VES</option>
+        </Select>
+      </div>
+
+      <Select className="mt-2" value={payment.exchange_rate_type_id ?? ''} onChange={(event) => onChange({ exchange_rate_type_id: event.target.value ? Number(event.target.value) : null })}>
+        <option value="">Tasa para snapshot...</option>
+        {rateTypes.filter((rateType) => rateType.is_active !== false).map((rateType) => (
+          <option key={rateType.id} value={rateType.id}>
+            {rateType.code} - {rateType.name}{rateType.is_default ? ' (default)' : ''}
+          </option>
+        ))}
+      </Select>
+
       {payment.method === 'cash' && (
         <Input className="mt-2" type="number" min="0" value={payment.received_amount ?? ''} placeholder="Recibido" onChange={(event) => onChange({ received_amount: Number(event.target.value) })} />
       )}
-      {payment.method !== 'cash' && (
-        <Input className="mt-2" value={payment.reference ?? ''} placeholder="Referencia" onChange={(event) => onChange({ reference: event.target.value })} />
-      )}
-      {methods.length > 0 && (
-        <Select className="mt-2" value={payment.payment_method_id ?? ''} onChange={(event) => onChange({ payment_method_id: event.target.value ? Number(event.target.value) : null })}>
-          <option value="">Metodo configurado opcional</option>
-          {methods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-        </Select>
+      {requiresReference && (
+        <Input className="mt-2" value={payment.reference ?? ''} placeholder={selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'} onChange={(event) => onChange({ reference: event.target.value })} />
       )}
     </div>
   );
@@ -895,13 +968,32 @@ function getCheckoutBlockReason(input: {
   paymentCount: number;
   remaining: number;
   hasStockIssue: boolean;
+  paymentSetupIssue: string | null;
 }): string | null {
   if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
   if (!input.hasSession) return 'No hay caja abierta para cobrar.';
   if (input.cartCount === 0) return 'Agrega al menos un producto para cobrar.';
   if (input.hasStockIssue) return 'Hay productos con stock insuficiente. La venta esta bloqueada.';
   if (input.paymentCount === 0) return 'Agrega al menos una linea de pago.';
+  if (input.paymentSetupIssue) return input.paymentSetupIssue;
   if (input.remaining > 0) return `Falta capturar ${money(input.remaining)} para completar el pago.`;
+
+  return null;
+}
+
+function getPaymentSetupIssue(
+  payments: PosPaymentLine[],
+  methods: Array<{ id: number; name: string; requires_reference?: boolean }>,
+): string | null {
+  for (const [index, payment] of payments.entries()) {
+    const line = index + 1;
+    const configured = methods.find((method) => method.id === payment.payment_method_id);
+    if (!payment.payment_method_id) return `Selecciona un metodo configurado en la linea de pago ${line}.`;
+    if (!payment.exchange_rate_type_id) return `Selecciona la tasa para la linea de pago ${line}.`;
+    if (configured?.requires_reference && !String(payment.reference ?? '').trim()) {
+      return `${configured.name} requiere referencia antes de cobrar.`;
+    }
+  }
 
   return null;
 }
