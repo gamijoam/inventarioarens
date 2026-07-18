@@ -104,7 +104,7 @@ function toQueryString(filters: Partial<InventoryFilters>): string {
   return params.toString();
 }
 
-export function useProducts(filters: InventoryFilters) {
+export function useProducts(filters: InventoryFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: productKeys.list(filters as Record<string, unknown>),
     queryFn: async () => {
@@ -118,6 +118,7 @@ export function useProducts(filters: InventoryFilters) {
     placeholderData: (prev) => prev,
     staleTime: 0,
     refetchOnMount: 'always',
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -725,4 +726,3 @@ export function useUpdateProductProfitMargin() {
     },
   });
 }
-

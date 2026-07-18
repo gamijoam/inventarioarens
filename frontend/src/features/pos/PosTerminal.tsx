@@ -66,7 +66,7 @@ import {
   roundMoney,
 } from './posLogic';
 
-type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | null;
+type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | null;
 type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
 
 const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
@@ -91,6 +91,7 @@ export function PosTerminal() {
 
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [cart, setCart] = useState<PosCartLine[]>([]);
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
@@ -120,7 +121,11 @@ export function PosTerminal() {
   const { data: sessions = [], isLoading: loadingSessions } = useCashSessions();
   const { data: pendingOrders = [] } = useOpenPosOrders();
   const { data: customerResults = [] } = useCustomers(customerSearch);
-  const { data: productPage, isLoading: loadingProducts } = usePosProducts(query, warehouseId);
+  const activeProductSearch = panel === 'product-search' ? productSearch : query;
+  const shouldSearchProducts = activeProductSearch.trim().length >= 2;
+  const { data: productPage, isLoading: loadingProducts } = usePosProducts(activeProductSearch, warehouseId, {
+    enabled: shouldSearchProducts,
+  });
   const { data: configuredPaymentMethods = [] } = usePaymentMethods();
   const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
   const { data: currentRates = [] } = useCurrentExchangeRatesForPos();
@@ -177,6 +182,11 @@ export function PosTerminal() {
         event.preventDefault();
         setPanel('pay');
       }
+      if (event.key === 'F3') {
+        event.preventDefault();
+        setProductSearch(query);
+        setPanel('product-search');
+      }
       if (event.key === 'F4') {
         event.preventDefault();
         setPanel('customer');
@@ -201,7 +211,7 @@ export function PosTerminal() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cart, payments, activeSession, selectedCustomer, customerName]);
+  }, [cart, payments, activeSession, selectedCustomer, customerName, query]);
 
   if (!canView) {
     return (
@@ -244,7 +254,7 @@ export function PosTerminal() {
 
   return (
     <div className="h-screen overflow-hidden bg-bg text-text-primary">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+      <header className="grid grid-cols-1 gap-3 border-b border-border bg-surface px-4 py-3 xl:grid-cols-[280px_minmax(360px,1fr)_auto]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded bg-primary text-primary-foreground">
             <Receipt className="size-5" />
@@ -256,7 +266,42 @@ export function PosTerminal() {
             </p>
           </div>
         </div>
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+            <Input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleProductSearchEnter();
+                }
+              }}
+              className="h-10 pl-9 text-base"
+              placeholder="Escanea codigo, SKU o escribe producto"
+              data-testid="pos-search"
+            />
+          </div>
+          <Select
+            value={warehouseId ?? ''}
+            onChange={(event) => setWarehouseId(event.target.value ? Number(event.target.value) : null)}
+          >
+            {warehouses.map((warehouse) => (
+              <option key={warehouse.id} value={warehouse.id}>
+                {warehouse.code} - {warehouse.name}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            setProductSearch(query);
+            setPanel('product-search');
+          }}>
+            <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setPanel('pay')} disabled={activePaymentMethods.length === 0}>
             <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
           </Button>
@@ -275,72 +320,7 @@ export function PosTerminal() {
         </div>
       </header>
 
-      <main className="grid h-[calc(100vh-65px)] grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[390px_minmax(560px,1fr)_430px]">
-        <section className="flex min-h-0 flex-col rounded border border-border bg-surface">
-          <div className="border-b border-border p-3">
-            <label className="text-xs font-semibold uppercase text-text-muted">Buscar o escanear</label>
-            <div className="relative mt-2">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                ref={searchRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && products[0]) {
-                    event.preventDefault();
-                    addProduct(products[0]);
-                  }
-                }}
-                className="h-12 pl-9 text-base"
-                placeholder="Codigo, SKU o nombre"
-                data-testid="pos-search"
-              />
-            </div>
-            <Select
-              className="mt-2"
-              value={warehouseId ?? ''}
-              onChange={(event) => setWarehouseId(event.target.value ? Number(event.target.value) : null)}
-            >
-              {warehouses.map((warehouse) => (
-                <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.code} - {warehouse.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto p-2">
-            {loadingProducts ? (
-              <div className="flex items-center gap-2 p-3 text-sm text-text-muted">
-                <Loader2 className="size-4 animate-spin" /> Buscando productos
-              </div>
-            ) : products.length === 0 ? (
-              <div className="p-3 text-sm text-text-muted">Escanea un codigo o escribe para buscar productos.</div>
-            ) : (
-              <div className="space-y-2">
-                {products.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => addProduct(product)}
-                    className="w-full rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{product.name}</p>
-                        <p className="font-mono text-xs text-text-muted">{product.sku ?? product.barcode ?? 'Sin codigo'}</p>
-                      </div>
-                      <Badge variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'} className="text-[10px]">
-                        Stock {Number(product.available_stock ?? 0)}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-lg font-semibold">{money(Number(product.base_price ?? 0))}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
+      <main className="grid h-[calc(100vh-73px)] grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
         <section className="flex min-h-0 flex-col rounded border border-border bg-surface">
           <div className="flex items-center justify-between border-b border-border p-3">
             <div>
@@ -540,6 +520,21 @@ export function PosTerminal() {
             />
           )}
           {panel === 'receipt' && <ReceiptPanel order={lastReceipt} />}
+          {panel === 'product-search' && (
+            <ProductSearchPanel
+              search={productSearch}
+              products={products}
+              warehouses={warehouses}
+              warehouseId={warehouseId}
+              loading={loadingProducts}
+              onSearch={setProductSearch}
+              onWarehouseChange={setWarehouseId}
+              onSelect={(product) => {
+                addProduct(product);
+                setPanel(null);
+              }}
+            />
+          )}
           {panel === 'pay' && (
             <QuickPaymentPanel
               methods={activePaymentMethods}
@@ -606,6 +601,25 @@ export function PosTerminal() {
         return next;
       }),
     );
+  }
+
+  function handleProductSearchEnter(): void {
+    const term = query.trim();
+    if (term.length < 2) return;
+    const normalized = term.toLowerCase();
+    const exact = products.find((product) =>
+      [product.barcode, product.sku].some((value) => value?.toLowerCase() === normalized),
+    );
+    if (exact) {
+      addProduct(exact);
+      return;
+    }
+    if (products[0]) {
+      setProductSearch(term);
+      setPanel('product-search');
+      return;
+    }
+    toast.error('No se encontro un producto con ese codigo.');
   }
 
   function addQuickPayment(paymentMethodId: number): void {
@@ -1034,6 +1048,94 @@ function QuickPaymentPanel({
   );
 }
 
+function ProductSearchPanel({
+  search,
+  products,
+  warehouses,
+  warehouseId,
+  loading,
+  onSearch,
+  onWarehouseChange,
+  onSelect,
+}: {
+  search: string;
+  products: Product[];
+  warehouses: Array<{ id: number; code: string; name: string }>;
+  warehouseId: number | null;
+  loading: boolean;
+  onSearch: (value: string) => void;
+  onWarehouseChange: (value: number | null) => void;
+  onSelect: (product: Product) => void;
+}) {
+  const canSearch = search.trim().length >= 2;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+          <Input
+            autoFocus
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && products[0]) {
+                event.preventDefault();
+                onSelect(products[0]);
+              }
+            }}
+            className="h-11 pl-9 text-base"
+            placeholder="Nombre, SKU o codigo de barras"
+          />
+        </div>
+        <Select value={warehouseId ?? ''} onChange={(event) => onWarehouseChange(event.target.value ? Number(event.target.value) : null)}>
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id} value={warehouse.id}>
+              {warehouse.code} - {warehouse.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {!canSearch ? (
+        <div className="rounded border border-border bg-bg/40 p-6 text-center text-sm text-text-muted">
+          Escribe al menos 2 caracteres o escanea un codigo para buscar.
+        </div>
+      ) : loading ? (
+        <div className="flex items-center gap-2 rounded border border-border bg-bg/40 p-4 text-sm text-text-muted">
+          <Loader2 className="size-4 animate-spin" /> Buscando productos
+        </div>
+      ) : products.length === 0 ? (
+        <div className="rounded border border-border bg-bg/40 p-6 text-center text-sm text-text-muted">
+          No hay productos con esa busqueda.
+        </div>
+      ) : (
+        <div className="grid max-h-[60vh] gap-2 overflow-auto pr-1 md:grid-cols-2">
+          {products.map((product) => (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => onSelect(product)}
+              className="rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{product.name}</p>
+                  <p className="font-mono text-xs text-text-muted">{product.sku ?? product.barcode ?? 'Sin codigo'}</p>
+                </div>
+                <Badge variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'} className="text-[10px]">
+                  Stock {Number(product.available_stock ?? 0)}
+                </Badge>
+              </div>
+              <p className="mt-3 text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CustomerAssignmentBanner({
   customer,
   customerName,
@@ -1252,6 +1354,8 @@ function panelTitle(panel: Panel): string {
       return 'Caja';
     case 'receipt':
       return 'Ultimo recibo';
+    case 'product-search':
+      return 'Buscar producto';
     default:
       return '';
   }

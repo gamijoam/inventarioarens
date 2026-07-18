@@ -198,7 +198,7 @@ export const posKeys = {
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
 };
 
-export function usePosProducts(search: string, warehouseId?: number | null) {
+export function usePosProducts(search: string, warehouseId?: number | null, options: { enabled?: boolean } = {}) {
   const filters: InventoryFilters = {
     search,
     tracking_type: 'all',
@@ -209,7 +209,7 @@ export function usePosProducts(search: string, warehouseId?: number | null) {
     warehouse_id: warehouseId || undefined,
   };
 
-  return useProducts(filters);
+  return useProducts(filters, options);
 }
 
 export function useOpenPosOrders() {

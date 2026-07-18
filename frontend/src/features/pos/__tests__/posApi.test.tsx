@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod } from '../api';
+import { useBranchesForPos, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -39,6 +39,13 @@ describe('pos api', () => {
 
     expect(mockGetPaginated).toHaveBeenCalledWith('/branches?per_page=100');
     expect(result.current.data?.[0]?.name).toBe('Principal');
+  });
+
+  it('permite desactivar busqueda POS de productos', () => {
+    const { result } = renderHook(() => usePosProducts('', 1, { enabled: false }), { wrapper });
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(mockGetPaginated).not.toHaveBeenCalled();
   });
 
   it('crea caja fisica en el endpoint de cash register', async () => {
