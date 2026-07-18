@@ -63,6 +63,13 @@ export const SalesReturnSchema = z.object({
       name: z.string().optional(),
       document_number: z.string().nullable().optional(),
     }).nullable().optional(),
+    receivable: z.object({
+      status: z.string().nullable().optional(),
+      balance_base_amount: moneyValue,
+      balance_local_amount: moneyValue,
+      collected_base_amount: moneyValue,
+      returned_base_amount: moneyValue,
+    }).nullable().optional(),
   }).nullable().optional(),
   items: z.array(SalesReturnItemSchema).optional(),
 }).passthrough();

@@ -53,6 +53,7 @@ class SalesReturnApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.status', SalesReturn::STATUS_REQUESTED)
+            ->assertJsonPath('data.sale.receivable.balance_base_amount', '200.0000')
             ->assertJsonPath('data.items.0.quantity', '1.0000');
 
         $this->assertNull($response->json('data.items.0.stock_movement_id'));

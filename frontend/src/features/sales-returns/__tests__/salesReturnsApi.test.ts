@@ -10,6 +10,16 @@ describe('sales returns api contract', () => {
       status: 'processed',
       reason: 'Cliente devolvio el equipo',
       processed_at: '2026-07-18T12:00:00.000000Z',
+      sale: {
+        id: 15,
+        receivable: {
+          status: 'partial',
+          balance_base_amount: '20.0000',
+          balance_local_amount: '20000.0000',
+          collected_base_amount: '80.0000',
+          returned_base_amount: '0.0000',
+        },
+      },
       items: [
         {
           id: 10,
@@ -24,6 +34,7 @@ describe('sales returns api contract', () => {
 
     expect(parsed.items?.[0]?.quantity).toBe(1);
     expect(parsed.items?.[0]?.product_unit_ids).toEqual([33]);
+    expect(parsed.sale?.receivable?.balance_base_amount).toBe(20);
   });
 
   it('keeps create payload aligned with POST /sales-returns', () => {

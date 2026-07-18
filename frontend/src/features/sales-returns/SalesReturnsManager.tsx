@@ -41,6 +41,13 @@ const CONDITION_LABELS: Record<string, string> = {
   damaged: 'Dañado',
 };
 
+const RECEIVABLE_LABELS: Record<string, string> = {
+  pending: 'Pendiente',
+  partial: 'Parcial',
+  overdue: 'Vencida',
+  paid: 'Pagada',
+};
+
 type StatusFilter = 'open' | 'all' | SalesReturnStatus;
 
 function formatDate(value?: string | null): string {
@@ -73,6 +80,25 @@ function returnedUnits(item: SalesReturn): number {
 
 function refundBaseAmount(item: SalesReturn): number {
   return (item.items ?? []).reduce((sum, line) => sum + Number(line.refundable_base_amount ?? 0), 0);
+}
+
+function receivableBalance(item: SalesReturn): number {
+  return Number(item.sale?.receivable?.balance_base_amount ?? 0);
+}
+
+function suggestedMode(item: SalesReturn, canRefund: boolean): 'none' | 'cash' | 'receivable' {
+  if (!canRefund) return 'none';
+  const receivable = item.sale?.receivable;
+  if (receivable && Number(receivable.balance_base_amount ?? 0) > 0) return 'receivable';
+  return 'cash';
+}
+
+function receivableLabel(item: SalesReturn): string {
+  const receivable = item.sale?.receivable;
+  if (!receivable) return 'Sin CxC';
+  const balance = Number(receivable.balance_base_amount ?? 0);
+  if (balance <= 0) return 'Pagada';
+  return RECEIVABLE_LABELS[receivable.status ?? ''] ?? 'Con saldo';
 }
 
 export function SalesReturnsManager() {
@@ -235,8 +261,14 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
   const [rejectReason, setRejectReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const suggestedRefund = refundBaseAmount(item);
+  const receivable = item.sale?.receivable ?? null;
+  const balanceBase = receivableBalance(item);
+  const balanceLocal = Number(receivable?.balance_local_amount ?? 0);
+  const coversDebt = Math.min(suggestedRefund, balanceBase);
+  const potentialCashRefund = Math.max(suggestedRefund - balanceBase, 0);
+  const recommendedMode = suggestedMode(item, canRefund);
   const [processForm, setProcessForm] = useState<ProcessSalesReturnPayload>({
-    refund_mode: 'none',
+    refund_mode: recommendedMode,
     refund_currency: 'USD',
     refund_amount: suggestedRefund,
     refund_method: 'cash',
@@ -284,7 +316,7 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
+    <div className="grid gap-3 lg:grid-cols-[1fr_380px]">
       <section className="rounded border border-border bg-surface">
         <div className="border-b border-border px-3 py-2 font-semibold">Items de la solicitud</div>
         <div className="divide-y divide-border">
@@ -330,9 +362,36 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
           {item.refund_amount_base > 0 && <Metric label="Reembolso" value={`${formatMoney(item.refund_amount_base)} · ${item.refund_method ?? 'caja'}`} />}
         </dl>
 
+        <div className="rounded border border-border bg-bg px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-text-muted">Valor devolución</span>
+            <strong>{formatMoney(suggestedRefund)}</strong>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <span className="text-text-muted">CxC venta</span>
+            <strong>{receivableLabel(item)}</strong>
+          </div>
+          {receivable && (
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <span className="text-text-muted">Saldo pendiente</span>
+              <strong>{formatMoney(balanceBase)} · Bs {balanceLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </div>
+          )}
+          <p className="mt-2 rounded bg-surface px-2 py-1 text-xs text-text-muted">
+            {recommendedMode === 'receivable' && `Recomendado: aplicar contra CxC. Cubriría ${formatMoney(coversDebt)} de la deuda.`}
+            {recommendedMode === 'cash' && 'Recomendado: reembolsar desde caja porque no hay deuda pendiente.'}
+            {recommendedMode === 'none' && 'Sin permiso de reembolso: sólo puedes procesar la devolución operativa.'}
+          </p>
+          {potentialCashRefund > 0 && (
+            <p className="mt-2 rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
+              La devolución supera la deuda: cubre {formatMoney(coversDebt)} y quedaría una diferencia reembolsable de {formatMoney(potentialCashRefund)}.
+            </p>
+          )}
+        </div>
+
         {!hasVisibleActions && ['requested', 'approved'].includes(item.status) && (
           <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-            No tienes permisos para operar esta solicitud. Requiere revisar/procesar devoluciones segun el estado actual.
+            No tienes permisos para operar esta solicitud. Requiere revisar/procesar devoluciones según el estado actual.
           </div>
         )}
 
@@ -357,13 +416,18 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
               <Label>Finanzas</Label>
               <Select value={processForm.refund_mode ?? 'none'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_mode: event.target.value as 'none' | 'cash' | 'receivable' }))}>
                 <option value="none">Sólo procesar devolución</option>
-                {canRefund && <option value="receivable">Aplicar contra CxC</option>}
+                {canRefund && <option value="receivable" disabled={!receivable || balanceBase <= 0}>Aplicar contra CxC</option>}
                 {canRefund && <option value="cash">Reembolsar desde caja</option>}
               </Select>
             </div>
+            {processForm.refund_mode === 'none' && (
+              <p className="rounded border border-border bg-bg px-3 py-2 text-xs text-text-muted">
+                Procesa stock/Kardex. Si la venta tiene CxC, el ajuste normal de la devolución se aplicará al saldo pendiente.
+              </p>
+            )}
             {processForm.refund_mode === 'receivable' && (
               <p className="rounded border border-border bg-bg px-3 py-2 text-xs text-text-muted">
-                Al procesar, la devolución ajustará el saldo pendiente de CxC hasta donde corresponda. No saldrá dinero de caja.
+                Al procesar, la devolución cubrirá hasta {formatMoney(coversDebt)} de la deuda. No saldrá dinero de caja.
               </p>
             )}
             {processForm.refund_mode === 'cash' && (

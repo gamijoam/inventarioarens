@@ -23,7 +23,7 @@ class SalesReturnController extends Controller
 
         return SalesReturnResource::collection(
             SalesReturn::query()
-                ->with(['sale.customer', 'items.saleItem', 'items.product', 'items.warehouse', 'creator', 'reviewer', 'processor', 'canceller'])
+                ->with(['sale.customer', 'sale.receivable', 'items.saleItem', 'items.product', 'items.warehouse', 'creator', 'reviewer', 'processor', 'canceller'])
                 ->latest()
                 ->paginate(25)
         );
