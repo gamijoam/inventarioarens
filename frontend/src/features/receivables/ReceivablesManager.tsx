@@ -13,8 +13,9 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Textarea } from '@/components/ui/Textarea';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
-import { useCashSessions, useCurrentExchangeRatesForPos, usePaymentMethods } from '@/features/pos/api';
+import { useCashSessions, useCurrentExchangeRatesForPos, usePaymentMethods, type CurrentExchangeRate } from '@/features/pos/api';
 import { useCollectReceivable, useReceivable, useReceivables, type ReceivableListFilters } from './api';
+import { activeUsdVesRate, currentLocalBalance, numberLabel, rateLabel } from './currentBalance';
 import { RECEIVABLE_STATUS_LABELS, type CollectReceivableValues, type Receivable, type ReceivableStatus } from './schemas';
 
 const STATUS_OPTIONS: { value: ReceivableListFilters['status']; label: string }[] = [
@@ -38,10 +39,6 @@ function money(value: number | null | undefined, currency = '$'): string {
   return `${currency}${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function numberLabel(value: number | null | undefined): string {
-  return Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function dateLabel(value: string | null | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -60,6 +57,8 @@ export function ReceivablesManager() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [collecting, setCollecting] = useState<Receivable | null>(null);
   const { data, isLoading, isError, refetch } = useReceivables(filters);
+  const { data: rates = [] } = useCurrentExchangeRatesForPos();
+  const activeRate = activeUsdVesRate(rates);
   const canCollect = useCan(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const receivables = data?.data ?? [];
   const meta = data?.meta;
@@ -145,6 +144,7 @@ export function ReceivablesManager() {
                   <ReceivableRow
                     key={receivable.id}
                     receivable={receivable}
+                    activeRate={activeRate}
                     expanded={expandedId === receivable.id}
                     canCollect={canCollect}
                     onToggle={() => setExpandedId((current) => current === receivable.id ? null : receivable.id)}
@@ -166,12 +166,14 @@ export function ReceivablesManager() {
         </Card>
       )}
 
-      {collecting && <CollectPanel receivable={collecting} onClose={() => setCollecting(null)} />}
+      {collecting && <CollectPanel receivable={collecting} activeRate={activeRate} onClose={() => setCollecting(null)} />}
     </div>
   );
 }
 
-function ReceivableRow({ receivable, expanded, canCollect, onToggle, onCollect }: { receivable: Receivable; expanded: boolean; canCollect: boolean; onToggle: () => void; onCollect: () => void }) {
+function ReceivableRow({ receivable, activeRate, expanded, canCollect, onToggle, onCollect }: { receivable: Receivable; activeRate: CurrentExchangeRate | null; expanded: boolean; canCollect: boolean; onToggle: () => void; onCollect: () => void }) {
+  const localBalance = currentLocalBalance(receivable, activeRate);
+
   return (
     <>
       <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
@@ -182,7 +184,12 @@ function ReceivableRow({ receivable, expanded, canCollect, onToggle, onCollect }
         <td className="px-3 py-2 text-text-muted">{dateLabel(receivable.due_date)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{money(receivable.original_base_amount)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{money(receivable.collected_base_amount)}</td>
-        <td className="px-3 py-2 text-right font-semibold tabular-nums">{money(receivable.balance_base_amount)}</td>
+        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+          <div>{money(receivable.balance_base_amount)}</div>
+          <div className="text-xs font-normal text-text-muted">
+            {localBalance === null ? 'Sin tasa activa USD/VES' : `${money(localBalance, 'Bs ')} hoy`}
+          </div>
+        </td>
         <td className="px-3 py-2 text-right">
           <Button
             size="sm"
@@ -200,7 +207,7 @@ function ReceivableRow({ receivable, expanded, canCollect, onToggle, onCollect }
       {expanded && (
         <tr className="border-b border-border bg-bg/20">
           <td colSpan={9} className="px-4 py-4">
-            <ReceivableDetail receivableId={receivable.id} receivable={receivable} />
+            <ReceivableDetail receivableId={receivable.id} receivable={receivable} activeRate={activeRate} />
           </td>
         </tr>
       )}
@@ -208,11 +215,12 @@ function ReceivableRow({ receivable, expanded, canCollect, onToggle, onCollect }
   );
 }
 
-function ReceivableDetail({ receivableId, receivable }: { receivableId: number; receivable: Receivable }) {
+function ReceivableDetail({ receivableId, receivable, activeRate }: { receivableId: number; receivable: Receivable; activeRate: CurrentExchangeRate | null }) {
   const { data, isLoading } = useReceivable(receivableId);
   const current = data ?? receivable;
   const items = current.sale?.items ?? [];
   const payments = current.payments ?? [];
+  const localBalance = currentLocalBalance(current, activeRate);
 
   if (isLoading && !data) return <Skeleton className="h-36 w-full" />;
 
@@ -222,7 +230,7 @@ function ReceivableDetail({ receivableId, receivable }: { receivableId: number; 
         <InfoTile label="Venta" value={`#${current.sale_id}`} />
         <InfoTile label="Cliente" value={customerLabel(current)} />
         <InfoTile label="Saldo USD" value={money(current.balance_base_amount)} />
-        <InfoTile label="Saldo VES" value={money(current.balance_local_amount, 'Bs ')} />
+        <InfoTile label="Equivalente VES hoy" value={localBalance === null ? 'Sin tasa activa USD/VES' : `${money(localBalance, 'Bs ')} · ${rateLabel(activeRate)}`} />
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded border border-border bg-surface p-3">
@@ -264,15 +272,13 @@ function ReceivableDetail({ receivableId, receivable }: { receivableId: number; 
   );
 }
 
-function CollectPanel({ receivable, onClose }: { receivable: Receivable; onClose: () => void }) {
+function CollectPanel({ receivable, activeRate, onClose }: { receivable: Receivable; activeRate: CurrentExchangeRate | null; onClose: () => void }) {
   const collect = useCollectReceivable();
   const { data: sessions = [] } = useCashSessions();
   const { data: methods = [] } = usePaymentMethods();
-  const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const activeSession = sessions.find((session) => session.status === 'open') ?? null;
   const activeMethods = methods.filter((method) => method.is_active !== false);
   const defaultMethod = activeMethods[0];
-  const activeRate = rates.find((rate) => rate.is_active !== false && rate.base_currency === 'USD' && rate.quote_currency === 'VES') ?? rates[0] ?? null;
   const rateValue = activeRate?.rate && activeRate.rate > 0 ? activeRate.rate : null;
   const balanceBase = receivable.balance_base_amount;
   const balanceLocal = rateValue ? balanceBase * rateValue : receivable.balance_local_amount;

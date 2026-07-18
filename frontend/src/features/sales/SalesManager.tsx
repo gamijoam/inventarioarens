@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Search, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -12,6 +12,8 @@ import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
+import { useCurrentExchangeRatesForPos, type CurrentExchangeRate } from '@/features/pos/api';
+import { activeUsdVesRate, currentLocalBalance } from '@/features/receivables/currentBalance';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
@@ -81,6 +83,8 @@ export function SalesManager() {
   });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const { data, isLoading, isError, refetch } = useSales(filters);
+  const { data: rates = [] } = useCurrentExchangeRatesForPos();
+  const activeRate = activeUsdVesRate(rates);
   const canCancel = useCan(PERMISSIONS.SALES_CANCEL);
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
@@ -210,6 +214,7 @@ export function SalesManager() {
                   <SaleRow
                     key={sale.id}
                     sale={sale}
+                    activeRate={activeRate}
                     expanded={expandedId === sale.id}
                     canCancel={canCancel}
                     cancelling={cancelSale.isPending}
@@ -255,6 +260,7 @@ export function SalesManager() {
 
 function SaleRow({
   sale,
+  activeRate,
   expanded,
   canCancel,
   cancelling,
@@ -262,6 +268,7 @@ function SaleRow({
   onCancel,
 }: {
   sale: Sale;
+  activeRate: CurrentExchangeRate | null;
   expanded: boolean;
   canCancel: boolean;
   cancelling: boolean;
@@ -269,6 +276,7 @@ function SaleRow({
   onCancel: () => void;
 }) {
   const date = sale.confirmed_at ?? sale.created_at;
+  const localBalance = sale.receivable ? currentLocalBalance(sale.receivable, activeRate) : null;
   return (
     <>
       <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
@@ -286,7 +294,8 @@ function SaleRow({
             <Badge variant={receivableVariant(sale.receivable?.status)}>{receivableStatusLabel(sale)}</Badge>
             {sale.receivable && sale.receivable.balance_base_amount > 0 && (
               <span className="text-xs font-medium text-warning">
-                Saldo {formatMoney(sale.receivable.balance_base_amount)} · {formatMoney(sale.receivable.balance_local_amount, 'Bs ')}
+                Saldo {formatMoney(sale.receivable.balance_base_amount)}
+                {localBalance === null ? ' · sin tasa activa USD/VES' : ` · ${formatMoney(localBalance, 'Bs ')} hoy`}
               </span>
             )}
           </div>
