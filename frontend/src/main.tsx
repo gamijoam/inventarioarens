@@ -46,9 +46,11 @@ declare module '@tanstack/react-router' {
 // window.location.href causa full reload que pierde el cache de TanStack Query.
 // Aqui es donde tenemos acceso al router context.
 registerUnauthorizedHandler(() => {
-  // Solo navegar si no estamos ya en /login (evitar loops en errores de /me).
-  if (window.location.pathname !== '/login') {
-    void router.navigate({ to: '/login' });
+  const loginRoute = window.location.pathname.startsWith('/master') ? '/master/login' : '/login';
+
+  // Solo navegar si no estamos ya en el login correcto (evitar loops en errores de /me).
+  if (window.location.pathname !== loginRoute) {
+    void router.navigate({ to: loginRoute });
   }
 });
 

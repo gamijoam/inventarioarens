@@ -57,6 +57,15 @@ function slugify(value: string): string {
 
 function MasterPortal() {
   const location = useLocation();
+
+  if (location.pathname === '/master/login') {
+    return <Outlet />;
+  }
+
+  return <MasterDashboard />;
+}
+
+function MasterDashboard() {
   const user = useSessionStore((s) => s.user);
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -84,10 +93,6 @@ function MasterPortal() {
 
   async function refreshAll() {
     await Promise.all([stats.refetch(), groups.refetch(), admins.refetch(), spinoffs.refetch()]);
-  }
-
-  if (location.pathname === '/master/login') {
-    return <Outlet />;
   }
 
   return (
