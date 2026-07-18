@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { Building2, LogOut, Plus, RefreshCcw, ShieldCheck, Users } from 'lucide-react';
@@ -29,7 +29,11 @@ import {
 } from '@/features/master/api';
 
 export const Route = createFileRoute('/master')({
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
+    if (location.pathname === '/master/login') {
+      return;
+    }
+
     const { user, tenant } = useSessionStore.getState();
     if (!user) {
       throw redirect({ to: '/master/login' });
@@ -52,6 +56,7 @@ function slugify(value: string): string {
 }
 
 function MasterPortal() {
+  const location = useLocation();
   const user = useSessionStore((s) => s.user);
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -79,6 +84,10 @@ function MasterPortal() {
 
   async function refreshAll() {
     await Promise.all([stats.refetch(), groups.refetch(), admins.refetch(), spinoffs.refetch()]);
+  }
+
+  if (location.pathname === '/master/login') {
+    return <Outlet />;
   }
 
   return (
