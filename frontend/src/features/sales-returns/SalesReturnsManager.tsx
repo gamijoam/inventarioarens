@@ -246,6 +246,10 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
   const activeRate = activeUsdVesRate(rates);
   const activeSession = sessions[0] ?? null;
   const needsCashSession = processForm.refund_mode === 'cash';
+  const hasVisibleActions =
+    (item.status === 'requested' && canReview) ||
+    (['requested', 'approved'].includes(item.status) && canCancel) ||
+    (item.status === 'approved' && canProcess);
 
   async function handleApprove() {
     await approve.mutateAsync(item.id);
@@ -325,6 +329,12 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
           <Metric label="Procesada por" value={item.processed_by_name ?? '-'} />
           {item.refund_amount_base > 0 && <Metric label="Reembolso" value={`${formatMoney(item.refund_amount_base)} · ${item.refund_method ?? 'caja'}`} />}
         </dl>
+
+        {!hasVisibleActions && ['requested', 'approved'].includes(item.status) && (
+          <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+            No tienes permisos para operar esta solicitud. Requiere revisar/procesar devoluciones segun el estado actual.
+          </div>
+        )}
 
         {item.status === 'requested' && canReview && (
           <div className="space-y-2">
