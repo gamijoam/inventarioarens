@@ -98,6 +98,9 @@ export const CustomerSchema = z.object({
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   tax_id: z.string().nullable().optional(),
+  document_type: z.string().nullable().optional(),
+  document_number: z.string().nullable().optional(),
+  fiscal_address: z.string().nullable().optional(),
 }).passthrough();
 export type Customer = z.infer<typeof CustomerSchema>;
 
@@ -170,6 +173,17 @@ export interface PaymentMethodPayload {
   requires_reference?: boolean;
   is_active?: boolean;
   sort_order?: number;
+}
+
+export interface CreateCustomerPayload {
+  name: string;
+  document_type: 'V' | 'E' | 'J' | 'G' | 'P';
+  document_number: string;
+  phone?: string | null;
+  email?: string | null;
+  fiscal_address?: string | null;
+  is_active?: boolean;
+  is_generic?: boolean;
 }
 
 export const posKeys = {
@@ -338,6 +352,16 @@ export function useCustomers(search: string) {
       return z.array(CustomerSchema).parse(response.data);
     },
     enabled: search.trim().length >= 2,
+  });
+}
+
+export function useCreateCustomerForPos() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateCustomerPayload) => postOne<CreateCustomerPayload, Customer>('/customers', payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'customers'] });
+    },
   });
 }
 

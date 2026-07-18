@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Textarea } from '@/components/ui/Textarea';
 import { PERMISSIONS } from '@/permissions/constants';
 import { usePermissionContext } from '@/permissions/PermissionContext';
 import { cn } from '@/lib/cn';
@@ -29,6 +30,7 @@ import type { Product } from '@/features/inventory-center/schemas';
 import {
   type CashRegisterSession,
   type CheckoutPayload,
+  type CreateCustomerPayload,
   type Customer,
   type PosOrder,
   type PosPaymentMethod,
@@ -40,6 +42,7 @@ import {
   useCashSessions,
   useCheckout,
   useCloseCashSession,
+  useCreateCustomerForPos,
   useCurrentExchangeRatesForPos,
   useCustomers,
   useExchangeRateTypesForPos,
@@ -64,6 +67,7 @@ import {
 } from './posLogic';
 
 type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | null;
+type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
 
 const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
   { value: 'cash', label: 'Efectivo' },
@@ -83,6 +87,7 @@ export function PosTerminal() {
   const canOpenCash = permissions.has(PERMISSIONS.CASH_REGISTER_OPEN);
   const canMoveCash = permissions.has(PERMISSIONS.CASH_REGISTER_MOVE) || permissions.has(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
   const canCloseCash = permissions.has(PERMISSIONS.CASH_REGISTER_CLOSE);
+  const canCreateCustomer = permissions.has(PERMISSIONS.CUSTOMERS_CREATE);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
@@ -93,6 +98,14 @@ export function PosTerminal() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerName, setCustomerName] = useState('Consumidor Final');
+  const [quickCustomer, setQuickCustomer] = useState<QuickCustomerForm>({
+    name: '',
+    document_type: 'V',
+    document_number: '',
+    phone: '',
+    email: '',
+    fiscal_address: '',
+  });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
   const [openingAmount, setOpeningAmount] = useState('0');
@@ -118,6 +131,7 @@ export function PosTerminal() {
   const checkout = useCheckout();
   const addPayments = useAddPosPayments();
   const cancelOrder = useCancelPosOrder();
+  const createCustomer = useCreateCustomerForPos();
   const openCash = useOpenCashSession();
   const addCashMovement = useAddCashMovement();
   const closeCash = useCloseCashSession();
@@ -331,7 +345,7 @@ export function PosTerminal() {
           <div className="flex items-center justify-between border-b border-border p-3">
             <div>
               <h2 className="font-semibold">Ticket actual</h2>
-              <p className="text-xs text-text-muted">{selectedCustomer?.name ?? customerName}</p>
+              <CustomerSummary customer={selectedCustomer} customerName={customerName} />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
@@ -449,12 +463,15 @@ export function PosTerminal() {
       </main>
 
       {panel && (
-        <PanelShell title={panelTitle(panel)} onClose={() => setPanel(null)} wide={panel === 'pay'}>
+        <PanelShell title={panelTitle(panel)} onClose={() => setPanel(null)} wide={panel === 'pay' || panel === 'customer'}>
           {panel === 'customer' && (
             <CustomerPanel
               search={customerSearch}
               customers={customerResults}
               customerName={customerName}
+              form={quickCustomer}
+              canCreate={canCreateCustomer}
+              creating={createCustomer.isPending}
               onSearch={setCustomerSearch}
               onGeneric={() => {
                 setSelectedCustomer(null);
@@ -462,6 +479,8 @@ export function PosTerminal() {
                 setPanel(null);
               }}
               onName={setCustomerName}
+              onFormChange={(patch) => setQuickCustomer((current) => ({ ...current, ...patch }))}
+              onCreate={() => void createQuickCustomer()}
               onSelect={(customer) => {
                 setSelectedCustomer(customer);
                 setCustomerName(customer.name);
@@ -637,6 +656,47 @@ export function PosTerminal() {
       toast.success('Venta confirmada.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
+    }
+  }
+
+  async function createQuickCustomer(): Promise<void> {
+    const name = quickCustomer.name.trim();
+    const documentNumber = quickCustomer.document_number.trim();
+    if (!canCreateCustomer) {
+      toast.error('No tienes permiso para crear clientes.');
+      return;
+    }
+    if (!name || !documentNumber) {
+      toast.error('Nombre y documento son obligatorios.');
+      return;
+    }
+
+    try {
+      const customer = await createCustomer.mutateAsync({
+        ...quickCustomer,
+        name,
+        document_number: documentNumber,
+        phone: quickCustomer.phone?.trim() || null,
+        email: quickCustomer.email?.trim() || null,
+        fiscal_address: quickCustomer.fiscal_address?.trim() || null,
+        is_active: true,
+        is_generic: false,
+      });
+      setSelectedCustomer(customer);
+      setCustomerName(customer.name);
+      setCustomerSearch(customer.name);
+      setQuickCustomer({
+        name: '',
+        document_type: 'V',
+        document_number: '',
+        phone: '',
+        email: '',
+        fiscal_address: '',
+      });
+      setPanel(null);
+      toast.success('Cliente creado y asignado al ticket.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el cliente.');
     }
   }
 
@@ -965,19 +1025,89 @@ function QuickPaymentPanel({
   );
 }
 
-function CustomerPanel(props: { search: string; customerName: string; customers: Customer[]; onSearch: (value: string) => void; onName: (value: string) => void; onGeneric: () => void; onSelect: (customer: Customer) => void }) {
+function CustomerSummary({ customer, customerName }: { customer: Customer | null; customerName: string }) {
+  const document = customerDocument(customer);
+  if (!customer) {
+    return <p className="text-xs text-text-muted">{customerName}</p>;
+  }
+
   return (
-    <div className="space-y-3">
-      <Button className="w-full" variant="outline" onClick={props.onGeneric}>Consumidor Final</Button>
-      <Input value={props.customerName} onChange={(event) => props.onName(event.target.value)} placeholder="Nombre manual para ticket" />
-      <Input value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="Buscar cliente por nombre o documento" />
-      <div className="space-y-2">
-        {props.customers.map((customer) => (
-          <button key={customer.id} type="button" onClick={() => props.onSelect(customer)} className="w-full rounded border border-border p-3 text-left hover:border-primary">
-            <p className="font-medium">{customer.name}</p>
-            <p className="text-xs text-text-muted">{customer.tax_id ?? customer.email ?? customer.phone ?? 'Cliente'}</p>
-          </button>
-        ))}
+    <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded border border-primary/30 bg-primary/5 px-2 py-1 text-xs">
+      <UserRound className="size-3.5 shrink-0 text-primary" />
+      <span className="truncate font-medium text-text-primary">{customer.name}</span>
+      {document && <span className="shrink-0 text-text-muted">{document}</span>}
+    </div>
+  );
+}
+
+function CustomerPanel(props: {
+  search: string;
+  customerName: string;
+  customers: Customer[];
+  form: QuickCustomerForm;
+  canCreate: boolean;
+  creating: boolean;
+  onSearch: (value: string) => void;
+  onName: (value: string) => void;
+  onFormChange: (patch: Partial<QuickCustomerForm>) => void;
+  onCreate: () => void;
+  onGeneric: () => void;
+  onSelect: (customer: Customer) => void;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <div className="space-y-3">
+        <div className="rounded border border-border bg-bg/40 p-3">
+          <p className="text-sm font-semibold">Asignar cliente</p>
+          <p className="mt-1 text-xs text-text-muted">Busca uno existente o usa consumidor final para venta rapida.</p>
+          <Button className="mt-3 w-full" variant="outline" onClick={props.onGeneric}>Consumidor Final</Button>
+        </div>
+        <Input value={props.customerName} onChange={(event) => props.onName(event.target.value)} placeholder="Nombre manual para ticket" />
+        <Input value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="Buscar cliente por nombre o documento" />
+        <div className="max-h-72 space-y-2 overflow-auto pr-1">
+          {props.search.trim().length > 0 && props.search.trim().length < 2 && (
+            <p className="rounded border border-border bg-bg/40 p-3 text-sm text-text-muted">Escribe al menos 2 caracteres para buscar.</p>
+          )}
+          {props.search.trim().length >= 2 && props.customers.length === 0 && (
+            <p className="rounded border border-border bg-bg/40 p-3 text-sm text-text-muted">No hay clientes con esa busqueda.</p>
+          )}
+          {props.customers.map((customer) => (
+            <button key={customer.id} type="button" onClick={() => props.onSelect(customer)} className="w-full rounded border border-border p-3 text-left hover:border-primary">
+              <p className="font-medium">{customer.name}</p>
+              <p className="text-xs text-text-muted">{customerDocument(customer) ?? customer.email ?? customer.phone ?? 'Cliente'}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded border border-border bg-bg/40 p-3">
+        <div>
+          <p className="text-sm font-semibold">Crear cliente rapido</p>
+          <p className="mt-1 text-xs text-text-muted">Usa los mismos datos base del modulo Clientes.</p>
+        </div>
+        {!props.canCreate ? (
+          <p className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">No tienes permiso para crear clientes.</p>
+        ) : (
+          <>
+            <Input value={props.form.name} onChange={(event) => props.onFormChange({ name: event.target.value })} placeholder="Nombre o razon social" />
+            <div className="grid grid-cols-[110px_1fr] gap-2">
+              <Select value={props.form.document_type} onChange={(event) => props.onFormChange({ document_type: event.target.value as QuickCustomerForm['document_type'] })}>
+                <option value="V">V</option>
+                <option value="E">E</option>
+                <option value="J">J</option>
+                <option value="G">G</option>
+                <option value="P">P</option>
+              </Select>
+              <Input value={props.form.document_number} onChange={(event) => props.onFormChange({ document_number: event.target.value })} placeholder="Documento" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input value={props.form.phone ?? ''} onChange={(event) => props.onFormChange({ phone: event.target.value })} placeholder="Telefono" />
+              <Input type="email" value={props.form.email ?? ''} onChange={(event) => props.onFormChange({ email: event.target.value })} placeholder="Email" />
+            </div>
+            <Textarea value={props.form.fiscal_address ?? ''} onChange={(event) => props.onFormChange({ fiscal_address: event.target.value })} rows={2} placeholder="Direccion fiscal" />
+            <Button className="w-full" onClick={props.onCreate} loading={props.creating}>Crear y asignar</Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1170,6 +1300,12 @@ function paymentAmountForCurrency(remainingBase: number, currency: CurrencyCode,
 
 function methodLabel(method?: string | null): string {
   return PAYMENT_METHODS.find((item) => item.value === method)?.label ?? method ?? 'Pago';
+}
+
+function customerDocument(customer: Customer | null): string | null {
+  if (!customer) return null;
+  if (customer.document_type && customer.document_number) return `${customer.document_type}-${customer.document_number}`;
+  return customer.tax_id ?? null;
 }
 
 function money(value: number): string {

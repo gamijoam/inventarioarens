@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCreateCashRegister, useCreatePaymentMethod } from '../api';
+import { useBranchesForPos, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -81,6 +81,35 @@ describe('pos api', () => {
       requires_reference: true,
       is_active: true,
       sort_order: 10,
+    });
+  });
+
+  it('crea cliente rapido desde POS usando el modulo de clientes', async () => {
+    mockPostOne.mockResolvedValue({ id: 9, name: 'Cliente POS', document_type: 'V', document_number: '123' });
+
+    const { result } = renderHook(() => useCreateCustomerForPos(), { wrapper });
+    result.current.mutate({
+      name: 'Cliente POS',
+      document_type: 'V',
+      document_number: '123',
+      phone: null,
+      email: null,
+      fiscal_address: null,
+      is_active: true,
+      is_generic: false,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/customers', {
+      name: 'Cliente POS',
+      document_type: 'V',
+      document_number: '123',
+      phone: null,
+      email: null,
+      fiscal_address: null,
+      is_active: true,
+      is_generic: false,
     });
   });
 });
