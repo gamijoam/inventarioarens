@@ -149,18 +149,22 @@ class SalesReturnService
                 $this->ensureReturnableQuantity($saleItem, (float) $returnItem->quantity, $salesReturn->id);
                 $this->validateProductUnits($saleItem, (float) $returnItem->quantity, $returnItem->product_unit_ids ?? [], $salesReturn->id);
 
-                $movement = $this->inventory->saleReturn(
-                    warehouse: $saleItem->warehouse,
-                    product: $saleItem->product,
-                    quantity: (float) $returnItem->quantity,
-                    createdBy: $user,
-                    reason: $returnItem->reason ?? $salesReturn->reason ?? "Devolucion venta #{$salesReturn->sale_id}",
-                    referenceType: SalesReturn::class,
-                    referenceId: $salesReturn->id,
-                );
+                $movementData = [
+                    'warehouse' => $saleItem->warehouse,
+                    'product' => $saleItem->product,
+                    'quantity' => (float) $returnItem->quantity,
+                    'createdBy' => $user,
+                    'reason' => $returnItem->reason ?? $salesReturn->reason ?? "Devolucion venta #{$salesReturn->sale_id}",
+                    'referenceType' => SalesReturn::class,
+                    'referenceId' => $salesReturn->id,
+                ];
+
+                $movement = $returnItem->condition === SalesReturnItem::CONDITION_DAMAGED
+                    ? $this->inventory->damagedSaleReturn(...$movementData)
+                    : $this->inventory->saleReturn(...$movementData);
 
                 $returnItem->update(['stock_movement_id' => $movement->id]);
-                $this->restoreProductUnits($returnItem->product_unit_ids ?? [], $returnItem->condition);
+                $this->restoreProductUnits($returnItem->product_unit_ids ?? [], $returnItem->condition, (int) $saleItem->warehouse_id);
             }
 
             app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
@@ -288,7 +292,7 @@ class SalesReturnService
         }
     }
 
-    private function restoreProductUnits(array $productUnitIds, string $condition): void
+    private function restoreProductUnits(array $productUnitIds, string $condition, int $warehouseId): void
     {
         if ($productUnitIds === []) {
             return;
@@ -300,7 +304,11 @@ class SalesReturnService
 
         ProductUnit::query()
             ->whereIn('id', $productUnitIds)
-            ->update(['status' => $status]);
+            ->update([
+                'warehouse_id' => $warehouseId,
+                'status' => $status,
+                'released_stock_movement_id' => null,
+            ]);
     }
 
     private function applyRefund(SalesReturn $salesReturn, User $user, array $data): void

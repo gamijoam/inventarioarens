@@ -110,6 +110,27 @@ class InventoryMovementService
         );
     }
 
+    public function damagedSaleReturn(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
+        return $this->increaseDamaged(
+            type: 'sale_return',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+        );
+    }
+
     public function adjustmentOut(
         Warehouse $warehouse,
         Product $product,
@@ -286,6 +307,27 @@ class InventoryMovementService
             $balance->save();
 
             return $this->recordMovement($type, $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId);
+        });
+    }
+
+    private function increaseDamaged(
+        string $type,
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
+        return DB::transaction(function () use ($type, $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+            $this->validateOperation($warehouse, $product, $quantity);
+
+            $balance = $this->balanceFor($warehouse, $product);
+            $balance->quantity_damaged = (float) $balance->quantity_damaged + $quantity;
+            $balance->save();
+
+            return $this->recordMovement($type, $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 

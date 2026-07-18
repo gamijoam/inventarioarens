@@ -143,7 +143,7 @@ class SalesReturnApiTest extends TestCase
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process']);
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view', 'sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [$unit->id]);
 
         $response = $this
@@ -182,8 +182,78 @@ class SalesReturnApiTest extends TestCase
         $this->assertDatabaseHas('product_units', [
             'tenant_id' => $tenant->id,
             'id' => $unit->id,
+            'warehouse_id' => $warehouse->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+            'released_stock_movement_id' => null,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/serials?status=available&warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonPath('data.data.0.id', $unit->id)
+            ->assertJsonPath('data.data.0.status', ProductUnit::STATUS_AVAILABLE)
+            ->assertJsonPath('data.pagination.total', 1);
+    }
+
+    public function test_damaged_serialized_sale_return_does_not_become_pos_available_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_SERIALIZED, 'RET-DMG');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 1]);
+        $unit = ProductUnit::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => '860009999999999',
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', ['products.view', 'sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [$unit->id]);
+
+        $created = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales-returns', [
+                'sale_id' => $sale->id,
+                'items' => [[
+                    'sale_item_id' => $sale->items->first()->id,
+                    'quantity' => 1,
+                    'condition' => SalesReturnItem::CONDITION_DAMAGED,
+                    'product_unit_ids' => [$unit->id],
+                ]],
+            ])
+            ->assertCreated();
+
+        $returnId = $created->json('data.id');
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'none'])->assertOk();
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_damaged' => '1.0000',
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'warehouse_id' => $warehouse->id,
+            'status' => ProductUnit::STATUS_DAMAGED,
+            'released_stock_movement_id' => null,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/serials?status=available&warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonPath('data.data', [])
+            ->assertJsonPath('data.pagination.total', 0);
     }
 
     public function test_serialized_sale_return_rejects_unit_not_sold_in_sale_item(): void
