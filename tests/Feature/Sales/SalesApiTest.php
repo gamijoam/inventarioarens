@@ -356,6 +356,81 @@ class SalesApiTest extends TestCase
             ->assertJsonValidationErrors(['items.0.product_id']);
     }
 
+    public function test_sales_index_filters_by_status_search_customer_and_dates(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseBcv, $productBcv] = $this->pricedProduct($tenant, 'BCV', 500);
+        $this->useTenant($tenant);
+        $productParalelo = Product::create([
+            'name' => 'Producto Buscable',
+            'sku' => 'SKU-PARALELO',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $productBcv->sale_exchange_rate_type_id,
+        ]);
+        $customerA = $this->customer($tenant, 'Cliente Alfa', Customer::DOCUMENT_V, '111');
+        $customerB = $this->customer($tenant, 'Cliente Beta', Customer::DOCUMENT_V, '222');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $saleA = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customerA->id,
+                'items' => [[
+                    'warehouse_id' => $warehouseBcv->id,
+                    'product_id' => $productBcv->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $saleB = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customerB->id,
+                'items' => [[
+                    'warehouse_id' => $warehouseBcv->id,
+                    'product_id' => $productParalelo->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        Sale::whereKey($saleA)->update([
+            'status' => Sale::STATUS_CONFIRMED,
+            'created_at' => '2026-07-10 10:00:00',
+            'confirmed_at' => '2026-07-10 10:05:00',
+        ]);
+        Sale::whereKey($saleB)->update([
+            'created_at' => '2026-07-16 10:00:00',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?status=confirmed&search=Alfa&date_from=2026-07-01&date_to=2026-07-12')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $saleA)
+            ->assertJsonPath('data.0.status', Sale::STATUS_CONFIRMED)
+            ->assertJsonPath('data.0.customer.name', 'Cliente Alfa')
+            ->assertJsonPath('data.0.items_count', 1);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=SKU-PARALELO')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $saleB);
+    }
+
     public function test_sales_api_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

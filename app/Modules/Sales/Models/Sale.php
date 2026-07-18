@@ -4,11 +4,13 @@ namespace App\Modules\Sales\Models;
 
 use App\Models\User;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\POS\Models\PosOrder;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'status',
@@ -50,5 +52,10 @@ class Sale extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function posOrder(): HasOne
+    {
+        return $this->hasOne(PosOrder::class);
     }
 }
