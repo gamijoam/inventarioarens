@@ -65,6 +65,18 @@ export function SalesManager() {
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
   const meta = data?.meta;
+  const pageTotals = sales.reduce(
+    (acc, sale) => {
+      acc.base += sale.total_base_amount;
+      acc.local += sale.total_local_amount;
+      acc.confirmed += sale.status === 'confirmed' ? 1 : 0;
+      acc.draft += sale.status === 'draft' ? 1 : 0;
+      acc.cancelled += sale.status === 'cancelled' ? 1 : 0;
+      acc.pos += sale.pos_order ? 1 : 0;
+      return acc;
+    },
+    { base: 0, local: 0, confirmed: 0, draft: 0, cancelled: 0, pos: 0 },
+  );
 
   function updateFilters(next: Partial<SaleListFilters>) {
     setFilters((current) => ({ ...current, ...next, page: 1 }));
@@ -134,6 +146,14 @@ export function SalesManager() {
           </Button>
         </CardContent>
       </Card>
+
+      <div className="grid gap-3 md:grid-cols-5">
+        <InfoTile label="Ventas visibles" value={String(meta?.total ?? sales.length)} />
+        <InfoTile label="Total página" value={`${formatMoney(pageTotals.base)} · ${formatMoney(pageTotals.local, 'Bs ')}`} />
+        <InfoTile label="Confirmadas" value={String(pageTotals.confirmed)} />
+        <InfoTile label="Borradores/Canceladas" value={`${pageTotals.draft} / ${pageTotals.cancelled}`} />
+        <InfoTile label="Origen POS" value={String(pageTotals.pos)} />
+      </div>
 
       {isError ? (
         <EmptyState
@@ -285,6 +305,11 @@ function SaleDetail({
         <InfoTile label="Fecha" value={formatDate(current.confirmed_at ?? current.created_at)} />
       </div>
 
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ReceivableAudit sale={current} />
+        <PosAudit sale={current} />
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full table-dense">
           <thead className="border-b border-border bg-bg/60 text-left">
@@ -326,6 +351,93 @@ function SaleDetail({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function ReceivableAudit({ sale }: { sale: Sale }) {
+  const receivable = sale.receivable;
+  if (!receivable) {
+    return (
+      <section className="rounded border border-border bg-surface p-3">
+        <h3 className="text-sm font-semibold">Cobranza</h3>
+        <p className="mt-2 text-sm text-text-muted">No hay cuenta por cobrar asociada a esta venta.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Cobranza</h3>
+        <Badge variant={receivable.status === 'paid' ? 'success' : receivable.status === 'overdue' ? 'danger' : 'warning'}>
+          {receivable.status}
+        </Badge>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <Metric label="Original" value={formatMoney(receivable.original_base_amount)} />
+        <Metric label="Cobrado" value={formatMoney(receivable.collected_base_amount)} />
+        <Metric label="Saldo" value={formatMoney(receivable.balance_base_amount)} strong />
+        <Metric label="Vence" value={receivable.due_date ?? '-'} />
+      </dl>
+    </section>
+  );
+}
+
+function PosAudit({ sale }: { sale: Sale }) {
+  const order = sale.pos_order;
+  if (!order) {
+    return (
+      <section className="rounded border border-border bg-surface p-3">
+        <h3 className="text-sm font-semibold">Auditoría POS</h3>
+        <p className="mt-2 text-sm text-text-muted">Esta venta no tiene una orden POS relacionada.</p>
+      </section>
+    );
+  }
+  const session = order.cash_register_session;
+
+  return (
+    <section className="rounded border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Auditoría POS</h3>
+        <Badge variant={order.status === 'paid' ? 'success' : order.status === 'cancelled' ? 'danger' : 'warning'}>
+          {order.status}
+        </Badge>
+      </div>
+      <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+        <Metric label="Cajero" value={order.cashier_name ?? 'Sin cajero'} />
+        <Metric label="Pagado" value={formatMoney(order.paid_base_amount)} strong />
+        <Metric label="Caja" value={session?.cash_register_name ?? '-'} />
+        <Metric label="Sucursal" value={session?.branch_name ?? '-'} />
+      </div>
+      <div className="mt-3 max-h-32 space-y-2 overflow-auto">
+        {(order.payments ?? []).length === 0 ? (
+          <p className="text-sm text-text-muted">Sin pagos POS registrados.</p>
+        ) : order.payments?.map((payment) => (
+          <div key={payment.id} className="rounded border border-border bg-bg/40 px-3 py-2 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{payment.payment_method_name ?? payment.method}</span>
+              <span className="tabular-nums">
+                {formatMoney(payment.amount, payment.currency === 'VES' ? 'Bs ' : '$')}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+              <span>Base {formatMoney(payment.amount_base)}</span>
+              {payment.exchange_rate_type_code && <span>{payment.exchange_rate_type_code} @ {formatMoney(payment.exchange_rate, '')}</span>}
+              {payment.reference && <span>Ref. {payment.reference}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase text-text-muted">{label}</dt>
+      <dd className={strong ? 'font-semibold text-text-primary' : 'text-text-primary'}>{value}</dd>
     </div>
   );
 }

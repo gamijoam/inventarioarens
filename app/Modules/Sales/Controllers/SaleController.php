@@ -15,9 +15,7 @@ use Illuminate\Support\Facades\Gate;
 
 class SaleController extends Controller
 {
-    public function __construct(private readonly ScopeResolver $scopes)
-    {
-    }
+    public function __construct(private readonly ScopeResolver $scopes) {}
 
     public function index(): AnonymousResourceCollection
     {
@@ -25,7 +23,17 @@ class SaleController extends Controller
 
         $request = request();
         $query = Sale::query()
-            ->with(['customer', 'creator', 'posOrder.cashier', 'items.product', 'items.warehouse'])
+            ->with([
+                'customer',
+                'creator',
+                'receivable',
+                'posOrder.cashier',
+                'posOrder.cashRegisterSession.branch',
+                'posOrder.cashRegisterSession.cashRegister',
+                'posOrder.payments.paymentMethod',
+                'items.product',
+                'items.warehouse',
+            ])
             ->withCount('items')
             ->latest();
 
@@ -99,7 +107,18 @@ class SaleController extends Controller
     {
         Gate::authorize('view', $sale);
 
-        return SaleResource::make($sale->load(['customer', 'creator', 'posOrder.cashier', 'items.product', 'items.warehouse', 'items.stockMovement']));
+        return SaleResource::make($sale->load([
+            'customer',
+            'creator',
+            'receivable.payments',
+            'posOrder.cashier',
+            'posOrder.cashRegisterSession.branch',
+            'posOrder.cashRegisterSession.cashRegister',
+            'posOrder.payments.paymentMethod',
+            'items.product',
+            'items.warehouse',
+            'items.stockMovement',
+        ]));
     }
 
     public function confirm(Sale $sale, SaleService $sales): SaleResource

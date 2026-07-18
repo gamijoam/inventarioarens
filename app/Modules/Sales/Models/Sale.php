@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Models;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\POS\Models\PosOrder;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -26,7 +27,9 @@ class Sale extends Model
     use BelongsToTenant;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_CONFIRMED = 'confirmed';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected function casts(): array
@@ -57,5 +60,10 @@ class Sale extends Model
     public function posOrder(): HasOne
     {
         return $this->hasOne(PosOrder::class);
+    }
+
+    public function receivable(): HasOne
+    {
+        return $this->hasOne(AccountsReceivable::class);
     }
 }

@@ -45,6 +45,31 @@ describe('sales api', () => {
         total_base_amount: '12.5000',
         total_local_amount: '10000.0000',
         items_count: 2,
+        pos_order: {
+          id: 3,
+          status: 'paid',
+          paid_base_amount: '12.5000',
+          paid_local_amount: '10000.0000',
+          payments: [{
+            id: 9,
+            method: 'cash',
+            currency: 'VES',
+            amount: '10000.0000',
+            amount_base: '12.5000',
+            amount_local: '10000.0000',
+            status: 'captured',
+          }],
+        },
+        receivable: {
+          id: 8,
+          status: 'paid',
+          original_base_amount: '12.5000',
+          original_local_amount: '10000.0000',
+          collected_base_amount: '12.5000',
+          collected_local_amount: '10000.0000',
+          balance_base_amount: '0.0000',
+          balance_local_amount: '0.0000',
+        },
         created_at: '2026-07-17T12:00:00.000000Z',
       }],
       meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
@@ -56,6 +81,8 @@ describe('sales api', () => {
 
     expect(mockGetPaginated).toHaveBeenCalledWith('/sales?status=confirmed&page=1');
     expect(result.current.data?.data[0]?.total_base_amount).toBe(12.5);
+    expect(result.current.data?.data[0]?.pos_order?.payments?.[0]?.amount_base).toBe(12.5);
+    expect(result.current.data?.data[0]?.receivable?.balance_base_amount).toBe(0);
   });
 
   it('cancela una venta usando el endpoint del backend', async () => {

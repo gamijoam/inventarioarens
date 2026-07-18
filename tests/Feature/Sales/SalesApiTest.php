@@ -3,12 +3,16 @@
 namespace Tests\Feature\Sales;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\POS\Models\PosOrder;
+use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
@@ -429,6 +433,89 @@ class SalesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $saleB);
+    }
+
+    public function test_sale_detail_exposes_pos_payments_and_receivable_audit(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500);
+        $customer = $this->customer($tenant, 'Cliente Auditoria', Customer::DOCUMENT_V, '333');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $saleId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->useTenant($tenant);
+        $method = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'requires_reference' => false,
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $order = PosOrder::create([
+            'sale_id' => $saleId,
+            'customer_id' => $customer->id,
+            'status' => PosOrder::STATUS_PAID,
+            'cashier_id' => $user->id,
+            'total_base_amount' => 100,
+            'total_local_amount' => 50000,
+            'paid_base_amount' => 100,
+            'paid_local_amount' => 50000,
+            'paid_at' => now(),
+        ]);
+        PosPayment::create([
+            'pos_order_id' => $order->id,
+            'payment_method_id' => $method->id,
+            'method' => PosPayment::METHOD_CASH,
+            'currency' => Product::CURRENCY_USD,
+            'amount' => 100,
+            'amount_base' => 100,
+            'amount_local' => 50000,
+            'exchange_rate_type_code' => 'BCV',
+            'exchange_rate' => 500,
+            'status' => PosPayment::STATUS_CAPTURED,
+        ]);
+        AccountsReceivable::create([
+            'customer_id' => $customer->id,
+            'sale_id' => $saleId,
+            'status' => AccountsReceivable::STATUS_PAID,
+            'currency' => Product::CURRENCY_USD,
+            'original_base_amount' => 100,
+            'original_local_amount' => 50000,
+            'collected_base_amount' => 100,
+            'collected_local_amount' => 50000,
+            'balance_base_amount' => 0,
+            'balance_local_amount' => 0,
+            'opened_at' => now(),
+            'paid_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/sales/{$saleId}")
+            ->assertOk()
+            ->assertJsonPath('data.pos_order.id', $order->id)
+            ->assertJsonPath('data.pos_order.cashier_name', $user->name)
+            ->assertJsonPath('data.pos_order.payments.0.payment_method_name', 'Efectivo USD')
+            ->assertJsonPath('data.pos_order.payments.0.exchange_rate_type_code', 'BCV')
+            ->assertJsonPath('data.receivable.status', AccountsReceivable::STATUS_PAID)
+            ->assertJsonPath('data.receivable.balance_base_amount', '0.0000');
     }
 
     public function test_sales_api_rejects_user_without_permission(): void

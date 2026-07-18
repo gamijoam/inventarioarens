@@ -12,6 +12,7 @@ class PosPaymentResource extends JsonResource
         return [
             'id' => $this->id,
             'payment_method_id' => $this->payment_method_id,
+            'payment_method_name' => $this->paymentMethod?->name,
             'method' => $this->method,
             'currency' => $this->currency,
             'amount' => $this->amount,
