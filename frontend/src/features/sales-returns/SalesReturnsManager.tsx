@@ -1,20 +1,39 @@
 import { useState } from 'react';
 import { ChevronDown, FileText, RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { PermissionDenied } from '@/components/permissions/PermissionDenied';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Textarea } from '@/components/ui/Textarea';
+import { useCashSessions, useCurrentExchangeRatesForPos } from '@/features/pos/api';
+import { activeUsdVesRate } from '@/features/receivables/currentBalance';
 import { cn } from '@/lib/cn';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
-import { useSalesReturns, type SalesReturn } from './api';
+import {
+  useApproveSalesReturn,
+  useCancelSalesReturn,
+  useProcessSalesReturn,
+  useRejectSalesReturn,
+  useSalesReturns,
+  type ProcessSalesReturnPayload,
+  type SalesReturn,
+  type SalesReturnStatus,
+} from './api';
 
 const STATUS_LABELS: Record<string, string> = {
+  requested: 'Solicitada',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
   processed: 'Procesada',
+  cancelled: 'Cancelada',
 };
 
 const CONDITION_LABELS: Record<string, string> = {
@@ -22,10 +41,17 @@ const CONDITION_LABELS: Record<string, string> = {
   damaged: 'Dañado',
 };
 
+type StatusFilter = 'open' | 'all' | SalesReturnStatus;
+
 function formatDate(value?: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('es-VE');
+}
+
+function formatMoney(value: number | null | undefined, currency = '$'): string {
+  const n = Number(value ?? 0);
+  return `${currency}${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function customerLabel(item: { sale?: { customer?: { name?: string; document_number?: string | null } | null } | null }): string {
@@ -34,36 +60,42 @@ function customerLabel(item: { sale?: { customer?: { name?: string; document_num
   return customer.document_number ? `${customer.name} - ${customer.document_number}` : customer.name;
 }
 
-function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
-}
-
 function statusVariant(status: string): 'default' | 'success' | 'danger' | 'warning' | 'info' {
   if (status === 'processed') return 'success';
-  return 'info';
+  if (status === 'rejected' || status === 'cancelled') return 'danger';
+  if (status === 'approved') return 'info';
+  return 'warning';
 }
 
 function returnedUnits(item: SalesReturn): number {
   return (item.items ?? []).reduce((sum, line) => sum + Number(line.quantity ?? 0), 0);
 }
 
+function refundBaseAmount(item: SalesReturn): number {
+  return (item.items ?? []).reduce((sum, line) => sum + Number(line.refundable_base_amount ?? 0), 0);
+}
+
 export function SalesReturnsManager() {
   const canView = useCan(PERMISSIONS.SALES_RETURNS_VIEW);
+  const canReview = useCan(PERMISSIONS.SALES_RETURNS_REVIEW);
+  const canProcess = useCan(PERMISSIONS.SALES_RETURNS_PROCESS);
+  const canRefund = useCan(PERMISSIONS.SALES_RETURNS_REFUND);
+  const canCancel = useCan(PERMISSIONS.SALES_RETURNS_CANCEL);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [status, setStatus] = useState<'all' | 'processed'>('all');
+  const [status, setStatus] = useState<StatusFilter>('open');
   const returns = useSalesReturns({ enabled: canView });
   const allData = returns.data?.data ?? [];
-  const data = status === 'all' ? allData : allData.filter((item) => item.status === status);
+  const data = allData.filter((item) => {
+    if (status === 'all') return true;
+    if (status === 'open') return ['requested', 'approved'].includes(item.status);
+    return item.status === status;
+  });
   const processedCount = allData.filter((item) => item.status === 'processed').length;
-  const totalUnits = allData.reduce((sum, item) => sum + returnedUnits(item), 0);
+  const openCount = allData.filter((item) => ['requested', 'approved'].includes(item.status)).length;
+  const totalUnits = data.reduce((sum, item) => sum + returnedUnits(item), 0);
 
   if (!canView) {
-    return (
-      <PermissionDenied
-        permission={PERMISSIONS.SALES_RETURNS_VIEW}
-        message="No tienes permiso para ver devoluciones de venta."
-      />
-    );
+    return <PermissionDenied permission={PERMISSIONS.SALES_RETURNS_VIEW} message="No tienes permiso para ver devoluciones de venta." />;
   }
 
   if (returns.isLoading && !returns.data) return <Skeleton className="h-64 w-full" />;
@@ -83,7 +115,7 @@ export function SalesReturnsManager() {
       <EmptyState
         icon={<RotateCcw className="size-8" />}
         title="Sin devoluciones"
-        description="Las devoluciones creadas desde ventas aparecerán aquí para auditoría."
+        description="Las solicitudes creadas desde ventas aparecerán aquí para revisión y proceso."
       />
     );
   }
@@ -91,19 +123,28 @@ export function SalesReturnsManager() {
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-4">
-        <InfoTile label="Devoluciones visibles" value={String(data.length)} />
+        <InfoTile label="Visibles" value={String(data.length)} />
+        <InfoTile label="Abiertas" value={String(openCount)} />
         <InfoTile label="Procesadas" value={String(processedCount)} />
-        <InfoTile label="Unidades devueltas" value={String(totalUnits)} />
-        <div className="rounded border border-border bg-surface px-3 py-2">
-          <label className="text-xs uppercase text-text-muted" htmlFor="sales-return-status">Estado</label>
-          <Select id="sales-return-status" className="mt-1" value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'processed')}>
-            <option value="all">Todas</option>
-            <option value="processed">Procesadas</option>
-          </Select>
-        </div>
+        <InfoTile label="Unidades visibles" value={String(totalUnits)} />
       </div>
 
       <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
+          <div>
+            <h3 className="font-semibold">Bandeja de devoluciones</h3>
+            <p className="text-sm text-text-muted">Solicita, aprueba y procesa devoluciones sin afectar stock antes de tiempo.</p>
+          </div>
+          <Select className="w-48" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
+            <option value="open">Abiertas</option>
+            <option value="requested">Solicitadas</option>
+            <option value="approved">Aprobadas</option>
+            <option value="processed">Procesadas</option>
+            <option value="rejected">Rechazadas</option>
+            <option value="cancelled">Canceladas</option>
+            <option value="all">Todas</option>
+          </Select>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full table-dense">
             <thead className="border-b border-border bg-bg/60 text-left text-xs uppercase text-text-muted">
@@ -124,6 +165,10 @@ export function SalesReturnsManager() {
                   key={item.id}
                   item={item}
                   expanded={expandedId === item.id}
+                  canReview={canReview}
+                  canProcess={canProcess}
+                  canRefund={canRefund}
+                  canCancel={canCancel}
                   onToggle={() => setExpandedId((current) => (current === item.id ? null : item.id))}
                 />
               ))}
@@ -135,7 +180,23 @@ export function SalesReturnsManager() {
   );
 }
 
-function ReturnRows({ item, expanded, onToggle }: { item: SalesReturn; expanded: boolean; onToggle: () => void }) {
+function ReturnRows({
+  item,
+  expanded,
+  canReview,
+  canProcess,
+  canRefund,
+  canCancel,
+  onToggle,
+}: {
+  item: SalesReturn;
+  expanded: boolean;
+  canReview: boolean;
+  canProcess: boolean;
+  canRefund: boolean;
+  canCancel: boolean;
+  onToggle: () => void;
+}) {
   return (
     <>
       <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
@@ -145,61 +206,186 @@ function ReturnRows({ item, expanded, onToggle }: { item: SalesReturn; expanded:
         <td className="px-3 py-2 font-medium">#{item.id}</td>
         <td className="px-3 py-2">#{item.sale_id}</td>
         <td className="px-3 py-2">{customerLabel(item)}</td>
-        <td className="px-3 py-2"><Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge></td>
+        <td className="px-3 py-2">
+          <Badge variant={statusVariant(item.status)}>{STATUS_LABELS[item.status] ?? item.status}</Badge>
+        </td>
         <td className="px-3 py-2">{item.items?.length ?? '-'}</td>
-        <td className="px-3 py-2 text-text-muted">{formatDate(item.processed_at ?? item.created_at)}</td>
+        <td className="px-3 py-2 text-text-muted">{formatDate(item.processed_at ?? item.reviewed_at ?? item.created_at)}</td>
         <td className="px-3 py-2 text-text-muted">
           <FileText className="mr-1 inline size-3.5" />
-          {item.reason ?? '-'}
+          {item.reason ?? item.rejection_reason ?? item.cancellation_reason ?? '-'}
         </td>
       </tr>
       {expanded && (
         <tr className="border-b border-border bg-bg/20">
           <td colSpan={8} className="px-4 py-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
-              <section className="rounded border border-border bg-surface">
-                <div className="border-b border-border px-3 py-2 font-semibold">Items devueltos</div>
-                <div className="divide-y divide-border">
-                  {(item.items ?? []).length === 0 ? (
-                    <p className="p-3 text-sm text-text-muted">Sin líneas cargadas.</p>
-                  ) : item.items?.map((line) => (
-                    <div key={line.id} className="grid gap-2 p-3 md:grid-cols-[1fr_120px_120px] md:items-center">
-                      <div>
-                        <p className="font-medium">{line.product?.name ?? `Producto #${line.product_id}`}</p>
-                        <p className="text-xs text-text-muted">{line.product?.sku ?? '-'} · {line.warehouse?.name ?? `Almacén #${line.warehouse_id ?? '-'}`}</p>
-                        {line.reason && <p className="mt-1 text-xs text-text-muted">Motivo: {line.reason}</p>}
-                        {(line.product_unit_ids ?? []).length > 0 && (
-                          <p className="mt-1 text-xs text-text-muted">Unidades: {line.product_unit_ids?.join(', ')}</p>
-                        )}
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-text-muted">Cantidad</span>
-                        <p className="font-semibold tabular-nums">{Number(line.quantity).toLocaleString('es-VE')}</p>
-                      </div>
-                      <Badge variant={line.condition === 'damaged' ? 'warning' : 'success'}>
-                        {CONDITION_LABELS[line.condition] ?? line.condition}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section className="rounded border border-border bg-surface p-3">
-                <h3 className="font-semibold">Auditoría</h3>
-                <dl className="mt-3 space-y-2 text-sm">
-                  <Metric label="Estado" value={statusLabel(item.status)} />
-                  <Metric label="Procesada" value={formatDate(item.processed_at)} />
-                  <Metric label="Creada" value={formatDate(item.created_at)} />
-                  <Metric label="Unidades" value={String(returnedUnits(item))} />
-                </dl>
-                <p className="mt-3 text-xs text-text-muted">
-                  Esta devolución ya fue aplicada al stock/Kardex al registrarse. Las acciones de aprobación o reembolso avanzado quedan para una fase posterior.
-                </p>
-              </section>
-            </div>
+            <ReturnDetail item={item} canReview={canReview} canProcess={canProcess} canRefund={canRefund} canCancel={canCancel} />
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { item: SalesReturn; canReview: boolean; canProcess: boolean; canRefund: boolean; canCancel: boolean }) {
+  const approve = useApproveSalesReturn();
+  const reject = useRejectSalesReturn();
+  const cancel = useCancelSalesReturn();
+  const process = useProcessSalesReturn();
+  const [rejectReason, setRejectReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const suggestedRefund = refundBaseAmount(item);
+  const [processForm, setProcessForm] = useState<ProcessSalesReturnPayload>({
+    refund_mode: 'none',
+    refund_currency: 'USD',
+    refund_amount: suggestedRefund,
+    refund_method: 'cash',
+  });
+  const { data: sessions = [] } = useCashSessions();
+  const { data: rates = [] } = useCurrentExchangeRatesForPos();
+  const activeRate = activeUsdVesRate(rates);
+  const activeSession = sessions[0] ?? null;
+  const needsCashSession = processForm.refund_mode === 'cash';
+
+  async function handleApprove() {
+    await approve.mutateAsync(item.id);
+    toast.success('Devolución aprobada.');
+  }
+
+  async function handleReject() {
+    if (!rejectReason.trim()) return toast.error('Indica el motivo de rechazo.');
+    await reject.mutateAsync({ id: item.id, reason: rejectReason.trim() });
+    toast.success('Devolución rechazada.');
+  }
+
+  async function handleCancel() {
+    if (!cancelReason.trim()) return toast.error('Indica el motivo de cancelación.');
+    await cancel.mutateAsync({ id: item.id, reason: cancelReason.trim() });
+    toast.success('Devolución cancelada.');
+  }
+
+  async function handleProcess() {
+    if (needsCashSession && !activeSession) return toast.error('Abre una caja antes de reembolsar desde caja.');
+    if (processForm.refund_mode === 'cash' && Number(processForm.refund_amount ?? 0) <= 0) return toast.error('Indica el monto a reembolsar.');
+
+    const payload: ProcessSalesReturnPayload = {
+      ...processForm,
+      refund_amount: processForm.refund_mode === 'cash' ? Number(processForm.refund_amount ?? suggestedRefund) : null,
+      refund_cash_register_session_id: processForm.refund_mode === 'cash' ? activeSession?.id : null,
+      refund_exchange_rate_type_id: processForm.refund_mode === 'cash' && processForm.refund_currency === 'VES' ? activeRate?.exchange_rate_type_id ?? null : null,
+    };
+
+    await process.mutateAsync({ id: item.id, payload });
+    toast.success('Devolución procesada.');
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
+      <section className="rounded border border-border bg-surface">
+        <div className="border-b border-border px-3 py-2 font-semibold">Items de la solicitud</div>
+        <div className="divide-y divide-border">
+          {(item.items ?? []).length === 0 ? (
+            <p className="p-3 text-sm text-text-muted">Sin líneas cargadas.</p>
+          ) : item.items?.map((line) => (
+            <div key={line.id} className="grid gap-2 p-3 md:grid-cols-[1fr_120px_120px] md:items-center">
+              <div>
+                <p className="font-medium">{line.product?.name ?? `Producto #${line.product_id}`}</p>
+                <p className="text-xs text-text-muted">{line.product?.sku ?? '-'} · {line.warehouse?.name ?? `Almacén #${line.warehouse_id ?? '-'}`}</p>
+                {line.reason && <p className="mt-1 text-xs text-text-muted">Motivo: {line.reason}</p>}
+                {(line.product_unit_ids ?? []).length > 0 && (
+                  <p className="mt-1 text-xs text-text-muted">Unidades: {line.product_unit_ids?.join(', ')}</p>
+                )}
+              </div>
+              <div className="text-sm">
+                <span className="text-text-muted">Cantidad</span>
+                <p className="font-semibold tabular-nums">{Number(line.quantity).toLocaleString('es-VE')}</p>
+              </div>
+              <Badge variant={line.condition === 'damaged' ? 'warning' : 'success'}>
+                {CONDITION_LABELS[line.condition] ?? line.condition}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded border border-border bg-surface p-3">
+        <div>
+          <h3 className="font-semibold">Acciones</h3>
+          <p className="text-xs text-text-muted">
+            {item.status === 'requested' && 'Solicitada: aún no mueve stock ni finanzas.'}
+            {item.status === 'approved' && 'Aprobada: lista para procesar stock, Kardex y finanzas.'}
+            {item.status === 'processed' && 'Procesada: ya aplicada a stock/Kardex/CxC.'}
+            {['rejected', 'cancelled'].includes(item.status) && 'Cerrada sin aplicar stock ni finanzas.'}
+          </p>
+        </div>
+
+        <dl className="space-y-2 text-sm">
+          <Metric label="Creada por" value={item.created_by_name ?? '-'} />
+          <Metric label="Revisada por" value={item.reviewed_by_name ?? '-'} />
+          <Metric label="Procesada por" value={item.processed_by_name ?? '-'} />
+          {item.refund_amount_base > 0 && <Metric label="Reembolso" value={`${formatMoney(item.refund_amount_base)} · ${item.refund_method ?? 'caja'}`} />}
+        </dl>
+
+        {item.status === 'requested' && canReview && (
+          <div className="space-y-2">
+            <Button className="w-full" loading={approve.isPending} onClick={() => void handleApprove()}>Aprobar</Button>
+            <Input value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="Motivo de rechazo" />
+            <Button className="w-full" variant="outline" loading={reject.isPending} onClick={() => void handleReject()}>Rechazar</Button>
+          </div>
+        )}
+
+        {['requested', 'approved'].includes(item.status) && canCancel && (
+          <div className="space-y-2">
+            <Input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo de cancelación" />
+            <Button className="w-full" variant="danger" loading={cancel.isPending} onClick={() => void handleCancel()}>Cancelar solicitud</Button>
+          </div>
+        )}
+
+        {item.status === 'approved' && canProcess && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <div className="space-y-1">
+              <Label>Finanzas</Label>
+              <Select value={processForm.refund_mode ?? 'none'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_mode: event.target.value as 'none' | 'cash' | 'receivable' }))}>
+                <option value="none">Sólo procesar devolución</option>
+                {canRefund && <option value="receivable">Aplicar contra CxC</option>}
+                {canRefund && <option value="cash">Reembolsar desde caja</option>}
+              </Select>
+            </div>
+            {processForm.refund_mode === 'receivable' && (
+              <p className="rounded border border-border bg-bg px-3 py-2 text-xs text-text-muted">
+                Al procesar, la devolución ajustará el saldo pendiente de CxC hasta donde corresponda. No saldrá dinero de caja.
+              </p>
+            )}
+            {processForm.refund_mode === 'cash' && (
+              <div className="grid gap-2">
+                <Select value={processForm.refund_currency ?? 'USD'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_currency: event.target.value as 'USD' | 'VES' }))}>
+                  <option value="USD">USD</option>
+                  <option value="VES">VES</option>
+                </Select>
+                <Input type="number" min="0" value={processForm.refund_amount ?? suggestedRefund} onChange={(event) => setProcessForm((current) => ({ ...current, refund_amount: Number(event.target.value || 0) }))} />
+                {processForm.refund_currency === 'VES' && (
+                  <p className="text-xs text-text-muted">
+                    {activeRate ? `Se usará ${activeRate.exchange_rate_type_code} @ ${Number(activeRate.rate).toLocaleString('es-VE')}.` : 'Sin tasa activa USD/VES.'}
+                  </p>
+                )}
+                <Select value={processForm.refund_method ?? 'cash'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_method: event.target.value }))}>
+                  <option value="cash">Efectivo</option>
+                  <option value="card">Tarjeta</option>
+                  <option value="mobile_payment">Pago móvil</option>
+                  <option value="transfer">Transferencia</option>
+                  <option value="zelle">Zelle</option>
+                  <option value="other">Otro</option>
+                </Select>
+                <p className="text-xs text-text-muted">{activeSession ? `Caja: ${activeSession.cash_register?.name ?? activeSession.id}` : 'No hay caja abierta para reembolso.'}</p>
+                <Input value={processForm.refund_reference ?? ''} onChange={(event) => setProcessForm((current) => ({ ...current, refund_reference: event.target.value }))} placeholder="Referencia" />
+              </div>
+            )}
+            <Textarea value={processForm.process_notes ?? ''} onChange={(event) => setProcessForm((current) => ({ ...current, process_notes: event.target.value }))} placeholder="Notas de proceso" />
+            <Button className="w-full" loading={process.isPending} onClick={() => void handleProcess()}>Procesar devolución</Button>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

@@ -27,6 +27,7 @@ class SalesReturnItem extends Model
     use BelongsToTenant;
 
     public const CONDITION_SELLABLE = 'sellable';
+
     public const CONDITION_DAMAGED = 'damaged';
 
     protected function casts(): array

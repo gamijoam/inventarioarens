@@ -24,6 +24,30 @@ class SalesReturnPolicy
         return $this->hasTenantPermission($user, 'sales_returns.create');
     }
 
+    public function review(User $user, SalesReturn $salesReturn): bool
+    {
+        return $this->ownsResource($salesReturn)
+            && $this->hasTenantPermission($user, 'sales_returns.review');
+    }
+
+    public function process(User $user, SalesReturn $salesReturn): bool
+    {
+        return $this->ownsResource($salesReturn)
+            && $this->hasTenantPermission($user, 'sales_returns.process');
+    }
+
+    public function refund(User $user, SalesReturn $salesReturn): bool
+    {
+        return $this->ownsResource($salesReturn)
+            && $this->hasTenantPermission($user, 'sales_returns.refund');
+    }
+
+    public function cancel(User $user, SalesReturn $salesReturn): bool
+    {
+        return $this->ownsResource($salesReturn)
+            && $this->hasTenantPermission($user, 'sales_returns.cancel');
+    }
+
     private function hasTenantPermission(User $user, string $permission): bool
     {
         $tenant = app(TenantManager::class)->current();

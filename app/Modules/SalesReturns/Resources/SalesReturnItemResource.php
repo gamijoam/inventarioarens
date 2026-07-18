@@ -18,6 +18,7 @@ class SalesReturnItemResource extends JsonResource
             'warehouse_id' => $this->warehouse_id,
             'product_id' => $this->product_id,
             'quantity' => $this->quantity,
+            'refundable_base_amount' => $this->refundableBaseAmount(),
             'product_unit_ids' => $this->product_unit_ids,
             'stock_movement_id' => $this->stock_movement_id,
             'condition' => $this->condition,
@@ -25,5 +26,14 @@ class SalesReturnItemResource extends JsonResource
             'product' => ProductResource::make($this->whenLoaded('product')),
             'warehouse' => WarehouseResource::make($this->whenLoaded('warehouse')),
         ];
+    }
+
+    private function refundableBaseAmount(): ?float
+    {
+        if (! $this->relationLoaded('saleItem') || ! $this->saleItem || (float) $this->saleItem->quantity <= 0.0) {
+            return null;
+        }
+
+        return round(((float) $this->saleItem->base_total_amount / (float) $this->saleItem->quantity) * (float) $this->quantity, 4);
     }
 }

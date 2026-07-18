@@ -4,6 +4,9 @@ namespace Tests\Feature\SalesReturns;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
@@ -27,13 +30,13 @@ class SalesReturnApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_return_confirmed_sale_and_inventory_increases(): void
+    public function test_user_can_request_approve_and_process_return_then_inventory_increases(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-001');
         StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales.view', 'sales_returns.create', 'sales_returns.view']);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales.view', 'sales_returns.create', 'sales_returns.view', 'sales_returns.review', 'sales_returns.process']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 2);
 
         $response = $this
@@ -49,10 +52,38 @@ class SalesReturnApiTest extends TestCase
                 ]],
             ])
             ->assertCreated()
-            ->assertJsonPath('data.status', SalesReturn::STATUS_PROCESSED)
+            ->assertJsonPath('data.status', SalesReturn::STATUS_REQUESTED)
             ->assertJsonPath('data.items.0.quantity', '1.0000');
 
-        $this->assertNotNull($response->json('data.items.0.stock_movement_id'));
+        $this->assertNull($response->json('data.items.0.stock_movement_id'));
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '3.0000',
+        ]);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'sale_return',
+            'reference_type' => SalesReturn::class,
+        ]);
+
+        $returnId = $response->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', SalesReturn::STATUS_APPROVED);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'none'])
+            ->assertOk()
+            ->assertJsonPath('data.status', SalesReturn::STATUS_PROCESSED);
 
         $this->assertDatabaseHas('stock_balances', [
             'tenant_id' => $tenant->id,
@@ -111,10 +142,10 @@ class SalesReturnApiTest extends TestCase
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create']);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [$unit->id]);
 
-        $this
+        $response = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/sales-returns', [
@@ -127,6 +158,25 @@ class SalesReturnApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.items.0.product_unit_ids.0', $unit->id);
+
+        $returnId = $response->json('data.id');
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/approve")
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'none'])
+            ->assertOk();
 
         $this->assertDatabaseHas('product_units', [
             'tenant_id' => $tenant->id,
@@ -224,6 +274,81 @@ class SalesReturnApiTest extends TestCase
                 ]],
             ])
             ->assertForbidden();
+    }
+
+    public function test_approved_sales_return_can_refund_from_current_cash_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-CASH');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', [
+            'sales.create',
+            'sales_returns.create',
+            'sales_returns.review',
+            'sales_returns.process',
+            'sales_returns.refund',
+            'cash_register.move',
+        ]);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
+        $cashRegister = CashRegister::create([
+            'branch_id' => $warehouse->branch_id,
+            'name' => 'Mostrador',
+            'code' => 'MOST-RET',
+            'status' => CashRegister::STATUS_ACTIVE,
+        ]);
+        $session = CashRegisterSession::create([
+            'branch_id' => $warehouse->branch_id,
+            'cash_register_id' => $cashRegister->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 0,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 0,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+        ]);
+
+        $created = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales-returns', [
+                'sale_id' => $sale->id,
+                'items' => [[
+                    'sale_item_id' => $sale->items->first()->id,
+                    'quantity' => 1,
+                    'condition' => SalesReturnItem::CONDITION_SELLABLE,
+                ]],
+            ])
+            ->assertCreated();
+
+        $returnId = $created->json('data.id');
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/process", [
+                'refund_mode' => 'cash',
+                'refund_currency' => 'USD',
+                'refund_amount' => 100,
+                'refund_method' => CashRegisterMovement::METHOD_CASH,
+                'refund_cash_register_session_id' => $session->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', SalesReturn::STATUS_PROCESSED)
+            ->assertJsonPath('data.refund_amount_base', 100);
+
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'type' => CashRegisterMovement::TYPE_OUTFLOW,
+            'source_type' => SalesReturn::class,
+            'source_id' => $returnId,
+            'amount_base' => '100.0000',
+        ]);
     }
 
     protected function setUp(): void

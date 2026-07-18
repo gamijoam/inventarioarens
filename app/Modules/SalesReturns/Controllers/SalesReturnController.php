@@ -3,6 +3,9 @@
 namespace App\Modules\SalesReturns\Controllers;
 
 use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Modules\SalesReturns\Requests\CancelSalesReturnRequest;
+use App\Modules\SalesReturns\Requests\ProcessSalesReturnRequest;
+use App\Modules\SalesReturns\Requests\RejectSalesReturnRequest;
 use App\Modules\SalesReturns\Requests\StoreSalesReturnRequest;
 use App\Modules\SalesReturns\Resources\SalesReturnResource;
 use App\Modules\SalesReturns\Services\SalesReturnService;
@@ -20,7 +23,7 @@ class SalesReturnController extends Controller
 
         return SalesReturnResource::collection(
             SalesReturn::query()
-                ->with(['sale.customer', 'items.product', 'items.warehouse'])
+                ->with(['sale.customer', 'items.saleItem', 'items.product', 'items.warehouse', 'creator', 'reviewer', 'processor', 'canceller'])
                 ->latest()
                 ->paginate(25)
         );
@@ -41,8 +44,45 @@ class SalesReturnController extends Controller
     {
         Gate::authorize('view', $salesReturn);
 
-        return SalesReturnResource::make(
-            $salesReturn->load(['sale.customer', 'items.product', 'items.warehouse', 'items.stockMovement'])
-        );
+        return SalesReturnResource::make(app(SalesReturnService::class)->loadReturn($salesReturn));
+    }
+
+    public function approve(SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('review', $salesReturn);
+
+        return SalesReturnResource::make($returns->approve($salesReturn, request()->user()));
+    }
+
+    public function reject(RejectSalesReturnRequest $request, SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('review', $salesReturn);
+
+        return SalesReturnResource::make($returns->reject($salesReturn, $request->user(), $request->validated('reason')));
+    }
+
+    public function process(ProcessSalesReturnRequest $request, SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('process', $salesReturn);
+
+        $data = $request->validated();
+        $refundMode = $data['refund_mode'] ?? 'none';
+
+        if ($refundMode !== 'none') {
+            Gate::authorize('refund', $salesReturn);
+        }
+
+        if ($refundMode === 'cash' && ! $request->user()->can('cash_register.move')) {
+            abort(Response::HTTP_FORBIDDEN);
+        }
+
+        return SalesReturnResource::make($returns->process($salesReturn, $request->user(), $data));
+    }
+
+    public function cancel(CancelSalesReturnRequest $request, SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('cancel', $salesReturn);
+
+        return SalesReturnResource::make($returns->cancel($salesReturn, $request->user(), $request->validated('reason')));
     }
 }

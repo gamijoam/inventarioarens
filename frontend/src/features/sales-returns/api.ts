@@ -17,6 +17,7 @@ export const SalesReturnItemSchema = z.object({
   warehouse_id: z.number().nullable().optional(),
   product_id: z.number(),
   quantity: moneyValue,
+  refundable_base_amount: moneyValue,
   product_unit_ids: z.array(z.number()).nullable().optional(),
   condition: z.string(),
   reason: z.string().nullable().optional(),
@@ -36,7 +37,25 @@ export const SalesReturnSchema = z.object({
   sale_id: z.number(),
   status: z.string(),
   reason: z.string().nullable().optional(),
+  created_by_name: z.string().nullable().optional(),
+  reviewed_by_name: z.string().nullable().optional(),
+  reviewed_at: z.string().nullable().optional(),
+  rejection_reason: z.string().nullable().optional(),
+  processed_by_name: z.string().nullable().optional(),
   processed_at: z.string().nullable().optional(),
+  cancelled_by_name: z.string().nullable().optional(),
+  cancelled_at: z.string().nullable().optional(),
+  cancellation_reason: z.string().nullable().optional(),
+  refund_currency: z.string().nullable().optional(),
+  refund_amount: moneyValue,
+  refund_exchange_rate_type_id: z.number().int().nullable().optional(),
+  refund_exchange_rate_type_code: z.string().nullable().optional(),
+  refund_exchange_rate: moneyValue,
+  refund_amount_base: moneyValue,
+  refund_amount_local: moneyValue,
+  refund_method: z.string().nullable().optional(),
+  refund_reference: z.string().nullable().optional(),
+  process_notes: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   sale: z.object({
     id: z.number().optional(),
@@ -49,6 +68,7 @@ export const SalesReturnSchema = z.object({
 }).passthrough();
 
 export type SalesReturn = z.infer<typeof SalesReturnSchema>;
+export type SalesReturnStatus = 'requested' | 'approved' | 'rejected' | 'processed' | 'cancelled';
 
 export interface SalesReturnPayload {
   sale_id: number;
@@ -60,6 +80,18 @@ export interface SalesReturnPayload {
     reason?: string | null;
     product_unit_ids?: number[];
   }>;
+}
+
+export interface ProcessSalesReturnPayload {
+  process_notes?: string | null;
+  refund_mode?: 'none' | 'cash' | 'receivable';
+  refund_currency?: 'USD' | 'VES' | null;
+  refund_amount?: number | null;
+  refund_method?: string | null;
+  refund_reference?: string | null;
+  refund_exchange_rate_type_id?: number | null;
+  refund_exchange_rate?: number | null;
+  refund_cash_register_session_id?: number | null;
 }
 
 export const salesReturnKeys = {
@@ -98,6 +130,50 @@ export function useCreateSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(payload.sale_id) });
+    },
+  });
+}
+
+export function useApproveSalesReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => postOne<Record<string, never>, SalesReturn>(`/sales-returns/${id}/approve`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+    },
+  });
+}
+
+export function useRejectSalesReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/reject`, { reason }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+    },
+  });
+}
+
+export function useProcessSalesReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: ProcessSalesReturnPayload }) => postOne<ProcessSalesReturnPayload, SalesReturn>(`/sales-returns/${id}/process`, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+    },
+  });
+}
+
+export function useCancelSalesReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/cancel`, { reason }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
     },
   });
 }

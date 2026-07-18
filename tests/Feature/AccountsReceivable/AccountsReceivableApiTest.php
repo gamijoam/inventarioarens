@@ -192,16 +192,18 @@ class AccountsReceivableApiTest extends TestCase
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->product($tenant, 'AR-004');
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'sales_returns.create', 'accounts_receivable.view']);
+        $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'accounts_receivable.view']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 3);
 
-        app(SalesReturnService::class)->create($user, [
+        $salesReturn = app(SalesReturnService::class)->create($user, [
             'sale_id' => $sale->id,
             'items' => [[
                 'sale_item_id' => $sale->items->first()->id,
                 'quantity' => 1,
             ]],
         ]);
+        $salesReturn = app(SalesReturnService::class)->approve($salesReturn, $user);
+        app(SalesReturnService::class)->process($salesReturn, $user, ['refund_mode' => 'none']);
 
         $this->assertDatabaseHas('accounts_receivables', [
             'tenant_id' => $tenant->id,

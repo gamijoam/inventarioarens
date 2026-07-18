@@ -89,6 +89,10 @@ export const PERMISSIONS = {
   // Sales Returns
   SALES_RETURNS_VIEW: 'sales_returns.view',
   SALES_RETURNS_CREATE: 'sales_returns.create',
+  SALES_RETURNS_REVIEW: 'sales_returns.review',
+  SALES_RETURNS_PROCESS: 'sales_returns.process',
+  SALES_RETURNS_REFUND: 'sales_returns.refund',
+  SALES_RETURNS_CANCEL: 'sales_returns.cancel',
 
   // Purchase Returns
   PURCHASE_RETURNS_VIEW: 'purchase_returns.view',

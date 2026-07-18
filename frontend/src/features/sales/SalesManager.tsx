@@ -106,7 +106,12 @@ function hasReturnableItems(sale: Sale): boolean {
 
 function returnStatusLabel(sale: Sale): string | null {
   const items = sale.items ?? [];
-  if (items.length === 0 || (sale.sales_returns ?? []).length === 0) return null;
+  const returns = sale.sales_returns ?? [];
+  if (items.length === 0 || returns.length === 0) return null;
+  if (returns.some((item) => item.status === 'requested')) return 'Devolución solicitada';
+  if (returns.some((item) => item.status === 'approved')) return 'Devolución aprobada';
+  if (returns.some((item) => item.status === 'rejected')) return 'Devolución rechazada';
+  if (returns.some((item) => item.status === 'cancelled')) return 'Devolución cancelada';
   const total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
   const returned = items.reduce((sum, item) => sum + returnedQuantityForItem(sale, item.id), 0);
   if (returned <= 0) return null;
@@ -334,7 +339,7 @@ function SaleRow({
           <div className="flex flex-col gap-1">
             <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
             {returnLabel && (
-              <Badge variant={returnLabel === 'Devuelta total' ? 'success' : 'warning'}>{returnLabel}</Badge>
+            <Badge variant={returnLabel === 'Devuelta total' ? 'success' : returnLabel === 'Devolución rechazada' ? 'danger' : 'warning'}>{returnLabel}</Badge>
             )}
           </div>
         </td>
@@ -464,7 +469,7 @@ function SaleDetail({
           {returnLabel && (
             <>
               <span className="mx-2">·</span>
-              <Badge variant={returnLabel === 'Devuelta total' ? 'success' : 'warning'}>{returnLabel}</Badge>
+              <Badge variant={returnLabel === 'Devuelta total' ? 'success' : returnLabel === 'Devolución rechazada' ? 'danger' : 'warning'}>{returnLabel}</Badge>
             </>
           )}
         </div>

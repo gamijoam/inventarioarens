@@ -33,7 +33,7 @@ class AccountsReceivableReturnDiscountTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'CxC', [
             'sales.view', 'sales.create', 'sales.cancel',
-            'sales_returns.view', 'sales_returns.create',
+            'sales_returns.view', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process',
             'accounts_receivable.view', 'accounts_receivable.collect',
         ]);
 
@@ -68,7 +68,7 @@ class AccountsReceivableReturnDiscountTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'CxC', [
             'sales.view', 'sales.create', 'sales.cancel',
-            'sales_returns.view', 'sales_returns.create',
+            'sales_returns.view', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process',
             'accounts_receivable.view', 'accounts_receivable.collect',
         ]);
 
@@ -102,7 +102,7 @@ class AccountsReceivableReturnDiscountTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'CxC', [
             'sales.view', 'sales.create', 'sales.cancel',
-            'sales_returns.view', 'sales_returns.create',
+            'sales_returns.view', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process',
             'accounts_receivable.view', 'accounts_receivable.collect',
         ]);
 
@@ -206,7 +206,7 @@ class AccountsReceivableReturnDiscountTest extends TestCase
     {
         $this->useTenant($tenant);
 
-        return app(SalesReturnService::class)->create($user, [
+        $salesReturn = app(SalesReturnService::class)->create($user, [
             'sale_id' => $sale->id,
             'reason' => 'Devolucion test',
             'items' => [
@@ -218,6 +218,10 @@ class AccountsReceivableReturnDiscountTest extends TestCase
                 ],
             ],
         ]);
+
+        $salesReturn = app(SalesReturnService::class)->approve($salesReturn, $user);
+
+        return app(SalesReturnService::class)->process($salesReturn, $user, ['refund_mode' => 'none']);
     }
 
     private function userInTenant(Tenant $tenant): User
