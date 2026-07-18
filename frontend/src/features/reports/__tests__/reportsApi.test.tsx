@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCashSessionsQuery,
+  buildDailyOperationsQuery,
   buildFinancePayablesQuery,
   buildFinanceReceivablesQuery,
   buildFinanceSummaryQuery,
   buildLowStockReportQuery,
   buildMovementReportQuery,
+  buildPaymentMethodsReportQuery,
+  buildSalesDetailQuery,
   buildStockReportQuery,
 } from '../api';
-import { FinanceSummarySchema, MovementReportRowSchema, StockReportRowSchema } from '../schemas';
+import {
+  CashSessionsSchema,
+  DailyOperationsSchema,
+  FinanceSummarySchema,
+  MovementReportRowSchema,
+  SalesDetailSchema,
+  StockReportRowSchema,
+} from '../schemas';
 
 describe('reports api', () => {
   it('builds inventory report filters', () => {
@@ -43,6 +54,21 @@ describe('reports api', () => {
     );
     expect(buildFinancePayablesQuery({ status: 'paid' })).toBe(
       '/finance-reports/payables?status=paid',
+    );
+  });
+
+  it('builds modular v2 report filters', () => {
+    expect(buildDailyOperationsQuery({ date: '2026-07-18', branch_id: 4 })).toBe(
+      '/reports/daily-operations?date=2026-07-18&branch_id=4',
+    );
+    expect(buildSalesDetailQuery({ date_from: '2026-07-01', date_to: '2026-07-18', customer_id: 9 })).toBe(
+      '/reports/sales-detail?customer_id=9&date_from=2026-07-01&date_to=2026-07-18',
+    );
+    expect(buildCashSessionsQuery({ status: 'open', cash_register_id: 2 })).toBe(
+      '/reports/cash-sessions?cash_register_id=2&status=open',
+    );
+    expect(buildPaymentMethodsReportQuery({ cashier_id: 7 })).toBe(
+      '/reports/payment-methods?cashier_id=7',
     );
   });
 
@@ -94,5 +120,91 @@ describe('reports api', () => {
         net_balance_base_amount: 6,
       }),
     ).toMatchObject({ net_balance_base_amount: 6 });
+  });
+
+  it('parses modular v2 report contracts', () => {
+    expect(
+      DailyOperationsSchema.parse({
+        period: {
+          from: '2026-07-18',
+          to: '2026-07-18',
+          from_datetime: '2026-07-18T00:00:00.000000Z',
+          to_datetime: '2026-07-18T23:59:59.000000Z',
+        },
+        currency: 'USD',
+        sales: {
+          confirmed_count: 1,
+          confirmed_base_amount: 10,
+          pos_paid_count: 1,
+          pos_paid_base_amount: 10,
+          pos_open_count: 0,
+          pos_open_base_amount: 0,
+          credit_count: 1,
+          credit_balance_base_amount: 2,
+        },
+        returns: { requested_count: 1, processed_count: 0 },
+        cash: {
+          open_count: 1,
+          closed_count: 0,
+          expected_base_amount: 10,
+          expected_local_amount: 0,
+          difference_base_amount: 0,
+        },
+        payment_methods: [],
+        alerts: {
+          stale_open_sessions: 0,
+          closed_sessions_with_difference: 0,
+          payments_missing_reference: 0,
+          paid_pos_without_cash_session: 0,
+        },
+        generated_at: '2026-07-18T12:00:00.000000Z',
+      }),
+    ).toMatchObject({ sales: { confirmed_count: 1 } });
+
+    expect(
+      SalesDetailSchema.parse({
+        period: {
+          from: '2026-07-18',
+          to: '2026-07-18',
+          from_datetime: '2026-07-18T00:00:00.000000Z',
+          to_datetime: '2026-07-18T23:59:59.000000Z',
+        },
+        rows: [
+          {
+            id: 1,
+            status: 'confirmed',
+            origin: 'POS',
+            customer_name: 'Gabriel',
+            total_base_amount: 10,
+            total_local_amount: 10000,
+            items_count: 1,
+            collection: { status: 'partial', balance_base_amount: 2, collected_base_amount: 8 },
+            items: [],
+            payments: [],
+            returns: [],
+          },
+        ],
+      }),
+    ).toMatchObject({ rows: [{ collection: { status: 'partial' } }] });
+
+    expect(
+      CashSessionsSchema.parse({
+        period: {
+          from: '2026-07-18',
+          to: '2026-07-18',
+          from_datetime: '2026-07-18T00:00:00.000000Z',
+          to_datetime: '2026-07-18T23:59:59.000000Z',
+        },
+        summary: {
+          open_count: 1,
+          closed_count: 0,
+          expected_base_amount: 10,
+          expected_local_amount: 0,
+          difference_base_amount: 0,
+        },
+        rows: [],
+        movement_breakdown: [],
+      }),
+    ).toMatchObject({ summary: { open_count: 1 } });
   });
 });

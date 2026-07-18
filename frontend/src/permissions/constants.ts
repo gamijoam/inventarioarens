@@ -113,7 +113,13 @@ export const PERMISSIONS = {
 
   // Reports
   REPORTS_VIEW: 'reports.view',
+  REPORTS_SALES_VIEW: 'reports.sales.view',
+  REPORTS_CASH_VIEW: 'reports.cash.view',
+  REPORTS_INVENTORY_VIEW: 'reports.inventory.view',
+  REPORTS_MOVEMENTS_VIEW: 'reports.movements.view',
+  REPORTS_EXPORT: 'reports.export',
   FINANCE_REPORTS_VIEW: 'finance_reports.view',
+  FINANCE_REPORTS_EXPORT: 'finance_reports.export',
   KARDEX_VIEW: 'kardex.view',
 
   // Currency (exchange rate types + rates historicas)

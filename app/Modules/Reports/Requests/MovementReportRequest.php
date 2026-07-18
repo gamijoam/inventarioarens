@@ -11,7 +11,8 @@ class MovementReportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('reports.view') ?? false;
+        return ($this->user()?->can('reports.view') ?? false)
+            || ($this->user()?->can('reports.movements.view') ?? false);
     }
 
     public function rules(): array
