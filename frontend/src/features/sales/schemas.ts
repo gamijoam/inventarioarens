@@ -119,8 +119,13 @@ export const SaleItemSchema = z.object({
   exchange_rate_type_id: z.number().int().positive().nullable().optional(),
   exchange_rate_type_code: z.string().nullable().optional(),
   exchange_rate: moneyValue,
+  warranty_policy_id: z.number().int().positive().nullable().optional(),
+  warranty_policy_name: z.string().nullable().optional(),
+  warranty_duration_days: z.number().nullable().optional(),
+  warranty_coverage_type: z.string().nullable().optional(),
+  warranty_conditions: z.string().nullable().optional(),
   warranty_starts_at: z.string().nullable().optional(),
-  warranty_ends_at: z.string().nullable().optional(),
+  warranty_expires_at: z.string().nullable().optional(),
   warranty_days: z.number().nullable().optional(),
 }).passthrough();
 

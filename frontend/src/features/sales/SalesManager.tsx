@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, ShieldCheck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +15,7 @@ import { useCan } from '@/permissions/useCan';
 import { useCurrentExchangeRatesForPos, type CurrentExchangeRate } from '@/features/pos/api';
 import { activeUsdVesRate, currentLocalBalance } from '@/features/receivables/currentBalance';
 import { useCreateSalesReturn, type SalesReturnPayload } from '@/features/sales-returns/api';
+import { useCreateWarrantyClaim, type WarrantyClaimPayload } from '@/features/warranties/api';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
@@ -104,6 +105,19 @@ function hasReturnableItems(sale: Sale): boolean {
   return (sale.items ?? []).some((item) => returnableQuantityForItem(sale, item) > 0);
 }
 
+function isWarrantyValid(item: SaleItem): boolean {
+  if (!item.warranty_policy_id || !item.warranty_expires_at) return false;
+  const expiresAt = new Date(item.warranty_expires_at);
+  if (Number.isNaN(expiresAt.getTime())) return false;
+  return expiresAt >= new Date();
+}
+
+function warrantyStatusLabel(item: SaleItem): string {
+  if (!item.warranty_policy_id) return 'Sin garantía';
+  if (!item.warranty_expires_at) return 'Sin vencimiento';
+  return isWarrantyValid(item) ? `Vigente hasta ${formatDate(item.warranty_expires_at)}` : `Vencida ${formatDate(item.warranty_expires_at)}`;
+}
+
 function returnStatusLabel(sale: Sale): string | null {
   const items = sale.items ?? [];
   const returns = sale.sales_returns ?? [];
@@ -131,6 +145,7 @@ export function SalesManager() {
   const activeRate = activeUsdVesRate(rates);
   const canCancel = useCan(PERMISSIONS.SALES_CANCEL);
   const canCreateReturn = useCan(PERMISSIONS.SALES_RETURNS_CREATE);
+  const canCreateWarranty = useCan(PERMISSIONS.WARRANTIES_CREATE);
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
   const meta = data?.meta;
@@ -263,6 +278,7 @@ export function SalesManager() {
                     expanded={expandedId === sale.id}
                     canCancel={canCancel}
                     canCreateReturn={canCreateReturn}
+                    canCreateWarranty={canCreateWarranty}
                     cancelling={cancelSale.isPending}
                     onToggle={() => setExpandedId((current) => (current === sale.id ? null : sale.id))}
                     onCancel={() => void handleCancel(sale.id)}
@@ -310,6 +326,7 @@ function SaleRow({
   expanded,
   canCancel,
   canCreateReturn,
+  canCreateWarranty,
   cancelling,
   onToggle,
   onCancel,
@@ -319,6 +336,7 @@ function SaleRow({
   expanded: boolean;
   canCancel: boolean;
   canCreateReturn: boolean;
+  canCreateWarranty: boolean;
   cancelling: boolean;
   onToggle: () => void;
   onCancel: () => void;
@@ -367,6 +385,7 @@ function SaleRow({
               sale={sale}
               canCancel={canCancel}
               canCreateReturn={canCreateReturn}
+              canCreateWarranty={canCreateWarranty}
               cancelling={cancelling}
               onCancel={onCancel}
             />
@@ -382,6 +401,7 @@ function SaleDetail({
   sale,
   canCancel,
   canCreateReturn,
+  canCreateWarranty,
   cancelling,
   onCancel,
 }: {
@@ -389,12 +409,15 @@ function SaleDetail({
   sale: Sale;
   canCancel: boolean;
   canCreateReturn: boolean;
+  canCreateWarranty: boolean;
   cancelling: boolean;
   onCancel: () => void;
 }) {
   const { data: detail, isLoading } = useSale(saleId);
   const createReturn = useCreateSalesReturn();
+  const createWarranty = useCreateWarrantyClaim();
   const [showReturnForm, setShowReturnForm] = useState(false);
+  const [warrantyItem, setWarrantyItem] = useState<SaleItem | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [returnLines, setReturnLines] = useState<Record<number, { quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>>({});
   const current = detail ?? sale;
@@ -437,10 +460,31 @@ function SaleDetail({
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-center text-text-muted">Sin items cargados en el detalle.</td>
               </tr>
-            ) : items.map((item) => <SaleItemRow key={item.id} item={item} />)}
+            ) : items.map((item) => (
+              <SaleItemRow
+                key={item.id}
+                item={item}
+                canCreateWarranty={canCreateWarranty && current.status === 'confirmed'}
+                onCreateWarranty={() => setWarrantyItem(item)}
+              />
+            ))}
           </tbody>
         </table>
       </div>
+
+      {warrantyItem && (
+        <WarrantyClaimForm
+          sale={current}
+          item={warrantyItem}
+          loading={createWarranty.isPending}
+          onCancel={() => setWarrantyItem(null)}
+          onSubmit={async (payload) => {
+            await createWarranty.mutateAsync(payload);
+            toast.success('Caso de garantía creado.');
+            setWarrantyItem(null);
+          }}
+        />
+      )}
 
       {showReturnForm && (
         <SalesReturnForm
@@ -755,11 +799,20 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
   );
 }
 
-function SaleItemRow({ item }: { item: SaleItem }) {
+function SaleItemRow({
+  item,
+  canCreateWarranty = false,
+  onCreateWarranty,
+}: {
+  item: SaleItem;
+  canCreateWarranty?: boolean;
+  onCreateWarranty?: () => void;
+}) {
   const serials = item.serial_units?.map((serial) => serial.serial_number).filter(Boolean).join(', ');
   const rate = item.exchange_rate_type_code
     ? `${item.exchange_rate_type_code} @ ${formatMoney(item.exchange_rate, '')}`
     : '-';
+  const warrantyValid = isWarrantyValid(item);
   return (
     <tr className="border-b border-border last:border-0">
       <td className="px-3 py-2">
@@ -774,9 +827,121 @@ function SaleItemRow({ item }: { item: SaleItem }) {
       <td className="px-3 py-2 text-xs text-text-muted">
         <div>{rate}</div>
         {serials && <div>Seriales: {serials}</div>}
-        {item.warranty_ends_at && <div>Garantía hasta {formatDate(item.warranty_ends_at)}</div>}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Badge variant={warrantyValid ? 'success' : item.warranty_policy_id ? 'danger' : 'default'}>
+            {warrantyStatusLabel(item)}
+          </Badge>
+          {canCreateWarranty && warrantyValid && (
+            <Button size="sm" variant="outline" leftIcon={<ShieldCheck className="size-4" />} onClick={onCreateWarranty}>
+              Garantía
+            </Button>
+          )}
+        </div>
       </td>
     </tr>
+  );
+}
+
+function WarrantyClaimForm({
+  sale,
+  item,
+  loading,
+  onCancel,
+  onSubmit,
+}: {
+  sale: Sale;
+  item: SaleItem;
+  loading: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: WarrantyClaimPayload) => Promise<void>;
+}) {
+  const serialUnits = item.serial_units ?? [];
+  const [productUnitId, setProductUnitId] = useState<number | null>(serialUnits[0]?.id ? Number(serialUnits[0].id) : null);
+  const [quantity, setQuantity] = useState(serialUnits.length > 0 ? 1 : 1);
+  const [customerName, setCustomerName] = useState(sale.customer?.name ?? '');
+  const [customerPhone, setCustomerPhone] = useState(sale.customer?.phone ?? '');
+  const [issue, setIssue] = useState('');
+  const [notes, setNotes] = useState('');
+  const maxQuantity = Math.max(1, Number(item.quantity ?? 1));
+
+  async function submit() {
+    if (!issue.trim()) {
+      toast.error('Describe la falla reportada por el cliente.');
+      return;
+    }
+    if (serialUnits.length > 0 && !productUnitId) {
+      toast.error('Selecciona el IMEI o serial recibido.');
+      return;
+    }
+
+    await onSubmit({
+      sale_item_id: item.id,
+      product_unit_id: serialUnits.length > 0 ? productUnitId : null,
+      quantity: serialUnits.length > 0 ? 1 : Math.min(Math.max(quantity, 1), maxQuantity),
+      customer_name: customerName || null,
+      customer_phone: customerPhone || null,
+      issue_description: issue,
+      received_notes: notes || null,
+    });
+  }
+
+  return (
+    <section className="rounded border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">Crear caso de garantía</h3>
+          <p className="text-sm text-text-muted">
+            {item.product_name ?? `Producto #${item.product_id}`} · {warrantyStatusLabel(item)}
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cerrar</Button>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>Cliente</Label>
+          <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre del cliente" />
+        </div>
+        <div className="space-y-1">
+          <Label>Teléfono</Label>
+          <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono de contacto" />
+        </div>
+        {serialUnits.length > 0 ? (
+          <div className="space-y-1">
+            <Label>IMEI / serial recibido</Label>
+            <Select value={productUnitId ?? ''} onChange={(e) => setProductUnitId(Number(e.target.value))}>
+              {serialUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>{unit.serial_number}</option>
+              ))}
+            </Select>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Label>Cantidad</Label>
+            <Input
+              type="number"
+              min="1"
+              max={maxQuantity}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.min(Math.max(Number(e.target.value || 1), 1), maxQuantity))}
+            />
+          </div>
+        )}
+        <div className="space-y-1 md:col-span-2">
+          <Label>Falla reportada</Label>
+          <Input value={issue} onChange={(e) => setIssue(e.target.value)} placeholder="Ej. no enciende, falla de carga, pantalla intermitente" />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <Label>Notas de recepción</Label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Estado físico, accesorios recibidos, observaciones" />
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button loading={loading} leftIcon={<ShieldCheck className="size-4" />} onClick={() => void submit()}>
+          Crear garantía
+        </Button>
+      </div>
+    </section>
   );
 }
 
