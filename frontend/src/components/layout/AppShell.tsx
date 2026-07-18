@@ -15,6 +15,14 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isFullBleed = pathname === '/pos';
 
+  if (isFullBleed) {
+    return (
+      <div className="min-h-screen bg-bg">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-bg">
       <Sidebar />

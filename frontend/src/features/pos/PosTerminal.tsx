@@ -121,7 +121,14 @@ export function PosTerminal() {
   const products = productPage?.data ?? [];
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const paymentTotals = useMemo(() => calculatePaymentTotals(payments, cartTotals.total), [payments, cartTotals.total]);
-  const canConfirmPayment = canCheckout && cart.length > 0 && payments.length > 0 && paymentTotals.remaining <= 0 && !hasStockIssue(cart);
+  const checkoutBlockReason = getCheckoutBlockReason({
+    canCheckout,
+    hasSession: Boolean(activeSession),
+    cartCount: cart.length,
+    paymentCount: payments.length,
+    remaining: paymentTotals.remaining,
+    hasStockIssue: hasStockIssue(cart),
+  });
 
   useEffect(() => {
     if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
@@ -211,7 +218,7 @@ export function PosTerminal() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text-primary">
+    <div className="h-screen overflow-hidden bg-bg text-text-primary">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded bg-primary text-primary-foreground">
@@ -220,7 +227,7 @@ export function PosTerminal() {
           <div>
             <h1 className="text-lg font-semibold leading-tight">POS</h1>
             <p className="text-xs text-text-muted">
-              {activeSession?.cash_register?.name ?? 'Caja abierta'} · {selectedWarehouse?.name ?? 'Sin almacen'}
+              {activeSession?.cash_register?.name ?? 'Caja abierta'} - {selectedWarehouse?.name ?? 'Sin almacen'}
             </p>
           </div>
         </div>
@@ -235,7 +242,7 @@ export function PosTerminal() {
         </div>
       </header>
 
-      <main className="grid min-h-[calc(100vh-65px)] grid-cols-1 gap-3 p-3 xl:grid-cols-[360px_1fr_380px]">
+      <main className="grid h-[calc(100vh-65px)] grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[390px_minmax(560px,1fr)_430px]">
         <section className="flex min-h-0 flex-col rounded border border-border bg-surface">
           <div className="border-b border-border p-3">
             <label className="text-xs font-semibold uppercase text-text-muted">Buscar o escanear</label>
@@ -263,7 +270,7 @@ export function PosTerminal() {
             >
               {warehouses.map((warehouse) => (
                 <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.code} · {warehouse.name}
+                  {warehouse.code} - {warehouse.name}
                 </option>
               ))}
             </Select>
@@ -377,17 +384,17 @@ export function PosTerminal() {
           </div>
 
           <div className="space-y-2 border-t border-border p-3">
-            {hasStockIssue(cart) && (
+            {checkoutBlockReason && (
               <p className="rounded border border-warning bg-warning/10 px-3 py-2 text-xs text-warning">
-                Hay productos con stock insuficiente. La venta esta bloqueada.
+                {checkoutBlockReason}
               </p>
             )}
-            <Button className="h-12 w-full text-base" disabled={!canConfirmPayment || checkout.isPending} onClick={() => void confirmPaidSale()}>
+            <Button className="h-12 w-full text-base" disabled={checkout.isPending} onClick={() => void confirmPaidSale()}>
               {checkout.isPending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-5" />}
               Cobrar
             </Button>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" disabled={cart.length === 0 || checkout.isPending} onClick={() => void holdSale()}>
+              <Button variant="outline" disabled={cart.length === 0 || !canCheckout || checkout.isPending} onClick={() => void holdSale()}>
                 <PauseCircle className="size-4" /> Espera
               </Button>
               <Button variant="outline" onClick={() => setPanel('hold')}>
@@ -547,25 +554,42 @@ export function PosTerminal() {
   }
 
   async function confirmPaidSale(): Promise<void> {
+    if (checkoutBlockReason) {
+      toast.error(checkoutBlockReason);
+      if (payments.length === 0 && cart.length > 0 && canCheckout) setPanel('pay');
+      return;
+    }
     if (!activeSession) {
       toast.error('No hay caja abierta.');
       return;
     }
-    const order = await checkout.mutateAsync(buildCheckoutPayload(activeSession.id, 'captured'));
-    setLastReceipt(order);
-    clearTicket();
-    setPanel('receipt');
-    toast.success('Venta confirmada.');
+    try {
+      const order = await checkout.mutateAsync(buildCheckoutPayload(activeSession.id, 'captured'));
+      setLastReceipt(order);
+      clearTicket();
+      setPanel('receipt');
+      toast.success('Venta confirmada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
+    }
   }
 
   async function holdSale(): Promise<void> {
     if (!activeSession || cart.length === 0) return;
-    await checkout.mutateAsync({
-      ...buildCheckoutPayload(activeSession.id, 'pending'),
-      payments: [{ method: 'cash', currency: 'USD', amount: 0.01, status: 'pending', reference: 'hold' }],
-    });
-    clearTicket();
-    toast.success('Venta puesta en espera.');
+    if (!canCheckout) {
+      toast.error('No tienes permiso pos.checkout para poner ventas en espera.');
+      return;
+    }
+    try {
+      await checkout.mutateAsync({
+        ...buildCheckoutPayload(activeSession.id, 'pending'),
+        payments: [{ method: 'cash', currency: 'USD', amount: 0.01, status: 'pending', reference: 'hold' }],
+      });
+      clearTicket();
+      toast.success('Venta puesta en espera.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo poner la venta en espera.');
+    }
   }
 
   async function payPendingOrder(order: PosOrder): Promise<void> {
@@ -624,28 +648,37 @@ export function PosTerminal() {
 function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange: (patch: Partial<PosCartLine>) => void; onRemove: () => void }) {
   const stockIssue = line.quantity > line.available_stock;
   return (
-    <div className={cn('grid gap-3 p-3 lg:grid-cols-[1fr_110px_150px_110px_36px] lg:items-center', stockIssue && 'bg-warning/10')}>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{line.name}</p>
-        <p className="font-mono text-xs text-text-muted">{line.sku ?? line.barcode ?? line.product_id}</p>
-        <p className="mt-1 text-xs text-text-muted">Disponible {line.available_stock}</p>
+    <div className={cn('grid gap-3 p-3 xl:grid-cols-[minmax(220px,1fr)_380px_120px_40px] xl:items-center', stockIssue && 'bg-warning/10')}>
+      <div className="min-w-0 space-y-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-base font-semibold">{line.name}</p>
+          <Badge variant={stockIssue ? 'warning' : 'success'} className="shrink-0 text-[10px]">
+            Stock {line.available_stock}
+          </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+          <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
+          <span>{money(line.unit_price)} c/u</span>
+        </div>
       </div>
-      <div className="flex items-center gap-1">
-        <Button size="icon-sm" variant="outline" onClick={() => onChange({ quantity: line.quantity - 1 })}><Minus className="size-3" /></Button>
-        <Input className="h-8 text-center" type="number" min="1" value={line.quantity} onChange={(event) => onChange({ quantity: Number(event.target.value) })} />
-        <Button size="icon-sm" variant="outline" onClick={() => onChange({ quantity: line.quantity + 1 })}><Plus className="size-3" /></Button>
-      </div>
-      <div className="grid grid-cols-[1fr_1fr] gap-1">
-        <Select value={line.discount_type ?? ''} onChange={(event) => onChange({ discount_type: (event.target.value || null) as DiscountType | null })}>
-          <option value="">Sin desc.</option>
-          <option value="percent">%</option>
-          <option value="fixed">Monto</option>
-        </Select>
-        <Input type="number" min="0" value={line.discount_value ?? ''} onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })} />
+      <div className="grid gap-2 sm:grid-cols-[124px_1fr]">
+        <div className="flex items-center gap-1">
+          <Button size="icon-sm" variant="outline" onClick={() => onChange({ quantity: line.quantity - 1 })}><Minus className="size-3" /></Button>
+          <Input className="h-9 text-center" type="number" min="1" value={line.quantity} onChange={(event) => onChange({ quantity: Number(event.target.value) })} />
+          <Button size="icon-sm" variant="outline" onClick={() => onChange({ quantity: line.quantity + 1 })}><Plus className="size-3" /></Button>
+        </div>
+        <div className="grid grid-cols-[minmax(100px,1fr)_92px] gap-2">
+          <Select value={line.discount_type ?? ''} onChange={(event) => onChange({ discount_type: (event.target.value || null) as DiscountType | null })}>
+            <option value="">Sin descuento</option>
+            <option value="percent">Porcentaje</option>
+            <option value="fixed">Monto</option>
+          </Select>
+          <Input type="number" min="0" value={line.discount_value ?? ''} onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })} />
+        </div>
       </div>
       <div className="text-right">
-        <p className="text-xs text-text-muted">{money(line.unit_price)} c/u</p>
-        <p className="font-semibold">{money(lineTotal(line))}</p>
+        <p className="text-xs text-text-muted">Total linea</p>
+        <p className="text-lg font-bold">{money(lineTotal(line))}</p>
       </div>
       <Button size="icon-sm" variant="ghost" onClick={onRemove} aria-label="Eliminar linea"><Trash2 className="size-4" /></Button>
     </div>
@@ -710,11 +743,11 @@ function OpenCashScreen(props: {
             )}
             <Select value={props.branchId} onChange={(event) => props.onBranchChange(event.target.value ? Number(event.target.value) : '')}>
               <option value="">Sucursal...</option>
-              {props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+              {props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
             </Select>
             <Select value={props.registerId} onChange={(event) => props.onRegisterChange(event.target.value ? Number(event.target.value) : '')}>
               <option value="">Caja fisica...</option>
-              {props.cashRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} · {register.name}</option>)}
+              {props.cashRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
             </Select>
             <Input type="number" min="0" value={props.amount} onChange={(event) => props.onAmountChange(event.target.value)} placeholder="Fondo inicial USD" />
             <Button className="w-full" onClick={props.onOpen} disabled={props.busy}>
@@ -766,7 +799,7 @@ function HoldPanel(props: { orders: PosOrder[]; selected: PosOrder | null; canCa
       {props.orders.map((order) => (
         <button key={order.id} type="button" onClick={() => props.onSelect(order)} className={cn('w-full rounded border p-3 text-left', props.selected?.id === order.id ? 'border-primary bg-primary/5' : 'border-border')}>
           <p className="font-medium">Ticket #{order.id}</p>
-          <p className="text-sm text-text-muted">{order.customer_name ?? 'Consumidor Final'} · {money(order.total_base_amount ?? 0)}</p>
+          <p className="text-sm text-text-muted">{order.customer_name ?? 'Consumidor Final'} - {money(order.total_base_amount ?? 0)}</p>
         </button>
       ))}
       <Button className="w-full" disabled={!props.selected} onClick={props.onPaySelected}>Cobrar seleccionado</Button>
@@ -853,6 +886,24 @@ function panelTitle(panel: Panel): string {
     default:
       return '';
   }
+}
+
+function getCheckoutBlockReason(input: {
+  canCheckout: boolean;
+  hasSession: boolean;
+  cartCount: number;
+  paymentCount: number;
+  remaining: number;
+  hasStockIssue: boolean;
+}): string | null {
+  if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
+  if (!input.hasSession) return 'No hay caja abierta para cobrar.';
+  if (input.cartCount === 0) return 'Agrega al menos un producto para cobrar.';
+  if (input.hasStockIssue) return 'Hay productos con stock insuficiente. La venta esta bloqueada.';
+  if (input.paymentCount === 0) return 'Agrega al menos una linea de pago.';
+  if (input.remaining > 0) return `Falta capturar ${money(input.remaining)} para completar el pago.`;
+
+  return null;
 }
 
 function money(value: number): string {
