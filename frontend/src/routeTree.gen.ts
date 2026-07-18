@@ -21,6 +21,7 @@ import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
 import { Route as AuthedSuppliersRouteImport } from './routes/_authed/suppliers'
 import { Route as AuthedSalesReturnsRouteImport } from './routes/_authed/sales-returns'
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
+import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
 import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
@@ -98,6 +99,11 @@ const AuthedSalesReturnsRoute = AuthedSalesReturnsRouteImport.update({
 const AuthedSalesRoute = AuthedSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedReportsRoute = AuthedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
+  '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
   '/sales-returns': typeof AuthedSalesReturnsRoute
   '/suppliers': typeof AuthedSuppliersRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
+  '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
   '/sales-returns': typeof AuthedSalesReturnsRoute
   '/suppliers': typeof AuthedSuppliersRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/_authed/pos': typeof AuthedPosRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
+  '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/sales': typeof AuthedSalesRoute
   '/_authed/sales-returns': typeof AuthedSalesReturnsRoute
   '/_authed/suppliers': typeof AuthedSuppliersRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/pos'
     | '/purchases'
     | '/receivables'
+    | '/reports'
     | '/sales'
     | '/sales-returns'
     | '/suppliers'
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/pos'
     | '/purchases'
     | '/receivables'
+    | '/reports'
     | '/sales'
     | '/sales-returns'
     | '/suppliers'
@@ -376,6 +387,7 @@ export interface FileRouteTypes {
     | '/_authed/pos'
     | '/_authed/purchases'
     | '/_authed/receivables'
+    | '/_authed/reports'
     | '/_authed/sales'
     | '/_authed/sales-returns'
     | '/_authed/suppliers'
@@ -488,6 +500,13 @@ declare module '@tanstack/react-router' {
       path: '/sales'
       fullPath: '/sales'
       preLoaderRoute: typeof AuthedSalesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/reports': {
+      id: '/_authed/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthedReportsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/receivables': {
@@ -670,6 +689,7 @@ interface AuthedRouteChildren {
   AuthedPosRoute: typeof AuthedPosRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
+  AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
   AuthedSalesReturnsRoute: typeof AuthedSalesReturnsRoute
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
@@ -695,6 +715,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPosRoute: AuthedPosRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
+  AuthedReportsRoute: AuthedReportsRoute,
   AuthedSalesRoute: AuthedSalesRoute,
   AuthedSalesReturnsRoute: AuthedSalesReturnsRoute,
   AuthedSuppliersRoute: AuthedSuppliersRoute,
