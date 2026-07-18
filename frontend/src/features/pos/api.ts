@@ -30,6 +30,7 @@ export const CashRegisterSchema = z.object({
   name: z.string(),
   status: z.string().optional().nullable(),
   is_active: z.boolean().optional(),
+  open_session: z.unknown().nullable().optional(),
 }).passthrough();
 export type CashRegister = z.infer<typeof CashRegisterSchema>;
 
@@ -132,6 +133,20 @@ export interface CloseCashSessionPayload {
   closing_notes?: string | null;
 }
 
+export interface CreateBranchPayload {
+  name: string;
+  code: string;
+  status?: 'active' | 'inactive';
+}
+
+export interface CreateCashRegisterPayload {
+  branch_id: number;
+  name: string;
+  code: string;
+  status?: 'active' | 'inactive';
+  notes?: string | null;
+}
+
 export const posKeys = {
   all: ['pos'] as const,
   products: (filters: Partial<InventoryFilters>) => [...posKeys.all, 'products', filters] as const,
@@ -222,7 +237,10 @@ export function useCashRegisters() {
 export function useBranchesForPos() {
   return useQuery({
     queryKey: [...posKeys.all, 'branches'],
-    queryFn: async () => z.array(BranchSchema).parse(await getMany<unknown>('/branches')),
+    queryFn: async () => {
+      const response = await getPaginated<unknown>('/branches?per_page=100');
+      return z.array(BranchSchema).parse(response.data);
+    },
   });
 }
 
@@ -258,6 +276,27 @@ export function useOpenCashSession() {
       postOne<OpenCashSessionPayload, CashRegisterSession>('/cash-register/sessions', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+    },
+  });
+}
+
+export function useCreatePosBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateBranchPayload) => postOne<CreateBranchPayload, unknown>('/branches', payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'branches'] });
+    },
+  });
+}
+
+export function useCreateCashRegister() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateCashRegisterPayload) =>
+      postOne<CreateCashRegisterPayload, CashRegister>('/cash-register/registers', payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
 }

@@ -20,6 +20,7 @@ import {
   Building2,
   ShoppingBag,
   Monitor,
+  Banknote,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -60,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
   { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
+  { to: '/cash-register', label: 'Cajas', icon: Banknote, permission: PERMISSIONS.CASH_REGISTER_VIEW },
   { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW },
   { to: '/suppliers', label: 'Proveedores', icon: Building, permission: PERMISSIONS.SUPPLIERS_VIEW },
   { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW },

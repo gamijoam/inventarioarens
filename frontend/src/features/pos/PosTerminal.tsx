@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Banknote,
   CreditCard,
@@ -699,7 +700,16 @@ function OpenCashScreen(props: {
           <p className="mt-4 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">No tienes permiso para abrir caja.</p>
         ) : (
           <div className="mt-5 space-y-3">
+            {(props.branches.length === 0 || props.cashRegisters.length === 0) && (
+              <div className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
+                Falta configurar sucursales o cajas fisicas antes de abrir turno.
+                <Button asChild className="mt-3 w-full" variant="outline">
+                  <Link to="/cash-register">Configurar cajas</Link>
+                </Button>
+              </div>
+            )}
             <Select value={props.branchId} onChange={(event) => props.onBranchChange(event.target.value ? Number(event.target.value) : '')}>
+              <option value="">Sucursal...</option>
               {props.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
             </Select>
             <Select value={props.registerId} onChange={(event) => props.onRegisterChange(event.target.value ? Number(event.target.value) : '')}>

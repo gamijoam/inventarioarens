@@ -22,6 +22,7 @@ import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
+import { Route as AuthedCashRegisterRouteImport } from './routes/_authed/cash-register'
 import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inventory/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
@@ -98,6 +99,11 @@ const AuthedCustomersRoute = AuthedCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedCashRegisterRoute = AuthedCashRegisterRouteImport.update({
+  id: '/cash-register',
+  path: '/cash-register',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedInventoryIndexRoute = AuthedInventoryIndexRouteImport.update({
   id: '/inventory/',
   path: '/inventory/',
@@ -159,6 +165,7 @@ const AuthedAccessRolesRoleIdRoute = AuthedAccessRolesRoleIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/cash-register': typeof AuthedCashRegisterRoute
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/payables': typeof AuthedPayablesRoute
@@ -238,6 +247,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/cash-register'
     | '/customers'
     | '/dashboard'
     | '/payables'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/cash-register'
     | '/customers'
     | '/dashboard'
     | '/payables'
@@ -289,6 +300,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authed'
     | '/login'
+    | '/_authed/cash-register'
     | '/_authed/customers'
     | '/_authed/dashboard'
     | '/_authed/payables'
@@ -411,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCustomersRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/cash-register': {
+      id: '/_authed/cash-register'
+      path: '/cash-register'
+      fullPath: '/cash-register'
+      preLoaderRoute: typeof AuthedCashRegisterRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/inventory/': {
       id: '/_authed/inventory/'
       path: '/inventory'
@@ -527,6 +546,7 @@ const AuthedAccessRolesRouteWithChildren =
   AuthedAccessRolesRoute._addFileChildren(AuthedAccessRolesRouteChildren)
 
 interface AuthedRouteChildren {
+  AuthedCashRegisterRoute: typeof AuthedCashRegisterRoute
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedPayablesRoute: typeof AuthedPayablesRoute
@@ -548,6 +568,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedCashRegisterRoute: AuthedCashRegisterRoute,
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedPayablesRoute: AuthedPayablesRoute,
