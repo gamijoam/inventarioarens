@@ -26,6 +26,13 @@ function shouldShowOrganizaciones(query: QueryState): boolean {
   return !shouldHideOrgItem;
 }
 
+function usersScopeForSidebar(query: QueryState): 'tenant' | 'organization' {
+  const ownedGroupIds = new Set(((query.data ?? []) as { id: number }[]).map((g) => g.id));
+  const loadedOwnedGroups = !query.isLoading && !query.isError && query.data !== undefined;
+
+  return loadedOwnedGroups && ownedGroupIds.size > 0 ? 'organization' : 'tenant';
+}
+
 describe('Sidebar filter - Organizaciones visibility', () => {
   it('muestra durante loading inicial (sin esperar al query)', () => {
     expect(
@@ -81,5 +88,19 @@ describe('Sidebar filter - Organizaciones visibility', () => {
     expect(
       shouldShowOrganizaciones({ data: [], isLoading: false, isError: true }),
     ).toBe(true);
+  });
+
+  it('envia Usuarios a organizacion solo cuando el usuario tiene grupos propios', () => {
+    expect(
+      usersScopeForSidebar({ data: [{ id: 1 }], isLoading: false, isError: false }),
+    ).toBe('organization');
+
+    expect(
+      usersScopeForSidebar({ data: [], isLoading: false, isError: false }),
+    ).toBe('tenant');
+
+    expect(
+      usersScopeForSidebar({ data: undefined, isLoading: true, isError: false }),
+    ).toBe('tenant');
   });
 });

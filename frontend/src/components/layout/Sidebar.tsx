@@ -41,6 +41,8 @@ interface NavItem {
   hideIfNoOwnedGroup?: boolean;
 }
 
+type UsersSearch = { scope: 'tenant' | 'organization' };
+
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
@@ -97,9 +99,15 @@ export function Sidebar() {
   //     positivo que tener el item invisible hasta que cargue).
   const loadedOwnedGroups = !isLoading && !isError && tenantGroups !== undefined;
   const shouldHideOrgItem = loadedOwnedGroups && ownedGroupIds.size === 0;
+  const usersScope: UsersSearch['scope'] = loadedOwnedGroups && ownedGroupIds.size > 0
+    ? 'organization'
+    : 'tenant';
   const visibleItems = NAV_ITEMS.filter((item) =>
     item.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
   );
+
+  const searchForItem = (item: NavItem): UsersSearch | undefined =>
+    item.to === '/users' ? { scope: usersScope } : undefined;
 
   return (
     <aside
@@ -138,6 +146,7 @@ export function Sidebar() {
                       isParentActive={isParentActive}
                       currentPath={currentPath}
                       collapsed={collapsed}
+                      usersScope={usersScope}
                     />
                   </Can>
                 </li>
@@ -150,6 +159,7 @@ export function Sidebar() {
             const linkContent = (
               <Link
                 to={item.to}
+                search={searchForItem(item)}
                 className={cn(
                   'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
                   isActive
@@ -224,11 +234,13 @@ function Group({
   isParentActive,
   currentPath,
   collapsed,
+  usersScope,
 }: {
   item: NavItem;
   isParentActive: boolean;
   currentPath: string;
   collapsed: boolean;
+  usersScope: UsersSearch['scope'];
 }) {
   const [open, setOpen] = useState(isParentActive);
 
@@ -245,6 +257,7 @@ function Group({
     return (
       <Link
         to={item.to}
+        search={item.to === '/users' ? { scope: usersScope } : undefined}
         className={cn(
           'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
           isParentActive
@@ -265,6 +278,7 @@ function Group({
       <div className="flex items-center gap-1">
         <Link
           to={item.to}
+          search={item.to === '/users' ? { scope: usersScope } : undefined}
           className={cn(
             'flex flex-1 items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
             isParentActive
@@ -301,6 +315,7 @@ function Group({
               <li key={sub.to}>
                 <Link
                   to={sub.to}
+                  search={sub.to === '/users' ? { scope: usersScope } : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
                     isSubActive
