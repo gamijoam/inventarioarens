@@ -83,10 +83,10 @@ export function ImeiListInput({
 
     // Ya hay value: ajustar tamaño si la cantidad cambió.
     if (value.length < safeQty) {
-      const extra: ImeiInput[] = Array.from(
-        { length: safeQty - value.length },
-        () => ({ serial_type: defaultType, serial_number: '' }),
-      );
+      const extra: ImeiInput[] = Array.from({ length: safeQty - value.length }, () => ({
+        serial_type: defaultType,
+        serial_number: '',
+      }));
       lastInitQtyRef.current = safeQty;
       onChange([...value, ...extra]);
     } else if (value.length > safeQty) {
@@ -115,10 +115,7 @@ export function ImeiListInput({
     if (idx < 0) return;
     const el = inputRefs.current[idx];
     if (!el) return;
-    if (
-      document.activeElement === document.body ||
-      document.activeElement?.tagName !== 'INPUT'
-    ) {
+    if (document.activeElement === document.body || document.activeElement?.tagName !== 'INPUT') {
       el.focus();
     }
   }, [value, disabled]);
@@ -203,10 +200,7 @@ export function ImeiListInput({
   const canAdd = value.length < 50;
   const canRemove = value.length > Math.max(1, safeQty);
 
-  const filled = useMemo(
-    () => value.filter((v) => v.serial_number.trim() !== '').length,
-    [value],
-  );
+  const filled = useMemo(() => value.filter((v) => v.serial_number.trim() !== '').length, [value]);
   const valid = useMemo(() => {
     if (filled !== value.length) return false;
     if (value.length !== safeQty) return false;
@@ -235,7 +229,7 @@ export function ImeiListInput({
                   : 'bg-surface-muted text-text-muted',
             )}
           >
-            {filled} / {value.length}
+            {filled} / {safeQty}
           </span>
         </Label>
         {canAdd && (
@@ -259,7 +253,7 @@ export function ImeiListInput({
                 value={item.serial_type}
                 onChange={(e) => update(i, { serial_type: e.target.value as 'imei' | 'serial' })}
                 disabled={disabled}
-                className="h-9 rounded border border-border-strong bg-surface px-2 text-sm"
+                className="border-border-strong bg-surface h-9 rounded border px-2 text-sm"
                 aria-label={`Tipo de serial #${i + 1}`}
               >
                 <option value="imei">IMEI</option>
@@ -278,7 +272,9 @@ export function ImeiListInput({
                   t.add(i);
                   setTouched(t);
                 }}
-                placeholder={item.serial_type === 'imei' ? 'Escanear o escribir IMEI y Enter' : 'SN-XXXX-001'}
+                placeholder={
+                  item.serial_type === 'imei' ? 'Escanear o escribir IMEI y Enter' : 'SN-XXXX-001'
+                }
                 disabled={disabled}
                 className={cn(
                   'flex-1 font-mono',
@@ -300,7 +296,7 @@ export function ImeiListInput({
                   disabled={disabled}
                   aria-label={`Quitar serial #${i + 1}`}
                 >
-                  <X className="size-3.5 text-danger" />
+                  <X className="text-danger size-3.5" />
                 </Button>
               )}
             </div>
@@ -308,10 +304,10 @@ export function ImeiListInput({
         })}
       </div>
 
-      <p className="text-xs text-text-muted">
+      <p className="text-text-muted text-xs">
         Tip: escanea o escribe un IMEI y presiona <kbd className="rounded border px-1">Enter</kbd>{' '}
-        para saltar al siguiente. Puedes pegar varios IMEIs (uno por linea o separados por
-        coma) y se repartiran automaticamente.
+        para saltar al siguiente. Puedes pegar varios IMEIs (uno por linea o separados por coma) y
+        se repartiran automaticamente.
       </p>
     </div>
   );

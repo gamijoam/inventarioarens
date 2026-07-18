@@ -24,10 +24,7 @@ import {
 import { Label } from '@/components/ui/Label';
 import { useCreatePurchase } from '@/features/purchases/api';
 import { useExchangeRateTypes } from '@/features/inventory-center/api';
-import {
-  StorePurchaseSchema,
-  type PurchaseItemInput,
-} from '@/features/purchases/schemas';
+import { StorePurchaseSchema, type PurchaseItemInput } from '@/features/purchases/schemas';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import type { ImeiInput } from './ImeiListInput';
@@ -114,10 +111,44 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
     e.preventDefault();
     setFieldErrors({});
 
+    const localErrors: Record<string, string> = {};
+    for (const [index, item] of items.entries()) {
+      const isSerialized = item.product_info?.tracking_type === 'serialized';
+      if (!isSerialized) continue;
+
+      const quantity = Number(item.quantity);
+      const serials = item.serial_units
+        .map((serial) => serial.serial_number.trim())
+        .filter(Boolean);
+      const unique = new Set(
+        item.serial_units.map(
+          (serial) => `${serial.serial_type}:${serial.serial_number.trim().toUpperCase()}`,
+        ),
+      );
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        localErrors[`items.${index}.quantity`] =
+          'Los productos serializados deben comprarse en unidades enteras.';
+      } else if (serials.length !== quantity || item.serial_units.length !== quantity) {
+        localErrors[`items.${index}.serial_units`] =
+          `Captura ${quantity} IMEI/serial(es) para este producto.`;
+      } else if (unique.size !== item.serial_units.length) {
+        localErrors[`items.${index}.serial_units`] =
+          'No puedes repetir IMEIs o seriales dentro de la misma linea.';
+      }
+    }
+
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      toast.error('Revisa los IMEIs/seriales: debe haber uno por cada unidad comprada.');
+      return;
+    }
+
     const serializedItems: PurchaseItemInput[] = items.map((it) => {
-      const serialUnits: ImeiInput[] = it.product_info?.tracking_type === 'serialized'
-        ? it.serial_units.filter((s) => s.serial_number.trim() !== '')
-        : [];
+      const serialUnits: ImeiInput[] =
+        it.product_info?.tracking_type === 'serialized'
+          ? it.serial_units.filter((s) => s.serial_number.trim() !== '')
+          : [];
       return {
         warehouse_id: it.warehouse_id ?? 0,
         product_id: it.product_id ?? 0,
@@ -177,12 +208,12 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva compra</DialogTitle>
           <DialogDescription>
-            Crea un borrador. Al recibir la mercancia se generara el stock, el WAC
-            del producto y la cuenta por pagar (CxP) automaticamente.
+            Crea un borrador. Al recibir la mercancia se generara el stock, el WAC del producto y la
+            cuenta por pagar (CxP) automaticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -199,7 +230,9 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                     setSupplier(sup ?? null);
                   }}
                 />
-                <p className="text-xs text-text-muted">Opcional. Si no hay proveedor especifico, la CxP no se generara.</p>
+                <p className="text-text-muted text-xs">
+                  Opcional. Si no hay proveedor especifico, la CxP no se generara.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -211,7 +244,9 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                   placeholder="Auto si se deja vacio"
                   maxLength={100}
                 />
-                <p className="text-xs text-text-muted">Numero de factura del proveedor (opcional).</p>
+                <p className="text-text-muted text-xs">
+                  Numero de factura del proveedor (opcional).
+                </p>
               </div>
             </div>
 
@@ -236,7 +271,10 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
               </div>
               <div className="space-y-1.5">
                 <Label>Moneda</Label>
-                <Select value={currency} onChange={(e) => setCurrency(e.target.value as 'USD' | 'VES')}>
+                <Select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as 'USD' | 'VES')}
+                >
                   <option value="USD">USD (Dolar)</option>
                   <option value="VES">VES (Bolivar)</option>
                 </Select>
@@ -259,11 +297,9 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                   ))}
                 </Select>
                 {fieldErrors.exchange_rate_type_id && (
-                  <p className="text-xs text-danger">{fieldErrors.exchange_rate_type_id}</p>
+                  <p className="text-danger text-xs">{fieldErrors.exchange_rate_type_id}</p>
                 )}
-                {activeRate && (
-                  <p className="text-xs text-text-muted">Rate actual: {activeRate}</p>
-                )}
+                {activeRate && <p className="text-text-muted text-xs">Rate actual: {activeRate}</p>}
               </div>
             )}
           </fieldset>
@@ -271,7 +307,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
           {/* ===== ITEMS ===== */}
           <fieldset className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+              <h3 className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
                 Items ({items.length})
               </h3>
               <Button type="button" size="sm" variant="outline" onClick={addItem}>
@@ -279,9 +315,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
               </Button>
             </div>
 
-            {fieldErrors.items && (
-              <p className="text-xs text-danger">{fieldErrors.items}</p>
-            )}
+            {fieldErrors.items && <p className="text-danger text-xs">{fieldErrors.items}</p>}
 
             {/* Lista de cards: cada item es un bloque apilado, sin scroll horizontal. */}
             <div className="space-y-2">
@@ -289,7 +323,11 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                 <PurchaseItemRow
                   key={i}
                   index={i}
-                  value={item}
+                  value={{
+                    ...item,
+                    error:
+                      fieldErrors[`items.${i}.serial_units`] ?? fieldErrors[`items.${i}.quantity`],
+                  }}
                   onChange={(next) => updateItem(i, next)}
                   onRemove={() => removeItem(i)}
                   canRemove={items.length > 1}
@@ -298,18 +336,26 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
             </div>
 
             {/* Total general */}
-            <div className="mt-3 flex items-center justify-end gap-3 border-t-2 border-border pt-3">
-              <span className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+            <div className="border-border mt-3 flex items-center justify-end gap-3 border-t-2 pt-3">
+              <span className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
                 Total {currency}:
               </span>
               <span className="text-xl font-bold tabular-nums">
-                {totals.base.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {totals.base.toLocaleString('es-VE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </span>
             </div>
           </fieldset>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={submitting}>

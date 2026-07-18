@@ -29,6 +29,7 @@ export interface PurchaseItemRowValue {
   quantity: number;
   unit_cost: number;
   serial_units: ImeiInput[];
+  error?: string;
 }
 
 interface PurchaseItemRowProps {
@@ -57,13 +58,13 @@ export function PurchaseItemRow({
 
   return (
     <div
-      className="rounded-md border border-border bg-bg/30 p-3"
+      className="border-border bg-bg/30 rounded-md border p-3"
       data-testid={`purchase-item-${index}`}
     >
       {/* Row 1: Cantidad + Costo + Subtotal (cantidad SIEMPRE editable) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-[120px_140px_1fr]">
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Cantidad
           </label>
           <Input
@@ -78,12 +79,12 @@ export function PurchaseItemRow({
             data-testid={`purchase-item-quantity-`}
           />
           {isSerialized && (
-            <p className="text-[10px] text-text-muted">Serializado: solo enteros (1 por IMEI).</p>
+            <p className="text-text-muted text-[10px]">Serializado: solo enteros (1 por IMEI).</p>
           )}
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Costo unit.
           </label>
           <Input
@@ -99,12 +100,15 @@ export function PurchaseItemRow({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Subtotal
           </label>
-          <div className="flex h-9 items-center justify-end rounded border border-transparent bg-bg/50 px-3 text-sm font-semibold tabular-nums">
+          <div className="bg-bg/50 flex h-9 items-center justify-end rounded border border-transparent px-3 text-sm font-semibold tabular-nums">
             {subtotal > 0
-              ? subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              ? subtotal.toLocaleString('es-VE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
               : '-'}
           </div>
         </div>
@@ -112,8 +116,8 @@ export function PurchaseItemRow({
 
       {/* Row 2: Producto + Almacén + delete */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto]">
-        <div className="space-y-1 min-w-0">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        <div className="min-w-0 space-y-1">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Producto
           </label>
           <ProductAutocomplete
@@ -123,27 +127,29 @@ export function PurchaseItemRow({
                 ...value,
                 product_id: id,
                 product_info: product ?? null,
-                serial_units:
-                  product?.tracking_type === 'serialized' ? [] : value.serial_units,
+                serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
               })
             }
           />
           {value.product_info && (
-            <div className="flex items-center gap-2 text-xs text-text-muted">
+            <div className="text-text-muted flex items-center gap-2 text-xs">
               <Package className="size-3 shrink-0" />
               <span>{value.product_info.unit_of_measure ?? 'unit'}</span>
               {value.product_info.base_price != null && (
                 <>
                   <span className="text-text-muted/50">|</span>
                   <span>
-                    Base: {Number(value.product_info.base_price).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                    Base:{' '}
+                    {Number(value.product_info.base_price).toLocaleString('es-VE', {
+                      minimumFractionDigits: 2,
+                    })}
                   </span>
                 </>
               )}
               {value.product_info.tracking_type === 'serialized' && (
                 <>
                   <span className="text-text-muted/50">|</span>
-                  <span className="font-semibold text-warning">Serializado (IMEI)</span>
+                  <span className="text-warning font-semibold">Serializado (IMEI)</span>
                 </>
               )}
             </div>
@@ -151,7 +157,7 @@ export function PurchaseItemRow({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Almacen <span className="text-danger">*</span>
           </label>
           <Select
@@ -162,16 +168,18 @@ export function PurchaseItemRow({
             disabled={disabled}
             className={cn(!value.warehouse_id && 'border-warning')}
           >
-            <option value="">{warehouses.length === 0 ? 'Sin almacenes (crea uno en /inventory/admin)' : 'Almacen...'}</option>
+            <option value="">
+              {warehouses.length === 0
+                ? 'Sin almacenes (crea uno en /inventory/admin)'
+                : 'Almacen...'}
+            </option>
             {warehouses.map((w) => (
               <option key={w.id} value={String(w.id)}>
                 {w.code}
               </option>
             ))}
           </Select>
-          {!value.warehouse_id && (
-            <p className="text-[10px] text-warning">Requerido.</p>
-          )}
+          {!value.warehouse_id && <p className="text-warning text-[10px]">Requerido.</p>}
         </div>
 
         <div className="flex items-start sm:items-end sm:pb-1">
@@ -184,17 +192,17 @@ export function PurchaseItemRow({
               disabled={disabled}
               aria-label="Eliminar linea"
             >
-              <Trash2 className="size-4 text-danger" />
+              <Trash2 className="text-danger size-4" />
             </Button>
           ) : (
-            <span className="text-xs text-text-muted">Linea 1</span>
+            <span className="text-text-muted text-xs">Linea 1</span>
           )}
         </div>
       </div>
 
       {/* Row 3: IMEIs (solo si producto es serializado) */}
       {isSerialized && value.product_id && (
-        <div className="mt-3 space-y-1.5 rounded border border-border-strong/50 bg-bg/50 p-2">
+        <div className="border-border-strong/50 bg-bg/50 mt-3 space-y-1.5 rounded border p-2">
           <ImeiListInput
             value={value.serial_units}
             onChange={(serial_units) => onChange({ ...value, serial_units })}
@@ -203,6 +211,8 @@ export function PurchaseItemRow({
           />
         </div>
       )}
+
+      {value.error && <p className="text-danger mt-2 text-xs">{value.error}</p>}
     </div>
   );
 }
