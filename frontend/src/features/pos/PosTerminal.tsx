@@ -55,6 +55,7 @@ import {
   clampQuantity,
   hasStockIssue,
   lineTotal,
+  paymentBaseAmount,
   type CurrencyCode,
   type DiscountType,
   type PosCartLine,
@@ -414,6 +415,12 @@ export function PosTerminal() {
               <div className="mt-2 rounded bg-success/10 p-3">
                 <p className="text-xs text-text-muted">Vuelto</p>
                 <p className="text-3xl font-bold text-success">{money(paymentTotals.change)}</p>
+                {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
+                  <p className="mt-1 text-sm font-semibold text-success">
+                    Bs {roundMoney(paymentTotals.change_amount ?? 0).toFixed(2)}
+                    {paymentTotals.change_rate ? ` @ ${paymentTotals.change_rate}` : ''}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -759,6 +766,7 @@ function PaymentChip({
   const selectedMethod = methods.find((method) => method.id === payment.payment_method_id) ?? null;
   const requiresReference = selectedMethod?.requires_reference || payment.method !== 'cash';
   const rateType = rateTypes.find((rate) => rate.id === payment.exchange_rate_type_id) ?? null;
+  const baseAmount = paymentBaseAmount(payment);
 
   return (
     <div className="rounded border border-border bg-bg/40 p-3">
@@ -781,6 +789,11 @@ function PaymentChip({
           {payment.currency}
         </div>
       </div>
+      {payment.currency === 'VES' && payment.exchange_rate && (
+        <p className="mt-1 text-xs font-medium text-text-muted">
+          Equivale a {money(baseAmount)}
+        </p>
+      )}
 
       {payment.method === 'cash' && (
         <Input className="mt-2 h-11 text-lg font-semibold" type="number" min="0" value={payment.received_amount ?? ''} placeholder="Recibido" onChange={(event) => onChange({ received_amount: Number(event.target.value) })} />

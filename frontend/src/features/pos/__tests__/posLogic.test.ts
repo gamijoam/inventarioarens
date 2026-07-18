@@ -41,7 +41,7 @@ describe('POS cart logic', () => {
       { id: 'card', method: 'card', currency: 'USD', amount: 16, status: 'captured' },
     ], 51);
 
-    expect(totals).toEqual({ paid: 51, remaining: 0, change: 65 });
+    expect(totals).toMatchObject({ paid: 51, remaining: 0, change: 65, change_currency: 'USD', change_amount: 65 });
   });
 
   it('convierte pagos VES a base USD usando la tasa activa de la linea', () => {
@@ -49,7 +49,22 @@ describe('POS cart logic', () => {
       { id: 'ves', method: 'mobile_payment', currency: 'VES', amount: 540, exchange_rate: 60, status: 'captured' },
     ], 10);
 
-    expect(totals).toEqual({ paid: 9, remaining: 1, change: 0 });
+    expect(totals).toMatchObject({ paid: 9, remaining: 1, change: 0 });
+  });
+
+  it('calcula vuelto en USD y VES cuando un pago VES excede el total', () => {
+    const totals = calculatePaymentTotals([
+      { id: 'ves', method: 'mobile_payment', currency: 'VES', amount: 18000, exchange_rate: 800, status: 'captured' },
+    ], 12.5);
+
+    expect(totals).toMatchObject({
+      paid: 22.5,
+      remaining: 0,
+      change: 10,
+      change_currency: 'VES',
+      change_amount: 8000,
+      change_rate: 800,
+    });
   });
 
   it('bloquea cantidades superiores al stock disponible', () => {
