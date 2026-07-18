@@ -18,6 +18,7 @@ import { Route as AuthedSuppliersRouteImport } from './routes/_authed/suppliers'
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
+import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
@@ -75,6 +76,11 @@ const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
 const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
   id: '/purchases',
   path: '/purchases',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPosRoute = AuthedPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPayablesRoute = AuthedPayablesRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/payables': typeof AuthedPayablesRoute
+  '/pos': typeof AuthedPosRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/payables': typeof AuthedPayablesRoute
+  '/_authed/pos': typeof AuthedPosRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/sales': typeof AuthedSalesRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/pos'
     | '/purchases'
     | '/receivables'
     | '/sales'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/payables'
+    | '/pos'
     | '/purchases'
     | '/receivables'
     | '/sales'
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/_authed/customers'
     | '/_authed/dashboard'
     | '/_authed/payables'
+    | '/_authed/pos'
     | '/_authed/purchases'
     | '/_authed/receivables'
     | '/_authed/sales'
@@ -369,6 +381,13 @@ declare module '@tanstack/react-router' {
       path: '/purchases'
       fullPath: '/purchases'
       preLoaderRoute: typeof AuthedPurchasesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/pos': {
+      id: '/_authed/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof AuthedPosRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/payables': {
@@ -511,6 +530,7 @@ interface AuthedRouteChildren {
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedPayablesRoute: typeof AuthedPayablesRoute
+  AuthedPosRoute: typeof AuthedPosRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
@@ -531,6 +551,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedPayablesRoute: AuthedPayablesRoute,
+  AuthedPosRoute: AuthedPosRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedSalesRoute: AuthedSalesRoute,

@@ -45,6 +45,7 @@ export const PERMISSIONS = {
   CASH_REGISTER_VIEW: 'cash_register.view',
   CASH_REGISTER_OPEN: 'cash_register.open',
   CASH_REGISTER_CLOSE: 'cash_register.close',
+  CASH_REGISTER_MOVE: 'cash_register.move',
   CASH_REGISTER_MOVEMENTS: 'cash_register.movements',
   CASH_REGISTER_CREATE: 'cash_register.create',
   CASH_REGISTER_UPDATE: 'cash_register.update',
