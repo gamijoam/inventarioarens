@@ -22,6 +22,8 @@ import {
   Monitor,
   Banknote,
   CreditCard,
+  RotateCcw,
+  ShieldQuestion,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -61,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
+  { to: '/sales-returns', label: 'Devoluciones', icon: RotateCcw, permission: PERMISSIONS.SALES_RETURNS_VIEW },
   { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
   { to: '/cash-register', label: 'Cajas', icon: Banknote, permission: PERMISSIONS.CASH_REGISTER_VIEW },
   { to: '/payment-methods', label: 'Metodos de pago', icon: CreditCard, permission: PERMISSIONS.PAYMENT_METHODS_VIEW },
@@ -70,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/transfers', label: 'Traslados', icon: Truck, permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW },
   { to: '/receivables', label: 'Cuentas por cobrar', icon: Wallet, permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW },
   { to: '/payables', label: 'Cuentas por pagar', icon: Receipt, permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW },
+  { to: '/warranties', label: 'Garantías', icon: ShieldQuestion, permission: PERMISSIONS.WARRANTIES_VIEW },
   // Submenu de Acceso (Fase A+B: usuarios; Fase C: roles y permisos;
   // Fase E: catalogo de permisos standalone).
   {

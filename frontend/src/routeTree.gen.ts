@@ -15,9 +15,11 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MasterLoginRouteImport } from './routes/master.login'
+import { Route as AuthedWarrantiesRouteImport } from './routes/_authed/warranties'
 import { Route as AuthedUsersRouteImport } from './routes/_authed/users'
 import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
 import { Route as AuthedSuppliersRouteImport } from './routes/_authed/suppliers'
+import { Route as AuthedSalesReturnsRouteImport } from './routes/_authed/sales-returns'
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
@@ -68,6 +70,11 @@ const MasterLoginRoute = MasterLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => MasterRoute,
 } as any)
+const AuthedWarrantiesRoute = AuthedWarrantiesRouteImport.update({
+  id: '/warranties',
+  path: '/warranties',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersRoute = AuthedUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -81,6 +88,11 @@ const AuthedTransfersRoute = AuthedTransfersRouteImport.update({
 const AuthedSuppliersRoute = AuthedSuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSalesReturnsRoute = AuthedSalesReturnsRouteImport.update({
+  id: '/sales-returns',
+  path: '/sales-returns',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedSalesRoute = AuthedSalesRouteImport.update({
@@ -200,9 +212,11 @@ export interface FileRoutesByFullPath {
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
+  '/sales-returns': typeof AuthedSalesReturnsRoute
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/warranties': typeof AuthedWarrantiesRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -230,9 +244,11 @@ export interface FileRoutesByTo {
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/sales': typeof AuthedSalesRoute
+  '/sales-returns': typeof AuthedSalesReturnsRoute
   '/suppliers': typeof AuthedSuppliersRoute
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
+  '/warranties': typeof AuthedWarrantiesRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -262,9 +278,11 @@ export interface FileRoutesById {
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/sales': typeof AuthedSalesRoute
+  '/_authed/sales-returns': typeof AuthedSalesReturnsRoute
   '/_authed/suppliers': typeof AuthedSuppliersRoute
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRouteWithChildren
+  '/_authed/warranties': typeof AuthedWarrantiesRoute
   '/master/login': typeof MasterLoginRoute
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -294,9 +312,11 @@ export interface FileRouteTypes {
     | '/purchases'
     | '/receivables'
     | '/sales'
+    | '/sales-returns'
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/warranties'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -324,9 +344,11 @@ export interface FileRouteTypes {
     | '/purchases'
     | '/receivables'
     | '/sales'
+    | '/sales-returns'
     | '/suppliers'
     | '/transfers'
     | '/users'
+    | '/warranties'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -355,9 +377,11 @@ export interface FileRouteTypes {
     | '/_authed/purchases'
     | '/_authed/receivables'
     | '/_authed/sales'
+    | '/_authed/sales-returns'
     | '/_authed/suppliers'
     | '/_authed/transfers'
     | '/_authed/users'
+    | '/_authed/warranties'
     | '/master/login'
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
@@ -424,6 +448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterLoginRouteImport
       parentRoute: typeof MasterRoute
     }
+    '/_authed/warranties': {
+      id: '/_authed/warranties'
+      path: '/warranties'
+      fullPath: '/warranties'
+      preLoaderRoute: typeof AuthedWarrantiesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users': {
       id: '/_authed/users'
       path: '/users'
@@ -443,6 +474,13 @@ declare module '@tanstack/react-router' {
       path: '/suppliers'
       fullPath: '/suppliers'
       preLoaderRoute: typeof AuthedSuppliersRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/sales-returns': {
+      id: '/_authed/sales-returns'
+      path: '/sales-returns'
+      fullPath: '/sales-returns'
+      preLoaderRoute: typeof AuthedSalesReturnsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/sales': {
@@ -633,9 +671,11 @@ interface AuthedRouteChildren {
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
+  AuthedSalesReturnsRoute: typeof AuthedSalesReturnsRoute
   AuthedSuppliersRoute: typeof AuthedSuppliersRoute
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
   AuthedUsersRoute: typeof AuthedUsersRouteWithChildren
+  AuthedWarrantiesRoute: typeof AuthedWarrantiesRoute
   AuthedAccessGroupsRoute: typeof AuthedAccessGroupsRoute
   AuthedAccessPermissionsRoute: typeof AuthedAccessPermissionsRoute
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRouteWithChildren
@@ -656,9 +696,11 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedSalesRoute: AuthedSalesRoute,
+  AuthedSalesReturnsRoute: AuthedSalesReturnsRoute,
   AuthedSuppliersRoute: AuthedSuppliersRoute,
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
   AuthedUsersRoute: AuthedUsersRouteWithChildren,
+  AuthedWarrantiesRoute: AuthedWarrantiesRoute,
   AuthedAccessGroupsRoute: AuthedAccessGroupsRoute,
   AuthedAccessPermissionsRoute: AuthedAccessPermissionsRoute,
   AuthedAccessRolesRoute: AuthedAccessRolesRouteWithChildren,

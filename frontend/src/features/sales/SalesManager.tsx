@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Search, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -14,6 +14,7 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { useCurrentExchangeRatesForPos, type CurrentExchangeRate } from '@/features/pos/api';
 import { activeUsdVesRate, currentLocalBalance } from '@/features/receivables/currentBalance';
+import { useCreateSalesReturn, type SalesReturnPayload } from '@/features/sales-returns/api';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
@@ -86,6 +87,7 @@ export function SalesManager() {
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const activeRate = activeUsdVesRate(rates);
   const canCancel = useCan(PERMISSIONS.SALES_CANCEL);
+  const canCreateReturn = useCan(PERMISSIONS.SALES_RETURNS_CREATE);
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
   const meta = data?.meta;
@@ -217,6 +219,7 @@ export function SalesManager() {
                     activeRate={activeRate}
                     expanded={expandedId === sale.id}
                     canCancel={canCancel}
+                    canCreateReturn={canCreateReturn}
                     cancelling={cancelSale.isPending}
                     onToggle={() => setExpandedId((current) => (current === sale.id ? null : sale.id))}
                     onCancel={() => void handleCancel(sale.id)}
@@ -263,6 +266,7 @@ function SaleRow({
   activeRate,
   expanded,
   canCancel,
+  canCreateReturn,
   cancelling,
   onToggle,
   onCancel,
@@ -271,6 +275,7 @@ function SaleRow({
   activeRate: CurrentExchangeRate | null;
   expanded: boolean;
   canCancel: boolean;
+  canCreateReturn: boolean;
   cancelling: boolean;
   onToggle: () => void;
   onCancel: () => void;
@@ -308,7 +313,14 @@ function SaleRow({
       {expanded && (
         <tr className="border-b border-border bg-bg/20">
           <td colSpan={10} className="px-4 py-4">
-            <SaleDetail saleId={sale.id} sale={sale} canCancel={canCancel} cancelling={cancelling} onCancel={onCancel} />
+            <SaleDetail
+              saleId={sale.id}
+              sale={sale}
+              canCancel={canCancel}
+              canCreateReturn={canCreateReturn}
+              cancelling={cancelling}
+              onCancel={onCancel}
+            />
           </td>
         </tr>
       )}
@@ -320,16 +332,22 @@ function SaleDetail({
   saleId,
   sale,
   canCancel,
+  canCreateReturn,
   cancelling,
   onCancel,
 }: {
   saleId: number;
   sale: Sale;
   canCancel: boolean;
+  canCreateReturn: boolean;
   cancelling: boolean;
   onCancel: () => void;
 }) {
   const { data: detail, isLoading } = useSale(saleId);
+  const createReturn = useCreateSalesReturn();
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnLines, setReturnLines] = useState<Record<number, { quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>>({});
   const current = detail ?? sale;
   const items = current.items ?? [];
   const actor = current.pos_order?.cashier_name ?? current.created_by_name ?? 'Sin usuario';
@@ -373,23 +391,54 @@ function SaleDetail({
         </table>
       </div>
 
+      {showReturnForm && (
+        <SalesReturnForm
+          sale={current}
+          reason={returnReason}
+          lines={returnLines}
+          loading={createReturn.isPending}
+          onReason={setReturnReason}
+          onLines={setReturnLines}
+          onCancel={() => setShowReturnForm(false)}
+          onSubmit={async (payload) => {
+            await createReturn.mutateAsync(payload);
+            toast.success('Devolución registrada.');
+            setShowReturnForm(false);
+            setReturnReason('');
+            setReturnLines({});
+          }}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-text-muted">
           Total: <strong className="text-text-primary">{formatMoney(current.total_base_amount)}</strong>
           <span className="mx-2">·</span>
           {formatMoney(current.total_local_amount, 'Bs ')}
         </div>
-        {canCancel && current.status === 'draft' && (
-          <Button
-            variant="danger"
-            size="sm"
-            loading={cancelling}
-            leftIcon={<XCircle className="size-4" />}
-            onClick={onCancel}
-          >
-            Cancelar borrador
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canCreateReturn && current.status === 'confirmed' && items.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<RotateCcw className="size-4" />}
+              onClick={() => setShowReturnForm((value) => !value)}
+            >
+              Devolver
+            </Button>
+          )}
+          {canCancel && current.status === 'draft' && (
+            <Button
+              variant="danger"
+              size="sm"
+              loading={cancelling}
+              leftIcon={<XCircle className="size-4" />}
+              onClick={onCancel}
+            >
+              Cancelar borrador
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -420,6 +469,160 @@ function ReceivableAudit({ sale }: { sale: Sale }) {
         <Metric label="Saldo" value={formatMoney(receivable.balance_base_amount)} strong />
         <Metric label="Vence" value={receivable.due_date ?? '-'} />
       </dl>
+    </section>
+  );
+}
+
+function SalesReturnForm({
+  sale,
+  reason,
+  lines,
+  loading,
+  onReason,
+  onLines,
+  onCancel,
+  onSubmit,
+}: {
+  sale: Sale;
+  reason: string;
+  lines: Record<number, { quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>;
+  loading: boolean;
+  onReason: (value: string) => void;
+  onLines: (value: Record<number, { quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>) => void;
+  onCancel: () => void;
+  onSubmit: (payload: SalesReturnPayload) => Promise<void>;
+}) {
+  const items = sale.items ?? [];
+
+  function patchLine(item: SaleItem, patch: Partial<{ quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>) {
+    const current = lines[item.id] ?? { quantity: 0, condition: 'sellable' as const, reason: '', unitIds: [] };
+    onLines({ ...lines, [item.id]: { ...current, ...patch } });
+  }
+
+  async function submit() {
+    const selected = items.flatMap((item) => {
+      const line = lines[item.id];
+      if (!line || line.quantity <= 0) return [];
+      const serialCount = (item.serial_units ?? []).filter((unit) => Number.isFinite(Number(unit.id))).length;
+      return [{
+        sale_item_id: item.id,
+        quantity: Math.min(line.quantity, item.quantity),
+        condition: line.condition,
+        reason: line.reason || null,
+        product_unit_ids: serialCount > 0 ? line.unitIds : undefined,
+      }];
+    });
+
+    if (selected.length === 0) {
+      toast.error('Selecciona al menos un item para devolver.');
+      return;
+    }
+
+    const invalidSerial = selected.some((line) => {
+      const item = items.find((candidate) => candidate.id === line.sale_item_id);
+      return (item?.serial_units?.length ?? 0) > 0 && (line.product_unit_ids?.length ?? 0) !== line.quantity;
+    });
+
+    if (invalidSerial) {
+      toast.error('Los productos serializados requieren seleccionar un IMEI/serial por unidad devuelta.');
+      return;
+    }
+
+    await onSubmit({ sale_id: sale.id, reason: reason || null, items: selected });
+  }
+
+  return (
+    <section className="rounded border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold">Registrar devolución</h3>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cerrar</Button>
+      </div>
+      <div className="mt-3 space-y-3">
+        <div className="space-y-1">
+          <Label>Motivo general</Label>
+          <Input value={reason} onChange={(e) => onReason(e.target.value)} placeholder="Ej. cliente devuelve por cambio" />
+        </div>
+        <div className="overflow-x-auto rounded border border-border">
+          <table className="w-full table-dense">
+            <thead className="border-b border-border bg-bg/60 text-left text-xs uppercase text-text-muted">
+              <tr>
+                <th className="px-3 py-2">Producto</th>
+                <th className="px-3 py-2 text-right">Vendida</th>
+                <th className="px-3 py-2">Devolver</th>
+                <th className="px-3 py-2">Condición</th>
+                <th className="px-3 py-2">Seriales</th>
+                <th className="px-3 py-2">Motivo línea</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const line = lines[item.id] ?? { quantity: 0, condition: 'sellable' as const, reason: '', unitIds: [] };
+                const serialUnits = (item.serial_units ?? []).filter((unit) => Number.isFinite(Number(unit.id)));
+                return (
+                  <tr key={item.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{item.product_name ?? `Producto #${item.product_id}`}</div>
+                      <div className="text-xs text-text-muted">{item.product_sku ?? '-'}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right">{item.quantity}</td>
+                    <td className="px-3 py-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        max={item.quantity}
+                        value={line.quantity}
+                        onChange={(e) => patchLine(item, { quantity: Number(e.target.value || 0) })}
+                        className="w-24"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select value={line.condition} onChange={(e) => patchLine(item, { condition: e.target.value as 'sellable' | 'damaged' })}>
+                        <option value="sellable">Vendible</option>
+                        <option value="damaged">Dañado</option>
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      {serialUnits.length === 0 ? (
+                        <span className="text-xs text-text-muted">No serializado</span>
+                      ) : (
+                        <div className="max-h-24 space-y-1 overflow-auto">
+                          {serialUnits.map((unit) => {
+                            const unitId = Number(unit.id);
+                            return (
+                              <label key={unitId} className="flex items-center gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={line.unitIds.includes(unitId)}
+                                  onChange={(e) => {
+                                    const next = e.target.checked
+                                      ? [...line.unitIds, unitId]
+                                      : line.unitIds.filter((id) => id !== unitId);
+                                    patchLine(item, { unitIds: next, quantity: next.length });
+                                  }}
+                                />
+                                {unit.serial_number}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input value={line.reason} onChange={(e) => patchLine(item, { reason: e.target.value })} placeholder="Opcional" />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button loading={loading} onClick={() => void submit()}>
+            Registrar devolución
+          </Button>
+        </div>
+      </div>
     </section>
   );
 }
