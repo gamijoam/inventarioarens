@@ -21,6 +21,8 @@ import {
   useCloseCashSession,
   useCreateCashRegister,
   useCreatePosBranch,
+  useCurrentExchangeRatesForPos,
+  useExchangeRateTypesForPos,
   useOpenCashSession,
 } from './api';
 
@@ -28,6 +30,8 @@ export function CashRegisterSetup() {
   const { data: branches = [], isLoading: loadingBranches } = useBranchesForPos();
   const { data: registers = [], isLoading: loadingRegisters } = useCashRegisters();
   const { data: sessions = [], isLoading: loadingSessions } = useCashSessions();
+  const { data: rates = [] } = useCurrentExchangeRatesForPos();
+  const { data: rateTypes = [] } = useExchangeRateTypesForPos();
   const canOpen = useCan(PERMISSIONS.CASH_REGISTER_OPEN);
   const canMove = useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
   const canClose = useCan(PERMISSIONS.CASH_REGISTER_CLOSE);
@@ -38,7 +42,7 @@ export function CashRegisterSetup() {
   const closeSession = useCloseCashSession();
   const [branchForm, setBranchForm] = useState({ name: '', code: '' });
   const [registerForm, setRegisterForm] = useState({ name: '', code: '', branch_id: '' });
-  const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', opening_amount: '0' });
+  const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', opening_base_amount: '0', opening_local_amount: '0' });
   const [movementForm, setMovementForm] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
 
@@ -51,6 +55,7 @@ export function CashRegisterSetup() {
     [registers],
   );
   const activeSession = sessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null;
+  const activeRate = bestActiveRate(rates, rateTypes);
 
   return (
     <PageLayout
@@ -76,6 +81,7 @@ export function CashRegisterSetup() {
           openForm={openForm}
           movementForm={movementForm}
           closingAmount={closingAmount}
+          rateLabel={activeRate ? `${activeRate.code} @ ${formatLocalNumber(activeRate.rate)}` : null}
           opening={openSession.isPending}
           moving={addMovement.isPending}
           closing={closeSession.isPending}
@@ -87,14 +93,20 @@ export function CashRegisterSetup() {
               toast.error('Selecciona sucursal y caja fisica activa.');
               return;
             }
+            if (Number(openForm.opening_local_amount || 0) > 0 && !activeRate) {
+              toast.error('Configura una tasa activa USD/VES antes de abrir con fondo VES.');
+              return;
+            }
             openSession.mutate({
               branch_id: Number(openForm.branch_id),
               cash_register_id: Number(openForm.cash_register_id),
-              opening_currency: 'USD',
-              opening_amount: Number(openForm.opening_amount || 0),
+              opening_base_amount: Number(openForm.opening_base_amount || 0),
+              opening_local_amount: Number(openForm.opening_local_amount || 0),
+              exchange_rate_type_id: Number(openForm.opening_local_amount || 0) > 0 ? activeRate?.exchange_rate_type_id : null,
               notes: 'Apertura desde modulo Cajas',
             }, {
-              onSuccess: () => setOpenForm({ branch_id: '', cash_register_id: '', opening_amount: '0' }),
+              onSuccess: () => setOpenForm({ branch_id: '', cash_register_id: '', opening_base_amount: '0', opening_local_amount: '0' }),
+              onError: (error) => toast.error(errorMessage(error)),
             });
           }}
           onMovement={() => {
@@ -293,6 +305,7 @@ function CashSessionCard({
   openForm,
   movementForm,
   closingAmount,
+  rateLabel,
   opening,
   moving,
   closing,
@@ -310,13 +323,14 @@ function CashSessionCard({
   canOpen: boolean;
   canMove: boolean;
   canClose: boolean;
-  openForm: { branch_id: string; cash_register_id: string; opening_amount: string };
+  openForm: { branch_id: string; cash_register_id: string; opening_base_amount: string; opening_local_amount: string };
   movementForm: { type: string; amount: string; notes: string };
   closingAmount: string;
+  rateLabel: string | null;
   opening: boolean;
   moving: boolean;
   closing: boolean;
-  onOpenForm: (value: { branch_id: string; cash_register_id: string; opening_amount: string }) => void;
+  onOpenForm: (value: { branch_id: string; cash_register_id: string; opening_base_amount: string; opening_local_amount: string }) => void;
   onMovementForm: (value: { type: string; amount: string; notes: string }) => void;
   onClosingAmount: (value: string) => void;
   onOpen: () => void;
@@ -350,8 +364,10 @@ function CashSessionCard({
                 <Badge variant="success">Abierta</Badge>
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <Metric label="Fondo" value={money(session.opening_base_amount)} />
-                <Metric label="Esperado" value={money(session.expected_base_amount)} />
+                <Metric label="Fondo USD" value={money(session.opening_base_amount)} />
+                <Metric label="Fondo VES" value={localMoney(session.opening_local_amount)} />
+                <Metric label="Esperado USD" value={money(session.expected_base_amount)} />
+                <Metric label="Esperado VES" value={localMoney(session.expected_local_amount)} />
                 <Metric label="Estado" value="Turno activo" />
               </div>
             </div>
@@ -384,20 +400,26 @@ function CashSessionCard({
             {!canOpen ? (
               <p className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">No tienes permiso para abrir turno.</p>
             ) : (
-              <div className="grid gap-2 lg:grid-cols-[1fr_1fr_160px_auto]">
-                <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })}>
-                  <option value="">Sucursal...</option>
-                  {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
-                </Select>
-                <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })}>
-                  <option value="">Caja fisica...</option>
-                  {availableRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
-                </Select>
-                <Input type="number" min="0" value={openForm.opening_amount} onChange={(event) => onOpenForm({ ...openForm, opening_amount: event.target.value })} placeholder="Fondo USD" />
-                <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id} onClick={onOpen}>
-                  {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno
-                </Button>
-              </div>
+              <>
+                <div className="grid gap-2 lg:grid-cols-[1fr_1fr_140px_140px_auto]">
+                  <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })}>
+                    <option value="">Sucursal...</option>
+                    {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
+                  </Select>
+                  <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })}>
+                    <option value="">Caja fisica...</option>
+                    {availableRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
+                  </Select>
+                  <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="Fondo USD" />
+                  <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="Fondo VES" />
+                  <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id} onClick={onOpen}>
+                    {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  {rateLabel ? `Fondo VES se convierte con ${rateLabel}.` : 'Sin tasa activa USD/VES para convertir fondo VES.'}
+                </p>
+              </>
             )}
             {(branches.length === 0 || registers.length === 0) && (
               <p className="mt-3 text-sm text-warning">Configura al menos una sucursal y una caja fisica activa antes de abrir turno.</p>
@@ -420,6 +442,40 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function money(value: number | string | null | undefined): string {
   return `$${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function localMoney(value: number | string | null | undefined): string {
+  return `Bs ${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatLocalNumber(value: number): string {
+  return Number(value || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function bestActiveRate(
+  rates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>,
+  rateTypes: Array<{ id: number; code?: string; is_default?: boolean; is_active?: boolean }>,
+): { exchange_rate_type_id: number; code: string; rate: number } | null {
+  const validRates = rates.filter((rate) => {
+    const base = rate.base_currency ?? 'USD';
+    const quote = rate.quote_currency ?? 'VES';
+    return base === 'USD' && quote === 'VES' && Number(rate.rate) > 0;
+  });
+  const defaultType = rateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false);
+  const selected = validRates.find((rate) => defaultType && rate.exchange_rate_type_id === defaultType.id) ?? validRates[0];
+  if (!selected) return null;
+  const type = rateTypes.find((rateType) => rateType.id === selected.exchange_rate_type_id);
+
+  return {
+    exchange_rate_type_id: selected.exchange_rate_type_id,
+    code: selected.exchange_rate_type_code ?? type?.code ?? 'Tasa',
+    rate: Number(selected.rate),
+  };
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return 'No se pudo completar la accion.';
 }
 
 function formatDate(value?: string | null): string {

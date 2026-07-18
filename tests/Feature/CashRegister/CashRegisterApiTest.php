@@ -91,6 +91,33 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonPath('data.cash_register.name', 'Caja Mostrador 1');
     }
 
+    public function test_user_can_open_cash_register_session_with_usd_and_ves_funds(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $cashRegister = $this->cashRegister($tenant, $branch, 'Caja Mostrador 1', 'CJ-1');
+        $rateType = $this->rateType($tenant, 'BCV', 1000);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegister->id,
+                'opening_base_amount' => 25,
+                'opening_local_amount' => 5000,
+                'exchange_rate_type_id' => $rateType->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.opening_base_amount', '30.0000')
+            ->assertJsonPath('data.opening_local_amount', '5000.0000')
+            ->assertJsonPath('data.expected_base_amount', '30.0000')
+            ->assertJsonPath('data.expected_local_amount', '5000.0000')
+            ->assertJsonCount(2, 'data.movements');
+    }
+
     public function test_two_cashiers_cannot_open_the_same_physical_cash_register(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

@@ -80,11 +80,22 @@ class CashRegisterService
                 ]);
             }
 
-            $opening = $this->resolveAmount([
-                'currency' => $data['opening_currency'] ?? Product::CURRENCY_USD,
-                'amount' => $data['opening_amount'] ?? 0,
-                'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
-            ]);
+            $openingMovements = $this->openingMovements($data);
+            $openingBaseAmount = 0.0;
+            $openingLocalAmount = 0.0;
+            $resolvedOpeningMovements = [];
+
+            foreach ($openingMovements as $movement) {
+                if ((float) $movement['amount'] <= 0) {
+                    continue;
+                }
+
+                $resolved = $this->resolveAmount($movement);
+                $movement['resolved'] = $resolved;
+                $openingBaseAmount += (float) $resolved['amount_base'];
+                $openingLocalAmount += (float) ($resolved['amount_local'] ?? 0);
+                $resolvedOpeningMovements[] = $movement;
+            }
 
             $session = CashRegisterSession::create([
                 'branch_id' => $branch->id,
@@ -92,20 +103,24 @@ class CashRegisterService
                 'cashier_id' => $cashier->id,
                 'opened_by' => $operator->id,
                 'status' => CashRegisterSession::STATUS_OPEN,
-                'opening_base_amount' => $opening['amount_base'],
-                'opening_local_amount' => $opening['amount_local'] ?? 0,
-                'expected_base_amount' => $opening['amount_base'],
-                'expected_local_amount' => $opening['amount_local'] ?? 0,
+                'opening_base_amount' => round($openingBaseAmount, 4),
+                'opening_local_amount' => round($openingLocalAmount, 4),
+                'expected_base_amount' => round($openingBaseAmount, 4),
+                'expected_local_amount' => round($openingLocalAmount, 4),
                 'opened_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            if ((float) ($data['opening_amount'] ?? 0) > 0) {
+            foreach ($resolvedOpeningMovements as $movement) {
+                if ((float) $movement['amount'] <= 0) {
+                    continue;
+                }
+
                 $this->createMovement($session, CashRegisterMovement::TYPE_OPENING, CashRegisterMovement::METHOD_CASH, [
-                    'currency' => $data['opening_currency'] ?? Product::CURRENCY_USD,
-                    'amount' => $data['opening_amount'],
-                    'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
-                    'notes' => 'Monto inicial de caja.',
+                    'currency' => $movement['currency'],
+                    'amount' => $movement['amount'],
+                    'exchange_rate_type_id' => $movement['exchange_rate_type_id'] ?? null,
+                    'notes' => $movement['notes'],
                 ], $operator);
             }
 
@@ -316,6 +331,32 @@ class CashRegisterService
             'notes' => $data['notes'] ?? null,
             'created_by' => $operator?->id,
         ]);
+    }
+
+    private function openingMovements(array $data): array
+    {
+        if (array_key_exists('opening_base_amount', $data) || array_key_exists('opening_local_amount', $data)) {
+            return [
+                [
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => (float) ($data['opening_base_amount'] ?? 0),
+                    'notes' => 'Fondo inicial USD.',
+                ],
+                [
+                    'currency' => Product::CURRENCY_VES,
+                    'amount' => (float) ($data['opening_local_amount'] ?? 0),
+                    'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
+                    'notes' => 'Fondo inicial VES.',
+                ],
+            ];
+        }
+
+        return [[
+            'currency' => $data['opening_currency'] ?? Product::CURRENCY_USD,
+            'amount' => (float) ($data['opening_amount'] ?? 0),
+            'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
+            'notes' => 'Monto inicial de caja.',
+        ]];
     }
 
     private function recalculateExpectedTotals(CashRegisterSession $session): void

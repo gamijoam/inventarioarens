@@ -110,7 +110,8 @@ export function PosTerminal() {
   });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
-  const [openingAmount, setOpeningAmount] = useState('0');
+  const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
+  const [openingLocalAmount, setOpeningLocalAmount] = useState('0');
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
   const [openingRegisterId, setOpeningRegisterId] = useState<number | ''>('');
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
@@ -165,6 +166,7 @@ export function PosTerminal() {
     hasStockIssue: hasStockIssue(cart),
     paymentSetupIssue,
   });
+  const openingRate = bestActiveRate(currentRates, exchangeRateTypes);
 
   useEffect(() => {
     if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
@@ -239,19 +241,31 @@ export function PosTerminal() {
         cashRegisters={activeCashRegisters}
         branchId={openingBranchId}
         registerId={openingRegisterId}
-        amount={openingAmount}
+        baseAmount={openingBaseAmount}
+        localAmount={openingLocalAmount}
+        rateLabel={openingRate ? `${openingRate.code} @ ${formatLocalNumber(openingRate.rate)}` : null}
         onBranchChange={setOpeningBranchId}
         onRegisterChange={setOpeningRegisterId}
-        onAmountChange={setOpeningAmount}
+        onBaseAmountChange={setOpeningBaseAmount}
+        onLocalAmountChange={setOpeningLocalAmount}
         onOpen={() => {
           if (!openingBranchId) return toast.error('Selecciona una sucursal.');
           if (!openingRegisterId) return toast.error('Selecciona una caja fisica activa.');
+          if (Number(openingLocalAmount || 0) > 0 && !openingRate) {
+            return toast.error('Configura una tasa activa USD/VES antes de abrir con fondo VES.');
+          }
           openCash.mutate({
             branch_id: Number(openingBranchId),
             cash_register_id: Number(openingRegisterId),
-            opening_currency: 'USD',
-            opening_amount: Number(openingAmount || 0),
+            opening_base_amount: Number(openingBaseAmount || 0),
+            opening_local_amount: Number(openingLocalAmount || 0),
+            exchange_rate_type_id: Number(openingLocalAmount || 0) > 0 ? openingRate?.exchange_rate_type_id : null,
             notes: 'Apertura desde POS',
+          }, {
+            onError: (error) => {
+              void refetchCashSessions();
+              toast.error(errorMessage(error));
+            },
           });
         }}
         busy={openCash.isPending}
@@ -983,11 +997,14 @@ function OpenCashScreen(props: {
   cashRegisters: Array<{ id: number; name: string; code?: string | null }>;
   branchId: number | '';
   registerId: number | '';
-  amount: string;
+  baseAmount: string;
+  localAmount: string;
+  rateLabel: string | null;
   busy: boolean;
   onBranchChange: (id: number | '') => void;
   onRegisterChange: (id: number | '') => void;
-  onAmountChange: (amount: string) => void;
+  onBaseAmountChange: (amount: string) => void;
+  onLocalAmountChange: (amount: string) => void;
   onOpen: () => void;
 }) {
   return (
@@ -1015,7 +1032,19 @@ function OpenCashScreen(props: {
               <option value="">Caja fisica...</option>
               {props.cashRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
             </Select>
-            <Input type="number" min="0" value={props.amount} onChange={(event) => props.onAmountChange(event.target.value)} placeholder="Fondo inicial USD" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-text-muted">Fondo USD</label>
+                <Input type="number" min="0" value={props.baseAmount} onChange={(event) => props.onBaseAmountChange(event.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-text-muted">Fondo VES</label>
+                <Input type="number" min="0" value={props.localAmount} onChange={(event) => props.onLocalAmountChange(event.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <p className="text-xs text-text-muted">
+              {props.rateLabel ? `VES se convierte con ${props.rateLabel}.` : 'Sin tasa activa USD/VES para convertir fondo VES.'}
+            </p>
             <Button
               className="w-full"
               onClick={props.onOpen}
@@ -1592,4 +1621,13 @@ function customerDocument(customer: Customer | null): string | null {
 
 function money(value: number): string {
   return `$${roundMoney(Number(value || 0)).toFixed(2)}`;
+}
+
+function formatLocalNumber(value: number): string {
+  return Number(value || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return 'No se pudo completar la accion.';
 }

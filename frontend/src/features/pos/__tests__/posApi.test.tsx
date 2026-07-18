@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, usePosProducts } from '../api';
+import { useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosProducts } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -83,6 +83,38 @@ describe('pos api', () => {
       name: 'Caja 1',
       code: 'CJ1',
       status: 'active',
+    });
+  });
+
+  it('abre turno con fondos iniciales USD y VES', async () => {
+    mockPostOne.mockResolvedValue({
+      id: 8,
+      branch_id: 1,
+      cash_register_id: 5,
+      status: 'open',
+      opening_base_amount: '30.0000',
+      opening_local_amount: '5000.0000',
+      expected_base_amount: '30.0000',
+      expected_local_amount: '5000.0000',
+    });
+
+    const { result } = renderHook(() => useOpenCashSession(), { wrapper });
+    result.current.mutate({
+      branch_id: 1,
+      cash_register_id: 5,
+      opening_base_amount: 25,
+      opening_local_amount: 5000,
+      exchange_rate_type_id: 2,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/cash-register/sessions', {
+      branch_id: 1,
+      cash_register_id: 5,
+      opening_base_amount: 25,
+      opening_local_amount: 5000,
+      exchange_rate_type_id: 2,
     });
   });
 

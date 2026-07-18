@@ -43,9 +43,13 @@ export const CashRegisterSessionSchema = z.object({
   cashier_id: z.number().int().nullable().optional(),
   status: z.string(),
   opening_base_amount: nullableNumber,
+  opening_local_amount: nullableNumber,
   expected_base_amount: nullableNumber,
+  expected_local_amount: nullableNumber,
   counted_base_amount: nullableNumber,
+  counted_local_amount: nullableNumber,
   difference_base_amount: nullableNumber,
+  difference_local_amount: nullableNumber,
   opened_at: z.string().nullable().optional(),
   closed_at: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -133,8 +137,11 @@ export interface CheckoutPayload {
 export interface OpenCashSessionPayload {
   branch_id: number;
   cash_register_id?: number | null;
-  opening_currency: 'USD' | 'VES';
-  opening_amount: number;
+  opening_currency?: 'USD' | 'VES';
+  opening_amount?: number;
+  opening_base_amount?: number;
+  opening_local_amount?: number;
+  exchange_rate_type_id?: number | null;
   notes?: string | null;
 }
 

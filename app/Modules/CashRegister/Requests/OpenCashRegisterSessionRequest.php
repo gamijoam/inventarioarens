@@ -36,6 +36,8 @@ class OpenCashRegisterSessionRequest extends FormRequest
                 Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES]),
             ],
             'opening_amount' => ['sometimes', 'numeric', 'gte:0'],
+            'opening_base_amount' => ['sometimes', 'numeric', 'gte:0'],
+            'opening_local_amount' => ['sometimes', 'numeric', 'gte:0'],
             'exchange_rate_type_id' => [
                 'nullable',
                 'integer',
