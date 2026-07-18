@@ -22,7 +22,19 @@ const mockUseGroupSpinoffs = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
-const mockUseGroupUsers = vi.fn((_id?: number | string, _enabled?: boolean) => ({ data: [ { id: 100, name: 'Test User', email: 'test@example.com', status: 'active', tenants: [] } ], isLoading: false }));
+const mockUseGroupUsers = vi.fn((_id?: number | string, _enabled?: boolean) => ({
+  data: [
+    {
+      id: 100,
+      name: 'Test User',
+      email: 'test@example.com',
+      status: 'active',
+      roles: [{ id: 1, name: 'Administrador' }],
+      tenants: [{ id: 10, name: 'Sucursal Valencia', slug: 'valencia', is_group: false }],
+    },
+  ],
+  isLoading: false,
+}));
 
 vi.mock('@/features/access/tenantGroupsApi', () => ({
   useTenantGroups: () =>
@@ -204,7 +216,15 @@ describe('GroupsTree', () => {
     });
 
     expect(await screen.findByText('Sucursal Valencia')).toBeInTheDocument();
-    expect(screen.getByText('valencia')).toBeInTheDocument();
+    expect(screen.getAllByText('valencia').length).toBeGreaterThan(0);
+    expect(screen.getByText('Test User')).toBeInTheDocument();
+    expect(screen.getByText('test@example.com')).toBeInTheDocument();
+    expect(screen.getAllByText('Administrador').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Alcance:/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Ficha/i })).toHaveAttribute(
+      'href',
+      '/users/100',
+    );
   });
 });
 

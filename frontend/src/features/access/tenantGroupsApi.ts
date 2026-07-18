@@ -60,6 +60,7 @@ export const GroupUserSchema = z.object({
         name: z.string(),
         slug: z.string(),
         is_group: z.boolean().optional(),
+        status: z.string().optional(),
       }),
     )
     .optional(),
@@ -175,6 +176,23 @@ const spinoffsKey = (groupIdOrSlug: number | string) =>
 const usersKey = (groupIdOrSlug: number | string) =>
   ['access', 'tenant-groups', groupIdOrSlug, 'users'] as const;
 
+function unwrapList(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    'data' in value &&
+    Array.isArray((value as { data?: unknown }).data)
+  ) {
+    return (value as { data: unknown[] }).data;
+  }
+
+  return [];
+}
+
 /**
  * Lista los spinoffs (empresas hijas) de un grupo donde el user es Owner.
  */
@@ -182,10 +200,8 @@ export function useGroupSpinoffs(groupIdOrSlug: number | string, enabled = true)
   return useQuery({
     queryKey: spinoffsKey(groupIdOrSlug),
     queryFn: async (): Promise<TenantSpinoff[]> => {
-      const response = (await getOne<{ data: unknown[] }>(
-        `/tenant-groups/${groupIdOrSlug}/spinoffs`,
-      )) as { data?: unknown[] };
-      const items = Array.isArray(response?.data) ? response.data : [];
+      const response = await getOne<unknown>(`/tenant-groups/${groupIdOrSlug}/spinoffs`);
+      const items = unwrapList(response);
       return z.array(TenantSpinoffSchema).parse(items);
     },
     enabled,
@@ -200,10 +216,8 @@ export function useGroupUsers(groupIdOrSlug: number | string, enabled = true) {
   return useQuery({
     queryKey: usersKey(groupIdOrSlug),
     queryFn: async (): Promise<GroupUser[]> => {
-      const response = (await getOne<{ data: unknown[] }>(
-        `/tenant-groups/${groupIdOrSlug}/users`,
-      )) as { data?: unknown[] };
-      const items = Array.isArray(response?.data) ? response.data : [];
+      const response = await getOne<unknown>(`/tenant-groups/${groupIdOrSlug}/users`);
+      const items = unwrapList(response);
       return z.array(GroupUserSchema).parse(items);
     },
     enabled,

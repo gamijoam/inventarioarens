@@ -19,8 +19,7 @@ class TenantGroupController extends Controller
     public function __construct(
         private readonly TenantRegistrationService $service,
         private readonly CrossTenantUserService $userService,
-    ) {
-    }
+    ) {}
 
     public function store(StoreTenantGroupRequest $request): JsonResponse
     {
@@ -122,6 +121,27 @@ class TenantGroupController extends Controller
         abort_unless($user->isOwnerOf($group), 403, 'Only Owners of the group can list organization users.');
 
         $users = $this->userService->listUsers($group, 'organization');
+        $users->through(fn (User $listedUser): array => [
+            'id' => $listedUser->id,
+            'name' => $listedUser->name,
+            'email' => $listedUser->email,
+            'status' => $this->organizationUserStatus($listedUser),
+            'roles' => $listedUser->roles
+                ->map(fn ($role): array => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                ])
+                ->values(),
+            'tenants' => $listedUser->tenants
+                ->map(fn (Tenant $tenant): array => [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'slug' => $tenant->slug,
+                    'is_group' => (bool) $tenant->is_group,
+                    'status' => $tenant->pivot?->status ?? 'active',
+                ])
+                ->values(),
+        ]);
 
         return response()->json(['data' => $users]);
     }
@@ -166,5 +186,19 @@ class TenantGroupController extends Controller
         );
 
         return response()->json(['data' => $attached->only(['id', 'name', 'email'])], 201);
+    }
+
+    private function organizationUserStatus(User $user): string
+    {
+        $statuses = $user->tenants
+            ->map(fn (Tenant $tenant): ?string => $tenant->pivot?->status)
+            ->filter()
+            ->values();
+
+        if ($statuses->contains('active')) {
+            return 'active';
+        }
+
+        return $statuses->first() ?? 'active';
     }
 }

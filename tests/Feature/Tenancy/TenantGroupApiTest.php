@@ -57,7 +57,7 @@ class TenantGroupApiTest extends TestCase
         ]);
         $user->tenants()->attach($spinoff, ['status' => 'active']);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/tenant-groups');
 
         $response->assertOk()
@@ -83,7 +83,7 @@ class TenantGroupApiTest extends TestCase
         $user->assignRole($role);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/tenant-groups');
 
         $response->assertOk()->assertJsonCount(0, 'data');
@@ -96,7 +96,7 @@ class TenantGroupApiTest extends TestCase
         // Forzar attach inactivo (helper ya lo hizo activo).
         $user->tenants()->updateExistingPivot($group->id, ['status' => 'inactive']);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/tenant-groups');
 
         $response->assertOk()->assertJsonCount(0, 'data');
@@ -114,7 +114,7 @@ class TenantGroupApiTest extends TestCase
             'parent_id' => $group->id,
         ]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/tenant-groups');
 
         $response->assertOk()
@@ -138,8 +138,8 @@ class TenantGroupApiTest extends TestCase
             'name' => 'Other', 'slug' => 'other', 'is_group' => false, 'parent_id' => $otherGroup->id,
         ]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
-            ->getJson('/api/tenant-groups/' . $group->id . '/spinoffs');
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/tenant-groups/'.$group->id.'/spinoffs');
 
         $response->assertOk()->assertJsonCount(2, 'data');
 
@@ -170,8 +170,8 @@ class TenantGroupApiTest extends TestCase
             'name' => 'Sp', 'slug' => 'sp', 'is_group' => false, 'parent_id' => $group->id,
         ]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
-            ->getJson('/api/tenant-groups/' . $group->id . '/spinoffs');
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/tenant-groups/'.$group->id.'/spinoffs');
 
         $response->assertOk()->assertJsonCount(1, 'data');
     }
@@ -183,10 +183,52 @@ class TenantGroupApiTest extends TestCase
 
         $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'is_group' => true]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
-            ->getJson('/api/tenant-groups/' . $group->id . '/spinoffs');
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/tenant-groups/'.$group->id.'/spinoffs');
 
         $response->assertForbidden();
+    }
+
+    public function test_users_endpoint_returns_normalized_users_from_group_and_spinoffs(): void
+    {
+        [$owner, $token, $group] = $this->makeGroupWithOwner('Danubio', 'danubio');
+
+        $spinoff = Tenant::create([
+            'name' => 'Danubio',
+            'slug' => 'danubio-empresa',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+
+        $user = User::factory()->create([
+            'name' => 'Usuario Danubio',
+            'email' => 'usuario@danubio.test',
+        ]);
+        $user->tenants()->attach($spinoff, ['status' => 'active']);
+
+        $role = Role::create(['name' => 'Administrador', 'guard_name' => 'web']);
+        $role->tenant_id = $spinoff->id;
+        $role->save();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        setPermissionsTeamId($spinoff->id);
+        $user->assignRole($role);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/tenant-groups/'.$group->id.'/users');
+
+        $response->assertOk();
+
+        $listedUser = collect($response->json('data.data'))
+            ->firstWhere('email', 'usuario@danubio.test');
+
+        $this->assertSame('Usuario Danubio', $listedUser['name']);
+        $this->assertSame('active', $listedUser['status']);
+        $this->assertSame('Administrador', $listedUser['roles'][0]['name']);
+        $this->assertSame('danubio-empresa', $listedUser['tenants'][0]['slug']);
+        $this->assertSame('active', $listedUser['tenants'][0]['status']);
+
+        $this->assertTrue($owner->isOwnerOf($group));
     }
 
     /**

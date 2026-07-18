@@ -5,6 +5,7 @@
  *  - Header: nombre, slug, plan, contadores
  *  - Lista de spinoffs (empresas hijas) cargados lazy
  *  - Lista de usuarios de la organizacion (grupo + spinoffs) lazy
+ *  - Resumen operativo de roles, estados y alcance para Owners/Admins
  *  - Botones "Agregar empresa" y "Agregar usuario" que abren dialogs
  *
  * Acciones disponibles:
@@ -17,9 +18,11 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Loader2,
   Plus,
   RefreshCw,
+  ShieldCheck,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -137,6 +140,9 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
     isExpanded,
   );
   const { data: users = [], isLoading: loadingUsers } = useGroupUsers(group.id, isExpanded);
+  const activeUsers = users.filter((u) => u.status === 'active').length;
+  const inactiveUsers = users.length - activeUsers;
+  const assignedRoles = uniqueSorted(users.flatMap((u) => u.roles?.map((r) => r.name) ?? []));
 
   return (
     <Card data-testid={`group-card-${group.id}`}>
@@ -204,6 +210,24 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
 
       {isExpanded && (
         <CardContent className="space-y-4 border-t border-border pt-3">
+          <div className="grid gap-2 md:grid-cols-3">
+            <SummaryTile
+              label="Empresas"
+              value={loadingSpinoffs ? '...' : String(spinoffs.length)}
+              detail="Spinoffs bajo este grupo"
+            />
+            <SummaryTile
+              label="Usuarios"
+              value={loadingUsers ? '...' : String(users.length)}
+              detail={`${activeUsers} activos${inactiveUsers > 0 ? `, ${inactiveUsers} inactivos` : ''}`}
+            />
+            <SummaryTile
+              label="Roles en uso"
+              value={loadingUsers ? '...' : String(assignedRoles.length)}
+              detail={assignedRoles.slice(0, 3).join(', ') || 'Sin roles asignados'}
+            />
+          </div>
+
           <div>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Empresas hijas (spinoffs)
@@ -224,9 +248,21 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
           </div>
 
           <div>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Usuarios de la organizacion
-            </h4>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  Usuarios de la organizacion
+                </h4>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Gestiona roles y scopes desde la ficha del usuario. Esta vista cruza grupo y empresas hijas.
+                </p>
+              </div>
+              {users.length > 0 && (
+                <Badge variant="info" className="text-[10px]">
+                  {users.length} visibles
+                </Badge>
+              )}
+            </div>
             {loadingUsers ? (
               <Spinner label="Cargando usuarios..." />
             ) : users.length === 0 ? (
@@ -240,6 +276,21 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
                 ))}
               </ul>
             )}
+          </div>
+
+          <div className="rounded border border-border bg-bg/30 px-3 py-2">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  Gobierno de permisos
+                </h4>
+                <p className="mt-1 text-xs text-text-muted">
+                  Los roles respetan el catalogo jerarquico de permisos. Owner administra el grupo;
+                  Administrador opera su empresa y sus usuarios segun permisos efectivos y scopes.
+                </p>
+              </div>
+            </div>
           </div>
         </CardContent>
       )}
@@ -267,17 +318,48 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
   );
 }
 
+function SummaryTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded border border-border bg-bg/30 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-text-primary">{value}</p>
+      <p className="truncate text-xs text-text-muted">{detail}</p>
+    </div>
+  );
+}
+
 function UserRow({ user }: { user: GroupUser }) {
+  const tenantSummary = summarizeUserTenants(user);
+  const roleSummary = summarizeUserRoles(user);
+
   return (
     <li
       className={cn(
-        'flex items-center justify-between gap-3 rounded border border-border bg-bg/30 px-3 py-2',
+        'flex flex-col gap-3 rounded border border-border bg-bg/30 px-3 py-2 md:flex-row md:items-center md:justify-between',
         user.status !== 'active' && 'opacity-60',
       )}
       data-testid={`group-user-${user.id}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{user.name}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-medium">{user.name}</p>
+          <Badge
+            variant={user.status === 'active' ? 'success' : 'warning'}
+            className="text-[10px]"
+          >
+            {user.status}
+          </Badge>
+        </div>
         <p className="font-mono text-xs text-text-muted">{user.email}</p>
         {user.tenants && user.tenants.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -293,25 +375,39 @@ function UserRow({ user }: { user: GroupUser }) {
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-        {user.roles && user.roles.length > 0 && (
-          <span className="flex flex-wrap gap-1">
-            {user.roles.map((r) => (
-              <Badge key={r.id} variant="info" className="text-[10px]">
-                {r.name}
-              </Badge>
-            ))}
-          </span>
-        )}
-        <Badge
-          variant={user.status === 'active' ? 'success' : 'warning'}
-          className="text-[10px]"
-        >
-          {user.status}
-        </Badge>
+      <div className="grid shrink-0 gap-2 text-xs text-text-muted md:min-w-80 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="min-w-0">
+          <p className="truncate">
+            <span className="font-medium text-text-secondary">Roles:</span> {roleSummary}
+          </p>
+          <p className="truncate">
+            <span className="font-medium text-text-secondary">Alcance:</span> {tenantSummary}
+          </p>
+        </div>
+        <Button asChild size="sm" variant="outline">
+          <a href={`/users/${user.id}`}>
+            <ExternalLink className="size-3.5" /> Ficha
+          </a>
+        </Button>
       </div>
     </li>
   );
+}
+
+function summarizeUserRoles(user: GroupUser): string {
+  const roles = uniqueSorted(user.roles?.map((r) => r.name) ?? []);
+
+  return roles.length > 0 ? roles.join(', ') : 'Sin rol';
+}
+
+function summarizeUserTenants(user: GroupUser): string {
+  const tenants = uniqueSorted(user.tenants?.map((t) => t.slug) ?? []);
+
+  return tenants.length > 0 ? tenants.join(', ') : 'Sin empresa';
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 function SpinoffRow({ spinoff }: { spinoff: TenantSpinoff }) {
