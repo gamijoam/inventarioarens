@@ -8,8 +8,8 @@ use App\Modules\Purchases\Requests\StorePurchaseOrderRequest;
 use App\Modules\Purchases\Resources\PurchaseOrderResource;
 use App\Modules\Purchases\Services\PurchaseOrderService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +42,7 @@ class PurchaseOrderController extends Controller
 
         return PurchaseOrderResource::collection(
             PurchaseOrder::query()
-                ->with('supplier')
+                ->with(['supplier', 'accountPayable'])
                 ->withCount('items')
                 ->when($search !== '', function ($query) use ($normalizedSearch): void {
                     $query->where(function ($query) use ($normalizedSearch): void {
@@ -88,7 +88,7 @@ class PurchaseOrderController extends Controller
         Gate::authorize('view', $purchaseOrder);
 
         return PurchaseOrderResource::make(
-            $purchaseOrder->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement'])
+            $purchaseOrder->load(['supplier', 'accountPayable', 'items.product', 'items.warehouse', 'items.stockMovement'])
         );
     }
 
@@ -96,11 +96,12 @@ class PurchaseOrderController extends Controller
         ReceivePurchaseOrderRequest $request,
         PurchaseOrder $purchaseOrder,
         PurchaseOrderService $purchases,
-    ): PurchaseOrderResource
-    {
+    ): PurchaseOrderResource {
         Gate::authorize('receive', $purchaseOrder);
 
-        return PurchaseOrderResource::make($purchases->receive($purchaseOrder, $request->user(), $request->validated()));
+        return PurchaseOrderResource::make(
+            $purchases->receive($purchaseOrder, $request->user(), $request->validated())->load('accountPayable')
+        );
     }
 
     public function cancel(PurchaseOrder $purchaseOrder, PurchaseOrderService $purchases): PurchaseOrderResource

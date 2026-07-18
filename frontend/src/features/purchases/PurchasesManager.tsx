@@ -16,13 +16,12 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
-import {
-  usePurchases,
-  type PurchaseListFilters,
-} from '@/features/purchases/api';
+import { usePurchases, type PurchaseListFilters } from '@/features/purchases/api';
 import {
   PURCHASE_STATUS_LABELS,
+  PURCHASE_PAYABLE_STATUS_LABELS,
   type Purchase,
+  type PurchasePayableStatus,
   type PurchaseStatus,
 } from '@/features/purchases/schemas';
 import { PurchaseSummary } from './components/PurchaseSummary';
@@ -46,6 +45,22 @@ function statusVariant(status: PurchaseStatus): 'info' | 'warning' | 'success' |
     case 'received':
       return 'success';
     case 'cancelled':
+      return 'default';
+  }
+}
+
+function payableVariant(
+  status?: PurchasePayableStatus,
+): 'info' | 'warning' | 'success' | 'default' {
+  switch (status) {
+    case 'pending':
+    case 'overdue':
+      return 'warning';
+    case 'partial':
+      return 'info';
+    case 'paid':
+      return 'success';
+    default:
       return 'default';
   }
 }
@@ -82,21 +97,25 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
   return (
     <>
       <div className="mb-3 flex flex-wrap items-end gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+        <div className="relative max-w-sm min-w-[200px] flex-1">
+          <Search className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             value={filters.search ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            placeholder="Buscar por documento o supplier..."
+            placeholder="Buscar por documento o proveedor..."
             className="pl-9"
           />
         </div>
         <div className="flex items-center gap-2">
-          <Label htmlFor="status-filter" className="text-xs text-text-muted">Estado</Label>
+          <Label htmlFor="status-filter" className="text-text-muted text-xs">
+            Estado
+          </Label>
           <Select
             id="status-filter"
             value={filters.status ?? 'all'}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as PurchaseListFilters['status'] }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, status: e.target.value as PurchaseListFilters['status'] }))
+            }
             className="w-44"
           >
             {STATUS_FILTER_OPTIONS.map((o) => (
@@ -107,7 +126,9 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <Label htmlFor="date-from" className="text-xs text-text-muted">Desde</Label>
+          <Label htmlFor="date-from" className="text-text-muted text-xs">
+            Desde
+          </Label>
           <Input
             id="date-from"
             type="date"
@@ -117,7 +138,9 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Label htmlFor="date-to" className="text-xs text-text-muted">Hasta</Label>
+          <Label htmlFor="date-to" className="text-text-muted text-xs">
+            Hasta
+          </Label>
           <Input
             id="date-to"
             type="date"
@@ -126,7 +149,12 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
             className="w-40"
           />
         </div>
-        <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={onNew} className="ml-auto">
+        <Button
+          size="sm"
+          leftIcon={<Plus className="size-4" />}
+          onClick={onNew}
+          className="ml-auto"
+        >
           Nueva compra
         </Button>
       </div>
@@ -141,25 +169,43 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
           }
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface">
-          <table className="w-full table-dense">
-            <thead className="border-b border-border bg-bg/60 text-left">
+        <div className="border-border bg-surface rounded-lg border">
+          <table className="table-dense w-full">
+            <thead className="border-border bg-bg/60 border-b text-left">
               <tr>
                 <th className="w-8 px-2 py-2" />
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Documento</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Fecha</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Proveedor</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Estado</th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Total (USD)</th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Recibido</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Items</th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Documento
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Fecha
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Proveedor
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Estado compra
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  CxP
+                </th>
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                  Total (USD)
+                </th>
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                  Recibido
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Items
+                </th>
               </tr>
             </thead>
             <tbody>
               {purchases.map((p) => {
                 const totalBase = Number(p.total_base_amount ?? 0);
                 const receivedBase = Number(p.received_base_amount ?? 0);
-                const progress = totalBase > 0 ? Math.min(100, Math.round((receivedBase / totalBase) * 100)) : 0;
+                const progress =
+                  totalBase > 0 ? Math.min(100, Math.round((receivedBase / totalBase) * 100)) : 0;
                 const isExpanded = expandedId === p.id;
                 return (
                   <Row
@@ -207,24 +253,20 @@ function Row({
   return (
     <>
       <tr
-        className="cursor-pointer border-b border-border hover:bg-bg/50"
+        className="border-border hover:bg-bg/50 cursor-pointer border-b"
         onClick={onToggle}
         data-testid={`purchase-row-${purchase.id}`}
       >
-        <td className="px-2 py-2 text-text-muted">
-          {isExpanded ? (
-            <ChevronDown className="size-4" />
-          ) : (
-            <ChevronRight className="size-4" />
-          )}
+        <td className="text-text-muted px-2 py-2">
+          {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
         </td>
         <td className="px-3 py-2 font-medium">
-          <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
+          <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
             {purchase.document_number ?? `#${purchase.id}`}
           </code>
         </td>
-        <td className="px-3 py-2 text-text-muted">{purchase.issued_at ?? '-'}</td>
-        <td className="px-3 py-2 text-text-muted">
+        <td className="text-text-muted px-3 py-2">{purchase.issued_at ?? '-'}</td>
+        <td className="text-text-muted px-3 py-2">
           {(purchase.supplier as { name?: string } | null | undefined)?.name ?? (
             <span className="text-text-muted/60">Sin proveedor</span>
           )}
@@ -234,20 +276,40 @@ function Row({
             {PURCHASE_STATUS_LABELS[purchase.status]}
           </Badge>
         </td>
-        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(purchase.total_base_amount)}</td>
+        <td className="px-3 py-2">
+          {purchase.account_payable ? (
+            <div className="flex flex-col gap-0.5">
+              <Badge variant={payableVariant(purchase.account_payable.status)}>
+                {PURCHASE_PAYABLE_STATUS_LABELS[purchase.account_payable.status]}
+              </Badge>
+              {Number(purchase.account_payable.balance_base_amount ?? 0) > 0 && (
+                <span className="text-text-muted text-xs tabular-nums">
+                  Saldo {formatMoney(purchase.account_payable.balance_base_amount)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <Badge variant="default">Sin CxP</Badge>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums">
+          {formatMoney(purchase.total_base_amount)}
+        </td>
         <td className="px-3 py-2 text-right">
           <div className="flex flex-col items-end gap-0.5">
-            <span className="tabular-nums text-text-muted">{formatMoney(purchase.received_base_amount)}</span>
+            <span className="text-text-muted tabular-nums">
+              {formatMoney(purchase.received_base_amount)}
+            </span>
             {purchase.status === 'partially_received' && (
-              <span className="text-[10px] uppercase tracking-wide text-warning">{progress}%</span>
+              <span className="text-warning text-[10px] tracking-wide uppercase">{progress}%</span>
             )}
           </div>
         </td>
-        <td className="px-3 py-2 text-text-muted tabular-nums">{purchase.items_count ?? '-'}</td>
+        <td className="text-text-muted px-3 py-2 tabular-nums">{purchase.items_count ?? '-'}</td>
       </tr>
       {isExpanded && (
-        <tr className="border-b border-border bg-bg/20">
-          <td colSpan={7} className="px-3 py-4">
+        <tr className="border-border bg-bg/20 border-b">
+          <td colSpan={9} className="px-3 py-4">
             <ExpandedDetail
               purchaseId={purchase.id}
               purchase={purchase}
@@ -289,9 +351,7 @@ function ExpandedDetail({
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs uppercase tracking-wide text-text-muted">
-          Detalle de la compra
-        </div>
+        <div className="text-text-muted text-xs tracking-wide uppercase">Detalle de la compra</div>
         <QuickActionsBar
           purchase={detail ?? purchase}
           onReceive={onReceive}

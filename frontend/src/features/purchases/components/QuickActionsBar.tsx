@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useCancelPurchase } from '@/features/purchases/api';
 import type { Purchase } from '@/features/purchases/schemas';
+import { useSessionStore } from '@/stores/session';
 
 interface QuickActionsBarProps {
   purchase: Purchase;
@@ -30,13 +31,23 @@ export function QuickActionsBar({
 }: QuickActionsBarProps) {
   const cancel = useCancelPurchase();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const permissions = useSessionStore((s) => s.permissions);
 
   if (purchase.status === 'cancelled') {
     return null;
   }
 
-  const showReceive = purchase.status === 'draft' || purchase.status === 'partially_received';
-  const showPay = purchase.status === 'received' || purchase.status === 'partially_received';
+  const canCreate = permissions.has('purchases.create');
+  const canReceive = permissions.has('purchases.approve');
+  const canViewPayables = permissions.has('accounts_payable.view');
+  const hasOpenPayable = Boolean(purchase.account_payable?.is_open);
+  const showReceive =
+    canReceive && (purchase.status === 'draft' || purchase.status === 'partially_received');
+  const showCancel = canCreate && purchase.status === 'draft';
+  const showPay =
+    canViewPayables &&
+    hasOpenPayable &&
+    (purchase.status === 'received' || purchase.status === 'partially_received');
 
   return (
     <>
@@ -48,10 +59,12 @@ export function QuickActionsBar({
             onClick={onReceive}
             data-testid={`purchase-receive-${purchase.id}`}
           >
-            {purchase.status === 'partially_received' ? 'Recibir lo que falta' : 'Recibir mercancia'}
+            {purchase.status === 'partially_received'
+              ? 'Recibir lo que falta'
+              : 'Recibir mercancia'}
           </Button>
         )}
-        {purchase.status === 'draft' && (
+        {showCancel && (
           <Button
             size="sm"
             variant="outline"
@@ -89,7 +102,9 @@ export function QuickActionsBar({
       {confirmingCancel && (
         <ConfirmDialog
           open
-          onOpenChange={(open) => { if (!open) setConfirmingCancel(false); }}
+          onOpenChange={(open) => {
+            if (!open) setConfirmingCancel(false);
+          }}
           title={`Cancelar compra "${purchase.document_number ?? '#' + purchase.id}"`}
           description="La compra quedara en estado cancelado. No se puede deshacer."
           confirmLabel="Cancelar compra"

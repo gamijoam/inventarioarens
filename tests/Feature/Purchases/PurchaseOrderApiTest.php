@@ -99,7 +99,9 @@ class PurchaseOrderApiTest extends TestCase
             ->assertJsonPath('data.status', PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
             ->assertJsonPath('data.issued_at', '2026-07-02')
             ->assertJsonPath('data.due_date', '2026-07-16')
-            ->assertJsonPath('data.received_base_amount', '15.0000');
+            ->assertJsonPath('data.received_base_amount', '15.0000')
+            ->assertJsonPath('data.account_payable.status', 'overdue')
+            ->assertJsonPath('data.account_payable.balance_base_amount', '15.0000');
 
         $this->assertNotNull($response->json('data.items.0.stock_movement_id'));
 
@@ -123,7 +125,17 @@ class PurchaseOrderApiTest extends TestCase
             ->patchJson("/api/purchases/{$purchaseId}/receive")
             ->assertOk()
             ->assertJsonPath('data.status', PurchaseOrder::STATUS_RECEIVED)
-            ->assertJsonPath('data.received_base_amount', '45.0000');
+            ->assertJsonPath('data.received_base_amount', '45.0000')
+            ->assertJsonPath('data.account_payable.status', 'overdue')
+            ->assertJsonPath('data.account_payable.balance_base_amount', '45.0000');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/purchases/{$purchaseId}")
+            ->assertOk()
+            ->assertJsonPath('data.account_payable.status', 'overdue')
+            ->assertJsonPath('data.account_payable.due_date', '2026-07-16');
 
         $this->assertDatabaseHas('stock_balances', [
             'tenant_id' => $tenant->id,

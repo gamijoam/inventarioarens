@@ -7,8 +7,8 @@
  * - Default: recibir todo el pendiente.
  * - El user puede ajustar la cantidad a recibir por item (recepcion
  *   parcial).
- * - Si el item es serializado, los IMEIs capturados en el draft se
- *   muestran readonly (editarlos al recibir sera FASE 4).
+ * - Si el item es serializado, exige capturar los IMEIs/seriales de la
+ *   cantidad recibida en este ciclo.
  * - Footer: total a recibir + botones Cancelar / Recibir.
  * - Validacion: ninguna cantidad puede superar el pendiente.
  *
@@ -31,13 +31,13 @@ import {
 } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
 import { usePurchase, useReceivePurchase } from '@/features/purchases/api';
-import { PriceReviewDialog, type PriceReviewItem } from '@/features/purchases/components/PriceReviewDialog';
+import {
+  PriceReviewDialog,
+  type PriceReviewItem,
+} from '@/features/purchases/components/PriceReviewDialog';
 import type { Purchase } from '@/features/purchases/schemas';
 import { formatMoney } from '@/lib/money';
-import {
-  ReceiveItemRow,
-  type ReceiveItemRowValue,
-} from './ReceiveItemRow';
+import { ReceiveItemRow, type ReceiveItemRowValue } from './ReceiveItemRow';
 
 interface ReceiveDialogProps {
   open: boolean;
@@ -65,7 +65,10 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
         | undefined;
       const warehouse = it.warehouse as { code: string } | null | undefined;
       const unitCost = it.base_unit_cost != null ? Number(it.base_unit_cost) : null;
-      const serialUnits = Array.isArray(it.serial_units) ? (it.serial_units as never) : [];
+      const allSerialUnits = Array.isArray(it.serial_units) ? (it.serial_units as never[]) : [];
+      const serialStart = Math.max(0, Math.floor(received));
+      const serialEnd = serialStart + Math.floor(pending);
+      const serialUnits = allSerialUnits.slice(serialStart, serialEnd);
 
       return {
         purchase_item_id: it.id,
@@ -92,7 +95,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
   const [submitting, setSubmitting] = useState(false);
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
   const [reviewItems, setReviewItems] = useState<PriceReviewItem[] | null>(null);
-  const [lastResult, setLastResult] = useState<{ data?: { price_review_items?: PriceReviewItem[] } } | null>(null);
+  const [lastPurchase, setLastPurchase] = useState<Purchase | null>(null);
 
   // Cuando llega el purchase, inicializar el state local.
   useEffect(() => {
@@ -125,16 +128,33 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
     e.preventDefault();
     if (!purchaseId) return;
 
-    // Validacion: no exceder pendientes.
+    // Validacion: no exceder pendientes y seriales exactos para productos serializados.
     const newErrors: Record<number, string> = {};
     for (const it of items) {
       const pending = it.ordered_quantity - it.received_quantity;
+      const isSerialized = it.product_tracking_type === 'serialized';
       if (it.receiving_quantity < 0) {
         newErrors[it.purchase_item_id] = 'Debe ser >= 0.';
       } else if (it.receiving_quantity > pending) {
         newErrors[it.purchase_item_id] = `Excede el pendiente (${pending}).`;
       } else if (it.receiving_quantity === 0) {
-        newErrors[it.purchase_item_id] = 'No puede ser 0. Usa el boton Cancelar si no quieres recibir este item.';
+        newErrors[it.purchase_item_id] =
+          'No puede ser 0. Usa el boton Cancelar si no quieres recibir este item.';
+      } else if (isSerialized && it.receiving_quantity !== Math.floor(it.receiving_quantity)) {
+        newErrors[it.purchase_item_id] =
+          'Los productos serializados se reciben en unidades enteras.';
+      } else if (isSerialized) {
+        const serials = it.serial_units.map((s) => s.serial_number.trim()).filter(Boolean);
+        const expected = Math.floor(it.receiving_quantity);
+        const unique = new Set(
+          it.serial_units.map((s) => `${s.serial_type}:${s.serial_number.trim().toUpperCase()}`),
+        );
+        if (it.serial_units.length !== expected || serials.length !== expected) {
+          newErrors[it.purchase_item_id] =
+            `Captura ${expected} serial(es) para recibir este producto.`;
+        } else if (unique.size !== it.serial_units.length) {
+          newErrors[it.purchase_item_id] = 'No puedes repetir seriales dentro de la recepcion.';
+        }
       }
     }
     if (Object.keys(newErrors).length > 0) {
@@ -157,14 +177,15 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
 
     setSubmitting(true);
     try {
-      const result = (await receive.mutateAsync({ id: purchaseId, values: payload })) as { data?: { price_review_items?: PriceReviewItem[] } };
-      const items = result.data?.price_review_items ?? [];
-      setLastResult(result);
-      if (items.length > 0) {
-        setReviewItems(items);
+      const result = await receive.mutateAsync({ id: purchaseId, values: payload });
+      const priceReviewItems =
+        (result as { price_review_items?: PriceReviewItem[] }).price_review_items ?? [];
+      setLastPurchase(result);
+      if (priceReviewItems.length > 0) {
+        setReviewItems(priceReviewItems);
       } else {
         toast.success('Mercancia recibida. Stock actualizado.');
-        onReceived?.(lastResult as unknown as Parameters<NonNullable<typeof onReceived>>[0]);
+        onReceived?.(result);
         onOpenChange(false);
       }
     } catch (err) {
@@ -180,7 +201,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Recibir mercancia</DialogTitle>
           <DialogDescription>
@@ -194,7 +215,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
           {isLoading || !purchase ? (
             <Skeleton className="h-32 w-full" />
           ) : items.length === 0 ? (
-            <div className="rounded border border-border bg-bg/30 p-6 text-center text-sm text-text-muted">
+            <div className="border-border bg-bg/30 text-text-muted rounded border p-6 text-center text-sm">
               Esta compra ya no tiene items pendientes. Todo fue recibido.
             </div>
           ) : (
@@ -215,7 +236,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
 
               {/* Lista de items pendientes */}
               <div className="space-y-2">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                <h3 className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
                   Items pendientes ({items.length})
                 </h3>
                 {items.map((it) => (
@@ -229,19 +250,22 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-end gap-3 border-t-2 border-border pt-3">
-                <span className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+              <div className="border-border flex items-center justify-end gap-3 border-t-2 pt-3">
+                <span className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
                   Total a recibir ({totals.count} {totals.count === 1 ? 'item' : 'items'}):
                 </span>
-                <span className="text-xl font-bold tabular-nums">
-                  {formatMoney(totals.base)}
-                </span>
+                <span className="text-xl font-bold tabular-nums">{formatMoney(totals.base)}</span>
               </div>
             </>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={submitting} disabled={isLoading || items.length === 0}>
@@ -257,7 +281,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
           onResolved={() => {
             setReviewItems(null);
             toast.success('Precios de venta revisados.');
-            onReceived?.(lastResult as unknown as Parameters<NonNullable<typeof onReceived>>[0]);
+            if (lastPurchase) onReceived?.(lastPurchase);
             onOpenChange(false);
           }}
           onOpenChange={(o) => {

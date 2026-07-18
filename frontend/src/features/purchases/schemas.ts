@@ -11,12 +11,7 @@ import { z } from 'zod';
 // Constantes del dominio
 // =====================================================================
 
-export const PURCHASE_STATUSES = [
-  'draft',
-  'partially_received',
-  'received',
-  'cancelled',
-] as const;
+export const PURCHASE_STATUSES = ['draft', 'partially_received', 'received', 'cancelled'] as const;
 export type PurchaseStatus = (typeof PURCHASE_STATUSES)[number];
 
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
@@ -69,6 +64,42 @@ export const PurchaseItemSchema = z.object({
 });
 export type PurchaseItem = z.infer<typeof PurchaseItemSchema>;
 
+export const PURCHASE_PAYABLE_STATUSES = ['pending', 'partial', 'paid', 'overdue'] as const;
+export type PurchasePayableStatus = (typeof PURCHASE_PAYABLE_STATUSES)[number];
+
+export const PURCHASE_PAYABLE_STATUS_LABELS: Record<PurchasePayableStatus, string> = {
+  pending: 'Pendiente',
+  partial: 'Parcial',
+  paid: 'Pagada',
+  overdue: 'Vencida',
+};
+
+export const PurchasePayableSummarySchema = z.object({
+  id: z.number().int().positive(),
+  status: z.enum(PURCHASE_PAYABLE_STATUSES),
+  document_number: z.string().nullable().optional(),
+  original_base_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  original_local_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  paid_base_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  paid_local_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  balance_base_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  balance_local_amount: z.union([z.number(), z.string()]).nullable().optional(),
+  due_date: z.string().nullable().optional(),
+  paid_at: z.string().nullable().optional(),
+  is_open: z.boolean().optional(),
+});
+export type PurchasePayableSummary = z.infer<typeof PurchasePayableSummarySchema>;
+
+export const PurchasePriceReviewItemSchema = z.object({
+  item_id: z.number().int().positive(),
+  product_id: z.number().int().positive(),
+  product_name: z.string(),
+  previous_wac: z.union([z.number(), z.string()]).nullable().optional(),
+  previous_base_price: z.union([z.number(), z.string()]).nullable().optional(),
+  new_unit_cost: z.union([z.number(), z.string()]),
+  profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
+});
+
 /**
  * Shape exacto de un PurchaseOrder serializado por PurchaseOrderResource.
  * Los montos son strings (decimal:4) -- los normalizamos a number.
@@ -97,6 +128,8 @@ export const PurchaseSchema = z.object({
   // Relaciones opcionales.
   supplier: z.unknown().nullable().optional(),
   items: z.array(PurchaseItemSchema).optional(),
+  account_payable: PurchasePayableSummarySchema.nullable().optional(),
+  price_review_items: z.array(PurchasePriceReviewItemSchema).optional(),
 });
 export type Purchase = z.infer<typeof PurchaseSchema>;
 

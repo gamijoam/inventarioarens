@@ -26,6 +26,7 @@ function makePurchase(overrides: Partial<Purchase> = {}): Purchase {
     created_at: '2026-07-14T10:00:00.000000Z',
     updated_at: '2026-07-15T10:00:00.000000Z',
     supplier: { id: 5, name: 'Distribuidora XYZ' },
+    account_payable: null,
     items: [
       {
         id: 10,
@@ -135,5 +136,29 @@ describe('PurchaseSummary', () => {
     render(<PurchaseSummary purchase={makePurchase()} />);
     expect(screen.getByText(/Emitida: 2026-07-15/)).toBeTruthy();
     expect(screen.getByText(/Vence: 2026-07-30/)).toBeTruthy();
+  });
+
+  it('muestra el estado financiero de CxP y saldo pendiente', () => {
+    render(
+      <PurchaseSummary
+        purchase={makePurchase({
+          account_payable: {
+            id: 20,
+            status: 'partial',
+            document_number: 'PO-2026-001',
+            original_base_amount: '1000.0000',
+            paid_base_amount: '250.0000',
+            balance_base_amount: '750.0000',
+            balance_local_amount: '750000.0000',
+            due_date: '2026-07-30',
+            is_open: true,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText('CxP: Parcial')).toBeTruthy();
+    expect(screen.getByText('Saldo pendiente')).toBeTruthy();
+    expect(screen.getByText(/\$750,00/)).toBeTruthy();
   });
 });

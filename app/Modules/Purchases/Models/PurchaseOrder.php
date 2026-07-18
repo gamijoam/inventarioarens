@@ -3,6 +3,7 @@
 namespace App\Modules\Purchases\Models;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'supplier_id',
@@ -34,11 +36,15 @@ class PurchaseOrder extends Model
     use BelongsToTenant;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_PARTIALLY_RECEIVED = 'partially_received';
+
     public const STATUS_RECEIVED = 'received';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const CURRENCY_USD = 'USD';
+
     public const CURRENCY_VES = 'VES';
 
     protected function casts(): array
@@ -74,5 +80,10 @@ class PurchaseOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    public function accountPayable(): HasOne
+    {
+        return $this->hasOne(AccountsPayable::class);
     }
 }

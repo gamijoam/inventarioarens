@@ -2,6 +2,7 @@
 
 namespace App\Modules\Purchases\Resources;
 
+use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\Suppliers\Resources\SupplierResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -33,6 +34,24 @@ class PurchaseOrderResource extends JsonResource
             'updated_at' => $this->updated_at?->toISOString(),
             'supplier' => SupplierResource::make($this->whenLoaded('supplier')),
             'items' => PurchaseItemResource::collection($this->whenLoaded('items')),
+            'account_payable' => $this->whenLoaded('accountPayable', fn (): array => [
+                'id' => $this->accountPayable?->id,
+                'status' => $this->accountPayable?->status,
+                'document_number' => $this->accountPayable?->document_number,
+                'original_base_amount' => $this->accountPayable?->original_base_amount,
+                'original_local_amount' => $this->accountPayable?->original_local_amount,
+                'paid_base_amount' => $this->accountPayable?->paid_base_amount,
+                'paid_local_amount' => $this->accountPayable?->paid_local_amount,
+                'balance_base_amount' => $this->accountPayable?->balance_base_amount,
+                'balance_local_amount' => $this->accountPayable?->balance_local_amount,
+                'due_date' => $this->accountPayable?->due_date?->toDateString(),
+                'paid_at' => $this->accountPayable?->paid_at?->toISOString(),
+                'is_open' => in_array($this->accountPayable?->status, [
+                    AccountsPayable::STATUS_PENDING,
+                    AccountsPayable::STATUS_PARTIAL,
+                    AccountsPayable::STATUS_OVERDUE,
+                ], true),
+            ]),
             'price_review_items' => $this->getAttribute('price_review_items') ?? [],
         ];
     }
