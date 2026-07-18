@@ -127,7 +127,12 @@ function MasterDashboard() {
             loading={groups.isLoading}
             onSelect={setSelectedGroupId}
           />
-          <SpinoffsPanel group={selectedGroup} spinoffs={spinoffs.data ?? []} loading={spinoffs.isLoading} />
+          <SpinoffsPanel
+            group={selectedGroup}
+            groups={groups.data ?? []}
+            spinoffs={spinoffs.data ?? []}
+            loading={spinoffs.isLoading}
+          />
         </section>
 
         <AdminsPanel admins={admins.data ?? []} loading={admins.isLoading} currentUserId={user?.id ?? null} />
@@ -281,7 +286,17 @@ function OrganizationsPanel({
   );
 }
 
-function SpinoffsPanel({ group, spinoffs, loading }: { group: MasterTenant | null; spinoffs: MasterTenant[]; loading: boolean }) {
+function SpinoffsPanel({
+  group,
+  groups,
+  spinoffs,
+  loading,
+}: {
+  group: MasterTenant | null;
+  groups: MasterTenant[];
+  spinoffs: MasterTenant[];
+  loading: boolean;
+}) {
   const createSpinoff = useCreateMasterSpinoff(group?.id ?? null);
   const updateSpinoff = useUpdateMasterSpinoff();
   const deactivateSpinoff = useDeactivateMasterSpinoff();
@@ -309,6 +324,7 @@ function SpinoffsPanel({ group, spinoffs, loading }: { group: MasterTenant | nul
       {showCreate && group && (
         <SpinoffForm
           title="Crear empresa hija"
+          groups={[]}
           onCancel={() => setShowCreate(false)}
           onSubmit={async (values) => {
             await createSpinoff.mutateAsync({
@@ -332,6 +348,7 @@ function SpinoffsPanel({ group, spinoffs, loading }: { group: MasterTenant | nul
         <SpinoffForm
           title="Editar empresa"
           initial={editing}
+          groups={groups}
           onCancel={() => setEditing(null)}
           onSubmit={async (values) => {
             await updateSpinoff.mutateAsync({
@@ -342,6 +359,7 @@ function SpinoffsPanel({ group, spinoffs, loading }: { group: MasterTenant | nul
                 plan: values.plan,
                 domain: values.domain,
                 status: values.status,
+                parent_id: values.parentId,
               },
             });
             setEditing(null);
@@ -473,6 +491,7 @@ interface TenantFormValues {
   domain: string;
   plan: string;
   status: string;
+  parentId: number | null;
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
@@ -490,6 +509,7 @@ function GroupForm(props: {
 function SpinoffForm(props: {
   title: string;
   initial?: MasterTenant;
+  groups: MasterTenant[];
   onSubmit: (values: TenantFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -500,12 +520,14 @@ function TenantForm({
   title,
   initial,
   ownerLabel,
+  groups = [],
   onSubmit,
   onCancel,
 }: {
   title: string;
   initial?: MasterTenant;
   ownerLabel: string;
+  groups?: MasterTenant[];
   onSubmit: (values: TenantFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -515,6 +537,7 @@ function TenantForm({
     domain: initial?.domain ?? '',
     plan: initial?.plan ?? 'standard',
     status: initial?.status ?? 'active',
+    parentId: initial?.parent_id ?? null,
     ownerName: '',
     ownerEmail: '',
     ownerPassword: '',
@@ -563,6 +586,22 @@ function TenantForm({
           <select className="border-border h-9 w-full rounded border bg-surface px-3 text-sm" value={values.status} onChange={(e) => set('status', e.target.value)}>
             <option value="active">Activa</option>
             <option value="inactive">Inactiva</option>
+          </select>
+        </Field>
+      )}
+      {editing && groups.length > 0 && (
+        <Field label="Organizacion">
+          <select
+            className="border-border h-9 w-full rounded border bg-surface px-3 text-sm"
+            value={values.parentId ?? ''}
+            onChange={(e) => set('parentId', Number(e.target.value))}
+            required
+          >
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
           </select>
         </Field>
       )}

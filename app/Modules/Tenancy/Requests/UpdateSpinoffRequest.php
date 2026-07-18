@@ -22,6 +22,11 @@ class UpdateSpinoffRequest extends FormRequest
             'domain' => ['nullable', 'string', 'max:150', Rule::unique('tenants', 'domain')->ignore($tenantId)],
             'status' => ['sometimes', 'string', Rule::in(['active', 'inactive'])],
             'plan' => ['nullable', 'string', 'max:50'],
+            'parent_id' => [
+                'sometimes',
+                'integer',
+                Rule::exists('tenants', 'id')->where(fn ($query) => $query->where('is_group', true)),
+            ],
         ];
     }
 }

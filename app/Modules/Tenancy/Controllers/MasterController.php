@@ -175,7 +175,7 @@ class MasterController extends Controller
             $data['plan'] = null;
         }
 
-        $tenant->fill(collect($data)->only(['name', 'slug', 'domain', 'status', 'plan'])->all());
+        $tenant->fill(collect($data)->only(['name', 'slug', 'domain', 'status', 'plan', 'parent_id'])->all());
         $tenant->save();
 
         $this->audit->record('tenant_spinoff.updated_by_platform_admin', $tenant, $request->user(), $oldValues, [

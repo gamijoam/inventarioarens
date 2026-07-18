@@ -69,6 +69,7 @@ export interface TenantPayload {
   domain?: string | null;
   plan?: string | null;
   status?: string;
+  parent_id?: number | null;
 }
 
 export interface CreateGroupPayload extends TenantPayload {

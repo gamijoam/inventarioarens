@@ -183,6 +183,26 @@ class MasterAdminControllerTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'tenant_spinoff.updated_by_platform_admin']);
     }
 
+    public function test_update_spinoff_can_move_it_to_another_group(): void
+    {
+        $oldGroup = Tenant::create(['name' => 'Old', 'slug' => 'old', 'status' => 'active']);
+        $newGroup = Tenant::create(['name' => 'New', 'slug' => 'new', 'status' => 'active']);
+        $spinoff = Tenant::create(['name' => 'Empresa', 'slug' => 'empresa', 'status' => 'active', 'parent_id' => $oldGroup->id]);
+        $token = $this->makePlatformAdminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->patchJson("/api/master/tenants/{$spinoff->id}", [
+                'parent_id' => $newGroup->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.parent_id', $newGroup->id);
+
+        $this->assertDatabaseHas('tenants', [
+            'id' => $spinoff->id,
+            'parent_id' => $newGroup->id,
+        ]);
+    }
+
     public function test_destroy_spinoff_soft_deletes(): void
     {
         $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'status' => 'active']);
