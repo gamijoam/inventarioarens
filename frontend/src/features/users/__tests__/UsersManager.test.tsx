@@ -152,6 +152,23 @@ describe('UsersManager', () => {
     });
   });
 
+  it('cambia el alcance a organizacion', async () => {
+    mockUseUsers.mockReturnValue({
+      data: fakeUsers,
+      isLoading: false,
+      isError: false,
+    });
+    render(<UsersManager />, { wrapper: makeWrapper() });
+
+    const scopeSelect = screen.getByTestId('users-scope-filter');
+    await userEvent.selectOptions(scopeSelect, 'organization');
+
+    await waitFor(() => {
+      const lastCall = mockUseUsers.mock.calls[mockUseUsers.mock.calls.length - 1]?.[0] as { scope?: string };
+      expect(lastCall?.scope).toBe('organization');
+    });
+  });
+
   it('el input de busqueda actualiza el filtro', async () => {
     mockUseUsers.mockReturnValue({
       data: fakeUsers,

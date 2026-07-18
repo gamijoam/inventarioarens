@@ -17,14 +17,18 @@ import { useUser } from '@/features/users/api';
 import { UserDetailTabs } from '@/features/users/UserDetailTabs';
 
 export const Route = createFileRoute('/_authed/users/$userId')({
+  validateSearch: (search: Record<string, unknown>): { scope: 'tenant' | 'organization' } => ({
+    scope: search.scope === 'organization' ? 'organization' : 'tenant',
+  }),
   component: UserDetailPage,
 });
 
 function UserDetailPage() {
   const { userId } = Route.useParams();
+  const { scope } = Route.useSearch();
   const id = Number.parseInt(userId, 10);
   const navigate = useNavigate();
-  const { data: user, isLoading, isError } = useUser(id);
+  const { data: user, isLoading, isError } = useUser(id, scope);
 
   if (isLoading) {
     return (
@@ -44,7 +48,7 @@ function UserDetailPage() {
             variant="outline"
             size="sm"
             className="ml-2"
-            onClick={() => navigate({ to: '/users' })}
+            onClick={() => navigate({ to: '/users', search: { scope } })}
           >
             <ArrowLeft className="size-4" /> Volver
           </Button>
@@ -60,7 +64,7 @@ function UserDetailPage() {
       actions={
         <Can I={PERMISSIONS.USERS_VIEW}>
           <Button asChild variant="outline" size="sm">
-            <Link to="/users">
+            <Link to="/users" search={{ scope }}>
               <ArrowLeft className="size-4" /> Volver
             </Link>
           </Button>

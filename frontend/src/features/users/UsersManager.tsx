@@ -41,6 +41,7 @@ interface UsersManagerProps {
   onEdit?: (user: User) => void;
   onChangeRoles?: (user: User) => void;
   canEdit?: boolean;
+  initialScope?: 'tenant' | 'organization';
 }
 
 export function UsersManager({
@@ -48,10 +49,11 @@ export function UsersManager({
   onEdit,
   onChangeRoles,
   canEdit = false,
+  initialScope = 'tenant',
 }: UsersManagerProps = {}) {
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [scope, setScope] = useState<'tenant' | 'organization'>('tenant');
+  const [scope, setScope] = useState<'tenant' | 'organization'>(initialScope);
 
   const filters = useMemo<UserListFilters>(
     () => ({
@@ -174,7 +176,11 @@ export function UsersManager({
                     <tr
                       key={row.id}
                       className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
-                      onClick={() => navigate({ to: '/users/$userId', params: { userId: String(row.original.id) } })}
+                      onClick={() => navigate({
+                        to: '/users/$userId',
+                        params: { userId: String(row.original.id) },
+                        search: { scope },
+                      })}
                       data-testid={`users-row-${row.original.id}`}
                     >
                       {row.getVisibleCells().map((cell) => (

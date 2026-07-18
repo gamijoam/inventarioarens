@@ -121,6 +121,89 @@ class AccessControlApiTest extends TestCase
             ->assertJsonMissing(['name' => 'Vendedor A']);
     }
 
+    public function test_owner_can_list_users_across_group_and_spinoffs(): void
+    {
+        $group = Tenant::create(['name' => 'Grupo Danubio', 'slug' => 'danubio', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Danubio Empresa',
+            'slug' => 'danubio-empresa',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]);
+        $owner = $this->userInTenant($group);
+        $spinoffUser = $this->userInTenant($spinoff);
+
+        $this->grantRole($group, $owner, 'Owner', ['users.view']);
+        $this->grantRole($spinoff, $spinoffUser, 'Administrador', ['users.view']);
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson('/api/users')
+            ->assertOk()
+            ->assertJsonFragment(['email' => $owner->email])
+            ->assertJsonMissing(['email' => $spinoffUser->email]);
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson('/api/users?scope=organization')
+            ->assertOk()
+            ->assertJsonFragment(['email' => $owner->email])
+            ->assertJsonFragment(['email' => $spinoffUser->email])
+            ->assertJsonFragment(['slug' => 'danubio-empresa']);
+    }
+
+    public function test_owner_can_open_user_detail_across_group_and_spinoffs(): void
+    {
+        $group = Tenant::create(['name' => 'Grupo Danubio', 'slug' => 'danubio', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Danubio Empresa',
+            'slug' => 'danubio-empresa',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]);
+        $owner = $this->userInTenant($group);
+        $spinoffUser = $this->userInTenant($spinoff);
+
+        $this->grantRole($group, $owner, 'Owner', ['users.view']);
+        $this->grantRole($spinoff, $spinoffUser, 'Administrador', ['users.view']);
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson("/api/users/{$spinoffUser->id}")
+            ->assertNotFound();
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson("/api/users/{$spinoffUser->id}?scope=organization")
+            ->assertOk()
+            ->assertJsonPath('data.email', $spinoffUser->email)
+            ->assertJsonFragment(['slug' => 'danubio-empresa']);
+    }
+
+    public function test_non_owner_cannot_list_organization_users_from_spinoff(): void
+    {
+        $group = Tenant::create(['name' => 'Grupo Danubio', 'slug' => 'danubio', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Danubio Empresa',
+            'slug' => 'danubio-empresa',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]);
+        $admin = $this->userInTenant($spinoff);
+
+        $this->grantRole($spinoff, $admin, 'Administrador', ['users.view']);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $spinoff->slug)
+            ->getJson('/api/users?scope=organization')
+            ->assertForbidden();
+    }
+
     public function test_user_without_permission_cannot_manage_access(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

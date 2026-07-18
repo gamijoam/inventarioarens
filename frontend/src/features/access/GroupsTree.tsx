@@ -385,7 +385,7 @@ function UserRow({ user }: { user: GroupUser }) {
           </p>
         </div>
         <Button asChild size="sm" variant="outline">
-          <a href={`/users/${user.id}`}>
+          <a href={`/users/${user.id}?scope=organization`}>
             <ExternalLink className="size-3.5" /> Ficha
           </a>
         </Button>

@@ -4,8 +4,11 @@ namespace App\Modules\AccessControl\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -30,15 +33,17 @@ class AccessControlService
         'Auditor',
     ];
 
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
-    public function tenantUsers(): mixed
+    public function tenantUsers(?object $filters = null): mixed
     {
-        return app(TenantManager::class)
-            ->require()
-            ->users()
+        $tenant = app(TenantManager::class)->require();
+
+        return $this->applyUserFilters(
+            $tenant->users(),
+            $filters,
+            [$tenant->id]
+        )
             ->with('roles.permissions')
             ->orderBy('name');
     }
@@ -51,6 +56,64 @@ class AccessControlService
             ->with('roles.permissions')
             ->whereKey($userId)
             ->firstOrFail();
+
+        return $user;
+    }
+
+    public function organizationUsers(object $filters, int $perPage = 25): LengthAwarePaginator
+    {
+        $group = $this->ownedGroupForCurrentTenant($filters->user());
+        $tenantIds = $this->organizationTenantIds($group);
+
+        $paginator = $this->applyUserFilters(
+            User::query()
+                ->whereHas('tenants', fn (Builder $query) => $query->whereIn('tenants.id', $tenantIds))
+                ->with([
+                    'roles.permissions',
+                    'tenants' => fn ($query) => $query
+                        ->whereIn('tenants.id', $tenantIds)
+                        ->orderByDesc('tenants.is_group')
+                        ->orderBy('tenants.name'),
+                ]),
+            $filters,
+            $tenantIds
+        )
+            ->orderBy('name')
+            ->paginate($perPage);
+
+        $paginator->getCollection()->each(function (User $user): void {
+            $status = $user->tenants
+                ->pluck('pivot.status')
+                ->contains('active') ? 'active' : ($user->tenants->first()?->pivot?->status ?? 'inactive');
+
+            $user->setAttribute('organization_status', $status);
+        });
+
+        return $paginator;
+    }
+
+    public function organizationUser(int $userId, object $request): User
+    {
+        $group = $this->ownedGroupForCurrentTenant($request->user());
+        $tenantIds = $this->organizationTenantIds($group);
+
+        $user = User::query()
+            ->whereKey($userId)
+            ->whereHas('tenants', fn (Builder $query) => $query->whereIn('tenants.id', $tenantIds))
+            ->with([
+                'roles.permissions',
+                'tenants' => fn ($query) => $query
+                    ->whereIn('tenants.id', $tenantIds)
+                    ->orderByDesc('tenants.is_group')
+                    ->orderBy('tenants.name'),
+            ])
+            ->firstOrFail();
+
+        $status = $user->tenants
+            ->pluck('pivot.status')
+            ->contains('active') ? 'active' : ($user->tenants->first()?->pivot?->status ?? 'inactive');
+
+        $user->setAttribute('organization_status', $status);
 
         return $user;
     }
@@ -325,7 +388,7 @@ class AccessControlService
         $teamColumn = $this->teamColumn();
 
         // Quitar el global scope de Spatie para chequear el team_id real del source.
-        $sourceTeam = \Spatie\Permission\Models\Role::query()->withoutGlobalScopes()
+        $sourceTeam = Role::query()->withoutGlobalScopes()
             ->whereKey($source->id)
             ->value($teamColumn);
 
@@ -334,7 +397,7 @@ class AccessControlService
         }
 
         // Re-cargar con permisos (sin scope para que no filtre por team actual).
-        $source = \Spatie\Permission\Models\Role::query()->withoutGlobalScopes()
+        $source = Role::query()->withoutGlobalScopes()
             ->with(['permissions'])
             ->findOrFail($source->id);
 
@@ -463,6 +526,62 @@ class AccessControlService
         return $role->permissions()
             ->pluck('name')
             ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function applyUserFilters(mixed $query, ?object $filters, array $tenantIds): mixed
+    {
+        $search = trim((string) ($filters?->query('search', '') ?? ''));
+        if ($search !== '') {
+            $query->where(function ($inner) use ($search): void {
+                $inner
+                    ->where('users.name', 'ilike', "%{$search}%")
+                    ->orWhere('users.email', 'ilike', "%{$search}%");
+            });
+        }
+
+        $status = (string) ($filters?->query('status', 'all') ?? 'all');
+        if (in_array($status, ['active', 'inactive'], true)) {
+            $query->whereHas('tenants', function (Builder $tenantQuery) use ($tenantIds, $status): void {
+                $tenantQuery
+                    ->whereIn('tenants.id', $tenantIds)
+                    ->where('tenant_user.status', $status);
+            });
+        }
+
+        $roleId = $filters?->query('role_id');
+        if ($roleId !== null && $roleId !== '' && is_numeric($roleId)) {
+            $teamColumn = $this->teamColumn();
+            $query->whereHas('roles', function (Builder $roleQuery) use ($roleId, $tenantIds, $teamColumn): void {
+                $roleQuery
+                    ->where('roles.id', (int) $roleId)
+                    ->whereIn("roles.{$teamColumn}", $tenantIds);
+            });
+        }
+
+        return $query;
+    }
+
+    private function ownedGroupForCurrentTenant(User $actor): Tenant
+    {
+        $tenant = app(TenantManager::class)->require();
+        $group = $tenant->isGroup()
+            ? $tenant
+            : $tenant->parent()->firstOrFail();
+
+        abort_unless($actor->isOwnerOf($group), 403);
+
+        return $group;
+    }
+
+    private function organizationTenantIds(Tenant $group): array
+    {
+        return $group
+            ->spinoffs()
+            ->pluck('id')
+            ->prepend($group->id)
+            ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
     }

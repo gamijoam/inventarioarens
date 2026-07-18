@@ -223,7 +223,7 @@ describe('GroupsTree', () => {
     expect(screen.getByText(/Alcance:/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Ficha/i })).toHaveAttribute(
       'href',
-      '/users/100',
+      '/users/100?scope=organization',
     );
   });
 });

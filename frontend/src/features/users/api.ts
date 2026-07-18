@@ -33,7 +33,7 @@ export const userKeys = {
   lists: () => [...userKeys.all, 'list'] as const,
   list: (filters: UserListFilters) => [...userKeys.lists(), filters] as const,
   details: () => [...userKeys.all, 'detail'] as const,
-  detail: (id: number) => [...userKeys.details(), id] as const,
+  detail: (id: number, scope: UserListFilters['scope'] = 'tenant') => [...userKeys.details(), id, scope] as const,
 };
 
 function toQueryString(filters: UserListFilters): string {
@@ -83,11 +83,11 @@ export function useCreateUser() {
 /**
  * Detalle de un usuario (GET /api/users/{id}).
  */
-export function useUser(id: number) {
+export function useUser(id: number, scope: UserListFilters['scope'] = 'tenant') {
   return useQuery({
-    queryKey: userKeys.detail(id),
+    queryKey: userKeys.detail(id, scope),
     queryFn: async () => {
-      const data = await getOne<unknown>(`/users/${id}`);
+      const data = await getOne<unknown>(`/users/${id}${scope === 'organization' ? '?scope=organization' : ''}`);
       const parsed = UserSchema.safeParse(data);
       if (!parsed.success) {
         console.warn('useUser: shape invalido', parsed.error.flatten());

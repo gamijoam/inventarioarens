@@ -6,7 +6,7 @@
  *   siga siendo presentacional.
  */
 import { useState } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 
 import { Can } from '@/components/permissions/Can';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -20,10 +20,14 @@ import { ChangeRolesDialog } from '@/features/users/dialogs/ChangeRolesDialog';
 import type { User } from '@/features/users/schemas';
 
 export const Route = createFileRoute('/_authed/users')({
+  validateSearch: (search: Record<string, unknown>): { scope: 'tenant' | 'organization' } => ({
+    scope: search.scope === 'organization' ? 'organization' : 'tenant',
+  }),
   component: UsersPage,
 });
 
 function UsersPage() {
+  const { scope } = Route.useSearch();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [changingRoles, setChangingRoles] = useState<User | null>(null);
@@ -32,13 +36,11 @@ function UsersPage() {
   const canUpdate = useSessionStore((s) => s.permissions.has(PERMISSIONS.USERS_UPDATE));
   const canChangeStatus = useSessionStore((s) => s.permissions.has(PERMISSIONS.USERS_UPDATE));
   const canEdit = canUpdate || canChangeStatus;
-  // useNavigate se reservara para Fase C (link al detail del user).
-  void useNavigate;
 
   return (
     <PageLayout
       title="Usuarios"
-      description="Personas con acceso a esta empresa. Cada usuario pertenece al tenant actual con un rol y un estado."
+      description="Personas con acceso a esta empresa u organizacion, segun el alcance seleccionado."
     >
       <Can
         I={PERMISSIONS.USERS_VIEW}
@@ -50,6 +52,7 @@ function UsersPage() {
         }
       >
         <UsersManager
+          initialScope={scope}
           onCreate={() => setCreating(true)}
           onEdit={(u) => setEditing(u)}
           onChangeRoles={(u) => setChangingRoles(u)}

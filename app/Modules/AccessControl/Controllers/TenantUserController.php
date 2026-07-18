@@ -8,7 +8,6 @@ use App\Modules\AccessControl\Requests\UpdateTenantUserRolesRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserStatusRequest;
 use App\Modules\AccessControl\Resources\TenantUserResource;
 use App\Modules\AccessControl\Services\AccessControlService;
-
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -17,9 +16,7 @@ use Illuminate\Routing\Controller;
 
 class TenantUserController extends Controller
 {
-    public function __construct(private readonly AccessControlService $service)
-    {
-    }
+    public function __construct(private readonly AccessControlService $service) {}
 
     /**
      * Lista usuarios del tenant actual.
@@ -34,7 +31,15 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.view');
 
-        return TenantUserResource::collection($this->service->tenantUsers()->paginate(25));
+        $perPage = (int) $request->integer('per_page', 25);
+        $perPage = max(1, min($perPage, 100));
+        $scope = $request->string('scope')->toString() === 'organization'
+            ? 'organization'
+            : 'tenant';
+
+        $users = $scope === 'organization'
+            ? $this->service->organizationUsers($request, $perPage)
+            : $this->service->tenantUsers($request)->paginate($perPage);
 
         return TenantUserResource::collection($users);
     }
@@ -52,7 +57,15 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.view');
 
-        return TenantUserResource::make($this->service->tenantUser($tenantUser));
+        $scope = $request->string('scope')->toString() === 'organization'
+            ? 'organization'
+            : 'tenant';
+
+        $user = $scope === 'organization'
+            ? $this->service->organizationUser($tenantUser, $request)
+            : $this->service->tenantUser($tenantUser);
+
+        return TenantUserResource::make($user);
     }
 
     public function update(UpdateTenantUserRequest $request, int $tenantUser): TenantUserResource
