@@ -34,12 +34,12 @@ export interface PriceReviewItem {
   item_id?: number | null;
   product_id: number;
   product_name: string;
-  previous_wac: number;
-  previous_base_price: number | null;
-  new_unit_cost: number;
-  profit_margin: number;
-  suggested_new_base_price: number;
-  diff_percent: number;
+  previous_wac?: number | string | null;
+  previous_base_price?: number | string | null;
+  new_unit_cost?: number | string | null;
+  profit_margin?: number | string | null;
+  suggested_new_base_price?: number | string | null;
+  diff_percent?: number | string | null;
 }
 
 export interface PriceReviewResult {
@@ -53,6 +53,20 @@ interface PriceReviewDialogProps {
   onOpenChange: (open: boolean) => void;
   items: PriceReviewItem[];
   onResolved: (results: PriceReviewResult[]) => void;
+}
+
+function numberOrNull(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : null;
+  return n !== null && Number.isFinite(n) ? n : null;
+}
+
+function fixed(value: unknown, digits = 2): string {
+  return (numberOrNull(value) ?? 0).toFixed(digits);
+}
+
+function signedPercent(value: unknown): string {
+  const n = numberOrNull(value) ?? 0;
+  return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 }
 
 export function PriceReviewDialog({
@@ -72,10 +86,13 @@ export function PriceReviewDialog({
     setPendingId(item.product_id);
     try {
       const newMargin = editingMargin[item.product_id];
-      const args = newMargin != null
-        ? { id: item.product_id, profit_margin: newMargin }
-        : { id: item.product_id };
-      const res = (await recalc.mutateAsync(args)) as { data: { base_price: number } };
+      const args =
+        newMargin != null
+          ? { id: item.product_id, profit_margin: newMargin }
+          : { id: item.product_id };
+      const res = (await recalc.mutateAsync(args)) as {
+        data?: { base_price?: number | string | null };
+      };
       setResults((r) => ({
         ...r,
         [item.product_id]: {
@@ -84,7 +101,9 @@ export function PriceReviewDialog({
           new_margin: newMargin,
         },
       }));
-      toast.success(`${item.product_name}: base_price actualizado a $${res.data.base_price.toFixed(2)}.`);
+      toast.success(
+        `${item.product_name}: base_price actualizado a $${fixed(res.data?.base_price)}.`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al recalcular.';
       toast.error(msg);
@@ -98,7 +117,7 @@ export function PriceReviewDialog({
       ...r,
       [item.product_id]: { product_id: item.product_id, decision: 'keep' },
     }));
-    toast.success(`' + item.product_name + ': precio de venta mantenido.`);
+    toast.success(`${item.product_name}: precio de venta mantenido.`);
   }
 
   async function handleUpdateMargin(item: PriceReviewItem, newMargin: number) {
@@ -113,9 +132,15 @@ export function PriceReviewDialog({
       await recalc.mutateAsync({ id: item.product_id, profit_margin: newMargin });
       setResults((r) => ({
         ...r,
-        [item.product_id]: { product_id: item.product_id, decision: 'change-margin', new_margin: newMargin },
+        [item.product_id]: {
+          product_id: item.product_id,
+          decision: 'change-margin',
+          new_margin: newMargin,
+        },
       }));
-      toast.success(`${item.product_name}: margen actualizado a ${newMargin}% y precio recalculado.`);
+      toast.success(
+        `${item.product_name}: margen actualizado a ${newMargin}% y precio recalculado.`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al actualizar margen.';
       toast.error(msg);
@@ -126,9 +151,9 @@ export function PriceReviewDialog({
   }
 
   function handleConfirmAll() {
-    const all = items.map((it) => (
-      results[it.product_id] ?? { product_id: it.product_id, decision: 'keep' as const }
-    ));
+    const all = items.map(
+      (it) => results[it.product_id] ?? { product_id: it.product_id, decision: 'keep' as const },
+    );
     onResolved(all);
   }
 
@@ -144,8 +169,8 @@ export function PriceReviewDialog({
           </DialogTitle>
           <DialogDescription>
             {items.length} {items.length === 1 ? 'producto cambio' : 'productos cambiaron'}
-            su costo de reposicion de forma significativa. El margen de ganancia
-            del producto sugiere recalcular el precio de venta.
+            su costo de reposicion de forma significativa. El margen de ganancia del producto
+            sugiere recalcular el precio de venta.
           </DialogDescription>
         </DialogHeader>
 
@@ -157,29 +182,33 @@ export function PriceReviewDialog({
             return (
               <li
                 key={it.product_id}
-                className="rounded border border-border bg-bg/30 p-3"
+                className="border-border bg-bg/30 rounded border p-3"
                 data-testid={`price-review-item-${it.product_id}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-medium">{it.product_name}</div>
-                    <div className="mt-1 text-xs text-text-muted">
-                      Costo: ${it.previous_wac.toFixed(2)} → ${it.new_unit_cost.toFixed(2)}{' '}
-                      (<span className={it.diff_percent >= 0 ? 'text-warning' : 'text-success'}>
-                        {it.diff_percent > 0 ? '+' : ''}{it.diff_percent.toFixed(1)}%
-                      </span>)
-                      {' '}· Margen actual: <strong>{it.profit_margin}%</strong>
+                    <div className="text-text-muted mt-1 text-xs">
+                      Costo: ${fixed(it.previous_wac)} -&gt; ${fixed(it.new_unit_cost)} (
+                      <span
+                        className={
+                          (numberOrNull(it.diff_percent) ?? 0) >= 0
+                            ? 'text-warning'
+                            : 'text-success'
+                        }
+                      >
+                        {signedPercent(it.diff_percent)}
+                      </span>
+                      ) · Margen actual: <strong>{fixed(it.profit_margin)}%</strong>
                     </div>
-                    {it.previous_base_price !== null && (
-                      <div className="text-xs text-text-muted">
-                        Precio de venta actual: ${it.previous_base_price.toFixed(2)} ·{' '}
-                        Precio sugerido: <strong>${it.suggested_new_base_price.toFixed(2)}</strong>
+                    {it.previous_base_price !== null && it.previous_base_price !== undefined && (
+                      <div className="text-text-muted text-xs">
+                        Precio de venta actual: ${fixed(it.previous_base_price)} · Precio sugerido:{' '}
+                        <strong>${fixed(it.suggested_new_base_price)}</strong>
                       </div>
                     )}
                   </div>
-                  {decision && (
-                    <BadgeComponent decision={decision.decision} />
-                  )}
+                  {decision && <BadgeComponent decision={decision.decision} />}
                 </div>
 
                 {decision === undefined && (
@@ -196,7 +225,12 @@ export function PriceReviewDialog({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setEditingMargin((m) => ({ ...m, [it.product_id]: it.profit_margin }))}
+                      onClick={() =>
+                        setEditingMargin((m) => ({
+                          ...m,
+                          [it.product_id]: numberOrNull(it.profit_margin) ?? 0,
+                        }))
+                      }
                       disabled={pending}
                       data-testid={`price-review-change-margin-${it.product_id}`}
                     >
@@ -226,7 +260,9 @@ export function PriceReviewDialog({
                       min={0}
                       max={999.99}
                       value={editingNew}
-                      onChange={(e) => setEditingMargin((m) => ({ ...m, [it.product_id]: Number(e.target.value) }))}
+                      onChange={(e) =>
+                        setEditingMargin((m) => ({ ...m, [it.product_id]: Number(e.target.value) }))
+                      }
                       className="w-24"
                       data-testid={`price-review-margin-input-${it.product_id}`}
                     />
@@ -241,7 +277,9 @@ export function PriceReviewDialog({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setEditingMargin((m) => ({ ...m, [it.product_id]: undefined }))}
+                      onClick={() =>
+                        setEditingMargin((m) => ({ ...m, [it.product_id]: undefined }))
+                      }
                     >
                       <X className="size-3.5" />
                     </Button>
@@ -253,18 +291,10 @@ export function PriceReviewDialog({
         </ul>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button
-            type="button"
-            onClick={handleConfirmAll}
-            data-testid="price-review-confirm-all"
-          >
+          <Button type="button" onClick={handleConfirmAll} data-testid="price-review-confirm-all">
             <Check className="size-4" /> Confirmar
           </Button>
         </DialogFooter>
@@ -275,10 +305,20 @@ export function PriceReviewDialog({
 
 function BadgeComponent({ decision }: { decision: PriceReviewResult['decision'] }) {
   if (decision === 'recalculate') {
-    return <span className="rounded bg-success/10 px-2 py-0.5 text-[10px] text-success">Recalculado</span>;
+    return (
+      <span className="bg-success/10 text-success rounded px-2 py-0.5 text-[10px]">
+        Recalculado
+      </span>
+    );
   }
   if (decision === 'change-margin') {
-    return <span className="rounded bg-info/10 px-2 py-0.5 text-[10px] text-info">Margen actualizado</span>;
+    return (
+      <span className="bg-info/10 text-info rounded px-2 py-0.5 text-[10px]">
+        Margen actualizado
+      </span>
+    );
   }
-  return <span className="rounded bg-warning/10 px-2 py-0.5 text-[10px] text-warning">Mantenido</span>;
+  return (
+    <span className="bg-warning/10 text-warning rounded px-2 py-0.5 text-[10px]">Mantenido</span>
+  );
 }
