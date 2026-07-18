@@ -27,6 +27,7 @@ export interface PosPaymentLine {
   reference?: string | null;
   payment_method_id?: number | null;
   exchange_rate_type_id?: number | null;
+  exchange_rate?: number | null;
   status?: 'captured' | 'pending' | 'failed';
 }
 
@@ -82,7 +83,7 @@ export function calculatePaymentTotals(payments: PosPaymentLine[], total: number
   const paid = roundMoney(
     payments
       .filter((payment) => (payment.status ?? 'captured') === 'captured')
-      .reduce((sum, payment) => sum + Math.max(0, Number(payment.amount || 0)), 0),
+      .reduce((sum, payment) => sum + paymentBaseAmount(payment), 0),
   );
   const cashReceived = payments
     .filter((payment) => payment.method === 'cash')
@@ -96,6 +97,16 @@ export function calculatePaymentTotals(payments: PosPaymentLine[], total: number
     remaining: roundMoney(Math.max(0, total - paid)),
     change: roundMoney(Math.max(0, cashReceived - cashAmount)),
   };
+}
+
+export function paymentBaseAmount(payment: PosPaymentLine): number {
+  const amount = Math.max(0, Number(payment.amount || 0));
+  if (payment.currency === 'VES') {
+    const rate = Number(payment.exchange_rate || 0);
+    return rate > 0 ? roundMoney(amount / rate) : 0;
+  }
+
+  return amount;
 }
 
 export function hasStockIssue(lines: PosCartLine[]): boolean {

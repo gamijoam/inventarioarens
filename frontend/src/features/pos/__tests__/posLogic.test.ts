@@ -44,6 +44,14 @@ describe('POS cart logic', () => {
     expect(totals).toEqual({ paid: 51, remaining: 0, change: 65 });
   });
 
+  it('convierte pagos VES a base USD usando la tasa activa de la linea', () => {
+    const totals = calculatePaymentTotals([
+      { id: 'ves', method: 'mobile_payment', currency: 'VES', amount: 540, exchange_rate: 60, status: 'captured' },
+    ], 10);
+
+    expect(totals).toEqual({ paid: 9, remaining: 1, change: 0 });
+  });
+
   it('bloquea cantidades superiores al stock disponible', () => {
     expect(clampQuantity(8, 3)).toBe(3);
     expect(hasStockIssue([{ ...baseLine, quantity: 6 }])).toBe(true);

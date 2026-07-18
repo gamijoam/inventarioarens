@@ -64,6 +64,18 @@ export const PosPaymentSchema = z.object({
 }).passthrough();
 export type PosPayment = z.infer<typeof PosPaymentSchema>;
 
+export const CurrentExchangeRateSchema = z.object({
+  id: z.number().int(),
+  exchange_rate_type_id: z.number().int(),
+  exchange_rate_type_code: z.string().optional().nullable(),
+  exchange_rate_type_name: z.string().optional().nullable(),
+  base_currency: z.string(),
+  quote_currency: z.string(),
+  rate: z.union([z.number(), z.string()]).transform(Number),
+  is_active: z.boolean().optional(),
+}).passthrough();
+export type CurrentExchangeRate = z.infer<typeof CurrentExchangeRateSchema>;
+
 export const PosOrderSchema = z.object({
   id: z.number().int(),
   sale_id: z.number().int().nullable().optional(),
@@ -168,6 +180,7 @@ export const posKeys = {
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
   exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
+  currentRates: () => [...posKeys.all, 'current-rates'] as const,
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
 };
 
@@ -276,6 +289,13 @@ export function useExchangeRateTypesForPos() {
   return useQuery({
     queryKey: posKeys.exchangeRateTypes(),
     queryFn: async () => z.array(ExchangeRateTypeSchema).parse(await getMany<unknown>('/currency/rate-types')),
+  });
+}
+
+export function useCurrentExchangeRatesForPos() {
+  return useQuery({
+    queryKey: posKeys.currentRates(),
+    queryFn: async () => z.array(CurrentExchangeRateSchema).parse(await getMany<unknown>('/currency/rates/current')),
   });
 }
 

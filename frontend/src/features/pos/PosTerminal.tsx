@@ -40,6 +40,7 @@ import {
   useCashSessions,
   useCheckout,
   useCloseCashSession,
+  useCurrentExchangeRatesForPos,
   useCustomers,
   useExchangeRateTypesForPos,
   useOpenCashSession,
@@ -108,6 +109,11 @@ export function PosTerminal() {
   const { data: productPage, isLoading: loadingProducts } = usePosProducts(query, warehouseId);
   const { data: configuredPaymentMethods = [] } = usePaymentMethods();
   const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
+  const { data: currentRates = [] } = useCurrentExchangeRatesForPos();
+  const activePaymentMethods = useMemo(
+    () => configuredPaymentMethods.filter((method) => method.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
+    [configuredPaymentMethods],
+  );
   const checkout = useCheckout();
   const addPayments = useAddPosPayments();
   const cancelOrder = useCancelPosOrder();
@@ -362,26 +368,45 @@ export function PosTerminal() {
           <div className="min-h-0 flex-1 overflow-auto p-3">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold">Metodos de pago</h3>
-                <p className="text-xs text-text-muted">Selecciona metodo, moneda y tasa antes de cobrar.</p>
+                <h3 className="text-base font-semibold">Pago rapido</h3>
+                <p className="text-xs text-text-muted">Toca un metodo y se carga el restante.</p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => addPaymentLine('cash')}>
-                <Plus className="size-4" /> Linea
-              </Button>
+              <Badge variant={paymentTotals.remaining > 0 ? 'warning' : 'success'}>
+                Resta {money(paymentTotals.remaining)}
+              </Badge>
             </div>
-            {configuredPaymentMethods.length > 0 && (
+            {activePaymentMethods.length === 0 ? (
+              <div className="mb-3 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
+                Configura metodos de pago para cobrar rapido.
+                <Button asChild className="mt-3 w-full" variant="outline">
+                  <Link to="/payment-methods">Configurar metodos</Link>
+                </Button>
+              </div>
+            ) : (
               <div className="mb-3 grid grid-cols-2 gap-2">
-                {configuredPaymentMethods.filter((method) => method.is_active !== false).slice(0, 4).map((method) => (
-                  <Button key={method.id} variant="outline" className="justify-start" onClick={() => addPaymentLine((method.method ?? 'other') as PosPaymentMethod, method.id)}>
-                    <CreditCard className="size-4" />
-                    <span className="truncate">{method.name}</span>
-                  </Button>
-                ))}
+                {activePaymentMethods.slice(0, 8).map((method) => {
+                  const preview = previewQuickPayment(method, cartTotals.total, payments, currentRates, exchangeRateTypes);
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => addQuickPayment(method.id)}
+                      className="min-h-20 rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-semibold">{method.name}</span>
+                        <CreditCard className="size-4 shrink-0 text-text-muted" />
+                      </div>
+                      <p className="mt-2 text-lg font-bold">{preview.amountLabel}</p>
+                      <p className="text-xs text-text-muted">{preview.detail}</p>
+                    </button>
+                  );
+                })}
               </div>
             )}
             <div className="space-y-2">
               {payments.map((payment) => (
-                <PaymentLineRow
+                <PaymentChip
                   key={payment.id}
                   payment={payment}
                   methods={configuredPaymentMethods}
@@ -489,13 +514,20 @@ export function PosTerminal() {
           {panel === 'receipt' && <ReceiptPanel order={lastReceipt} />}
           {panel === 'pay' && (
             <div className="space-y-3">
-              <p className="text-sm text-text-muted">Agrega una o mas lineas de pago. El cobro se habilita cuando el total queda cubierto.</p>
-              <Button onClick={() => addPaymentLine('cash')}>
-                <Plus className="size-4" /> Agregar efectivo
-              </Button>
-              <Button variant="outline" onClick={() => addPaymentLine('card')}>
-                <Plus className="size-4" /> Agregar tarjeta
-              </Button>
+              <p className="text-sm text-text-muted">Selecciona un metodo configurado. El POS llenara el monto restante automaticamente.</p>
+              {activePaymentMethods.length === 0 ? (
+                <Button asChild className="w-full">
+                  <Link to="/payment-methods">Configurar metodos</Link>
+                </Button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {activePaymentMethods.map((method) => (
+                    <Button key={method.id} variant="outline" onClick={() => addQuickPayment(method.id)}>
+                      <CreditCard className="size-4" /> {method.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </PanelShell>
@@ -553,21 +585,36 @@ export function PosTerminal() {
     );
   }
 
+  function addQuickPayment(paymentMethodId: number): void {
+    const configured = configuredPaymentMethods.find((item) => item.id === paymentMethodId);
+    if (!configured) return;
+    addPaymentLine((configured.method ?? 'other') as PosPaymentMethod, paymentMethodId);
+  }
+
   function addPaymentLine(method: PosPaymentMethod, paymentMethodId?: number): void {
     const configured = paymentMethodId ? configuredPaymentMethods.find((item) => item.id === paymentMethodId) : null;
     const currencyMode = configured?.currency_mode ?? 'USD';
     const currency = currencyMode === 'VES' ? 'VES' : 'USD';
-    const defaultRateType = exchangeRateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false) ?? exchangeRateTypes.find((rateType) => rateType.is_active !== false) ?? exchangeRateTypes[0] ?? null;
+    const defaultRateType = defaultRateTypeForPayment(exchangeRateTypes);
+    const rate = rateForType(currentRates, defaultRateType?.id ?? null);
     setPayments((current) => [
       ...current,
       {
         id: crypto.randomUUID(),
         method: (configured?.method ?? method) as PosPaymentMethod,
         currency,
-        amount: Math.max(0, calculateCartTotals(cart).total - calculatePaymentTotals(current, calculateCartTotals(cart).total).paid),
-        received_amount: method === 'cash' ? Math.max(0, calculateCartTotals(cart).total) : null,
+        amount: paymentAmountForCurrency(
+          Math.max(0, calculateCartTotals(cart).total - calculatePaymentTotals(current, calculateCartTotals(cart).total).paid),
+          currency,
+          rate?.rate ?? null,
+        ),
+        received_amount: method === 'cash'
+          ? paymentAmountForCurrency(Math.max(0, calculateCartTotals(cart).total - calculatePaymentTotals(current, calculateCartTotals(cart).total).paid), currency, rate?.rate ?? null)
+          : null,
         payment_method_id: paymentMethodId ?? null,
         exchange_rate_type_id: defaultRateType?.id ?? null,
+        exchange_rate: rate?.rate ?? null,
+        reference: configured?.requires_reference ? '' : null,
         status: 'captured',
       },
     ]);
@@ -710,7 +757,7 @@ function CartLineRow({ line, onChange, onRemove }: { line: PosCartLine; onChange
   );
 }
 
-function PaymentLineRow({
+function PaymentChip({
   payment,
   methods,
   rateTypes,
@@ -725,60 +772,35 @@ function PaymentLineRow({
 }) {
   const selectedMethod = methods.find((method) => method.id === payment.payment_method_id) ?? null;
   const requiresReference = selectedMethod?.requires_reference || payment.method !== 'cash';
+  const rateType = rateTypes.find((rate) => rate.id === payment.exchange_rate_type_id) ?? null;
 
   return (
     <div className="rounded border border-border bg-bg/40 p-3">
-      <div className="grid grid-cols-[1fr_36px] gap-2">
-        <Select
-          value={payment.payment_method_id ?? ''}
-          onChange={(event) => {
-            const id = event.target.value ? Number(event.target.value) : null;
-            const method = methods.find((item) => item.id === id) ?? null;
-            const currencyMode = method?.currency_mode ?? 'USD';
-            onChange({
-              payment_method_id: id,
-              method: (method?.method ?? payment.method) as PosPaymentMethod,
-              currency: currencyMode === 'VES' ? 'VES' : 'USD',
-              reference: method?.requires_reference ? payment.reference ?? '' : payment.reference ?? null,
-            });
-          }}
-        >
-          <option value="">Metodo configurado...</option>
-          {methods.filter((method) => method.method != null).map((method) => (
-            <option key={method.id} value={method.id}>{method.name}</option>
-          ))}
-        </Select>
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate font-semibold">{selectedMethod?.name ?? methodLabel(payment.method)}</p>
+            <Badge variant="info">{payment.currency}</Badge>
+          </div>
+          <p className="mt-1 text-xs text-text-muted">
+            {rateType ? `${rateType.code}${payment.exchange_rate ? ` @ ${payment.exchange_rate}` : ''}` : 'Sin tasa activa'}
+          </p>
+        </div>
         <Button size="icon-sm" variant="ghost" onClick={onRemove}><X className="size-4" /></Button>
       </div>
 
-      {!selectedMethod && (
-        <Select className="mt-2" value={payment.method} onChange={(event) => onChange({ method: event.target.value as PosPaymentMethod })}>
-          {PAYMENT_METHODS.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
-        </Select>
-      )}
-
-      <div className="mt-2 grid grid-cols-[1fr_120px] gap-2">
+      <div className="mt-2 grid grid-cols-[1fr_88px] gap-2">
         <Input type="number" min="0" value={payment.amount} onChange={(event) => onChange({ amount: Number(event.target.value) })} placeholder="Monto" />
-        <Select value={payment.currency} onChange={(event) => onChange({ currency: event.target.value as CurrencyCode })}>
-          <option value="USD">USD</option>
-          <option value="VES">VES</option>
-        </Select>
+        <div className="flex items-center justify-center rounded border border-border bg-surface px-2 text-sm font-semibold">
+          {payment.currency}
+        </div>
       </div>
 
-      <Select className="mt-2" value={payment.exchange_rate_type_id ?? ''} onChange={(event) => onChange({ exchange_rate_type_id: event.target.value ? Number(event.target.value) : null })}>
-        <option value="">Tasa para snapshot...</option>
-        {rateTypes.filter((rateType) => rateType.is_active !== false).map((rateType) => (
-          <option key={rateType.id} value={rateType.id}>
-            {rateType.code} - {rateType.name}{rateType.is_default ? ' (default)' : ''}
-          </option>
-        ))}
-      </Select>
-
       {payment.method === 'cash' && (
-        <Input className="mt-2" type="number" min="0" value={payment.received_amount ?? ''} placeholder="Recibido" onChange={(event) => onChange({ received_amount: Number(event.target.value) })} />
+        <Input className="mt-2 h-11 text-lg font-semibold" type="number" min="0" value={payment.received_amount ?? ''} placeholder="Recibido" onChange={(event) => onChange({ received_amount: Number(event.target.value) })} />
       )}
       {requiresReference && (
-        <Input className="mt-2" value={payment.reference ?? ''} placeholder={selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'} onChange={(event) => onChange({ reference: event.target.value })} />
+        <Input className="mt-2 h-11" value={payment.reference ?? ''} placeholder={selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'} onChange={(event) => onChange({ reference: event.target.value })} />
       )}
     </div>
   );
@@ -990,12 +1012,54 @@ function getPaymentSetupIssue(
     const configured = methods.find((method) => method.id === payment.payment_method_id);
     if (!payment.payment_method_id) return `Selecciona un metodo configurado en la linea de pago ${line}.`;
     if (!payment.exchange_rate_type_id) return `Selecciona la tasa para la linea de pago ${line}.`;
+    if (!payment.exchange_rate) return `No hay tasa activa para la linea de pago ${line}.`;
     if (configured?.requires_reference && !String(payment.reference ?? '').trim()) {
       return `${configured.name} requiere referencia antes de cobrar.`;
     }
   }
 
   return null;
+}
+
+function previewQuickPayment(
+  method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
+  total: number,
+  payments: PosPaymentLine[],
+  rates: Array<{ exchange_rate_type_id: number; rate: number }>,
+  rateTypes: Array<{ id: number; is_default?: boolean; is_active?: boolean; code: string }>,
+): { amountLabel: string; detail: string } {
+  const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
+  const rateType = defaultRateTypeForPayment(rateTypes);
+  const rate = rateForType(rates, rateType?.id ?? null);
+  const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
+  const amount = paymentAmountForCurrency(remaining, currency, rate?.rate ?? null);
+  const amountLabel = currency === 'VES' ? `Bs ${amount.toFixed(2)}` : money(amount);
+  const detail = currency === 'VES'
+    ? `${rateType?.code ?? 'Tasa'}${rate?.rate ? ` @ ${rate.rate}` : ' sin valor activo'}`
+    : methodLabel(method.method);
+
+  return { amountLabel, detail };
+}
+
+function defaultRateTypeForPayment(rateTypes: Array<{ id: number; code?: string; is_default?: boolean; is_active?: boolean }>) {
+  return rateTypes.find((rateType) => rateType.is_default && rateType.is_active !== false)
+    ?? rateTypes.find((rateType) => rateType.is_active !== false)
+    ?? rateTypes[0]
+    ?? null;
+}
+
+function rateForType(rates: Array<{ exchange_rate_type_id: number; rate: number }>, rateTypeId: number | null) {
+  if (!rateTypeId) return null;
+  return rates.find((rate) => rate.exchange_rate_type_id === rateTypeId) ?? null;
+}
+
+function paymentAmountForCurrency(remainingBase: number, currency: CurrencyCode, rate?: number | null): number {
+  if (currency === 'VES') return roundMoney(remainingBase * Number(rate || 0));
+  return roundMoney(remainingBase);
+}
+
+function methodLabel(method?: string | null): string {
+  return PAYMENT_METHODS.find((item) => item.value === method)?.label ?? method ?? 'Pago';
 }
 
 function money(value: number): string {
