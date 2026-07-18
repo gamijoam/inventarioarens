@@ -15,8 +15,25 @@ export const PrintProfileSchema = z.object({
   characters_per_line: z.number().int(),
   header_text: z.string().nullable().optional(),
   footer_text: z.string().nullable().optional(),
+  warranty_policy_text: z.string().nullable().optional(),
+  legal_text: z.string().nullable().optional(),
   logo_text: z.string().nullable().optional(),
+  show_tenant_slug: z.boolean(),
+  show_sale_number: z.boolean(),
+  show_paid_at: z.boolean(),
+  show_cashier: z.boolean(),
+  show_cash_register: z.boolean(),
+  show_branch: z.boolean(),
+  show_customer: z.boolean(),
+  show_item_sku: z.boolean(),
+  show_item_discount: z.boolean(),
+  show_item_serials: z.boolean(),
   show_warranty_summary: z.boolean(),
+  show_total_local: z.boolean(),
+  show_payment_rate: z.boolean(),
+  show_payment_reference: z.boolean(),
+  show_receivable_balance: z.boolean(),
+  show_non_fiscal_text: z.boolean(),
   cut_paper: z.boolean(),
   open_cash_drawer: z.boolean(),
   copies: z.number().int(),
@@ -72,8 +89,25 @@ export interface PrintProfilePayload {
   characters_per_line: number;
   header_text?: string | null;
   footer_text?: string | null;
+  warranty_policy_text?: string | null;
+  legal_text?: string | null;
   logo_text?: string | null;
+  show_tenant_slug?: boolean;
+  show_sale_number?: boolean;
+  show_paid_at?: boolean;
+  show_cashier?: boolean;
+  show_cash_register?: boolean;
+  show_branch?: boolean;
+  show_customer?: boolean;
+  show_item_sku?: boolean;
+  show_item_discount?: boolean;
+  show_item_serials?: boolean;
   show_warranty_summary?: boolean;
+  show_total_local?: boolean;
+  show_payment_rate?: boolean;
+  show_payment_reference?: boolean;
+  show_receivable_balance?: boolean;
+  show_non_fiscal_text?: boolean;
   cut_paper?: boolean;
   open_cash_drawer?: boolean;
   copies?: number;
@@ -134,6 +168,15 @@ export function useCreatePrintProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: PrintProfilePayload) => postOne<PrintProfilePayload, PrintProfile>('/printing/profiles', payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: printingKeys.profiles() }),
+  });
+}
+
+export function useUpdatePrintProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: Partial<PrintProfilePayload> }) =>
+      patchOne<Partial<PrintProfilePayload>, PrintProfile>(`/printing/profiles/${id}`, payload),
     onSuccess: () => void qc.invalidateQueries({ queryKey: printingKeys.profiles() }),
   });
 }
@@ -228,4 +271,78 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
 
 export function ticketPdfUrl(job: PrintJob): string {
   return `/api/printing/jobs/${job.id}/ticket.pdf`;
+}
+
+export function exampleTicketPayload(profile: PrintProfilePayload | PrintProfile) {
+  return {
+    tenant: { name: 'DEMO CARACAS', slug: 'demo-caracas' },
+    profile: {
+      ...profile,
+      legal_text: profile.legal_text || 'Documento no fiscal',
+      warranty_policy_text: profile.warranty_policy_text || null,
+    },
+    copy: false,
+    pos_order: {
+      id: 'PRUEBA',
+      sale_id: 'PRUEBA',
+      paid_at: new Date().toISOString(),
+      customer_name: 'Cliente de prueba',
+      cashier_name: 'Cajero Demo',
+      branch_name: 'Sucursal Principal',
+      cash_register_name: 'Mostrador 1',
+    },
+    totals: {
+      total_base_amount: 30.35,
+      total_local_amount: 15175,
+      paid_base_amount: 30.35,
+      balance_base_amount: 0,
+    },
+    items: [
+      {
+        product_name: 'Forro iPhone 11 Transparente',
+        sku: 'DEMO-21-CCS',
+        quantity: 1,
+        unit_price: 30.35,
+        total: 30.35,
+        discount: 0,
+        serials: [{ serial_number: 'IMEI-DEMO-001' }],
+        warranty: { name: 'Accesorios 7 dias', duration_days: 7, expires_at: '2026-07-25' },
+      },
+    ],
+    payments: [
+      {
+        method: 'USD Efectivo',
+        currency: 'USD',
+        amount: 30.35,
+        amount_base: 30.35,
+        amount_local: 15175,
+        exchange_rate_type_code: 'BCV',
+        exchange_rate: 500,
+        reference: 'REF-DEMO',
+      },
+    ],
+  };
+}
+
+export async function sendTestTicketToLocalAgent(
+  output: 'thermal' | 'digital',
+  station: PrinterStation,
+  profile: PrintProfilePayload | PrintProfile,
+): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
+  const response = await fetch('http://127.0.0.1:17777/print', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      job_id: `test-${Date.now()}`,
+      output,
+      station,
+      payload: exampleTicketPayload(profile),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agente local respondio ${response.status}`);
+  }
+
+  return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;
 }

@@ -120,6 +120,52 @@ class PrintingApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_ticket_profile_visibility_options_hide_sections_in_html(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage', 'printing.print', 'printing.digital']);
+
+        $profile = $this->profile($tenant);
+        $profile->update([
+            'show_total_local' => false,
+            'show_payment_rate' => false,
+            'show_payment_reference' => false,
+            'show_cash_register' => false,
+            'show_branch' => false,
+            'show_customer' => false,
+            'show_non_fiscal_text' => false,
+        ]);
+        $station = $this->station($tenant, $branch, $register, $profile);
+        $order = $this->paidPosOrder($tenant, $user, $branch, $register);
+
+        $jobId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$order->id}/print-jobs", [
+                'output' => PrinterStation::OUTPUT_DIGITAL,
+                'printer_station_id' => $station->id,
+            ])
+            ->assertCreated()
+            ->json('data.0.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get("/api/printing/jobs/{$jobId}/ticket.html")
+            ->assertOk()
+            ->assertSee('Ticket POS #'.$order->id, false)
+            ->assertDontSee('Total VES', false)
+            ->assertDontSee('BCV @', false)
+            ->assertDontSee('Ref:', false)
+            ->assertDontSee('Caja:', false)
+            ->assertDontSee('Sucursal:', false)
+            ->assertDontSee('Cliente:', false)
+            ->assertDontSee('Documento no fiscal', false);
+    }
+
     public function test_printing_resources_do_not_cross_tenants(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -215,6 +261,9 @@ class PrintingApiTest extends TestCase
             'amount' => 12.5,
             'amount_base' => 12.5,
             'amount_local' => 12500,
+            'exchange_rate_type_code' => 'BCV',
+            'exchange_rate' => 1000,
+            'reference' => 'REF-123',
             'status' => PosPayment::STATUS_CAPTURED,
         ]);
 
@@ -231,6 +280,23 @@ class PrintingApiTest extends TestCase
             'characters_per_line' => 32,
             'show_warranty_summary' => true,
             'is_default' => true,
+            'is_active' => true,
+        ]);
+    }
+
+    private function station(Tenant $tenant, Branch $branch, CashRegister $register, PrintProfile $profile): PrinterStation
+    {
+        $this->useTenant($tenant);
+
+        return PrinterStation::create([
+            'branch_id' => $branch->id,
+            'cash_register_id' => $register->id,
+            'print_profile_id' => $profile->id,
+            'name' => 'Mostrador',
+            'code' => 'MOSTRADOR-TEST',
+            'output_mode' => PrinterStation::OUTPUT_DIGITAL,
+            'printer_type' => PrinterStation::PRINTER_WINDOWS,
+            'digital_directory' => 'Desktop\\Tickets',
             'is_active' => true,
         ]);
     }
