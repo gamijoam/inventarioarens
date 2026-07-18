@@ -31,6 +31,16 @@ class CashRegisterSessionResource extends JsonResource
             'closing_notes' => $this->closing_notes,
             'branch' => $this->whenLoaded('branch'),
             'cash_register' => CashRegisterResource::make($this->whenLoaded('cashRegister')),
+            'cashier' => $this->whenLoaded('cashier', fn () => [
+                'id' => $this->cashier?->id,
+                'name' => $this->cashier?->name,
+                'email' => $this->cashier?->email,
+            ]),
+            'closer' => $this->whenLoaded('closer', fn () => [
+                'id' => $this->closer?->id,
+                'name' => $this->closer?->name,
+                'email' => $this->closer?->email,
+            ]),
             'movements' => CashRegisterMovementResource::collection($this->whenLoaded('movements')),
         ];
     }

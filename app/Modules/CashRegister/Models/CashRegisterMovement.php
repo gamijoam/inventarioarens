@@ -31,17 +31,27 @@ class CashRegisterMovement extends Model
     use BelongsToTenant;
 
     public const TYPE_OPENING = 'opening';
+
     public const TYPE_INFLOW = 'inflow';
+
     public const TYPE_OUTFLOW = 'outflow';
+
     public const TYPE_POS_PAYMENT = 'pos_payment';
+
     public const TYPE_ADJUSTMENT = 'adjustment';
 
     public const METHOD_CASH = 'cash';
+
     public const METHOD_CARD = 'card';
+
     public const METHOD_MOBILE_PAYMENT = 'mobile_payment';
+
     public const METHOD_TRANSFER = 'transfer';
+
     public const METHOD_ZELLE = 'zelle';
+
     public const METHOD_EXTERNAL_FINANCING = 'external_financing';
+
     public const METHOD_OTHER = 'other';
 
     protected function casts(): array

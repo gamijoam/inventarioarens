@@ -33,7 +33,11 @@ class CashRegisterSessionPolicy
     public function close(User $user, CashRegisterSession $session): bool
     {
         return $this->ownsResource($session)
-            && $this->hasTenantPermission($user, 'cash_register.close');
+            && $this->hasTenantPermission($user, 'cash_register.close')
+            && (
+                (int) $session->cashier_id === (int) $user->id
+                || $this->isCashSupervisor($user)
+            );
     }
 
     private function hasTenantPermission(User $user, string $permission): bool
@@ -49,6 +53,11 @@ class CashRegisterSessionPolicy
         }
 
         return $user->hasPermissionTo($permission);
+    }
+
+    private function isCashSupervisor(User $user): bool
+    {
+        return $user->hasAnyRole(['Owner', 'Administrador', 'Gerente']);
     }
 
     private function ownsResource(CashRegisterSession $session): bool

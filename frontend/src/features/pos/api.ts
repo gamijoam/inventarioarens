@@ -53,8 +53,22 @@ export const CashRegisterSessionSchema = z.object({
   opened_at: z.string().nullable().optional(),
   closed_at: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  closing_notes: z.string().nullable().optional(),
   cash_register: CashRegisterSchema.nullable().optional(),
   branch: BranchSchema.nullable().optional(),
+  cashier: z.object({ id: z.number().int(), name: z.string().nullable().optional(), email: z.string().nullable().optional() }).nullable().optional(),
+  closer: z.object({ id: z.number().int(), name: z.string().nullable().optional(), email: z.string().nullable().optional() }).nullable().optional(),
+  movements: z.array(z.object({
+    id: z.number().int(),
+    type: z.string(),
+    method: z.string().nullable().optional(),
+    currency: z.string(),
+    amount: nullableNumber,
+    amount_base: nullableNumber,
+    amount_local: nullableNumber,
+    notes: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+  }).passthrough()).optional(),
 }).passthrough();
 export type CashRegisterSession = z.infer<typeof CashRegisterSessionSchema>;
 
@@ -166,8 +180,11 @@ export interface CashMovementPayload {
 }
 
 export interface CloseCashSessionPayload {
-  counted_currency: 'USD' | 'VES';
-  counted_amount: number;
+  counted_currency?: 'USD' | 'VES';
+  counted_amount?: number;
+  counted_base_amount?: number;
+  counted_local_amount?: number;
+  exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
 }
 
@@ -210,7 +227,7 @@ export const posKeys = {
   all: ['pos'] as const,
   products: (filters: Partial<InventoryFilters>) => [...posKeys.all, 'products', filters] as const,
   orders: (status?: string) => [...posKeys.all, 'orders', status ?? 'all'] as const,
-  cashSessions: () => [...posKeys.all, 'cash-sessions'] as const,
+  cashSessions: (filters?: string) => [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
   exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
@@ -249,7 +266,7 @@ export function useCheckout() {
     mutationFn: async (payload: CheckoutPayload) => postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
-      void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
     },
   });
 }
@@ -261,7 +278,7 @@ export function useAddPosPayments() {
       postOne<{ payments: CheckoutPayload['payments'] }, PosOrder>(`/pos/orders/${orderId}/payments`, { payments }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
-      void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
     },
   });
 }
@@ -281,6 +298,20 @@ export function useCashSessions() {
     queryKey: posKeys.cashSessions(),
     queryFn: async () => {
       const response = await getPaginated<unknown>('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
+      return z.array(CashRegisterSessionSchema).parse(response.data);
+    },
+  });
+}
+
+export function useCashSessionsList(filters: { status?: 'open' | 'closed' | 'cancelled'; cashier?: 'me'; perPage?: number } = {}) {
+  const params = new URLSearchParams({ per_page: String(filters.perPage ?? 25) });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.cashier) params.set('cashier_id', filters.cashier);
+
+  return useQuery({
+    queryKey: posKeys.cashSessions(params.toString()),
+    queryFn: async () => {
+      const response = await getPaginated<unknown>(`/cash-register/sessions?${params.toString()}`);
       return z.array(CashRegisterSessionSchema).parse(response.data);
     },
   });
@@ -408,7 +439,7 @@ export function useOpenCashSession() {
     mutationFn: async (payload: OpenCashSessionPayload) =>
       postOne<OpenCashSessionPayload, CashRegisterSession>('/cash-register/sessions', payload),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
@@ -441,7 +472,7 @@ export function useAddCashMovement() {
     mutationFn: async ({ sessionId, payload }: { sessionId: number; payload: CashMovementPayload }) =>
       postOne<CashMovementPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/movements`, payload),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });
@@ -453,7 +484,7 @@ export function useCloseCashSession() {
     mutationFn: async ({ sessionId, payload }: { sessionId: number; payload: CloseCashSessionPayload }) =>
       patchOne<CloseCashSessionPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/close`, payload),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: posKeys.cashSessions() });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
   });

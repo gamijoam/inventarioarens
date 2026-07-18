@@ -13,24 +13,22 @@ use App\Modules\CashRegister\Requests\StoreCashRegisterMovementRequest;
 use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 
 class CashRegisterSessionController extends Controller
 {
-    public function __construct(private readonly ScopeResolver $scopes)
-    {
-    }
+    public function __construct(private readonly ScopeResolver $scopes) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', CashRegisterSession::class);
 
         $query = CashRegisterSession::query()
-            ->with(['branch', 'cashRegister'])
+            ->with(['branch', 'cashRegister', 'cashier', 'closer', 'movements'])
             ->latest();
 
         $status = $request->query('status');
@@ -85,7 +83,7 @@ class CashRegisterSessionController extends Controller
     {
         Gate::authorize('view', $cashRegisterSession);
 
-        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'cashRegister', 'movements']));
+        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'cashRegister', 'cashier', 'closer', 'movements']));
     }
 
     public function movement(

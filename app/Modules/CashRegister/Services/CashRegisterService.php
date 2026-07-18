@@ -150,11 +150,7 @@ class CashRegisterService
             $this->assertOpen($session);
             $this->recalculateExpectedTotals($session);
 
-            $counted = $this->resolveAmount([
-                'currency' => $data['counted_currency'] ?? Product::CURRENCY_USD,
-                'amount' => $data['counted_amount'],
-                'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
-            ]);
+            $counted = $this->closingAmount($data);
 
             $session->update([
                 'status' => CashRegisterSession::STATUS_CLOSED,
@@ -357,6 +353,35 @@ class CashRegisterService
             'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
             'notes' => 'Monto inicial de caja.',
         ]];
+    }
+
+    private function closingAmount(array $data): array
+    {
+        if (array_key_exists('counted_base_amount', $data) || array_key_exists('counted_local_amount', $data)) {
+            $base = $this->resolveAmount([
+                'currency' => Product::CURRENCY_USD,
+                'amount' => (float) ($data['counted_base_amount'] ?? 0),
+            ]);
+            $localAmount = (float) ($data['counted_local_amount'] ?? 0);
+            $local = $localAmount > 0
+                ? $this->resolveAmount([
+                    'currency' => Product::CURRENCY_VES,
+                    'amount' => $localAmount,
+                    'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
+                ])
+                : ['amount_base' => 0, 'amount_local' => 0];
+
+            return [
+                'amount_base' => round((float) $base['amount_base'] + (float) $local['amount_base'], 4),
+                'amount_local' => round((float) ($local['amount_local'] ?? 0), 4),
+            ];
+        }
+
+        return $this->resolveAmount([
+            'currency' => $data['counted_currency'] ?? Product::CURRENCY_USD,
+            'amount' => $data['counted_amount'],
+            'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
+        ]);
     }
 
     private function recalculateExpectedTotals(CashRegisterSession $session): void

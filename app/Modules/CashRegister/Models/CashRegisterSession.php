@@ -35,7 +35,9 @@ class CashRegisterSession extends Model
     use BelongsToTenant;
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_CLOSED = 'closed';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected function casts(): array

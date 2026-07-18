@@ -327,6 +327,91 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonPath('data.difference_base_amount', '-5.0000');
     }
 
+    public function test_user_can_close_cash_register_with_usd_and_ves_counted_amounts(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $rateType = $this->rateType($tenant, 'BCV', 1000);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', [
+            'cash_register.open',
+            'cash_register.close',
+            'cash_register.view',
+        ]);
+
+        $sessionId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'opening_base_amount' => 20,
+                'opening_local_amount' => 5000,
+                'exchange_rate_type_id' => $rateType->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.expected_base_amount', '25.0000')
+            ->assertJsonPath('data.expected_local_amount', '5000.0000')
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", [
+                'counted_base_amount' => 20,
+                'counted_local_amount' => 6000,
+                'exchange_rate_type_id' => $rateType->id,
+                'closing_notes' => 'Sobrante VES reportado',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', CashRegisterSession::STATUS_CLOSED)
+            ->assertJsonPath('data.counted_base_amount', '26.0000')
+            ->assertJsonPath('data.counted_local_amount', '6000.0000')
+            ->assertJsonPath('data.difference_base_amount', '1.0000')
+            ->assertJsonPath('data.difference_local_amount', '1000.0000');
+    }
+
+    public function test_cashier_cannot_close_another_cashiers_session_but_supervisor_can(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $cashRegister = $this->cashRegister($tenant, $branch, 'Caja A', 'CJ-A');
+        $cashier = $this->userInTenant($tenant);
+        $otherCashier = $this->userInTenant($tenant);
+        $manager = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajero A', ['cash_register.open', 'cash_register.close', 'cash_register.view']);
+        $this->grantRole($tenant, $otherCashier, 'Cajero B', ['cash_register.close', 'cash_register.view']);
+        $this->grantRole($tenant, $manager, 'Gerente', ['cash_register.close', 'cash_register.view']);
+
+        $sessionId = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegister->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($otherCashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", [
+                'counted_amount' => 0,
+            ])
+            ->assertForbidden();
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", [
+                'counted_amount' => 0,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', CashRegisterSession::STATUS_CLOSED)
+            ->assertJsonPath('data.closed_by', $manager->id);
+    }
+
     public function test_closed_cash_register_rejects_new_movements(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
