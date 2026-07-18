@@ -243,10 +243,18 @@ export function PosTerminal() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Shortcut label="F2" text="Pago" />
-          <Shortcut label="F4" text="Cliente" />
-          <Shortcut label="F6" text="Espera" />
-          <Shortcut label="F7" text="Recuperar" />
+          <Button variant="outline" size="sm" onClick={() => setPanel('pay')} disabled={activePaymentMethods.length === 0}>
+            <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+            <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
+          </Button>
+          <Button variant="outline" size="sm" disabled={cart.length === 0 || !canCheckout || checkout.isPending} onClick={() => void holdSale()}>
+            <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPanel('hold')}>
+            <History className="size-4" /> <ShortcutText label="F7" text="Pendientes" />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setPanel('cash')}>
             <Banknote className="size-4" /> Caja
           </Button>
@@ -356,26 +364,19 @@ export function PosTerminal() {
 
         <aside className="flex min-h-0 flex-col rounded border border-border bg-surface">
           <div className="border-b border-border p-4">
-            <div className="space-y-2 text-sm">
-              <AmountRow label="Subtotal" value={cartTotals.subtotal} />
-              <AmountRow label="Descuento" value={cartTotals.discount} muted />
-              <div className="flex items-end justify-between border-t border-border pt-3">
-                <span className="font-semibold">Total</span>
-                <span className="text-3xl font-bold">{money(cartTotals.total)}</span>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-text-muted">Total</p>
+                <p className="mt-1 text-4xl font-bold tracking-normal">{money(cartTotals.total)}</p>
+              </div>
+              <div className="min-w-28 space-y-1 text-right text-xs text-text-muted">
+                <AmountRow label="Subtotal" value={cartTotals.subtotal} />
+                {cartTotals.discount > 0 && <AmountRow label="Desc." value={cartTotals.discount} muted />}
               </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold">Resumen de pago</h3>
-                <p className="text-xs text-text-muted">Usa F2 para agregar pagos.</p>
-              </div>
-              <Badge variant={paymentTotals.remaining > 0 ? 'warning' : 'success'}>
-                Resta {money(paymentTotals.remaining)}
-              </Badge>
-            </div>
+          <div className="min-h-0 flex-1 overflow-auto p-4">
             {activePaymentMethods.length === 0 ? (
               <div className="mb-3 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
                 Configura metodos de pago para cobrar rapido.
@@ -383,28 +384,36 @@ export function PosTerminal() {
                   <Link to="/payment-methods">Configurar metodos</Link>
                 </Button>
               </div>
-            ) : (
-              <div className="mb-3 rounded border border-border bg-bg/40 p-3">
-                <Button className="h-12 w-full text-base" variant="outline" onClick={() => setPanel('pay')}>
-                  <CreditCard className="size-5" /> Agregar pago (F2)
-                </Button>
-              </div>
-            )}
-            <div className="space-y-2">
-              {payments.map((payment) => (
-                <PaymentChip
-                  key={payment.id}
-                  payment={payment}
-                  methods={configuredPaymentMethods}
-                  rateTypes={exchangeRateTypes}
-                  onChange={(patch) => updatePayment(payment.id, patch)}
-                  onRemove={() => setPayments((current) => current.filter((item) => item.id !== payment.id))}
-                />
-              ))}
-            </div>
-            <div className="mt-4 rounded border border-border bg-bg/50 p-3">
+            ) : null}
+            <div className="space-y-3">
               <AmountRow label="Pagado" value={paymentTotals.paid} />
-              <AmountRow label="Restante" value={paymentTotals.remaining} />
+              {payments.length > 0 && (
+                <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                  {payments.map((payment) => (
+                    <PaymentChip
+                      key={payment.id}
+                      payment={payment}
+                      methods={configuredPaymentMethods}
+                      rateTypes={exchangeRateTypes}
+                      onChange={(patch) => updatePayment(payment.id, patch)}
+                      onRemove={() => setPayments((current) => current.filter((item) => item.id !== payment.id))}
+                    />
+                  ))}
+                </div>
+              )}
+              {payments.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPanel('pay')}
+                  disabled={activePaymentMethods.length === 0}
+                  className="w-full rounded border border-dashed border-border px-3 py-4 text-sm font-medium text-text-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Agregar pago con F2
+                </button>
+              )}
+            </div>
+            <div className="mt-4 space-y-2 rounded border border-border bg-bg/50 p-3">
+              <AmountRow label="Restante USD" value={paymentTotals.remaining} />
               {bestActiveRate(currentRates, exchangeRateTypes) && (
                 <AmountRow
                   label={`Restante VES (${bestActiveRate(currentRates, exchangeRateTypes)?.code})`}
@@ -431,18 +440,10 @@ export function PosTerminal() {
                 {checkoutBlockReason}
               </p>
             )}
-            <Button className="h-12 w-full text-base" disabled={checkout.isPending} onClick={() => void confirmPaidSale()}>
+            <Button className="h-12 w-full text-base" disabled={Boolean(checkoutBlockReason) || checkout.isPending} onClick={() => void confirmPaidSale()}>
               {checkout.isPending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-5" />}
               Cobrar
             </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" disabled={cart.length === 0 || !canCheckout || checkout.isPending} onClick={() => void holdSale()}>
-                <PauseCircle className="size-4" /> Espera
-              </Button>
-              <Button variant="outline" onClick={() => setPanel('hold')}>
-                <History className="size-4" /> Pendientes
-              </Button>
-            </div>
           </div>
         </aside>
       </main>
@@ -583,6 +584,7 @@ export function PosTerminal() {
     const configured = configuredPaymentMethods.find((item) => item.id === paymentMethodId);
     if (!configured) return;
     addPaymentLine((configured.method ?? 'other') as PosPaymentMethod, paymentMethodId);
+    setPanel(null);
   }
 
   function addPaymentLine(method: PosPaymentMethod, paymentMethodId?: number): void {
@@ -769,38 +771,55 @@ function PaymentChip({
   const baseAmount = paymentBaseAmount(payment);
 
   return (
-    <div className="rounded border border-border bg-bg/40 p-3">
-      <div className="grid grid-cols-[1fr_auto] gap-2">
+    <div className="rounded border border-border bg-bg/40 p-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_112px_auto] items-center gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="truncate font-semibold">{selectedMethod?.name ?? methodLabel(payment.method)}</p>
+            <p className="truncate text-sm font-semibold">{selectedMethod?.name ?? methodLabel(payment.method)}</p>
             <Badge variant="info">{payment.currency}</Badge>
           </div>
           <p className="mt-1 text-xs text-text-muted">
-            {rateType ? `${rateType.code}${payment.exchange_rate ? ` @ ${payment.exchange_rate}` : ''}` : 'Sin tasa activa'}
+            {payment.currency === 'VES' && rateType
+              ? `${rateType.code}${payment.exchange_rate ? ` @ ${payment.exchange_rate}` : ''}`
+              : methodLabel(payment.method)}
           </p>
         </div>
+        <Input
+          className="h-9 text-right text-sm font-semibold"
+          type="number"
+          min="0"
+          value={payment.amount}
+          onChange={(event) => onChange({ amount: Number(event.target.value) })}
+          placeholder="Monto"
+        />
         <Button size="icon-sm" variant="ghost" onClick={onRemove}><X className="size-4" /></Button>
       </div>
 
-      <div className="mt-2 grid grid-cols-[1fr_88px] gap-2">
-        <Input type="number" min="0" value={payment.amount} onChange={(event) => onChange({ amount: Number(event.target.value) })} placeholder="Monto" />
-        <div className="flex items-center justify-center rounded border border-border bg-surface px-2 text-sm font-semibold">
-          {payment.currency}
+      {(payment.currency === 'VES' && payment.exchange_rate) || payment.method === 'cash' || requiresReference ? (
+        <div className="mt-2 grid gap-2">
+          {payment.currency === 'VES' && payment.exchange_rate && (
+            <p className="text-xs font-medium text-text-muted">Equivale a {money(baseAmount)}</p>
+          )}
+          {payment.method === 'cash' && (
+            <Input
+              className="h-9 text-sm font-semibold"
+              type="number"
+              min="0"
+              value={payment.received_amount ?? ''}
+              placeholder="Recibido"
+              onChange={(event) => onChange({ received_amount: Number(event.target.value) })}
+            />
+          )}
+          {requiresReference && (
+            <Input
+              className="h-9 text-sm"
+              value={payment.reference ?? ''}
+              placeholder={selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'}
+              onChange={(event) => onChange({ reference: event.target.value })}
+            />
+          )}
         </div>
-      </div>
-      {payment.currency === 'VES' && payment.exchange_rate && (
-        <p className="mt-1 text-xs font-medium text-text-muted">
-          Equivale a {money(baseAmount)}
-        </p>
-      )}
-
-      {payment.method === 'cash' && (
-        <Input className="mt-2 h-11 text-lg font-semibold" type="number" min="0" value={payment.received_amount ?? ''} placeholder="Recibido" onChange={(event) => onChange({ received_amount: Number(event.target.value) })} />
-      )}
-      {requiresReference && (
-        <Input className="mt-2 h-11" value={payment.reference ?? ''} placeholder={selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'} onChange={(event) => onChange({ reference: event.target.value })} />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1035,10 +1054,11 @@ function AmountRow({ label, value, muted = false, currency = 'USD' }: { label: s
   );
 }
 
-function Shortcut({ label, text }: { label: string; text: string }) {
+function ShortcutText({ label, text }: { label: string; text: string }) {
   return (
-    <span className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-muted">
-      <kbd className="font-semibold text-text-primary">{label}</kbd> {text}
+    <span className="inline-flex items-center gap-1">
+      <kbd className="font-semibold text-text-primary">{label}</kbd>
+      <span>{text}</span>
     </span>
   );
 }
