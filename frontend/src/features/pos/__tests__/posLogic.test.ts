@@ -4,6 +4,8 @@ import {
   calculateCartTotals,
   calculatePaymentTotals,
   clampQuantity,
+  firstPriceIssue,
+  hasPriceIssue,
   hasStockIssue,
   lineTotal,
   missingSerialIssue,
@@ -78,5 +80,13 @@ describe('POS cart logic', () => {
       .toContain('requiere 2 IMEI');
     expect(missingSerialIssue([{ ...baseLine, tracking_type: 'serialized', quantity: 1, selected_serials: [{ id: 1, serial_number: 'IMEI-1' }] }]))
       .toBeNull();
+  });
+
+  it('detecta productos sin precio para la lista seleccionada', () => {
+    const line = { ...baseLine, price_issue: 'Producto no tiene precio en Mayor.' };
+
+    expect(hasPriceIssue([line])).toBe(true);
+    expect(firstPriceIssue([line])).toBe('Producto no tiene precio en Mayor.');
+    expect(hasPriceIssue([baseLine])).toBe(false);
   });
 });

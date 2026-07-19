@@ -16,6 +16,8 @@ export interface PosCartLine {
   discount_value?: number | null;
   discount_reason?: string | null;
   price_list_id?: number | null;
+  price_list_name?: string | null;
+  price_issue?: string | null;
   tracking_type?: string | null;
   selected_serials?: Array<{
     id: number;
@@ -134,6 +136,14 @@ function lastCapturedPayment(payments: PosPaymentLine[]): PosPaymentLine | null 
 
 export function hasStockIssue(lines: PosCartLine[]): boolean {
   return lines.some((line) => line.quantity > line.available_stock);
+}
+
+export function hasPriceIssue(lines: PosCartLine[]): boolean {
+  return lines.some((line) => Boolean(line.price_issue));
+}
+
+export function firstPriceIssue(lines: PosCartLine[]): string | null {
+  return lines.find((line) => line.price_issue)?.price_issue ?? null;
 }
 
 export function missingSerialIssue(lines: PosCartLine[]): string | null {

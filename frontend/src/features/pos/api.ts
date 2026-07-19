@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
-import { BranchSchema, ExchangeRateTypeSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
+import { BranchSchema, ExchangeRateTypeSchema, PriceListSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
 
 export type PosPaymentMethod = 'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'other';
@@ -103,6 +103,22 @@ export const CurrentExchangeRateSchema = z.object({
   is_active: z.boolean().optional(),
 }).passthrough();
 export type CurrentExchangeRate = z.infer<typeof CurrentExchangeRateSchema>;
+
+export const PosProductQuoteSchema = z.object({
+  product_id: z.number().int(),
+  price_list_id: z.number().int().nullable().optional(),
+  price_list_name: z.string().nullable().optional(),
+  price_source: z.string().optional(),
+  base_price_usd: z.union([z.number(), z.string()]).transform(Number),
+  sale_currency: z.enum(['USD', 'VES']),
+  sale_price: z.union([z.number(), z.string()]).transform(Number),
+  price_usd: z.union([z.number(), z.string()]).transform(Number),
+  price_ves: z.union([z.number(), z.string()]).nullable().optional().transform((value) => (value == null ? null : Number(value))),
+  exchange_rate_type_id: z.number().int().nullable().optional(),
+  exchange_rate_type_code: z.string().nullable().optional(),
+  exchange_rate: z.union([z.number(), z.string()]).nullable().optional().transform((value) => (value == null ? null : Number(value))),
+}).passthrough();
+export type PosProductQuote = z.infer<typeof PosProductQuoteSchema>;
 
 export const PosOrderSchema = z.object({
   id: z.number().int(),
@@ -230,6 +246,8 @@ export const posKeys = {
   cashSessions: (filters?: string) => [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
+  priceLists: () => [...posKeys.all, 'price-lists'] as const,
+  productQuote: (productId: number, priceListId?: number | null) => [...posKeys.all, 'product-quote', productId, priceListId ?? 'default'] as const,
   exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
   currentRates: () => [...posKeys.all, 'current-rates'] as const,
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
@@ -349,6 +367,20 @@ export function usePaymentMethods() {
     queryKey: posKeys.paymentMethods(),
     queryFn: async () => z.array(PaymentMethodSchema).parse(await getMany<unknown>('/payment-methods')),
   });
+}
+
+export function usePriceListsForPos() {
+  return useQuery({
+    queryKey: posKeys.priceLists(),
+    queryFn: async () => z.array(PriceListSchema).parse(await getMany<unknown>('/price-lists?active_only=1')),
+  });
+}
+
+export async function quoteProductForPos(productId: number, priceListId: number | null): Promise<PosProductQuote> {
+  const params = new URLSearchParams();
+  if (priceListId) params.set('price_list_id', String(priceListId));
+
+  return PosProductQuoteSchema.parse(await getOne<unknown>(`/products/${productId}/price${params.toString() ? `?${params.toString()}` : ''}`));
 }
 
 export function useExchangeRateTypesForPos() {

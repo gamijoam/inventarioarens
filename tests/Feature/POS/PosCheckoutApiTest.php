@@ -566,7 +566,7 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonValidationErrors(['payments.0.payment_method_id']);
     }
 
-    public function test_pos_checkout_rejects_selected_price_list_without_product_price(): void
+    public function test_pos_checkout_rejects_price_list_without_payment_methods(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
@@ -575,11 +575,8 @@ class PosCheckoutApiTest extends TestCase
             'product_id' => $product->id,
             'quantity_available' => 2,
         ]);
-        $this->useTenant($tenant);
-        $priceList = PriceList::create([
-            'name' => 'Precio mayor',
-            'code' => 'MAYOR',
-        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Mayor sin metodos', 'MAYOR-SIN', 100);
+
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
         $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
@@ -596,6 +593,54 @@ class PosCheckoutApiTest extends TestCase
                     'quantity' => 1,
                 ]],
                 'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments'])
+            ->assertJsonPath('errors.payments.0', 'La lista de precio Mayor sin metodos no tiene metodos de pago configurados para POS.');
+    }
+
+    public function test_pos_checkout_rejects_selected_price_list_without_product_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $this->useTenant($tenant);
+        $priceList = PriceList::create([
+            'name' => 'Precio mayor',
+            'code' => 'MAYOR',
+        ]);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-MAYOR',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $priceList->paymentMethods()->sync([$cash->id => ['tenant_id' => $tenant->id]]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $cash->id,
                     'method' => PosPayment::METHOD_CASH,
                     'currency' => Product::CURRENCY_USD,
                     'amount' => 100,

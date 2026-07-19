@@ -63,6 +63,8 @@ class PosCheckoutService
                     ]);
                 }
 
+                $items = $this->normalizeItemsPriceLists($items);
+
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -395,7 +397,15 @@ class PosCheckoutService
     private function validatePaymentMethods(array $items, array $payments): array
     {
         $priceLists = $this->priceListsForItems($items);
-        $restrictedPriceLists = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isNotEmpty());
+        $priceListsWithoutMethods = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isEmpty());
+        if ($priceListsWithoutMethods->isNotEmpty()) {
+            $priceList = $priceListsWithoutMethods->first();
+            throw ValidationException::withMessages([
+                'payments' => "La lista de precio {$priceList->name} no tiene metodos de pago configurados para POS.",
+            ]);
+        }
+
+        $restrictedPriceLists = $priceLists;
         $resolved = [];
 
         foreach ($payments as $index => $payment) {
@@ -440,6 +450,37 @@ class PosCheckoutService
         }
 
         return $resolved;
+    }
+
+    private function normalizeItemsPriceLists(array $items): array
+    {
+        $tenantId = app(TenantManager::class)->current()?->id;
+        $defaultPriceList = null;
+
+        return collect($items)
+            ->map(function (array $item) use (&$defaultPriceList, $tenantId): array {
+                if (! empty($item['price_list_id'])) {
+                    return $item;
+                }
+
+                if ($tenantId && ! $defaultPriceList) {
+                    $defaultPriceList = $this->referenceCache->defaultPriceList($tenantId);
+                } elseif (! $defaultPriceList) {
+                    $defaultPriceList = PriceList::query()
+                        ->where('is_default', true)
+                        ->where('is_active', true)
+                        ->first();
+                }
+
+                if (! $defaultPriceList) {
+                    return $item;
+                }
+
+                $item['price_list_id'] = $defaultPriceList->id;
+
+                return $item;
+            })
+            ->all();
     }
 
     private function priceListsForItems(array $items)

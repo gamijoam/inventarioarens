@@ -610,6 +610,16 @@ export const PriceListSchema = z.object({
   is_active: z.boolean(),
   sort_order: z.number().int().optional(),
   payment_method_ids: z.array(z.number().int()).optional(),
+  payment_methods: z.array(z.object({
+    id: z.number().int(),
+    name: z.string(),
+    code: z.string().nullable().optional(),
+    method: z.string().nullable().optional(),
+    currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
+    is_active: z.boolean().optional(),
+    requires_reference: z.boolean().optional(),
+    sort_order: z.number().int().optional(),
+  }).passthrough()).optional(),
 });
 export type PriceList = z.infer<typeof PriceListSchema>;
 

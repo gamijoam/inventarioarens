@@ -27,7 +27,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { PERMISSIONS } from '@/permissions/constants';
 import { usePermissionContext } from '@/permissions/PermissionContext';
 import { cn } from '@/lib/cn';
-import type { Product } from '@/features/inventory-center/schemas';
+import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import {
   type CashRegisterSession,
   type CheckoutPayload,
@@ -36,6 +36,7 @@ import {
   type PosOrder,
   type PosPaymentMethod,
   type ProductSerial,
+  quoteProductForPos,
   useAddCashMovement,
   useAddPosPayments,
   useAvailableProductSerialsForPos,
@@ -52,6 +53,7 @@ import {
   useOpenCashSession,
   useOpenPosOrders,
   usePaymentMethods,
+  usePriceListsForPos,
   usePosProducts,
   useWarehousesForPos,
 } from './api';
@@ -60,6 +62,8 @@ import {
   calculatePaymentTotals,
   clampQuantity,
   hasStockIssue,
+  firstPriceIssue,
+  hasPriceIssue,
   lineTotal,
   missingSerialIssue,
   paymentBaseAmount,
@@ -109,6 +113,9 @@ export function PosTerminal() {
   const [query, setQuery] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
+  const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
+  const [priceListNotice, setPriceListNotice] = useState<string | null>(null);
+  const [repricing, setRepricing] = useState(false);
   const [cart, setCart] = useState<PosCartLine[]>([]);
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
   const [panel, setPanel] = useState<Panel>(null);
@@ -147,6 +154,7 @@ export function PosTerminal() {
     enabled: shouldSearchProducts,
   });
   const { data: configuredPaymentMethods = [] } = usePaymentMethods();
+  const { data: priceLists = [] } = usePriceListsForPos();
   const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
   const { data: currentRates = [] } = useCurrentExchangeRatesForPos();
   const { data: printerStations = [] } = usePrinterStations({ enabled: canPrint || canDigital || canReprint });
@@ -154,6 +162,15 @@ export function PosTerminal() {
     () => configuredPaymentMethods.filter((method) => method.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
     [configuredPaymentMethods],
   );
+  const selectedPriceList = useMemo(
+    () => priceLists.find((list) => list.id === selectedPriceListId) ?? priceLists.find((list) => list.is_default) ?? priceLists[0] ?? null,
+    [priceLists, selectedPriceListId],
+  );
+  const allowedPaymentMethods = useMemo(
+    () => filterPaymentMethodsForPriceList(activePaymentMethods, selectedPriceList),
+    [activePaymentMethods, selectedPriceList],
+  );
+  const priceListPaymentIssue = getPriceListPaymentIssue(selectedPriceList, allowedPaymentMethods);
   const checkout = useCheckout();
   const addPayments = useAddPosPayments();
   const cancelOrder = useCancelPosOrder();
@@ -189,7 +206,8 @@ export function PosTerminal() {
   const products = productPage?.data ?? [];
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const paymentTotals = useMemo(() => calculatePaymentTotals(payments, cartTotals.total), [payments, cartTotals.total]);
-  const paymentSetupIssue = getPaymentSetupIssue(payments, configuredPaymentMethods);
+  const paymentSetupIssue = getPaymentSetupIssue(payments, allowedPaymentMethods);
+  const priceIssue = firstPriceIssue(cart);
   const serialIssue = missingSerialIssue(cart);
   const checkoutBlockReason = getCheckoutBlockReason({
     canCheckout,
@@ -198,14 +216,21 @@ export function PosTerminal() {
     paymentCount: payments.length,
     remaining: paymentTotals.remaining,
     hasStockIssue: hasStockIssue(cart),
+    hasPriceIssue: hasPriceIssue(cart),
+    priceIssue,
     serialIssue,
     paymentSetupIssue,
+    priceListPaymentIssue,
   });
   const openingRate = bestActiveRate(currentRates, exchangeRateTypes);
 
   useEffect(() => {
     if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
   }, [warehouseId, warehouses]);
+
+  useEffect(() => {
+    if (!selectedPriceListId && selectedPriceList) setSelectedPriceListId(selectedPriceList.id);
+  }, [selectedPriceList, selectedPriceListId]);
 
   useEffect(() => {
     if (branches[0] && openingBranchId === '') setOpeningBranchId(branches[0].id);
@@ -223,6 +248,10 @@ export function PosTerminal() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'F2') {
         event.preventDefault();
+        if (priceListPaymentIssue) {
+          toast.error(priceListPaymentIssue);
+          return;
+        }
         setPanel('pay');
       }
       if (event.key === 'F3') {
@@ -254,7 +283,7 @@ export function PosTerminal() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cart, payments, activeSession, selectedCustomer, customerName, query]);
+  }, [cart, payments, activeSession, selectedCustomer, customerName, query, priceListPaymentIssue]);
 
   if (!canView) {
     return (
@@ -322,7 +351,7 @@ export function PosTerminal() {
             </p>
           </div>
         </div>
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_190px_210px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
             <Input
@@ -332,7 +361,7 @@ export function PosTerminal() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  handleProductSearchEnter();
+                  void handleProductSearchEnter();
                 }
               }}
               className="h-10 pl-9 text-base"
@@ -350,6 +379,21 @@ export function PosTerminal() {
               </option>
             ))}
           </Select>
+          <Select
+            value={selectedPriceList?.id ?? ''}
+            onChange={(event) => void changePriceList(event.target.value ? Number(event.target.value) : null)}
+            disabled={repricing}
+          >
+            {priceLists.length === 0 ? (
+              <option value="">Sin listas</option>
+            ) : (
+              priceLists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.code} - {list.name}
+                </option>
+              ))
+            )}
+          </Select>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => {
@@ -358,7 +402,15 @@ export function PosTerminal() {
           }}>
             <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setPanel('pay')} disabled={activePaymentMethods.length === 0}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+              setPanel('pay');
+            }}
+            disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+          >
             <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
@@ -448,6 +500,17 @@ export function PosTerminal() {
                 </Button>
               </div>
             ) : null}
+            {priceListNotice ? (
+              <p className="mb-3 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">{priceListNotice}</p>
+            ) : null}
+            {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
+              <div className="mb-3 rounded border border-warning bg-warning/10 p-3 text-sm text-warning">
+                {priceListPaymentIssue}
+                <Button asChild className="mt-3 w-full" variant="outline">
+                  <Link to="/inventory/admin">Configurar lista</Link>
+                </Button>
+              </div>
+            ) : null}
             <div className="space-y-3">
               <AmountRow label="Pagado" value={paymentTotals.paid} />
               {payments.length > 0 && (
@@ -468,7 +531,7 @@ export function PosTerminal() {
                 <button
                   type="button"
                   onClick={() => setPanel('pay')}
-                  disabled={activePaymentMethods.length === 0}
+                  disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
                   className="w-full rounded border border-dashed border-border px-3 py-4 text-sm font-medium text-text-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Agregar pago con F2
@@ -510,7 +573,7 @@ export function PosTerminal() {
             <Button
               className="h-10 w-full"
               variant="secondary"
-              disabled={!canCheckout || !canCollectReceivables || cart.length === 0 || hasStockIssue(cart) || checkout.isPending}
+              disabled={!canCheckout || !canCollectReceivables || cart.length === 0 || hasStockIssue(cart) || hasPriceIssue(cart) || Boolean(priceListPaymentIssue) || checkout.isPending}
               onClick={() => setPanel('credit')}
             >
               <Wallet className="size-4" />
@@ -606,22 +669,25 @@ export function PosTerminal() {
               products={products}
               warehouses={warehouses}
               warehouseId={warehouseId}
+              priceListName={selectedPriceList?.name ?? null}
               loading={loadingProducts}
               onSearch={setProductSearch}
               onWarehouseChange={setWarehouseId}
-              onSelect={(product) => {
-                addProduct(product);
-                setPanel(null);
+              onSelect={async (product) => {
+                const added = await addProduct(product);
+                if (added) setPanel(null);
               }}
             />
           )}
           {panel === 'pay' && (
             <QuickPaymentPanel
-              methods={activePaymentMethods}
+              methods={allowedPaymentMethods}
               cartTotal={cartTotals.total}
               payments={payments}
               currentRates={currentRates}
               rateTypes={exchangeRateTypes}
+              priceListName={selectedPriceList?.name ?? 'Lista de precio'}
+              issue={priceListPaymentIssue}
               onSelect={(methodId) => {
                 addQuickPayment(methodId);
                 setPanel(null);
@@ -654,16 +720,82 @@ export function PosTerminal() {
     </div>
   );
 
-  function addProduct(product: Product): void {
+  async function quoteProduct(product: Pick<Product, 'id' | 'name'>, priceList: PriceList) {
+    try {
+      return await quoteProductForPos(product.id, priceList.id);
+    } catch (error) {
+      const message = `${product.name} no tiene precio activo en la lista ${priceList.name}.`;
+      setPriceListNotice(message);
+      toast.error(message);
+      return null;
+    }
+  }
+
+  async function changePriceList(nextId: number | null): Promise<void> {
+    if (!nextId || nextId === selectedPriceList?.id) return;
+    const nextList = priceLists.find((list) => list.id === nextId);
+    if (!nextList) return;
+
+    setPriceListNotice(null);
+    if (cart.length === 0) {
+      setSelectedPriceListId(nextId);
+      setPayments([]);
+      return;
+    }
+
+    setRepricing(true);
+    try {
+      const quoted = await Promise.all(cart.map(async (line) => ({
+        line,
+        quote: await quoteProductForPos(line.product_id, nextList.id),
+      })));
+      setCart((current) =>
+        current.map((line) => {
+          const found = quoted.find((item) => item.line.id === line.id);
+          if (!found) return line;
+
+          return {
+            ...line,
+            unit_price: found.quote.base_price_usd,
+            currency: found.quote.sale_currency as CurrencyCode,
+            price_list_id: nextList.id,
+            price_list_name: found.quote.price_list_name ?? nextList.name,
+            price_issue: null,
+          };
+        }),
+      );
+      setSelectedPriceListId(nextId);
+      setPayments([]);
+      toast.success(`Ticket actualizado a ${nextList.name}. Pagos limpiados.`);
+    } catch (error) {
+      const message = `No se puede cambiar a ${nextList.name}: hay productos sin precio en esa lista.`;
+      setPriceListNotice(message);
+      toast.error(message);
+    } finally {
+      setRepricing(false);
+    }
+  }
+
+  async function addProduct(product: Product): Promise<boolean> {
     const available = Number(product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
       toast.error('Producto sin stock disponible.');
-      return;
+      return false;
     }
     if (!selectedWarehouse) {
       toast.error('Selecciona un almacen.');
-      return;
+      return false;
     }
+    if (!selectedPriceList) {
+      toast.error('Selecciona una lista de precio activa.');
+      return false;
+    }
+
+    const quote = await quoteProduct(product, selectedPriceList);
+    if (!quote) {
+      return false;
+    }
+
     const shouldSelectSerials = product.tracking_type === 'serialized';
     let newLineId: string | null = null;
     setCart((current) => {
@@ -688,9 +820,11 @@ export function PosTerminal() {
           warehouse_id: selectedWarehouse.id,
           quantity: 1,
           available_stock: available,
-          unit_price: Number(product.base_price ?? 0),
-          currency: (product.sale_currency ?? 'USD') as CurrencyCode,
-          price_list_id: null,
+          unit_price: quote.base_price_usd,
+          currency: quote.sale_currency as CurrencyCode,
+          price_list_id: selectedPriceList.id,
+          price_list_name: quote.price_list_name ?? selectedPriceList.name,
+          price_issue: null,
           tracking_type: product.tracking_type,
           selected_serials: [],
         },
@@ -703,6 +837,7 @@ export function PosTerminal() {
         setPanel('serials');
       }, 0);
     }
+    return true;
   }
 
   function updateLine(id: string, patch: Partial<PosCartLine>): void {
@@ -754,7 +889,7 @@ export function PosTerminal() {
     setPanel('serials');
   }
 
-  function handleProductSearchEnter(): void {
+  async function handleProductSearchEnter(): Promise<void> {
     const term = query.trim();
     if (term.length < 2) return;
     const normalized = term.toLowerCase();
@@ -762,7 +897,7 @@ export function PosTerminal() {
       [product.barcode, product.sku].some((value) => value?.toLowerCase() === normalized),
     );
     if (exact) {
-      addProduct(exact);
+      await addProduct(exact);
       return;
     }
     if (products[0]) {
@@ -774,14 +909,14 @@ export function PosTerminal() {
   }
 
   function addQuickPayment(paymentMethodId: number): void {
-    const configured = configuredPaymentMethods.find((item) => item.id === paymentMethodId);
+    const configured = allowedPaymentMethods.find((item) => item.id === paymentMethodId);
     if (!configured) return;
     addPaymentLine((configured.method ?? 'other') as PosPaymentMethod, paymentMethodId);
     setPanel(null);
   }
 
   function addPaymentLine(method: PosPaymentMethod, paymentMethodId?: number): void {
-    const configured = paymentMethodId ? configuredPaymentMethods.find((item) => item.id === paymentMethodId) : null;
+    const configured = paymentMethodId ? allowedPaymentMethods.find((item) => item.id === paymentMethodId) : null;
     const currencyMode = configured?.currency_mode ?? 'USD';
     const currency = currencyMode === 'VES' ? 'VES' : 'USD';
     const rate = bestActiveRate(currentRates, exchangeRateTypes);
@@ -850,14 +985,15 @@ export function PosTerminal() {
       setPanel('customer');
       return;
     }
-    if (cart.length === 0 || hasStockIssue(cart) || serialIssue) {
+    if (cart.length === 0 || hasStockIssue(cart) || hasPriceIssue(cart) || serialIssue) {
       if (serialIssue) toast.error(serialIssue);
+      else if (priceIssue) toast.error(priceIssue);
       else toast.error('Revisa productos y stock antes de enviar a CxC.');
       if (serialIssue) openMissingSerialPanel();
       return;
     }
-    if (paymentSetupIssue) {
-      toast.error(paymentSetupIssue);
+    if (paymentSetupIssue || priceListPaymentIssue) {
+      toast.error(paymentSetupIssue ?? priceListPaymentIssue ?? 'Revisa la configuracion de cobro.');
       return;
     }
     try {
@@ -921,6 +1057,14 @@ export function PosTerminal() {
 
   async function holdSale(): Promise<void> {
     if (!activeSession || cart.length === 0) return;
+    if (priceListPaymentIssue) {
+      toast.error(priceListPaymentIssue);
+      return;
+    }
+    if (priceIssue) {
+      toast.error(priceIssue);
+      return;
+    }
     if (serialIssue) {
       toast.error(serialIssue);
       openMissingSerialPanel();
@@ -967,7 +1111,7 @@ export function PosTerminal() {
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
-        price_list_id: line.price_list_id ?? null,
+        price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         quantity: line.quantity,
         discount_type: line.discount_type ?? null,
         discount_value: line.discount_value ?? null,
@@ -993,6 +1137,7 @@ export function PosTerminal() {
   function clearTicket(): void {
     setCart([]);
     setPayments([]);
+    setPriceListNotice(null);
     setSelectedCustomer(null);
     setCustomerName('Consumidor Final');
     setSelectedPending(null);
@@ -1080,6 +1225,7 @@ function CartLineRow({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
           <span>{money(line.unit_price)} c/u</span>
+          {line.price_list_name && <Badge variant="default" className="text-[10px]">{line.price_list_name}</Badge>}
           {line.tracking_type === 'serialized' && (
             <button type="button" className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')} onClick={onSerials}>
               IMEI {serialCount}/{line.quantity}
@@ -1092,6 +1238,9 @@ function CartLineRow({
               <Badge key={serial.id} variant="default" className="font-mono text-[10px]">{serial.serial_number}</Badge>
             ))}
           </div>
+        )}
+        {line.price_issue && (
+          <p className="rounded border border-warning bg-warning/10 px-2 py-1 text-xs text-warning">{line.price_issue}</p>
         )}
       </div>
       <div className="grid gap-2 sm:grid-cols-[124px_1fr]">
@@ -1347,6 +1496,8 @@ function QuickPaymentPanel({
   payments,
   currentRates,
   rateTypes,
+  priceListName,
+  issue,
   onSelect,
 }: {
   methods: Array<{ id: number; name: string; method?: string | null; currency_mode?: 'USD' | 'VES' | 'flexible'; requires_reference?: boolean; sort_order?: number }>;
@@ -1354,6 +1505,8 @@ function QuickPaymentPanel({
   payments: PosPaymentLine[];
   currentRates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>;
   rateTypes: Array<{ id: number; is_default?: boolean; is_active?: boolean; code: string }>;
+  priceListName: string;
+  issue: string | null;
   onSelect: (methodId: number) => void;
 }) {
   const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
@@ -1380,12 +1533,15 @@ function QuickPaymentPanel({
           )}
         </div>
       </div>
+      <p className="rounded border border-border bg-bg/40 px-3 py-2 text-xs text-text-muted">
+        Metodos permitidos para {priceListName}.
+      </p>
 
       {methods.length === 0 ? (
         <div className="rounded border border-warning bg-warning/10 p-4 text-sm text-warning">
-          No hay metodos activos para POS.
+          {issue ?? 'No hay metodos activos para esta lista de precio.'}
           <Button asChild className="mt-3" variant="outline">
-            <Link to="/payment-methods">Configurar metodos</Link>
+            <Link to="/inventory/admin">Configurar lista</Link>
           </Button>
         </div>
       ) : (
@@ -1424,6 +1580,7 @@ function ProductSearchPanel({
   products,
   warehouses,
   warehouseId,
+  priceListName,
   loading,
   onSearch,
   onWarehouseChange,
@@ -1433,10 +1590,11 @@ function ProductSearchPanel({
   products: Product[];
   warehouses: Array<{ id: number; code: string; name: string }>;
   warehouseId: number | null;
+  priceListName: string | null;
   loading: boolean;
   onSearch: (value: string) => void;
   onWarehouseChange: (value: number | null) => void;
-  onSelect: (product: Product) => void;
+  onSelect: (product: Product) => void | Promise<void>;
 }) {
   const canSearch = search.trim().length >= 2;
 
@@ -1452,7 +1610,7 @@ function ProductSearchPanel({
             onKeyDown={(event) => {
               if (event.key === 'Enter' && products[0]) {
                 event.preventDefault();
-                onSelect(products[0]);
+                void onSelect(products[0]);
               }
             }}
             className="h-11 pl-9 text-base"
@@ -1467,6 +1625,11 @@ function ProductSearchPanel({
           ))}
         </Select>
       </div>
+      {priceListName && (
+        <p className="rounded border border-border bg-bg/40 px-3 py-2 text-xs text-text-muted">
+          Los productos se cotizan al agregarlos con la lista {priceListName}.
+        </p>
+      )}
 
       {!canSearch ? (
         <div className="rounded border border-border bg-bg/40 p-6 text-center text-sm text-text-muted">
@@ -1486,7 +1649,7 @@ function ProductSearchPanel({
             <button
               key={product.id}
               type="button"
-              onClick={() => onSelect(product)}
+              onClick={() => void onSelect(product)}
               className="rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary"
             >
               <div className="flex items-start justify-between gap-2">
@@ -1499,6 +1662,7 @@ function ProductSearchPanel({
                 </Badge>
               </div>
               <p className="mt-3 text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
+              <p className="mt-1 text-xs text-text-muted">Se valida precio de lista al seleccionar</p>
             </button>
           ))}
         </div>
@@ -1848,17 +2012,48 @@ function getCheckoutBlockReason(input: {
   paymentCount: number;
   remaining: number;
   hasStockIssue: boolean;
+  hasPriceIssue: boolean;
+  priceIssue: string | null;
   serialIssue: string | null;
   paymentSetupIssue: string | null;
+  priceListPaymentIssue: string | null;
 }): string | null {
   if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
   if (!input.hasSession) return 'No hay caja abierta para cobrar.';
   if (input.cartCount === 0) return 'Agrega al menos un producto para cobrar.';
+  if (input.priceListPaymentIssue) return input.priceListPaymentIssue;
+  if (input.hasPriceIssue) return input.priceIssue ?? 'Hay productos sin precio para la lista seleccionada.';
   if (input.hasStockIssue) return 'Hay productos con stock insuficiente. La venta esta bloqueada.';
   if (input.serialIssue) return input.serialIssue;
   if (input.paymentCount === 0) return 'Agrega al menos una linea de pago.';
   if (input.paymentSetupIssue) return input.paymentSetupIssue;
   if (input.remaining > 0) return `Falta capturar ${money(input.remaining)} para completar el pago.`;
+
+  return null;
+}
+
+function filterPaymentMethodsForPriceList<T extends { id: number; is_active?: boolean }>(
+  methods: T[],
+  priceList: PriceList | null,
+): T[] {
+  const allowed = new Set(priceList?.payment_method_ids ?? []);
+  if (allowed.size === 0) return [];
+
+  return methods.filter((method) => method.is_active !== false && allowed.has(method.id));
+}
+
+function getPriceListPaymentIssue(
+  priceList: PriceList | null,
+  allowedPaymentMethods: Array<{ id: number }>,
+): string | null {
+  if (!priceList) return 'Configura una lista de precio activa para vender en POS.';
+  const configuredIds = priceList.payment_method_ids ?? [];
+  if (configuredIds.length === 0) {
+    return `La lista ${priceList.name} no tiene metodos de pago configurados para POS.`;
+  }
+  if (allowedPaymentMethods.length === 0) {
+    return `Los metodos asignados a ${priceList.name} no estan activos.`;
+  }
 
   return null;
 }

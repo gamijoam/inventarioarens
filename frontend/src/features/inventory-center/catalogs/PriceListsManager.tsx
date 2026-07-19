@@ -33,11 +33,13 @@ import {
   useDeletePriceList,
 } from '@/features/inventory-center/api';
 import { StorePriceListSchema, type PriceList } from '@/features/inventory-center/schemas';
+import { usePaymentMethods, type PaymentMethod } from '@/features/pos/api';
 
 type FormValues = z.input<typeof StorePriceListSchema>;
 
 export function PriceListsManager() {
   const { data: priceLists = [], isLoading } = usePriceLists(false);
+  const { data: paymentMethods = [] } = usePaymentMethods();
   const create = useCreatePriceList();
   const update = useUpdatePriceList();
   const remove = useDeletePriceList();
@@ -68,6 +70,7 @@ export function PriceListsManager() {
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Nombre</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Codigo</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Orden</th>
+                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Metodos POS</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Predet.</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Estado</th>
                 <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
@@ -81,6 +84,9 @@ export function PriceListsManager() {
                     <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{l.code}</code>
                   </td>
                   <td className="px-3 py-2 tabular-nums">{l.sort_order ?? 0}</td>
+                  <td className="px-3 py-2">
+                    <PaymentMethodBadges priceList={l} paymentMethods={paymentMethods} />
+                  </td>
                   <td className="px-3 py-2">
                     {l.is_default ? <Badge variant="info">Si</Badge> : <span className="text-text-muted">-</span>}
                   </td>
@@ -107,6 +113,7 @@ export function PriceListsManager() {
       {(creating || editing) && (
         <FormDialog
           priceList={editing}
+          paymentMethods={paymentMethods}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSubmit={async (values) => {
             try {
@@ -153,11 +160,13 @@ export function PriceListsManager() {
 
 function FormDialog({
   priceList,
+  paymentMethods,
   onClose,
   onSubmit,
   loading,
 }: {
   priceList: PriceList | null;
+  paymentMethods: PaymentMethod[];
   onClose: () => void;
   onSubmit: (values: FormValues) => Promise<void>;
   loading: boolean;
@@ -217,6 +226,39 @@ function FormDialog({
               <Label htmlFor="pl-active">Activa</Label>
             </div>
           </div>
+          <Field label="Metodos permitidos en POS" hint="Si no seleccionas metodos, esta lista no podra cobrarse en POS.">
+            <div className="max-h-52 space-y-2 overflow-auto rounded border border-border bg-bg/40 p-2">
+              {paymentMethods.length === 0 ? (
+                <p className="p-2 text-xs text-text-muted">No hay metodos de pago configurados.</p>
+              ) : (
+                paymentMethods.map((method) => {
+                  const selected = form.watch('payment_method_ids')?.includes(method.id) ?? false;
+                  return (
+                    <label key={method.id} className="flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-2 text-sm hover:bg-surface">
+                      <span>
+                        <span className="font-medium">{method.name}</span>
+                        <span className="ml-2 text-xs text-text-muted">{paymentMethodSummary(method)}</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(event) => {
+                          const current = form.getValues('payment_method_ids') ?? [];
+                          form.setValue(
+                            'payment_method_ids',
+                            event.target.checked
+                              ? [...new Set([...current, method.id])]
+                              : current.filter((id) => id !== method.id),
+                            { shouldDirty: true },
+                          );
+                        }}
+                      />
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button type="submit" loading={loading}>{priceList ? 'Guardar' : 'Crear'}</Button>
@@ -225,6 +267,31 @@ function FormDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function PaymentMethodBadges({ priceList, paymentMethods }: { priceList: PriceList; paymentMethods: PaymentMethod[] }) {
+  const ids = priceList.payment_method_ids ?? [];
+  if (ids.length === 0) return <Badge variant="warning">Sin metodos</Badge>;
+
+  const methods = priceList.payment_methods?.length
+    ? priceList.payment_methods
+    : paymentMethods.filter((method) => ids.includes(method.id));
+
+  return (
+    <div className="flex max-w-sm flex-wrap gap-1">
+      {methods.slice(0, 3).map((method) => (
+        <Badge key={method.id} variant={method.currency_mode === 'VES' ? 'info' : 'default'}>
+          {method.name}
+        </Badge>
+      ))}
+      {methods.length > 3 && <Badge variant="default">+{methods.length - 3}</Badge>}
+    </div>
+  );
+}
+
+function paymentMethodSummary(method: PaymentMethod): string {
+  const currency = method.currency_mode === 'flexible' ? 'USD/VES' : method.currency_mode ?? 'USD';
+  return `${currency} - ${method.method ?? 'metodo'}`;
 }
 
 function Field({ label, required, hint, error, children }: { label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }) {
