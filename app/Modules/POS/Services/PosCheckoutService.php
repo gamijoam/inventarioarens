@@ -63,8 +63,6 @@ class PosCheckoutService
                     ]);
                 }
 
-                $items = $this->normalizeItemsPriceLists($items);
-
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -450,37 +448,6 @@ class PosCheckoutService
         }
 
         return $resolved;
-    }
-
-    private function normalizeItemsPriceLists(array $items): array
-    {
-        $tenantId = app(TenantManager::class)->current()?->id;
-        $defaultPriceList = null;
-
-        return collect($items)
-            ->map(function (array $item) use (&$defaultPriceList, $tenantId): array {
-                if (! empty($item['price_list_id'])) {
-                    return $item;
-                }
-
-                if ($tenantId && ! $defaultPriceList) {
-                    $defaultPriceList = $this->referenceCache->defaultPriceList($tenantId);
-                } elseif (! $defaultPriceList) {
-                    $defaultPriceList = PriceList::query()
-                        ->where('is_default', true)
-                        ->where('is_active', true)
-                        ->first();
-                }
-
-                if (! $defaultPriceList) {
-                    return $item;
-                }
-
-                $item['price_list_id'] = $defaultPriceList->id;
-
-                return $item;
-            })
-            ->all();
     }
 
     private function priceListsForItems(array $items)

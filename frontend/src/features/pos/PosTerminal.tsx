@@ -95,6 +95,8 @@ const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
   { value: 'other', label: 'Otro' },
 ];
 
+const BASE_PRICE_LIST_LABEL = 'Precio base';
+
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -163,7 +165,7 @@ export function PosTerminal() {
     [configuredPaymentMethods],
   );
   const selectedPriceList = useMemo(
-    () => priceLists.find((list) => list.id === selectedPriceListId) ?? priceLists.find((list) => list.is_default) ?? priceLists[0] ?? null,
+    () => priceLists.find((list) => list.id === selectedPriceListId) ?? null,
     [priceLists, selectedPriceListId],
   );
   const allowedPaymentMethods = useMemo(
@@ -227,10 +229,6 @@ export function PosTerminal() {
   useEffect(() => {
     if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
   }, [warehouseId, warehouses]);
-
-  useEffect(() => {
-    if (!selectedPriceListId && selectedPriceList) setSelectedPriceListId(selectedPriceList.id);
-  }, [selectedPriceList, selectedPriceListId]);
 
   useEffect(() => {
     if (branches[0] && openingBranchId === '') setOpeningBranchId(branches[0].id);
@@ -339,7 +337,7 @@ export function PosTerminal() {
 
   return (
     <div className="h-screen overflow-hidden bg-bg text-text-primary">
-      <header className="grid grid-cols-1 gap-3 border-b border-border bg-surface px-4 py-3 xl:grid-cols-[280px_minmax(360px,1fr)_auto]">
+      <header className="grid grid-cols-1 gap-3 border-b border-border bg-surface px-4 py-3 2xl:grid-cols-[340px_minmax(720px,1fr)_auto]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded bg-primary text-primary-foreground">
             <Receipt className="size-5" />
@@ -351,8 +349,10 @@ export function PosTerminal() {
             </p>
           </div>
         </div>
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_190px_210px]">
-          <div className="relative">
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
+          <div className="space-y-1">
+            <label className="block text-[10px] font-semibold uppercase text-text-muted">Buscar / escanear</label>
+            <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
             <Input
               ref={searchRef}
@@ -368,34 +368,38 @@ export function PosTerminal() {
               placeholder="Escanea codigo, SKU o escribe producto"
               data-testid="pos-search"
             />
+            </div>
           </div>
-          <Select
-            value={warehouseId ?? ''}
-            onChange={(event) => setWarehouseId(event.target.value ? Number(event.target.value) : null)}
-          >
-            {warehouses.map((warehouse) => (
-              <option key={warehouse.id} value={warehouse.id}>
-                {warehouse.code} - {warehouse.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={selectedPriceList?.id ?? ''}
-            onChange={(event) => void changePriceList(event.target.value ? Number(event.target.value) : null)}
-            disabled={repricing}
-          >
-            {priceLists.length === 0 ? (
-              <option value="">Sin listas</option>
-            ) : (
-              priceLists.map((list) => (
+          <div className="space-y-1">
+            <label className="block text-[10px] font-semibold uppercase text-text-muted">Almacen</label>
+            <Select
+              value={warehouseId ?? ''}
+              onChange={(event) => setWarehouseId(event.target.value ? Number(event.target.value) : null)}
+            >
+              {warehouses.map((warehouse) => (
+                <option key={warehouse.id} value={warehouse.id}>
+                  {warehouse.code} - {warehouse.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[10px] font-semibold uppercase text-text-muted">Lista de precio</label>
+            <Select
+              value={selectedPriceListId ?? 'base'}
+              onChange={(event) => void changePriceList(event.target.value === 'base' ? null : Number(event.target.value))}
+              disabled={repricing}
+            >
+              <option value="base">{BASE_PRICE_LIST_LABEL}</option>
+              {priceLists.map((list) => (
                 <option key={list.id} value={list.id}>
                   {list.code} - {list.name}
                 </option>
-              ))
-            )}
-          </Select>
+              ))}
+            </Select>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-2 2xl:justify-end">
           <Button variant="outline" size="sm" onClick={() => {
             setProductSearch(query);
             setPanel('product-search');
@@ -669,7 +673,7 @@ export function PosTerminal() {
               products={products}
               warehouses={warehouses}
               warehouseId={warehouseId}
-              priceListName={selectedPriceList?.name ?? null}
+              priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
               loading={loadingProducts}
               onSearch={setProductSearch}
               onWarehouseChange={setWarehouseId}
@@ -686,7 +690,7 @@ export function PosTerminal() {
               payments={payments}
               currentRates={currentRates}
               rateTypes={exchangeRateTypes}
-              priceListName={selectedPriceList?.name ?? 'Lista de precio'}
+              priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
               issue={priceListPaymentIssue}
               onSelect={(methodId) => {
                 addQuickPayment(methodId);
@@ -732,9 +736,9 @@ export function PosTerminal() {
   }
 
   async function changePriceList(nextId: number | null): Promise<void> {
-    if (!nextId || nextId === selectedPriceList?.id) return;
-    const nextList = priceLists.find((list) => list.id === nextId);
-    if (!nextList) return;
+    if (nextId === selectedPriceListId) return;
+    const nextList = nextId ? priceLists.find((list) => list.id === nextId) : null;
+    if (nextId && !nextList) return;
 
     setPriceListNotice(null);
     if (cart.length === 0) {
@@ -745,30 +749,43 @@ export function PosTerminal() {
 
     setRepricing(true);
     try {
-      const quoted = await Promise.all(cart.map(async (line) => ({
-        line,
-        quote: await quoteProductForPos(line.product_id, nextList.id),
-      })));
-      setCart((current) =>
-        current.map((line) => {
-          const found = quoted.find((item) => item.line.id === line.id);
-          if (!found) return line;
-
-          return {
+      if (!nextList) {
+        setCart((current) =>
+          current.map((line) => ({
             ...line,
-            unit_price: found.quote.base_price_usd,
-            currency: found.quote.sale_currency as CurrencyCode,
-            price_list_id: nextList.id,
-            price_list_name: found.quote.price_list_name ?? nextList.name,
+            unit_price: Number(line.base_unit_price ?? line.unit_price),
+            currency: (line.base_currency ?? line.currency) as CurrencyCode,
+            price_list_id: null,
+            price_list_name: BASE_PRICE_LIST_LABEL,
             price_issue: null,
-          };
-        }),
-      );
+          })),
+        );
+      } else {
+        const quoted = await Promise.all(cart.map(async (line) => ({
+          line,
+          quote: await quoteProductForPos(line.product_id, nextList.id),
+        })));
+        setCart((current) =>
+          current.map((line) => {
+            const found = quoted.find((item) => item.line.id === line.id);
+            if (!found) return line;
+
+            return {
+              ...line,
+              unit_price: found.quote.base_price_usd,
+              currency: found.quote.sale_currency as CurrencyCode,
+              price_list_id: nextList.id,
+              price_list_name: found.quote.price_list_name ?? nextList.name,
+              price_issue: null,
+            };
+          }),
+        );
+      }
       setSelectedPriceListId(nextId);
       setPayments([]);
-      toast.success(`Ticket actualizado a ${nextList.name}. Pagos limpiados.`);
+      toast.success(`Ticket actualizado a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}. Pagos limpiados.`);
     } catch (error) {
-      const message = `No se puede cambiar a ${nextList.name}: hay productos sin precio en esa lista.`;
+      const message = `No se puede cambiar a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}: hay productos sin precio en esa lista.`;
       setPriceListNotice(message);
       toast.error(message);
     } finally {
@@ -786,15 +803,8 @@ export function PosTerminal() {
       toast.error('Selecciona un almacen.');
       return false;
     }
-    if (!selectedPriceList) {
-      toast.error('Selecciona una lista de precio activa.');
-      return false;
-    }
-
-    const quote = await quoteProduct(product, selectedPriceList);
-    if (!quote) {
-      return false;
-    }
+    const quote = selectedPriceList ? await quoteProduct(product, selectedPriceList) : null;
+    if (selectedPriceList && !quote) return false;
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
     let newLineId: string | null = null;
@@ -820,10 +830,12 @@ export function PosTerminal() {
           warehouse_id: selectedWarehouse.id,
           quantity: 1,
           available_stock: available,
-          unit_price: quote.base_price_usd,
-          currency: quote.sale_currency as CurrencyCode,
-          price_list_id: selectedPriceList.id,
-          price_list_name: quote.price_list_name ?? selectedPriceList.name,
+          unit_price: quote?.base_price_usd ?? Number(product.base_price ?? 0),
+          base_unit_price: Number(product.base_price ?? 0),
+          currency: (quote?.sale_currency ?? product.sale_currency ?? 'USD') as CurrencyCode,
+          base_currency: (product.sale_currency ?? 'USD') as CurrencyCode,
+          price_list_id: selectedPriceList?.id ?? null,
+          price_list_name: quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
           price_issue: null,
           tracking_type: product.tracking_type,
           selected_serials: [],
@@ -2036,6 +2048,8 @@ function filterPaymentMethodsForPriceList<T extends { id: number; is_active?: bo
   methods: T[],
   priceList: PriceList | null,
 ): T[] {
+  if (!priceList) return methods.filter((method) => method.is_active !== false);
+
   const allowed = new Set(priceList?.payment_method_ids ?? []);
   if (allowed.size === 0) return [];
 
@@ -2046,7 +2060,7 @@ function getPriceListPaymentIssue(
   priceList: PriceList | null,
   allowedPaymentMethods: Array<{ id: number }>,
 ): string | null {
-  if (!priceList) return 'Configura una lista de precio activa para vender en POS.';
+  if (!priceList) return null;
   const configuredIds = priceList.payment_method_ids ?? [];
   if (configuredIds.length === 0) {
     return `La lista ${priceList.name} no tiene metodos de pago configurados para POS.`;

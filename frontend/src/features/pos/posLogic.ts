@@ -11,7 +11,9 @@ export interface PosCartLine {
   quantity: number;
   available_stock: number;
   unit_price: number;
+  base_unit_price?: number | null;
   currency: CurrencyCode;
+  base_currency?: CurrencyCode | null;
   discount_type?: DiscountType | null;
   discount_value?: number | null;
   discount_reason?: string | null;
