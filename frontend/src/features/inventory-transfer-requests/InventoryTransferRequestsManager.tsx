@@ -68,16 +68,23 @@ export function InventoryTransferRequestsManager({
 }: InventoryTransferRequestsManagerProps = {}) {
   const [tab, setTab] = useState<TransferRequestTab>('received');
   const [search, setSearch] = useState('');
-  const queryResult = useTransferRequests();
+  // Polling automatico solo en tabs "activas" (Received/Pending).
+  // En tabs de archivo (Sent/Completed/Rejected) se desactiva para no
+  // gastar requests del backend ni bateria del navegador.
+  const refetchInterval: number | false =
+    tab === 'received' || tab === 'pending' ? 5000 : false;
+  const queryResult = useTransferRequests(undefined, { refetchInterval });
   const cancel = useCancelTransferRequest();
   // Lectura no-reactiva del tenant actual: el componente se re-renderiza
   // cuando cambian los datos de la query, que es suficiente para que el
   // filtro se actualice si el usuario cambia de empresa.
   const currentTenantId = currentTenantIdProp ?? useSessionStore.getState().tenant?.id;
 
+  // El hook retorna { data, meta, isLoading } (envoltorio). Tests y consumidores
+  // esperan esta forma, asi que NO destructuramos data en linea.
   const queryData = queryResult as { data?: TransferRequest[]; isLoading?: boolean; meta?: unknown } | undefined;
   const requests = queryData?.data ?? [];
-  const isLoading = queryData?.isLoading ?? true;
+  const isLoadingLocal = queryData?.isLoading ?? true;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -151,7 +158,7 @@ export function InventoryTransferRequestsManager({
           ))}
         </TabsList>
 
-        {isLoading ? (
+        {isLoadingLocal ? (
           <Skeleton className="mt-3 h-32 w-full" />
         ) : filtered.length === 0 ? (
           <EmptyState

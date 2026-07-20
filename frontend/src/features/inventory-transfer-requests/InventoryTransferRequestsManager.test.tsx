@@ -25,8 +25,9 @@ const mockUseCancelTransferRequest = vi.fn(() => ({
 }));
 
 vi.mock('@/features/inventory-transfer-requests/api', () => ({
-  useTransferRequests: () => mockUseTransferRequests(),
+  useTransferRequests: (...args: unknown[]) => mockUseTransferRequests(...args),
   useCancelTransferRequest: () => mockUseCancelTransferRequest(),
+  useUnreadTransferRequestsCount: () => ({ data: undefined }),
 }));
 
 vi.mock('@/stores/session', () => ({
@@ -140,5 +141,27 @@ describe('InventoryTransferRequestsManager', () => {
     expect(screen.queryByTestId('accept-9')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /rechazar solicitud/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /cancelar solicitud/i })).not.toBeInTheDocument();
+  });
+
+  it('polling: en tab Received llama useTransferRequests con refetchInterval=5000', () => {
+    mockUseTransferRequests.mockReturnValue({
+      data: [],
+      isLoading: false,
+      meta: { current_page: 1, last_page: 1, per_page: 25, total: 0 },
+    });
+    render(<InventoryTransferRequestsManager currentTenantId={1} />, { wrapper: makeWrapper() });
+    expect(mockUseTransferRequests).toHaveBeenCalledWith(undefined, { refetchInterval: 5000 });
+  });
+
+  it('polling: en tab Completed llama useTransferRequests con refetchInterval=false', async () => {
+    mockUseTransferRequests.mockReturnValue({
+      data: [],
+      isLoading: false,
+      meta: { current_page: 1, last_page: 1, per_page: 25, total: 0 },
+    });
+    const user = userEvent.setup();
+    render(<InventoryTransferRequestsManager currentTenantId={1} />, { wrapper: makeWrapper() });
+    await user.click(screen.getByRole('tab', { name: /completadas/i }));
+    expect(mockUseTransferRequests).toHaveBeenLastCalledWith(undefined, { refetchInterval: false });
   });
 });

@@ -67,6 +67,12 @@ export const PERMISSIONS = {
   INVENTORY_TRANSFERS_RESOLVE_DIFFERENCES: 'inventory_transfers.resolve_differences',
   INVENTORY_TRANSFERS_ADMIN: 'inventory_transfers.admin',
 
+  // Inventory Transfer Requests (inter-empresa)
+  INVENTORY_TRANSFER_REQUESTS_VIEW: 'inventory_transfer_requests.view',
+  INVENTORY_TRANSFER_REQUESTS_CREATE: 'inventory_transfer_requests.create',
+  INVENTORY_TRANSFER_REQUESTS_RESPOND: 'inventory_transfer_requests.respond',
+  INVENTORY_TRANSFER_REQUESTS_CANCEL: 'inventory_transfer_requests.cancel',
+
   // Customers
   CUSTOMERS_VIEW: 'customers.view',
   CUSTOMERS_CREATE: 'customers.create',

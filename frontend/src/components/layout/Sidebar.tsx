@@ -35,6 +35,8 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { APP_NAME, APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useCanAny } from '@/permissions/useCan';
+import { useSessionStore } from '@/stores/session';
+import { useUnreadTransferRequestsCount } from '@/features/inventory-transfer-requests/api';
 
 interface NavItem {
   to: string;
@@ -125,6 +127,12 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Traslados',
     icon: Truck,
     permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW,
+  },
+  {
+    to: '/inventory-transfer-requests',
+    label: 'Solicitudes inter-empresa',
+    icon: Building2,
+    permission: PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW,
   },
   {
     to: '/receivables',
@@ -272,6 +280,9 @@ export function Sidebar() {
               >
                 <item.icon className="size-4 shrink-0" aria-hidden="true" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && item.to === '/inventory-transfer-requests' && (
+                  <UnreadTransferRequestsBadge />
+                )}
               </Link>
             );
 
@@ -436,5 +447,36 @@ function Group({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Badge rojo con el contador de solicitudes pendientes para el tenant actual.
+ * Solo se monta dentro del item "Solicitudes inter-empresa" del sidebar.
+ * Usa el hook useUnreadTransferRequestsCount que polea cada 30s (no 5s)
+ * para no castigar al backend cuando el user esta mirando otras pantallas.
+ *
+ * Si el count es 0, no renderiza nada (deja el label limpio).
+ * Si es > 99, muestra "99+" para no romper el layout del sidebar.
+ */
+function UnreadTransferRequestsBadge() {
+  const currentTenantId = useSessionStore((s) => s.tenant?.id);
+  const { data: count } = useUnreadTransferRequestsCount({
+    currentTenantId,
+    refetchInterval: 30000,
+  });
+
+  if (!count || count <= 0) return null;
+
+  const label = count > 99 ? '99+' : String(count);
+
+  return (
+    <span
+      className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[10px] font-semibold leading-5 text-danger-foreground"
+      data-testid="unread-transfer-requests-badge"
+      aria-label={`${count} solicitudes pendientes`}
+    >
+      {label}
+    </span>
   );
 }

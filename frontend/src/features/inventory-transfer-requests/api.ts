@@ -52,7 +52,20 @@ export const TransferRequestListMetaSchema = z.object({
 });
 export type TransferRequestListMeta = z.infer<typeof TransferRequestListMetaSchema>;
 
-export function useTransferRequests(filters: Partial<TransferRequestListFilters> = {}) {
+/**
+ * Opciones adicionales para useTransferRequests.
+ * - refetchInterval: ms entre re-fetches automaticos. false = deshabilitado
+ *   (default). Usado por el Manager para activar polling en tabs Received/Pending
+ *   y desactivarlo en tabs de archivo (Completed/Rejected) para ahorrar bateria.
+ */
+export interface UseTransferRequestsOptions {
+  refetchInterval?: number | false;
+}
+
+export function useTransferRequests(
+  filters: Partial<TransferRequestListFilters> = {},
+  options: UseTransferRequestsOptions = {},
+) {
   return useQuery({
     queryKey: transferRequestKeys.list(filters as Record<string, unknown>),
     queryFn: async (): Promise<{ data: TransferRequest[]; meta: TransferRequestListMeta }> => {
@@ -84,6 +97,7 @@ export function useTransferRequests(filters: Partial<TransferRequestListFilters>
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    refetchInterval: options.refetchInterval ?? false,
   });
 }
 
@@ -172,6 +186,51 @@ export type { TransferRequestListFilters } from './schemas';
 
 // Re-export para callers que necesiten el schema de respuesta.
 export { TransferRequestSchema } from './schemas';
+
+export interface UseUnreadCountOptions {
+  /**
+   * ID del tenant actual. Si se omite, el hook hace 0 queries (no sabe
+   * a quien contar). Esto permite que el componente padre lo pase
+   * condicionalmente para evitar requests anonimas.
+   */
+  currentTenantId?: number;
+  /** Intervalo de re-fetch en ms. Default 30s. false = deshabilitado. */
+  refetchInterval?: number | false;
+}
+
+/**
+ * Cuenta solicitudes PENDIENTES donde el tenant actual es el destino
+ * (osea solicitudes que la empresa actual debe responder). Usado por el
+ * Sidebar para mostrar un badge rojo con el contador.
+ *
+ * Implementacion: hace un GET a la lista con filtros {status: 'requested'}
+ * y cuenta los resultados del backend (no del array parseado, para no
+ * descargar el payload completo).
+ */
+export function useUnreadTransferRequestsCount(
+  options: UseUnreadCountOptions = {},
+) {
+  const { currentTenantId, refetchInterval = 30000 } = options;
+  return useQuery({
+    queryKey: [...transferRequestKeys.all, 'unread-count', currentTenantId] as const,
+    enabled: typeof currentTenantId === 'number' && currentTenantId > 0,
+    queryFn: async () => {
+      const raw = (await getMany<unknown>(`/inventory-transfer-requests?status=requested&per_page=1`)) as
+        | { meta?: { total?: number } }
+        | unknown[];
+      let total = 0;
+      if (Array.isArray(raw)) {
+        total = raw.length;
+      } else if (raw && typeof raw === 'object' && 'meta' in raw) {
+        total = (raw.meta && typeof raw.meta.total === 'number') ? raw.meta.total : 0;
+      }
+      return total;
+    },
+    refetchInterval,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
 
 // Reuso: `deleteOne` no se usa actualmente pero lo dejamos exportado para
 // consistencia con otros modulos (no genera warning).
