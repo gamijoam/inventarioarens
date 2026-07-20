@@ -69,6 +69,8 @@ const ProductLiteSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
   sku: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
   tracking_type: z.enum(['quantity', 'serialized']).optional(),
 });
 

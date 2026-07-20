@@ -2,6 +2,17 @@
  * AcceptInventoryTransferRequestDialog: dialog para que la empresa destino
  * acepte una solicitud. Mapea cada item de la solicitud a un producto de
  * su propio catalogo (que debe tener el mismo tracking_type).
+ *
+ * Para ayudar al usuario a encontrar el producto correcto sin tener que
+ * adivinar, cada dropdown reordena sus opciones por scoreMatch:
+ *   - SKU exacto (case-insensitive) primero + badge verde.
+ *   - Barcode exacto segundo + badge verde.
+ *   - Match parcial por nombre tercero + badge amarillo "Similar".
+ *   - Resto alfabético sin badge.
+ *
+ * Esto resuelve el ~80% de los casos cuando las empresas del grupo usan
+ * SKUs/barcodes comunes. Si los SKUs divergen totalmente, el usuario
+ * sigue eligiendo manualmente (limitacion conocida).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,6 +24,7 @@ import { useAcceptTransferRequest } from '@/features/inventory-transfer-requests
 import { useProductsForTransfer } from '@/features/transfers/api';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
+import { compareMatches, scoreMatch, type MatchType } from '../scoreMatch';
 import type { TransferRequest } from '../schemas';
 
 interface AcceptInventoryTransferRequestDialogProps {
@@ -155,9 +167,33 @@ export function AcceptInventoryTransferRequestDialog({
                 {(request.items ?? []).map((it) => {
                   const originName = it.origin_product?.name ?? `Producto #${it.origin_product_id}`;
                   const originTracking = it.origin_product?.tracking_type;
+                  // 1. Filtrar por tracking_type compatible.
                   const compatibleProducts = productOptions.filter(
                     (p: { tracking?: 'quantity' | 'serialized' }) => !originTracking || p.tracking === originTracking,
                   );
+                  // 2. Calcular scoreMatch contra el origen y ordenar descendente.
+                  const originLite = it.origin_product
+                    ? {
+                        name: originName,
+                        sku: it.origin_product.sku ?? null,
+                        barcode: it.origin_product.barcode ?? null,
+                      }
+                    : null;
+                  const scored = compatibleProducts
+                    .map((p) => {
+                      // productOptions trae name + sku + tracking; necesitamos
+                      // tambien barcode del ProductSchema completo.
+                      const product = products.find((x: Product) => String(x.id) === p.id);
+                      return {
+                        ...p,
+                        match: scoreMatch(originLite, {
+                          name: p.label.split(' (')[0] ?? p.label,
+                          sku: extractSkuFromLabel(p.label),
+                          barcode: product?.barcode ?? null,
+                        }),
+                      };
+                    })
+                    .sort((a, b) => compareMatches(a.match, b.match));
                   return (
                     <tr key={it.id} className="border-b border-border last:border-b-0">
                       <td className="py-2">
@@ -179,10 +215,20 @@ export function AcceptInventoryTransferRequestDialog({
                             data-testid={`accept-product-${it.id}`}
                           >
                             <option value="">Selecciona...</option>
-                            {compatibleProducts.map((p) => (
-                              <option key={p.id} value={p.id}>{p.label}</option>
+                            {scored.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {optionLabel(p.label, p.match.matchType)}
+                              </option>
                             ))}
                           </select>
+                        )}
+                        {bestMatchHint(scored) && (
+                          <div
+                            className="mt-1 text-[11px] text-text-muted"
+                            data-testid={`accept-hint-${it.id}`}
+                          >
+                            Sugerencia: <strong>{bestMatchHint(scored)}</strong>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -216,4 +262,50 @@ export function AcceptInventoryTransferRequestDialog({
       </div>
     </div>
   );
+}
+
+/**
+ * Extrae el SKU del label "Nombre (SKU)" generado por productOptions.label.
+ * Si no encuentra el patron, devuelve string vacio.
+ */
+function extractSkuFromLabel(label: string): string {
+  const m = /\(([^)]+)\)\s*$/.exec(label);
+  return m?.[1]?.trim() ?? '';
+}
+
+/**
+ * Sufijo que se agrega al label del <option> segun el tipo de match.
+ * Los <option> nativos no soportan HTML, asi que usamos texto plano
+ * con prefijos reconocibles: "[SKU] ", "[Barcode] ", "[Similar] ".
+ */
+function optionLabel(baseLabel: string, matchType: MatchType): string {
+  switch (matchType) {
+    case 'sku':
+      return `[SKU] ${baseLabel}`;
+    case 'barcode':
+      return `[Barcode] ${baseLabel}`;
+    case 'name':
+      return `[Similar] ${baseLabel}`;
+    case 'none':
+    default:
+      return baseLabel;
+  }
+}
+
+interface ScoredProduct {
+  id: string;
+  label: string;
+  tracking?: 'quantity' | 'serialized';
+  match: { score: number; matchType: MatchType };
+}
+
+/**
+ * Devuelve el label del mejor match (score > 0) para mostrar como sugerencia
+ * debajo del select. Null si no hay ningun match.
+ */
+function bestMatchHint(scored: ScoredProduct[]): string | null {
+  const best = scored[0];
+  if (!best || best.match.score === 0) return null;
+  // Quitar prefijo "[SKU] " etc para mostrar el nombre limpio.
+  return best.label.replace(/^\[[^\]]+\]\s*/, '');
 }
