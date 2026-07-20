@@ -118,6 +118,12 @@ class InventoryTransferRequestApiTest extends TestCase
                 'items' => [[
                     'request_item_id' => $createResponse->json('data.items.0.id'),
                     'destination_product_id' => $destinationProduct->id,
+                    // El destino envia el IMEI del payload; el backend hace
+                    // lookup por serial_number para eliminar la unit del origin.
+                    'serial_units' => [[
+                        'serial_type' => 'imei',
+                        'serial_number' => $units[0]->serial_number,
+                    ]],
                 ]],
             ])
             ->assertOk()
@@ -134,6 +140,84 @@ class InventoryTransferRequestApiTest extends TestCase
             'product_id' => $destinationProduct->id,
             'warehouse_id' => $destinationWarehouse->id,
             'serial_number' => $units[0]->serial_number,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
+    public function test_destination_can_choose_imeis_when_origin_did_not_provide_them(): void
+    {
+        // Caso: Empresa A pide 2 celulares SIN especificar IMEIs (solo
+        // producto + cantidad). Empresa B acepta y elige 2 IMEIs de SU stock.
+        // El backend debe buscar las ProductUnit del origin por serial_number
+        // y eliminarlas, luego crear nuevas ProductUnit en el destination.
+        $originTenant = Tenant::create(['name' => 'Empresa Origen', 'slug' => 'empresa-origen-2']);
+        $destinationTenant = Tenant::create(['name' => 'Empresa Destino', 'slug' => 'empresa-destino-2']);
+        [$originWarehouse, $originProduct] = $this->warehouseAndProduct($originTenant, 'TREQ-NOIMEI-O', Product::TRACKING_SERIALIZED);
+        [$destinationWarehouse, $destinationProduct] = $this->warehouseAndProduct($destinationTenant, 'TREQ-NOIMEI-D', Product::TRACKING_SERIALIZED);
+        $originUser = $this->userInTenant($originTenant);
+        $destinationUser = $this->userInTenant($destinationTenant);
+        $this->grantRole($originTenant, $originUser, 'Gerente Origen 2', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
+        $this->grantRole($destinationTenant, $destinationUser, 'Gerente Destino 2', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
+        $movement = $this->stock($originTenant, $originWarehouse, $originProduct, $originUser, 2);
+        $originUnits = $this->units($originTenant, $originWarehouse, $originProduct, $movement->id, 'IMEI-NEW-', 2);
+
+        // Crear: sin product_unit_ids ni serial_units.
+        $createResponse = $this
+            ->actingAs($originUser)
+            ->withHeader('X-Tenant', $originTenant->slug)
+            ->postJson('/api/inventory-transfer-requests', [
+                'destination_user_email' => $destinationUser->email,
+                'from_warehouse_id' => $originWarehouse->id,
+                'items' => [[
+                    'product_id' => $originProduct->id,
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated();
+
+        // Aceptar: el destino elige los 2 IMEIs via serial_numbers.
+        $this
+            ->actingAs($destinationUser)
+            ->withHeader('X-Tenant', $destinationTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$createResponse->json('data.id')}/accept", [
+                'destination_warehouse_id' => $destinationWarehouse->id,
+                'items' => [[
+                    'request_item_id' => $createResponse->json('data.items.0.id'),
+                    'destination_product_id' => $destinationProduct->id,
+                    'serial_units' => [
+                        ['serial_type' => 'imei', 'serial_number' => $originUnits[0]->serial_number],
+                        ['serial_type' => 'imei', 'serial_number' => $originUnits[1]->serial_number],
+                    ],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
+
+        // Verificar que las ProductUnit del origin se eliminaron (status=removed, warehouse=null).
+        $this->assertDatabaseHas('product_units', [
+            'id' => $originUnits[0]->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+            'warehouse_id' => null,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'id' => $originUnits[1]->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+            'warehouse_id' => null,
+        ]);
+
+        // Verificar que se crearon 2 nuevas ProductUnit en el destination.
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $destinationTenant->id,
+            'product_id' => $destinationProduct->id,
+            'warehouse_id' => $destinationWarehouse->id,
+            'serial_number' => $originUnits[0]->serial_number,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $destinationTenant->id,
+            'product_id' => $destinationProduct->id,
+            'warehouse_id' => $destinationWarehouse->id,
+            'serial_number' => $originUnits[1]->serial_number,
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
     }

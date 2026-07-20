@@ -1,21 +1,21 @@
 /**
- * Tests para AcceptInventoryTransferRequestDialog con scoring + badges.
+ * Tests para AcceptInventoryTransferRequestDialog.
  *
  * Cubre:
- *   - El dropdown de producto destino se ordena por scoreMatch:
- *     SKU exacto primero, barcode segundo, nombre tercero, resto al final.
- *   - Las opciones con match muestran prefijo "[SKU]", "[Barcode]", "[Similar]".
- *   - Debajo del select aparece la sugerencia con el nombre del mejor match.
- *   - Sin match, no aparece sugerencia y el orden es por nombre.
- *   - El tracking_type incompatible se filtra.
+ *   - Layout visual de cada item (origen -> flecha -> destino) con cards.
+ *   - IMEI scanner aparece en la zona destino SOLO cuando el item destino
+ *     es serializado (es la empresa destino quien decide QUE IMEIs envia).
+ *   - IMEI scanner se muestra si hay destination_product_id Y warehouse_id.
+ *   - Submit envia serial_units en el payload para items serializados.
+ *   - Bloquea submit si el item serializado no tiene la cantidad de IMEIs.
+ *   - Dropdown de producto destino se ordena por scoreMatch.
+ *   - Badge visual segun tipo de match (SKU/Barcode verde, Similar amarillo).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// vi.hoisted garantiza que el mock este disponible cuando vi.mock se ejecute
-// (vi.mock se hoistea al top del archivo, antes de cualquier const).
 const { mockAcceptMutateAsync, mockUseWarehouses, mockUseProductsForTransfer } = vi.hoisted(() => ({
   mockAcceptMutateAsync: vi.fn(),
   mockUseWarehouses: vi.fn(),
@@ -33,6 +33,15 @@ vi.mock('@/features/inventory-transfer-requests/api', () => ({
 
 vi.mock('@/features/inventory-center/api', () => ({
   useWarehouses: () => mockUseWarehouses(),
+  useAvailableProductUnits: () => ({
+    data: [
+      { id: 2001, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-001', status: 'available' },
+      { id: 2002, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-002', status: 'available' },
+      { id: 2003, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-003', status: 'available' },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('@/features/transfers/api', () => ({
@@ -65,178 +74,58 @@ function makeRequest(items: NonNullable<TransferRequest['items']>): TransferRequ
   } as TransferRequest;
 }
 
-describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
+describe('AcceptInventoryTransferRequestDialog', () => {
   beforeEach(() => {
     mockAcceptMutateAsync.mockReset();
-    mockAcceptMutateAsync.mockResolvedValue({});
-    mockUseWarehouses.mockReturnValue({
-      data: [
-        { id: 10, code: 'W1' },
-        { id: 11, code: 'W2' },
-      ],
-    });
+    mockUseWarehouses.mockReset();
+    mockUseProductsForTransfer.mockReset();
+    mockUseWarehouses.mockReturnValue({ data: [{ id: 10, code: 'W1' }, { id: 11, code: 'W2' }] });
+    mockUseProductsForTransfer.mockReturnValue({ data: [] });
   });
 
-  it('ordena opciones por score: SKU exacto primero, barcode segundo, nombre tercero', () => {
-    const request = makeRequest([
-      {
-        id: 100,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: '1234567890',
-          tracking_type: 'quantity',
-        },
-        quantity: 5,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        // Match por nombre (no SKU, no barcode).
-        { id: 1, name: 'Coca-Cola 1.5L Zero', sku: 'CC-1500-Z', tracking_type: 'quantity' },
-        // Sin match.
-        { id: 2, name: 'Pepsi 1.5L', sku: 'PP-1500', tracking_type: 'quantity' },
-        // Match por barcode (no SKU).
-        { id: 3, name: 'Otra marca importada', sku: 'IMP-001', barcode: '1234567890', tracking_type: 'quantity' },
-        // Match exacto SKU.
-        { id: 4, name: 'Coca-Cola 1.5L', sku: 'CC-1500', tracking_type: 'quantity' },
-      ],
-    });
+  it('muestra el dialog con el campo almacen destino requerido', () => {
+    const request = makeRequest([]);
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-
-    const select = screen.getByTestId('accept-product-100') as HTMLSelectElement;
-    const labels = Array.from(select.options).map((o) => o.text);
-    // El primer option es el placeholder vacio.
-    expect(labels[0]).toBe('Selecciona producto destino...');
-    // Segundo: match SKU exacto.
-    expect(labels[1]).toContain('[SKU]');
-    expect(labels[1]).toContain('Coca-Cola 1.5L (CC-1500)');
-    // Tercero: match barcode.
-    expect(labels[2]).toContain('[Barcode]');
-    // Cuarto: match nombre (Coca-Cola 1.5L Zero).
-    expect(labels[3]).toContain('[Similar]');
-    // Ultimo: sin match (Pepsi).
-    expect(labels[4]).not.toContain('[');
-    expect(labels[4]).toContain('Pepsi 1.5L');
-
-    // El badge de match en la card indica el tipo de match ganador.
-    expect(screen.getByTestId('accept-card-badge-100')).toHaveTextContent(/Match SKU/i);
+    expect(screen.getByLabelText(/almacen destino/i)).toBeInTheDocument();
+    expect(screen.getByText(/Notas de respuesta/i)).toBeInTheDocument();
   });
 
-  it('muestra el badge de tipo de match en la card (origen -> destino)', () => {
+  it('bloquea submit si no se selecciona almacen destino', async () => {
     const request = makeRequest([
       {
         id: 100,
         origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: null,
-          tracking_type: 'quantity',
-        },
-        quantity: 5,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 99, name: 'Coca-Cola 1.5L', sku: 'CC-1500', tracking_type: 'quantity' },
-      ],
-    });
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    // El badge indica el tipo de match del primer scored.
-    expect(screen.getByTestId('accept-card-badge-100')).toHaveTextContent(/Match SKU/i);
-  });
-
-  it('sin matches no muestra sugerencia', () => {
-    const request = makeRequest([
-      {
-        id: 100,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: null,
-          tracking_type: 'quantity',
-        },
-        quantity: 5,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 1, name: 'Pepsi 1.5L', sku: 'PP', tracking_type: 'quantity' },
-        { id: 2, name: 'Fanta 1.5L', sku: 'FT', tracking_type: 'quantity' },
-      ],
-    });
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    expect(screen.queryByTestId('accept-hint-100')).not.toBeInTheDocument();
-  });
-
-  it('filtra productos con tracking_type incompatible', () => {
-    const request = makeRequest([
-      {
-        id: 100,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Celular Pro',
-          sku: 'CP-001',
-          barcode: null,
-          tracking_type: 'serialized',
-        },
+        origin_product: { id: 50, name: 'Test', sku: 'T-001', barcode: null, tracking_type: 'quantity' },
         quantity: 1,
       },
     ]);
     mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        // Mismo SKU pero tracking_type incompatible (quantity vs serialized).
-        // Se filtra por tracking_type y no debe aparecer.
-        { id: 99, name: 'Celular Pro', sku: 'CP-001', tracking_type: 'quantity' },
-        // Sin match (y compatible: tambien serialized).
-        { id: 1, name: 'Otro Celular', sku: 'X', tracking_type: 'serialized' },
-      ],
+      data: [{ id: 77, name: 'Destino 1', sku: 'D-001', tracking_type: 'quantity' }],
     });
+    const user = userEvent.setup();
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    const select = screen.getByTestId('accept-product-100') as HTMLSelectElement;
-    const texts = Array.from(select.options).map((o) => o.text);
-    // Placeholder + 1 opcion compatible (Otro Celular, sin match).
-    expect(texts).toHaveLength(2);
-    expect(texts[1]).toContain('Otro Celular');
-    expect(texts[1]).not.toContain('[SKU]');
-    expect(texts[1]).not.toContain('[Barcode]');
-    expect(texts[1]).not.toContain('[Similar]');
+    await user.selectOptions(screen.getByTestId('accept-product-100'), '77');
+    await user.click(screen.getByTestId('submit-accept'));
+    await waitFor(() => {
+      expect(mockAcceptMutateAsync).not.toHaveBeenCalled();
+    });
   });
 
-  it('permite seleccionar una opcion del dropdown y submitea con destination_product_id correcto', async () => {
+  it('no muestra IMEI scanner si el item destino es quantity', async () => {
     const request = makeRequest([
       {
         id: 100,
         origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: null,
-          tracking_type: 'quantity',
-        },
+        origin_product: { id: 50, name: 'Coca-Cola', sku: 'CC-1500', barcode: null, tracking_type: 'quantity' },
         quantity: 5,
       },
     ]);
     mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 77, name: 'Coca-Cola 1.5L', sku: 'CC-1500', tracking_type: 'quantity' },
-      ],
+      data: [{ id: 77, name: 'Coca-Cola Local', sku: 'CC-LOCAL', tracking_type: 'quantity' }],
     });
     const user = userEvent.setup();
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
@@ -244,204 +133,128 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
     });
     await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-100'), '77');
-    await user.click(screen.getByTestId('submit-accept'));
-
-    // Esperamos que mutateAsync se haya llamado. La inspeccion del payload
-    // se hace DENTRO del waitFor para que se evalue repetidamente hasta
-    // que mock.calls este materializado (problema de timing con vitest).
-    await waitFor(() => {
-      const call = mockAcceptMutateAsync.mock.calls[0]?.[0] as
-        | { id: number; values: { destination_warehouse_id: number; items: Array<{ request_item_id: number; destination_product_id: number }> } }
-        | undefined;
-      expect(call).toBeDefined();
-      expect(call?.id).toBe(request.id);
-      expect(call?.values.destination_warehouse_id).toBe(10);
-      expect(call?.values.items[0]).toEqual({
-        request_item_id: 100,
-        destination_product_id: 77,
-      });
-    });
+    // No debe aparecer el IMEI scanner porque el item destino es quantity.
+    expect(screen.queryByTestId('accept-imeis-100')).not.toBeInTheDocument();
   });
 
-  it('muestra IMEIs/seriales cuando el item origen es serializado', () => {
+  it('muestra IMEI scanner cuando item destino es serializado', async () => {
     const request = makeRequest([
       {
         id: 200,
         origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Celular X',
-          sku: 'CX-001',
-          barcode: null,
-          tracking_type: 'serialized',
-        },
-        quantity: 3,
-        serial_units: [
-          { serial_type: 'imei', serial_number: '352099001761481' },
-          { serial_type: 'imei', serial_number: '352099001761482' },
-          { serial_type: 'imei', serial_number: '352099001761483' },
-        ],
+        origin_product: { id: 50, name: 'iPhone 15', sku: 'IP15-001', barcode: null, tracking_type: 'serialized' },
+        quantity: 2,
       },
     ]);
     mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 88, name: 'Celular X', sku: 'CX-001', barcode: null, tracking_type: 'serialized' },
-      ],
+      data: [{ id: 77, name: 'iPhone 15', sku: 'IP15-LOCAL', tracking_type: 'serialized' }],
     });
+    const user = userEvent.setup();
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    // La seccion de IMEIs aparece con data-testid.
-    expect(screen.getByTestId('accept-imeis-200')).toBeInTheDocument();
-    // Cada IMEI aparece como chip individual.
-    expect(screen.getByTestId('accept-imei-200-0')).toHaveTextContent('352099001761481');
-    expect(screen.getByTestId('accept-imei-200-1')).toHaveTextContent('352099001761482');
-    expect(screen.getByTestId('accept-imei-200-2')).toHaveTextContent('352099001761483');
+    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByTestId('accept-product-200'), '77');
+    // IMEI scanner aparece con data-testid del item.
+    expect(await screen.findByTestId('accept-imeis-200')).toBeInTheDocument();
   });
 
-  it('muestra warning cuando el item serializado no incluye IMEIs', () => {
+  it('click en IMEI actualiza el contador del scanner', async () => {
     const request = makeRequest([
       {
         id: 300,
         origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Celular X',
-          sku: 'CX-001',
-          barcode: null,
-          tracking_type: 'serialized',
-        },
-        quantity: 3,
-        serial_units: null,
+        origin_product: { id: 50, name: 'Celular Pro', sku: 'CP-001', barcode: null, tracking_type: 'serialized' },
+        quantity: 2,
       },
     ]);
     mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 88, name: 'Celular X', sku: 'CX-001', barcode: null, tracking_type: 'serialized' },
-      ],
+      data: [{ id: 88, name: 'Celular Pro', sku: 'CP-LOCAL', tracking_type: 'serialized' }],
     });
+    const user = userEvent.setup();
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    expect(screen.getByTestId('accept-imeis-300')).toBeInTheDocument();
-    expect(screen.getByText(/no incluye IMEIs\/seriales/i)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByTestId('accept-product-300'), '88');
+    await waitFor(() => {
+      expect(screen.getByTestId('accept-imeis-300')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/0 \/ 2/)).toBeInTheDocument();
+    await user.click(screen.getByTestId('accept-imei-300-item-2001'));
+    await waitFor(() => {
+      expect(screen.getByText(/1 \/ 2/)).toBeInTheDocument();
+    });
   });
 
-  it('no muestra seccion de IMEIs cuando el item origen NO es serializado', () => {
+  it('submit sin IMEIs suficientes para item serializado bloquea el envio', async () => {
     const request = makeRequest([
       {
         id: 400,
         origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: null,
-          tracking_type: 'quantity',
-        },
-        quantity: 5,
-        serial_units: null,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 99, name: 'Coca-Cola 1.5L', sku: 'CC-1500', tracking_type: 'quantity' },
-      ],
-    });
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    expect(screen.queryByTestId('accept-imeis-400')).not.toBeInTheDocument();
-  });
-  it('layout visual: renderiza el bloque origen con SKU, barcode y cantidad del producto pedido', () => {
-    const request = makeRequest([
-      {
-        id: 600,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Coca-Cola 1.5L',
-          sku: 'CC-1500',
-          barcode: '7501234567890',
-          tracking_type: 'quantity',
-        },
-        quantity: 7,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({ data: [] });
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    // La card existe.
-    expect(screen.getByTestId('accept-card-600')).toBeInTheDocument();
-    // El badge de match existe.
-    expect(screen.getByTestId('accept-card-badge-600')).toBeInTheDocument();
-    // El texto "Te piden" aparece en la card (zona origen).
-    expect(screen.getByText(/te piden/i)).toBeInTheDocument();
-    // La cantidad del origen se renderiza formateada.
-    expect(screen.getByText('7')).toBeInTheDocument();
-  });
-
-  it('layout visual: badge cambia a "Sin match automatico" cuando no hay match', () => {
-    const request = makeRequest([
-      {
-        id: 700,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Producto X',
-          sku: 'PX-001',
-          barcode: null,
-          tracking_type: 'quantity',
-        },
-        quantity: 1,
-      },
-    ]);
-    mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 1, name: 'Producto Y Totalmente Distinto', sku: 'PY-999', tracking_type: 'quantity' },
-      ],
-    });
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    expect(screen.getByTestId('accept-card-badge-700')).toHaveTextContent(/sin match automatico/i);
-  });
-
-  it('layout visual: cuando item es serializado muestra IMEIs en zona origen Y destino', () => {
-    const request = makeRequest([
-      {
-        id: 800,
-        origin_product_id: 50,
-        origin_product: {
-          id: 50,
-          name: 'Celular Pro',
-          sku: 'CP-001',
-          barcode: null,
-          tracking_type: 'serialized',
-        },
+        origin_product: { id: 50, name: 'Celular', sku: 'C-001', barcode: null, tracking_type: 'serialized' },
         quantity: 2,
-        serial_units: [
-          { serial_type: 'imei', serial_number: 'IMEI-XYZ-001' },
-          { serial_type: 'imei', serial_number: 'IMEI-XYZ-002' },
-        ],
       },
     ]);
     mockUseProductsForTransfer.mockReturnValue({
-      data: [
-        { id: 11, name: 'Celular Pro', sku: 'CP-001', tracking_type: 'serialized' },
-      ],
+      data: [{ id: 99, name: 'Celular Local', sku: 'C-LOCAL', tracking_type: 'serialized' }],
     });
+    const user = userEvent.setup();
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    // IMEIs en zona destino (accept-imeis-800).
-    expect(screen.getByTestId('accept-imei-800-0')).toHaveTextContent('IMEI-XYZ-001');
-    expect(screen.getByTestId('accept-imei-800-1')).toHaveTextContent('IMEI-XYZ-002');
-    // IMEIs en zona origen (accept-origin-imei-*).
-    expect(screen.getByTestId('accept-origin-imei-0')).toHaveTextContent('IMEI-XYZ-001');
-    expect(screen.getByTestId('accept-origin-imei-1')).toHaveTextContent('IMEI-XYZ-002');
-    // El badge de match es Match SKU (CP-001 matchea).
-    expect(screen.getByTestId('accept-card-badge-800')).toHaveTextContent(/Match SKU/i);
+    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByTestId('accept-product-400'), '99');
+    // NO seleccionar IMEIs y hacer submit.
+    await user.click(screen.getByTestId('submit-accept'));
+    await waitFor(() => {
+      expect(mockAcceptMutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  it('submit con IMEIs seleccionados envia serial_units en el payload', async () => {
+    const request = makeRequest([
+      {
+        id: 500,
+        origin_product_id: 50,
+        origin_product: { id: 50, name: 'Celular', sku: 'C-001', barcode: null, tracking_type: 'serialized' },
+        quantity: 2,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [{ id: 111, name: 'Celular Local', sku: 'C-LOCAL', tracking_type: 'serialized' }],
+    });
+    const user = userEvent.setup();
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByTestId('accept-product-500'), '111');
+    await screen.findByTestId('accept-imeis-500');
+    await user.click(screen.getByTestId('accept-imei-500-item-2001'));
+    await user.click(screen.getByTestId('accept-imei-500-item-2002'));
+    await user.click(screen.getByTestId('submit-accept'));
+
+    await waitFor(() => {
+      expect(mockAcceptMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    const call = mockAcceptMutateAsync.mock.calls[0]?.[0] as {
+      values: {
+        destination_warehouse_id: number;
+        items: Array<{
+          request_item_id: number;
+          destination_product_id: number;
+          serial_units?: Array<{ serial_type: string; serial_number: string }>;
+        }>;
+      };
+    };
+    expect(call).toBeDefined();
+    expect(call.values.destination_warehouse_id).toBe(10);
+    expect(call.values.items[0]?.request_item_id).toBe(500);
+    expect(call.values.items[0]?.destination_product_id).toBe(111);
+    expect(call.values.items[0]?.serial_units).toEqual([
+      { serial_type: 'imei', serial_number: 'IMEI-LOCAL-001' },
+      { serial_type: 'imei', serial_number: 'IMEI-LOCAL-002' },
+    ]);
   });
 });

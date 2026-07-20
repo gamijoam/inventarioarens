@@ -1,21 +1,22 @@
 /**
  * AcceptInventoryTransferRequestDialog: dialog para que la empresa destino
- * acepte una solicitud. Mapea cada item de la solicitud a un producto de
- * su propio catalogo (que debe tener el mismo tracking_type).
+ * ACEPTE una solicitud. Aqui la empresa destino decide:
+ *   1. Que producto de SU catalogo corresponde a cada item solicitado.
+ *   2. Para items serializados: QUE IMEIs/seriales especificos de SU stock envia.
  *
- * Layout visual: cada item se renderiza como una CARD HORIZONTAL con 3 zonas:
- *   - IZQUIERDA: producto ORIGEN (lo que me piden), con SKU, barcode,
- *     cantidad y los IMEIs si es serializado.
- *   - CENTRO: flecha + badge del tipo de match sugerido (verde SKU,
- *     verde Barcode, amarillo Similar, gris sin match).
- *   - DERECHA: SELECT para elegir el producto DESTINO de mi catalogo,
- *     ordenado por scoreMatch con prefijos [SKU]/[Barcode]/[Similar].
+ * Layout: cada item se renderiza como una CARD HORIZONTAL con 3 zonas:
+ *   - IZQUIERDA: producto ORIGEN (lo que me piden).
+ *   - CENTRO: flecha con label 'recibo'.
+ *   - DERECHA: SELECT para producto destino (con scoring) + ImeiScanner
+ *     para serializados.
  *
- * Cards tienen borde de color segun el tipo de match para que el flujo
- * "lo que envio -> lo que recibo -> lo que matchea" sea obvio a simple vista.
+ * Card completa con borde de color segun tipo de match:
+ *   - verde: SKU/Barcode exacto.
+ *   - amarillo: Similar (nombre).
+ *   - gris: sin match.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Package, X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -24,6 +25,7 @@ import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAcceptTransferRequest } from '@/features/inventory-transfer-requests/api';
 import { useProductsForTransfer } from '@/features/transfers/api';
+import { ImeiScanner } from '@/features/transfers/components/ImeiScanner';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
 import { compareMatches, scoreMatch, type MatchType } from '../scoreMatch';
@@ -36,11 +38,10 @@ interface AcceptInventoryTransferRequestDialogProps {
   onAccepted?: (id: number) => void;
 }
 
-interface ScoredProduct {
-  id: string;
-  label: string;
-  tracking?: 'quantity' | 'serialized';
-  match: { score: number; matchType: MatchType };
+interface ItemMapping {
+  destinationProductId: string;
+  /** IMEIs/seriales del stock del destino que se envian. */
+  serialUnits: string[];
 }
 
 export function AcceptInventoryTransferRequestDialog({
@@ -55,16 +56,17 @@ export function AcceptInventoryTransferRequestDialog({
 
   const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
   const [responseNotes, setResponseNotes] = useState('');
-  const [mapping, setMapping] = useState<Record<number, string>>({});
+  const [mapping, setMapping] = useState<Record<number, ItemMapping>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
     setDestinationWarehouseId('');
     setResponseNotes('');
-    const initial: Record<number, string> = {};
+    const initial: Record<number, ItemMapping> = {};
     for (const item of request.items ?? []) {
-      initial[item.id] = '';
+      initial[item.id] = { destinationProductId: '', serialUnits: [] };
     }
     setMapping(initial);
   }, [open, request]);
@@ -81,6 +83,22 @@ export function AcceptInventoryTransferRequestDialog({
 
   if (!open) return null;
 
+  function getItemMapping(itemId: number): ItemMapping {
+    return mapping[itemId] ?? { destinationProductId: '', serialUnits: [] };
+  }
+
+  function setItemMapping(itemId: number, patch: Partial<ItemMapping>) {
+    setMapping((m) => ({
+      ...m,
+      [itemId]: { ...(m[itemId] ?? { destinationProductId: '', serialUnits: [] }), ...patch },
+    }));
+  }
+
+  function getItemTracking(productId: string): 'quantity' | 'serialized' | undefined {
+    const p = products.find((x) => String(x.id) === productId);
+    return p?.tracking_type;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!destinationWarehouseId) {
@@ -91,15 +109,45 @@ export function AcceptInventoryTransferRequestDialog({
       toast.error('La solicitud no tiene items.');
       return;
     }
-    const itemsPayload = request.items.map((it) => {
-      const mappedId = mapping[it.id];
-      if (!mappedId) {
-        throw new Error(`Falta mapear el producto destino para ${it.origin_product?.name ?? 'item'}.`);
+
+    // Pre-validacion: cada item debe tener destination_product_id.
+    // Si es serializado, tambien debe tener la cantidad de IMEIs.
+    for (const it of request.items) {
+      const m = getItemMapping(it.id);
+      if (!m.destinationProductId) {
+        setFormErrors({ [`items.${it.id}.destination_product_id`]: 'Selecciona un producto destino.' });
+        toast.error('Falta mapear un producto destino.');
+        return;
       }
-      return {
+      const tracking = getItemTracking(m.destinationProductId);
+      if (tracking === 'serialized') {
+        const qty = Number(it.quantity);
+        const filled = m.serialUnits.filter((s) => s.trim().length > 0).length;
+        if (qty > 0 && filled !== qty) {
+          setFormErrors({ [`items.${it.id}.serial_units`]: `Debes seleccionar ${qty} IMEI(s)/seriale(s) (llevas ${filled}).` });
+          toast.error('Faltan IMEIs/seriales en items serializados.');
+          return;
+        }
+      }
+    }
+
+    const itemsPayload = request.items.map((it) => {
+      const m = getItemMapping(it.id);
+      const tracking = getItemTracking(m.destinationProductId);
+      const item: {
+        request_item_id: number;
+        destination_product_id: number;
+        serial_units?: Array<{ serial_type: 'imei' | 'serial'; serial_number: string }>;
+      } = {
         request_item_id: it.id,
-        destination_product_id: Number(mappedId),
+        destination_product_id: Number(m.destinationProductId),
       };
+      if (tracking === 'serialized' && m.serialUnits.length > 0) {
+        item.serial_units = m.serialUnits
+          .filter((s) => s.trim().length > 0)
+          .map((sn) => ({ serial_type: 'imei', serial_number: sn }));
+      }
+      return item;
     });
 
     setSubmitting(true);
@@ -140,8 +188,7 @@ export function AcceptInventoryTransferRequestDialog({
               Aceptar solicitud {request.document_number ?? '#' + request.id}
             </h2>
             <p className="mt-0.5 text-xs text-text-muted">
-              Mapea cada producto solicitado a un producto equivalente de tu catalogo.
-              El match recomendado aparece primero con su badge.
+              Mapea cada item a un producto de tu catalogo y, si es serializado, elige los IMEIs/seriales que envias.
             </p>
           </div>
           <button
@@ -178,14 +225,16 @@ export function AcceptInventoryTransferRequestDialog({
           <div className="space-y-3">
             <Label>Items de la solicitud</Label>
             {(request.items ?? []).map((it) => (
-              <ItemMatchCard
+              <ItemCard
                 key={it.id}
                 item={it}
+                mapping={getItemMapping(it.id)}
+                onChange={(patch) => setItemMapping(it.id, patch)}
                 products={products}
                 productOptions={productOptions}
                 loadingProd={loadingProd}
-                selectedProductId={mapping[it.id] ?? ''}
-                onSelect={(productId) => setMapping((m) => ({ ...m, [it.id]: productId }))}
+                destinationWarehouseId={Number(destinationWarehouseId) || null}
+                error={formErrors[`items.${it.id}.destination_product_id`] || formErrors[`items.${it.id}.serial_units`]}
               />
             ))}
           </div>
@@ -217,40 +266,43 @@ export function AcceptInventoryTransferRequestDialog({
   );
 }
 
-/**
- * Card visual por item: ORIGEN (lo que me piden) -> DESTINO (lo que elijo).
- * Muestra el match recomendado con su badge y los IMEIs si es serializado.
- */
-interface ItemMatchCardProps {
+interface ItemCardProps {
   item: NonNullable<TransferRequest['items']>[number];
+  mapping: ItemMapping;
+  onChange: (patch: Partial<ItemMapping>) => void;
   products: Product[];
   productOptions: Array<{ id: string; label: string; tracking?: 'quantity' | 'serialized' }>;
   loadingProd: boolean;
-  selectedProductId: string;
-  onSelect: (productId: string) => void;
+  destinationWarehouseId: number | null;
+  error?: string;
 }
 
-function ItemMatchCard({
+function ItemCard({
   item,
+  mapping,
+  onChange,
   products,
   productOptions,
   loadingProd,
-  selectedProductId,
-  onSelect,
-}: ItemMatchCardProps) {
+  destinationWarehouseId,
+  error,
+}: ItemCardProps) {
   const origin = item.origin_product;
   const originName = origin?.name ?? `Producto #${item.origin_product_id}`;
   const originTracking = origin?.tracking_type;
+  const qtyNum = Number(item.quantity ?? 0);
   const compatibleProducts = productOptions.filter(
     (p) => !originTracking || p.tracking === originTracking,
   );
+  const destinationProduct = products.find((x) => String(x.id) === mapping.destinationProductId);
+  const destinationTracking = destinationProduct?.tracking_type;
 
   const originLite = origin
     ? { name: originName, sku: origin.sku ?? null, barcode: origin.barcode ?? null }
     : null;
 
   const scored = compatibleProducts
-    .map((p): ScoredProduct => {
+    .map((p) => {
       const product = products.find((x) => String(x.id) === p.id);
       return {
         ...p,
@@ -267,38 +319,58 @@ function ItemMatchCard({
   const matchVariant = matchVariantFor(best?.match.matchType);
   const matchLabel = matchLabelFor(best?.match.matchType, best?.match.score ?? 0);
 
-  const serialList = Array.isArray(item.serial_units) ? item.serial_units : [];
-  const serialNumbers = serialList
-    .map((s) => (typeof s === 'string' ? s : s?.serial_number))
-    .filter((s): s is string => !!s && s.length > 0);
+  const isSerialized = destinationTracking === 'serialized';
 
   return (
     <div
       className={`rounded-lg border-2 p-4 ${matchCardBorderClass(best?.match.matchType)}`}
       data-testid={`accept-card-${item.id}`}
     >
-      {/* Header de la card: badge de match + cantidad */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Badge variant={matchVariant} data-testid={`accept-card-badge-${item.id}`}>
           {matchLabel}
         </Badge>
         <span className="text-xs text-text-muted">
-          {serialNumbers.length > 0
-            ? `${serialNumbers.length} IMEI(s) / seriales`
+          {isSerialized && mapping.serialUnits.length > 0
+            ? `${mapping.serialUnits.length} IMEI(s) elegido(s) / ${qtyNum}`
             : 'Sin IMEIs adjuntos'}
         </span>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
         {/* IZQUIERDA: producto ORIGEN */}
-        <OriginCard
-          name={originName}
-          sku={origin?.sku ?? null}
-          barcode={origin?.barcode ?? null}
-          trackingType={originTracking}
-          quantity={Number(item.quantity ?? 0)}
-          serialNumbers={serialNumbers}
-        />
+        <div className="rounded-md border border-border bg-bg/40 p-3">
+          <div className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-text-muted">
+            Te piden
+          </div>
+          <div className="font-medium">{originName}</div>
+          <dl className="mt-2 space-y-0.5 text-xs">
+            {origin?.sku && (
+              <div className="flex gap-2">
+                <dt className="w-14 text-text-muted">SKU</dt>
+                <dd>
+                  <code className="rounded bg-bg px-1.5 py-0.5">{origin.sku}</code>
+                </dd>
+              </div>
+            )}
+            {origin?.barcode && (
+              <div className="flex gap-2">
+                <dt className="w-14 text-text-muted">Barcode</dt>
+                <dd>
+                  <code className="rounded bg-bg px-1.5 py-0.5">{origin.barcode}</code>
+                </dd>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <dt className="w-14 text-text-muted">Cantidad</dt>
+              <dd className="font-semibold">{qtyNum.toLocaleString()}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="w-14 text-text-muted">Control</dt>
+              <dd>{originTracking === 'serialized' ? 'Serializado (IMEI)' : 'Cantidad'}</dd>
+            </div>
+          </dl>
+        </div>
 
         {/* CENTRO: flecha */}
         <div className="flex items-center justify-center md:px-2">
@@ -311,14 +383,14 @@ function ItemMatchCard({
         {/* DERECHA: producto DESTINO con select + IMEIs */}
         <div>
           <div className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-text-muted">
-            <Package className="size-3.5" /> Producto destino
+            Producto destino
           </div>
           {loadingProd ? (
             <Skeleton className="h-9 w-full" />
           ) : (
             <select
-              value={selectedProductId}
-              onChange={(e) => onSelect(e.target.value)}
+              value={mapping.destinationProductId}
+              onChange={(e) => onChange({ destinationProductId: e.target.value })}
               className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
               required
               data-testid={`accept-product-${item.id}`}
@@ -332,107 +404,49 @@ function ItemMatchCard({
             </select>
           )}
 
-          {originTracking === 'serialized' && (
+          {best && (
             <div
-              className="mt-2 rounded border border-border bg-bg/30 p-2"
-              data-testid={`accept-imeis-${item.id}`}
+              className="mt-1 text-[11px] text-text-muted"
+              data-testid={`accept-hint-${item.id}`}
             >
-              <div className="text-[10px] uppercase tracking-wide text-text-muted">
-                IMEIs / seriales que llegaran a tu stock
-              </div>
-              {serialNumbers.length === 0 ? (
-                <p className="mt-1 text-[11px] text-warning">
-                  La solicitud no incluye IMEIs/seriales. Si aceptas sin ellos,
-                  las unidades quedaran sin identificar en tu stock.
-                </p>
-              ) : (
-                <ul className="mt-1 flex flex-wrap gap-1">
-                  {serialNumbers.map((sn, idx) => (
-                    <li
-                      key={`${item.id}-sn-${idx}`}
-                      className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-                      data-testid={`accept-imei-${item.id}-${idx}`}
-                    >
-                      {sn}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              Sugerencia: <strong>{best.label.replace(/^\[[^\]]+\]\s*/, '')}</strong>
             </div>
+          )}
+
+          {isSerialized && mapping.destinationProductId && destinationWarehouseId && (
+            <div className="mt-2" data-testid={`accept-imeis-${item.id}`}>
+              <ImeiScanner
+                productId={Number(mapping.destinationProductId)}
+                warehouseId={destinationWarehouseId}
+                serialType="imei"
+                selected={mapping.serialUnits}
+                onChange={(sel) => onChange({ serialUnits: sel.slice(0, Math.max(1, qtyNum)) })}
+                max={Math.max(1, qtyNum)}
+                dataTestIdPrefix={`accept-imei-${item.id}`}
+              />
+            </div>
+          )}
+          {isSerialized && !mapping.destinationProductId && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Selecciona primero un producto destino para ver los IMEIs disponibles.
+            </p>
+          )}
+          {isSerialized && mapping.destinationProductId && !destinationWarehouseId && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Selecciona primero un almacen destino para ver los IMEIs disponibles.
+            </p>
           )}
         </div>
       </div>
+
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }
 
-function OriginCard({
-  name,
-  sku,
-  barcode,
-  trackingType,
-  quantity,
-  serialNumbers,
-}: {
-  name: string;
-  sku: string | null;
-  barcode: string | null;
-  trackingType?: 'quantity' | 'serialized';
-  quantity: number;
-  serialNumbers: string[];
-}) {
-  return (
-    <div className="rounded-md border border-border bg-bg/40 p-3">
-      <div className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-text-muted">
-        <Package className="size-3.5" /> Te piden
-      </div>
-      <div className="font-medium">{name}</div>
-      <dl className="mt-2 space-y-0.5 text-xs">
-        {sku && (
-          <div className="flex gap-2">
-            <dt className="w-14 text-text-muted">SKU</dt>
-            <dd>
-              <code className="rounded bg-bg px-1.5 py-0.5">{sku}</code>
-            </dd>
-          </div>
-        )}
-        {barcode && (
-          <div className="flex gap-2">
-            <dt className="w-14 text-text-muted">Barcode</dt>
-            <dd>
-              <code className="rounded bg-bg px-1.5 py-0.5">{barcode}</code>
-            </dd>
-          </div>
-        )}
-        <div className="flex gap-2">
-          <dt className="w-14 text-text-muted">Cantidad</dt>
-          <dd className="font-semibold">{quantity.toLocaleString()}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="w-14 text-text-muted">Control</dt>
-          <dd>{trackingType === 'serialized' ? 'Serializado (IMEI)' : 'Cantidad'}</dd>
-        </div>
-      </dl>
-      {trackingType === 'serialized' && serialNumbers.length > 0 && (
-        <div className="mt-2 border-t border-border pt-2">
-          <div className="text-[10px] uppercase tracking-wide text-text-muted">
-            {serialNumbers.length} IMEI(s) que envian
-          </div>
-          <ul className="mt-1 flex flex-wrap gap-1">
-            {serialNumbers.map((sn, idx) => (
-              <li
-                key={`origin-sn-${idx}`}
-                className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 font-mono text-[11px] text-warning"
-                data-testid={`accept-origin-imei-${idx}`}
-              >
-                {sn}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
+function extractSkuFromLabel(label: string): string {
+  const m = /\(([^)]+)\)\s*$/.exec(label);
+  return m?.[1]?.trim() ?? '';
 }
 
 function matchVariantFor(matchType: MatchType | undefined): 'success' | 'warning' | 'default' {
@@ -484,9 +498,4 @@ function optionLabel(baseLabel: string, matchType: MatchType): string {
     default:
       return baseLabel;
   }
-}
-
-function extractSkuFromLabel(label: string): string {
-  const m = /\(([^)]+)\)\s*$/.exec(label);
-  return m?.[1]?.trim() ?? '';
 }

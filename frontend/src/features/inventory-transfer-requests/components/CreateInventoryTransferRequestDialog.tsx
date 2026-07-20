@@ -3,16 +3,17 @@
  * de stock a OTRA empresa del grupo. Usa el hook useCreateTransferRequest.
  *
  * Campos:
- *   - destination_tenant_id | destination_tenant_slug (Combobox dropdown)
- *     | destination_user_email (fallback opcional si conoce el email).
+ *   - destination_tenant_slug (Combobox dropdown de empresas hermanas)
+ *     o destination_user_email (alternativa).
  *   - from_warehouse_id (almacen origen de MI empresa).
  *   - reason / reference / notes.
- *   - items: product_id + quantity (opcionalmente product_unit_ids).
+ *   - items: product_id + quantity.
  *
- * El dropdown principal lista las empresas hermanas del grupo (consume
- * useSiblingCompanies) y al seleccionar setea destination_tenant_slug
- * automaticamente. El usuario puede colapsar el dropdown y usar email
- * directo si lo prefiere.
+ * IMPORTANTE: Los IMEIs/seriales especificos NO se eligen aqui. Eso es
+ * responsabilidad de la EMPRESA DESTINO al aceptar la solicitud (ella es
+ * quien decide que IMEIs especificos de SU stock envia). Este dialog
+ * solo pide producto + cantidad; el matching y captura de IMEIs ocurre
+ * en AcceptInventoryTransferRequestDialog.
  */
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -22,10 +23,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
-import {
-  useCreateTransferRequest,
-  useSiblingCompanies,
-} from '@/features/inventory-transfer-requests/api';
+import { useCreateTransferRequest, useSiblingCompanies } from '@/features/inventory-transfer-requests/api';
 import { useProductsForTransfer } from '@/features/transfers/api';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
@@ -54,13 +52,10 @@ export function CreateInventoryTransferRequestDialog({
   const { data: products = [], isLoading: loadingProd } = useProductsForTransfer();
   const create = useCreateTransferRequest();
 
-  // Tenant actual (lectura no-reactiva via getState para evitar re-renders
-  // innecesarios; los valores se usan dentro del dialog que ya esta montado).
   const currentTenantId = useSessionStore.getState().tenant?.id;
   const currentParentId = useSessionStore.getState().tenant?.parent_id ?? null;
   const currentIsGroup = useSessionStore.getState().tenant?.is_group ?? false;
 
-  // Empresas hermanas del grupo (excluye la propia).
   const { data: siblings = [], isLoading: loadingSiblings } = useSiblingCompanies({
     currentTenantId,
     parentId: currentParentId,
@@ -180,7 +175,7 @@ export function CreateInventoryTransferRequestDialog({
       aria-labelledby="create-req-title"
     >
       <div
-        className="w-full max-w-3xl rounded-lg border border-border bg-surface p-5"
+        className="w-full max-w-2xl rounded-lg border border-border bg-surface p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="create-req-title" className="text-lg font-semibold">
@@ -188,10 +183,10 @@ export function CreateInventoryTransferRequestDialog({
         </h2>
         <p className="mt-1 text-sm text-text-muted">
           Pedi stock de tu catalogo a otra empresa del grupo. La empresa destino debera
-          aceptar la solicitud para que se materialice el movimiento.
+          aceptar la solicitud y elegir los IMEIs/seriales especificos que envia.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3" data-testid="create-form">
-          <fieldset className="space-y-3">
+          <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <Label htmlFor="dest-company">Empresa destino (del grupo)</Label>
               {loadingSiblings ? (
@@ -278,18 +273,18 @@ export function CreateInventoryTransferRequestDialog({
 
           <div>
             <Label>Items solicitados</Label>
-            <table className="mt-1 w-full text-sm">
-              <thead className="border-b border-border text-left text-xs uppercase text-text-muted">
-                <tr>
-                  <th className="py-1">Producto</th>
-                  <th className="py-1 text-right">Cantidad</th>
-                  <th className="py-1 text-right">-</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, idx) => (
-                  <tr key={idx} className="border-b border-border last:border-b-0">
-                    <td className="py-2">
+            <div className="mt-1 space-y-2">
+              {items.map((it, idx) => (
+                <div
+                  key={idx}
+                  className="rounded border border-border bg-bg/20 p-2"
+                  data-testid={`item-row-${idx}`}
+                >
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_auto]">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Producto
+                      </label>
                       {loadingProd ? (
                         <Skeleton className="h-9 w-full" />
                       ) : (
@@ -300,43 +295,57 @@ export function CreateInventoryTransferRequestDialog({
                           required
                           data-testid={`item-product-${idx}`}
                         >
-                          <option value="">Selecciona...</option>
+                          <option value="">Selecciona producto...</option>
                           {productOptions.map((p) => (
-                            <option key={p.id} value={p.id}>{p.label}</option>
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                              {p.tracking === 'serialized' ? ' [Serializado]' : ''}
+                            </option>
                           ))}
                         </select>
                       )}
-                    </td>
-                    <td className="py-2 text-right">
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Cantidad
+                      </label>
                       <input
                         type="number"
                         min={0}
                         step="0.01"
                         value={it.quantity}
                         onChange={(e) => updateItem(idx, { quantity: e.target.value })}
-                        className="w-28 rounded border border-border-strong bg-surface px-2 py-1 text-right text-sm"
+                        className="w-full rounded border border-border-strong bg-surface px-2 py-1 text-right text-sm"
                         required
                         data-testid={`item-qty-${idx}`}
                       />
-                    </td>
-                    <td className="py-2 text-right">
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => removeItem(idx)}
-                        disabled={items.length === 1}
-                        aria-label={`Eliminar linea ${idx + 1}`}
-                      >
-                        <Trash2 className="size-4 text-danger" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="mt-1 flex items-center justify-between">
-              <Button type="button" size="sm" variant="outline" leftIcon={<Plus className="size-4" />} onClick={addItem}>
+                    </div>
+                    <div className="flex items-end">
+                      {items.length > 1 && (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => removeItem(idx)}
+                          aria-label={`Eliminar linea ${idx + 1}`}
+                        >
+                          <Trash2 className="size-4 text-danger" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                leftIcon={<Plus className="size-3.5" />}
+                onClick={addItem}
+                data-testid="add-item"
+              >
                 Agregar linea
               </Button>
               {formErrors['items'] && <p className="text-xs text-danger">{formErrors['items']}</p>}
@@ -346,11 +355,21 @@ export function CreateInventoryTransferRequestDialog({
           <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <Label htmlFor="reference">Referencia</Label>
-              <Input id="reference" value={reference} onChange={(e) => setReference(e.target.value)} maxLength={150} />
+              <Input
+                id="reference"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                maxLength={150}
+              />
             </div>
             <div>
               <Label htmlFor="notes">Notas</Label>
-              <Input id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} />
+              <Input
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={1000}
+              />
             </div>
           </fieldset>
 

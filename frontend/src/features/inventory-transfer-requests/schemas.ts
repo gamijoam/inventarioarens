@@ -173,6 +173,19 @@ export type StoreTransferRequestValues = z.output<typeof StoreTransferRequestSch
 export const AcceptTransferRequestItemSchema = z.object({
   request_item_id: positiveNumber,
   destination_product_id: positiveNumber,
+  /**
+   * IMEIs/seriales especificos del stock destino que se envian al aceptar.
+   * Solo requerido si el destination_product es serializado (validacion del
+   * backend, no del schema).
+   */
+  serial_units: z
+    .array(
+      z.object({
+        serial_type: z.enum(['imei', 'serial']),
+        serial_number: z.string().min(1).max(100),
+      }),
+    )
+    .optional(),
 });
 export type AcceptTransferRequestItem = z.input<typeof AcceptTransferRequestItemSchema>;
 

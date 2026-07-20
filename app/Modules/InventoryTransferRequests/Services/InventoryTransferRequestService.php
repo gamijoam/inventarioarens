@@ -50,13 +50,20 @@ class InventoryTransferRequestService
 
             foreach ($data['items'] as $item) {
                 $unitIds = $item['product_unit_ids'] ?? [];
+                // Prioridad: serial_units del frontend (forma {serial_type, serial_number}).
+                // Fallback: serialSnapshot desde product_unit_ids (legacy).
+                $serialUnits = $item['serial_units'] ?? null;
+                if ($serialUnits === null && $unitIds !== []) {
+                    $serialUnits = $this->serialSnapshot($unitIds);
+                }
+                $serialUnits ??= [];
 
                 InventoryTransferRequestItem::create([
                     'inventory_transfer_request_id' => $request->id,
                     'origin_product_id' => $item['product_id'],
                     'quantity' => (float) $item['quantity'],
                     'product_unit_ids' => $unitIds ?: null,
-                    'serial_units' => $this->serialSnapshot($unitIds),
+                    'serial_units' => $serialUnits,
                 ]);
             }
 
@@ -101,7 +108,14 @@ class InventoryTransferRequestService
                     ]);
                 }
 
-                $this->processAcceptedItem($request, $item, $destinationWarehouse, (int) $acceptedItem['destination_product_id'], $user);
+                $this->processAcceptedItem(
+                    $request,
+                    $item,
+                    $destinationWarehouse,
+                    (int) $acceptedItem['destination_product_id'],
+                    $user,
+                    $acceptedItem['serial_units'] ?? null,
+                );
             }
 
             $request->update([
@@ -185,6 +199,7 @@ class InventoryTransferRequestService
         Warehouse $destinationWarehouse,
         int $destinationProductId,
         User $user,
+        ?array $serialUnitsFromPayload = null,
     ): void {
         $tenantManager = app(TenantManager::class);
         $currentTenant = $tenantManager->current();
@@ -220,7 +235,23 @@ class InventoryTransferRequestService
                 referenceId: $request->id,
             );
 
-            $this->removeOriginUnits($item->product_unit_ids ?? [], $outMovement->id);
+            // Resolver product_unit_ids a partir de los serial_units del payload del accept.
+            // Si el solicitante ya habia enviado product_unit_ids, los usamos.
+            // Si no, los buscamos por serial_number en el stock del origin warehouse.
+            $unitIds = $item->product_unit_ids ?? [];
+            if (empty($unitIds) && is_array($serialUnitsFromPayload) && count($serialUnitsFromPayload) > 0) {
+                $serialNumbers = array_map(
+                    fn ($u) => trim((string) ($u['serial_number'] ?? '')),
+                    $serialUnitsFromPayload,
+                );
+                $unitIds = ProductUnit::query()
+                    ->where('product_id', $originProduct->id)
+                    ->where('warehouse_id', $originWarehouse->id)
+                    ->whereIn('serial_number', $serialNumbers)
+                    ->pluck('id')
+                    ->all();
+            }
+            $this->removeOriginUnits($unitIds, $outMovement->id);
 
             $tenantManager->set($destinationTenant);
             // Tipo 'transfer_request_in' (no 'purchase') por la misma razon.
@@ -234,7 +265,12 @@ class InventoryTransferRequestService
                 referenceId: $request->id,
             );
 
-            $this->createDestinationUnits($destinationProduct, $destinationWarehouse, $inMovement->id, $item->serial_units ?? []);
+            // IMEIs/seriales: priorizar los del payload del accept (los que B eligio).
+            // Fallback: los del item original (compatibilidad hacia atras).
+            $serialUnits = is_array($serialUnitsFromPayload) && count($serialUnitsFromPayload) > 0
+                ? $serialUnitsFromPayload
+                : ($item->serial_units ?? []);
+            $this->createDestinationUnits($destinationProduct, $destinationWarehouse, $inMovement->id, $serialUnits);
         } catch (InsufficientStockException|InvalidStockQuantityException $exception) {
             throw ValidationException::withMessages([
                 'items' => $exception->getMessage(),
@@ -253,10 +289,17 @@ class InventoryTransferRequestService
     private function validateOriginItems(Warehouse $fromWarehouse, array $items): void
     {
         $selectedUnitIds = [];
+        $selectedSerials = []; // serial_numbers ya usados en esta solicitud.
 
         foreach ($items as $index => $item) {
             $product = Product::query()->findOrFail($item['product_id']);
             $unitIds = $item['product_unit_ids'] ?? [];
+            $serialUnits = $item['serial_units'] ?? [];
+            $serialNumbers = array_map(
+                fn ($u) => is_array($u) ? trim((string) ($u['serial_number'] ?? '')) : '',
+                $serialUnits,
+            );
+            $serialNumbers = array_values(array_filter($serialNumbers, fn ($s) => $s !== ''));
             $quantity = (float) $item['quantity'];
 
             if ($product->requiresSerializedTracking()) {
@@ -265,18 +308,18 @@ class InventoryTransferRequestService
                         "items.{$index}.quantity" => 'Los productos serializados requieren cantidad entera.',
                     ]);
                 }
-
-                if (count($unitIds) !== (int) $quantity) {
-                    throw ValidationException::withMessages([
-                        "items.{$index}.product_unit_ids" => 'Debe indicar una unidad serializada disponible por cada cantidad solicitada.',
-                    ]);
-                }
-            } elseif ($unitIds !== []) {
+                // Ya NO exigimos IMEIs al crear. Los IMEIs/seriales especificos
+                // los elegira la empresa DESTINO al aceptar (ella es quien tiene
+                // el stock y decide que unidades envia). Si el solicitante
+                // incluyo product_unit_ids o serial_units, los validamos; si no,
+                // no bloqueamos.
+            } elseif ($unitIds !== [] || $serialNumbers !== []) {
                 throw ValidationException::withMessages([
-                    "items.{$index}.product_unit_ids" => 'Solo los productos serializados pueden enviar unidades especificas.',
+                    "items.{$index}.serial_units" => 'Solo los productos serializados pueden enviar unidades especificas.',
                 ]);
             }
 
+            // Validar que cada product_unit_id sea unico y este disponible en el stock origen.
             foreach ($unitIds as $unitIndex => $unitId) {
                 if (isset($selectedUnitIds[$unitId])) {
                     throw ValidationException::withMessages([
@@ -295,6 +338,16 @@ class InventoryTransferRequestService
                         "items.{$index}.product_unit_ids.{$unitIndex}" => 'La unidad serializada no esta disponible en el almacen origen indicado.',
                     ]);
                 }
+            }
+
+            // Validar que cada serial_number del frontend sea unico en esta solicitud.
+            foreach ($serialNumbers as $snIndex => $sn) {
+                if (isset($selectedSerials[$sn])) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.serial_units.{$snIndex}" => 'No se puede repetir el mismo IMEI/serial en una solicitud.',
+                    ]);
+                }
+                $selectedSerials[$sn] = true;
             }
         }
     }

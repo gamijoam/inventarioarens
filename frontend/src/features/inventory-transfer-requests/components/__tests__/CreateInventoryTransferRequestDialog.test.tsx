@@ -1,6 +1,10 @@
 /**
  * Tests para CreateInventoryTransferRequestDialog (bandeja inter-empresa).
  *
+ * IMPORTANTE: Este dialog NO incluye ImeiScanner. Los IMEIs/seriales
+ * especificos los elige la empresa DESTINO al aceptar la solicitud.
+ * Aqui solo se eligen producto + cantidad.
+ *
  * Cubre:
  *   - Renderiza el Combobox con las empresas hermanas del hook.
  *   - Seleccionar una empresa actualiza el estado y muestra preview.
@@ -8,6 +12,7 @@
  *   - Submit con slug de empresa envia destination_tenant_slug al backend.
  *   - Submit con email envia destination_user_email al backend.
  *   - Mensaje de warning cuando no hay empresas hermanas disponibles.
+ *   - NO incluye ImeiScanner (es responsabilidad del Accept dialog).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -34,6 +39,7 @@ vi.mock('@/features/inventory-transfer-requests/api', () => ({
 
 vi.mock('@/features/inventory-center/api', () => ({
   useWarehouses: () => mockUseWarehouses(),
+  useAvailableProductUnits: () => ({ data: [], isLoading: false, isError: false }),
 }));
 
 vi.mock('@/features/transfers/api', () => ({
@@ -87,9 +93,8 @@ describe('CreateInventoryTransferRequestDialog', () => {
       wrapper: makeWrapper(),
     });
     expect(screen.getByTestId('dest-company')).toBeInTheDocument();
-    // Las opciones aparecen dentro del select.
     const select = screen.getByTestId('dest-company') as HTMLSelectElement;
-    expect(select.options).toHaveLength(1 + SIBLINGS.length); // 1 placeholder + N siblings
+    expect(select.options).toHaveLength(1 + SIBLINGS.length);
     expect(select.options[1]?.text).toContain('Demo Caracas Norte');
     expect(select.options[2]?.text).toContain('Demo Valencia Centro');
   });
@@ -114,6 +119,17 @@ describe('CreateInventoryTransferRequestDialog', () => {
     expect(screen.getByText(/no pertenece a un grupo/i)).toBeInTheDocument();
   });
 
+  it('NO muestra ImeiScanner (los IMEIs se eligen al aceptar, no al crear)', () => {
+    mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [{ id: 100, name: 'iPhone 15', sku: 'IP15-001', tracking_type: 'serialized' }],
+    });
+    render(<CreateInventoryTransferRequestDialog open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    expect(screen.queryByTestId('item-imeis-0')).not.toBeInTheDocument();
+  });
+
   it('submit con empresa seleccionada envia destination_tenant_slug al backend', async () => {
     mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
     const user = userEvent.setup();
@@ -122,7 +138,6 @@ describe('CreateInventoryTransferRequestDialog', () => {
     });
     await user.selectOptions(screen.getByTestId('dest-company'), 'demo-caracas-norte');
     await user.selectOptions(screen.getByLabelText(/almacen origen/i), '10');
-    // Agregar item vacio ya esta; completar quantity.
     const qtyInput = screen.getByTestId('item-qty-0') as HTMLInputElement;
     await user.clear(qtyInput);
     await user.type(qtyInput, '5');

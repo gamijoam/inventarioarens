@@ -24,6 +24,9 @@ class StoreInventoryTransferRequestRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['nullable', 'array'],
             'items.*.product_unit_ids.*' => ['integer'],
+            'items.*.serial_units' => ['nullable', 'array'],
+            'items.*.serial_units.*.serial_type' => ['required_with:items.*.serial_units', 'string', 'in:imei,serial'],
+            'items.*.serial_units.*.serial_number' => ['required_with:items.*.serial_units', 'string', 'max:100'],
         ];
     }
 }
