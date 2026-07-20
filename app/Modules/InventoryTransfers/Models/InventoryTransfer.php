@@ -44,7 +44,7 @@ class InventoryTransfer extends Model
     use BelongsToTenant;
 
     public const TYPE_INTERNAL = 'internal';
-    public const TYPE_INTER_COMPANY = 'inter_company';
+
 
     public const TYPES = [
         self::TYPE_INTERNAL,
@@ -166,3 +166,4 @@ class InventoryTransfer extends Model
         return $this->belongsTo(User::class, 'resolved_by');
     }
 }
+

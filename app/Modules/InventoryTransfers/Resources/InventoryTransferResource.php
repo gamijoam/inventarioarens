@@ -42,6 +42,12 @@ class InventoryTransferResource extends JsonResource
             'resolved_by' => $this->resolved_by,
             'resolver' => $this->whenLoaded('resolver'),
             'items' => InventoryTransferItemResource::collection($this->whenLoaded('items')),
+            // Campos derivados (utiles para la UI: contadores, totales monetarios).
+            'items_count' => $this->whenCounted('items'),
+            'total_base_amount' => (float) ($this->total_base_amount ?? 0),
+            'total_local_amount' => (float) ($this->total_local_amount ?? 0),
+            'received_base_amount' => (float) ($this->received_base_amount ?? 0),
+            'received_local_amount' => (float) ($this->received_local_amount ?? 0),
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

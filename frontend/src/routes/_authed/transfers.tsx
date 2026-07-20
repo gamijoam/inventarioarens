@@ -37,7 +37,7 @@ function TransfersPage() {
   return (
     <PageLayout
       title="Traslados"
-      description="Movimiento de stock entre almacenes. Flujo: crear borrador -> preparar -> despachar -> recibir -> CxP."
+      description="Movimiento de stock entre almacenes. Flujo: crear borrador -> preparar -> despachar -> recibir -> resuelto."
     >
       <TransfersManager
         onReceive={(id) => setReceivingId(id)}
@@ -63,3 +63,4 @@ function TransfersPage() {
     </PageLayout>
   );
 }
+

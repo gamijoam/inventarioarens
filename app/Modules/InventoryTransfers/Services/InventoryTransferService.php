@@ -1280,7 +1280,7 @@ class InventoryTransferService
     {
         $selectedUnitIds = [];
 
-        foreach ($items as $index => $item) {
+        foreach ($items as $index => &$item) {
             $product = Product::query()->findOrFail($item['product_id']);
             $unitIds = $item['product_unit_ids'] ?? [];
             $quantity = (float) $item['quantity'];

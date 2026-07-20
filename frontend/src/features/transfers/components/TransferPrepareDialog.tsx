@@ -7,7 +7,9 @@
  *
  * Para cada item del transfer, el user confirma la cantidad preparada
  * (default = requested_quantity). Si el item es serializado, captura
- * los IMEIs/seriales preparados.
+ * los IMEIs/seriales REALES (no IDs falsos). El backend resuelve cada
+ * serial_number a un ProductUnit existente o lo crea AVAILABLE en el
+ * almacen de origen.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -28,6 +30,11 @@ interface TransferPrepareDialogProps {
   onPrepared?: (transfer: Transfer) => void;
 }
 
+interface SerialEntry {
+  serial_type: 'imei' | 'serial';
+  serial_number: string;
+}
+
 interface ItemRow {
   transfer_item_id: number;
   product_id: number;
@@ -36,7 +43,7 @@ interface ItemRow {
   tracking_type: string;
   requested: number;
   preparing_quantity: number;
-  preparing_unit_ids: number[];
+  preparing_serials: SerialEntry[];
   new_unit_serial: string;
   new_unit_type: 'imei' | 'serial';
 }
@@ -53,7 +60,7 @@ function buildInitialRows(transfer: Transfer): ItemRow[] {
       tracking_type: product?.tracking_type ?? 'quantity',
       requested,
       preparing_quantity: requested,
-      preparing_unit_ids: Array.isArray(it.prepared_product_unit_ids) ? it.prepared_product_unit_ids : [],
+      preparing_serials: [],
       new_unit_serial: '',
       new_unit_type: 'imei',
     };
@@ -80,7 +87,7 @@ export function TransferPrepareDialog({
   }, [transfer, open]);
 
   const itemsToSubmit = useMemo(
-    () => rows.filter((r) => r.preparing_quantity > 0 || r.preparing_unit_ids.length > 0),
+    () => rows.filter((r) => r.preparing_quantity > 0 || r.preparing_serials.length > 0),
     [rows],
   );
 
@@ -105,11 +112,18 @@ export function TransferPrepareDialog({
     e.preventDefault();
     setSubmitting(true);
     try {
-      const items = itemsToSubmit.map((r) => ({
-        inventory_transfer_item_id: r.transfer_item_id,
-        prepared_quantity: r.tracking_type === 'serialized' ? undefined : r.preparing_quantity,
-        prepared_product_unit_ids: r.tracking_type === 'serialized' ? r.preparing_unit_ids : undefined,
-      }));
+      const items = itemsToSubmit.map((r) => {
+        const isSerialized = r.tracking_type === 'serialized';
+        return {
+          inventory_transfer_item_id: r.transfer_item_id,
+          prepared_quantity: isSerialized ? undefined : r.preparing_quantity,
+          // Para serializados: enviamos serial_units con los IMEIs/seriales
+          // REALES que el usuario ingreso. El backend los resuelve a IDs.
+          prepared_serial_units: isSerialized && r.preparing_serials.length > 0 ? r.preparing_serials : undefined,
+          // Mantenemos prepared_product_unit_ids vacio (legacy path).
+          prepared_product_unit_ids: undefined,
+        };
+      });
       const values: PrepareTransferValues = {
         prepared_at: null,
         notes: notes.trim() || null,
@@ -152,7 +166,7 @@ export function TransferPrepareDialog({
                 {isSerialized ? (
                   <div className="mt-3 space-y-2">
                     <div className="text-xs text-text-muted">
-                      IMEIs/seriales preparados: <span className="font-mono">{r.preparing_unit_ids.length}</span>
+                      IMEIs/seriales preparados: <span className="font-mono">{r.preparing_serials.length}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
@@ -166,7 +180,7 @@ export function TransferPrepareDialog({
                       <Input
                         value={r.new_unit_serial}
                         onChange={(e) => updateRow(r.transfer_item_id, { new_unit_serial: e.target.value })}
-                        placeholder="Escanear o escribir..."
+                        placeholder="Escanear o escribir IMEI/serial..."
                         className="flex-1"
                       />
                       <Button
@@ -174,9 +188,18 @@ export function TransferPrepareDialog({
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          if (!r.new_unit_serial.trim()) return;
+                          const num = r.new_unit_serial.trim();
+                          if (!num) return;
+                          // Evitar duplicados locales
+                          if (r.preparing_serials.some((s) => s.serial_number === num)) {
+                            toast.error('Ese IMEI/serial ya esta en la lista.');
+                            return;
+                          }
                           updateRow(r.transfer_item_id, {
-                            preparing_unit_ids: [...r.preparing_unit_ids, -1 * (Date.now() + r.preparing_unit_ids.length)],
+                            preparing_serials: [
+                              ...r.preparing_serials,
+                              { serial_type: r.new_unit_type, serial_number: num },
+                            ],
                             new_unit_serial: '',
                           });
                         }}
@@ -184,6 +207,31 @@ export function TransferPrepareDialog({
                         Agregar
                       </Button>
                     </div>
+                    {r.preparing_serials.length > 0 && (
+                      <ul className="mt-1 space-y-1 text-xs">
+                        {r.preparing_serials.map((s, idx) => (
+                          <li
+                            key={`${s.serial_number}-${idx}`}
+                            className="flex items-center justify-between rounded border border-border bg-bg/50 px-2 py-1"
+                          >
+                            <span className="font-mono">
+                              [{s.serial_type}] {s.serial_number}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-danger hover:underline"
+                              onClick={() =>
+                                updateRow(r.transfer_item_id, {
+                                  preparing_serials: r.preparing_serials.filter((_, i) => i !== idx),
+                                })
+                              }
+                            >
+                              Quitar
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">

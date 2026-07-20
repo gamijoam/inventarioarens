@@ -31,6 +31,11 @@ class StoreInventoryTransferRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['nullable', 'array'],
             'items.*.product_unit_ids.*' => ['integer'],
+            // Fase T2 (Fase 0 - fix IMEI flow): el frontend envia serial_units
+            // con {serial_type, serial_number} y el backend los resuelve a IDs.
+            'items.*.serial_units' => ['nullable', 'array'],
+            'items.*.serial_units.*.serial_type' => ['required_with:items.*.serial_units', 'string', Rule::in(['imei', 'serial'])],
+            'items.*.serial_units.*.serial_number' => ['required_with:items.*.serial_units', 'string', 'max:255'],
         ];
     }
 }

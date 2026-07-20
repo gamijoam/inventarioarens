@@ -1,10 +1,11 @@
 /**
  * TransferReceiveDialog: dialog para recibir mercancia de un traslado
- * (PATCH /api/inventory-transfers/{id}/receive).
+ * (POST /api/inventory-transfers/{id}/receive).
  *
- * Para cada item del transfer, el user confirma la cantidad recibida
- * (default = todo lo pendiente). Si el item es serializado, captura
- * los IMEIs/seriales. Solo se envia lo que se modifico.
+ * Para cada item, el user confirma la cantidad recibida. Si el item es
+ * serializado, captura los IMEIs/seriales RECIBIDOS. El backend resuelve
+ * cada serial_number a un ProductUnit existente o lo crea AVAILABLE en
+ * el almacen destino.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -14,7 +15,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Label } from '@/components/ui/Label';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { useReceiveTransfer, useTransfer } from '@/features/transfers/api';
 import type { ReceiveTransferValues, Transfer } from '@/features/transfers/schemas';
 
@@ -25,6 +25,11 @@ interface TransferReceiveDialogProps {
   onReceived?: (transfer: Transfer) => void;
 }
 
+interface SerialEntry {
+  serial_type: 'imei' | 'serial';
+  serial_number: string;
+}
+
 interface ItemRow {
   transfer_item_id: number;
   product_id: number;
@@ -33,7 +38,7 @@ interface ItemRow {
   tracking_type: string;
   pending: number;
   receiving_quantity: number;
-  receiving_unit_ids: number[];
+  receiving_serials: SerialEntry[];
   new_unit_serial: string;
   new_unit_type: 'imei' | 'serial';
   difference_reason: string;
@@ -53,7 +58,7 @@ function buildInitialRows(transfer: Transfer): ItemRow[] {
       tracking_type: product?.tracking_type ?? 'quantity',
       pending,
       receiving_quantity: pending,
-      receiving_unit_ids: Array.isArray(it.prepared_product_unit_ids) ? it.prepared_product_unit_ids : [],
+      receiving_serials: [],
       new_unit_serial: '',
       new_unit_type: 'imei',
       difference_reason: '',
@@ -83,15 +88,13 @@ export function TransferReceiveDialog({
   const itemsWithPending = useMemo(() => rows.filter((r) => r.pending > 0), [rows]);
 
   if (!transfer) return null;
-  // 'isSerialized' (deprecated) se mantiene por compat con la UI previa.
 
   if (itemsWithPending.length === 0) {
     return (
       <ModalShell open={open} onClose={() => onOpenChange(false)} title="Recibir mercancia">
-        <EmptyState
-          title="Sin items pendientes"
-          description="Este traslado no tiene items pendientes de recibir. Todo fue recibido en recepciones anteriores."
-        />
+        <p className="text-sm text-text-muted">
+          Este traslado no tiene items pendientes de recepcion.
+        </p>
       </ModalShell>
     );
   }
@@ -105,14 +108,18 @@ export function TransferReceiveDialog({
     setSubmitting(true);
     try {
       const items = rows
-        .filter((r) => r.receiving_quantity > 0 || r.receiving_unit_ids.length > 0)
-        .map((r) => ({
-          inventory_transfer_item_id: r.transfer_item_id,
-          received_quantity: r.tracking_type === 'serialized' ? undefined : r.receiving_quantity,
-          received_product_unit_ids: r.tracking_type === 'serialized' ? r.receiving_unit_ids : undefined,
-          difference_reason: r.receiving_quantity < r.pending && r.difference_reason ? r.difference_reason : undefined,
-          difference_notes: undefined,
-        }));
+        .filter((r) => r.receiving_quantity > 0 || r.receiving_serials.length > 0)
+        .map((r) => {
+          const isSerialized = r.tracking_type === 'serialized';
+          return {
+            inventory_transfer_item_id: r.transfer_item_id,
+            received_quantity: isSerialized ? undefined : r.receiving_quantity,
+            received_serial_units: isSerialized && r.receiving_serials.length > 0 ? r.receiving_serials : undefined,
+            received_product_unit_ids: undefined,
+            difference_reason: r.receiving_quantity < r.pending && r.difference_reason ? r.difference_reason : undefined,
+            difference_notes: undefined,
+          };
+        });
       const values: ReceiveTransferValues = {
         received_at: receivedAt,
         items,
@@ -132,21 +139,14 @@ export function TransferReceiveDialog({
   return (
     <ModalShell open={open} onClose={() => onOpenChange(false)} title={`Recibir mercancia — ${transfer.document_number ?? '#' + transfer.id}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="received-at">Fecha de recepcion</Label>
-          <Input
-            id="received-at"
-            type="date"
-            value={receivedAt}
-            onChange={(e) => setReceivedAt(e.target.value)}
-            className="w-48"
-          />
-        </div>
+        <p className="text-sm text-text-muted">
+          Confirma las cantidades recibidas. Para productos serializados, registra cada IMEI/serial.
+          El stock entra al almacen destino como AVAILABLE.
+        </p>
 
         <div className="space-y-2">
-          {itemsWithPending.map((r) => {
+          {rows.map((r) => {
             const isSerialized = r.tracking_type === 'serialized';
-            const willReceiveLess = r.receiving_quantity < r.pending;
             return (
               <div key={r.transfer_item_id} className="rounded-md border border-border bg-bg/30 p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -154,13 +154,15 @@ export function TransferReceiveDialog({
                     <div className="truncate font-medium">{r.product_name}</div>
                     <div className="text-xs text-text-muted">SKU: {r.product_sku}</div>
                   </div>
-                  <div className="text-xs text-text-muted">Pendiente: <span className="font-semibold tabular-nums">{r.pending.toFixed(2)}</span></div>
+                  <div className="text-xs text-text-muted">
+                    Pendiente: <span className="font-semibold tabular-nums">{r.pending.toFixed(2)}</span>
+                  </div>
                 </div>
 
                 {isSerialized ? (
                   <div className="mt-3 space-y-2">
                     <div className="text-xs text-text-muted">
-                      IMEIs/seriales ya preparadas: <span className="font-mono">{r.receiving_unit_ids.length}</span>
+                      IMEIs/seriales recibidos: <span className="font-mono">{r.receiving_serials.length}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
@@ -174,7 +176,7 @@ export function TransferReceiveDialog({
                       <Input
                         value={r.new_unit_serial}
                         onChange={(e) => updateRow(r.transfer_item_id, { new_unit_serial: e.target.value })}
-                        placeholder="Escanear o escribir..."
+                        placeholder="Escanear o escribir IMEI/serial..."
                         className="flex-1"
                       />
                       <Button
@@ -182,9 +184,17 @@ export function TransferReceiveDialog({
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          if (!r.new_unit_serial.trim()) return;
+                          const num = r.new_unit_serial.trim();
+                          if (!num) return;
+                          if (r.receiving_serials.some((s) => s.serial_number === num)) {
+                            toast.error('Ese IMEI/serial ya esta en la lista.');
+                            return;
+                          }
                           updateRow(r.transfer_item_id, {
-                            receiving_unit_ids: [...r.receiving_unit_ids, -1 * (Date.now() + r.receiving_unit_ids.length)],
+                            receiving_serials: [
+                              ...r.receiving_serials,
+                              { serial_type: r.new_unit_type, serial_number: num },
+                            ],
                             new_unit_serial: '',
                           });
                         }}
@@ -192,9 +202,31 @@ export function TransferReceiveDialog({
                         Agregar
                       </Button>
                     </div>
-                    <div className="text-xs text-text-muted">
-                      Recibir: {r.receiving_unit_ids.length} IMEIs/seriales
-                    </div>
+                    {r.receiving_serials.length > 0 && (
+                      <ul className="mt-1 space-y-1 text-xs">
+                        {r.receiving_serials.map((s, idx) => (
+                          <li
+                            key={`${s.serial_number}-${idx}`}
+                            className="flex items-center justify-between rounded border border-border bg-bg/50 px-2 py-1"
+                          >
+                            <span className="font-mono">
+                              [{s.serial_type}] {s.serial_number}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-danger hover:underline"
+                              onClick={() =>
+                                updateRow(r.transfer_item_id, {
+                                  receiving_serials: r.receiving_serials.filter((_, i) => i !== idx),
+                                })
+                              }
+                            >
+                              Quitar
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">
@@ -212,27 +244,26 @@ export function TransferReceiveDialog({
                     <span className="text-xs text-text-muted">/ {r.pending.toFixed(2)} pendiente</span>
                   </div>
                 )}
-
-                {willReceiveLess && (
-                  <div className="mt-2">
-                    <Input
-                      value={r.difference_reason}
-                      onChange={(e) => updateRow(r.transfer_item_id, { difference_reason: e.target.value })}
-                      placeholder="Motivo de la diferencia (obligatorio si recibes menos)"
-                      className="text-xs"
-                    />
-                  </div>
-                )}
               </div>
             );
           })}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="recv-date">Fecha de recepcion</Label>
+          <Input
+            id="recv-date"
+            type="date"
+            value={receivedAt}
+            onChange={(e) => setReceivedAt(e.target.value)}
+          />
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancelar
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} disabled={itemsWithPending.length === 0}>
             Confirmar recepcion
           </Button>
         </div>

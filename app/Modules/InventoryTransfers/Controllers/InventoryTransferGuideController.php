@@ -25,14 +25,14 @@ class InventoryTransferGuideController extends Controller
     ) {
     }
 
-    public function pdf(Request $request, InventoryTransfer $inventoryTransferGuide): Response
+    public function pdf(Request $request, InventoryTransfer $inventoryTransfer): Response
     {
-        $this->authorizeAccess($inventoryTransferGuide);
+        $this->authorizeAccess($inventoryTransfer);
 
-        $bytes = $this->service->renderPdf($inventoryTransferGuide);
+        $bytes = $this->service->renderPdf($inventoryTransfer);
         $filename = sprintf(
             'guia-%s-%s.pdf',
-            $inventoryTransferGuide->document_number ?? $inventoryTransferGuide->id,
+            $inventoryTransfer->document_number ?? $inventoryTransfer->id,
             now()->format('Ymd-His'),
         );
 
@@ -43,11 +43,11 @@ class InventoryTransferGuideController extends Controller
         ]);
     }
 
-    public function html(Request $request, InventoryTransfer $inventoryTransferGuide): Response
+    public function html(Request $request, InventoryTransfer $inventoryTransfer): Response
     {
-        $this->authorizeAccess($inventoryTransferGuide);
+        $this->authorizeAccess($inventoryTransfer);
 
-        $html = $this->service->renderHtml($inventoryTransferGuide);
+        $html = $this->service->renderHtml($inventoryTransfer);
 
         return response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
@@ -56,6 +56,15 @@ class InventoryTransferGuideController extends Controller
 
     private function authorizeAccess(InventoryTransfer $transfer): void
     {
+        // Multi-tenancy: solo el tenant dueno puede generar la guia.
+        $tenantManager = app(\App\Support\Tenancy\TenantManager::class);
+        $currentTenantId = $tenantManager->current()?->id;
+        abort_unless(
+            $currentTenantId !== null && (int) $transfer->tenant_id === (int) $currentTenantId,
+            404,
+            'Traslado no encontrado.',
+        );
+
         $allowed = [
             InventoryTransfer::STATUS_PREPARED,
             InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES,
@@ -65,7 +74,7 @@ class InventoryTransferGuideController extends Controller
         ];
 
         if (! in_array($transfer->status, $allowed, true)) {
-            abort(404, 'No se puede generar la guia: el traslado no tiene items preparadas. Status: ' . $transfer->status . ' | Allowed: ' . implode(', ', $allowed));
+            abort(404, 'No se puede generar la guia en el estado actual del traslado.');
         }
     }
 }

@@ -115,7 +115,11 @@ export function TransferChecklistTab({ transferId, stage }: TransferChecklistTab
                                   itemId: item.id,
                                   values: {
                                     checked_quantity: null,
-                                    checked_product_unit_ids: [],
+                                    // Para serializados: enviar TODOS los IMEIs esperados
+                                    // como checkeados (el user hizo click = el item esta completo).
+                                    // El backend cuenta count(checked_product_unit_ids) para
+                                    // calcular el progreso.
+                                    checked_product_unit_ids: isSerialized && Array.isArray(item.expected_product_unit_ids) ? item.expected_product_unit_ids : [],
                                     reason: null,
                                     notes: null,
                                   },
