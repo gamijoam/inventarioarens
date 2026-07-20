@@ -757,10 +757,12 @@ export function useAvailableProductUnits(
       params.set('warehouse_id', String(warehouseId));
       params.set('status', status);
       if (search.trim()) params.set('search', search.trim());
-      const response = (await getOne<{ data: unknown[] }>(
+      // getOne ya extrae response.data.data (envoltorio API), por lo que
+      // retorna directamente el array de unidades. No usar doble unwrap.
+      const response = await getOne<unknown[]>(
         `/inventory-centers/products/${productId}/units?${params.toString()}`,
-      )) as { data?: unknown[] };
-      const items = Array.isArray(response?.data) ? response.data : [];
+      );
+      const items = Array.isArray(response) ? response : [];
       return z.array(ProductUnitLookupSchema).parse(items);
     },
     enabled: Boolean(productId && warehouseId),
