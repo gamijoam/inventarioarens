@@ -3,14 +3,18 @@
  * Recibidas, Pendientes, Completadas, Rechazadas/Canceladas) para
  * solicitudes de stock entre empresas del grupo.
  *
- * Dialogs disponibles:
+ * Tambien actua como PARENT LAYOUT para la ruta hija $requestId
+ * (detalle de la solicitud). Cuando la URL es /inventory-transfer-requests/$id,
+ * este componente renderiza <Outlet /> en vez de la bandeja.
+ *
+ * Dialogs disponibles (solo cuando NO estamos en sub-ruta):
  *   - Crear nueva solicitud (FAB Nueva solicitud).
- *   - Aceptar solicitud recibida.
- *   - Rechazar solicitud recibida.
+ *   - Aceptar solicitud recibida (boton inline en la fila).
+ *   - Rechazar solicitud recibida (boton inline en la fila).
  *   - Cancelar solicitud enviada (boton inline en la fila).
  */
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { InventoryTransferRequestsManager } from '@/features/inventory-transfer-requests/InventoryTransferRequestsManager';
@@ -27,6 +31,14 @@ function InventoryTransferRequestsPage() {
   const [creating, setCreating] = useState(false);
   const [accepting, setAccepting] = useState<TransferRequest | null>(null);
   const [rejecting, setRejecting] = useState<TransferRequest | null>(null);
+  const location = useLocation();
+
+  // Cuando la URL es /inventory-transfer-requests/$id, este componente es
+  // el parent layout y debe renderizar <Outlet /> en lugar de la bandeja.
+  const childMatch = /^\/inventory-transfer-requests\/\d+$/.exec(location.pathname);
+  if (childMatch) {
+    return <Outlet />;
+  }
 
   return (
     <PageLayout

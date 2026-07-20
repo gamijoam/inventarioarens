@@ -14,6 +14,7 @@
  *   - Enviadas+requested: Cancelar.
  */
 import { useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Search, Plus, Building2, Truck, ArrowRight, XCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +67,7 @@ export function InventoryTransferRequestsManager({
   onReject,
   currentTenantId: currentTenantIdProp,
 }: InventoryTransferRequestsManagerProps = {}) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TransferRequestTab>('received');
   const [search, setSearch] = useState('');
   // Polling automatico solo en tabs "activas" (Received/Pending).
@@ -187,7 +189,17 @@ export function InventoryTransferRequestsManager({
                   const canRespond = !isMine && r.status === 'requested';
                   const canCancel = isMine && r.status === 'requested';
                   return (
-                    <tr key={r.id} className="border-b border-border last:border-b-0" data-testid={`row-${r.id}`}>
+                    <tr
+                      key={r.id}
+                      className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
+                      data-testid={`row-${r.id}`}
+                      onClick={() =>
+                        navigate({
+                          to: '/inventory-transfer-requests/$requestId',
+                          params: { requestId: String(r.id) },
+                        })
+                      }
+                    >
                       <td className="px-3 py-2 font-medium">
                         <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
                           {r.document_number ?? `#${r.id}`}

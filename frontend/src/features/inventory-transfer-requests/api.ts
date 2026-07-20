@@ -113,7 +113,7 @@ export function useTransferRequests(
 }
 
 export function useTransferRequest(id: number) {
-  return useQuery({
+  const query = useQuery({
     queryKey: transferRequestKeys.detail(id),
     queryFn: async () => {
       const data = await getOne<{ data: unknown }>(`/inventory-transfer-requests/${id}`);
@@ -121,6 +121,13 @@ export function useTransferRequest(id: number) {
     },
     enabled: Number.isFinite(id) && id > 0,
   });
+
+  // Devolvemos forma aplanada para evitar `queryResult.data?.id` en cada callsite.
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+  };
 }
 
 export function useCreateTransferRequest() {

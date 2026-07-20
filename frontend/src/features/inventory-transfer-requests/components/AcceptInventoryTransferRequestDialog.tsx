@@ -230,6 +230,44 @@ export function AcceptInventoryTransferRequestDialog({
                             Sugerencia: <strong>{bestMatchHint(scored)}</strong>
                           </div>
                         )}
+
+                        {originTracking === 'serialized' && (
+                          <div
+                            className="mt-2 rounded border border-border bg-bg/30 p-2"
+                            data-testid={`accept-imeis-${it.id}`}
+                          >
+                            <div className="text-[10px] uppercase tracking-wide text-text-muted">
+                              IMEIs / seriales que llegaran a tu stock
+                            </div>
+                            {(() => {
+                              const list = Array.isArray(it.serial_units) ? it.serial_units : [];
+                              const numbers = list
+                                .map((s) => (typeof s === 'string' ? s : s?.serial_number))
+                                .filter((s): s is string => !!s && s.length > 0);
+                              if (numbers.length === 0) {
+                                return (
+                                  <p className="mt-1 text-[11px] text-warning">
+                                    La solicitud no incluye IMEIs/seriales. Si aceptas sin ellos,
+                                    las unidades quedaran sin identificar en tu stock.
+                                  </p>
+                                );
+                              }
+                              return (
+                                <ul className="mt-1 flex flex-wrap gap-1">
+                                  {numbers.map((sn, idx) => (
+                                    <li
+                                      key={`${it.id}-sn-${idx}`}
+                                      className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
+                                      data-testid={`accept-imei-${it.id}-${idx}`}
+                                    >
+                                      {sn}
+                                    </li>
+                                  ))}
+                                </ul>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

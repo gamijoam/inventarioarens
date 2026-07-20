@@ -260,4 +260,95 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
       });
     });
   });
+
+  it('muestra IMEIs/seriales cuando el item origen es serializado', () => {
+    const request = makeRequest([
+      {
+        id: 200,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Celular X',
+          sku: 'CX-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+        quantity: 3,
+        serial_units: [
+          { serial_type: 'imei', serial_number: '352099001761481' },
+          { serial_type: 'imei', serial_number: '352099001761482' },
+          { serial_type: 'imei', serial_number: '352099001761483' },
+        ],
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        { id: 88, name: 'Celular X', sku: 'CX-001', barcode: null, tracking_type: 'serialized' },
+      ],
+    });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    // La seccion de IMEIs aparece con data-testid.
+    expect(screen.getByTestId('accept-imeis-200')).toBeInTheDocument();
+    // Cada IMEI aparece como chip individual.
+    expect(screen.getByTestId('accept-imei-200-0')).toHaveTextContent('352099001761481');
+    expect(screen.getByTestId('accept-imei-200-1')).toHaveTextContent('352099001761482');
+    expect(screen.getByTestId('accept-imei-200-2')).toHaveTextContent('352099001761483');
+  });
+
+  it('muestra warning cuando el item serializado no incluye IMEIs', () => {
+    const request = makeRequest([
+      {
+        id: 300,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Celular X',
+          sku: 'CX-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+        quantity: 3,
+        serial_units: null,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        { id: 88, name: 'Celular X', sku: 'CX-001', barcode: null, tracking_type: 'serialized' },
+      ],
+    });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    expect(screen.getByTestId('accept-imeis-300')).toBeInTheDocument();
+    expect(screen.getByText(/no incluye IMEIs\/seriales/i)).toBeInTheDocument();
+  });
+
+  it('no muestra seccion de IMEIs cuando el item origen NO es serializado', () => {
+    const request = makeRequest([
+      {
+        id: 400,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Coca-Cola 1.5L',
+          sku: 'CC-1500',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
+        quantity: 5,
+        serial_units: null,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        { id: 99, name: 'Coca-Cola 1.5L', sku: 'CC-1500', tracking_type: 'quantity' },
+      ],
+    });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    expect(screen.queryByTestId('accept-imeis-400')).not.toBeInTheDocument();
+  });
 });

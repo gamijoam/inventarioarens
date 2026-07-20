@@ -39,6 +39,7 @@ import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/in
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
 import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inventory/admin'
 import { Route as AuthedInventoryProductIdRouteImport } from './routes/_authed/inventory/$productId'
+import { Route as AuthedInventoryTransferRequestsRequestIdRouteImport } from './routes/_authed/inventory-transfer-requests/$requestId'
 import { Route as AuthedAccessRolesRouteImport } from './routes/_authed/access/roles'
 import { Route as AuthedAccessPermissionsRouteImport } from './routes/_authed/access/permissions'
 import { Route as AuthedAccessGroupsRouteImport } from './routes/_authed/access/groups'
@@ -196,6 +197,12 @@ const AuthedInventoryProductIdRoute =
     path: '/inventory/$productId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedInventoryTransferRequestsRequestIdRoute =
+  AuthedInventoryTransferRequestsRequestIdRouteImport.update({
+    id: '/$requestId',
+    path: '/$requestId',
+    getParentRoute: () => AuthedInventoryTransferRequestsRoute,
+  } as any)
 const AuthedAccessRolesRoute = AuthedAccessRolesRouteImport.update({
   id: '/access/roles',
   path: '/access/roles',
@@ -225,7 +232,7 @@ export interface FileRoutesByFullPath {
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
-  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
+  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -260,7 +268,7 @@ export interface FileRoutesByTo {
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
-  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
+  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
@@ -278,6 +286,7 @@ export interface FileRoutesByTo {
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -297,7 +306,7 @@ export interface FileRoutesById {
   '/_authed/cash-register': typeof AuthedCashRegisterRoute
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
-  '/_authed/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
+  '/_authed/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/_authed/payables': typeof AuthedPayablesRoute
   '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
   '/_authed/pos': typeof AuthedPosRoute
@@ -315,6 +324,7 @@ export interface FileRoutesById {
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
   '/_authed/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/_authed/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
@@ -352,6 +362,7 @@ export interface FileRouteTypes {
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
+    | '/inventory-transfer-requests/$requestId'
     | '/inventory/$productId'
     | '/inventory/admin'
     | '/inventory/catalogs'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
+    | '/inventory-transfer-requests/$requestId'
     | '/inventory/$productId'
     | '/inventory/admin'
     | '/inventory/catalogs'
@@ -423,6 +435,7 @@ export interface FileRouteTypes {
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
     | '/_authed/access/roles'
+    | '/_authed/inventory-transfer-requests/$requestId'
     | '/_authed/inventory/$productId'
     | '/_authed/inventory/admin'
     | '/_authed/inventory/catalogs'
@@ -653,6 +666,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryProductIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/inventory-transfer-requests/$requestId': {
+      id: '/_authed/inventory-transfer-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/inventory-transfer-requests/$requestId'
+      preLoaderRoute: typeof AuthedInventoryTransferRequestsRequestIdRouteImport
+      parentRoute: typeof AuthedInventoryTransferRequestsRoute
+    }
     '/_authed/access/roles': {
       id: '/_authed/access/roles'
       path: '/access/roles'
@@ -683,6 +703,21 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthedInventoryTransferRequestsRouteChildren {
+  AuthedInventoryTransferRequestsRequestIdRoute: typeof AuthedInventoryTransferRequestsRequestIdRoute
+}
+
+const AuthedInventoryTransferRequestsRouteChildren: AuthedInventoryTransferRequestsRouteChildren =
+  {
+    AuthedInventoryTransferRequestsRequestIdRoute:
+      AuthedInventoryTransferRequestsRequestIdRoute,
+  }
+
+const AuthedInventoryTransferRequestsRouteWithChildren =
+  AuthedInventoryTransferRequestsRoute._addFileChildren(
+    AuthedInventoryTransferRequestsRouteChildren,
+  )
 
 interface AuthedTransfersRouteChildren {
   AuthedTransfersTransferIdRoute: typeof AuthedTransfersTransferIdRoute
@@ -723,7 +758,7 @@ interface AuthedRouteChildren {
   AuthedCashRegisterRoute: typeof AuthedCashRegisterRoute
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
-  AuthedInventoryTransferRequestsRoute: typeof AuthedInventoryTransferRequestsRoute
+  AuthedInventoryTransferRequestsRoute: typeof AuthedInventoryTransferRequestsRouteWithChildren
   AuthedPayablesRoute: typeof AuthedPayablesRoute
   AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
   AuthedPosRoute: typeof AuthedPosRoute
@@ -751,7 +786,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCashRegisterRoute: AuthedCashRegisterRoute,
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
-  AuthedInventoryTransferRequestsRoute: AuthedInventoryTransferRequestsRoute,
+  AuthedInventoryTransferRequestsRoute:
+    AuthedInventoryTransferRequestsRouteWithChildren,
   AuthedPayablesRoute: AuthedPayablesRoute,
   AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
   AuthedPosRoute: AuthedPosRoute,

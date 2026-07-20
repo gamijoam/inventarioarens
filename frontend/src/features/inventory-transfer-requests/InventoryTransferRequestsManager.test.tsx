@@ -38,6 +38,15 @@ vi.mock('@/stores/session', () => ({
   hasAuthCookieWithValue: () => 'mock-token',
 }));
 
+const mockNavigate = vi.fn();
+vi.mock('@tanstack/react-router', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -146,6 +155,23 @@ describe('InventoryTransferRequestsManager', () => {
     expect(screen.queryByTestId('accept-9')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /rechazar solicitud/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /cancelar solicitud/i })).not.toBeInTheDocument();
+  });
+
+  it('click en una fila navega al detalle de la solicitud', async () => {
+    mockUseTransferRequests.mockReturnValue({
+      data: [makeRequest({ id: 42, destination_tenant_id: 1, status: 'requested' })],
+      isLoading: false,
+      meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
+    });
+    const user = userEvent.setup();
+    render(<InventoryTransferRequestsManager currentTenantId={1} />, { wrapper: makeWrapper() });
+    await user.click(screen.getByTestId('row-42'));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/inventory-transfer-requests/$requestId',
+        params: { requestId: '42' },
+      }),
+    );
   });
 
   it('polling: en tab Received llama useTransferRequests con refetchInterval=5000', () => {
