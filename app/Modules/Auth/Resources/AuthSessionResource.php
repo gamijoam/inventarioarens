@@ -23,6 +23,8 @@ class AuthSessionResource extends JsonResource
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'domain' => $tenant->domain,
+                'parent_id' => $tenant->parent_id,
+                'is_group' => (bool) $tenant->is_group,
             ] : null,
             'roles' => $this['roles'] ?? [],
             'permissions' => $this['permissions'] ?? [],

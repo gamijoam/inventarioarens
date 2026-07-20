@@ -243,6 +243,60 @@ export function useUnreadTransferRequestsCount(
   });
 }
 
+/**
+ * Empresa hermana (spinoff del mismo grupo) disponible para enviarle
+ * solicitudes de stock. Retornada por GET /api/tenant-groups/{id}/spinoffs.
+ */
+export interface SiblingCompany {
+  id: number;
+  name: string;
+  slug: string;
+  domain?: string | null;
+  plan?: string | null;
+  status?: string;
+  users_count: number;
+}
+
+export interface UseSiblingCompaniesOptions {
+  /** ID del tenant actual (necesario para excluirlo de la lista). */
+  currentTenantId?: number;
+  /** parent_id del tenant actual (null si soy el grupo raiz). */
+  parentId?: number | null;
+  /** true si el tenant actual ES el grupo raiz (entonces groupId = currentTenantId). */
+  isGroup?: boolean;
+}
+
+/**
+ * Devuelve las empresas hermanas del grupo al que pertenece mi tenant,
+ * excluyendo mi propio tenant. Usado por el dialog de crear solicitud
+ * inter-empresa para que el usuario elija visualmente a quien enviar
+ * en lugar de tener que memorizar el slug.
+ *
+ * Resolucion del groupId:
+ *   - Si is_group=true (soy el grupo raiz) -> groupId = currentTenantId.
+ *   - Si is_group=false (soy spinoff) -> groupId = parentId.
+ *
+ * Cache 60s porque las empresas del grupo cambian muy poco.
+ */
+export function useSiblingCompanies(options: UseSiblingCompaniesOptions = {}) {
+  const { currentTenantId, parentId, isGroup } = options;
+  const groupId = isGroup ? currentTenantId : parentId;
+
+  return useQuery({
+    queryKey: ['sibling-companies', groupId, currentTenantId] as const,
+    enabled: typeof groupId === 'number' && groupId > 0 && typeof currentTenantId === 'number',
+    queryFn: async (): Promise<SiblingCompany[]> => {
+      const raw = (await getMany<unknown>(
+        `/tenant-groups/${groupId}/spinoffs`,
+      )) as { data?: SiblingCompany[] } | SiblingCompany[];
+      const list = Array.isArray(raw) ? raw : (raw.data ?? []);
+      // Filtrar mi propio tenant (no me puedo enviar solicitudes a mi mismo).
+      return list.filter((c) => c.id !== currentTenantId);
+    },
+    staleTime: 60_000,
+  });
+}
+
 // Reuso: `deleteOne` no se usa actualmente pero lo dejamos exportado para
 // consistencia con otros modulos (no genera warning).
 void deleteOne;

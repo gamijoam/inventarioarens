@@ -3,10 +3,16 @@
  * de stock a OTRA empresa del grupo. Usa el hook useCreateTransferRequest.
  *
  * Campos:
- *   - destination_tenant_slug | destination_user_email (uno de los dos).
+ *   - destination_tenant_id | destination_tenant_slug (Combobox dropdown)
+ *     | destination_user_email (fallback opcional si conoce el email).
  *   - from_warehouse_id (almacen origen de MI empresa).
  *   - reason / reference / notes.
  *   - items: product_id + quantity (opcionalmente product_unit_ids).
+ *
+ * El dropdown principal lista las empresas hermanas del grupo (consume
+ * useSiblingCompanies) y al seleccionar setea destination_tenant_slug
+ * automaticamente. El usuario puede colapsar el dropdown y usar email
+ * directo si lo prefiere.
  */
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -16,10 +22,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useCreateTransferRequest } from '@/features/inventory-transfer-requests/api';
+import {
+  useCreateTransferRequest,
+  useSiblingCompanies,
+} from '@/features/inventory-transfer-requests/api';
 import { useProductsForTransfer } from '@/features/transfers/api';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
+import { useSessionStore } from '@/stores/session';
 import { StoreTransferRequestSchema, type StoreTransferRequestValues } from '../schemas';
 
 interface CreateInventoryTransferRequestDialogProps {
@@ -44,6 +54,19 @@ export function CreateInventoryTransferRequestDialog({
   const { data: products = [], isLoading: loadingProd } = useProductsForTransfer();
   const create = useCreateTransferRequest();
 
+  // Tenant actual (lectura no-reactiva via getState para evitar re-renders
+  // innecesarios; los valores se usan dentro del dialog que ya esta montado).
+  const currentTenantId = useSessionStore.getState().tenant?.id;
+  const currentParentId = useSessionStore.getState().tenant?.parent_id ?? null;
+  const currentIsGroup = useSessionStore.getState().tenant?.is_group ?? false;
+
+  // Empresas hermanas del grupo (excluye la propia).
+  const { data: siblings = [], isLoading: loadingSiblings } = useSiblingCompanies({
+    currentTenantId,
+    parentId: currentParentId,
+    isGroup: currentIsGroup,
+  });
+
   const [destinationSlug, setDestinationSlug] = useState('');
   const [destinationEmail, setDestinationEmail] = useState('');
   const [fromWarehouseId, setFromWarehouseId] = useState('');
@@ -62,6 +85,21 @@ export function CreateInventoryTransferRequestDialog({
         tracking: p.tracking_type,
       })),
     [products],
+  );
+
+  const siblingOptions = useMemo(
+    () =>
+      siblings.map((s) => ({
+        value: s.slug,
+        label: s.name,
+        hint: s.slug,
+      })),
+    [siblings],
+  );
+
+  const selectedSibling = useMemo(
+    () => siblings.find((s) => s.slug === destinationSlug),
+    [siblings, destinationSlug],
   );
 
   function reset() {
@@ -153,22 +191,45 @@ export function CreateInventoryTransferRequestDialog({
           aceptar la solicitud para que se materialice el movimiento.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3" data-testid="create-form">
-          <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <fieldset className="space-y-3">
             <div>
-              <Label htmlFor="dest-slug">Slug empresa destino</Label>
-              <Input
-                id="dest-slug"
-                value={destinationSlug}
-                onChange={(e) => setDestinationSlug(e.target.value)}
-                placeholder="mi-otra-empresa"
-                disabled={!!destinationEmail}
-              />
+              <Label htmlFor="dest-company">Empresa destino (del grupo)</Label>
+              {loadingSiblings ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <select
+                  id="dest-company"
+                  value={destinationSlug}
+                  onChange={(e) => setDestinationSlug(e.target.value)}
+                  className="mt-1 w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  required
+                  disabled={!!destinationEmail}
+                  data-testid="dest-company"
+                >
+                  <option value="">Selecciona una empresa hermana...</option>
+                  {siblingOptions.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label} ({s.hint})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {siblingOptions.length === 0 && !loadingSiblings && (
+                <p className="mt-1 text-xs text-warning">
+                  Tu empresa no pertenece a un grupo con otras empresas. Usa el email de destino.
+                </p>
+              )}
+              {selectedSibling && (
+                <p className="mt-1 text-xs text-text-muted" data-testid="dest-preview">
+                  Enviar a: <strong>{selectedSibling.name}</strong> (slug: {selectedSibling.slug})
+                </p>
+              )}
               {formErrors['destination_tenant_slug'] && (
                 <p className="mt-1 text-xs text-danger">{formErrors['destination_tenant_slug']}</p>
               )}
             </div>
             <div>
-              <Label htmlFor="dest-email">o Email usuario destino</Label>
+              <Label htmlFor="dest-email">o Email usuario destino (alternativa)</Label>
               <Input
                 id="dest-email"
                 type="email"

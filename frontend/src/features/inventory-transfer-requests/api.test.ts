@@ -33,6 +33,7 @@ vi.mock('@/features/inventory-center/queries', () => ({
 import {
   useTransferRequests,
   useUnreadTransferRequestsCount,
+  useSiblingCompanies,
 } from './api';
 
 describe('useTransferRequests', () => {
@@ -107,5 +108,64 @@ describe('useUnreadTransferRequestsCount', () => {
     useUnreadTransferRequestsCount({ currentTenantId: 3, refetchInterval: 60000 });
     const options = mockUseQuery.mock.calls[0]?.[0] as { refetchInterval?: number } | undefined;
     expect(options?.refetchInterval).toBe(60000);
+  });
+});
+
+describe('useSiblingCompanies', () => {
+  beforeEach(() => {
+    mockUseQuery.mockReset();
+    mockUseQuery.mockReturnValue({ data: [] });
+    mockGetMany.mockReset();
+  });
+
+  it('usa currentTenantId como groupId cuando is_group=true', () => {
+    useSiblingCompanies({ currentTenantId: 1, isGroup: true, parentId: null });
+    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean } | undefined;
+    expect(options?.enabled).toBe(true);
+  });
+
+  it('usa parentId como groupId cuando is_group=false (spinoff)', () => {
+    useSiblingCompanies({ currentTenantId: 5, isGroup: false, parentId: 1 });
+    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean } | undefined;
+    expect(options?.enabled).toBe(true);
+  });
+
+  it('disabled cuando currentTenantId no esta definido', () => {
+    useSiblingCompanies({ currentTenantId: undefined, isGroup: false, parentId: 1 });
+    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean } | undefined;
+    expect(options?.enabled).toBe(false);
+  });
+
+  it('disabled cuando es spinoff sin parentId', () => {
+    useSiblingCompanies({ currentTenantId: 5, isGroup: false, parentId: null });
+    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean } | undefined;
+    expect(options?.enabled).toBe(false);
+  });
+
+  it('filtra el propio tenant de la lista y normaliza payload del backend', async () => {
+    mockGetMany.mockResolvedValue({
+      data: [
+        { id: 1, name: 'Grupo', slug: 'grupo', users_count: 3 },
+        { id: 2, name: 'Hermana A', slug: 'hermana-a', users_count: 1 },
+        { id: 3, name: 'Hermana B', slug: 'hermana-b', users_count: 2 },
+      ],
+    });
+
+    let captured: ((...args: unknown[]) => unknown) | undefined;
+    mockUseQuery.mockImplementation((opts: unknown) => {
+      const o = opts as { queryFn: (...args: unknown[]) => unknown };
+      captured = o.queryFn;
+      return { data: undefined };
+    });
+
+    useSiblingCompanies({ currentTenantId: 2, isGroup: false, parentId: 1 });
+    const result = await (captured as (...args: unknown[]) => unknown)();
+
+    // Mi tenant (id=2) NO debe aparecer en la lista.
+    const siblings = result as Array<{ id: number }>;
+    expect(siblings).toHaveLength(2);
+    expect(siblings.find((c) => c.id === 2)).toBeUndefined();
+    // El endpoint se llamo con el parent_id del spinoff.
+    expect(mockGetMany).toHaveBeenCalledWith('/tenant-groups/1/spinoffs');
   });
 });
