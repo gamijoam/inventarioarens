@@ -28,6 +28,7 @@ import { Route as AuthedPrintingRouteImport } from './routes/_authed/printing'
 import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
 import { Route as AuthedPaymentMethodsRouteImport } from './routes/_authed/payment-methods'
 import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
+import { Route as AuthedInventoryTransferRequestsRouteImport } from './routes/_authed/inventory-transfer-requests'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
 import { Route as AuthedCashRegisterRouteImport } from './routes/_authed/cash-register'
@@ -137,6 +138,12 @@ const AuthedPayablesRoute = AuthedPayablesRouteImport.update({
   path: '/payables',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedInventoryTransferRequestsRoute =
+  AuthedInventoryTransferRequestsRouteImport.update({
+    id: '/inventory-transfer-requests',
+    path: '/inventory-transfer-requests',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -218,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
@@ -252,6 +260,7 @@ export interface FileRoutesByTo {
   '/cash-register': typeof AuthedCashRegisterRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
@@ -288,6 +297,7 @@ export interface FileRoutesById {
   '/_authed/cash-register': typeof AuthedCashRegisterRoute
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
+  '/_authed/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRoute
   '/_authed/payables': typeof AuthedPayablesRoute
   '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
   '/_authed/pos': typeof AuthedPosRoute
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/cash-register'
     | '/customers'
     | '/dashboard'
+    | '/inventory-transfer-requests'
     | '/payables'
     | '/payment-methods'
     | '/pos'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
     | '/cash-register'
     | '/customers'
     | '/dashboard'
+    | '/inventory-transfer-requests'
     | '/payables'
     | '/payment-methods'
     | '/pos'
@@ -393,6 +405,7 @@ export interface FileRouteTypes {
     | '/_authed/cash-register'
     | '/_authed/customers'
     | '/_authed/dashboard'
+    | '/_authed/inventory-transfer-requests'
     | '/_authed/payables'
     | '/_authed/payment-methods'
     | '/_authed/pos'
@@ -563,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPayablesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/inventory-transfer-requests': {
+      id: '/_authed/inventory-transfer-requests'
+      path: '/inventory-transfer-requests'
+      fullPath: '/inventory-transfer-requests'
+      preLoaderRoute: typeof AuthedInventoryTransferRequestsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/dashboard': {
       id: '/_authed/dashboard'
       path: '/dashboard'
@@ -703,6 +723,7 @@ interface AuthedRouteChildren {
   AuthedCashRegisterRoute: typeof AuthedCashRegisterRoute
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
+  AuthedInventoryTransferRequestsRoute: typeof AuthedInventoryTransferRequestsRoute
   AuthedPayablesRoute: typeof AuthedPayablesRoute
   AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
   AuthedPosRoute: typeof AuthedPosRoute
@@ -730,6 +751,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCashRegisterRoute: AuthedCashRegisterRoute,
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
+  AuthedInventoryTransferRequestsRoute: AuthedInventoryTransferRequestsRoute,
   AuthedPayablesRoute: AuthedPayablesRoute,
   AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
   AuthedPosRoute: AuthedPosRoute,

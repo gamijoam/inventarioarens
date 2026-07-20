@@ -73,18 +73,13 @@ export function InventoryTransferRequestsManager({
   // gastar requests del backend ni bateria del navegador.
   const refetchInterval: number | false =
     tab === 'received' || tab === 'pending' ? 5000 : false;
-  const queryResult = useTransferRequests(undefined, { refetchInterval });
+  // useTransferRequests ahora retorna una forma aplanada: { data, meta, isLoading }.
+  const { data: requests, isLoading: isLoadingLocal } = useTransferRequests(undefined, { refetchInterval });
   const cancel = useCancelTransferRequest();
   // Lectura no-reactiva del tenant actual: el componente se re-renderiza
   // cuando cambian los datos de la query, que es suficiente para que el
   // filtro se actualice si el usuario cambia de empresa.
   const currentTenantId = currentTenantIdProp ?? useSessionStore.getState().tenant?.id;
-
-  // El hook retorna { data, meta, isLoading } (envoltorio). Tests y consumidores
-  // esperan esta forma, asi que NO destructuramos data en linea.
-  const queryData = queryResult as { data?: TransferRequest[]; isLoading?: boolean; meta?: unknown } | undefined;
-  const requests = queryData?.data ?? [];
-  const isLoadingLocal = queryData?.isLoading ?? true;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

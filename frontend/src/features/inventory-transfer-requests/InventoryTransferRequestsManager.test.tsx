@@ -79,7 +79,12 @@ function makeRequest(overrides: Partial<{
 
 describe('InventoryTransferRequestsManager', () => {
   it('muestra skeleton mientras carga', () => {
-    mockUseTransferRequests.mockReturnValue({ data: undefined, isLoading: true });
+    // El hook ahora retorna forma aplanada: { data, meta, isLoading }.
+    mockUseTransferRequests.mockReturnValue({
+      data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 0, total: 0 },
+      isLoading: true,
+    });
     const { container } = render(<InventoryTransferRequestsManager />, { wrapper: makeWrapper() });
     expect(container.querySelector('.h-32')).toBeTruthy();
   });

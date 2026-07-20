@@ -66,7 +66,11 @@ export function useTransferRequests(
   filters: Partial<TransferRequestListFilters> = {},
   options: UseTransferRequestsOptions = {},
 ) {
-  return useQuery({
+  // Devolvemos una forma "aplanada" { data, meta, isLoading } en lugar del
+  // UseQueryResult crudo, para que el caller no tenga que hacer
+  // `queryResult.data?.data` (doble data). Esto es el mismo patron que
+  // usa el modulo de transfers/ (ver TransfersManager).
+  const query = useQuery({
     queryKey: transferRequestKeys.list(filters as Record<string, unknown>),
     queryFn: async (): Promise<{ data: TransferRequest[]; meta: TransferRequestListMeta }> => {
       const raw = (await getMany<unknown>(`/inventory-transfer-requests${toQueryString(filters)}`)) as
@@ -99,6 +103,13 @@ export function useTransferRequests(
     refetchOnWindowFocus: true,
     refetchInterval: options.refetchInterval ?? false,
   });
+
+  const payload = query.data as { data?: TransferRequest[]; meta?: TransferRequestListMeta } | undefined;
+  return {
+    data: payload?.data ?? [],
+    meta: payload?.meta ?? { current_page: 1, last_page: 1, per_page: 0, total: 0 },
+    isLoading: query.isLoading,
+  };
 }
 
 export function useTransferRequest(id: number) {
