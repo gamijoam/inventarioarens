@@ -111,7 +111,7 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
     const select = screen.getByTestId('accept-product-100') as HTMLSelectElement;
     const labels = Array.from(select.options).map((o) => o.text);
     // El primer option es el placeholder vacio.
-    expect(labels[0]).toBe('Selecciona...');
+    expect(labels[0]).toBe('Selecciona producto destino...');
     // Segundo: match SKU exacto.
     expect(labels[1]).toContain('[SKU]');
     expect(labels[1]).toContain('Coca-Cola 1.5L (CC-1500)');
@@ -122,9 +122,12 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
     // Ultimo: sin match (Pepsi).
     expect(labels[4]).not.toContain('[');
     expect(labels[4]).toContain('Pepsi 1.5L');
+
+    // El badge de match en la card indica el tipo de match ganador.
+    expect(screen.getByTestId('accept-card-badge-100')).toHaveTextContent(/Match SKU/i);
   });
 
-  it('muestra sugerencia con el nombre del mejor match debajo del select', () => {
+  it('muestra el badge de tipo de match en la card (origen -> destino)', () => {
     const request = makeRequest([
       {
         id: 100,
@@ -147,9 +150,8 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    const hint = screen.getByTestId('accept-hint-100');
-    expect(hint).toHaveTextContent('Coca-Cola 1.5L');
-    expect(hint).toHaveTextContent('Sugerencia');
+    // El badge indica el tipo de match del primer scored.
+    expect(screen.getByTestId('accept-card-badge-100')).toHaveTextContent(/Match SKU/i);
   });
 
   it('sin matches no muestra sugerencia', () => {
@@ -350,5 +352,96 @@ describe('AcceptInventoryTransferRequestDialog - scoring y badges', () => {
       wrapper: makeWrapper(),
     });
     expect(screen.queryByTestId('accept-imeis-400')).not.toBeInTheDocument();
+  });
+  it('layout visual: renderiza el bloque origen con SKU, barcode y cantidad del producto pedido', () => {
+    const request = makeRequest([
+      {
+        id: 600,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Coca-Cola 1.5L',
+          sku: 'CC-1500',
+          barcode: '7501234567890',
+          tracking_type: 'quantity',
+        },
+        quantity: 7,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({ data: [] });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    // La card existe.
+    expect(screen.getByTestId('accept-card-600')).toBeInTheDocument();
+    // El badge de match existe.
+    expect(screen.getByTestId('accept-card-badge-600')).toBeInTheDocument();
+    // El texto "Te piden" aparece en la card (zona origen).
+    expect(screen.getByText(/te piden/i)).toBeInTheDocument();
+    // La cantidad del origen se renderiza formateada.
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('layout visual: badge cambia a "Sin match automatico" cuando no hay match', () => {
+    const request = makeRequest([
+      {
+        id: 700,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Producto X',
+          sku: 'PX-001',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
+        quantity: 1,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        { id: 1, name: 'Producto Y Totalmente Distinto', sku: 'PY-999', tracking_type: 'quantity' },
+      ],
+    });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    expect(screen.getByTestId('accept-card-badge-700')).toHaveTextContent(/sin match automatico/i);
+  });
+
+  it('layout visual: cuando item es serializado muestra IMEIs en zona origen Y destino', () => {
+    const request = makeRequest([
+      {
+        id: 800,
+        origin_product_id: 50,
+        origin_product: {
+          id: 50,
+          name: 'Celular Pro',
+          sku: 'CP-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+        quantity: 2,
+        serial_units: [
+          { serial_type: 'imei', serial_number: 'IMEI-XYZ-001' },
+          { serial_type: 'imei', serial_number: 'IMEI-XYZ-002' },
+        ],
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        { id: 11, name: 'Celular Pro', sku: 'CP-001', tracking_type: 'serialized' },
+      ],
+    });
+    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+    // IMEIs en zona destino (accept-imeis-800).
+    expect(screen.getByTestId('accept-imei-800-0')).toHaveTextContent('IMEI-XYZ-001');
+    expect(screen.getByTestId('accept-imei-800-1')).toHaveTextContent('IMEI-XYZ-002');
+    // IMEIs en zona origen (accept-origin-imei-*).
+    expect(screen.getByTestId('accept-origin-imei-0')).toHaveTextContent('IMEI-XYZ-001');
+    expect(screen.getByTestId('accept-origin-imei-1')).toHaveTextContent('IMEI-XYZ-002');
+    // El badge de match es Match SKU (CP-001 matchea).
+    expect(screen.getByTestId('accept-card-badge-800')).toHaveTextContent(/Match SKU/i);
   });
 });
