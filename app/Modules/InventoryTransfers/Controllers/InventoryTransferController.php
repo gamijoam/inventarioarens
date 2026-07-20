@@ -35,6 +35,14 @@ class InventoryTransferController extends Controller
             ->with(['fromWarehouse', 'toWarehouse', 'guide', 'items.product'])
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('validation_mode'), fn ($query, string $mode) => $query->where('validation_mode', $mode))
+            ->when($request->query('from_warehouse_id'), fn ($query, string $wid) => $query->where('from_warehouse_id', (int) $wid))
+            ->when($request->query('to_warehouse_id'), fn ($query, string $wid) => $query->where('to_warehouse_id', (int) $wid))
+            ->when($request->query('date_from'), function ($query, string $date): void {
+                $query->where('processed_at', '>=', \Carbon\Carbon::parse($date)->startOfDay());
+            })
+            ->when($request->query('date_to'), function ($query, string $date): void {
+                $query->where('processed_at', '<=', \Carbon\Carbon::parse($date)->endOfDay());
+            })
             ->latest('processed_at');
 
         // Filtrar por scope del user: una transferencia es visible si su
@@ -48,7 +56,9 @@ class InventoryTransferController extends Controller
             });
         }
 
-        return InventoryTransferResource::collection($query->paginate(25));
+        $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
+
+        return InventoryTransferResource::collection($query->paginate($perPage));
     }
 
     public function store(StoreInventoryTransferRequest $request, InventoryTransferService $service): JsonResponse
@@ -218,5 +228,113 @@ class InventoryTransferController extends Controller
         return InventoryTransferResource::make(
             $inventoryTransfer->load(['fromWarehouse', 'toWarehouse', 'guide', 'items.product', 'driver'])
         );
+    }
+
+    /**
+     * FASE T2: devuelve la cronologia del traslado (eventos en orden
+     * ascendente por timestamp). Cada evento incluye:
+     *   - stage: 'created' | 'prepared' | 'dispatched' | 'received' |
+     *            'resolved' | 'cancelled'
+     *   - at: timestamp ISO
+     *   - by_user: { id, name } (cuando aplique)
+     *   - notes: string|null
+     *   - differences_count: int (solo en 'received')
+     */
+    public function timeline(InventoryTransfer $inventoryTransfer): \Illuminate\Http\JsonResponse
+    {
+        Gate::authorize('view', $inventoryTransfer);
+
+        $inventoryTransfer->loadMissing([
+            'creator',
+            'preparer',
+            'dispatcher',
+            'receiver',
+            'resolver',
+            'canceller',
+        ]);
+
+        $events = [];
+
+        if ($inventoryTransfer->requested_at ?? $inventoryTransfer->created_at) {
+            $events[] = [
+                'stage' => 'created',
+                'at' => optional($inventoryTransfer->requested_at ?? $inventoryTransfer->created_at)->toIso8601String(),
+                'by_user' => $inventoryTransfer->creator ? [
+                    'id' => $inventoryTransfer->creator->id,
+                    'name' => $inventoryTransfer->creator->name,
+                ] : null,
+                'notes' => $inventoryTransfer->reason,
+            ];
+        }
+
+        if ($inventoryTransfer->prepared_at) {
+            $events[] = [
+                'stage' => 'prepared',
+                'at' => $inventoryTransfer->prepared_at->toIso8601String(),
+                'by_user' => $inventoryTransfer->preparer ? [
+                    'id' => $inventoryTransfer->preparer->id,
+                    'name' => $inventoryTransfer->preparer->name,
+                ] : null,
+                'notes' => null,
+                'has_differences' => $inventoryTransfer->status === InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES,
+            ];
+        }
+
+        if ($inventoryTransfer->dispatched_at) {
+            $events[] = [
+                'stage' => 'dispatched',
+                'at' => $inventoryTransfer->dispatched_at->toIso8601String(),
+                'by_user' => $inventoryTransfer->dispatcher ? [
+                    'id' => $inventoryTransfer->dispatcher->id,
+                    'name' => $inventoryTransfer->dispatcher->name,
+                ] : null,
+                'notes' => null,
+            ];
+        }
+
+        if ($inventoryTransfer->received_at) {
+            $differencesCount = $inventoryTransfer->items()
+                ->where('difference_quantity', '>', 0)
+                ->count();
+            $events[] = [
+                'stage' => 'received',
+                'at' => $inventoryTransfer->received_at->toIso8601String(),
+                'by_user' => $inventoryTransfer->receiver ? [
+                    'id' => $inventoryTransfer->receiver->id,
+                    'name' => $inventoryTransfer->receiver->name,
+                ] : null,
+                'notes' => null,
+                'differences_count' => (int) $differencesCount,
+            ];
+        }
+
+        if ($inventoryTransfer->resolved_at) {
+            $events[] = [
+                'stage' => 'resolved',
+                'at' => $inventoryTransfer->resolved_at->toIso8601String(),
+                'by_user' => $inventoryTransfer->resolver ? [
+                    'id' => $inventoryTransfer->resolver->id,
+                    'name' => $inventoryTransfer->resolver->name,
+                ] : null,
+                'notes' => $inventoryTransfer->resolution_notes,
+                'resolution_status' => $inventoryTransfer->resolution_status,
+            ];
+        }
+
+        if ($inventoryTransfer->cancelled_at) {
+            $events[] = [
+                'stage' => 'cancelled',
+                'at' => $inventoryTransfer->cancelled_at->toIso8601String(),
+                'by_user' => $inventoryTransfer->canceller ? [
+                    'id' => $inventoryTransfer->canceller->id,
+                    'name' => $inventoryTransfer->canceller->name,
+                ] : null,
+                'notes' => $inventoryTransfer->notes,
+            ];
+        }
+
+        usort($events, fn ($a, $b) => strcmp((string) $a['at'], (string) $b['at']));
+
+        return response()->json(['data' => $events]);
     }
 }

@@ -10,7 +10,7 @@
  */
 import { useState } from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ClipboardCheck, Package, Send, Truck, XCircle } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Package, Send, Truck, XCircle, FileWarning } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -34,6 +34,8 @@ import { TransferDispatchDialog } from '@/features/transfers/components/Transfer
 import { TransferCancelDialog } from '@/features/transfers/components/TransferCancelDialog';
 import { TransferChecklistTab } from '@/features/transfers/components/TransferChecklistTab';
 import { TransferGuidePanel } from '@/features/transfers/components/TransferGuidePanel';
+import { TransferTimeline } from '@/features/transfers/components/TransferTimeline';
+import { TransferResolveDifferencesDialog } from '@/features/transfers/components/TransferResolveDifferencesDialog';
 
 export const Route = createFileRoute('/_authed/transfers/$transferId')({
   component: TransferDetailPage,
@@ -69,12 +71,14 @@ function TransferDetailPage() {
   const [prepareOpen, setPrepareOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [resolveOpen, setResolveOpen] = useState(false);
 
   const canPrepare = useCan('inventory_transfers.prepare');
   const canDispatch = useCan('inventory_transfers.dispatch');
   const canReceivePerm = useCan('inventory_transfers.receive');
   const canCancelPerm = useCan('inventory_transfers.cancel');
   const canAssignDriverPerm = useCan('inventory_transfers.assign_driver');
+  const canResolveDiff = useCan('inventory_transfers.resolve_differences');
 
   if (isLoading) {
     return (
@@ -108,6 +112,7 @@ function TransferDetailPage() {
   const canShowCancel = (transfer.status === 'requested' || transfer.status === 'prepared' || transfer.status === 'prepared_with_differences') && canCancelPerm;
   const canShowAssignDriver = !transfer.driver && (transfer.status === 'prepared' || transfer.status === 'dispatched') && canAssignDriverPerm;
   const canShowChecklist = isLogistic;
+  const canShowResolve = transfer.status === 'completed_with_differences' && canResolveDiff;
 
   return (
     <PageLayout
@@ -146,6 +151,11 @@ function TransferDetailPage() {
               Cancelar
             </Button>
           )}
+          {canShowResolve && (
+            <Button size="sm" variant="outline" leftIcon={<FileWarning className="size-4 text-warning" />} onClick={() => setResolveOpen(true)}>
+              Resolver diferencias
+            </Button>
+          )}
         </div>
       }
     >
@@ -153,6 +163,7 @@ function TransferDetailPage() {
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="items">Items</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           {canShowChecklist && <TabsTrigger value="checklist">Checklist</TabsTrigger>}
           <TabsTrigger value="guide">Guia</TabsTrigger>
         </TabsList>
@@ -163,6 +174,21 @@ function TransferDetailPage() {
 
         <TabsContent value="items" className="space-y-4">
           <ItemsTab transfer={transfer} />
+        </TabsContent>
+
+        <TabsContent value="timeline" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cronologia del traslado</CardTitle>
+              <CardDescription>
+                Eventos registrados en orden ascendente. Incluye solicitud, preparacion, despacho,
+                recepcion, resolucion de diferencias y cancelacion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TransferTimeline transferId={transfer.id} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {canShowChecklist && (
@@ -218,6 +244,14 @@ function TransferDetailPage() {
           open={cancelOpen}
           onOpenChange={setCancelOpen}
           onCancelled={() => navigate({ to: '/transfers' })}
+        />
+      )}
+
+      {resolveOpen && (
+        <TransferResolveDifferencesDialog
+          transfer={transfer}
+          onClose={() => setResolveOpen(false)}
+          onResolved={() => navigate({ to: '/transfers' })}
         />
       )}
     </PageLayout>

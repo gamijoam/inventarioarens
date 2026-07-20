@@ -22,6 +22,9 @@ Route::post('inventory-transfers/{inventoryTransfer}/checklist/{stage}/items/{it
 Route::get('inventory-transfers/{inventoryTransfer}/guide.pdf', [InventoryTransferGuideController::class, 'pdf']);
 Route::get('inventory-transfers/{inventoryTransfer}/guide.html', [InventoryTransferGuideController::class, 'html']);
 
+// FASE T2: timeline del traslado (eventos en orden cronologico).
+Route::get('inventory-transfers/{inventoryTransfer}/timeline', [InventoryTransferController::class, 'timeline']);
+
 Route::apiResource('inventory-transfers', InventoryTransferController::class)
     ->parameters(['inventory-transfers' => 'inventoryTransfer'])
     ->only(['index', 'store', 'show']);

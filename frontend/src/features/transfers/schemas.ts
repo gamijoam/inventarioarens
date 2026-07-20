@@ -199,6 +199,37 @@ export const ChecklistPayloadSchema = z.object({
 export type ChecklistPayload = z.infer<typeof ChecklistPayloadSchema>;
 
 // =====================================================================
+// Timeline (eventos cronologicos del traslado)
+// =====================================================================
+
+export const TimelineUserSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+});
+export type TimelineUser = z.infer<typeof TimelineUserSchema>;
+
+export const TIMELINE_STAGES = [
+  'created',
+  'prepared',
+  'dispatched',
+  'received',
+  'resolved',
+  'cancelled',
+] as const;
+export type TimelineStage = (typeof TIMELINE_STAGES)[number];
+
+export const TimelineEventSchema = z.object({
+  stage: z.enum(TIMELINE_STAGES),
+  at: z.string(),
+  by_user: TimelineUserSchema.nullable().optional(),
+  notes: z.string().nullable().optional(),
+  has_differences: z.boolean().optional(),
+  differences_count: z.number().int().optional(),
+  resolution_status: z.string().optional(),
+});
+export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
+
+// =====================================================================
 // Schemas de form
 // =====================================================================
 

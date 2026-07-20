@@ -4,6 +4,7 @@
  *   - GET    /api/inventory-transfers
  *   - POST   /api/inventory-transfers
  *   - GET    /api/inventory-transfers/{id}
+ *   - GET    /api/inventory-transfers/{id}/timeline
  *   - POST   /api/inventory-transfers/{id}/prepare
  *   - POST   /api/inventory-transfers/{id}/dispatch
  *   - POST   /api/inventory-transfers/{id}/receive
@@ -17,11 +18,13 @@
  *   - GET    /api/inventory-transfers/{id}/guide.html
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
 import { deleteOne, getMany, getOne, postOne, putOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   ChecklistPayloadSchema,
+  TimelineEventSchema,
   TransferDriverSchema,
   TransferSchema,
   type CancelTransferValues,
@@ -30,6 +33,7 @@ import {
   type StoreTransferValues,
   type AssignDriverValues,
   type CheckChecklistItemValues,
+  type TimelineEvent,
   type Transfer,
   type TransferDriver,
   type TransferListFilters,
@@ -41,6 +45,8 @@ export const transferKeys = {
   list: (filters: Record<string, unknown>) => [...transferKeys.lists(), filters] as const,
   details: () => [...transferKeys.all, 'detail'] as const,
   detail: (id: number) => [...transferKeys.details(), id] as const,
+  timelines: () => [...transferKeys.all, 'timeline'] as const,
+  timeline: (id: number) => [...transferKeys.timelines(), id] as const,
   checklists: () => [...transferKeys.all, 'checklist'] as const,
   checklist: (id: number, stage: string) => [...transferKeys.checklists(), id, stage] as const,
 };
@@ -55,18 +61,41 @@ function toQueryString(filters: Partial<TransferListFilters>): string {
   return q ? `?${q}` : '';
 }
 
+export const TransferListMetaSchema = z.object({
+  current_page: z.number().int().min(1),
+  last_page: z.number().int().min(1),
+  per_page: z.number().int().min(1),
+  total: z.number().int().min(0),
+  from: z.number().int().nullable().optional(),
+  to: z.number().int().nullable().optional(),
+});
+export type TransferListMeta = z.infer<typeof TransferListMetaSchema>;
+
 export function useTransfers(filters: Partial<TransferListFilters> = {}) {
   return useQuery({
     queryKey: transferKeys.list(filters as Record<string, unknown>),
-    queryFn: async () => {
-      const data = await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`);
-      const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
-      const parsed = (await import('zod')).z.array(TransferSchema).safeParse(arr);
+    queryFn: async (): Promise<{ data: Transfer[]; meta: TransferListMeta }> => {
+      const raw = (await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`)) as
+        | Transfer[]
+        | { data: Transfer[]; meta?: Partial<TransferListMeta>; links?: unknown };
+      if (Array.isArray(raw)) {
+        return { data: raw, meta: { current_page: 1, last_page: 1, per_page: raw.length, total: raw.length } };
+      }
+      const arr = raw.data ?? [];
+      const meta: TransferListMeta = {
+        current_page: raw.meta?.current_page ?? 1,
+        last_page: raw.meta?.last_page ?? 1,
+        per_page: raw.meta?.per_page ?? arr.length,
+        total: raw.meta?.total ?? arr.length,
+        from: raw.meta?.from ?? null,
+        to: raw.meta?.to ?? null,
+      };
+      const parsed = z.array(TransferSchema).safeParse(arr);
       if (!parsed.success) {
         console.warn('useTransfers: shape invalido', parsed.error.flatten());
-        return [];
+        return { data: [], meta };
       }
-      return parsed.data;
+      return { data: parsed.data, meta };
     },
     staleTime: 0,
     refetchOnMount: 'always',
@@ -80,6 +109,23 @@ export function useTransfer(id: number) {
     queryFn: async () => {
       const data = await getOne<{ data: unknown }>(`/inventory-transfers/${id}`);
       return TransferSchema.parse(data.data ?? data);
+    },
+    enabled: Number.isFinite(id) && id > 0,
+  });
+}
+
+export function useTransferTimeline(id: number) {
+  return useQuery({
+    queryKey: transferKeys.timeline(id),
+    queryFn: async () => {
+      const data = await getOne<{ data: unknown }>(`/inventory-transfers/${id}/timeline`);
+      const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] }).data ?? []);
+      const parsed = z.array(TimelineEventSchema).safeParse(arr);
+      if (!parsed.success) {
+        console.warn('useTransferTimeline: shape invalido', parsed.error.flatten());
+        return [];
+      }
+      return parsed.data as TimelineEvent[];
     },
     enabled: Number.isFinite(id) && id > 0,
   });
