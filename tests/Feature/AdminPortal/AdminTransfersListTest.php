@@ -200,7 +200,7 @@ class AdminTransfersListTest extends TestCase
 
         $t1 = $this->createTransferViaApi($user, $tenant, $from, $to, $product, 1);
         $t1->update([
-            'status' => InventoryTransfer::STATUS_IN_PREPARATION,
+            'status' => InventoryTransfer::STATUS_PREPARED,
             'processed_at' => '2026-07-08 09:00:00',
         ]);
 

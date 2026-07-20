@@ -726,3 +726,44 @@ export function useUpdateProductProfitMargin() {
     },
   });
 }
+
+// =====================================================================
+// Fase 1 - IMEI scanner: lista ProductUnits disponibles de un almacen
+// para el modulo de traslados. Usado por el dialog CreateTransfer cuando
+// el user quiere transferir serializados.
+// =====================================================================
+
+export const ProductUnitLookupSchema = z.object({
+  id: z.number().int().positive(),
+  product_id: z.number().int().positive(),
+  warehouse_id: z.number().int().positive(),
+  serial_type: z.string(),
+  serial_number: z.string(),
+  status: z.string(),
+});
+export type ProductUnitLookup = z.infer<typeof ProductUnitLookupSchema>;
+
+export function useAvailableProductUnits(
+  productId: number,
+  warehouseId: number | null,
+  search: string = '',
+  status: string = 'available',
+) {
+  return useQuery({
+    queryKey: ['available-product-units', productId, warehouseId, search, status],
+    queryFn: async (): Promise<ProductUnitLookup[]> => {
+      if (!productId || !warehouseId) return [];
+      const params = new URLSearchParams();
+      params.set('warehouse_id', String(warehouseId));
+      params.set('status', status);
+      if (search.trim()) params.set('search', search.trim());
+      const response = (await getOne<{ data: unknown[] }>(
+        `/inventory-centers/products/${productId}/units?${params.toString()}`,
+      )) as { data?: unknown[] };
+      const items = Array.isArray(response?.data) ? response.data : [];
+      return z.array(ProductUnitLookupSchema).parse(items);
+    },
+    enabled: Boolean(productId && warehouseId),
+    staleTime: 30_000,
+  });
+}

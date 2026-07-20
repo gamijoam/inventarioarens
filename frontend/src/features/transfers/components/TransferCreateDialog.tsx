@@ -18,6 +18,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
+import { ImeiScanner } from './ImeiScanner';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -41,10 +42,10 @@ interface TransferCreateDialogProps {
 }
 
 interface ItemRow {
-  product_id: number | null;
   product_name: string;
   product_sku: string;
   tracking_type: string;
+  product_id: number | null;
   quantity: number;
   serial_units: { serial_type: 'imei' | 'serial'; serial_number: string }[];
 }
@@ -376,32 +377,21 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                         <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
                           IMEIs / seriales ({row.serial_units.filter((s) => s.serial_number.trim()).length} / {Math.floor(row.quantity)})
                         </div>
-                        {Array.from({ length: Math.floor(row.quantity) }).map((_, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <select
-                              className="rounded border border-border-strong bg-surface px-2 py-1 text-xs"
-                              value={row.serial_units[i]?.serial_type ?? 'imei'}
-                              onChange={(e) => {
-                                const list = [...row.serial_units];
-                                list[i] = { serial_type: e.target.value as 'imei' | 'serial', serial_number: list[i]?.serial_number ?? '' };
-                                setRow(idx, { serial_units: list });
-                              }}
-                            >
-                              <option value="imei">IMEI</option>
-                              <option value="serial">Serial</option>
-                            </select>
-                            <Input
-                              value={row.serial_units[i]?.serial_number ?? ''}
-                              onChange={(e) => {
-                                const list = [...row.serial_units];
-                                list[i] = { serial_type: list[i]?.serial_type ?? 'imei', serial_number: e.target.value };
-                                setRow(idx, { serial_units: list });
-                              }}
-                              placeholder={`IMEI/Serial #${i + 1}`}
-                              className="flex-1 text-xs"
-                            />
-                          </div>
-                        ))}
+                        <ImeiScanner
+                          productId={row.product_id}
+                          warehouseId={fromWarehouseId}
+                          selected={row.serial_units.map((s) => s.serial_number).filter((s) => s.trim() !== '')}
+                          onChange={(sel) => {
+                            const expected = Math.floor(row.quantity);
+                            const type = row.serial_units[0]?.serial_type ?? 'imei';
+                            const next = sel.slice(0, expected).map((sn) => ({ serial_type: type, serial_number: sn }));
+                            const padded = [...next];
+                            while (padded.length < expected) padded.push({ serial_type: type, serial_number: '' });
+                            setRow(idx, { serial_units: padded });
+                          }}
+                          max={Math.floor(row.quantity)}
+                          dataTestIdPrefix={`create-row-${idx}-imei`}
+                        />
                         {fieldErrors[`items.${idx}.serial_units`] && (
                           <p className="text-xs text-danger">{fieldErrors[`items.${idx}.serial_units`]}</p>
                         )}
@@ -427,3 +417,5 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     </div>
   );
 }
+
+

@@ -13,7 +13,7 @@ import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { ImeiScanner } from './ImeiScanner';
 import { Label } from '@/components/ui/Label';
 import { useReceiveTransfer, useTransfer } from '@/features/transfers/api';
 import type { ReceiveTransferValues, Transfer } from '@/features/transfers/schemas';
@@ -161,72 +161,21 @@ export function TransferReceiveDialog({
 
                 {isSerialized ? (
                   <div className="mt-3 space-y-2">
-                    <div className="text-xs text-text-muted">
-                      IMEIs/seriales recibidos: <span className="font-mono">{r.receiving_serials.length}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={r.new_unit_type}
-                        onChange={(e) => updateRow(r.transfer_item_id, { new_unit_type: e.target.value as 'imei' | 'serial' })}
-                        className="w-28"
-                      >
-                        <option value="imei">IMEI</option>
-                        <option value="serial">Serial</option>
-                      </Select>
-                      <Input
-                        value={r.new_unit_serial}
-                        onChange={(e) => updateRow(r.transfer_item_id, { new_unit_serial: e.target.value })}
-                        placeholder="Escanear o escribir IMEI/serial..."
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const num = r.new_unit_serial.trim();
-                          if (!num) return;
-                          if (r.receiving_serials.some((s) => s.serial_number === num)) {
-                            toast.error('Ese IMEI/serial ya esta en la lista.');
-                            return;
-                          }
-                          updateRow(r.transfer_item_id, {
-                            receiving_serials: [
-                              ...r.receiving_serials,
-                              { serial_type: r.new_unit_type, serial_number: num },
-                            ],
-                            new_unit_serial: '',
-                          });
-                        }}
-                      >
-                        Agregar
-                      </Button>
-                    </div>
-                    {r.receiving_serials.length > 0 && (
-                      <ul className="mt-1 space-y-1 text-xs">
-                        {r.receiving_serials.map((s, idx) => (
-                          <li
-                            key={`${s.serial_number}-${idx}`}
-                            className="flex items-center justify-between rounded border border-border bg-bg/50 px-2 py-1"
-                          >
-                            <span className="font-mono">
-                              [{s.serial_type}] {s.serial_number}
-                            </span>
-                            <button
-                              type="button"
-                              className="text-danger hover:underline"
-                              onClick={() =>
-                                updateRow(r.transfer_item_id, {
-                                  receiving_serials: r.receiving_serials.filter((_, i) => i !== idx),
-                                })
-                              }
-                            >
-                              Quitar
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    <ImeiScanner
+                      productId={r.product_id}
+                      warehouseId={transfer.to_warehouse_id}
+                      selected={r.receiving_serials.map((s) => s.serial_number).filter((s) => s.trim() !== '')}
+                      onChange={(sel) => {
+                        const expected = r.receiving_quantity;
+                        const type = r.new_unit_type;
+                        const next = sel.slice(0, expected).map((sn) => ({ serial_type: type, serial_number: sn }));
+                        const padded = [...next];
+                        while (padded.length < expected) padded.push({ serial_type: type, serial_number: '' });
+                        updateRow(r.transfer_item_id, { receiving_serials: padded });
+                      }}
+                      max={r.receiving_quantity}
+                      dataTestIdPrefix={`receive-${r.transfer_item_id}-imei`}
+                    />
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">

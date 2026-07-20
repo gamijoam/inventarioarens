@@ -53,7 +53,6 @@ class InventoryTransfersSerialUnitsTest extends TestCase
      */
     public function test_serial_units_resolves_to_existing_product_units(): void
     {
-        $this->markTestSkipped('TODO Phase 1: investigar el cache de permissions en tests con DB::table');
         $tenant = Tenant::create(['name' => 'T1', 'slug' => 't1', 'is_group' => true]);
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
@@ -70,12 +69,15 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $role->givePermissionTo('inventory_transfers.create');
         $user->assignRole($role);
 
+        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
         $fromW = Warehouse::create([
+            'branch_id' => $branch->id,
             'name' => 'AO',
             'code' => 'AO',
             'status' => 'active',
         ]);
         $toW = Warehouse::create([
+            'branch_id' => $branch->id,
             'name' => 'AD',
             'code' => 'AD',
             'status' => 'active',
@@ -102,6 +104,16 @@ class InventoryTransfersSerialUnitsTest extends TestCase
                 'updated_at' => now(),
             ]);
         }
+
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $fromW->id,
+            'product_id' => $product->id,
+            'quantity_available' => 3,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+            'updated_at' => now(),
+        ]);
 
         $token = \Illuminate\Support\Str::random(80);
         DB::table('auth_tokens')->insert([
@@ -149,7 +161,6 @@ class InventoryTransfersSerialUnitsTest extends TestCase
      */
     public function test_serial_units_creates_new_product_units_when_missing(): void
     {
-        $this->markTestSkipped('TODO Phase 1: investigar el cache de permissions en tests con DB::table');
         $tenant = Tenant::create(['name' => 'T1', 'slug' => 't1', 'is_group' => true]);
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
@@ -166,8 +177,19 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $role->givePermissionTo('inventory_transfers.create');
         $user->assignRole($role);
 
-        $fromW = Warehouse::create(['name' => 'AO', 'code' => 'AO', 'status' => 'active']);
-        $toW = Warehouse::create(['name' => 'AD', 'code' => 'AD', 'status' => 'active']);
+        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
+        $fromW = Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'AO',
+            'code' => 'AO',
+            'status' => 'active',
+        ]);
+        $toW = Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'AD',
+            'code' => 'AD',
+            'status' => 'active',
+        ]);
         $product = Product::create([
             'name' => 'Celular Test',
             'sku' => 'IMEI-' . uniqid(),
@@ -192,6 +214,16 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         setPermissionsTeamId($tenant->id);
 
         $newSerials = ['990000862471854', '990000862471861'];
+
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $fromW->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+            'updated_at' => now(),
+        ]);
 
         $response = $this->withHeader('Authorization', 'Bearer ' . $token)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -219,7 +251,8 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         foreach ($newSerials as $sn) {
             $unit = ProductUnit::where('serial_number', $sn)->first();
             $this->assertNotNull($unit);
-            $this->assertSame(ProductUnit::STATUS_REMOVED, $unit->status);
+            $this->assertSame(ProductUnit::STATUS_AVAILABLE, $unit->status);
+            $this->assertSame((int) $toW->id, (int) $unit->warehouse_id);
         }
     }
 }

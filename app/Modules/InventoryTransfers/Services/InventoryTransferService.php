@@ -38,6 +38,20 @@ class InventoryTransferService
             $fromWarehouse = Warehouse::query()->findOrFail($data['from_warehouse_id']);
             $toWarehouse = Warehouse::query()->findOrFail($data['to_warehouse_id']);
 
+            // Pre-resolver serial_units -> product_unit_ids para que
+            // validateItems vea el array completo y no rechace por falta
+            // de unidades.
+            foreach ($data['items'] as $index => $item) {
+                if (! empty($item['serial_units'])) {
+                    $product = Product::query()->findOrFail($item['product_id']);
+                    $data['items'][$index]['product_unit_ids'] = $this->resolveSerialUnits(
+                        $item['serial_units'],
+                        $product,
+                        $fromWarehouse,
+                    );
+                }
+            }
+
             $this->validateItems($fromWarehouse, $data['items']);
 
             $sequence = $this->nextSequence();
@@ -72,6 +86,13 @@ class InventoryTransferService
                 $product = Product::query()->findOrFail($item['product_id']);
                 $quantity = (float) $item['quantity'];
 
+                // Resolver serial_units -> product_unit_ids (input nuevo de la UI).
+                $unitIds = $this->resolvePayloadSerialUnits(
+                    $item,
+                    $product,
+                    $fromWarehouse,
+                );
+
                 try {
                     [$outMovement, $inMovement] = $this->inventory->transfer(
                         fromWarehouse: $fromWarehouse,
@@ -91,8 +112,6 @@ class InventoryTransferService
 
                 $this->syncCatalog->stockMovementCreated($outMovement);
                 $this->syncCatalog->stockMovementCreated($inMovement);
-
-                $unitIds = $item['product_unit_ids'] ?? [];
 
                 InventoryTransferItem::create([
                     'inventory_transfer_id' => $transfer->id,
@@ -228,7 +247,13 @@ class InventoryTransferService
                 $item = $items->get((int) $payloadItem['inventory_transfer_item_id']);
                 $product = $item->product;
                 $requestedQuantity = (float) ($item->requested_quantity ?? $item->quantity);
-                $preparedUnitIds = $payloadItem['prepared_product_unit_ids'] ?? [];
+
+                // Resolver serial_units -> prepared_product_unit_ids (input nuevo de la UI).
+                $preparedUnitIds = $this->resolvePayloadSerialUnits(
+                    $payloadItem,
+                    $product,
+                    $transfer->fromWarehouse,
+                );
 
                 if ($product->requiresSerializedTracking()) {
                     $preparedQuantity = count($preparedUnitIds);
@@ -490,7 +515,13 @@ class InventoryTransferService
                 $item = $items->get((int) $payloadItem['inventory_transfer_item_id']);
                 $product = $item->product;
                 $expectedQuantity = (float) ($item->prepared_quantity ?? 0);
-                $receivedUnitIds = $payloadItem['received_product_unit_ids'] ?? [];
+
+                // Resolver serial_units -> received_product_unit_ids (input nuevo de la UI).
+                $receivedUnitIds = $this->resolvePayloadSerialUnits(
+                    $payloadItem,
+                    $product,
+                    $transfer->toWarehouse,
+                );
                 $receivedQuantity = (float) ($payloadItem['received_quantity'] ?? $expectedQuantity);
 
                 if ($product->requiresSerializedTracking()) {
@@ -1538,5 +1569,77 @@ class InventoryTransferService
         return ((int) InventoryTransfer::query()
             ->orderByDesc('sequence')
             ->value('sequence')) + 1;
+
+    }
+
+    /**
+     * Extrae los IMEIs/seriales del payload y los traduce a ProductUnit IDs.
+     * Si el payload trae `serial_units`, los resuelve con resolveSerialUnits.
+     * Si no, retorna el array `*_product_unit_ids` existente.
+     *
+     * @return array<int, int>
+     */
+    private function resolvePayloadSerialUnits(array $payloadItem, Product $product, Warehouse $warehouse): array
+    {
+        $serialUnits = $payloadItem['serial_units'] ?? null;
+
+        if (is_array($serialUnits) && $serialUnits !== []) {
+            return $this->resolveSerialUnits($serialUnits, $product, $warehouse);
+        }
+
+        $unitIds = $payloadItem['product_unit_ids']
+            ?? $payloadItem['prepared_product_unit_ids']
+            ?? $payloadItem['received_product_unit_ids']
+            ?? [];
+
+        return is_array($unitIds) ? array_map('intval', $unitIds) : [];
+    }
+
+    /**
+     * Resuelve una lista de IMEIs / seriales (forma {serial_type, serial_number}[])
+     * a ProductUnits existentes (o los crea AVAILABLE si no existen). Retorna
+     * los IDs en el mismo orden de entrada.
+     *
+     * @param array<int, array{serial_type: string, serial_number: string}> $serialUnits
+     * @return array<int, int>
+     */
+    private function resolveSerialUnits(array $serialUnits, Product $product, Warehouse $warehouse): array
+    {
+        $ids = [];
+        $seenNumbers = [];
+
+        foreach ($serialUnits as $su) {
+            $number = trim((string) ($su["serial_number"] ?? ""));
+            $type = trim((string) ($su["serial_type"] ?? "imei"));
+            if ($number === "") {
+                continue;
+            }
+            if (isset($seenNumbers[$number])) {
+                continue;
+            }
+            $seenNumbers[$number] = true;
+
+            // withoutGlobalScopes para evitar el scope BelongsToTenant en
+            // contextos sin TenantManager seteado.
+            $unit = ProductUnit::query()
+                ->withoutGlobalScopes()
+                ->where("product_id", $product->id)
+                ->where("warehouse_id", $warehouse->id)
+                ->where("serial_number", $number)
+                ->first();
+
+            if (! $unit) {
+                $unit = ProductUnit::create([
+                    "product_id" => $product->id,
+                    "warehouse_id" => $warehouse->id,
+                    "serial_type" => $type,
+                    "serial_number" => $number,
+                    "status" => ProductUnit::STATUS_AVAILABLE,
+                ]);
+            }
+            $ids[] = $unit->id;
+        }
+
+        return $ids;
     }
 }
