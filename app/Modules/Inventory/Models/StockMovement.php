@@ -34,6 +34,8 @@ class StockMovement extends Model
         'adjustment_out',
         'transfer_in',
         'transfer_out',
+        'transfer_request_in',
+        'transfer_request_out',
         'return_in',
         'return_out',
         'damaged',

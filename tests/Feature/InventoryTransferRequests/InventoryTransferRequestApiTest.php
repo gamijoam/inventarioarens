@@ -73,12 +73,12 @@ class InventoryTransferRequestApiTest extends TestCase
         $this->assertSame(4.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
         $this->assertDatabaseHas('stock_movements', [
             'tenant_id' => $originTenant->id,
-            'type' => 'adjustment_out',
+            'type' => 'transfer_request_out',
             'reference_type' => InventoryTransferRequest::class,
         ]);
         $this->assertDatabaseHas('stock_movements', [
             'tenant_id' => $destinationTenant->id,
-            'type' => 'purchase',
+            'type' => 'transfer_request_in',
             'reference_type' => InventoryTransferRequest::class,
         ]);
     }

@@ -143,6 +143,61 @@ class InventoryMovementService
         return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId);
     }
 
+    /**
+     * Salida de stock por aceptar una solicitud de transferencia inter-empresa
+     * (la empresa origen pierde stock que envia a su empresa hermana).
+     * Tipo dedicado 'transfer_request_out' para que el kardex distinga este
+     * caso de un adjustment_out normal.
+     */
+    public function transferRequestOut(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
+        return $this->decreaseAvailable(
+            'transfer_request_out',
+            $warehouse,
+            $product,
+            $quantity,
+            $createdBy,
+            $reason,
+            $referenceType,
+            $referenceId,
+        );
+    }
+
+    /**
+     * Entrada de stock por aceptar una solicitud de transferencia inter-empresa
+     * (la empresa destino recibe stock de su empresa hermana).
+     * Tipo dedicado 'transfer_request_in' para que el kardex distinga este
+     * caso de una compra normal.
+     */
+    public function transferRequestIn(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
+        return $this->increaseAvailable(
+            'transfer_request_in',
+            $warehouse,
+            $product,
+            $quantity,
+            null,
+            $createdBy,
+            $reason,
+            $referenceType,
+            $referenceId,
+        );
+    }
+
     public function reserve(
         Warehouse $warehouse,
         Product $product,

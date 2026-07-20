@@ -208,7 +208,9 @@ class InventoryTransferRequestService
 
         try {
             $tenantManager->set($originTenant);
-            $outMovement = $this->inventory->adjustmentOut(
+            // Tipo 'transfer_request_out' (no 'adjustment_out') para que el
+            // kardex distinga este caso de un ajuste de inventario normal.
+            $outMovement = $this->inventory->transferRequestOut(
                 warehouse: $originWarehouse,
                 product: $originProduct,
                 quantity: (float) $item->quantity,
@@ -221,11 +223,11 @@ class InventoryTransferRequestService
             $this->removeOriginUnits($item->product_unit_ids ?? [], $outMovement->id);
 
             $tenantManager->set($destinationTenant);
-            $inMovement = $this->inventory->purchase(
+            // Tipo 'transfer_request_in' (no 'purchase') por la misma razon.
+            $inMovement = $this->inventory->transferRequestIn(
                 warehouse: $destinationWarehouse,
                 product: $destinationProduct,
                 quantity: (float) $item->quantity,
-                unitCost: null,
                 createdBy: $user,
                 reason: "Entrada interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,

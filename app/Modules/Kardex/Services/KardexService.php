@@ -17,6 +17,7 @@ class KardexService
         'sale_return',
         'adjustment_in',
         'transfer_in',
+        'transfer_request_in',
         'return_in',
         'released',
     ];
@@ -26,6 +27,7 @@ class KardexService
         'sale',
         'adjustment_out',
         'transfer_out',
+        'transfer_request_out',
         'return_out',
         'damaged',
         'reserved',
