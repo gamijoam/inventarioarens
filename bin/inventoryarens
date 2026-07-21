@@ -760,16 +760,43 @@ def run_worker_action(cfg: Config, tenant_slug: str, action: str) -> int:
         raise RuntimeError(f"No existe {worker_cmd}")
     if action == "restart":
         stop_rc = run_worker_action(cfg, tenant_slug, "stop")
+        time.sleep(1)
         start_rc = run_worker_action(cfg, tenant_slug, "start")
         return start_rc if start_rc != 0 else stop_rc
     if action == "run-now":
         action = "start"
     cmd = ["cmd.exe", "/c", str(worker_cmd), action, "-TenantSlug", tenant_slug]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+    except subprocess.TimeoutExpired as exc:
+        output = ((exc.stdout or "") if isinstance(exc.stdout, str) else "") + ((exc.stderr or "") if isinstance(exc.stderr, str) else "")
+        if output.strip():
+            print(output.strip())
+        warn(f"La accion '{action}' tardo mas de 25s. Verifica estado con: inventoryarens worker status --tenant {tenant_slug}")
+        return 124
     output = (proc.stdout or "") + (proc.stderr or "")
     if output.strip():
         print(output.strip())
     return proc.returncode
+
+
+def is_windows_worker_active(cfg: Config, tenant_slug: str) -> Optional[bool]:
+    if cfg.os != "windows":
+        return None
+    worker_cmd = cfg.repo_dir / "scripts" / "sync-worker.cmd"
+    if not worker_cmd.exists():
+        return None
+    try:
+        proc = subprocess.run(
+            ["cmd.exe", "/c", str(worker_cmd), "status", "-TenantSlug", tenant_slug],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    output = (proc.stdout or "") + (proc.stderr or "")
+    return "ACTIVO" in output
 
 
 def apply_inbox(cfg: Config, tenant_slug: str, limit: int) -> int:
@@ -1865,12 +1892,23 @@ def cmd_doctor(args, cfg: Config) -> int:
             continue
 
         step(f"Reparacion segura ({tenant})")
-        rc = run_worker_action(cfg, tenant, "restart")
-        if rc == 0:
-            ok("Worker reiniciado.")
+        worker_active = is_windows_worker_active(cfg, tenant)
+        if worker_active is True:
+            ok("Worker activo; no se reinicia durante la reparacion.")
+        elif worker_active is False:
+            rc = run_worker_action(cfg, tenant, "start")
+            if rc == 0:
+                ok("Worker iniciado.")
+            else:
+                warn(f"No se pudo iniciar worker (rc={rc}).")
+                final_rc = 1
         else:
-            warn(f"No se pudo reiniciar worker (rc={rc}).")
-            final_rc = 1
+            rc = run_worker_action(cfg, tenant, "restart")
+            if rc == 0:
+                ok("Worker reiniciado.")
+            else:
+                warn(f"No se pudo reiniciar worker (rc={rc}).")
+                final_rc = 1
 
         if failed_count > 0:
             reset = reset_sync_inbox_events(cfg, tenant, event_type=args.event_type or "")
