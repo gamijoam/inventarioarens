@@ -50,7 +50,8 @@ import {
   useOpenPosOrders,
   useBootstrapRefsForPos,
   usePosBootstrap,
-  usePosProductsDebounced,
+    usePosProductsDebounced,
+  useSessionOrders,
 } from './api';
 import {
   calculateCartTotals,
@@ -232,6 +233,7 @@ export function PosTerminal() {
     () => sessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null,
     [sessions],
   );
+  const { data: recentPaidOrders = [] } = useSessionOrders(activeSession?.id ?? null, 'paid', 10);
   const activePrinterStation = useMemo(
     () =>
       printerStations.find((station) => station.is_active && activeSession?.cash_register_id && station.cash_register_id === activeSession.cash_register_id)
@@ -700,6 +702,8 @@ export function PosTerminal() {
             <ReceiptPanel
               order={lastReceipt}
               jobs={lastPrintJobs}
+              history={recentPaidOrders}
+              onSelectHistory={(order) => setLastReceipt(order)}
               canPrint={canPrint}
               canReprint={canReprint}
               canDigital={canDigital}
@@ -1715,8 +1719,13 @@ function ProductSearchPanel({
                   <p className="font-mono text-xs text-text-muted">{product.sku ?? product.barcode ?? 'Sin codigo'}</p>
                 </div>
                 <Badge variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'} className="text-[10px]">
-                  Stock {Number(product.available_stock ?? 0)}
+                  {Number(product.available_stock ?? 0) > 0
+                    ? `Stock ${Number(product.available_stock)}`
+                    : 'Sin stock'}
                 </Badge>
+                {Number(product.available_stock ?? 0) <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
+                  <p className="mt-1 text-[10px] text-warning">Stock bajo (min {product.min_stock})</p>
+                )}
               </div>
               <p className="mt-3 text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
               <p className="mt-1 text-xs text-text-muted">Se valida precio de lista al seleccionar</p>
@@ -1904,6 +1913,8 @@ function CashPanel(props: { session: CashRegisterSession; canMove: boolean; canC
 function ReceiptPanel({
   order,
   jobs,
+  history,
+  onSelectHistory,
   canPrint,
   canReprint,
   canDigital,
@@ -1913,6 +1924,8 @@ function ReceiptPanel({
 }: {
   order: PosOrder | null;
   jobs: PrintJob[];
+  history: PosOrder[];
+  onSelectHistory: (order: PosOrder) => void;
   canPrint: boolean;
   canReprint: boolean;
   canDigital: boolean;
@@ -1962,6 +1975,27 @@ function ReceiptPanel({
           </Button>
         )}
       </div>
+      {history.length > 1 && (
+        <div className="space-y-1 rounded border border-border p-2">
+          <p className="px-1 text-xs font-semibold uppercase text-text-muted">Recibos recientes</p>
+          {history
+            .filter((item) => item.id !== order.id)
+            .slice(0, 5)
+            .map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectHistory(item)}
+                className="flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-sm hover:bg-bg/40"
+                data-testid={`history-receipt-${item.id}`}
+              >
+                <span className="font-mono">#{item.id}</span>
+                <span className="truncate text-text-muted">{item.customer_name ?? 'Consumidor Final'}</span>
+                <span className="font-semibold">${(item.total_base_amount ?? 0).toFixed(2)}</span>
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

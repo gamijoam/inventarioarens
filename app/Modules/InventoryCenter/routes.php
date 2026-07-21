@@ -18,6 +18,7 @@ Route::prefix('inventory-center')->group(function (): void {
     Route::get('products/{product}/audits', [InventoryCenterController::class, 'productAudits']);
     Route::get('products/{product}/stock-by-warehouse', [InventoryCenterController::class, 'productStockByWarehouse']);
     Route::get('products/{product}/stock-status', [InventoryCenterController::class, 'productStockStatus']);
+    Route::get('products/{product}/stock-context', [InventoryCenterController::class, 'productStockContext']);
     Route::post('products/{product}/recalculate-price', [InventoryCenterController::class, 'recalculateProductPrice']);
     Route::patch('products/{product}/profit-margin', [InventoryCenterController::class, 'updateProductProfitMargin']);
 });

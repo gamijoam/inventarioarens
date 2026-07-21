@@ -110,6 +110,30 @@ class InventoryCenterController extends Controller
         ]);
     }
 
+    /**
+     * Contexto completo de stock para un producto en un warehouse
+     * especifico. Devuelve disponible, reservado, total en otros
+     * warehouses del tenant y en transito (transferencias incoming).
+     * Usado por el badge del carrito del POS para informar al cajero
+     * sin tener que abrir la pantalla de detalle del producto.
+     *
+     * Multi-tenancy: solo cuenta warehouses y transferencias del tenant
+     * activo. El warehouse principal se valida contra el tenant.
+     */
+    public function productStockContext(
+        Product $product,
+        Request $request,
+        InventoryCenterProductDetailService $service,
+    ): JsonResponse {
+        Gate::authorize('view', $product);
+
+        $warehouseId = (int) $request->query('warehouse_id', 0);
+
+        return response()->json([
+            'data' => $service->stockContext($product, $warehouseId),
+        ]);
+    }
+
     public function productStockStatus(Product $product, InventoryAlertService $alerts): JsonResponse
     {
         Gate::authorize('view', $product);

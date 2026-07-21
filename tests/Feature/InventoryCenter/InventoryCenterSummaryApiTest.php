@@ -1121,4 +1121,49 @@ class InventoryCenterSummaryApiTest extends TestCase
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
     }
+
+    public function test_product_stock_context_returns_breakdown_for_pos_badge(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa StockCtx', 'slug' => 'empresa-stock-ctx']);
+        $this->useTenant($tenant);
+        $user = $this->inventoryUser($tenant);
+
+        $branchA = Branch::create(['name' => 'Principal A', 'code' => 'BR-A']);
+        $branchB = Branch::create(['name' => 'Sucursal B', 'code' => 'BR-B']);
+        $warehouseA = Warehouse::create(['branch_id' => $branchA->id, 'name' => 'Almacen A', 'code' => 'WH-A']);
+        $warehouseB = Warehouse::create(['branch_id' => $branchB->id, 'name' => 'Almacen B', 'code' => 'WH-B']);
+        $warehouseC = Warehouse::create(['branch_id' => $branchB->id, 'name' => 'Almacen C', 'code' => 'WH-C']);
+        $product = Product::create([
+            'name' => 'Producto StockCtx',
+            'sku' => 'STK-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'unit_of_measure' => Product::UNIT_UNIT,
+            'base_price' => 10,
+            'is_active' => true,
+            'tenant_id' => $tenant->id,
+        ]);
+
+        StockBalance::query()->insert([
+            ['tenant_id' => $tenant->id, 'warehouse_id' => $warehouseA->id, 'product_id' => $product->id, 'quantity_available' => 3, 'quantity_reserved' => 1, 'quantity_damaged' => 0],
+            ['tenant_id' => $tenant->id, 'warehouse_id' => $warehouseB->id, 'product_id' => $product->id, 'quantity_available' => 5, 'quantity_reserved' => 0, 'quantity_damaged' => 0],
+            ['tenant_id' => $tenant->id, 'warehouse_id' => $warehouseC->id, 'product_id' => $product->id, 'quantity_available' => 2, 'quantity_reserved' => 0, 'quantity_damaged' => 0],
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/{$product->id}/stock-context?warehouse_id={$warehouseA->id}")
+            ->assertOk();
+
+        $body = $response->json('data');
+        $this->assertEquals(3, $body['available']);
+        $this->assertEquals(1, $body['reserved']);
+        $this->assertCount(2, $body['other_warehouses']);
+        $this->assertEquals(7, $body['total_other']);
+        $this->assertEquals(10, $body['total_all_warehouses']);
+
+        $otherByCode = collect($body['other_warehouses'])->keyBy('warehouse_code');
+        $this->assertEquals(5, $otherByCode['WH-B']['available']);
+        $this->assertEquals(2, $otherByCode['WH-C']['available']);
+    }
 }

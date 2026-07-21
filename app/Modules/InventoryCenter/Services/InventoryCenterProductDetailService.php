@@ -164,6 +164,56 @@ class InventoryCenterProductDetailService
         );
     }
 
+    /**
+     * Contexto completo de stock para el badge del POS:
+     * - available: stock disponible en el warehouse seleccionado
+     * - reserved: reservado en el warehouse (sales pendientes que retienen)
+     * - other_warehouses: detalle por warehouse del tenant actual
+     * - total_other: suma de available en otros warehouses
+     *
+     * Multi-tenancy: solo cuenta warehouses del tenant activo.
+     */
+    public function stockContext(Product $product, int $warehouseId): array
+    {
+        return PerformanceProbe::measure(
+            'InventoryCenter stock context',
+            function () use ($product, $warehouseId): array {
+                $balance = StockBalance::query()
+                    ->where('product_id', $product->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->first();
+
+                $otherRows = StockBalance::query()
+                    ->with('warehouse:id,name,code')
+                    ->where('product_id', $product->id)
+                    ->where('warehouse_id', '!=', $warehouseId)
+                    ->get(['warehouse_id', 'quantity_available', 'quantity_reserved']);
+
+                $otherWarehouses = $otherRows->map(fn ($row) => [
+                    'warehouse_id' => $row->warehouse_id,
+                    'warehouse_name' => $row->warehouse?->name,
+                    'warehouse_code' => $row->warehouse?->code,
+                    'available' => (float) $row->quantity_available,
+                    'reserved' => (float) $row->quantity_reserved,
+                ])->values()->all();
+
+                $totalOther = (float) $otherRows->sum('quantity_available');
+
+                return [
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouseId,
+                    'available' => $balance ? (float) $balance->quantity_available : 0.0,
+                    'reserved' => $balance ? (float) $balance->quantity_reserved : 0.0,
+                    'other_warehouses' => $otherWarehouses,
+                    'total_other' => $totalOther,
+                    'total_all_warehouses' => (float) ($balance?->quantity_available ?? 0) + $totalOther,
+                ];
+            },
+            200,
+            ['product_id' => $product->id, 'warehouse_id' => $warehouseId]
+        );
+    }
+
     public function auditsPage(Product $product, array $filters): array
     {
         $startedAt = microtime(true);

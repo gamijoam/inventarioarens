@@ -316,6 +316,33 @@ export function useOpenPosOrders() {
   });
 }
 
+/**
+ * Ordenes recientes de una sesion de caja (pagadas o en cualquier
+ * estado). Usado para mostrar el historial de recibos al cajero.
+ *
+ * Cachea 30s. Si el cajero hace un checkout, deberia invalidar la
+ * query con la misma queryKey (lo hace useCheckout via invalidateQueries
+ * de posKeys.orders).
+ */
+export function useSessionOrders(
+  sessionId: number | null,
+  status: 'paid' | 'open' | 'all' = 'paid',
+  perPage = 20,
+) {
+  return useQuery({
+    queryKey: posKeys.orders(`session-${status}-${sessionId ?? 0}`),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('per_page', String(perPage));
+      if (sessionId) params.set('cash_register_session_id', String(sessionId));
+      if (status !== 'all') params.set('status', status);
+      const response = await getPaginated<unknown>(`/pos/orders?${params.toString()}`);
+      return z.array(PosOrderSchema).parse(response.data);
+    },
+    enabled: Number.isFinite(sessionId) && Number(sessionId) > 0,
+  });
+}
+
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
@@ -619,7 +646,7 @@ export function useAvailableProductSerialsForPos(productId: number | null, wareh
  * de barras: la UI llama este endpoint con el serial leido y valida
  * inmediatamente si la unidad existe, pertenece al tenant activo, y
  * al warehouse seleccionado. Distingue entre "no existe" (404) y
- * "ya no esta disponible" (200 con status distinto a available).
+ * "ya no esta disponible" (200 + status distinto a available).
  *
  * Multi-tenancy estricto: el warehouse debe ser del tenant actual.
  */
@@ -651,6 +678,50 @@ export function lookupProductSerial(params: {
     },
     enabled: params.warehouseId > 0 && params.serial.length > 0,
     retry: false,
+  });
+}
+
+export const ProductStockContextSchema = z.object({
+  product_id: z.number().int(),
+  warehouse_id: z.number().int(),
+  available: z.number(),
+  reserved: z.number(),
+  other_warehouses: z.array(z.object({
+    warehouse_id: z.number().int(),
+    warehouse_name: z.string().nullable().optional(),
+    warehouse_code: z.string().nullable().optional(),
+    available: z.number(),
+    reserved: z.number(),
+  })),
+  total_other: z.number(),
+  total_all_warehouses: z.number(),
+});
+export type ProductStockContext = z.infer<typeof ProductStockContextSchema>;
+
+/**
+ * Contexto completo de stock para el badge del carrito del POS.
+ * - available: stock disponible en el warehouse seleccionado
+ * - reserved: reservado en el warehouse
+ * - other_warehouses: detalle por warehouse del tenant
+ * - total_other: suma de available en otros warehouses
+ *
+ * Se cachea 60s por warehouse+product. Si el cajero escanea o agrega
+ * varios productos, las requests en flight se dedupean.
+ */
+export function useProductStockContext(productId: number | null, warehouseId: number | null) {
+  return useQuery({
+    queryKey: [...posKeys.all, 'stock-context', productId, warehouseId] as const,
+    queryFn: async ({ signal }) => {
+      const params = new URLSearchParams();
+      if (warehouseId) params.set('warehouse_id', String(warehouseId));
+      const response = await getOne<{ data: ProductStockContext }>(
+        `/inventory-center/products/${productId}/stock-context?${params.toString()}`,
+        { signal },
+      );
+      return response.data;
+    },
+    enabled: Number.isFinite(productId) && Number(productId) > 0 && Number.isFinite(warehouseId) && Number(warehouseId) > 0,
+    staleTime: 60_000,
   });
 }
 
