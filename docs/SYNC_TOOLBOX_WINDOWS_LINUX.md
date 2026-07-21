@@ -202,7 +202,7 @@ Modo directo:
   --user owner.reportes@demo.test `
   --user-name "Owner Demo Reportes" `
   --cycles 8 `
-  --limit 300
+  --limit 100
 ```
 
 Modo sin preguntas:
@@ -215,7 +215,7 @@ Modo sin preguntas:
   --user-name "Owner Demo Reportes" `
   --password gabo1234 `
   --cycles 8 `
-  --limit 300 `
+  --limit 100 `
   --yes
 ```
 
@@ -347,7 +347,7 @@ Recuperar una empresa local desde nube:
   --user owner.reportes@demo.test \
   --user-name "Owner Demo Reportes" \
   --cycles 8 \
-  --limit 300
+  --limit 100
 ```
 
 Sin preguntas:
@@ -360,7 +360,7 @@ Sin preguntas:
   --user-name "Owner Demo Reportes" \
   --password gabo1234 \
   --cycles 8 \
-  --limit 300 \
+  --limit 100 \
   --yes
 ```
 

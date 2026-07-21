@@ -1345,7 +1345,9 @@ def cmd_recover_tenant(args, cfg: Config) -> int:
 
     step("[3/4] Descargando y aplicando eventos")
     cycles = max(1, args.cycles)
-    limit = max(1, args.limit)
+    limit = min(max(1, args.limit), 100)
+    if args.limit > 100:
+        warn("El API cloud acepta maximo limit=100; usare 100 para esta recuperacion.")
     for cycle in range(1, cycles + 1):
         info(f"Ronda {cycle}/{cycles}")
         proc = run_artisan(cfg, ["sync:run", tenant_slug, "--limit", str(limit)], capture=True, check=False)
@@ -1503,7 +1505,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr_tenant.add_argument("--user-name", default="", help="Nombre del usuario local inicial")
     pr_tenant.add_argument("--password", default="", help="Password local temporal del usuario inicial")
     pr_tenant.add_argument("--cycles", type=int, default=5, help="Rondas de sync/apply/images (default: 5)")
-    pr_tenant.add_argument("--limit", type=int, default=200, help="Eventos por ronda (default: 200)")
+    pr_tenant.add_argument("--limit", type=int, default=100, help="Eventos por ronda, maximo cloud 100 (default: 100)")
     pr_tenant.add_argument("--skip-migrate", action="store_true", help="No ejecutar php artisan migrate --force")
     pr_tenant.add_argument("--yes", action="store_true", help="No preguntar confirmacion interactiva")
     pr_tenant.set_defaults(func=cmd_recover_tenant)
