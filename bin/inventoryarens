@@ -40,6 +40,7 @@ import shutil
 import subprocess
 import sys
 import time
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -516,6 +517,11 @@ def choose_sync_tenant(cfg: Config, requested: str = "") -> tuple[str, dict]:
         if slug not in tenants:
             raise RuntimeError("El slug indicado no esta configurado.")
     return slug, tenants[slug] or {}
+
+
+def configured_tenants(cfg: Config) -> list[str]:
+    data = read_sync_worker_config(cfg)
+    return list((data.get("tenants") or {}).keys())
 
 
 def run_artisan(cfg: Config, args: list[str], env: Optional[dict] = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess:
@@ -1161,6 +1167,19 @@ def cmd_uninstall_printer(args, cfg: Config) -> int:
 
 
 def cmd_status(args, cfg: Config) -> int:
+    if getattr(args, "all", False):
+        tenants = configured_tenants(cfg)
+        if not tenants:
+            err("No hay tenants configurados en sync-config.json.")
+            return 1
+        final_rc = 0
+        for tenant in tenants:
+            step(f"Status tenant: {tenant}")
+            rc = cmd_status(argparse.Namespace(tenant=tenant, all=False), cfg)
+            if rc != 0:
+                final_rc = rc
+        return final_rc
+
     checks: list[tuple[str, str, str]] = []  # (label, status, detail)
     tenant_slug = resolve_status_tenant(args, cfg)
 
@@ -1578,6 +1597,24 @@ def cmd_update(args, cfg: Config) -> int:
 
 
 def cmd_worker(args, cfg: Config) -> int:
+    if getattr(args, "all", False):
+        tenants = configured_tenants(cfg)
+        if not tenants:
+            err("No hay tenants configurados en sync-config.json.")
+            return 1
+        final_rc = 0
+        for tenant in tenants:
+            rc = cmd_worker(argparse.Namespace(
+                action=args.action,
+                tenant=tenant,
+                event_type=getattr(args, "event_type", ""),
+                limit=getattr(args, "limit", 100),
+                all=False,
+            ), cfg)
+            if rc != 0:
+                final_rc = rc
+        return final_rc
+
     tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
     action = args.action
 
@@ -1604,6 +1641,28 @@ def cmd_worker(args, cfg: Config) -> int:
 
 
 def cmd_sync(args, cfg: Config) -> int:
+    if getattr(args, "all", False):
+        if args.action == "retry-inbox":
+            err("--all no aplica con retry-inbox porque el ID pertenece a un tenant especifico.")
+            return 1
+        tenants = configured_tenants(cfg)
+        if not tenants:
+            err("No hay tenants configurados en sync-config.json.")
+            return 1
+        final_rc = 0
+        for tenant in tenants:
+            rc = cmd_sync(argparse.Namespace(
+                action=args.action,
+                tenant=tenant,
+                limit=getattr(args, "limit", 100),
+                event_type=getattr(args, "event_type", ""),
+                id=getattr(args, "id", 0),
+                all=False,
+            ), cfg)
+            if rc != 0:
+                final_rc = rc
+        return final_rc
+
     tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
     limit = max(1, min(int(args.limit or 100), 100))
 
@@ -1638,6 +1697,27 @@ def cmd_sync(args, cfg: Config) -> int:
 
 
 def cmd_images(args, cfg: Config) -> int:
+    if getattr(args, "all", False):
+        if args.action == "emit":
+            err("--all no aplica con images emit porque requiere un SKU por tenant.")
+            return 1
+        tenants = configured_tenants(cfg)
+        if not tenants:
+            err("No hay tenants configurados en sync-config.json.")
+            return 1
+        final_rc = 0
+        for tenant in tenants:
+            rc = cmd_images(argparse.Namespace(
+                action=args.action,
+                tenant=tenant,
+                limit=getattr(args, "limit", 100),
+                product_sku=getattr(args, "product_sku", ""),
+                all=False,
+            ), cfg)
+            if rc != 0:
+                final_rc = rc
+        return final_rc
+
     tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
     limit = max(1, min(int(args.limit or 100), 100))
 
@@ -1683,6 +1763,140 @@ def cmd_images(args, cfg: Config) -> int:
     return 1
 
 
+def cmd_doctor(args, cfg: Config) -> int:
+    tenants = configured_tenants(cfg)
+    if getattr(args, "all", False):
+        targets = tenants
+    else:
+        target, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+        targets = [target]
+
+    if not targets:
+        err("No hay tenants configurados. Ejecuta primero inventoryarens wizard.")
+        return 1
+
+    final_rc = 0
+    for tenant in targets:
+        step(f"Doctor tecnico ({tenant})")
+        failed_count = get_failed_sync_inbox_count(cfg, tenant)
+        print(f"Inbox fallidos: {failed_count}")
+
+        worker_rc = run_worker_action(cfg, tenant, "status")
+        worker_ok = worker_rc == 0
+        if worker_ok:
+            ok("Worker consultado.")
+        else:
+            warn("No se pudo consultar el worker.")
+            final_rc = 1
+
+        if failed_count > 0:
+            warn("Hay eventos fallidos pendientes.")
+            final_rc = 1
+        else:
+            ok("No hay eventos fallidos.")
+
+        if not args.fix:
+            if failed_count > 0:
+                info(f"Para reparar: inventoryarens sync retry-failed --tenant {tenant}")
+            info(f"Para reiniciar worker: inventoryarens worker restart --tenant {tenant}")
+            continue
+
+        step(f"Reparacion segura ({tenant})")
+        rc = run_worker_action(cfg, tenant, "restart")
+        if rc == 0:
+            ok("Worker reiniciado.")
+        else:
+            warn(f"No se pudo reiniciar worker (rc={rc}).")
+            final_rc = 1
+
+        if failed_count > 0:
+            reset = reset_sync_inbox_events(cfg, tenant, event_type=args.event_type or "")
+            if reset.get("ok"):
+                ok(f"Eventos preparados: {reset.get('reset', 0)}")
+                rc = apply_inbox(cfg, tenant, args.limit)
+                if rc != 0:
+                    final_rc = rc
+            else:
+                err(f"No se pudieron preparar eventos: {reset.get('message')}")
+                final_rc = 1
+    return final_rc
+
+
+def redact_sync_config(data: dict) -> dict:
+    clone = json.loads(json.dumps(data))
+    for tenant in (clone.get("tenants") or {}).values():
+        token = str(tenant.get("token") or "")
+        if token:
+            tenant["token"] = f"{token[:8]}...redacted...len{len(token)}"
+    return clone
+
+
+def collect_support_text(cfg: Config, tenant_slug: str) -> str:
+    lines = [
+        f"Fecha: {datetime.now().isoformat(timespec='seconds')}",
+        f"OS: {cfg.os}",
+        f"Repo: {cfg.repo_dir}",
+        f"Tenant: {tenant_slug}",
+        f"PHP: {cfg.php_bin}",
+        f"DB: {get_database_name(cfg)}",
+        f"Inbox fallidos: {get_failed_sync_inbox_count(cfg, tenant_slug)}",
+        "",
+        "Resumen local:",
+    ]
+    summary = get_tenant_local_summary(cfg, tenant_slug)
+    lines.append(json.dumps(summary, indent=2, ensure_ascii=False))
+    return "\n".join(lines) + "\n"
+
+
+def cmd_support(args, cfg: Config) -> int:
+    tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+    requested_out_dir = Path(args.output) if args.output else (cfg.repo_dir / "storage" / "app" / "support-bundles")
+    fallback_out_dir = cfg.repo_dir / "storage" / "app" / "support-bundles"
+    try:
+        requested_out_dir.mkdir(parents=True, exist_ok=True)
+        probe = requested_out_dir / ".inventoryarens-write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        out_dir = requested_out_dir
+    except Exception as exc:
+        warn(f"No se puede escribir en {requested_out_dir}: {exc}")
+        fallback_out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = fallback_out_dir
+        info(f"Usando carpeta segura: {out_dir}")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    bundle_path = out_dir / f"support-{safe_tenant_slug(tenant_slug)}-{stamp}.zip"
+
+    step(f"Generando paquete de soporte ({tenant_slug})")
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("diagnostico.txt", collect_support_text(cfg, tenant_slug))
+        zf.writestr(
+            "sync-config.redacted.json",
+            json.dumps(redact_sync_config(read_sync_worker_config(cfg)), indent=2, ensure_ascii=False) + "\n",
+        )
+
+        log_candidates = []
+        if cfg.os == "windows":
+            log_candidates.extend([
+                cfg.repo_dir / "storage" / "logs" / f"sync-worker-{tenant_slug}.log",
+                cfg.repo_dir / "storage" / "logs" / "laravel.log",
+                Path(os.environ.get("APPDATA", "")) / "inventoryarens" / "printer.log",
+            ])
+        else:
+            safe_tenant = safe_tenant_slug(tenant_slug)
+            log_candidates.extend([
+                cfg.home / ".local/share/inventoryarens" / f"sync-{safe_tenant}.log",
+                cfg.home / ".local/share/inventoryarens" / "printer.log",
+                cfg.repo_dir / "storage" / "logs" / "laravel.log",
+            ])
+        for path in log_candidates:
+            if path.exists() and path.is_file():
+                zf.write(path, f"logs/{path.name}")
+
+    ok(f"Paquete generado: {bundle_path}")
+    info("No incluye tokens completos; sync-config va redactado.")
+    return 0
+
+
 def cmd_toolbox(args, cfg: Config) -> int:
     print()
     print(bold("INVENTARIOARENS Toolbox"))
@@ -1699,6 +1913,8 @@ def cmd_toolbox(args, cfg: Config) -> int:
         print("7. Imagenes: reintentar fallidas + descargar")
         print("8. Imagenes: emitir sync por SKU")
         print("9. Recuperar tenant desde nube")
+        print("10. Doctor tecnico")
+        print("11. Generar paquete de soporte")
         print("0. Salir")
         choice = prompt_value("Opcion", "1").strip()
 
@@ -1745,6 +1961,13 @@ def cmd_toolbox(args, cfg: Config) -> int:
                     skip_migrate=False,
                     yes=False,
                 ), cfg)
+            elif choice == "10":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                fix = prompt_yes_no("Intentar reparacion segura", False)
+                cmd_doctor(argparse.Namespace(tenant=tenant, all=False, fix=fix, event_type="", limit=100), cfg)
+            elif choice == "11":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_support(argparse.Namespace(tenant=tenant, output=""), cfg)
             else:
                 warn("Opcion no reconocida.")
         except KeyboardInterrupt:
@@ -1804,6 +2027,7 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     ps = sub.add_parser("status", help="Health check del sistema")
     ps.add_argument("--tenant", default="mi-empresa", help="Slug del tenant para revisar worker local")
+    ps.add_argument("--all", action="store_true", help="Revisar todos los tenants configurados en esta PC")
     ps.set_defaults(func=cmd_status)
 
     # wizard
@@ -1860,6 +2084,7 @@ def build_parser() -> argparse.ArgumentParser:
     pwk = sub.add_parser("worker", help="Control del worker de sincronizacion")
     pwk.add_argument("action", choices=["status", "start", "stop", "restart", "run-now", "refresh-and-retry"])
     pwk.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pwk.add_argument("--all", action="store_true", help="Ejecuta la accion en todos los tenants configurados")
     pwk.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo al usar refresh-and-retry")
     pwk.add_argument("--limit", type=int, default=100, help="Eventos a aplicar al reintentar (max 100)")
     pwk.set_defaults(func=cmd_worker)
@@ -1868,6 +2093,7 @@ def build_parser() -> argparse.ArgumentParser:
     psync = sub.add_parser("sync", help="Operaciones manuales de sincronizacion")
     psync.add_argument("action", choices=["run", "apply-inbox", "retry-failed", "retry-inbox"])
     psync.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    psync.add_argument("--all", action="store_true", help="Ejecuta la accion en todos los tenants configurados")
     psync.add_argument("--limit", type=int, default=100, help="Eventos por corrida (max 100)")
     psync.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo")
     psync.add_argument("--id", type=int, default=0, help="ID de sync_inbox para retry-inbox")
@@ -1877,9 +2103,27 @@ def build_parser() -> argparse.ArgumentParser:
     pimg = sub.add_parser("images", help="Herramientas de sincronizacion de imagenes")
     pimg.add_argument("action", choices=["download", "emit", "retry-failed"])
     pimg.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pimg.add_argument("--all", action="store_true", help="Ejecuta la accion en todos los tenants configurados")
     pimg.add_argument("--limit", type=int, default=100, help="Imagenes/eventos a procesar (max 100)")
     pimg.add_argument("--product-sku", default="", help="SKU del producto para images emit")
     pimg.set_defaults(func=cmd_images)
+
+    # doctor
+    pdoc = sub.add_parser("doctor", help="Diagnostico tecnico con reparacion segura opcional")
+    pdoc.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pdoc.add_argument("--all", action="store_true", help="Diagnosticar todos los tenants configurados")
+    pdoc.add_argument("--fix", action="store_true", help="Reinicia worker y reintenta eventos fallidos")
+    pdoc.add_argument("--event-type", default="", help="Filtra eventos fallidos al reparar")
+    pdoc.add_argument("--limit", type=int, default=100, help="Eventos a aplicar al reparar (max 100)")
+    pdoc.set_defaults(func=cmd_doctor)
+
+    # support
+    psup = sub.add_parser("support", help="Genera paquetes de soporte")
+    psup_sub = psup.add_subparsers(dest="subcommand", required=True)
+    psup_bundle = psup_sub.add_parser("bundle", help="Genera ZIP con diagnostico y logs sin tokens")
+    psup_bundle.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    psup_bundle.add_argument("--output", default="", help="Carpeta destino del ZIP")
+    psup_bundle.set_defaults(func=cmd_support)
 
     return p
 

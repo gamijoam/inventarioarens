@@ -229,6 +229,30 @@ powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 images emit --tena
 Los comandos de reintento no borran datos. Solo cambian eventos fallidos de `sync_inbox` a `received`,
 limpian el error anterior y ejecutan el aplicador normal.
 
+Para una revision mas automatica:
+
+```powershell
+# Diagnostica un tenant y sugiere acciones
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 doctor --tenant demo-caracas
+
+# Diagnostica y aplica reparaciones seguras: reinicia worker + reintenta inbox fallidos
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 doctor --tenant demo-caracas --fix
+
+# Revisar todos los tenants configurados en esta PC
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 status --all
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker restart --all
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 sync retry-failed --all
+```
+
+Cuando necesites enviar informacion para soporte sin revelar tokens:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 support bundle --tenant demo-caracas
+```
+
+El ZIP se crea en `storage/app/support-bundles/` e incluye diagnostico, logs locales y
+`sync-config.redacted.json` con tokens ocultos.
+
 ## Status - ejemplo de output
 
 ```

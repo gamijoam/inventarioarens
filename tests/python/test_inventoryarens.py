@@ -52,7 +52,7 @@ class TestCliBasics(unittest.TestCase):
         self.assertIn("update", result.stdout)
 
     def test_subcommand_help(self):
-        for sub in ["install", "uninstall", "logs", "token", "toolbox", "worker", "sync", "images"]:
+        for sub in ["install", "uninstall", "logs", "token", "toolbox", "worker", "sync", "images", "doctor", "support"]:
             with self.subTest(sub=sub):
                 result = run_cli(sub, "--help")
                 self.assertEqual(result.returncode, 0, msg=f"sub={sub}, stderr={result.stderr}")
@@ -97,6 +97,17 @@ class TestCliBasics(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("download", result.stdout)
         self.assertIn("emit", result.stdout)
+
+    def test_doctor_help(self):
+        result = run_cli("doctor", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--fix", result.stdout)
+        self.assertIn("--all", result.stdout)
+
+    def test_support_help(self):
+        result = run_cli("support", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("bundle", result.stdout)
 
 
 class TestCliErrors(unittest.TestCase):
