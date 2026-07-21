@@ -583,6 +583,61 @@ echo json_encode([
         return {"exists": False, "error": proc.stdout}
 
 
+def reset_failed_sync_inbox_for_recovery(cfg: Config, tenant_slug: str) -> int:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+$tenant = Illuminate\Support\Facades\DB::table('tenants')->where('slug', $argv[1] ?? '')->first();
+if (! $tenant) {
+    echo "0";
+    return;
+}
+$count = Illuminate\Support\Facades\DB::table('sync_inbox')
+    ->where('tenant_id', $tenant->id)
+    ->where('status', 'failed')
+    ->update([
+        'status' => 'received',
+        'last_error' => null,
+        'updated_at' => now(),
+    ]);
+echo (string) $count;
+"""
+    proc = php_bootstrap_eval(cfg, code, [tenant_slug])
+    if proc.returncode != 0:
+        return 0
+    try:
+        return int((proc.stdout or "0").strip())
+    except ValueError:
+        return 0
+
+
+def get_failed_sync_inbox_count(cfg: Config, tenant_slug: str) -> int:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+$tenant = Illuminate\Support\Facades\DB::table('tenants')->where('slug', $argv[1] ?? '')->first();
+if (! $tenant) {
+    echo "0";
+    return;
+}
+echo (string) Illuminate\Support\Facades\DB::table('sync_inbox')
+    ->where('tenant_id', $tenant->id)
+    ->where('status', 'failed')
+    ->count();
+"""
+    proc = php_bootstrap_eval(cfg, code, [tenant_slug])
+    if proc.returncode != 0:
+        return 0
+    try:
+        return int((proc.stdout or "0").strip())
+    except ValueError:
+        return 0
+
+
 # -----------------------------------------------------------------------------
 # OS-specific: Linux systemd
 # -----------------------------------------------------------------------------
@@ -1354,15 +1409,21 @@ def cmd_recover_tenant(args, cfg: Config) -> int:
         if proc.stdout.strip():
             print(proc.stdout.strip())
         if proc.returncode != 0:
-            err(proc.stderr or proc.stdout or "sync:run fallo")
-            return proc.returncode
+            output = (proc.stderr or proc.stdout or "").strip()
+            if "Sincronizacion ejecutada." not in output:
+                err(output or "sync:run fallo")
+                return proc.returncode
+            warn("La ronda sincronizo datos, pero algunos eventos quedaron para reintento por dependencias temporales.")
+
+        reset_count = reset_failed_sync_inbox_for_recovery(cfg, tenant_slug)
+        if reset_count:
+            info(f"Reintentando {reset_count} eventos fallidos despues de recibir mas dependencias.")
 
         proc = run_artisan(cfg, ["sync:apply-inbox", tenant_slug, "--limit", str(limit)], capture=True, check=False)
         if proc.stdout.strip():
             print(proc.stdout.strip())
         if proc.returncode != 0:
-            err(proc.stderr or proc.stdout or "sync:apply-inbox fallo")
-            return proc.returncode
+            warn((proc.stderr or proc.stdout or "sync:apply-inbox fallo").strip())
 
         proc = run_artisan(cfg, ["images:download", f"--tenant={tenant_slug}", "--limit", str(limit)], capture=True, check=False)
         if proc.stdout.strip():
@@ -1379,9 +1440,13 @@ def cmd_recover_tenant(args, cfg: Config) -> int:
     else:
         warn("No se pudo confirmar el tenant local despues de la recuperacion.")
 
+    failed_count = get_failed_sync_inbox_count(cfg, tenant_slug)
+    if failed_count:
+        warn(f"Quedaron {failed_count} eventos en inbox con fallo. Repite el recovery luego o revisa el log de sync.")
+
     ok("Recuperacion finalizada. Puedes repetir este comando si faltan eventos o imagenes.")
     info(f"Verifica el worker con: inventoryarens status --tenant {tenant_slug}")
-    return 0
+    return 1 if failed_count else 0
 
 
 def cmd_update(args, cfg: Config) -> int:
