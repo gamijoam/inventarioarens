@@ -188,4 +188,119 @@ class ProductUnitLookupApiTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_lookup_returns_unit_when_serial_matches(): void
+    {
+        [$tenant, $user, $token, $warehouse, $product] = $this->bootstrap();
+
+        $this->makeUnit($product->id, $warehouse->id, $tenant->id, '352099001761481');
+        $this->makeUnit($product->id, $warehouse->id, $tenant->id, '352099001761482');
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup?warehouse_id={$warehouse->id}&serial=352099001761481")
+            ->assertOk();
+
+        $body = $response->json('data');
+        $this->assertSame($product->id, $body['product_id']);
+        $this->assertSame('352099001761481', $body['serial_number']);
+        $this->assertSame('imei', $body['serial_type']);
+        $this->assertSame('available', $body['status']);
+    }
+
+    public function test_lookup_returns_404_when_serial_does_not_match(): void
+    {
+        [$tenant, $user, $token, $warehouse, $product] = $this->bootstrap();
+
+        $this->makeUnit($product->id, $warehouse->id, $tenant->id, '352099001761481');
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup?warehouse_id={$warehouse->id}&serial=NO-EXISTE")
+            ->assertStatus(404);
+    }
+
+    public function test_lookup_returns_unit_even_when_sold_or_removed_for_clarity(): void
+    {
+        [$tenant, $user, $token, $warehouse, $product] = $this->bootstrap();
+
+        $this->makeUnit($product->id, $warehouse->id, $tenant->id, 'IMEI-SOLD', 'sold');
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup?warehouse_id={$warehouse->id}&serial=IMEI-SOLD")
+            ->assertOk();
+
+        // Devolvemos la unidad aunque este sold para que el POS distinga
+        // "no existe" (404) vs "ya no esta disponible" (200 + status=sold).
+        $this->assertSame('sold', $response->json('data.status'));
+    }
+
+    public function test_lookup_rejects_other_tenant_warehouse_with_404(): void
+    {
+        [$tenant, $user, $token, $warehouse, $product] = $this->bootstrap();
+
+        $otherTenant = Tenant::create(['name' => 'T2', 'slug' => 't2', 'is_group' => true]);
+        app(TenantManager::class)->set($otherTenant);
+        setPermissionsTeamId($otherTenant->id);
+        $otherBranchId = DB::table('branches')->insertGetId([
+            'tenant_id' => $otherTenant->id,
+            'name' => 'BO',
+            'code' => 'BO-' . uniqid(),
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $otherWarehouseId = DB::table('warehouses')->insertGetId([
+            'tenant_id' => $otherTenant->id,
+            'branch_id' => $otherBranchId,
+            'name' => 'WO',
+            'code' => 'WO-' . uniqid(),
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        // Creamos un product en el otro tenant con su propio id.
+        $otherProduct = Product::create([
+            'name' => 'Otro Celular',
+            'sku' => 'OTRO-' . uniqid(),
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+            'unit_of_measure' => Product::UNIT_UNIT,
+            'is_active' => true,
+            'tenant_id' => $otherTenant->id,
+        ]);
+        DB::table('product_units')->insert([
+            'tenant_id' => $otherTenant->id,
+            'product_id' => $otherProduct->id,
+            'warehouse_id' => $otherWarehouseId,
+            'serial_type' => 'imei',
+            'serial_number' => 'IMEI-OTRO-TENANT',
+            'status' => 'available',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        // El lookup con warehouse de otro tenant debe dar 404 (multi-tenancy).
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup?warehouse_id={$otherWarehouseId}&serial=IMEI-OTRO-TENANT")
+            ->assertStatus(404);
+    }
+
+    public function test_lookup_validates_required_params(): void
+    {
+        [$tenant, $user, $token, $warehouse, $product] = $this->bootstrap();
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup")
+            ->assertStatus(422);
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-centers/products/units/lookup?warehouse_id={$warehouse->id}")
+            ->assertStatus(422);
+    }
 }

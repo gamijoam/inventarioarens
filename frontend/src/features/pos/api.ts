@@ -613,6 +613,47 @@ export function useAvailableProductSerialsForPos(productId: number | null, wareh
   });
 }
 
+/**
+ * Lookup exacto de un serial/IMEI en un almacen especifico.
+ * Usado por el scanner del POS cuando el cajero escanea un codigo
+ * de barras: la UI llama este endpoint con el serial leido y valida
+ * inmediatamente si la unidad existe, pertenece al tenant activo, y
+ * al warehouse seleccionado. Distingue entre "no existe" (404) y
+ * "ya no esta disponible" (200 con status distinto a available).
+ *
+ * Multi-tenancy estricto: el warehouse debe ser del tenant actual.
+ */
+export function lookupProductSerial(params: {
+  warehouseId: number;
+  serial: string;
+  serialType?: 'imei' | 'serial';
+}) {
+  return useQuery({
+    queryKey: [
+      ...posKeys.all,
+      'serial-lookup',
+      params.warehouseId,
+      params.serial,
+      params.serialType ?? 'imei',
+    ],
+    queryFn: async () => {
+      const query = new URLSearchParams({
+        warehouse_id: String(params.warehouseId),
+        serial: params.serial,
+      });
+      if (params.serialType) {
+        query.set('serial_type', params.serialType);
+      }
+      const response = await getOne<{ data: ProductSerial }>(
+        `/inventory-center/products/units/lookup?${query.toString()}`,
+      );
+      return response.data;
+    },
+    enabled: params.warehouseId > 0 && params.serial.length > 0,
+    retry: false,
+  });
+}
+
 export function useCreatePaymentMethod() {
   const qc = useQueryClient();
   return useMutation({

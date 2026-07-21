@@ -1676,4 +1676,112 @@ class PosCheckoutApiTest extends TestCase
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
     }
+
+    public function test_checkout_with_idempotency_key_returns_same_response_on_retry(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Idem', 'slug' => 'empresa-idem']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Idem', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+        $customer = $this->customer($tenant, 'Cliente Idem', Customer::DOCUMENT_V, '555');
+
+        $payload = [
+            'cash_register_session_id' => $session->id,
+            'customer_id' => $customer->id,
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 2,
+            ]],
+            'payments' => [[
+                'method' => PosPayment::METHOD_CASH,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 200,
+            ]],
+        ];
+        $idemKey = 'idem-test-' . uniqid();
+
+        $first = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $idemKey)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+        $firstOrderId = $first->json('data.id');
+
+        // Segundo POST con la misma key y mismo body: el middleware
+        // debe devolver la misma respuesta sin ejecutar el servicio.
+        $second = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $idemKey)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertCreated();
+        $this->assertSame($firstOrderId, $second->json('data.id'));
+
+        // Solo se creo una venta, no dos.
+        $this->assertSame(1, PosOrder::query()->where('cash_register_session_id', $session->id)->count());
+    }
+
+    public function test_checkout_with_same_idempotency_key_different_body_returns_409(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Idem2', 'slug' => 'empresa-idem-2']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 10,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Idem2', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $idemKey = 'idem-conflict-' . uniqid();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $idemKey)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 200,
+                ]],
+            ])
+            ->assertCreated();
+
+        // Misma key pero distinto body: 409.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $idemKey)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 3,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 300,
+                ]],
+            ])
+            ->assertStatus(409);
+    }
 }

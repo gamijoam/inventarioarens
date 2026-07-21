@@ -1,10 +1,13 @@
 <?php
 
-use Illuminate\Foundation\Application;
+use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\IdempotencyKey;
 use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
+use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
 use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
@@ -23,11 +26,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
-        $middleware->append(\App\Http\Middleware\AssignRequestId::class);
+        $middleware->append(AssignRequestId::class);
 
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
             'tenant' => ResolveTenant::class,
+            'idempotency' => IdempotencyKey::class,
         ]);
 
         // Excluir la cookie de auth del cifrado automatico de Laravel.
@@ -37,7 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // (no cookie), asi que este cambio no los afecta.
         // Ver docs/AUTH_COOKIE_API.md seccion "Cifrado de cookies".
         EncryptCookies::except([
-            \App\Modules\Auth\Services\CookieIssuer::COOKIE_NAME,
+            CookieIssuer::COOKIE_NAME,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

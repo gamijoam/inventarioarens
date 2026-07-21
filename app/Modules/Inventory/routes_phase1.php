@@ -12,4 +12,5 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('inventory-centers')->group(function (): void {
     Route::get('products/{product}/units', [ProductUnitLookupController::class, 'index'])
         ->whereNumber('product');
+    Route::get('products/units/lookup', [ProductUnitLookupController::class, 'lookup']);
 });

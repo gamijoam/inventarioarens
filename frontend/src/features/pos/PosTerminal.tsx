@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePosCartStore, type Panel } from './cartStore';
 import { Link } from '@tanstack/react-router';
 import {
   Banknote,
@@ -76,7 +77,6 @@ import {
   useUpdatePrintJobStatus,
 } from '@/features/printing/api';
 
-type Panel = 'pay' | 'hold' | 'customer' | 'cash' | 'receipt' | 'product-search' | 'credit' | 'serials' | null;
 type QuickCustomerForm = Omit<CreateCustomerPayload, 'is_active' | 'is_generic'>;
 
 const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
@@ -106,18 +106,52 @@ export function PosTerminal() {
   const canDigital = permissions.has(PERMISSIONS.PRINTING_DIGITAL);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const [query, setQuery] = useState('');
-  const [productSearch, setProductSearch] = useState('');
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
-  const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
+  // Estado POS (Zustand) ============================================
+  // Carrito, pagos, panel, query y seleccion de almacen/lista se
+  // almacenan en un store global con selectores atomicos para que
+  // editar una linea no re-renderice el header ni el buscador. Ver
+  // docs/SPRINT2_POS_2026-07-21.md (QW9) y cartStore.ts.
+  const cart = usePosCartStore((s) => s.lines);
+  const payments = usePosCartStore((s) => s.payments);
+  const panel = usePosCartStore((s) => s.panel);
+  const query = usePosCartStore((s) => s.query);
+  const productSearch = usePosCartStore((s) => s.productSearch);
+  const serialLineId = usePosCartStore((s) => s.serialLineId);
+  const warehouseId = usePosCartStore((s) => s.warehouseId);
+  const selectedPriceListId = usePosCartStore((s) => s.selectedPriceListId);
+  const selectedCustomer = usePosCartStore((s) => s.selectedCustomer);
+  const customerName = usePosCartStore((s) => s.customerName);
+  const customerSearch = usePosCartStore((s) => s.customerSearch);
+  const setQuery = usePosCartStore((s) => s.setQuery);
+  const setProductSearch = usePosCartStore((s) => s.setProductSearch);
+  const setPanel = usePosCartStore((s) => s.setPanel);
+  const setSerialLineId = usePosCartStore((s) => s.setSerialLineId);
+  const setWarehouseId = usePosCartStore((s) => s.setWarehouseId);
+  const setSelectedPriceListId = usePosCartStore((s) => s.setSelectedPriceListId);
+  const setSelectedCustomer = usePosCartStore((s) => s.setSelectedCustomer);
+  const setCustomerName = usePosCartStore((s) => s.setCustomerName);
+  const setCustomerSearch = usePosCartStore((s) => s.setCustomerSearch);
+  // Wrappers legacy: el codigo existente usa setCart/setPayments con
+  // updater functions o arrays directos. Mantenemos esa API delegando
+  // al store de Zustand para evitar reescribir cada llamada inline.
+  const setCart = (
+    updater: PosCartLine[] | ((current: PosCartLine[]) => PosCartLine[]),
+  ): void => {
+    usePosCartStore.setState((state) => ({
+      lines: typeof updater === 'function' ? updater(state.lines) : updater,
+    }));
+  };
+  const setPayments = (
+    updater: PosPaymentLine[] | ((current: PosPaymentLine[]) => PosPaymentLine[]),
+  ): void => {
+    usePosCartStore.setState((state) => ({
+      payments: typeof updater === 'function' ? updater(state.payments) : updater,
+    }));
+  };
+
+  // Estado local (formularios modales) ==============================
   const [priceListNotice, setPriceListNotice] = useState<string | null>(null);
   const [repricing, setRepricing] = useState(false);
-  const [cart, setCart] = useState<PosCartLine[]>([]);
-  const [payments, setPayments] = useState<PosPaymentLine[]>([]);
-  const [panel, setPanel] = useState<Panel>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [customerName, setCustomerName] = useState('Consumidor Final');
   const [quickCustomer, setQuickCustomer] = useState<QuickCustomerForm>({
     name: '',
     document_type: 'V',
@@ -129,7 +163,6 @@ export function PosTerminal() {
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
-  const [serialLineId, setSerialLineId] = useState<string | null>(null);
   const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
   const [openingLocalAmount, setOpeningLocalAmount] = useState('0');
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
