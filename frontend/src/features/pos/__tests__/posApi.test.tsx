@@ -41,7 +41,7 @@ describe('pos api', () => {
     mockApiGet.mockResolvedValue({
       data: {
         warehouses: [
-          { id: 1, tenant_id: 2, code: 'CCN-01', name: 'Almacen Caracas Norte', status: 'active', branch_name: 'Principal Caracas Norte', branch_code: 'CCN', tenant_name: 'Demo Caracas Norte', tenant_slug: 'demo-caracas-norte' },
+          { id: 1, branch_id: 1, code: 'CCN-01', name: 'Almacen Caracas Norte', status: 'active', branch_name: 'Principal Caracas Norte', branch_code: 'CCN' },
         ],
         branches: [],
         cash_registers: [],
@@ -63,18 +63,17 @@ describe('pos api', () => {
     expect(result.current.data?.warehouses[0]?.code).toBe('CCN-01');
   });
 
-  it('useBootstrapRefsForPos normaliza code/status/tenant_id y devuelve refs', async () => {
+  it('useBootstrapRefsForPos normaliza code/status y devuelve refs', async () => {
     mockApiGet.mockResolvedValue({
       data: {
         warehouses: [
-          { id: 10, tenant_id: 4, code: 'VLN-01', name: 'Almacen Valencia Norte', status: 'active', branch_name: null, branch_code: null, tenant_name: 'Demo Valencia Norte', tenant_slug: 'demo-valencia-norte' },
-          { id: 11, tenant_id: 4, code: null, name: 'Almacen sin codigo', status: 'inactive', branch_name: null, branch_code: null, tenant_name: null, tenant_slug: null },
+          { id: 10, branch_id: 1, code: 'VLN-01', name: 'Almacen Valencia Norte', status: 'active', branch_name: null, branch_code: null },
         ],
         branches: [
-          { id: 20, tenant_id: 4, code: 'VLN', name: 'Valencia Norte', tenant_name: 'Demo Valencia Norte', tenant_slug: 'demo-valencia-norte' },
+          { id: 20, code: 'VLN', name: 'Valencia Norte' },
         ],
         cash_registers: [
-          { id: 30, tenant_id: 4, branch_id: 20, code: 'CAJ-VLN', name: 'Caja Valencia Norte', tenant_name: 'Demo Valencia Norte', tenant_slug: 'demo-valencia-norte' },
+          { id: 30, branch_id: 20, code: 'CAJ-VLN', name: 'Caja Valencia Norte', branch_name: null },
         ],
         payment_methods: [],
         price_lists: [],
@@ -88,19 +87,11 @@ describe('pos api', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.refs?.warehouses).toHaveLength(2);
+    expect(result.current.refs?.warehouses).toHaveLength(1);
     expect(result.current.refs?.warehouses[0]).toMatchObject({
       id: 10,
-      tenant_id: 4,
       code: 'VLN-01',
       status: 'active',
-      tenant_name: 'Demo Valencia Norte',
-    });
-    expect(result.current.refs?.warehouses[1]).toMatchObject({
-      id: 11,
-      tenant_id: 4,
-      code: null,
-      status: 'inactive',
     });
     expect(result.current.refs?.branches).toHaveLength(1);
     expect(result.current.refs?.cash_registers).toHaveLength(1);

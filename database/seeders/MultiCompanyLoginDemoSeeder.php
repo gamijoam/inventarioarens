@@ -96,49 +96,8 @@ class MultiCompanyLoginDemoSeeder extends Seeder
             ]);
         });
 
-        $this->attachSaaSMasterToDemoSpinoffs();
-
         app(TenantManager::class)->clear();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-    }
-
-    /**
-     * Vincula al SaaS Master (gabo@gabo.com) a todos los spinoffs demo
-     * para que pueda operar el POS en cualquiera de las empresas demo sin
-     * tener que re-loguearse.
-     */
-    private function attachSaaSMasterToDemoSpinoffs(): void
-    {
-        $master = User::query()->where('email', 'gabo@gabo.com')->first();
-        if (! $master) {
-            return;
-        }
-
-        $spinoffs = Tenant::query()
-            ->where('parent_id', '!=', null)
-            ->where('status', 'active')
-            ->get();
-
-        foreach ($spinoffs as $spinoff) {
-            $existing = $master->tenants()->wherePivot('status', 'active')->pluck('tenants.id')->all();
-            if (in_array($spinoff->id, $existing, true)) {
-                continue;
-            }
-
-            $this->useTenant($spinoff);
-            $role = Role::findOrCreate('Administrador', 'web');
-            $role->syncPermissions(BasePermissions::PERMISSIONS);
-
-            if (! $master->hasRole($role->name)) {
-                $master->assignRole($role);
-            }
-
-            $master->tenants()->syncWithoutDetaching([
-                $spinoff->id => ['status' => 'active'],
-            ]);
-        }
-
-        app(TenantManager::class)->clear();
     }
 
     private function seedGroup(array $group): void
