@@ -135,15 +135,21 @@ class ProductImage extends Model
             return $relPath;
         }
 
-        // Si la imagen vive en un disk CDN/S3 remoto, delega al driver.
-        // En el VPS, el disk `public` se sirve via /storage/* (symlink + nginx alias).
-        $disk = config('filesystems.disks.product-images', null);
-        if ($disk && ($disk['driver'] ?? null) === 's3') {
+        // Delegar al disk: el sabe combinar su `url` config + la ruta relativa.
+        // Para el disk local `product-images`:
+        //   - root: storage_path('app/public/products')
+        //   - url:  app.url + /storage/products
+        //   - relPath: "products/4/2026/07/abc.webp"
+        //   - url() => app.url + /storage/products + / + relPath
+        // Esto evita errores cuando la URL base cambia o se mueve a S3.
+        try {
             return Storage::disk('product-images')->url($relPath);
+        } catch (\Throwable $e) {
+            // Fallback defensivo: construir manualmente. Igual a la logica anterior
+            // pero usando la url del disk en vez de hardcodear '/storage/products'.
+            $diskUrl = rtrim((string) config('filesystems.disks.product-images.url', ''), '/');
+
+            return $diskUrl.'/'.ltrim($relPath, '/');
         }
-
-        $base = rtrim((string) config('app.url', ''), '/');
-
-        return $base.'/storage/'.ltrim($relPath, '/');
     }
 }
