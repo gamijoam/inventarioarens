@@ -26,7 +26,7 @@ import re
 import sys
 import paramiko
 
-VPS_HOST = "217.216.80.158"
+VPS_HOST = "212.28.176.157"
 VPS_USER = "root"
 VPS_PASSWORD = "GaboMac12"
 LOCAL_CWD = r"C:\Users\gafit\Documents\INVENTARIOARENS"
