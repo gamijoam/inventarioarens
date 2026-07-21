@@ -1,0 +1,4 @@
+& 'C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe' artisan serve --host=127.0.0.1 --port=8000
+
+PNPM DEV
+.\scripts\thermal-printer-agent.cmd
