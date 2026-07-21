@@ -21,6 +21,12 @@ export interface PosCartLine {
   price_list_name?: string | null;
   price_issue?: string | null;
   tracking_type?: string | null;
+  /**
+   * Si `false`, el producto no exige stock ni genera movimiento de
+   * inventario en el checkout. Si es `undefined` o `true`, se valida
+   * stock y se descuenta del warehouse al confirmar la venta.
+   */
+  track_stock?: boolean;
   selected_serials?: Array<{
     id: number;
     serial_type?: string | null;
@@ -137,7 +143,12 @@ function lastCapturedPayment(payments: PosPaymentLine[]): PosPaymentLine | null 
 }
 
 export function hasStockIssue(lines: PosCartLine[]): boolean {
-  return lines.some((line) => line.quantity > line.available_stock);
+  // Productos con track_stock=false (servicios, suscripciones, conceptos
+  // facturables) no requieren stock disponible y no generan movimiento
+  // de inventario al confirmar la venta. Ver docs/SPRINT2_UX.md (QW10).
+  return lines.some(
+    (line) => line.track_stock !== false && line.quantity > line.available_stock,
+  );
 }
 
 export function hasPriceIssue(lines: PosCartLine[]): boolean {

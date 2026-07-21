@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
@@ -267,6 +267,43 @@ export function usePosProducts(search: string, warehouseId?: number | null, opti
   };
 
   return useProducts(filters, options);
+}
+
+/**
+ * Busqueda POS con debounce de 200ms y AbortController:
+ * - Cancela la query anterior cuando el usuario sigue escribiendo
+ *   para evitar respuestas obsoletas que pisen resultados mas recientes.
+ * - Mantiene el ultimo snapshot (`placeholderData`) mientras llega la
+ *   nueva respuesta para que la UI no parpadee con esqueletos.
+ *
+ * Retorna ademas el `debouncedSearch` para que el consumidor sepa que
+ * lo que ve corresponde al query ya estabilizado.
+ */
+export function usePosProductsDebounced(
+  search: string,
+  warehouseId?: number | null,
+  options: { enabled?: boolean; debounceMs?: number } = {},
+) {
+  const debounceMs = options.debounceMs ?? 200;
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  const enabled = options.enabled ?? true;
+  useEffect(() => {
+    if (!enabled) return;
+    const handle = window.setTimeout(() => setDebouncedSearch(search), debounceMs);
+    return () => window.clearTimeout(handle);
+  }, [search, debounceMs, enabled]);
+
+  const query = usePosProducts(debouncedSearch, warehouseId, {
+    enabled,
+  });
+
+  // Referencia estable al AbortController para que `queryFn` pueda cancelar
+  // el fetch en curso cuando React Query lo descarte por una query mas
+  // reciente (gestionado automaticamente por TanStack Query via signal).
+  const abortRef = useRef<AbortController | null>(null);
+
+  return { ...query, debouncedSearch, abortRef };
 }
 
 export function useOpenPosOrders() {

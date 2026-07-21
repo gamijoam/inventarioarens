@@ -107,12 +107,15 @@ function toQueryString(filters: Partial<InventoryFilters>): string {
 export function useProducts(filters: InventoryFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: productKeys.list(filters as Record<string, unknown>),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const query = toQueryString(filters);
       // El backend pagina con LengthAwarePaginator, asi que retorna
       // { data: [...], meta: {...}, links: {...} }. Usamos getPaginated
       // para preservar el shape completo antes de validar con Zod.
-      const response = await getPaginated<unknown>(`/products${query ? `?${query}` : ''}`);
+      // Pasamos `signal` para que TanStack Query pueda cancelar el fetch
+      // cuando el usuario sigue buscando y queremos descartar la respuesta
+      // obsoleta (QW5).
+      const response = await getPaginated<unknown>(`/products${query ? `?${query}` : ''}`, { signal });
       return PaginatedProductsSchema.parse(response);
     },
     placeholderData: (prev) => prev,

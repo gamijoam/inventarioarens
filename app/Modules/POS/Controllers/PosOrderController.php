@@ -3,6 +3,7 @@
 namespace App\Modules\POS\Controllers;
 
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Requests\AddPosOrderPaymentsRequest;
 use App\Modules\POS\Requests\StorePosCheckoutRequest;
@@ -10,9 +11,11 @@ use App\Modules\POS\Resources\PosOrderResource;
 use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 
 class PosOrderController extends Controller
@@ -54,8 +57,21 @@ class PosOrderController extends Controller
             ->latest('opened_at');
 
         $resourceClass = $summary ? PosOrderSummaryResource::class : PosOrderResource::class;
+        $paginator = $query->paginate($perPage);
 
-        return $resourceClass::collection($query->paginate($perPage));
+        $this->preloadSerialUnits($paginator->getCollection(), $request);
+
+        return $resourceClass::collection($paginator);
+    }
+
+    public function show(PosOrder $posOrder): PosOrderResource
+    {
+        Gate::authorize('view', $posOrder);
+
+        $posOrder->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments.paymentMethod']);
+        $this->preloadSerialUnits($posOrder->sale?->items ?? collect(), request());
+
+        return PosOrderResource::make($posOrder);
     }
 
     public function checkout(StorePosCheckoutRequest $request, PosCheckoutService $checkout): JsonResponse
@@ -73,16 +89,11 @@ class PosOrderController extends Controller
             creditDueDate: $request->validated('credit_due_date')
         );
 
+        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
+
         return PosOrderResource::make($order)
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
-    }
-
-    public function show(PosOrder $posOrder): PosOrderResource
-    {
-        Gate::authorize('view', $posOrder);
-
-        return PosOrderResource::make($posOrder->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']));
     }
 
     public function addPayments(AddPosOrderPaymentsRequest $request, PosOrder $posOrder, PosCheckoutService $checkout): PosOrderResource
@@ -94,6 +105,8 @@ class PosOrderController extends Controller
             cashier: $request->user(),
             payments: $request->validated('payments'),
         );
+
+        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
 
         return PosOrderResource::make($order);
     }
@@ -107,6 +120,52 @@ class PosOrderController extends Controller
             cashier: request()->user(),
         );
 
+        $this->preloadSerialUnits(collect([$order->load('sale.items')]), request());
+
         return PosOrderResource::make($order);
+    }
+
+    /**
+     * Pre-carga TODOS los product_units referenciados por los items de
+     * las ordenes que se van a serializar, en un solo whereIn, y los
+     * expone al SaleItemResource mediante el Request attributes. Asi evitamos
+     * N+1 cuando la bandeja de pendientes tiene varias ordenes con items
+     * serializados (QW6).
+     *
+     * El lookup vive en el Request (no en el Resource) para no contaminar
+     * estado entre requests en procesos de larga vida.
+     *
+     * @param  Collection<int, mixed>  $orders
+     */
+    private function preloadSerialUnits(Collection $orders, Request $request): void
+    {
+        $unitIds = $orders
+            ->flatMap(fn ($order) => $order->sale?->items ?? collect())
+            ->flatMap(fn ($item) => $item->product_unit_ids ?? [])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($unitIds === []) {
+            $request->attributes->set('serial_units_lookup', []);
+
+            return;
+        }
+
+        $lookup = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->get(['id', 'serial_type', 'serial_number', 'status'])
+            ->mapWithKeys(fn (ProductUnit $unit): array => [
+                $unit->id => [
+                    'id' => $unit->id,
+                    'serial_type' => $unit->serial_type,
+                    'serial_number' => $unit->serial_number,
+                    'status' => $unit->status,
+                ],
+            ])
+            ->all();
+
+        $request->attributes->set('serial_units_lookup', $lookup);
     }
 }

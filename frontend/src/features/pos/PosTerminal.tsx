@@ -49,7 +49,7 @@ import {
   useOpenPosOrders,
   useBootstrapRefsForPos,
   usePosBootstrap,
-  usePosProducts,
+  usePosProductsDebounced,
 } from './api';
 import {
   calculateCartTotals,
@@ -152,7 +152,7 @@ export function PosTerminal() {
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
   const shouldSearchProducts = activeProductSearch.trim().length >= 2;
-  const { data: productPage, isLoading: loadingProducts } = usePosProducts(activeProductSearch, warehouseId, {
+  const { data: productPage, isLoading: loadingProducts } = usePosProductsDebounced(activeProductSearch, warehouseId, {
     enabled: shouldSearchProducts,
   });
   const configuredPaymentMethods = useMemo(
@@ -846,6 +846,10 @@ export function PosTerminal() {
           price_list_name: quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
           price_issue: null,
           tracking_type: product.tracking_type,
+          // `track_stock` por defecto es true en el backend; si el producto
+          // es un servicio o concepto facturable, el listado lo trae en
+          // false y el POS no exige stock ni genera movimiento (QW10).
+          track_stock: product.track_stock !== false,
           selected_serials: [],
         },
       ];

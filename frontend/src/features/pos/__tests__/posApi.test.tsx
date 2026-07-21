@@ -17,7 +17,7 @@ vi.mock('@/api/client', () => ({
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useAvailableProductSerialsForPos, useBootstrapRefsForPos, useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosBootstrap, usePosProducts } from '../api';
+import { useAvailableProductSerialsForPos, useBootstrapRefsForPos, useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosBootstrap, usePosProducts, usePosProductsDebounced } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -95,6 +95,35 @@ describe('pos api', () => {
     });
     expect(result.current.refs?.branches).toHaveLength(1);
     expect(result.current.refs?.cash_registers).toHaveLength(1);
+  });
+
+  it('usePosProductsDebounced espera el debounce antes de disparar la query y agrupa cambios rapidos', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 },
+    });
+    mockGetPaginated.mockImplementation(fetchSpy);
+
+    const { rerender } = renderHook(
+      ({ term }: { term: string }) => usePosProductsDebounced(term, undefined, { debounceMs: 50 }),
+      { wrapper, initialProps: { term: 'ab' } },
+    );
+
+    // El primer fetch se dispara al montar (debouncedSearch=search).
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    // Cambios rapidos sucesivos NO disparan queries adicionales hasta que
+    // se estabilice el debounce.
+    rerender({ term: 'abc' });
+    rerender({ term: 'abcd' });
+    rerender({ term: 'abcde' });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Tras el debounce, una sola llamada adicional con el term estable.
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2), { timeout: 500 });
+    const lastCall = fetchSpy.mock.calls.at(-1)?.[0] as string;
+    expect(lastCall).toContain('search=abcde');
   });
 
   it('lee sucursales desde respuesta paginada', async () => {

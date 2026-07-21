@@ -14,6 +14,7 @@ use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -36,7 +37,7 @@ class ProductController extends Controller
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
 
         $query = Product::query()
-            ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags'])
+            ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'])
             ->withCount('units');
 
         // Suma de stock_balances.quantity_available. Usamos SIEMPRE el
@@ -109,7 +110,7 @@ class ProductController extends Controller
         // Esto previene que un cliente envie un tenant_id diferente en
         // el body o que el TenantManager::current() (que es global al
         // request) apunte a otro tenant por algun bug.
-        $tenantId = app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->require()->id;
         $data['tenant_id'] = $tenantId;
 
         $product = DB::transaction(function () use ($data, $categoryIds, $tagIds, $userId, $syncCatalog): Product {

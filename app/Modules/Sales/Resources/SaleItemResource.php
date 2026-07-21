@@ -37,7 +37,7 @@ class SaleItemResource extends JsonResource
             'exchange_rate' => $this->exchange_rate === null ? null : (float) $this->exchange_rate,
             'stock_movement_id' => $this->stock_movement_id,
             'product_unit_ids' => $this->product_unit_ids,
-            'serial_units' => $this->serialUnits(),
+            'serial_units' => $this->serialUnits($request),
             'warranty_policy_id' => $this->warranty_policy_id,
             'warranty_policy_name' => $this->warranty_policy_name,
             'warranty_duration_days' => $this->warranty_duration_days,
@@ -48,12 +48,28 @@ class SaleItemResource extends JsonResource
         ];
     }
 
-    private function serialUnits(): array
+    /**
+     * @return list<array{id:int,serial_type:string,serial_number:string,status:string}>
+     */
+    private function serialUnits(Request $request): array
     {
         $unitIds = $this->product_unit_ids ?? [];
 
         if ($unitIds === []) {
             return [];
+        }
+
+        $lookup = $request->attributes->get('serial_units_lookup');
+
+        if (is_array($lookup)) {
+            $result = [];
+            foreach ($unitIds as $unitId) {
+                if (isset($lookup[$unitId])) {
+                    $result[] = $lookup[$unitId];
+                }
+            }
+
+            return $result;
         }
 
         return ProductUnit::query()
