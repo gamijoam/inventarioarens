@@ -152,10 +152,27 @@ i Verifica con: inventoryarens status
 inventoryarens.bat install printer        # Windows
 ```
 
+Tambien puedes administrarlo desde el comando nuevo:
+
+```bash
+./inventoryarens printer status
+./inventoryarens printer test
+./inventoryarens printer restart
+./inventoryarens printer stop
+```
+
+En Windows usa el wrapper equivalente:
+
+```powershell
+inventoryarens.bat printer status
+inventoryarens.bat printer restart
+```
+
 Por default escucha en `127.0.0.1:17777`. Para cambiar de puerto:
 
 ```bash
 ./inventoryarens install printer --port 18777
+./inventoryarens printer install --port 18777
 ```
 
 ## 2.1 VPS cloud: worker global
@@ -329,6 +346,7 @@ rm ~/.inventoryarens/toolbox.lock
 |---|---|
 | `install sync` | Emite token, configura auto-start |
 | `install printer` | Configura auto-start del printer agent |
+| `printer status/test/restart/stop` | Administra el agente local de impresion |
 | `status` | Health check |
 | `logs sync` / `logs printer` | Tail de logs |
 | `uninstall sync` | Detiene + elimina auto-start |

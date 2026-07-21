@@ -52,7 +52,7 @@ class TestCliBasics(unittest.TestCase):
         self.assertIn("update", result.stdout)
 
     def test_subcommand_help(self):
-        for sub in ["install", "uninstall", "logs", "token", "toolbox", "worker", "sync", "images", "doctor", "support"]:
+        for sub in ["install", "uninstall", "logs", "token", "toolbox", "worker", "printer", "sync", "images", "doctor", "support"]:
             with self.subTest(sub=sub):
                 result = run_cli(sub, "--help")
                 self.assertEqual(result.returncode, 0, msg=f"sub={sub}, stderr={result.stderr}")
@@ -85,6 +85,13 @@ class TestCliBasics(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("restart", result.stdout)
         self.assertIn("refresh-and-retry", result.stdout)
+
+    def test_printer_help(self):
+        result = run_cli("printer", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("status", result.stdout)
+        self.assertIn("restart", result.stdout)
+        self.assertIn("test", result.stdout)
 
     def test_sync_help(self):
         result = run_cli("sync", "--help")

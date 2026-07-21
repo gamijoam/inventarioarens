@@ -455,6 +455,8 @@ Instalar o reparar el agente:
 
 ```powershell
 .\inventoryarens.ps1 install printer
+# o desde el comando unificado:
+.\inventoryarens.ps1 printer install
 ```
 
 Probar que esta vivo:
@@ -462,6 +464,8 @@ Probar que esta vivo:
 ```powershell
 curl http://127.0.0.1:17777/health
 .\inventoryarens.ps1 status --tenant demo-caracas
+.\inventoryarens.ps1 printer status
+.\inventoryarens.ps1 printer test
 ```
 
 Revisar la tarea:
@@ -474,13 +478,32 @@ Iniciarla manualmente:
 
 ```powershell
 schtasks /run /tn InventoryArensPrinter
+.\inventoryarens.ps1 printer start
+.\inventoryarens.ps1 printer restart
+.\inventoryarens.ps1 printer stop
 ```
 
 Desinstalarla:
 
 ```powershell
 .\inventoryarens.ps1 uninstall printer
+.\inventoryarens.ps1 printer uninstall
 ```
+
+Tambien puedes hacerlo desde el menu tecnico:
+
+```powershell
+.\inventoryarens.ps1 toolbox
+```
+
+Opciones de impresion disponibles en el menu:
+
+- `Impresion: estado`
+- `Impresion: instalar/reparar agente`
+- `Impresion: reiniciar agente`
+- `Impresion: detener agente`
+- `Impresion: probar agente`
+- `Impresion: logs`
 
 Notas importantes para Windows:
 
@@ -499,6 +522,7 @@ Instalar o reparar:
 
 ```bash
 ./inventoryarens install printer
+./inventoryarens printer install
 ```
 
 Probar:
@@ -506,6 +530,8 @@ Probar:
 ```bash
 curl http://127.0.0.1:17777/health
 ./inventoryarens status --tenant demo-caracas
+./inventoryarens printer status
+./inventoryarens printer test
 ```
 
 Estado systemd:
@@ -519,6 +545,16 @@ Desinstalar:
 
 ```bash
 ./inventoryarens uninstall printer
+./inventoryarens printer uninstall
+```
+
+Control manual:
+
+```bash
+./inventoryarens printer start
+./inventoryarens printer restart
+./inventoryarens printer stop
+./inventoryarens logs printer
 ```
 
 Si `systemctl --user` no arranca despues de reiniciar, habilita linger:

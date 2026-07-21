@@ -9,7 +9,7 @@ Wrapper cross-platform (Linux + Windows) que centraliza:
   - logs sync        tail de logs del worker
   - uninstall sync   detiene + elimina auto-start + limpia config
   - token rotate     re-emite token sin reinstalar
-  - install printer  stub (Fase 2)
+  - printer          instala/controla/verifica el agente local de impresion
   - update           git pull + restart (opcional)
 
 Diseno:
@@ -1065,6 +1065,98 @@ def windows_uninstall_printer(cfg: Config) -> None:
     ok("Task InventoryArensPrinter borrada")
 
 
+def printer_health(port: int = 17777) -> tuple[bool, str]:
+    """Consulta el health check del agente local sin depender de curl."""
+    import urllib.error
+    import urllib.request
+
+    url = f"http://127.0.0.1:{port}/health"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read(500).decode("utf-8", errors="replace")
+            if response.status == 200:
+                return True, body.strip() or "HTTP 200"
+            return False, f"HTTP {response.status}: {body.strip()}"
+    except urllib.error.HTTPError as exc:
+        body = exc.read(500).decode("utf-8", errors="replace")
+        return False, f"HTTP {exc.code}: {body.strip()}"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def windows_printer_status() -> dict:
+    task_exists = windows_task_exists("InventoryArensPrinter")
+    data = {"task": "existe" if task_exists else "no existe", "last_run": "desconocido", "status": "desconocido"}
+    if not task_exists:
+        return data
+
+    res = run_capture(["schtasks", "/query", "/tn", "InventoryArensPrinter", "/fo", "LIST", "/v", "/nh"])
+    output = (res.stdout or "") + "\n" + (res.stderr or "")
+    for line in output.splitlines():
+        normalized = line.strip()
+        if not normalized or ":" not in normalized:
+            continue
+        key, value = normalized.split(":", 1)
+        key_l = key.strip().lower()
+        value = value.strip()
+        if "status" in key_l or "estado" in key_l:
+            data["status"] = value
+        elif "last run time" in key_l or "ultima ejecucion" in key_l or "hora de la ultima ejecucion" in key_l:
+            data["last_run"] = value
+    return data
+
+
+def run_printer_action(cfg: Config, action: str, port: int = 17777) -> int:
+    """Controla el agente local de impresion en Windows o Linux."""
+    if action == "test":
+        alive, detail = printer_health(port)
+        if alive:
+            ok(f"Printer agent responde en 127.0.0.1:{port}: {detail}")
+            return 0
+        err(f"Printer agent no responde en 127.0.0.1:{port}: {detail}")
+        return 1
+
+    if action == "status":
+        alive, detail = printer_health(port)
+        if cfg.os == "linux":
+            active = run_silent(["systemctl", "--user", "is-active", "inventoryarens-printer.service"]) == 0
+            print(f"Servicio systemd: {'active' if active else 'inactive'}")
+            print(f"Health: {'ok' if alive else 'fail'} - {detail}")
+            return 0 if alive else 1
+
+        status = windows_printer_status()
+        print(f"Task Scheduler: {status['task']}")
+        print(f"Estado task: {status['status']}")
+        print(f"Ultima corrida: {status['last_run']}")
+        print(f"Health: {'ok' if alive else 'fail'} - {detail}")
+        return 0 if alive else 1
+
+    if action == "install":
+        return cmd_install_printer(argparse.Namespace(port=port), cfg)
+
+    if action == "uninstall":
+        return cmd_uninstall_printer(argparse.Namespace(), cfg)
+
+    if cfg.os == "linux":
+        if action == "start":
+            return run_silent(["systemctl", "--user", "start", "inventoryarens-printer.service"])
+        if action == "stop":
+            return run_silent(["systemctl", "--user", "stop", "inventoryarens-printer.service"])
+        if action == "restart":
+            return run_silent(["systemctl", "--user", "restart", "inventoryarens-printer.service"])
+        raise RuntimeError(f"Accion printer no soportada: {action}")
+
+    if action == "start":
+        return run_silent(["schtasks", "/run", "/tn", "InventoryArensPrinter"])
+    if action == "stop":
+        return run_silent(["schtasks", "/end", "/tn", "InventoryArensPrinter"])
+    if action == "restart":
+        run_printer_action(cfg, "stop", port)
+        time.sleep(1)
+        return run_printer_action(cfg, "start", port)
+    raise RuntimeError(f"Accion printer no soportada: {action}")
+
+
 def windows_status(cfg: Config, tenant_slug: str = "mi-empresa") -> dict:
     info_w = []
     safe_tenant = safe_tenant_slug(tenant_slug)
@@ -1244,6 +1336,34 @@ def cmd_uninstall_printer(args, cfg: Config) -> int:
     return 0
 
 
+def cmd_printer(args, cfg: Config) -> int:
+    action = args.action
+    port = args.port or 17777
+    titles = {
+        "install": "Printer agent: instalar/reparar",
+        "uninstall": "Printer agent: desinstalar",
+        "status": "Printer agent: estado",
+        "start": "Printer agent: iniciar",
+        "stop": "Printer agent: detener",
+        "restart": "Printer agent: reiniciar",
+        "test": "Printer agent: probar health check",
+    }
+    step(titles.get(action, f"Printer agent: {action}"))
+    rc = run_printer_action(cfg, action, port)
+    if action in ("start", "restart", "install") and rc == 0:
+        time.sleep(1)
+        alive, detail = printer_health(port)
+        if alive:
+            ok(f"Agente listo en 127.0.0.1:{port}")
+        else:
+            warn(f"La tarea/servicio se disparo, pero el health aun no responde: {detail}")
+    elif action == "stop" and rc == 0:
+        ok("Agente detenido.")
+    elif action not in ("status", "test", "install", "uninstall") and rc != 0:
+        err(f"La accion fallo con codigo {rc}.")
+    return rc
+
+
 def cmd_status(args, cfg: Config) -> int:
     if getattr(args, "all", False):
         tenants = configured_tenants(cfg)
@@ -1341,19 +1461,14 @@ def cmd_status(args, cfg: Config) -> int:
     # 5. Printer agent (health check en :17777)
     label = "Printer agent"
     try:
-        res = subprocess.run(
-            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-             "--max-time", "5", "http://127.0.0.1:17777/health"],
-            capture_output=True, text=True,
-        )
-        code = res.stdout.strip()
-        if code == "200":
+        alive, health_detail = printer_health(17777)
+        if alive:
             detail = "responde en :17777"
             if cfg.os == "windows":
                 detail += "; task InventoryArensPrinter existe" if windows_task_exists("InventoryArensPrinter") else "; task InventoryArensPrinter no existe"
             checks.append((label, "ok", detail))
         else:
-            detail = f"HTTP {code}"
+            detail = health_detail
             if cfg.os == "windows":
                 detail += "; task InventoryArensPrinter existe" if windows_task_exists("InventoryArensPrinter") else "; task InventoryArensPrinter no existe"
             checks.append((label, "fail", detail))
@@ -2016,6 +2131,12 @@ def cmd_toolbox(args, cfg: Config) -> int:
         print("9. Recuperar tenant desde nube")
         print("10. Doctor tecnico")
         print("11. Generar paquete de soporte")
+        print("12. Impresion: estado")
+        print("13. Impresion: instalar/reparar agente")
+        print("14. Impresion: reiniciar agente")
+        print("15. Impresion: detener agente")
+        print("16. Impresion: probar agente")
+        print("17. Impresion: logs")
         print("0. Salir")
         choice = prompt_value("Opcion", "1").strip()
 
@@ -2069,6 +2190,22 @@ def cmd_toolbox(args, cfg: Config) -> int:
             elif choice == "11":
                 tenant = prompt_value("Tenant", args.tenant or "")
                 cmd_support(argparse.Namespace(tenant=tenant, output=""), cfg)
+            elif choice == "12":
+                cmd_printer(argparse.Namespace(action="status", port=17777), cfg)
+            elif choice == "13":
+                port = int(prompt_value("Puerto del agente", "17777"))
+                cmd_printer(argparse.Namespace(action="install", port=port), cfg)
+            elif choice == "14":
+                port = int(prompt_value("Puerto del agente", "17777"))
+                cmd_printer(argparse.Namespace(action="restart", port=port), cfg)
+            elif choice == "15":
+                port = int(prompt_value("Puerto del agente", "17777"))
+                cmd_printer(argparse.Namespace(action="stop", port=port), cfg)
+            elif choice == "16":
+                port = int(prompt_value("Puerto del agente", "17777"))
+                cmd_printer(argparse.Namespace(action="test", port=port), cfg)
+            elif choice == "17":
+                cmd_logs(argparse.Namespace(target="printer", tenant="mi-empresa"), cfg)
             else:
                 warn("Opcion no reconocida.")
         except KeyboardInterrupt:
@@ -2189,6 +2326,12 @@ def build_parser() -> argparse.ArgumentParser:
     pwk.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo al usar refresh-and-retry")
     pwk.add_argument("--limit", type=int, default=100, help="Eventos a aplicar al reintentar (max 100)")
     pwk.set_defaults(func=cmd_worker)
+
+    # printer
+    ppr = sub.add_parser("printer", help="Control del agente local de impresion")
+    ppr.add_argument("action", choices=["status", "install", "uninstall", "start", "stop", "restart", "test"])
+    ppr.add_argument("--port", type=int, default=17777, help="Puerto del agente (default: 17777)")
+    ppr.set_defaults(func=cmd_printer)
 
     # sync
     psync = sub.add_parser("sync", help="Operaciones manuales de sincronizacion")

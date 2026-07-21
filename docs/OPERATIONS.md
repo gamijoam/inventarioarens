@@ -49,10 +49,13 @@ El intervalo recomendado para una PC local es `15` segundos. La tarea de Windows
 |---|---|
 | `wizard` | Asistente interactivo para agregar una empresa a esta PC |
 | `install sync` | Emite token + configura auto-start (Linux systemd / Windows Task Scheduler) |
-| `install printer` | (Fase 2, stub) Instala printer agent en :17777 |
+| `install printer` | Instala/repara el printer agent en :17777 |
+| `printer status` | Verifica tarea/servicio y health check del agente local |
+| `printer start/stop/restart` | Controla el agente local de impresion |
+| `printer test` | Prueba `http://127.0.0.1:17777/health` sin depender de curl |
 | `status --tenant <slug>` | Health check: DB, token, worker, last sync. Sale con codigo 0/1/2 segun estado. |
 | `logs sync --tenant <slug>` | Tail del log del worker de una empresa. Ctrl+C para salir. |
-| `logs printer` | (Fase 2) Tail del log del printer agent. |
+| `logs printer` | Tail del log del printer agent. |
 | `uninstall sync` | Detiene y elimina auto-start + limpia. |
 | `token rotate` | Re-emite token sin reinstalar servicios. Util si el token expira. |
 | `update` | `git pull` + `composer install` + `migrate` + reinicia worker. |

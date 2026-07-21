@@ -189,14 +189,23 @@ Cada PC que imprime o genera tickets digitales necesita el agente local:
 
 ```powershell
 .\bin\inventoryarens.ps1 install printer
-curl http://127.0.0.1:17777/health
+.\bin\inventoryarens.ps1 printer status
+.\bin\inventoryarens.ps1 printer test
 ```
 
 En Linux:
 
 ```bash
 ./bin/inventoryarens install printer
-curl http://127.0.0.1:17777/health
+./bin/inventoryarens printer status
+./bin/inventoryarens printer test
+```
+
+Para reiniciar o detener el agente:
+
+```powershell
+.\bin\inventoryarens.ps1 printer restart
+.\bin\inventoryarens.ps1 printer stop
 ```
 
 ## 8. Prueba minima final
