@@ -61,7 +61,9 @@ class ProductImageService
             ->where('sha256', $config['sha256'])
             ->first();
         if ($existing) {
-            return $existing;
+            $this->outbox->imageUploaded($existing->fresh(['variants']));
+
+            return $existing->fresh(['variants', 'product']);
         }
 
         // 3) Path layout: products/{tenant_id}/{yyyy}/{mm}/{uuid}.ext

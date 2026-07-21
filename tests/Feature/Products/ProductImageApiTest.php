@@ -84,6 +84,26 @@ class ProductImageApiTest extends TestCase
         $this->assertSame('first.jpg', $data[0]['original_name']);
     }
 
+    public function test_duplicate_upload_reemits_sync_outbox_without_creating_another_image(): void
+    {
+        [$tenant, $user] = $this->seedTenantWithOwner();
+        $product = $this->seedProduct($tenant);
+        Storage::fake('product-images');
+
+        $this->uploadOne($product, $user, $tenant->slug, $this->fakeJpegUpload(400, 400), 'first');
+        $this->assertSame(1, ProductImage::query()->where('product_id', $product->id)->count());
+
+        SyncOutbox::query()->where('event_type', 'product.image.uploaded')->delete();
+
+        $this->uploadOne($product, $user, $tenant->slug, $this->fakeJpegUpload(400, 400), 'second');
+
+        $this->assertSame(1, ProductImage::query()->where('product_id', $product->id)->count());
+        $this->assertDatabaseHas('sync_outbox', [
+            'event_type' => 'product.image.uploaded',
+            'aggregate_type' => 'product_image',
+        ]);
+    }
+
     public function test_set_primary_swaps_is_primary(): void
     {
         [$tenant, $user] = $this->seedTenantWithOwner();

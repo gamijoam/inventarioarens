@@ -70,7 +70,9 @@ php artisan db:seed --class=DemoDataSeeder --force
 php artisan serve
 ```
 
-Más detalle en [`BUILD.md`](./BUILD.md).
+Más detalle en [`BUILD.md`](./BUILD.md). Antes de instalar en una PC nueva, revisa
+[`docs/COSAS_POR_INSTALAR_PRIMERA_VEZ.md`](./docs/COSAS_POR_INSTALAR_PRIMERA_VEZ.md),
+especialmente la extensión PHP `gd` para imágenes de productos.
 
 ---
 
@@ -123,6 +125,7 @@ Hay un set explícito de tests cross-tenant. Ver sección "Tests cross-tenant" e
 
 - [`AGENTS.md`](./AGENTS.md) — contexto persistente para opencode (este archivo).
 - [`BUILD.md`](./BUILD.md) — setup local, deploy, CI, troubleshooting.
+- [`docs/COSAS_POR_INSTALAR_PRIMERA_VEZ.md`](./docs/COSAS_POR_INSTALAR_PRIMERA_VEZ.md) — checklist de extensiones, sync, frontend e impresión para preparar una PC o VPS.
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — fuente de verdad arquitectural.
 - [`docs/MODULES.md`](./docs/MODULES.md) — mapa de los 34 módulos backend.
 - [`docs/API.md`](./docs/API.md) — referencia completa de endpoints por módulo.

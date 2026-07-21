@@ -13,6 +13,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use RuntimeException;
 
 class ProductImageController extends Controller
 {
@@ -39,12 +40,21 @@ class ProductImageController extends Controller
     {
         $this->authorize('update', $product);
 
-        $image = $this->service->upload(
-            product: $product,
-            file: $request->file('image'),
-            alt: $request->input('alt'),
-            uploadedBy: $request->user(),
-        );
+        try {
+            $image = $this->service->upload(
+                product: $product,
+                file: $request->file('image'),
+                alt: $request->input('alt'),
+                uploadedBy: $request->user(),
+            );
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => [
+                    'image' => [$e->getMessage()],
+                ],
+            ], 422);
+        }
 
         return response()->json([
             'data' => (new ProductImageResource($image->fresh(['variants'])))->resolve(),

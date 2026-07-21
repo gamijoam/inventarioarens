@@ -1,21 +1,21 @@
 [Unit]
-Description=INVENTARIOARENS sync worker (apply inbox + push)
+Description=INVENTARIOARENS sync worker local (mi-empresa)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-# Ajusta el path a tu instalacion del repo. Default: /opt/inventarioarens-cloud
+# Ajusta el path a tu instalacion del repo local.
 WorkingDirectory=/opt/inventarioarens-cloud
 # PHP y artisan. Si PHP no esta en PATH, usa /usr/bin/php.
-ExecStart=/usr/bin/php artisan sync:apply-all-inboxes --limit=200
+ExecStart=/usr/bin/php artisan sync:run mi-empresa --limit=50
 # Como es oneshot, no queda corriendo. El timer es el que lo invoca.
-StandardOutput=append:/var/log/inventoryarens-sync.log
-StandardError=append:/var/log/inventoryarens-sync.log
+StandardOutput=append:%h/.local/share/inventoryarens/sync-mi-empresa.log
+StandardError=append:%h/.local/share/inventoryarens/sync-mi-empresa.log
 # Si falla, registra para debugging.
 RemainAfterExit=false
 
-# Scheduling: solo el timer lo dispara. No auto-arranca en boot.
+# Scheduling: solo el timer lo dispara. No auto-arranca directo en boot.
 # Si quieres que arranque al boot ademas del timer:
 #   systemctl --user enable inventoryarens-sync.service
 # (sin --now, asi no arranca inmediatamente, solo lo habilita para auto-start)

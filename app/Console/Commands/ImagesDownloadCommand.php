@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Sync\Services\SyncDownloadService;
 use App\Modules\Tenancy\Models\Tenant;
-use App\Modules\Tenancy\TenantManager;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Console\Command;
 
 /**

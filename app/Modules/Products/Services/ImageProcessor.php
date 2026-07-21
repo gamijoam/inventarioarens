@@ -46,7 +46,7 @@ class ImageProcessor
         $this->guardInput($file);
 
         $sha256 = hash_file('sha256', $file->getPathname());
-        $imageInfo = @getimagesize($file->getPathname());
+        $imageInfo = @\getimagesize($file->getPathname());
         if ($imageInfo === false) {
             throw new RuntimeException('El archivo no es una imagen valida.');
         }
@@ -128,7 +128,7 @@ class ImageProcessor
                 }
 
                 $size = filesize($path) ?: 0;
-                [$w, $h] = getimagesize($path) ?: [0, 0];
+                [$w, $h] = \getimagesize($path) ?: [0, 0];
 
                 $written[$key] = [
                     'path' => $path,
@@ -159,7 +159,7 @@ class ImageProcessor
         if ($file->getSize() > self::MAX_INPUT_SIZE) {
             throw new RuntimeException('La imagen excede el tamano maximo de 5 MB.');
         }
-        $imageInfo = @getimagesize($file->getPathname());
+        $imageInfo = @\getimagesize($file->getPathname());
         if ($imageInfo === false) {
             throw new RuntimeException('El archivo no es una imagen valida.');
         }
@@ -176,26 +176,30 @@ class ImageProcessor
      */
     public function preferredGdFormat(): array
     {
-        $webpInfo = @imagetypes() & IMG_WEBP;
-        if ($webpInfo) {
-            return ['gd_constant' => IMAGETYPE_WEBP, 'mime' => 'image/webp', 'ext' => 'webp'];
+        if (! \function_exists('imagetypes')) {
+            throw new RuntimeException('La extension PHP GD no esta habilitada. Activa GD para procesar imagenes de productos.');
         }
 
-        return ['gd_constant' => IMAGETYPE_JPEG, 'mime' => 'image/jpeg', 'ext' => 'jpg'];
+        $webpInfo = @\imagetypes() & \IMG_WEBP;
+        if ($webpInfo) {
+            return ['gd_constant' => \IMAGETYPE_WEBP, 'mime' => 'image/webp', 'ext' => 'webp'];
+        }
+
+        return ['gd_constant' => \IMAGETYPE_JPEG, 'mime' => 'image/jpeg', 'ext' => 'jpg'];
     }
 
     private function extFor(int $gdConstant): string
     {
-        return $gdConstant === IMAGETYPE_WEBP ? 'webp' : 'jpg';
+        return $gdConstant === \IMAGETYPE_WEBP ? 'webp' : 'jpg';
     }
 
     private function loadGd(UploadedFile $file, string $mime)
     {
         $path = $file->getPathname();
         return match ($mime) {
-            'image/jpeg' => @imagecreatefromjpeg($path),
-            'image/png' => @imagecreatefrompng($path),
-            'image/webp' => @imagecreatefromwebp($path),
+            'image/jpeg' => @\imagecreatefromjpeg($path),
+            'image/png' => @\imagecreatefrompng($path),
+            'image/webp' => @\imagecreatefromwebp($path),
             default => null,
         };
     }
@@ -205,11 +209,11 @@ class ImageProcessor
      */
     private function writeGd($gdImage, string $destPath, int $gdFormat, int $quality): bool
     {
-        if ($gdFormat === IMAGETYPE_WEBP && function_exists('imagewebp')) {
-            return imagewebp($gdImage, $destPath, $quality);
+        if ($gdFormat === \IMAGETYPE_WEBP && \function_exists('imagewebp')) {
+            return \imagewebp($gdImage, $destPath, $quality);
         }
 
-        return imagejpeg($gdImage, $destPath, $quality);
+        return \imagejpeg($gdImage, $destPath, $quality);
     }
 
     /**
@@ -221,24 +225,24 @@ class ImageProcessor
      */
     private function resizeCover($source, int $targetW, int $targetH)
     {
-        $srcW = imagesx($source);
-        $srcH = imagesy($source);
+        $srcW = \imagesx($source);
+        $srcH = \imagesy($source);
 
         $scale = max($targetW / $srcW, $targetH / $srcH);
         $resizedW = (int) ceil($srcW * $scale);
         $resizedH = (int) ceil($srcH * $scale);
 
-        $resized = imagecreatetruecolor($resizedW, $resizedH);
+        $resized = \imagecreatetruecolor($resizedW, $resizedH);
         if ($resized === false) {
             return false;
         }
 
-        imagecopyresampled($resized, $source, 0, 0, 0, 0, $resizedW, $resizedH, $srcW, $srcH);
+        \imagecopyresampled($resized, $source, 0, 0, 0, 0, $resizedW, $resizedH, $srcW, $srcH);
 
         $cropX = (int) (($resizedW - $targetW) / 2);
         $cropY = (int) (($resizedH - $targetH) / 2);
 
-        $cropped = imagecrop($resized, [
+        $cropped = \imagecrop($resized, [
             'x' => $cropX,
             'y' => $cropY,
             'width' => $targetW,

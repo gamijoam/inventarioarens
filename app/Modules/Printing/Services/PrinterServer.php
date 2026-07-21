@@ -202,7 +202,13 @@ class PrinterServer
         $jobId = (string) ($payload['job_id'] ?? uniqid('job_', true));
 
         if ($output === 'digital') {
-            return $this->saveDigital($ticket, $station, $jobId, (bool) ($payload['copy'] ?? false));
+            return $this->saveDigital(
+                $ticket,
+                $station,
+                $jobId,
+                (bool) ($payload['copy'] ?? false),
+                $payload['pdf_base64'] ?? null
+            );
         }
         if ($output === 'thermal') {
             return $this->printThermal($ticket, $station, $jobId);
@@ -211,9 +217,12 @@ class PrinterServer
         return ['ok' => false, 'message' => "output invalido: {$output}"];
     }
 
-    private function saveDigital(array $ticket, array $station, string $jobId, bool $copy): array
+    private function saveDigital(array $ticket, array $station, string $jobId, bool $copy, ?string $pdfBase64 = null): array
     {
         $baseDir = $this->resolveDigitalDir($station['digital_directory'] ?? null);
+        if (! is_dir($baseDir) && ! mkdir($baseDir, 0775, true) && ! is_dir($baseDir)) {
+            throw new RuntimeException("No se pudo crear la carpeta digital: {$baseDir}");
+        }
         $slug = $ticket['tenant']['slug'] ?? 'tenant';
         $orderId = $ticket['pos_order']['id'] ?? $jobId;
         $suffix = $copy ? 'copy' : 'original';
@@ -223,9 +232,13 @@ class PrinterServer
         // Si el cliente mando pdf_base64, lo guardamos; si no, generamos
         // una vista de texto (compatibilidad con estaciones que mandan
         // PDF via API pero este agente recibe el raw).
-        if (! empty($payload['pdf_base64'] ?? null)) {
+        if (! empty($pdfBase64)) {
             $path = $fileBase . '.pdf';
-            file_put_contents($path, base64_decode($payload['pdf_base64'], true));
+            $decoded = base64_decode($pdfBase64, true);
+            if ($decoded === false) {
+                throw new RuntimeException('pdf_base64 invalido.');
+            }
+            file_put_contents($path, $decoded);
 
             return ['status' => 'generated', 'pdf_path' => $path];
         }

@@ -8,7 +8,7 @@ param(
     [string] $InstallationCode = "",
     [string] $CloudUrl = "",
     [string] $Token = "",
-    [int] $Interval = 30,
+    [int] $Interval = 15,
     [int] $Limit = 50,
     [int] $Cycles = 0,
     [switch] $PushOnly,
@@ -163,7 +163,7 @@ function Resolve-WorkerSettings {
     $resolvedInstallation = if ($InstallationCode) { $InstallationCode } else { Get-ConfigValue $savedConfig "installation_code" $resolvedNodeCode }
     $resolvedCloudUrl = if ($CloudUrl) { $CloudUrl } else { Get-ConfigValue $savedConfig "cloud_url" (Read-EnvValue "SYNC_CLOUD_URL") }
     $resolvedToken = if ($Token) { $Token } else { Get-ConfigValue $savedConfig "token" (Read-EnvValue "SYNC_CLOUD_TOKEN") }
-    $resolvedInterval = if ($Interval -ne 30) { $Interval } elseif ($savedConfig -and $savedConfig.PSObject.Properties["interval"]) { [int] $savedConfig.interval } else { $Interval }
+    $resolvedInterval = if ($Interval -ne 15) { $Interval } elseif ($savedConfig -and $savedConfig.PSObject.Properties["interval"]) { [int] $savedConfig.interval } else { $Interval }
 
     return [pscustomobject]@{
         NodeCode = $resolvedNodeCode

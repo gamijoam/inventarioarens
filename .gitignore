@@ -9,6 +9,9 @@
 /.agents
 /.tools
 /dist
+/inventoryarens-toolbox-v*.zip
+/inventoryarens-toolbox/
+/toolbox-dist/
 /graphify-out
 /.cursor/
 /.idea

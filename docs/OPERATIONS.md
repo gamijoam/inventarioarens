@@ -1,5 +1,7 @@
 # INVENTARIOARENS Toolbox
 
+> Guia completa de Windows, Linux y VPS: `docs/SYNC_TOOLBOX_WINDOWS_LINUX.md`.
+
 CLI unificado de operaciones para el SaaS INVENTARIOARENS. Cross-platform
 (Linux + Windows). Una sola descarga, un solo comando, todo listo.
 
@@ -9,39 +11,168 @@ CLI unificado de operaciones para el SaaS INVENTARIOARENS. Cross-platform
 ```bash
 unzip inventoryarens-toolbox-v1.0.0.zip
 cd inventoryarens-toolbox
-./inventoryarens install sync
+./inventoryarens wizard
 ```
 
 ### Windows (CMD)
 ```
-inventoryarens.bat install sync
+inventoryarens.bat wizard
 ```
 
 ### Windows (PowerShell, como Admin)
 ```
-.\inventoryarens.ps1 install sync
+.\inventoryarens.ps1 wizard
 ```
 
 Eso es todo. El CLI:
 1. Se conecta al VPS via SSH (root@212.28.176.157, password `GaboMac12`)
 2. Emite un nuevo token de sync via `php artisan sync:ensure-and-token`
-3. Lo escribe en tu `.env` local
+3. Lo guarda por tenant en `storage/app/sync-worker/sync-config.json`
 4. Configura el auto-start:
    - **Linux**: crea `~/.config/systemd/user/inventoryarens-sync.{service,timer}` y los habilita (cada 15s)
-   - **Windows**: crea la Task `InventoryArensSync` que arranca en cada logon
+   - **Windows**: crea una Task por tenant: `SistemaInventarioSync-{tenant}`
+
+Para sincronizar dos empresas en la misma computadora, ejecuta el asistente dos veces:
+
+```bash
+./inventoryarens wizard --tenant demo-caracas --user admin@demo.test
+./inventoryarens wizard --tenant demo-valencia --user admin@demo.test
+./inventoryarens status --tenant demo-caracas
+./inventoryarens status --tenant demo-valencia
+```
+
+El intervalo recomendado para una PC local es `15` segundos. La tarea de Windows/systemd actua como vigilante; el worker interno es el que sincroniza en ciclos cortos.
 
 ## Comandos
 
 | Comando | Que hace |
 |---|---|
+| `wizard` | Asistente interactivo para agregar una empresa a esta PC |
 | `install sync` | Emite token + configura auto-start (Linux systemd / Windows Task Scheduler) |
 | `install printer` | (Fase 2, stub) Instala printer agent en :17777 |
-| `status` | Health check: DB, token, worker, last sync. Sale con codigo 0/1/2 segun estado. |
-| `logs sync` | Tail del log del worker. Ctrl+C para salir. |
+| `status --tenant <slug>` | Health check: DB, token, worker, last sync. Sale con codigo 0/1/2 segun estado. |
+| `logs sync --tenant <slug>` | Tail del log del worker de una empresa. Ctrl+C para salir. |
 | `logs printer` | (Fase 2) Tail del log del printer agent. |
 | `uninstall sync` | Detiene y elimina auto-start + limpia. |
 | `token rotate` | Re-emite token sin reinstalar servicios. Util si el token expira. |
 | `update` | `git pull` + `composer install` + `migrate` + reinicia worker. |
+
+## VPS cloud: activar, detener y diagnosticar sync
+
+En el VPS `212.28.176.157`, el worker correcto no es por empresa local. Es un timer de sistema que procesa los inbox de todos los tenants activos:
+
+```bash
+ssh root@212.28.176.157
+cd /opt/inventarioarens-cloud
+```
+
+Activar o reparar el timer:
+
+```bash
+cat >/etc/systemd/system/inventarioarens-sync.service <<'EOF'
+[Unit]
+Description=InventarioArens sync apply-inbox (todos los tenants)
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/opt/inventarioarens-cloud
+ExecStart=/usr/bin/php artisan sync:apply-all-inboxes --limit=200
+StandardOutput=append:/var/log/inventarioarens-sync.log
+StandardError=append:/var/log/inventarioarens-sync.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat >/etc/systemd/system/inventarioarens-sync.timer <<'EOF'
+[Unit]
+Description=Run InventarioArens sync every 15 seconds
+
+[Timer]
+OnBootSec=10sec
+OnUnitActiveSec=15sec
+Unit=inventarioarens-sync.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now inventarioarens-sync.timer
+```
+
+Diagnosticar:
+
+```bash
+systemctl status inventarioarens-sync.timer --no-pager
+systemctl status inventarioarens-sync.service --no-pager
+journalctl -u inventarioarens-sync.service -n 100 --no-pager
+tail -n 100 /var/log/inventarioarens-sync.log
+```
+
+Ejecutar una pasada manual:
+
+```bash
+cd /opt/inventarioarens-cloud
+sudo -u www-data php artisan sync:apply-all-inboxes --limit=200
+```
+
+Detener temporalmente:
+
+```bash
+systemctl stop inventarioarens-sync.timer
+```
+
+Desactivar:
+
+```bash
+systemctl disable --now inventarioarens-sync.timer
+```
+
+Reactivar:
+
+```bash
+systemctl enable --now inventarioarens-sync.timer
+```
+
+## PC local: varias empresas
+
+Cada empresa local debe tener su propio token y su propio worker.
+
+Windows crea tareas:
+
+```text
+SistemaInventarioSync-demo-caracas
+SistemaInventarioSync-demo-valencia
+```
+
+Linux crea timers de usuario:
+
+```text
+inventoryarens-sync-demo-caracas.timer
+inventoryarens-sync-demo-valencia.timer
+```
+
+Agregar una empresa:
+
+```bash
+./inventoryarens wizard --tenant demo-caracas --user admin@demo.test
+```
+
+Revisar una empresa:
+
+```bash
+./inventoryarens status --tenant demo-caracas
+./inventoryarens logs sync --tenant demo-caracas
+```
+
+Detener o quitar una empresa de esta PC:
+
+```bash
+./inventoryarens uninstall sync --tenant demo-caracas
+```
 
 ## Status - ejemplo de output
 
@@ -88,8 +219,21 @@ Instala Python 3.8+ desde https://python.org o Microsoft Store. Marcá "Add Pyth
 
 ## Para developers
 
-El codigo del CLI esta en `bin/inventoryarens` (single file, ~500 lineas, Python 3.8+ stdlib).
-Para reconstruir el zip: `bash scripts/build-toolbox.sh`. Output: `dist/inventoryarens-toolbox-vX.Y.Z.zip`.
+El codigo del CLI esta en `bin/inventoryarens` (single file, Python 3.8+ stdlib).
+
+Reconstruir el zip en Linux/macOS:
+
+```bash
+bash scripts/build-toolbox.sh
+```
+
+Reconstruir el zip en Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-toolbox.ps1
+```
+
+Output: `dist/inventoryarens-toolbox-vX.Y.Z.zip`.
 
 Estructura interna:
 ```

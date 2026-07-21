@@ -4,12 +4,16 @@
 # En Fase 2, este script sera reemplazado por la implementacion
 # cross-platform (probablemente via schtasks.exe).
 #
-# Uso: powershell -ExecutionPolicy Bypass -File windows/install-task.ps1
+param(
+    [string] $TenantSlug = "mi-empresa"
+)
+
+# Uso: powershell -ExecutionPolicy Bypass -File windows/install-task.ps1 -TenantSlug mi-empresa
 
 $ErrorActionPreference = 'Stop'
 
 # Buscar el script legacy (en scripts/ del repo Laravel).
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $legacyScript = Join-Path $repoRoot "scripts/sync-worker-task.ps1"
 
 if (-not (Test-Path $legacyScript)) {
@@ -20,6 +24,6 @@ if (-not (Test-Path $legacyScript)) {
 
 Write-Host "[i] Usando legacy: $legacyScript" -ForegroundColor Cyan
 
-# Invocar el legacy con -Install. TenantSlug default = mi-empresa.
-& powershell.exe -ExecutionPolicy Bypass -File $legacyScript -Install -TenantSlug "mi-empresa"
+# Invocar el legacy con accion posicional.
+& powershell.exe -ExecutionPolicy Bypass -File $legacyScript install -TenantSlug $TenantSlug
 exit $LASTEXITCODE

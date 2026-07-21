@@ -66,8 +66,8 @@ return [
         // Migrar a S3 cambiando driver + env (Nivel 3, ~+1 sprint).
         'product-images' => [
             'driver' => 'local',
-            'root' => storage_path('app/public/products'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage/products',
+            'root' => storage_path('app/public'),
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

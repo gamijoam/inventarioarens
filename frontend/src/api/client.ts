@@ -73,6 +73,10 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiErrorBody>) => {
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      throw error;
+    }
+
     const status = error.response?.status ?? 0;
     const body = error.response?.data;
 

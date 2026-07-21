@@ -23,15 +23,6 @@ public function record(
         $idempotencyKey = $idempotencyKey.':'.$payloadHash;
         $now = now();
 
-        $existingId = DB::table('sync_outbox')
-            ->where('tenant_id', $tenant->id)
-            ->where('idempotency_key', $idempotencyKey)
-            ->value('id');
-
-        if ($existingId) {
-            return (int) $existingId;
-        }
-
         if ($targetNodeId === null && $targetScope === 'tenant') {
             $nodeIds = DB::table('sync_nodes')
                 ->where('tenant_id', $tenant->id)
@@ -80,6 +71,15 @@ public function record(
 
                 return (int) $firstId;
             }
+        }
+
+        $existingId = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('idempotency_key', $idempotencyKey)
+            ->value('id');
+
+        if ($existingId) {
+            return (int) $existingId;
         }
 
         return (int) DB::table('sync_outbox')->insertGetId([

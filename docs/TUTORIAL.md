@@ -1,4 +1,6 @@
-# TUTORIAL — INVENTARIOARENS Toolbox
+﻿# TUTORIAL â€” INVENTARIOARENS Toolbox
+
+> Guia completa de Windows, Linux y VPS: `docs/SYNC_TOOLBOX_WINDOWS_LINUX.md`.
 
 Esta guia explica como un tecnico (sin conocimiento de Laravel, systemd, ni
 de la arquitectura del SaaS) usa la toolbox para configurar una maquina local
@@ -25,13 +27,13 @@ de la arquitectura del SaaS) usa la toolbox para configurar una maquina local
 3. Verificar contenido:
    ```
    inventoryarens-toolbox/
-   ├── inventoryarens            (CLI)
-   ├── inventoryarens.bat         (Windows CMD wrapper)
-   ├── inventoryarens.ps1         (Windows PS wrapper)
-   ├── systemd/                   (Linux)
-   ├── windows/                   (Windows)
-   ├── README.md
-   └── QUICKSTART.txt
+   â”œâ”€â”€ inventoryarens            (CLI)
+   â”œâ”€â”€ inventoryarens.bat         (Windows CMD wrapper)
+   â”œâ”€â”€ inventoryarens.ps1         (Windows PS wrapper)
+   â”œâ”€â”€ systemd/                   (Linux)
+   â”œâ”€â”€ windows/                   (Windows)
+   â”œâ”€â”€ README.md
+   â””â”€â”€ QUICKSTART.txt
    ```
 
 ### Opcion B: clonar del repo
@@ -42,6 +44,13 @@ git clone https://github.com/gamijoam/inventarioarens.git
 cd inventarioarens
 bash scripts/build-toolbox.sh
 # Genera dist/inventoryarens-toolbox-v*.zip
+```
+
+En Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-toolbox.ps1
+# Genera dist\inventoryarens-toolbox-v*.zip
 ```
 
 ## 2. Setup por primera vez (one-shot)
@@ -67,19 +76,58 @@ Abre una terminal en la carpeta donde descomprimiste el zip.
 **Linux/macOS**:
 ```bash
 cd ~/inventoryarens-toolbox
-./inventoryarens install sync
+./inventoryarens wizard
 ```
 
 **Windows (CMD)**:
 ```
 cd C:\inventoryarens-toolbox
-inventoryarens.bat install sync
+inventoryarens.bat wizard
 ```
 
 **Windows (PowerShell, como Admin)**:
 ```powershell
 cd C:\inventoryarens-toolbox
-.\inventoryarens.ps1 install sync
+.\inventoryarens.ps1 wizard
+```
+
+El asistente pregunta:
+
+- slug de empresa/tenant,
+- email del usuario autorizado,
+- nombre visible del equipo/caja,
+- codigo unico del nodo.
+- intervalo de sincronizacion en segundos, por defecto `15`.
+
+Puedes repetir el asistente para otra empresa en la misma computadora. Cada empresa queda con:
+
+- su propio token en `storage/app/sync-worker/sync-config.json`,
+- su propia tarea de Windows `SistemaInventarioSync-{tenant}`,
+- su propio log `storage/logs/sync-worker-{tenant}.log`.
+
+Ejemplo con dos empresas:
+
+```powershell
+inventoryarens.bat wizard --tenant demo-caracas --user admin@demo.test
+inventoryarens.bat wizard --tenant demo-valencia --user admin@demo.test
+inventoryarens.bat status --tenant demo-caracas
+inventoryarens.bat status --tenant demo-valencia
+```
+
+Si quieres forzar el intervalo sin asistente:
+
+```powershell
+inventoryarens.bat wizard --tenant demo-caracas --user admin@demo.test --interval 15
+```
+
+Si prefieres no usar el asistente, puedes pasar todo por parametros:
+
+```bash
+./inventoryarens install sync \
+  --tenant demo-caracas \
+  --user admin@demo.test \
+  --node-name "Caja Caracas 01" \
+  --node-code LOCAL-DEMO-CARACAS-CAJA01
 ```
 
 Cuando pida la password del VPS, el tecnico la ingresa (o la deja en env var
@@ -88,11 +136,11 @@ Cuando pida la password del VPS, el tecnico la ingresa (o la deja en env var
 ```
 [1/4] Detectando OS y validando entorno OK
 [2/4] Emitiendo token via SSH al VPS OK
-[3/4] Escribiendo token en .env local OK
+[3/4] Guardando token local OK
 [4/4] Configurando auto-start en el boot OK
     (Unit files creados, systemctl enable --now OK, timer activo)
 
-OK Install completo. Tenant: mi-empresa
+OK Install completo. Tenant: demo-caracas
 i Token: TCrmkQT6RPC3jS8y66kH...
 i Verifica con: inventoryarens status
 ```
@@ -110,10 +158,47 @@ Por default escucha en `127.0.0.1:17777`. Para cambiar de puerto:
 ./inventoryarens install printer --port 18777
 ```
 
+## 2.1 VPS cloud: worker global
+
+En el VPS nuevo `212.28.176.157`, el worker de nube es distinto al worker local. En nube se procesa el inbox de todos los tenants con systemd:
+
+```bash
+ssh root@212.28.176.157
+cd /opt/inventarioarens-cloud
+systemctl enable --now inventarioarens-sync.timer
+```
+
+Diagnostico rapido:
+
+```bash
+systemctl status inventarioarens-sync.timer --no-pager
+systemctl status inventarioarens-sync.service --no-pager
+tail -n 100 /var/log/inventarioarens-sync.log
+sudo -u www-data php artisan sync:apply-all-inboxes --limit=200
+```
+
+Detener temporalmente:
+
+```bash
+systemctl stop inventarioarens-sync.timer
+```
+
+Desactivar:
+
+```bash
+systemctl disable --now inventarioarens-sync.timer
+```
+
+Reactivar:
+
+```bash
+systemctl enable --now inventarioarens-sync.timer
+```
+
 ### Paso D: verificar que todo funciona
 
 ```bash
-./inventoryarens status
+./inventoryarens status --tenant demo-caracas
 ```
 
 Salida esperada:
@@ -121,14 +206,14 @@ Salida esperada:
 ```
 CHECKLIST
   - DB local: skip  psql no instalado
-  ✓ API cloud: ok  200 OK
-  ✓ Token sync: ok  TCrmkQT6... (len 80)
-  ✓ Worker sync - Timer systemd: active
-  ✓ Printer agent: ok  responde en :17777
-  ✓ Ultima sync: 2026-07-21 13:42:38
+  âœ“ API cloud: ok  200 OK
+  âœ“ Token sync: ok  TCrmkQT6... (len 80)
+  âœ“ Worker sync - Timer systemd: active
+  âœ“ Printer agent: ok  responde en :17777
+  âœ“ Ultima sync: 2026-07-21 13:42:38
 
 6/7 checks OK. 1 skipped. Acciones:
-  - DB local: instalá psql (no critico).
+  - DB local: instalÃ¡ psql (no critico).
 ```
 
 **Si todo esta OK, el setup esta completo.** El worker de sync correra cada 15s
@@ -165,17 +250,17 @@ encuentra un archivo de log.
 Si el token expira (despues de 1 ano) o si sospechas compromiso:
 
 ```bash
-./inventoryarens token rotate --tenant mi-empresa
+./inventoryarens token rotate --tenant demo-caracas --node-name "Caja Caracas 01" --node-code LOCAL-DEMO-CARACAS-CAJA01
 ```
 
-Esto re-emite un token, lo escribe en `.env` y no reinstala el worker.
+Esto re-emite un token, actualiza `sync-config.json` para ese tenant y no reinstala el worker.
 Para aplicar, reinicia el worker (siguiente paso).
 
 ### 3.4 Reinstalar (desinstalar + instalar)
 
 ```bash
-./inventoryarens uninstall sync
-./inventoryarens install sync
+./inventoryarens uninstall sync --tenant demo-caracas
+./inventoryarens wizard --tenant demo-caracas
 ```
 
 Util cuando cambias el VPS, el repo o el OS. El .env se preserva (a menos que
@@ -279,20 +364,20 @@ inventoryarens.bat install sync
 
 ```
 inventoryarens-toolbox/
-├── inventoryarens              # CLI Python (~700 lineas, single-file, sin deps)
-├── inventoryarens.bat           # Wrapper Windows CMD
-├── inventoryarens.ps1           # Wrapper Windows PowerShell
-├── systemd/                     # (Linux) 3 unit files
-│   ├── inventoryarens-sync.service
-│   ├── inventoryarens-sync.timer
-│   └── inventoryarens-printer.service
-├── windows/                      # (Windows) 2 PS1 wrappers
-│   ├── install-task.ps1
-│   └── uninstall-task.ps1
-├── README.md                     # quickstart resumido
-├── QUICKSTART.txt                 # one-liner para imprimir
-├── TUTORIAL.md                   # este archivo
-└── LICENSE
+â”œâ”€â”€ inventoryarens              # CLI Python (~700 lineas, single-file, sin deps)
+â”œâ”€â”€ inventoryarens.bat           # Wrapper Windows CMD
+â”œâ”€â”€ inventoryarens.ps1           # Wrapper Windows PowerShell
+â”œâ”€â”€ systemd/                     # (Linux) 3 unit files
+â”‚   â”œâ”€â”€ inventoryarens-sync.service
+â”‚   â”œâ”€â”€ inventoryarens-sync.timer
+â”‚   â””â”€â”€ inventoryarens-printer.service
+â”œâ”€â”€ windows/                      # (Windows) 2 PS1 wrappers
+â”‚   â”œâ”€â”€ install-task.ps1
+â”‚   â””â”€â”€ uninstall-task.ps1
+â”œâ”€â”€ README.md                     # quickstart resumido
+â”œâ”€â”€ QUICKSTART.txt                 # one-liner para imprimir
+â”œâ”€â”€ TUTORIAL.md                   # este archivo
+â””â”€â”€ LICENSE
 ```
 
 ## 8. Para developers
@@ -302,6 +387,13 @@ El codigo del CLI es un single file Python 3.8+ (~700 lineas) en
 ```bash
 bash scripts/build-toolbox.sh
 # Output: dist/inventoryarens-toolbox-vX.Y.Z.zip
+```
+
+En Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-toolbox.ps1
+# Output: dist\inventoryarens-toolbox-vX.Y.Z.zip
 ```
 
 Tests del CLI (subprocess):
