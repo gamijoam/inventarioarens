@@ -1,4 +1,59 @@
 # Registro de implementación
+
+## 2026-07-21 - Migracion de VPS nube (217.216.80.158 → 212.28.176.157)
+
+### Contexto
+
+VPS viejo dedicado a INVENTARIOARENS. VPS nuevo es multi-tenant con 27 containers Docker
+de OTROS productos (bloqueo, ferreteria, avilacar, credifacil, mi-inventario-whatsapp, etc).
+INVENTARIOARENS corre nativo (PHP-FPM + nginx local en :8080) detrás de Traefik.
+
+### Implementado
+
+- Stack nativo en VPS nuevo: PHP 8.4.23 + extensiones (gd/pgsql/bcmath/exif/redis/opcache/curl/
+  zip/mbstring/intl), composer 2.7.1, nginx 1.24, redis-server 7, PostgreSQL 16 nativo.
+- php.ini tuned: upload 16M, post 20M, memory 512M (CLI + FPM).
+- DB `inventory_arens` restaurada via `pg_restore` desde `pg_dump -Fc` del viejo (91 tablas, 5
+  productos, 2 tenants, 1 user).
+- Nginx vhost en `/etc/nginx/sites-available/app.miinventariofacil.com` escucha en
+  `172.18.0.1:8080` (bridge gateway, accesible desde Traefik) + `127.0.0.1:8080` (host loopback) +
+  `[::1]:8080`. `client_max_body_size 16M`. Sirve `/storage/*` directamente desde
+  `storage/app/public/` (necesario para imágenes).
+- Traefik route nueva en `/root/deploy/core/traefik-config/inventarioarens.yml` (NO TOCÓ
+  los archivos existentes). Host `app.miinventariofacil.com` → `http://172.18.0.1:8080`.
+- UFW: agregada regla `allow from 172.18.0.0/16 to any port 8080 proto tcp` (sin esto Traefik no
+  llega a nginx).
+- Sync worker `inventarioarens-sync.timer` cada 15s (systemd, idéntico al viejo).
+- `php artisan storage:link` creado (el viejo no lo tenía).
+- DNS A record `app.miinventariofacil.com` migrado de `217.216.80.158` → `212.28.176.157`
+  (acción del usuario en Cloudflare, TTL 300s, downtime total ~3 min).
+- Lets Encrypt cert para `app.miinventariofacil.com` ya existía en
+  `/root/deploy/core/acme.json` (emitido 2026-06-05, vence 2026-09-03, NO hubo que reemitir).
+- Tokens sync rotados: `sync:ensure-and-token mi-empresa` y `sync:ensure-and-token
+  grupo-prueba` con `--node-name=Local-Node`. Antiguos tokens `Local-Node` revocados.
+  Nuevos sync_nodes: `LOCAL-MI-EMPRESA-VMI3062717` (id=8) y `LOCAL-GRUPO-PRUEBA-VMI3062717` (id=9).
+- `scripts/sync_token.py`: VPS_HOST actualizado a `212.28.176.157`.
+- Code source del repo local sincronizado al VPS nuevo (vendor reusado sin reinstalar porque
+  composer.lock era idéntico por md5).
+
+### Notas operativas
+
+- **NO TOCAR los 27 Docker containers** del VPS nuevo: bloqueo, ferreteria, avilacar,
+  credifacil, mi-inventario-whatsapp, redis_prod/qa, db_qa, traefik_core.
+- **NO reiniciar Traefik** ni modificar archivos existentes en
+  `/root/deploy/core/traefik-config/`. Solo agregar archivos nuevos (como
+  `inventarioarens.yml`).
+- El VPS viejo (`217.216.80.158`) queda como respaldo por si rollback. Sus servicios
+  (`inventarioarens-sync.timer`, `php8.4-fpm`, `nginx`) siguen corriendo pero sin DNS.
+- `/api/auth/me` retorna `tenant: null` con X-Tenant (bug pre-existente, no causado por
+  la migración). El resto de endpoints leen `X-Tenant` correctamente.
+- Backup completo preservado en `/tmp/migracion-2026-07-21/` (dump + source + .env).
+
+### Doc actual relacionada
+
+- `docs/MIGRACION_VPS_2026-07-21.md` - narrativa completa con configs, smoke tests,
+  rollback procedure.
+
 ## 2026-07-21 - Sprint POS performance y UX (QW1 a QW4)
 
 ### Implementado
