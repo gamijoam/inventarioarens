@@ -1219,12 +1219,14 @@ class SyncEventApplier
             return 'skipped:missing_uuid';
         }
 
+        $productId = $this->resolveProductIdForImage($tenant, $payload);
+
         $image = \App\Modules\Products\Models\ProductImage::query()
             ->withTrashed()
             ->firstOrNew(['uuid' => $uuid, 'tenant_id' => $tenant->id]);
 
         $image->fill([
-            'product_id' => $payload['product_id'] ?? $image->product_id,
+            'product_id' => $productId,
             'mime' => $payload['mime'] ?? $image->mime ?? 'image/webp',
             'size' => $payload['size'] ?? $image->size ?? 0,
             'width' => $payload['width'] ?? $image->width,
@@ -1278,6 +1280,29 @@ class SyncEventApplier
         })->afterResponse();
 
         return "product_image:{$image->id}";
+    }
+
+    private function resolveProductIdForImage(Tenant $tenant, array $payload): int
+    {
+        $sku = $this->nullableString($payload['product_sku'] ?? $payload['sku'] ?? null);
+
+        if ($sku !== null) {
+            return (int) $this->productBySku($tenant, $sku)->id;
+        }
+
+        $legacyProductId = (int) ($payload['product_id'] ?? 0);
+        if ($legacyProductId > 0) {
+            $exists = DB::table('products')
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $legacyProductId)
+                ->exists();
+
+            if ($exists) {
+                return $legacyProductId;
+            }
+        }
+
+        throw new RuntimeException('No se encontro el producto de la imagen para aplicar el evento.');
     }
 
     /**

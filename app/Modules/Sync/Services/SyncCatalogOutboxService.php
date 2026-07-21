@@ -343,15 +343,18 @@ class SyncCatalogOutboxService
      *  - sha256: para que el local verifique integridad al descargar.
      *
      * Si `includeDeleted` es true (evento *.deleted), omite los campos pesados
-     * y solo manda uuid + tenant_id + product_id.
+     * y solo manda uuid + product_sku + product_id legacy.
      */
     private function recordProductImage(string $eventType, ProductImage $image, bool $includeDeleted): void
     {
         $cloudBase = rtrim((string) config('app.url'), '/');
+        $productSku = $image->product?->sku
+            ?? Product::query()->whereKey($image->product_id)->value('sku');
 
         if ($includeDeleted) {
             $payload = [
                 'uuid' => $image->uuid,
+                'product_sku' => $productSku,
                 'product_id' => $image->product_id,
             ];
             $this->outbox->record(
@@ -379,6 +382,7 @@ class SyncCatalogOutboxService
 
         $payload = [
             'uuid' => $image->uuid,
+            'product_sku' => $productSku,
             'product_id' => $image->product_id,
             'cloud_url' => "{$cloudBase}/storage/{$image->storage_path}",
             'mime' => $image->mime,

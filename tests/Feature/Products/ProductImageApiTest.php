@@ -59,6 +59,14 @@ class ProductImageApiTest extends TestCase
             'event_type' => 'product.image.uploaded',
             'aggregate_type' => 'product_image',
         ]);
+
+        $payload = json_decode((string) SyncOutbox::query()
+            ->where('event_type', 'product.image.uploaded')
+            ->latest('id')
+            ->value('payload'), true);
+
+        $this->assertSame($product->sku, $payload['product_sku']);
+        $this->assertSame($product->id, $payload['product_id']);
     }
 
     public function test_index_returns_gallery_ordered_by_sort(): void

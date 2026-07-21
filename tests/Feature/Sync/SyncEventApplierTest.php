@@ -379,6 +379,66 @@ class SyncEventApplierTest extends TestCase
         $this->assertSame('Caja Mostrador VAL', $report['data'][0]['cash_register_name']);
     }
 
+    public function test_it_applies_product_image_events_by_sku_when_cloud_product_id_differs(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Imagen Sync', 'slug' => 'empresa-imagen-sync']);
+        app(TenantManager::class)->set($tenant);
+        $now = now();
+        $localProductId = $this->product($tenant, 'COCOSETE-3', 'Cocosete 3', '5.0000');
+
+        $payload = [
+            'uuid' => 'dc6be456-6d7e-491e-a6c1-db91b752d654',
+            'product_sku' => 'COCOSETE-3',
+            'product_id' => 143,
+            'cloud_url' => 'https://app.miinventariofacil.com/storage/products/8/2026/07/demo.webp',
+            'mime' => 'image/jpeg',
+            'size' => 25096,
+            'width' => 599,
+            'height' => 324,
+            'sha256' => '112319c7cb7ba91e8ef195609fe21ee4a8ddf5fd7f5686f809da523a9d6147f1',
+            'sort' => 0,
+            'is_primary' => true,
+            'variants' => [
+                'thumb' => [
+                    'cloud_url' => 'https://app.miinventariofacil.com/storage/products/8/2026/07/demo-thumb.webp',
+                    'mime' => 'image/webp',
+                    'size' => 1000,
+                    'width' => 200,
+                    'height' => 200,
+                ],
+            ],
+        ];
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.image.uploaded',
+            'aggregate_type' => 'product_image',
+            'aggregate_id' => 55,
+            'payload_hash' => hash('sha256', json_encode($payload)),
+            'payload' => json_encode($payload),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1, $summary['applied']);
+        $this->assertDatabaseHas('product_images', [
+            'tenant_id' => $tenant->id,
+            'uuid' => 'dc6be456-6d7e-491e-a6c1-db91b752d654',
+            'product_id' => $localProductId,
+            'storage_path' => 'https://app.miinventariofacil.com/storage/products/8/2026/07/demo.webp',
+        ]);
+        $this->assertDatabaseMissing('product_images', [
+            'tenant_id' => $tenant->id,
+            'uuid' => 'dc6be456-6d7e-491e-a6c1-db91b752d654',
+            'product_id' => 143,
+        ]);
+    }
+
     private function product(Tenant $tenant, string $sku, string $name, string $price): int
     {
         return (int) DB::table('products')->insertGetId([
