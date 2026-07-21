@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
+import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
 import { BranchSchema, ExchangeRateTypeSchema, PriceListSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
@@ -432,16 +432,17 @@ export type PosBootstrap = z.infer<typeof PosBootstrapSchema>;
 /**
  * Hook crudo: devuelve el payload completo del bootstrap sin normalizar.
  * Para datos derivados con tipos estrictos usar `useBootstrapRefsForPos`.
+ *
+ * El endpoint `/pos/bootstrap` no envuelve la respuesta en `{ data: ... }`
+ * (es un objeto plano con varias claves), por eso usamos `api.get` directamente
+ * y devolvemos `response.data` completo en vez de `response.data.data`.
  */
 export function usePosBootstrap() {
   return useQuery({
     queryKey: [...posKeys.all, 'bootstrap'] as const,
     queryFn: async () => {
-      const raw = await getOne<unknown>('/pos/bootstrap');
-      const data = typeof raw === 'object' && raw && 'data' in raw
-        ? (raw as { data: unknown }).data
-        : raw;
-      return PosBootstrapSchema.parse(data);
+      const response = await api.get<unknown>('/pos/bootstrap');
+      return PosBootstrapSchema.parse(response.data);
     },
     staleTime: 60_000,
   });
