@@ -25,7 +25,7 @@ def run_cli(*args: str, env: dict = None) -> subprocess.CompletedProcess:
     # Forzar NO_COLOR para output predecible en los tests.
     full_env["NO_COLOR"] = "1"
     return subprocess.run(
-        [str(CLI), *args],
+        [sys.executable, str(CLI), *args],
         capture_output=True,
         text=True,
         env=full_env,
@@ -52,7 +52,7 @@ class TestCliBasics(unittest.TestCase):
         self.assertIn("update", result.stdout)
 
     def test_subcommand_help(self):
-        for sub in ["install", "uninstall", "logs", "token"]:
+        for sub in ["install", "uninstall", "logs", "token", "toolbox", "worker", "sync", "images"]:
             with self.subTest(sub=sub):
                 result = run_cli(sub, "--help")
                 self.assertEqual(result.returncode, 0, msg=f"sub={sub}, stderr={result.stderr}")
@@ -79,6 +79,24 @@ class TestCliBasics(unittest.TestCase):
         result = run_cli("token", "--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("rotate", result.stdout)
+
+    def test_worker_help(self):
+        result = run_cli("worker", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("restart", result.stdout)
+        self.assertIn("refresh-and-retry", result.stdout)
+
+    def test_sync_help(self):
+        result = run_cli("sync", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("retry-failed", result.stdout)
+        self.assertIn("retry-inbox", result.stdout)
+
+    def test_images_help(self):
+        result = run_cli("images", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("download", result.stdout)
+        self.assertIn("emit", result.stdout)
 
 
 class TestCliErrors(unittest.TestCase):

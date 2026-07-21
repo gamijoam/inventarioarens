@@ -174,6 +174,61 @@ Detener o quitar una empresa de esta PC:
 ./inventoryarens uninstall sync --tenant demo-caracas
 ```
 
+## Toolbox interactivo para tecnico
+
+Cuando no quieras recordar comandos, usa el menu:
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 toolbox
+```
+
+Linux:
+
+```bash
+./inventoryarens toolbox
+```
+
+Desde ahi puedes:
+
+- diagnosticar la PC,
+- ver, iniciar, detener o reiniciar el worker,
+- correr una sincronizacion manual,
+- reintentar eventos fallidos del inbox,
+- reintentar un `sync_inbox` por ID,
+- reintentar imagenes fallidas y descargarlas,
+- emitir sync de imagen por SKU,
+- recuperar un tenant local desde la nube.
+
+Comandos directos utiles:
+
+```powershell
+# Estado del worker de una empresa
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker status --tenant demo-caracas
+
+# Reiniciar worker
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker restart --tenant demo-caracas
+
+# Reiniciar worker y reintentar fallidos
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker refresh-and-retry --tenant demo-caracas
+
+# Reintentar todos los eventos fallidos
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 sync retry-failed --tenant demo-caracas
+
+# Reintentar solo un inbox especifico
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 sync retry-inbox --tenant demo-caracas --id 316
+
+# Reintentar imagenes fallidas y descargar archivos
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 images retry-failed --tenant demo-caracas
+
+# Emitir nuevamente el evento de imagen de un producto
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 images emit --tenant demo-caracas --product-sku COCOSETE-3
+```
+
+Los comandos de reintento no borran datos. Solo cambian eventos fallidos de `sync_inbox` a `received`,
+limpian el error anterior y ejecutan el aplicador normal.
+
 ## Status - ejemplo de output
 
 ```

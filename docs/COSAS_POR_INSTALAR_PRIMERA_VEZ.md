@@ -156,10 +156,31 @@ Desde la raiz del proyecto:
 .\bin\inventoryarens.ps1 wizard
 ```
 
+Si Windows dice que no encuentra Python, instala Python 3.8+ desde python.org marcando
+`Add Python to PATH`, o define el ejecutable manualmente:
+
+```powershell
+$env:INVENTORYARENS_PYTHON="C:\Python311\python.exe"
+```
+
 Para revisar una empresa especifica:
 
 ```powershell
 .\bin\inventoryarens.ps1 status --tenant demo-caracas
+```
+
+Para abrir la herramienta tecnica interactiva:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\bin\inventoryarens.ps1 toolbox
+```
+
+Acciones frecuentes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\bin\inventoryarens.ps1 worker restart --tenant demo-caracas
+powershell -ExecutionPolicy Bypass -File .\bin\inventoryarens.ps1 sync retry-failed --tenant demo-caracas
+powershell -ExecutionPolicy Bypass -File .\bin\inventoryarens.ps1 images retry-failed --tenant demo-caracas
 ```
 
 ## 7. Configurar agente de impresion local

@@ -9,14 +9,34 @@
 
 $ErrorActionPreference = 'Stop'
 
+function Test-PythonCommand {
+    param([string]$Command)
+
+    if (-not $Command) { return $false }
+    try {
+        $null = & $Command --version 2>$null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
 $python = $env:INVENTORYARENS_PYTHON
+if ($python -and -not (Test-PythonCommand $python)) {
+    Write-Host "[!] INVENTORYARENS_PYTHON esta configurado pero no ejecuta Python: $python" -ForegroundColor Yellow
+    $python = $null
+}
 if (-not $python) {
     $py = (Get-Command py -ErrorAction SilentlyContinue)
-    if ($py) { $python = 'py' }
+    if ($py -and (Test-PythonCommand 'py')) { $python = 'py' }
 }
 if (-not $python) {
     $py = (Get-Command python -ErrorAction SilentlyContinue)
-    if ($py) { $python = 'python' }
+    if ($py -and (Test-PythonCommand 'python')) { $python = 'python' }
+}
+if (-not $python) {
+    $py = (Get-Command python3 -ErrorAction SilentlyContinue)
+    if ($py -and (Test-PythonCommand 'python3')) { $python = 'python3' }
 }
 if (-not $python) {
     Write-Host "[x] No se encontro Python. Instala Python 3.8+ desde https://python.org" -ForegroundColor Red

@@ -13,19 +13,26 @@ REM ============================================================
 setlocal
 
 REM Buscar Python 3 (prioridad: env var > py launcher > where).
-if defined INVENTORYARENS_PYTHON goto :have_python
-
-where py >nul 2>&1
-if %errorlevel% equ 0 (
-    set "INVENTORYARENS_PYTHON=py"
-    goto :have_python
+set "PYTHON_CMD="
+if defined INVENTORYARENS_PYTHON (
+    "%INVENTORYARENS_PYTHON%" --version >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=%INVENTORYARENS_PYTHON%"
+    if errorlevel 1 echo [!] INVENTORYARENS_PYTHON esta configurado pero no ejecuta Python: %INVENTORYARENS_PYTHON%
 )
 
-where python >nul 2>&1
-if %errorlevel% equ 0 (
-    set "INVENTORYARENS_PYTHON=python"
-    goto :have_python
+if not defined PYTHON_CMD where py >nul 2>&1
+if not defined PYTHON_CMD if not errorlevel 1 (
+    py --version >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=py"
 )
+
+if not defined PYTHON_CMD where python >nul 2>&1
+if not defined PYTHON_CMD if not errorlevel 1 (
+    python --version >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=python"
+)
+
+if defined PYTHON_CMD goto :have_python
 
 echo [x] No se encontro Python. Instala Python 3.8+ desde https://python.org o
 echo     Microsoft Store. Luego ejecuta este script de nuevo.
@@ -37,6 +44,6 @@ REM Determinar el directorio donde esta este script.
 set "SCRIPT_DIR=%~dp0"
 
 REM Invocar Python con el script .py.
-"%INVENTORYARENS_PYTHON%" "%SCRIPT_DIR%inventoryarens" %*
+"%PYTHON_CMD%" "%SCRIPT_DIR%inventoryarens" %*
 
 endlocal

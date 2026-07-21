@@ -638,6 +638,101 @@ echo (string) Illuminate\Support\Facades\DB::table('sync_inbox')
         return 0
 
 
+def reset_sync_inbox_events(
+    cfg: Config,
+    tenant_slug: str,
+    *,
+    inbox_id: Optional[int] = None,
+    event_type: str = "",
+) -> dict:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+$tenant = Illuminate\Support\Facades\DB::table('tenants')->where('slug', $argv[1] ?? '')->first();
+if (! $tenant) {
+    echo json_encode(['ok' => false, 'message' => 'tenant_local_no_existe']);
+    return;
+}
+$inboxId = (int) ($argv[2] ?? 0);
+$eventType = (string) ($argv[3] ?? '');
+$query = Illuminate\Support\Facades\DB::table('sync_inbox')->where('tenant_id', $tenant->id);
+if ($inboxId > 0) {
+    $query->where('id', $inboxId)->whereIn('status', ['received', 'failed']);
+} else {
+    $query->where('status', 'failed');
+    if ($eventType !== '') {
+        $query->where('event_type', $eventType);
+    }
+}
+$count = $query->update([
+    'status' => 'received',
+    'last_error' => null,
+    'updated_at' => now(),
+]);
+echo json_encode(['ok' => true, 'reset' => $count], JSON_UNESCAPED_UNICODE);
+"""
+    proc = php_bootstrap_eval(cfg, code, [tenant_slug, str(inbox_id or 0), event_type])
+    if proc.returncode != 0:
+        return {"ok": False, "message": (proc.stderr or proc.stdout or "php_error").strip()}
+    try:
+        return json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"ok": False, "message": proc.stdout}
+
+
+def run_worker_action(cfg: Config, tenant_slug: str, action: str) -> int:
+    if cfg.os == "linux":
+        unit = linux_sync_unit_name(tenant_slug)
+        if action == "status":
+            status_data = linux_status(cfg, tenant_slug)
+            for key, value in status_data.items():
+                print(f"{key}: {value}")
+            return 0
+        if action == "start":
+            return run_silent(["systemctl", "--user", "start", f"{unit}.timer"])
+        if action == "stop":
+            run_silent(["systemctl", "--user", "stop", f"{unit}.service"])
+            return run_silent(["systemctl", "--user", "stop", f"{unit}.timer"])
+        if action == "restart":
+            run_worker_action(cfg, tenant_slug, "stop")
+            return run_worker_action(cfg, tenant_slug, "start")
+        if action == "run-now":
+            return run_silent(["systemctl", "--user", "start", f"{unit}.service"])
+        raise RuntimeError(f"Accion de worker no soportada: {action}")
+
+    worker_cmd = cfg.repo_dir / "scripts" / "sync-worker.cmd"
+    if not worker_cmd.exists():
+        raise RuntimeError(f"No existe {worker_cmd}")
+    if action == "run-now":
+        action = "start"
+    cmd = ["cmd.exe", "/c", str(worker_cmd), action, "-TenantSlug", tenant_slug]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    output = (proc.stdout or "") + (proc.stderr or "")
+    if output.strip():
+        print(output.strip())
+    return proc.returncode
+
+
+def apply_inbox(cfg: Config, tenant_slug: str, limit: int) -> int:
+    proc = run_artisan(cfg, ["sync:apply-inbox", tenant_slug, "--limit", str(limit)], capture=True, check=False)
+    if proc.stdout:
+        print(proc.stdout.strip())
+    if proc.stderr:
+        print(proc.stderr.strip(), file=sys.stderr)
+    return proc.returncode
+
+
+def run_sync_once(cfg: Config, tenant_slug: str, limit: int) -> int:
+    proc = run_artisan(cfg, ["sync:run", tenant_slug, "--limit", str(limit)], capture=True, check=False)
+    if proc.stdout:
+        print(proc.stdout.strip())
+    if proc.stderr:
+        print(proc.stderr.strip(), file=sys.stderr)
+    return proc.returncode
+
+
 # -----------------------------------------------------------------------------
 # OS-specific: Linux systemd
 # -----------------------------------------------------------------------------
@@ -1482,6 +1577,183 @@ def cmd_update(args, cfg: Config) -> int:
     return 0
 
 
+def cmd_worker(args, cfg: Config) -> int:
+    tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+    action = args.action
+
+    step(f"Worker sync: {action} ({tenant_slug})")
+    if action == "refresh-and-retry":
+        rc = run_worker_action(cfg, tenant_slug, "restart")
+        if rc != 0:
+            err("No se pudo reiniciar el worker.")
+            return rc
+        ok("Worker reiniciado.")
+        reset = reset_sync_inbox_events(cfg, tenant_slug, event_type=args.event_type or "")
+        if not reset.get("ok"):
+            err(f"No se pudieron preparar eventos fallidos: {reset.get('message')}")
+            return 1
+        ok(f"Eventos fallidos preparados para reintento: {reset.get('reset', 0)}")
+        return apply_inbox(cfg, tenant_slug, args.limit)
+
+    rc = run_worker_action(cfg, tenant_slug, action)
+    if rc == 0:
+        ok("Accion completada.")
+    else:
+        err(f"La accion fallo con codigo {rc}.")
+    return rc
+
+
+def cmd_sync(args, cfg: Config) -> int:
+    tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+    limit = max(1, min(int(args.limit or 100), 100))
+
+    if args.action == "run":
+        step(f"Sincronizacion manual ({tenant_slug})")
+        return run_sync_once(cfg, tenant_slug, limit)
+
+    if args.action == "apply-inbox":
+        step(f"Aplicar inbox pendiente ({tenant_slug})")
+        return apply_inbox(cfg, tenant_slug, limit)
+
+    if args.action == "retry-failed":
+        step(f"Reintentar inbox fallido ({tenant_slug})")
+        reset = reset_sync_inbox_events(cfg, tenant_slug, event_type=args.event_type or "")
+        if not reset.get("ok"):
+            err(f"No se pudieron preparar eventos fallidos: {reset.get('message')}")
+            return 1
+        ok(f"Eventos preparados: {reset.get('reset', 0)}")
+        return apply_inbox(cfg, tenant_slug, limit)
+
+    if args.action == "retry-inbox":
+        step(f"Reintentar inbox #{args.id} ({tenant_slug})")
+        reset = reset_sync_inbox_events(cfg, tenant_slug, inbox_id=int(args.id))
+        if not reset.get("ok"):
+            err(f"No se pudo preparar inbox #{args.id}: {reset.get('message')}")
+            return 1
+        ok(f"Eventos preparados: {reset.get('reset', 0)}")
+        return apply_inbox(cfg, tenant_slug, limit)
+
+    err(f"Accion sync no soportada: {args.action}")
+    return 1
+
+
+def cmd_images(args, cfg: Config) -> int:
+    tenant_slug, _tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+    limit = max(1, min(int(args.limit or 100), 100))
+
+    if args.action == "download":
+        step(f"Descargar imagenes faltantes ({tenant_slug})")
+        proc = run_artisan(cfg, ["images:download", f"--tenant={tenant_slug}", "--limit", str(limit)], capture=True, check=False)
+        if proc.stdout:
+            print(proc.stdout.strip())
+        if proc.stderr:
+            print(proc.stderr.strip(), file=sys.stderr)
+        return proc.returncode
+
+    if args.action == "emit":
+        step(f"Emitir sync de imagen por SKU ({tenant_slug})")
+        if not args.product_sku:
+            err("Debes indicar --product-sku.")
+            return 1
+        proc = run_artisan(
+            cfg,
+            ["images:emit-sync", f"--tenant={tenant_slug}", f"--product-sku={args.product_sku}"],
+            capture=True,
+            check=False,
+        )
+        if proc.stdout:
+            print(proc.stdout.strip())
+        if proc.stderr:
+            print(proc.stderr.strip(), file=sys.stderr)
+        return proc.returncode
+
+    if args.action == "retry-failed":
+        step(f"Reintentar eventos de imagen fallidos ({tenant_slug})")
+        reset = reset_sync_inbox_events(cfg, tenant_slug, event_type="product.image.uploaded")
+        if not reset.get("ok"):
+            err(f"No se pudieron preparar imagenes fallidas: {reset.get('message')}")
+            return 1
+        ok(f"Eventos de imagen preparados: {reset.get('reset', 0)}")
+        rc = apply_inbox(cfg, tenant_slug, limit)
+        if rc != 0:
+            return rc
+        return cmd_images(argparse.Namespace(action="download", tenant=tenant_slug, limit=limit), cfg)
+
+    err(f"Accion de imagenes no soportada: {args.action}")
+    return 1
+
+
+def cmd_toolbox(args, cfg: Config) -> int:
+    print()
+    print(bold("INVENTARIOARENS Toolbox"))
+    info("Herramienta tecnica interactiva. No borra datos.")
+
+    while True:
+        print()
+        print("1. Diagnostico rapido")
+        print("2. Worker sync: estado")
+        print("3. Worker sync: reiniciar")
+        print("4. Sync: correr ahora")
+        print("5. Sync: reintentar inbox fallidos")
+        print("6. Sync: reintentar inbox por ID")
+        print("7. Imagenes: reintentar fallidas + descargar")
+        print("8. Imagenes: emitir sync por SKU")
+        print("9. Recuperar tenant desde nube")
+        print("0. Salir")
+        choice = prompt_value("Opcion", "1").strip()
+
+        try:
+            if choice == "0":
+                return 0
+            if choice == "1":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_status(argparse.Namespace(tenant=tenant), cfg)
+            elif choice == "2":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_worker(argparse.Namespace(action="status", tenant=tenant, event_type="", limit=100), cfg)
+            elif choice == "3":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_worker(argparse.Namespace(action="restart", tenant=tenant, event_type="", limit=100), cfg)
+            elif choice == "4":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_sync(argparse.Namespace(action="run", tenant=tenant, limit=100, event_type="", id=0), cfg)
+            elif choice == "5":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                event_type = prompt_value("Tipo de evento opcional", "")
+                cmd_sync(argparse.Namespace(action="retry-failed", tenant=tenant, limit=100, event_type=event_type, id=0), cfg)
+            elif choice == "6":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                inbox_id = int(prompt_value("ID de sync_inbox", "0"))
+                cmd_sync(argparse.Namespace(action="retry-inbox", tenant=tenant, limit=100, event_type="", id=inbox_id), cfg)
+            elif choice == "7":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_images(argparse.Namespace(action="retry-failed", tenant=tenant, limit=100, product_sku=""), cfg)
+            elif choice == "8":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                sku = prompt_value("SKU del producto", "")
+                cmd_images(argparse.Namespace(action="emit", tenant=tenant, limit=100, product_sku=sku), cfg)
+            elif choice == "9":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_recover_tenant(argparse.Namespace(
+                    tenant=tenant,
+                    tenant_name="",
+                    user="",
+                    user_name="",
+                    password="",
+                    cycles=5,
+                    limit=100,
+                    skip_migrate=False,
+                    yes=False,
+                ), cfg)
+            else:
+                warn("Opcion no reconocida.")
+        except KeyboardInterrupt:
+            print()
+            return 130
+        except Exception as exc:
+            err(str(exc))
+
+
 # -----------------------------------------------------------------------------
 # CLI parser
 # -----------------------------------------------------------------------------
@@ -1496,6 +1768,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--repo", type=Path, help="Path al repo Laravel (default: detecta subiendo parents desde cwd)")
 
     sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
+
+    # toolbox
+    ptool = sub.add_parser("toolbox", help="Menu interactivo para tecnico")
+    ptool.add_argument("--tenant", default="", help="Tenant sugerido para el menu")
+    ptool.set_defaults(func=cmd_toolbox)
 
     # install sync
     pi = sub.add_parser("install", help="Instala componentes (sync | printer)")
@@ -1578,6 +1855,31 @@ def build_parser() -> argparse.ArgumentParser:
     # update
     pu2 = sub.add_parser("update", help="git pull + composer + migrate + restart")
     pu2.set_defaults(func=cmd_update)
+
+    # worker
+    pwk = sub.add_parser("worker", help="Control del worker de sincronizacion")
+    pwk.add_argument("action", choices=["status", "start", "stop", "restart", "run-now", "refresh-and-retry"])
+    pwk.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pwk.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo al usar refresh-and-retry")
+    pwk.add_argument("--limit", type=int, default=100, help="Eventos a aplicar al reintentar (max 100)")
+    pwk.set_defaults(func=cmd_worker)
+
+    # sync
+    psync = sub.add_parser("sync", help="Operaciones manuales de sincronizacion")
+    psync.add_argument("action", choices=["run", "apply-inbox", "retry-failed", "retry-inbox"])
+    psync.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    psync.add_argument("--limit", type=int, default=100, help="Eventos por corrida (max 100)")
+    psync.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo")
+    psync.add_argument("--id", type=int, default=0, help="ID de sync_inbox para retry-inbox")
+    psync.set_defaults(func=cmd_sync)
+
+    # images
+    pimg = sub.add_parser("images", help="Herramientas de sincronizacion de imagenes")
+    pimg.add_argument("action", choices=["download", "emit", "retry-failed"])
+    pimg.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pimg.add_argument("--limit", type=int, default=100, help="Imagenes/eventos a procesar (max 100)")
+    pimg.add_argument("--product-sku", default="", help="SKU del producto para images emit")
+    pimg.set_defaults(func=cmd_images)
 
     return p
 
