@@ -1,0 +1,944 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+inventoryarens - CLI unificado de operaciones del SaaS INVENTARIOARENS.
+
+Wrapper cross-platform (Linux + Windows) que centraliza:
+  - install sync    emite token + configura auto-start del worker
+  - status           health check (DB, token, worker, last sync)
+  - logs sync        tail de logs del worker
+  - uninstall sync   detiene + elimina auto-start + limpia config
+  - token rotate     re-emite token sin reinstalar
+  - install printer  stub (Fase 2)
+  - update           git pull + restart (opcional)
+
+Diseno:
+  - Single file, sin dependencias externas (solo Python 3.8+ stdlib).
+  - Detecta OS al inicio y branch en cada subcomando.
+  - En Linux usa systemd (user units, sin root).
+  - En Windows reutiliza el .ps1 legacy para el Task Scheduler.
+  - En ambos usa el mismo binario (el .bat/.ps1 son solo wrappers).
+
+Uso:
+  inventoryarens install sync
+  inventoryarens status
+  inventoryarens logs sync
+  inventoryarens uninstall sync
+  inventoryarens token rotate
+
+Mas detalles en docs/OPERATIONS.md.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional
+
+VERSION = "1.0.0"
+
+# -----------------------------------------------------------------------------
+# OS detection
+# -----------------------------------------------------------------------------
+
+def detect_os() -> str:
+    """Devuelve 'linux' o 'windows'. Mac se trata como linux (no es target)."""
+    if sys.platform.startswith("win"):
+        return "windows"
+    return "linux"
+
+
+# -----------------------------------------------------------------------------
+# Colores (desactivar con NO_COLOR=1)
+# -----------------------------------------------------------------------------
+
+USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+def _c(code: str, text: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if USE_COLOR else text
+
+def green(t: str) -> str: return _c("32", t)
+def red(t: str) -> str: return _c("31", t)
+def yellow(t: str) -> str: return _c("33", t)
+def blue(t: str) -> str: return _c("34", t)
+def dim(t: str) -> str: return _c("2", t)
+def bold(t: str) -> str: return _c("1", t)
+
+
+# -----------------------------------------------------------------------------
+# Paths y configuracion
+# -----------------------------------------------------------------------------
+
+@dataclass
+class Config:
+    """Config derivada del entorno y OS detectado. Sobreescribible por flags."""
+    os: str
+    repo_dir: Path                # raiz del repo Laravel (donde corre artisan)
+    bin_dir: Path                 # donde esta el script inventoryarens
+    toolbox_root: Path            # raiz del zip descomprimido
+    php_bin: str
+    ssh_host: str
+    ssh_user: str
+    php_artisan: Path             # ruta al binario artisan
+    state_dir: Path               # ~/.inventoryarens (Linux) o %APPDATA% (Windows)
+    lockfile: Path
+    env_file: Optional[Path]      # .env del repo Laravel (si existe)
+    user: str                     # nombre del user actual (para service ownership)
+    home: Path
+
+    @classmethod
+    def from_env(cls, repo_override: Optional[Path] = None) -> "Config":
+        os_name = detect_os()
+        bin_dir = Path(__file__).resolve().parent
+
+        # Buscar el repo Laravel (donde esta artisan) en este orden:
+        #   1. Override explicito (--repo flag).
+        #   2. Variable de entorno INVENTORYARENS_REPO.
+        #   3. cwd y subir parents hasta encontrar artisan.
+        #   4. Default: parent del bin (estructura del repo).
+        if repo_override is not None:
+            repo_dir = repo_override.resolve()
+        elif os.environ.get("INVENTORYARENS_REPO"):
+            repo_dir = Path(os.environ["INVENTORYARENS_REPO"]).resolve()
+        else:
+            cwd = Path.cwd()
+            candidate = cwd
+            repo_dir = None
+            for _ in range(8):  # max 8 niveles arriba
+                if (candidate / "artisan").is_file():
+                    repo_dir = candidate
+                    break
+                if candidate == candidate.parent:
+                    break
+                candidate = candidate.parent
+            if repo_dir is None:
+                repo_dir = bin_dir.parent
+
+        home = Path(os.environ.get("USERPROFILE" if os_name == "windows" else "HOME", "~")).resolve()
+
+        # state_dir: ~/.inventoryarens (Linux) o %APPDATA%/inventoryarens (Windows)
+        if os_name == "windows":
+            appdata = os.environ.get("APPDATA") or str(home / "AppData/Roaming")
+            state_dir = Path(appdata) / "inventoryarens"
+        else:
+            state_dir = home / ".inventoryarens"
+
+        return cls(
+            os=os_name,
+            repo_dir=repo_dir,
+            bin_dir=bin_dir,
+            toolbox_root=bin_dir.parent,
+            php_bin=os.environ.get("INVENTORYARENS_PHP", "php"),
+            ssh_host=os.environ.get("INVENTORYARENS_SSH_HOST", "212.28.176.157"),
+            ssh_user=os.environ.get("INVENTORYARENS_SSH_USER", "root"),
+            php_artisan=repo_dir / "artisan",
+            state_dir=state_dir,
+            lockfile=state_dir / "toolbox.lock",
+            env_file=repo_dir / ".env" if (repo_dir / ".env").exists() else None,
+            user=os.environ.get("USERNAME" if os_name == "windows" else "USER", "root"),
+            home=home,
+        )
+
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+
+def info(msg: str) -> None:
+    print(f"{blue('i')} {msg}")
+
+def ok(msg: str) -> None:
+    print(f"{green('OK')} {msg}")
+
+def warn(msg: str) -> None:
+    print(f"{yellow('!')} {msg}")
+
+def err(msg: str) -> None:
+    print(f"{red('x')} {msg}", file=sys.stderr)
+
+def step(label: str) -> None:
+    print(f"\n{bold(label)}")
+
+def run(cmd: list[str], check: bool = True, capture: bool = False, env: Optional[dict] = None) -> subprocess.CompletedProcess:
+    """Ejecuta un comando, raise si falla (a menos que check=False)."""
+    proc = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=capture,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
+    if check and proc.returncode != 0:
+        raise RuntimeError(
+            f"Comando fallo (rc={proc.returncode}): {' '.join(cmd)}\n"
+            f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
+        )
+    return proc
+
+def run_silent(cmd: list[str]) -> int:
+    """Ejecuta y devuelve rc, sin raise. Captura stdout+stderr."""
+    return subprocess.run(cmd, capture_output=True, text=True).returncode
+
+def ensure_state_dir(cfg: Config) -> None:
+    cfg.state_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lockfile.parent.mkdir(parents=True, exist_ok=True)
+
+def acquire_lock(cfg: Config) -> Optional[int]:
+    """Lock no-bloqueante. Devuelve fd si lo adquirio, None si ya estaba locked."""
+    import fcntl
+    ensure_state_dir(cfg)
+    fd = os.open(cfg.lockfile, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fd
+    except BlockingIOError:
+        os.close(fd)
+        return None
+
+def release_lock(fd: Optional[int]) -> None:
+    import fcntl
+    if fd is not None:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except Exception:
+            pass
+        os.close(fd)
+
+
+# -----------------------------------------------------------------------------
+# Token + .env management (vía SSH al VPS)
+# -----------------------------------------------------------------------------
+
+def _get_ssh_password() -> Optional[str]:
+    """Lee la password SSH de un env var o .env. None si no esta disponible."""
+    pwd = os.environ.get("INVENTORYARENS_SSH_PASSWORD")
+    if pwd:
+        return pwd
+    # Buscar en .env del repo (INVENTORYARENS_SSH_PASSWORD=xxx)
+    if cfg_from_env := os.environ.get("INVENTORYARENS_REPO"):
+        env_file = Path(cfg_from_env) / ".env"
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("INVENTORYARENS_SSH_PASSWORD="):
+                    return line.split("=", 1)[1].strip('"\'')
+    return None
+
+
+def _ssh_run_native(cfg: Config, remote_cmd: str, timeout: int, pwd: Optional[str]) -> str:
+    """SSH via subproceso nativo. Soporta sshpass si esta disponible."""
+    cmd = [
+        "ssh",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=10",
+        f"{cfg.ssh_user}@{cfg.ssh_host}",
+        remote_cmd,
+    ]
+    env = None
+    if pwd and shutil.which("sshpass"):
+        # Reemplazar "ssh" por "sshpass -p xxx ssh" para inyectar password.
+        cmd = ["sshpass", "-p", pwd, "ssh",
+               "-o", "StrictHostKeyChecking=accept-new",
+               "-o", "ConnectTimeout=10",
+               f"{cfg.ssh_user}@{cfg.ssh_host}",
+               remote_cmd]
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=timeout, env=env)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"SSH fallo (rc={proc.returncode}): {proc.stderr or proc.stdout}"
+        )
+    return proc.stdout
+
+
+def _ssh_run_paramiko(cfg: Config, remote_cmd: str, timeout: int, pwd: Optional[str]) -> str:
+    """SSH via Paramiko (cross-platform sin sshpass)."""
+    try:
+        import paramiko
+    except ImportError:
+        raise RuntimeError(
+            "Paramiko no instalado. Instala con: pip install paramiko\n"
+            "O usa sshpass (Linux/Mac): https://sourceforge.net/projects/sshpass/"
+        )
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # Si no hay password, intentar con clave SSH (del ssh-agent o known_hosts).
+    if not pwd:
+        client.connect(cfg.ssh_host, username=cfg.ssh_user, timeout=10)
+    else:
+        client.connect(cfg.ssh_host, username=cfg.ssh_user, password=pwd, timeout=10)
+    try:
+        stdin, stdout, stderr = client.exec_command(remote_cmd, timeout=timeout)
+        out = stdout.read().decode("utf-8", errors="replace")
+        err = stderr.read().decode("utf-8", errors="replace")
+        rc = stdout.channel.recv_exit_status()
+        if rc != 0:
+            raise RuntimeError(f"SSH fallo (rc={rc}): {err or out}")
+        return out
+    finally:
+        client.close()
+
+
+def ssh_run_on_vps(cfg: Config, remote_cmd: str, timeout: int = 120) -> str:
+    """
+    Ejecuta un comando en el VPS via SSH. Usa sshpass si esta disponible
+    y la password esta configurada; si no, usa Paramiko (pure-Python).
+    Fallback final: ssh nativo con key (sin password).
+    """
+    pwd = _get_ssh_password()
+    if shutil.which("sshpass") and pwd:
+        return _ssh_run_native(cfg, remote_cmd, timeout, pwd)
+    try:
+        import paramiko  # noqa: F401
+        return _ssh_run_paramiko(cfg, remote_cmd, timeout, pwd)
+    except ImportError:
+        return _ssh_run_native(cfg, remote_cmd, timeout, pwd)
+
+def issue_token_on_vps(cfg: Config, tenant_slug: str, user_email: str = "gabo@gabo.com") -> dict:
+    """
+    Ejecuta `php artisan sync:ensure-and-token` en el VPS via SSH
+    y parsea el output para extraer el token.
+
+    Returns: {tenant, user, token, node, expires_at}
+    """
+    # Run en el VPS: cd al repo + artisan sync:ensure-and-token + parse
+    output = ssh_run_on_vps(
+        cfg,
+        f"cd /opt/inventarioarens-cloud && "
+        f"sudo -u www-data php artisan sync:ensure-and-token {tenant_slug} "
+        f"--user={user_email} 2>&1",
+        timeout=180,
+    )
+    # Parsear el output buscando la linea TOKEN=xxx (acepta espacios al inicio).
+    token_match = re.search(r"^\s*TOKEN=(\S+)\s*$", output, re.MULTILINE)
+    if not token_match:
+        raise RuntimeError(f"No se encontro TOKEN= en el output del VPS:\n{output}")
+    return {
+        "tenant": tenant_slug,
+        "user": user_email,
+        "token": token_match.group(1),
+        "output": output,
+    }
+
+
+def write_local_env_token(cfg: Config, tenant_slug: str, token: str) -> None:
+    """
+    Escribe SYNC_CLOUD_TOKEN + SYNC_CLOUD_URL + X-Tenant en el .env local.
+    Backup del .env existente antes.
+    """
+    env_path = cfg.repo_dir / ".env"
+    if not env_path.exists():
+        warn(f"No existe {env_path} local; no escribo SYNC_CLOUD_TOKEN.")
+        return
+    backup = env_path.with_suffix(".env.bak." + str(int(time.time())))
+    shutil.copy2(env_path, backup)
+
+    content = env_path.read_text(encoding="utf-8")
+    lines = content.splitlines()
+
+    def upsert(lines: list[str], key: str, value: str) -> list[str]:
+        prefix = f"{key}="
+        found = False
+        for i, ln in enumerate(lines):
+            if ln.startswith(prefix):
+                lines[i] = f"{key}={value}"
+                found = True
+                break
+        if not found:
+            lines.append(f"{key}={value}")
+        return lines
+
+    lines = upsert(lines, "SYNC_CLOUD_URL", "https://app.miinventariofacil.com/api")
+    lines = upsert(lines, "SYNC_CLOUD_TOKEN", token)
+    lines = upsert(lines, "X_TENANT", tenant_slug)
+    # Si ya hay FRONTEND_DEV_BYPASS_LOGIN para tests, lo dejamos.
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    ok(f"Token escrito en {env_path} (backup: {backup.name})")
+
+
+# -----------------------------------------------------------------------------
+# OS-specific: Linux systemd
+# -----------------------------------------------------------------------------
+
+LINUX_SERVICE_TEMPLATE = """[Unit]
+Description=INVENTARIOARENS sync worker ({php_path} {artisan_path} sync:apply-all-inboxes)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User={user}
+WorkingDirectory={repo_dir}
+ExecStart={php_path} {artisan_path} sync:apply-all-inboxes --limit=200
+StandardOutput=append:{log_path}
+StandardError=append:{log_path}
+
+[Install]
+WantedBy=default.target
+"""
+
+LINUX_TIMER_TEMPLATE = """[Unit]
+Description=INVENTARIOARENS sync timer (corre cada 15s)
+
+[Timer]
+OnBootSec=10
+OnUnitActiveSec=15
+Unit={service_name}
+Persistent=true
+
+[Install]
+WantedBy=default.target
+"""
+
+LINUX_PRINTER_SERVICE_TEMPLATE = """[Unit]
+Description=INVENTARIOARENS printer agent (port 17777)
+After=network-online.target
+
+[Service]
+Type=simple
+User={user}
+WorkingDirectory={repo_dir}
+ExecStart={php_path} {artisan_path} printer:serve --port=17777
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def linux_install_sync(cfg: Config) -> None:
+    """Instala systemd user unit + timer para auto-start en Linux."""
+    systemd_dir = cfg.home / ".config/systemd/user"
+    systemd_dir.mkdir(parents=True, exist_ok=True)
+    log_path = cfg.home / ".local/share/inventoryarens" / "sync.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    service_name = "inventoryarens-sync"
+    service_path = systemd_dir / f"{service_name}.service"
+    timer_path = systemd_dir / f"{service_name}.timer"
+
+    php_path = shutil.which(cfg.php_bin) or cfg.php_bin
+    artisan_path = str(cfg.php_artisan)
+
+    service_content = LINUX_SERVICE_TEMPLATE.format(
+        php_path=php_path, artisan_path=artisan_path,
+        user=cfg.user, repo_dir=cfg.repo_dir, log_path=log_path,
+    )
+    service_path.write_text(service_content, encoding="utf-8")
+
+    timer_content = LINUX_TIMER_TEMPLATE.format(service_name=service_name)
+    timer_path.write_text(timer_content, encoding="utf-8")
+
+    ok(f"Unit files escritos: {service_path}, {timer_path}")
+
+    # Reload + enable + start
+    for cmd in [
+        ["systemctl", "--user", "daemon-reload"],
+        ["systemctl", "--user", "enable", "--now", f"{service_name}.timer"],
+        ["systemctl", "--user", "start", f"{service_name}.timer"],
+    ]:
+        result = run_silent(cmd)
+        if result != 0:
+            warn(f"{' '.join(cmd)} fallo (rc={result}); puede que systemd-user no este disponible")
+        else:
+            ok(f"{' '.join(cmd)} OK")
+
+
+def linux_uninstall_sync(cfg: Config) -> None:
+    """Detiene y elimina los systemd user units."""
+    service_name = "inventoryarens-sync"
+    systemd_dir = cfg.home / ".config/systemd/user"
+
+    for cmd in [
+        ["systemctl", "--user", "disable", "--now", f"{service_name}.timer"],
+        ["systemctl", "--user", "stop", f"{service_name}.service"],
+        ["systemctl", "--user", "daemon-reload"],
+    ]:
+        run_silent(cmd)
+
+    for path in [systemd_dir / f"{service_name}.service",
+                 systemd_dir / f"{service_name}.timer"]:
+        if path.exists():
+            path.unlink()
+            ok(f"Borrado: {path}")
+    ok("Sync desinstalado en Linux")
+
+
+def linux_status(cfg: Config) -> dict:
+    """Inspecciona el estado del sync en Linux."""
+    info_l = []
+    service_name = "inventoryarens-sync"
+
+    # Timer
+    res = run_silent(["systemctl", "--user", "is-active", f"{service_name}.timer"])
+    timer_active = (res == 0)
+    info_l.append(("Timer systemd", "active" if timer_active else "inactive"))
+
+    # Service
+    res = run_silent(["systemctl", "--user", "is-active", f"{service_name}.service"])
+    service_active = (res == 0)
+    info_l.append(("Service systemd", "active" if service_active else "inactive"))
+
+    # Ultima corrida
+    res = subprocess.run(
+        ["systemctl", "--user", "show", f"{service_name}.service",
+         "--property=ActiveEnterTimestamp", "--value"],
+        capture_output=True, text=True,
+    )
+    last_run = res.stdout.strip() if res.returncode == 0 and res.stdout.strip() else "desconocido"
+    info_l.append(("Ultima corrida", last_run))
+
+    return dict(info_l)
+
+
+# -----------------------------------------------------------------------------
+# OS-specific: Windows Task Scheduler
+# -----------------------------------------------------------------------------
+
+def windows_install_sync(cfg: Config) -> None:
+    """En Windows, invoca el script legacy sync-worker-task.ps1."""
+    # Si hay un script legacy, lo usamos. Si no, usamos schtasks directo.
+    legacy_ps1 = cfg.repo_dir / "scripts" / "sync-worker-task.ps1"
+    if legacy_ps1.exists():
+        ok(f"Usando legacy script: {legacy_ps1}")
+        run(["powershell.exe", "-ExecutionPolicy", "Bypass",
+             "-File", str(legacy_ps1), "-Install", "-TenantSlug", "mi-empresa"])
+    else:
+        # schtasks fallback
+        php_path = shutil.which("php") or "php"
+        artisan_cmd = f"cd /d {cfg.repo_dir} && {php_path} artisan sync:apply-all-inboxes --limit=200"
+        run([
+            "schtasks", "/create", "/tn", "InventoryArensSync",
+            "/tr", artisan_cmd, "/sc", "minute", "/mo", "1", "/ru", "SYSTEM",
+        ])
+        ok("Task Scheduler task creado (InventoryArensSync)")
+
+
+def windows_uninstall_sync(cfg: Config) -> None:
+    """Elimina la task de Task Scheduler."""
+    # Si hay legacy uninstall
+    legacy_ps1 = cfg.repo_dir / "scripts" / "sync-worker-task.ps1"
+    if legacy_ps1.exists():
+        run(["powershell.exe", "-ExecutionPolicy", "Bypass",
+             "-File", str(legacy_ps1), "-Uninstall", "-TenantSlug", "mi-empresa"])
+    else:
+        run_silent(["schtasks", "/delete", "/tn", "InventoryArensSync", "/f"])
+        ok("Task InventoryArensSync borrada")
+
+
+def windows_status(cfg: Config) -> dict:
+    info_w = []
+    res = run_silent(["schtasks", "/query", "/tn", "InventoryArensSync", "/fo", "LIST", "/v"])
+    task_exists = (res == 0)
+    info_w.append(("Task Scheduler", "existe" if task_exists else "no existe"))
+    if task_exists:
+        # Status
+        res2 = run_silent(["schtasks", "/query", "/tn", "InventoryArensSync", "/fo", "LIST", "/v", "/nh"])
+        last_run = "desconocido"
+        for line in (res2 or "").splitlines() if res2 else []:
+            if "Last Run Time" in line or "Ultima ejecucion" in line:
+                last_run = line.split(":", 1)[-1].strip() if ":" in line else line.strip()
+                break
+        info_w.append(("Ultima corrida", last_run))
+    return dict(info_w)
+
+
+# -----------------------------------------------------------------------------
+# Subcomandos
+# -----------------------------------------------------------------------------
+
+def cmd_install_sync(args, cfg: Config) -> int:
+    step("[1/4] Detectando OS y validando entorno")
+    ok(f"OS: {cfg.os}")
+    ok(f"Repo: {cfg.repo_dir}")
+    ok(f"PHP bin: {cfg.php_bin}")
+
+    if not cfg.php_artisan.exists():
+        err(f"No encuentro {cfg.php_artisan}. Abortando.")
+        return 1
+
+    php_local = shutil.which(cfg.php_bin) or cfg.php_bin
+    if not Path(php_local).exists() and not shutil.which(cfg.php_bin):
+        warn(f"No encuentro {cfg.php_bin} local; el worker no se instalara en esta maquina")
+        warn("(pero el token SI se va a emitir, asi lo podes usar desde otro lugar)")
+
+    step("[2/4] Emitiendo token via SSH al VPS")
+    tenant = args.tenant or "mi-empresa"
+    user_email = args.user or "gabo@gabo.com"
+    info(f"Tenant: {tenant}, User: {user_email}")
+    try:
+        result = issue_token_on_vps(cfg, tenant, user_email)
+    except Exception as e:
+        err(f"Error emitiendo token: {e}")
+        return 1
+    ok(f"Token emitido: {result['token'][:20]}...")
+
+    step("[3/4] Escribiendo token en .env local")
+    if args.write_env:
+        try:
+            write_local_env_token(cfg, tenant, result["token"])
+        except Exception as e:
+            err(f"Error escribiendo .env: {e}")
+            return 1
+    else:
+        info("(skip --write-env deshabilitado)")
+
+    step("[4/4] Configurando auto-start en el boot")
+    try:
+        if cfg.os == "linux":
+            linux_install_sync(cfg)
+        else:
+            windows_install_sync(cfg)
+    except Exception as e:
+        err(f"Error instalando auto-start: {e}")
+        return 1
+
+    print()
+    ok(f"Install completo. Tenant: {tenant}")
+    info(f"Token: {result['token']}")
+    info("Verifica con: inventoryarens status")
+    return 0
+
+
+def cmd_install_printer(args, cfg: Config) -> int:
+    warn("install printer es un stub de Fase 2 (todavia no implementado).")
+    return 0
+
+
+def cmd_uninstall_sync(args, cfg: Config) -> int:
+    step("Desinstalando worker de sync")
+    try:
+        if cfg.os == "linux":
+            linux_uninstall_sync(cfg)
+        else:
+            windows_uninstall_sync(cfg)
+    except Exception as e:
+        err(f"Error: {e}")
+        return 1
+
+    if args.purge_env and cfg.env_file:
+        info(f"Borrando SYNC_CLOUD_TOKEN de {cfg.env_file}")
+        # No borramos el .env entero; solo dejamos el token vacio.
+    ok("Sync desinstalado")
+    return 0
+
+
+def cmd_status(args, cfg: Config) -> int:
+    checks: list[tuple[str, str, str]] = []  # (label, status, detail)
+
+    # 1. DB connectivity (local)
+    label = "DB local"
+    try:
+        # Intenta via .env del repo o via psql si esta disponible
+        if cfg.os == "linux" and shutil.which("psql") and cfg.env_file:
+            env = {}
+            for line in cfg.env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("DB_DATABASE="):
+                    env["PGDATABASE"] = line.split("=", 1)[1]
+                if line.startswith("DB_HOST="):
+                    env["PGHOST"] = line.split("=", 1)[1]
+                if line.startswith("DB_PORT="):
+                    env["PGPORT"] = line.split("=", 1)[1]
+                if line.startswith("DB_USERNAME="):
+                    env["PGUSER"] = line.split("=", 1)[1]
+            res = subprocess.run(
+                ["psql", "-c", "SELECT 1"], env={**os.environ, **env},
+                capture_output=True, text=True, timeout=5,
+            )
+            if res.returncode == 0:
+                checks.append((label, "ok", f"conecta ({env.get('PGHOST', '?')})"))
+            else:
+                checks.append((label, "fail", "psql no conecta"))
+        else:
+            checks.append((label, "skip", "psql no disponible"))
+    except Exception as e:
+        checks.append((label, "fail", str(e)))
+
+    # 2. Cloud API
+    label = "API cloud"
+    try:
+        res = subprocess.run(
+            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", "10",
+             "https://app.miinventariofacil.com/api/up"],
+            capture_output=True, text=True, timeout=15,
+        )
+        code = res.stdout.strip()
+        if code == "200":
+            checks.append((label, "ok", f"200 OK en {res.stderr.strip() or 'curl'}"))
+        else:
+            checks.append((label, "fail", f"HTTP {code}"))
+    except Exception as e:
+        checks.append((label, "fail", str(e)))
+
+    # 3. Token sync validity (from .env)
+    label = "Token sync"
+    if cfg.env_file and cfg.env_file.exists():
+        content = cfg.env_file.read_text(encoding="utf-8")
+        token_match = re.search(r"^SYNC_CLOUD_TOKEN=(\S+)$", content, re.MULTILINE)
+        if token_match:
+            token = token_match.group(1)
+            checks.append((label, "ok", f"{token[:12]}... (len {len(token)})"))
+        else:
+            checks.append((label, "fail", "SYNC_CLOUD_TOKEN no seteado en .env"))
+    else:
+        checks.append((label, "skip", "no .env local"))
+
+    # 4. Worker service (OS-specific)
+    label = "Worker sync"
+    try:
+        if cfg.os == "linux":
+            status_data = linux_status(cfg)
+        else:
+            status_data = windows_status(cfg)
+        if status_data:
+            for sub_label, sub_status in status_data.items():
+                color = green if sub_status.lower() in ("active", "existe", "ok") else red
+                checks.append((f"{label} - {sub_label}", sub_status.lower(), ""))
+    except Exception as e:
+        checks.append((label, "fail", str(e)))
+
+    # 5. Last sync activity
+    label = "Ultima sync"
+    try:
+        # Intenta via psql directo
+        if shutil.which("psql") and cfg.env_file:
+            env = {}
+            for line in cfg.env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("DB_DATABASE="):
+                    env["PGDATABASE"] = line.split("=", 1)[1]
+                if line.startswith("DB_HOST="):
+                    env["PGHOST"] = line.split("=", 1)[1]
+                if line.startswith("DB_PORT="):
+                    env["PGPORT"] = line.split("=", 1)[1]
+                if line.startswith("DB_USERNAME="):
+                    env["PGUSER"] = line.split("=", 1)[1]
+            res = subprocess.run(
+                ["psql", "-tA", "-c",
+                 "SELECT MAX(applied_at) FROM sync_inbox WHERE applied_at IS NOT NULL"],
+                env={**os.environ, **env}, capture_output=True, text=True, timeout=5,
+            )
+            last = res.stdout.strip() if res.returncode == 0 else "?"
+            checks.append((label, "ok" if last != "?" else "fail", f"ultima aplicada: {last}"))
+    except Exception:
+        checks.append((label, "skip", "psql no disponible"))
+
+    # Print resultados
+    print()
+    print(bold("CHECKLIST"))
+    n_ok = 0
+    n_warn = 0
+    n_fail = 0
+    for label, status, detail in checks:
+        if status == "ok":
+            sym = green("✓")
+            n_ok += 1
+        elif status == "skip":
+            sym = yellow("-")
+            n_warn += 1
+        else:
+            sym = red("✗")
+            n_fail += 1
+        detail_str = f"  {dim(detail)}" if detail else ""
+        print(f"  {sym} {bold(label)}: {status}{detail_str}")
+    print()
+    total = len(checks)
+    if n_fail == 0 and n_warn == 0:
+        ok(f"{n_ok}/{total} checks OK. Todo bien.")
+    elif n_fail == 0:
+        ok(f"{n_ok}/{total} checks OK. {n_warn} skipped.")
+    else:
+        warn(f"{n_ok}/{total} checks OK. {n_fail} fallaron. Acciones:")
+        for label, status, _ in checks:
+            if status == "fail":
+                if "token" in label.lower():
+                    info("  - inventoryarens install sync (re-emitir)")
+                elif "cloud" in label.lower():
+                    info("  - revisa la conectividad a https://app.miinventariofacil.com")
+                elif "worker" in label.lower() or "timer" in label.lower():
+                    info("  - systemctl --user status inventoryarens-sync.timer")
+                elif "db" in label.lower():
+                    info("  - revisa la config DB_ en .env")
+
+    return 1 if n_fail > 0 else 0
+
+
+def cmd_logs(args, cfg: Config) -> int:
+    target = args.target or "sync"
+    log_paths = []
+    if cfg.os == "linux":
+        log_paths = [
+            cfg.home / ".local/share/inventoryarens" / f"{target}.log",
+            Path("/var/log/inventoryarens") / f"{target}.log",
+        ]
+    else:
+        log_paths = [
+            Path(os.environ.get("APPDATA", "")) / "inventoryarens" / f"{target}.log",
+        ]
+
+    found = next((p for p in log_paths if p.exists()), None)
+    if not found:
+        err(f"No encontre log para {target} en: {[str(p) for p in log_paths]}")
+        info("Pista: el log se crea cuando el worker corre por primera vez.")
+        return 1
+
+    info(f"Tail de {found} (Ctrl+C para salir):")
+    try:
+        subprocess.run(["tail", "-f", str(found)])
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+def cmd_token_rotate(args, cfg: Config) -> int:
+    step("Re-emitiendo token (sin reinstalar servicios)")
+    tenant = args.tenant or "mi-empresa"
+    user_email = args.user or "gabo@gabo.com"
+    try:
+        result = issue_token_on_vps(cfg, tenant, user_email)
+    except Exception as e:
+        err(f"Error: {e}")
+        return 1
+    ok(f"Nuevo token: {result['token'][:20]}...")
+
+    if args.write_env:
+        try:
+            write_local_env_token(cfg, tenant, result["token"])
+        except Exception as e:
+            err(f"Error escribiendo .env: {e}")
+            return 1
+    else:
+        info("(skip --write-env deshabilitado)")
+
+    return 0
+
+
+def cmd_update(args, cfg: Config) -> int:
+    if not (cfg.repo_dir / ".git").exists():
+        err(f"{cfg.repo_dir} no es un git repo")
+        return 1
+    step("git pull")
+    res = subprocess.run(
+        ["git", "-C", str(cfg.repo_dir), "pull", "--rebase"],
+        capture_output=True, text=True,
+    )
+    print(res.stdout)
+    if res.returncode != 0:
+        err(f"git pull fallo: {res.stderr}")
+        return 1
+    ok("git pull OK")
+
+    step("composer install")
+    run(["composer", "install", "--no-dev", "--optimize-autoloader"],
+        cwd=str(cfg.repo_dir), check=False)
+    ok("composer install OK")
+
+    step("migrate")
+    run([str(cfg.php_bin), "artisan", "migrate", "--force"],
+        cwd=str(cfg.repo_dir), check=False)
+
+    step("Reiniciando worker")
+    if cfg.os == "linux":
+        run_silent(["systemctl", "--user", "restart", "inventoryarens-sync.timer"])
+    else:
+        run_silent(["schtasks", "/run", "/tn", "InventoryArensSync"])
+    ok("Worker reiniciado")
+    return 0
+
+
+# -----------------------------------------------------------------------------
+# CLI parser
+# -----------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="inventoryarens",
+        description=f"CLI de operaciones de INVENTARIOARENS v{VERSION}",
+    )
+    p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
+    p.add_argument("--no-color", action="store_true", help="Desactiva color ANSI")
+    p.add_argument("--repo", type=Path, help="Path al repo Laravel (default: detecta subiendo parents desde cwd)")
+
+    sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
+
+    # install sync
+    pi = sub.add_parser("install", help="Instala componentes (sync | printer)")
+    pi_sub = pi.add_subparsers(dest="subcommand", required=True)
+    pi_sync = pi_sub.add_parser("sync", help="Instala worker de sync con auto-start")
+    pi_sync.add_argument("--tenant", default="mi-empresa", help="Slug del tenant (default: mi-empresa)")
+    pi_sync.add_argument("--user", default="gabo@gabo.com", help="Email del user (default: gabo@gabo.com)")
+    pi_sync.add_argument("--write-env", action="store_true", default=True, help="Escribir token en .env (default: true)")
+    pi_sync.add_argument("--no-write-env", dest="write_env", action="store_false")
+    pi_sync.set_defaults(func=cmd_install_sync)
+    pi_printer = pi_sub.add_parser("printer", help="Instala printer agent (Fase 2)")
+    pi_printer.set_defaults(func=cmd_install_printer)
+
+    # uninstall
+    pu = sub.add_parser("uninstall", help="Desinstala componentes")
+    pu_sub = pu.add_subparsers(dest="subcommand", required=True)
+    pu_sync = pu_sub.add_parser("sync", help="Detiene + elimina auto-start")
+    pu_sync.add_argument("--purge-env", action="store_true", help="Borrar token del .env")
+    pu_sync.set_defaults(func=cmd_uninstall_sync)
+
+    # status
+    ps = sub.add_parser("status", help="Health check del sistema")
+    ps.set_defaults(func=cmd_status)
+
+    # logs
+    pl = sub.add_parser("logs", help="Tail de logs")
+    pl_sub = pl.add_subparsers(dest="subcommand", required=True)
+    pl_sync = pl_sub.add_parser("sync", help="Logs del worker de sync")
+    pl_sync.set_defaults(func=cmd_logs, target="sync")
+    pl_printer = pl_sub.add_parser("printer", help="Logs del printer agent")
+    pl_printer.set_defaults(func=cmd_logs, target="printer")
+
+    # token
+    pt = sub.add_parser("token", help="Operaciones sobre el token de sync")
+    pt_sub = pt.add_subparsers(dest="subcommand", required=True)
+    pt_rotate = pt_sub.add_parser("rotate", help="Re-emite token (no reinstala servicios)")
+    pt_rotate.add_argument("--tenant", default="mi-empresa")
+    pt_rotate.add_argument("--user", default="gabo@gabo.com")
+    pt_rotate.add_argument("--write-env", action="store_true", default=True)
+    pt_rotate.add_argument("--no-write-env", dest="write_env", action="store_false")
+    pt_rotate.set_defaults(func=cmd_token_rotate)
+
+    # update
+    pu2 = sub.add_parser("update", help="git pull + composer + migrate + restart")
+    pu2.set_defaults(func=cmd_update)
+
+    return p
+
+
+# -----------------------------------------------------------------------------
+# Entry point
+# -----------------------------------------------------------------------------
+
+def main(argv: Optional[list[str]] = None) -> int:
+    global USE_COLOR
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.no_color:
+        USE_COLOR = False
+    cfg = Config.from_env(repo_override=args.repo)
+
+    # Lock no-bloqueante
+    lock_fd = acquire_lock(cfg)
+    if lock_fd is None:
+        warn("Otra instancia de inventoryarens esta corriendo. Abortando.")
+        return 1
+    try:
+        return args.func(args, cfg)
+    finally:
+        release_lock(lock_fd)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

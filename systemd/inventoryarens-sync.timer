@@ -1,0 +1,18 @@
+[Unit]
+Description=INVENTARIOARENS sync timer (corre cada 15 segundos)
+Requires=inventoryarens-sync.service
+
+[Timer]
+# Primera corrida 10s despues de boot.
+OnBootSec=10
+# Luego corre cada 15s mientras el sistema este activo.
+OnUnitActiveSec=15
+# Llama al service que procesa el inbox.
+Unit=inventoryarens-sync.service
+# Si el timer se "perdio" corridas mientras el sistema estaba apagado,
+# correlas todas juntas al volver. No es critico pero es prolijo.
+Persistent=true
+
+[Install]
+# Habilita el timer al login del user (WantedBy=default.target en user mode).
+WantedBy=default.target

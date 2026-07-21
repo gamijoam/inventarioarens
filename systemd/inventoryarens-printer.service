@@ -1,0 +1,20 @@
+[Unit]
+Description=INVENTARIOARENS printer agent (HTTP server en :17777)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Ajusta el path a tu instalacion del repo. Default: /opt/inventarioarens-cloud
+WorkingDirectory=/opt/inventarioarens-cloud
+# Comando del printer agent (Fase 2). Por ahora es un stub.
+ExecStart=/usr/bin/php artisan printer:serve --port=17777
+# Reinicia si crashea (5s despues).
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/inventoryarens-printer.log
+StandardError=append:/var/log/inventoryarens-printer.log
+
+[Install]
+# Habilita el service al login del user para auto-start.
+WantedBy=default.target
