@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Products\Controllers\LocalImageProxyController;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -70,6 +71,16 @@ Route::get('assets/{path}', function (string $path) {
         'Cache-Control' => 'public, max-age=31536000, immutable',
     ]);
 })->where('path', '[a-zA-Z0-9._/-]+')->name('spa.assets');
+
+// Proxy local de imagenes (Fase 3 - multi-imagen offline-first).
+// El SPA usa <img src="/api/images/{uuid}"> para mostrar imagenes. Este
+// endpoint es PUBLIC (sin auth, sin CSRF check) porque los <img> del browser
+// no envian headers custom ni Bearer tokens. Se auto-identifica por UUID
+// (128 bits de entropia). Si el archivo esta en synced-images lo sirve
+// local; si no, 302 al cloud URL.
+Route::get('api/images/{uuid}', [LocalImageProxyController::class, 'show'])
+    ->where('uuid', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+    ->name('local.image.show');
 
 // Catch-all SPA: cualquier ruta que NO sea /api/* o /up devuelve el index.html.
 // Esto es el comportamiento estandar de React Router/Vite SPA: el server siempre

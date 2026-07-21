@@ -24,6 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Modules/Sync/Commands',
         __DIR__.'/../app/Console/Commands',
     ])
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        $schedule->command('images:download --limit=20')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(10)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/images-download.log'));
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
         $middleware->append(AssignRequestId::class);

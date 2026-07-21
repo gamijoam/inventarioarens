@@ -7,6 +7,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
@@ -1260,6 +1261,21 @@ class SyncEventApplier
                     ],
                 );
         }
+
+        // Side effect: descargar el archivo binario al synced-images local.
+        // El proxy LocalImageProxyController sirve desde synced-images primero,
+        // y hace 302 al cloud si no esta. La descarga corre en background
+        // (no bloqueamos el response del applier).
+        dispatch(function () use ($image) {
+            try {
+                app(SyncDownloadService::class)->downloadImage($image);
+            } catch (\Throwable $e) {
+                Log::warning('sync.image.background_download_failed', [
+                    'image_id' => $image->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
         return "product_image:{$image->id}";
     }
