@@ -324,69 +324,96 @@ export function useCashSessions() {
 
 export const BootstrapWarehouseSchema = z.object({
   id: z.number().int(),
+  tenant_id: z.number().int().nullish(),
   branch_id: z.number().int().nullish(),
   code: z.string().nullish(),
   name: z.string(),
   status: z.string().nullish(),
   branch_name: z.string().nullish(),
   branch_code: z.string().nullish(),
+  tenant_name: z.string().nullish(),
+  tenant_slug: z.string().nullish(),
 }).transform((value) => ({
   id: value.id,
+  tenant_id: value.tenant_id ?? null,
   branch_id: value.branch_id ?? null,
-  code: value.code,
+  code: value.code ?? null,
   name: value.name,
-  status: value.status,
-  branch_name: value.branch_name,
-  branch_code: value.branch_code,
+  status: value.status ?? null,
+  branch_name: value.branch_name ?? null,
+  branch_code: value.branch_code ?? null,
+  tenant_name: value.tenant_name ?? null,
+  tenant_slug: value.tenant_slug ?? null,
 }));
 export type BootstrapWarehouse = z.infer<typeof BootstrapWarehouseSchema>;
 
 export const BootstrapCashRegisterSchema = z.object({
   id: z.number().int(),
+  tenant_id: z.number().int().nullish(),
   branch_id: z.number().int().nullish(),
   code: z.string().nullish(),
   name: z.string(),
   branch_name: z.string().nullish(),
+  tenant_name: z.string().nullish(),
+  tenant_slug: z.string().nullish(),
 }).transform((value) => ({
   id: value.id,
+  tenant_id: value.tenant_id ?? null,
   branch_id: value.branch_id ?? null,
-  code: value.code,
+  code: value.code ?? null,
   name: value.name,
-  branch_name: value.branch_name,
+  branch_name: value.branch_name ?? null,
+  tenant_name: value.tenant_name ?? null,
+  tenant_slug: value.tenant_slug ?? null,
 }));
 export type BootstrapCashRegister = z.infer<typeof BootstrapCashRegisterSchema>;
 
 export const BootstrapBranchSchema = z.object({
   id: z.number().int(),
+  tenant_id: z.number().int().nullish(),
   code: z.string().nullish(),
   name: z.string(),
+  tenant_name: z.string().nullish(),
+  tenant_slug: z.string().nullish(),
 }).transform((value) => ({
   id: value.id,
-  code: value.code,
+  tenant_id: value.tenant_id ?? null,
+  code: value.code ?? null,
   name: value.name,
+  tenant_name: value.tenant_name ?? null,
+  tenant_slug: value.tenant_slug ?? null,
 }));
 export type BootstrapBranch = z.infer<typeof BootstrapBranchSchema>;
 
 export const BootstrapExchangeRateTypeSchema = z.object({
   id: z.number().int(),
+  tenant_id: z.number().int().nullish(),
   code: z.string().nullish(),
   name: z.string(),
   is_default: z.boolean().nullish(),
+  tenant_name: z.string().nullish(),
+  tenant_slug: z.string().nullish(),
 }).transform((value) => ({
   id: value.id,
+  tenant_id: value.tenant_id ?? null,
   code: value.code ?? '',
   name: value.name,
   is_default: value.is_default ?? false,
+  tenant_name: value.tenant_name ?? null,
+  tenant_slug: value.tenant_slug ?? null,
 }));
 export type BootstrapExchangeRateType = z.infer<typeof BootstrapExchangeRateTypeSchema>;
 
 export const BootstrapExchangeRateSchema = z.object({
   id: z.number().int(),
+  tenant_id: z.number().int().nullish(),
   exchange_rate_type_id: z.number().int(),
   base_currency: z.string(),
   quote_currency: z.string(),
   rate: z.number(),
   effective_at: z.string().nullable().optional(),
+  tenant_name: z.string().nullish(),
+  tenant_slug: z.string().nullish(),
 }).passthrough();
 export type BootstrapExchangeRate = z.infer<typeof BootstrapExchangeRateSchema>;
 
@@ -423,23 +450,32 @@ export function usePosBootstrap() {
 export interface BootstrapRefs {
   warehouses: Array<{
     id: number;
+    tenant_id: number | null;
     branch_id: number | null;
-    code: string;
+    code: string | null;
     name: string;
-    status: 'active' | 'inactive';
+    status: 'active' | 'inactive' | string | null;
     branch_name: string | null;
     branch_code: string | null;
+    tenant_name: string | null;
+    tenant_slug: string | null;
   }>;
   cash_registers: Array<{
     id: number;
+    tenant_id: number | null;
     branch_id: number | null;
-    code: string;
+    code: string | null;
     name: string;
+    tenant_name: string | null;
+    tenant_slug: string | null;
   }>;
   branches: Array<{
     id: number;
-    code: string;
+    tenant_id: number | null;
+    code: string | null;
     name: string;
+    tenant_name: string | null;
+    tenant_slug: string | null;
   }>;
 }
 
@@ -459,23 +495,32 @@ export function useBootstrapRefsForPos() {
     return {
       warehouses: query.data.warehouses.map((warehouse) => ({
         id: warehouse.id,
-        branch_id: warehouse.branch_id ?? null,
-        code: warehouse.code ?? '',
+        tenant_id: warehouse.tenant_id,
+        branch_id: warehouse.branch_id,
+        code: warehouse.code,
         name: warehouse.name,
         status: (warehouse.status ?? 'active') as 'active' | 'inactive',
-        branch_name: warehouse.branch_name ?? null,
-        branch_code: warehouse.branch_code ?? null,
+        branch_name: warehouse.branch_name,
+        branch_code: warehouse.branch_code,
+        tenant_name: warehouse.tenant_name,
+        tenant_slug: warehouse.tenant_slug,
       })),
       cash_registers: query.data.cash_registers.map((register) => ({
         id: register.id,
-        branch_id: register.branch_id ?? null,
-        code: register.code ?? '',
+        tenant_id: register.tenant_id,
+        branch_id: register.branch_id,
+        code: register.code,
         name: register.name,
+        tenant_name: register.tenant_name,
+        tenant_slug: register.tenant_slug,
       })),
       branches: query.data.branches.map((branch) => ({
         id: branch.id,
-        code: branch.code ?? '',
+        tenant_id: branch.tenant_id,
+        code: branch.code,
         name: branch.name,
+        tenant_name: branch.tenant_name,
+        tenant_slug: branch.tenant_slug,
       })),
     };
   }, [query.data]);

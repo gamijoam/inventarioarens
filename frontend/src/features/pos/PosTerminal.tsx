@@ -386,7 +386,7 @@ export function PosTerminal() {
             >
               {warehouses.map((warehouse) => (
                 <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.code} - {warehouse.name}
+                  {warehouse.tenant_name ? `[${warehouse.tenant_name}] ${warehouse.code} - ${warehouse.name}` : `${warehouse.code} - ${warehouse.name}`}
                 </option>
               ))}
             </Select>
@@ -1366,7 +1366,7 @@ function PaymentChip({
 
 function OpenCashScreen(props: {
   canOpenCash: boolean;
-  branches: Array<{ id: number; name: string; code: string }>;
+  branches: Array<{ id: number; name: string; code: string | null }>;
   cashRegisters: Array<{ id: number; name: string; code?: string | null }>;
   branchId: number | '';
   registerId: number | '';
@@ -1608,7 +1608,7 @@ function ProductSearchPanel({
 }: {
   search: string;
   products: Product[];
-  warehouses: Array<{ id: number; code: string; name: string }>;
+  warehouses: Array<{ id: number; code: string | null; name: string }>;
   warehouseId: number | null;
   priceListName: string | null;
   loading: boolean;
