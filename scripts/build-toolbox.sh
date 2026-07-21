@@ -50,6 +50,7 @@ install -m 0755 "$REPO_ROOT/windows/"*.ps1 "$STAGE/windows/"
 
 # 5) Documentacion
 install -m 0644 "$REPO_ROOT/docs/OPERATIONS.md" "$STAGE/README.md"
+install -m 0644 "$REPO_ROOT/docs/TUTORIAL.md" "$STAGE/TUTORIAL.md"
 
 # 6) Licencia
 if [ -f "$REPO_ROOT/LICENSE" ]; then
