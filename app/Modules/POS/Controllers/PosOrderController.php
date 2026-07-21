@@ -36,11 +36,11 @@ class PosOrderController extends Controller
                 'payments.paymentMethod:id,name',
             ])
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
-            ->when($request->query('cash_register_session_id'),
+            ->when($sessionId = $request->integer('cash_register_session_id'),
                 fn ($query, int $sessionId) => $query->where('cash_register_session_id', $sessionId))
-            ->when($request->query('cashier_id'),
+            ->when($cashierId = $request->integer('cashier_id'),
                 fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId))
-            ->when($request->query('customer_id'),
+            ->when($customerId = $request->integer('customer_id'),
                 fn ($query, int $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('date_from'),
                 fn ($query, string $from) => $query->where('opened_at', '>=', $from))

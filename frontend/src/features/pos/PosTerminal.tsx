@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePosCartStore, type Panel } from './cartStore';
+import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
 import { Link } from '@tanstack/react-router';
 import {
   Banknote,
@@ -91,6 +91,37 @@ const PAYMENT_METHODS: Array<{ value: PosPaymentMethod; label: string }> = [
 ];
 
 const BASE_PRICE_LIST_LABEL = 'Precio base';
+
+/**
+ * Helpers de filtro de atajos de teclado.
+ *
+ * El POS tiene atajos globales (F2, F3, F4, F6, F7, F9, Escape, Delete)
+ * que se capturan en window. Si el usuario esta editando un campo de
+ * texto (input, textarea, contentEditable), esos atajos NO deben dispararse
+ * porque harian cosas inesperadas (ej: Delete borra la ultima linea del
+ * carrito mientras el usuario queria borrar un caracter).
+ *
+ * Escape SI se permite dentro de un form (cierra modales), pero los
+ * atajos de cambio de panel (F2..F9) NO.
+ */
+function isEditableField(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT') {
+    const type = (target as HTMLInputElement).type?.toLowerCase() ?? 'text';
+    // Los inputs de tipo button/submit/checkbox/radio NO son editables.
+    // Select es solo lectura. Textarea es editable.
+    return ['text', 'search', 'email', 'tel', 'url', 'password', 'number', 'search'].includes(type);
+  }
+  if (tag === 'TEXTAREA') return true;
+  if (target.isContentEditable) return true;
+  return false;
+}
+
+function isInForm(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  return target.closest('form, [role="dialog"], [data-panel]') !== null;
+}
 
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
@@ -233,6 +264,15 @@ export function PosTerminal() {
     () => sessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null,
     [sessions],
   );
+
+  // Persistencia del carrito: hidrata desde sessionStorage al montar y
+  // sincroniza cambios al store de vuelta. Solo persiste cuando hay
+  // contenido (lineas o pagos) y se key-a por tenant+cashier para
+  // evitar colisiones entre sesiones distintas.
+  usePosCartPersistence(
+    activeSession ? Number(activeSession.tenant_id) : null,
+    activeSession ? Number(activeSession.cashier_id) : null,
+  );
   const { data: recentPaidOrders = [] } = useSessionOrders(activeSession?.id ?? null, 'paid', 10);
   const activePrinterStation = useMemo(
     () =>
@@ -287,39 +327,65 @@ export function PosTerminal() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const inEditableField = isEditableField(target);
+      const inForm = isInForm(target);
+
       if (event.key === 'F2') {
         event.preventDefault();
+        if (inEditableField) return;
         if (priceListPaymentIssue) {
           toast.error(priceListPaymentIssue);
           return;
         }
         setPanel('pay');
+        return;
       }
       if (event.key === 'F3') {
         event.preventDefault();
+        if (inEditableField) return;
         setProductSearch(query);
         setPanel('product-search');
+        return;
       }
       if (event.key === 'F4') {
         event.preventDefault();
+        if (inEditableField) return;
         setPanel('customer');
+        return;
       }
       if (event.key === 'F6') {
         event.preventDefault();
+        if (inEditableField) return;
         void holdSale();
+        return;
       }
       if (event.key === 'F7') {
         event.preventDefault();
+        if (inEditableField) return;
         setPanel('hold');
+        return;
       }
       if (event.key === 'F9') {
         event.preventDefault();
+        if (inEditableField) return;
         setPanel('receipt');
+        return;
       }
-      if (event.key === 'Escape') setPanel(null);
+      if (event.key === 'Escape') {
+        // Escape cierra modales SIEMPRE, incluso dentro de inputs.
+        if (inForm) return;
+        setPanel(null);
+        return;
+      }
       if (event.key === 'Delete' && cart.length > 0) {
         event.preventDefault();
+        // Delete solo borra la ultima linea del carrito si NO esta editando
+        // un campo (ej: un input de cantidad). Asi el usuario puede borrar
+        // caracteres con Delete/Backspace sin perder el carrito.
+        if (inEditableField) return;
         setCart((current) => current.slice(0, -1));
+        return;
       }
     };
     window.addEventListener('keydown', onKeyDown);

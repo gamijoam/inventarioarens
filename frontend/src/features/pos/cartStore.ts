@@ -9,6 +9,13 @@
  * El store se divide en 4 slices (UI, seleccion, carrito, pagos) y
  * expone acciones estables (referencialmente) para que TanStack Query
  * no invalide consumidores por identidad de funcion.
+ *
+ * Persistencia: el carrito + pagos + warehouseId + priceListId +
+ * customer + customerName se persisten en sessionStorage bajo una clave
+ * por tenant. Asi si el cajero recarga la pagina o pierde la sesion
+ * del navegador, recupera su carrito. NO se persisten: query (busqueda
+ * activa), panel (UI state), openingBranchId/openingRegisterId (form
+ * modales efimeros), serialLineId (seleccion puntual).
  */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
@@ -252,3 +259,163 @@ export const selectLines = (s: ReturnType<typeof usePosCartStore.getState>) => s
 export const selectPayments = (s: ReturnType<typeof usePosCartStore.getState>) => s.payments;
 export const selectQuery = (s: ReturnType<typeof usePosCartStore.getState>) => s.query;
 export const selectPanel = (s: ReturnType<typeof usePosCartStore.getState>) => s.panel;
+
+/**
+ * Persistencia del carrito en sessionStorage.
+ *
+ * El POS no debe perder el carrito si el cajero recarga la pagina o
+ * pierde la sesion del navegador. sessionStorage vive por sesion
+ * (mismo origin, mismo tab hasta que se cierra). NO usamos localStorage
+ * porque eso persistiria entre sesiones y podria dejar carritos
+ * fantasma entre turnos.
+ *
+ * Clave: 'pos_cart_<tenantId>_<cashierId>' para evitar colisiones entre
+ * tenants. Si el tenant cambia, el carrito NO se carga.
+ *
+ * Solo persistimos lo esencial: lines, payments, warehouseId,
+ * priceListId, selectedCustomer, customerName. NO persistimos: query
+ * (busqueda), panel (UI), serialLineId (seleccion puntual), etc.
+ */
+
+const POS_CART_KEY_PREFIX = 'pos_cart_';
+
+interface PersistedCart {
+  lines: PosCartLine[];
+  payments: PosPaymentLine[];
+  warehouseId: number | null;
+  selectedPriceListId: number | null;
+  selectedCustomer: Customer | null;
+  customerName: string;
+}
+
+function cartKey(tenantId: number | null, cashierId: number | null): string {
+  return `${POS_CART_KEY_PREFIX}${tenantId ?? 'none'}_${cashierId ?? 'none'}`;
+}
+
+export function loadPersistedCart(
+  tenantId: number | null,
+  cashierId: number | null,
+): Partial<PersistedCart> | null {
+  if (typeof window === 'undefined') return null;
+  const key = cartKey(tenantId, cashierId);
+  const raw = window.sessionStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PersistedCart;
+  } catch {
+    return null;
+  }
+}
+
+export function savePersistedCart(
+  tenantId: number | null,
+  cashierId: number | null,
+  state: PersistedCart,
+): void {
+  if (typeof window === 'undefined') return;
+  const key = cartKey(tenantId, cashierId);
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(state));
+  } catch {
+    // sessionStorage lleno o deshabilitado (modo privado del navegador).
+    // No es critico, seguimos sin persistencia.
+  }
+}
+
+export function clearPersistedCart(tenantId: number | null, cashierId: number | null): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(cartKey(tenantId, cashierId));
+}
+
+/**
+ * Hook que hidrata el store desde sessionStorage al montar y sincroniza
+ * cualquier cambio al store de vuelta a sessionStorage. Llamar una vez
+ * al inicio del PosTerminal, pasando el tenant_id y cashier_id activos.
+ *
+ * Solo persiste cuando el store realmente tiene contenido (carrito
+ * con lineas o pagos). Asi evitamos llenar sessionStorage de estados
+ * vacios que no se van a recuperar.
+ *
+ * El hook usa una clave que incluye tenant_id + cashier_id, por lo que
+ * distintos cajeros en distintos tenants no comparten carrito. La
+ * hidratacion es unica: se setea un flag en window para no re-hidratar
+ * entre componentes (ej: si el PosTerminal se re-monta en una SPA).
+ */
+export function usePosCartPersistence(
+  tenantId: number | null,
+  cashierId: number | null,
+): void {
+  if (typeof window === 'undefined') return;
+
+  const w = window as unknown as {
+    __posCartHydrated?: { tenantId: number | null; cashierId: number | null };
+  };
+
+  // 1) Hidratamos el store UNA sola vez por (tenantId, cashierId).
+  //    Si el componente se re-monta (StrictMode, hot reload, navegacion
+  //    SPA), la flag evita re-hidratar. Si el tenant+cajero cambia (caso
+  //    switch-tenant), la flag es distinta y re-hidratamos desde el
+  //    sessionStorage del nuevo contexto.
+  if (
+    !w.__posCartHydrated ||
+    w.__posCartHydrated.tenantId !== tenantId ||
+    w.__posCartHydrated.cashierId !== cashierId
+  ) {
+    w.__posCartHydrated = { tenantId, cashierId };
+    const persisted = loadPersistedCart(tenantId, cashierId);
+    if (persisted) {
+      // setTimeout 0 evita setState durante render en React 18 strict
+      // mode. usePosCartStore.setState se ejecuta fuera del render.
+      window.setTimeout(() => {
+        usePosCartStore.setState({
+          lines: persisted.lines ?? [],
+          payments: persisted.payments ?? [],
+          warehouseId: persisted.warehouseId ?? null,
+          selectedPriceListId: persisted.selectedPriceListId ?? null,
+          selectedCustomer: persisted.selectedCustomer ?? null,
+          customerName: persisted.customerName ?? 'Consumidor Final',
+        });
+      }, 0);
+    } else {
+      // No hay carrito persistido para este tenant+cajero: limpiamos
+      // el store para empezar fresh.
+      window.setTimeout(() => {
+        usePosCartStore.setState({
+          lines: [],
+          payments: [],
+          warehouseId: null,
+          selectedPriceListId: null,
+          selectedCustomer: null,
+          customerName: 'Consumidor Final',
+        });
+      }, 0);
+    }
+  }
+
+  // 2) Suscribimos cambios del store a sessionStorage. Usamos una clave
+  //    unica por (tenantId, cashierId) para evitar duplicar el subscriber
+  //    cuando el componente se re-monta con el mismo contexto.
+  const subKey = `${tenantId ?? 'none'}_${cashierId ?? 'none'}`;
+  const wSub = window as unknown as { __posCartSubs?: Record<string, () => void> };
+  if (!wSub.__posCartSubs) wSub.__posCartSubs = {};
+  if (!wSub.__posCartSubs[subKey]) {
+    wSub.__posCartSubs[subKey] = usePosCartStore.subscribe(
+      (state) => ({
+        lines: state.lines,
+        payments: state.payments,
+        warehouseId: state.warehouseId,
+        selectedPriceListId: state.selectedPriceListId,
+        selectedCustomer: state.selectedCustomer,
+        customerName: state.customerName,
+      }),
+      (snapshot) => {
+        const hasContent = snapshot.lines.length > 0 || snapshot.payments.length > 0;
+        if (hasContent) {
+          savePersistedCart(tenantId, cashierId, snapshot);
+        } else {
+          clearPersistedCart(tenantId, cashierId);
+        }
+      },
+    );
+  }
+}
