@@ -470,6 +470,119 @@ def resolve_status_tenant(args, cfg: Config) -> str:
     return explicit or "mi-empresa"
 
 
+def tenant_slug_to_name(slug: str) -> str:
+    return " ".join(part.capitalize() for part in re.split(r"[-_]+", slug) if part) or slug
+
+
+def prompt_yes_no(label: str, default: bool = False) -> bool:
+    suffix = " [S/n]" if default else " [s/N]"
+    value = input(f"{label}{suffix}: ").strip().lower()
+    if not value:
+        return default
+    return value in ("s", "si", "sí", "y", "yes")
+
+
+def choose_sync_tenant(cfg: Config, requested: str = "") -> tuple[str, dict]:
+    data = read_sync_worker_config(cfg)
+    tenants = data.get("tenants") or {}
+    if requested:
+        if requested not in tenants:
+            raise RuntimeError(
+                f"El tenant '{requested}' no existe en storage/app/sync-worker/sync-config.json. "
+                "Ejecuta primero inventoryarens wizard para emitir/guardar su token."
+            )
+        return requested, tenants[requested] or {}
+    if not tenants:
+        raise RuntimeError(
+            "No hay tenants configurados en sync-config.json. "
+            "Ejecuta primero inventoryarens wizard para agregar una empresa a esta PC."
+        )
+    if len(tenants) == 1:
+        slug = next(iter(tenants.keys()))
+        return slug, tenants[slug] or {}
+
+    print("Empresas configuradas en esta PC:")
+    slugs = list(tenants.keys())
+    for idx, slug in enumerate(slugs, start=1):
+        print(f"  {idx}. {slug}")
+    selected = prompt_value("Selecciona numero o slug", "1")
+    if selected.isdigit():
+        pos = int(selected)
+        if pos < 1 or pos > len(slugs):
+            raise RuntimeError("Seleccion invalida.")
+        slug = slugs[pos - 1]
+    else:
+        slug = selected
+        if slug not in tenants:
+            raise RuntimeError("El slug indicado no esta configurado.")
+    return slug, tenants[slug] or {}
+
+
+def run_artisan(cfg: Config, args: list[str], env: Optional[dict] = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess:
+    return run([cfg.php_bin, str(cfg.php_artisan), *args], env=env, capture=capture, check=check)
+
+
+def php_bootstrap_eval(cfg: Config, code: str, extra_args: Optional[list[str]] = None) -> subprocess.CompletedProcess:
+    return run_capture([cfg.php_bin, "-r", code, *(extra_args or [])])
+
+
+def get_database_name(cfg: Config) -> str:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+echo (string) config('database.connections.'.config('database.default').'.database');
+"""
+    proc = php_bootstrap_eval(cfg, code)
+    return (proc.stdout or "").strip() if proc.returncode == 0 else "desconocida"
+
+
+def get_tenant_local_summary(cfg: Config, tenant_slug: str) -> dict:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+$slug = $argv[1] ?? '';
+$tenant = Illuminate\Support\Facades\DB::table('tenants')->where('slug', $slug)->first();
+if (! $tenant) {
+    echo json_encode(['exists' => false], JSON_UNESCAPED_UNICODE);
+    return;
+}
+$tables = [
+    'users', 'warehouses', 'branches', 'products', 'product_images',
+    'customers', 'suppliers', 'sales', 'pos_orders', 'accounts_receivables',
+    'accounts_payables', 'sync_inbox', 'sync_outbox',
+];
+$counts = [];
+foreach ($tables as $table) {
+    if (! Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable($table)) {
+        continue;
+    }
+    $query = Illuminate\Support\Facades\DB::table($table);
+    if (Illuminate\Support\Facades\DB::getSchemaBuilder()->hasColumn($table, 'tenant_id')) {
+        $query->where('tenant_id', $tenant->id);
+    }
+    $counts[$table] = $query->count();
+}
+echo json_encode([
+    'exists' => true,
+    'tenant_id' => $tenant->id,
+    'tenant_name' => $tenant->name,
+    'tenant_slug' => $tenant->slug,
+    'counts' => $counts,
+], JSON_UNESCAPED_UNICODE);
+"""
+    proc = php_bootstrap_eval(cfg, code, [tenant_slug])
+    if proc.returncode != 0:
+        return {"exists": False, "error": proc.stderr or proc.stdout}
+    try:
+        return json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"exists": False, "error": proc.stdout}
+
+
 # -----------------------------------------------------------------------------
 # OS-specific: Linux systemd
 # -----------------------------------------------------------------------------
@@ -1152,6 +1265,123 @@ def cmd_token_rotate(args, cfg: Config) -> int:
     return 0
 
 
+def cmd_recover_tenant(args, cfg: Config) -> int:
+    """
+    Reconstruye un tenant local desde la nube usando el token ya guardado por el wizard.
+    No borra tablas, no ejecuta migrate:fresh y no toca otros tenants.
+    """
+    try:
+        tenant_slug, tenant_config = choose_sync_tenant(cfg, args.tenant or "")
+    except RuntimeError as exc:
+        err(str(exc))
+        return 1
+
+    tenant_name = args.tenant_name or tenant_slug_to_name(tenant_slug)
+    if not args.tenant_name and sys.stdin.isatty():
+        tenant_name = prompt_value("Nombre local de la empresa", tenant_name)
+
+    user_email = args.user or ""
+    if not user_email and sys.stdin.isatty():
+        user_email = prompt_value("Email del usuario local inicial", "admin@local.test")
+    if not user_email:
+        err("Debes indicar --user o responder el email del usuario local inicial.")
+        return 1
+
+    user_name = args.user_name or tenant_name
+    if not args.user_name and sys.stdin.isatty():
+        user_name = prompt_value("Nombre del usuario local inicial", user_name)
+
+    password = args.password or ""
+    if not password and sys.stdin.isatty():
+        password = getpass.getpass("Password local temporal [gabo1234]: ") or "gabo1234"
+    if not password:
+        err("Debes indicar --password o responder el password local temporal.")
+        return 1
+
+    step("Recuperacion local desde la nube")
+    info("Este flujo NO borra datos. Solo crea/prepara el tenant local y baja eventos desde la nube.")
+    info(f"Tenant: {tenant_slug}")
+    info(f"Token configurado: {'si' if tenant_config.get('token') else 'no'}")
+    info(f"Cloud: {tenant_config.get('cloud_url', 'https://app.miinventariofacil.com/api')}")
+    info(f"DB local: {get_database_name(cfg)}")
+
+    summary_before = get_tenant_local_summary(cfg, tenant_slug)
+    if summary_before.get("exists"):
+        counts = summary_before.get("counts") or {}
+        non_zero = {k: v for k, v in counts.items() if v}
+        warn(f"El tenant ya existe localmente: {summary_before.get('tenant_name')} (id {summary_before.get('tenant_id')}).")
+        if non_zero:
+            info("Conteos actuales: " + ", ".join(f"{k}={v}" for k, v in non_zero.items()))
+        if not args.yes and not prompt_yes_no("Continuar y sincronizar encima sin borrar nada", default=True):
+            return 1
+    elif not args.yes and not prompt_yes_no("Crear/preparar este tenant local y descargar datos", default=True):
+        return 1
+
+    env = {"SYNC_BOOTSTRAP_PASSWORD": password}
+
+    if not args.skip_migrate:
+        step("[1/4] Aplicando migraciones pendientes")
+        proc = run_artisan(cfg, ["migrate", "--force"], capture=True, check=False)
+        if proc.returncode != 0:
+            err(proc.stderr or proc.stdout or "migrate fallo")
+            return proc.returncode
+        ok("Migraciones verificadas.")
+
+    step("[2/4] Preparando tenant local")
+    prepare_args = [
+        "sync:prepare-local",
+        tenant_slug,
+        tenant_name,
+        user_email,
+        "--user-name",
+        user_name,
+    ]
+    proc = run_artisan(cfg, prepare_args, env=env, capture=True, check=False)
+    if proc.returncode != 0:
+        err(proc.stderr or proc.stdout or "sync:prepare-local fallo")
+        return proc.returncode
+    if proc.stdout.strip():
+        print(proc.stdout.strip())
+
+    step("[3/4] Descargando y aplicando eventos")
+    cycles = max(1, args.cycles)
+    limit = max(1, args.limit)
+    for cycle in range(1, cycles + 1):
+        info(f"Ronda {cycle}/{cycles}")
+        proc = run_artisan(cfg, ["sync:run", tenant_slug, "--limit", str(limit)], capture=True, check=False)
+        if proc.stdout.strip():
+            print(proc.stdout.strip())
+        if proc.returncode != 0:
+            err(proc.stderr or proc.stdout or "sync:run fallo")
+            return proc.returncode
+
+        proc = run_artisan(cfg, ["sync:apply-inbox", tenant_slug, "--limit", str(limit)], capture=True, check=False)
+        if proc.stdout.strip():
+            print(proc.stdout.strip())
+        if proc.returncode != 0:
+            err(proc.stderr or proc.stdout or "sync:apply-inbox fallo")
+            return proc.returncode
+
+        proc = run_artisan(cfg, ["images:download", f"--tenant={tenant_slug}", "--limit", str(limit)], capture=True, check=False)
+        if proc.stdout.strip():
+            print(proc.stdout.strip())
+        if proc.returncode != 0:
+            warn(proc.stderr.strip() or proc.stdout.strip() or "images:download no pudo completar; puedes repetir luego.")
+
+    step("[4/4] Resumen local")
+    summary_after = get_tenant_local_summary(cfg, tenant_slug)
+    if summary_after.get("exists"):
+        counts = summary_after.get("counts") or {}
+        for key in sorted(counts.keys()):
+            print(f"  - {key}: {counts[key]}")
+    else:
+        warn("No se pudo confirmar el tenant local despues de la recuperacion.")
+
+    ok("Recuperacion finalizada. Puedes repetir este comando si faltan eventos o imagenes.")
+    info(f"Verifica el worker con: inventoryarens status --tenant {tenant_slug}")
+    return 0
+
+
 def cmd_update(args, cfg: Config) -> int:
     if not (cfg.repo_dir / ".git").exists():
         err(f"{cfg.repo_dir} no es un git repo")
@@ -1262,6 +1492,21 @@ def build_parser() -> argparse.ArgumentParser:
     pt_rotate.add_argument("--write-env", action="store_true", default=True)
     pt_rotate.add_argument("--no-write-env", dest="write_env", action="store_false")
     pt_rotate.set_defaults(func=cmd_token_rotate)
+
+    # recover
+    pr = sub.add_parser("recover", help="Recupera datos locales desde la nube")
+    pr_sub = pr.add_subparsers(dest="subcommand", required=True)
+    pr_tenant = pr_sub.add_parser("tenant", help="Reconstruye un tenant local usando el token del worker")
+    pr_tenant.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
+    pr_tenant.add_argument("--tenant-name", default="", help="Nombre local de la empresa")
+    pr_tenant.add_argument("--user", default="", help="Email del usuario local inicial")
+    pr_tenant.add_argument("--user-name", default="", help="Nombre del usuario local inicial")
+    pr_tenant.add_argument("--password", default="", help="Password local temporal del usuario inicial")
+    pr_tenant.add_argument("--cycles", type=int, default=5, help="Rondas de sync/apply/images (default: 5)")
+    pr_tenant.add_argument("--limit", type=int, default=200, help="Eventos por ronda (default: 200)")
+    pr_tenant.add_argument("--skip-migrate", action="store_true", help="No ejecutar php artisan migrate --force")
+    pr_tenant.add_argument("--yes", action="store_true", help="No preguntar confirmacion interactiva")
+    pr_tenant.set_defaults(func=cmd_recover_tenant)
 
     # update
     pu2 = sub.add_parser("update", help="git pull + composer + migrate + restart")

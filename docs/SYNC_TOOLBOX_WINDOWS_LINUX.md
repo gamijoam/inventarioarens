@@ -174,6 +174,60 @@ Rotar token sin reinstalar:
   --interval 15
 ```
 
+### Recuperar una empresa local desde la nube
+
+Usa este flujo cuando la BD local quedo vacia, se reinstalo una computadora o necesitas traer una
+empresa especifica desde la nube sin usar Postman.
+
+Importante:
+
+- No borra datos.
+- No ejecuta `migrate:fresh`.
+- No toca otros tenants.
+- Usa el token ya guardado en `storage\app\sync-worker\sync-config.json`.
+- Si la empresa no tiene token local, primero ejecuta `wizard`.
+
+Modo interactivo:
+
+```powershell
+.\inventoryarens.ps1 recover tenant
+```
+
+Modo directo:
+
+```powershell
+.\inventoryarens.ps1 recover tenant `
+  --tenant demo-caracas `
+  --tenant-name "Demo Caracas" `
+  --user owner.reportes@demo.test `
+  --user-name "Owner Demo Reportes" `
+  --cycles 8 `
+  --limit 300
+```
+
+Modo sin preguntas:
+
+```powershell
+.\inventoryarens.ps1 recover tenant `
+  --tenant demo-caracas `
+  --tenant-name "Demo Caracas" `
+  --user owner.reportes@demo.test `
+  --user-name "Owner Demo Reportes" `
+  --password gabo1234 `
+  --cycles 8 `
+  --limit 300 `
+  --yes
+```
+
+Que hace internamente:
+
+1. Ejecuta migraciones pendientes con `php artisan migrate --force`.
+2. Prepara el tenant local con `sync:prepare-local`.
+3. Ejecuta varias rondas de `sync:run`, `sync:apply-inbox` e `images:download`.
+4. Muestra conteos finales de productos, ventas, imagenes, CxC, CxP, inbox/outbox, etc.
+
+Si faltan datos o imagenes, puedes repetir el mismo comando. Es idempotente y no elimina informacion.
+
 Si el asistente muestra `Private key file is encrypted`, escribe la password SSH cuando la pida, o define la variable solo para esa consola:
 
 ```powershell
@@ -282,6 +336,32 @@ Reinstalar:
 
 ```bash
 ./inventoryarens wizard --tenant demo-caracas --user admin@demo.test --interval 15
+```
+
+Recuperar una empresa local desde nube:
+
+```bash
+./inventoryarens recover tenant \
+  --tenant demo-caracas \
+  --tenant-name "Demo Caracas" \
+  --user owner.reportes@demo.test \
+  --user-name "Owner Demo Reportes" \
+  --cycles 8 \
+  --limit 300
+```
+
+Sin preguntas:
+
+```bash
+./inventoryarens recover tenant \
+  --tenant demo-caracas \
+  --tenant-name "Demo Caracas" \
+  --user owner.reportes@demo.test \
+  --user-name "Owner Demo Reportes" \
+  --password gabo1234 \
+  --cycles 8 \
+  --limit 300 \
+  --yes
 ```
 
 Si `systemctl --user` no funciona en un Linux sin sesion de usuario persistente, habilita linger:
