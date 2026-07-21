@@ -1,12 +1,20 @@
 # API nube permanente y prueba por dominio
 
+Fecha: 2026-07-07
+
+> **⚠️ MIGRACIÓN 2026-07-21**: la URL pública (`https://app.miinventariofacil.com/api`) **sigue
+> siendo la misma** (Cloudflare apunta al nuevo VPS `212.28.176.157`). Solo cambió el destino
+> interno: nginx+Laravel nativo detrás de Traefik en vez de nginx+Laravel directo. La
+> confianza en los `app.miinventariofacil.com`-letsencrypt certs (`expires_at` 2026-09-03)
+> se mantiene — Traefik ya tenía el cert en `acme.json`. Ver
+> `docs/MIGRACION_VPS_2026-07-21.md`.
+
 ## Objetivo
 
 Cerrar la base operativa de nube para que las instalaciones locales usen:
 
 ```text
-https://app.miinventariofacil.com/api
-```
+https://app.miinventariofacil.com/api```
 
 en vez de depender de una IP con puerto.
 

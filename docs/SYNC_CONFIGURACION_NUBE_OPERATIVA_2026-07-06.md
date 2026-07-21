@@ -2,6 +2,11 @@
 
 Fecha: 2026-07-06
 
+> **⚠️ MIGRACIÓN 2026-07-21**: el backend Laravel fue mudado de `217.216.80.158:8010` a
+> `212.28.176.157` con Traefik HTTPS en `https://app.miinventariofacil.com/api`. Los endpoints,
+> headers (`X-Tenant`, `Authorization: Bearer`) y el flujo operativo son idénticos — solo
+> cambió el host y se quitó el `:8010`. Ver `docs/MIGRACION_VPS_2026-07-21.md` para el setup actual.
+
 ## Objetivo
 
 Conectar una instalacion local del sistema de inventario con una API Laravel en la nube para que pueda:

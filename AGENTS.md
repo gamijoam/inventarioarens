@@ -26,30 +26,46 @@ de este repo y consume el backend vía `/api/*`. Diseño completo en `docs/FRONT
 **Contexto de mercado (Venezuelano)**: moneda base **USD**, operativa **VES**, con tipos de tasa
 (`BCV`, `PARALELO`, tienda) y snapshot de rate en cada movimiento monetario.
 
-**Infraestructura real**:
+**Infraestructura real (2026-07-21, post-migración)**:
 - Local: Windows + Laragon + PHP 8.4.23 (`C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe`)
 - Local DB: PostgreSQL 16 en `127.0.0.1:5434`, DB `inventory_arens`, user `inventory_arens`/`secret`
-- VPS nube: `217.216.80.158` (Contabo Ubuntu 24.04), Nginx + PHP-FPM en `/opt/inventarioarens-cloud/public`
-- DB nube: PostgreSQL 16 nativo (NO Docker) en `127.0.0.1:5432`, DB `inventory_arens`, user `postgres`
-- Dominio público: **`https://app.miinventariofacil.com/api`** (HTTPS Let's Encrypt)
-- SSH al VPS: `root@217.216.80.158` con key `C:\Users\gafit\.ssh\webadmin-vps` (instalada en `~/.ssh/authorized_keys` el 2026-07-13). **NO existe usuario `webadmin`** en el host: los scripts de deploy usan root directo. `scripts/deploy-platform-master.sh` ya está actualizado para no usar `sudo -u webadmin`.
+- **VPS nube canónico: `212.28.176.157` (Contabo Ubuntu 24.04, multi-tenant con Docker)** — migrado el 2026-07-21 desde `217.216.80.158` (viejo, destruido). INVENTARIOARENS corre nativo (PHP-FPM 8.4 + nginx local en `172.18.0.1:8080` + PostgreSQL 16) detrás de Traefik (Docker) que termina TLS y enruta `app.miinventariofacil.com` → `:8080`. Detalles en `docs/MIGRACION_VPS_2026-07-21.md`.
+- **VPS nube viejo `217.216.80.158`: DESTRUIDO**. Solo relevante para rollback histórico.
+- DB nube: PostgreSQL 16 nativo (NO Docker) en `127.0.0.1:5432` del VPS nuevo, DB `inventory_arens`, user `postgres`/`GaboMac12`
+- Dominio público: **`https://app.miinventariofacil.com/api`** (HTTPS Let's Encrypt, cert en acme.json de Traefik, emitido 2026-06-05, vence 2026-09-03)
+- SSH al VPS nuevo: `root@212.28.176.157` con clave `GaboMac12` (root password). **NO** usar la key SSH vieja `C:\Users\gafit\.ssh\webadmin-vps` (es del VPS destruido). Los scripts `scripts/deploy-platform-master.sh`, `scripts/cloud-api-bootstrap-vps.sh` y `scripts/sync_token.py` ya están actualizados al host nuevo.
+- **Convención crítica**: el VPS nuevo tiene 27 contenedores Docker de OTROS productos (bloqueo, credifacil, avilacar, ferreteria, mi-inventario-whatsapp, traefik, redis_prod/qa, db_qa). **No tocar bajo ninguna circunstancia** sin OK explícito del usuario. INVENTARIOARENS corre en stack nativo (no Docker).
 
 ---
 
 ## 2. ⚠️ REGLA CRÍTICA — NO CONFUNDIR con MiInventarioFácil
 
-El usuario tiene **DOS productos SaaS** que comparten marca pero viven en VPSs distintos con stacks
-distintos. Esto ya causó errores graves en sesiones previas:
+Desde el 2026-07-21 el VPS es **compartido** (`212.28.176.157`). Ambos productos viven en el mismo
+host pero en stacks completamente distintos. El usuario tuvo errores graves en sesiones previas
+confundiéndolos:
 
-| Proyecto | VPS | Backend | DBs | SSH key |
+| Proyecto | Mismo VPS | Backend stack | DBs | Cómo identificarlo |
 |---|---|---|---|---|
-| **INVENTARIOARENS (ESTE)** | `217.216.80.158` | Laravel 13 | `inventory_arens` | `webadmin-vps` |
-| MiInventarioFácil (OTRO) | `212.28.176.157` | FastAPI 2.2.0 | `invensoft_qa` / `invensoft_prod` | `bloqueo_vps_mavis` |
+| **INVENTARIOARENS (ESTE)** | `212.28.176.157` | Laravel 13 nativo (PHP-FPM + nginx en `:8080` detrás de Traefik) | `inventory_arens` (PostgreSQL nativo, NO Docker) | `ps aux | grep php-fpm` muestra workers `www-data`. `/opt/inventarioarens-cloud` existe. Proceso no es `docker-proxy`. |
+| MiInventarioFácil (OTRO) | `212.28.176.157` | FastAPI 2.2.0 en Docker (`backend_prod_server`, `backend_qa`) | `invensoft_qa` / `invensoft_prod` (PostgreSQL en Docker `db_qa_server`) | `docker ps | grep backend` muestra el contenedor. `docker exec backend_prod_server ...`. |
+
+Ambos productos comparten:
+- **Misma IP pública** (`212.28.176.157`) — la única forma de diferenciarlos es por dominio
+  (`app.miinventariofacil.com` vs `api.miinventariofacil.com`) y por subdominio (Cloudflare).
+- **Misma UFW** —他俩 están en la misma máquina, por eso los cambios de firewall afectan a ambos.
+- **Mismo Traefik** (Docker) — términos TLS y routes viven en `/root/deploy/core/traefik-config/`.
+- **Misma PostgreSQL nativa** en `127.0.0.1:5432` — **PERO diferente DB** (`inventory_arens` vs `invensoft_*`).
+  `pg_restore` o DROP de la DB equivocada borra el otro producto.
 
 Antes de tocar la nube, **confirmar siempre**:
-1. SSH al VPS correcto: `ssh -i webadmin-vps root@217.216.80.158`
-2. DB correcta: `inventory_arens` (no `invensoft_*` ni `invensoft_qa`).
-3. Backend correcto: Laravel (no FastAPI).
+1. SSH al VPS: `ssh root@212.28.176.157` con password `GaboMac12`. **Si te piden key SSH es que estás en otro VPS.**
+2. DB correcta: `psql -d inventory_arens` debe mostrar tablas como `products`, `pos_orders`,
+   `sync_inbox` (NO `invensoft_*`).
+3. Backend correcto: `ls /opt/inventarioarens-cloud/artisan` debe existir. **NO** debe haber
+   contenedor `backend_prod_server` hablando por puerto 8000 con FastAPI.
+4. Dominio antes de actuar: `dig api.miinventariofacil.com` (FastAPI) vs
+   `dig app.miinventariofacil.com` (Laravel). Confundir el subdominio significa tocar el stack
+   equivocado.
 
 Hay más detalle en `.harness/docs/INVENTARIOARENS_PROJECT_FACTS.md` — leerlo si hay duda.
 
@@ -511,9 +527,9 @@ php artisan pail --timeout=0
 composer dev
 ```
 
-### 10.3 Deploy al VPS (`217.216.80.158`)
+### 10.3 Deploy al VPS nuevo (`212.28.176.157`)
 ```bash
-ssh -i webadmin-vps root@217.216.80.158
+ssh root@212.28.176.157   # password: GaboMac12 (NO usa SSH key, el viejo webadmin-vps está destruido)
 cd /opt/inventarioarens-cloud
 sudo /usr/bin/env git pull
 sudo /usr/bin/env composer install --no-dev --optimize-autoloader
@@ -524,11 +540,17 @@ sudo /usr/bin/env php artisan migrate --force
 **🚫 JAMÁS usar `php artisan view:cache`** — cachea Blade y los cambios no se ven hasta el próximo
 `view:clear`. `optimize:clear` ya lo hace.
 
-### 10.4 Stack del VPS
-- Nginx + PHP-FPM 8.4 + PostgreSQL 16 nativo (NO Docker).
-- HTTPS con Let's Encrypt.
-- DNS A: `app.miinventariofacil.com → 217.216.80.158`.
-- Bootstrap: `scripts/cloud-api-bootstrap-vps.sh`.
+**🚫 JAMÁS reiniciar Traefik ni tocar `/root/deploy/core/traefik-config/`** — solo agregar
+archivos nuevos (como `inventarioarens.yml` para nuestra route). Si hay que modificar un route
+existente, confirmar primero con el usuario (afecta a otros productos).
+
+### 10.4 Stack del VPS nuevo
+- Nginx + PHP-FPM 8.4 + PostgreSQL 16 nativo (NO Docker) — INVENTARIOARENS.
+- Traefik (Docker) en :80/:443 termina TLS y enruta a nuestro nginx local en `172.18.0.1:8080`.
+- HTTPS con Let's Encrypt, cert en `/root/deploy/core/acme.json` de Traefik.
+- DNS A: `app.miinventariofacil.com → 212.28.176.157`.
+- Bootstrap: `scripts/cloud-api-bootstrap-vps.sh` (actualizado al host nuevo).
+- Detalle completo: `docs/MIGRACION_VPS_2026-07-21.md`.
 
 ---
 
@@ -650,12 +672,12 @@ php artisan access:promote-admin gerente.valencia@demo.test
 php artisan access:create-platform-admin "Nombre Admin" admin@arens.test
 php artisan access:create-platform-admin "Nombre Admin" admin@arens.test --password=Secret1234
 
-# VPS
-ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158
-ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158 "sudo -u postgres psql -d inventory_arens -c 'SELECT 1'"
+# VPS nuevo (212.28.176.157, password GaboMac12 — NO usa key)
+ssh root@212.28.176.157
+ssh root@212.28.176.157 "sudo -u postgres psql -d inventory_arens -c 'SELECT 1'"
 
 # Diagnóstico local
-Test-NetConnection 217.216.80.158 -Port 5432
+Test-NetConnection 212.28.176.157 -Port 5432
 Test-NetConnection app.miinventariofacil.com -Port 443
 ```
 
@@ -805,7 +827,7 @@ llama a \php artisan sync:apply-all-inboxes --limit=200\. Procesa los inbox
 de TODOS los tenants activos.
 
 \\\ash
-ssh root@217.216.80.158 \"tail -f /var/log/inventarioarens-sync.log\"
+ssh root@212.28.176.157 \"tail -f /var/log/inventarioarens-sync.log\"
 \\\
 
 ## Limitacion arquitectural: token por tenant
