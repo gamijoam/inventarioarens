@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("start", "stop", "status", "run")]
+    [ValidateSet("start", "stop", "restart", "status", "run")]
     [string] $Action = "status",
     [string] $PhpPath = "C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe",
     [string] $TenantSlug = "demo-caracas",
@@ -392,12 +392,16 @@ function Invoke-RunOnce {
 }
 
 try {
-    switch ($Action) {
-        "start" { Start-Worker }
-        "stop" { Stop-Worker }
-        "status" { Show-Status }
-        "run" { Invoke-RunOnce }
+switch ($Action) {
+    "start" { Start-Worker }
+    "stop" { Stop-Worker }
+    "restart" {
+        Stop-Worker
+        Start-Worker
     }
+    "status" { Show-Status }
+    "run" { Invoke-RunOnce }
+}
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 1

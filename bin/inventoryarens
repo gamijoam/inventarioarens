@@ -644,6 +644,53 @@ echo (string) Illuminate\Support\Facades\DB::table('sync_inbox')
         return 0
 
 
+def get_sync_health_summary(cfg: Config, tenant_slug: str) -> dict:
+    code = r"""
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+$tenant = Illuminate\Support\Facades\DB::table('tenants')->where('slug', $argv[1] ?? '')->first();
+if (! $tenant) {
+    echo json_encode(['exists' => false], JSON_UNESCAPED_UNICODE);
+    return;
+}
+$outbox = Illuminate\Support\Facades\DB::table('sync_outbox')
+    ->where('tenant_id', $tenant->id)
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status')
+    ->all();
+$inbox = Illuminate\Support\Facades\DB::table('sync_inbox')
+    ->where('tenant_id', $tenant->id)
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status')
+    ->all();
+$failedTypes = Illuminate\Support\Facades\DB::table('sync_inbox')
+    ->where('tenant_id', $tenant->id)
+    ->where('status', 'failed')
+    ->selectRaw('event_type, count(*) as total')
+    ->groupBy('event_type')
+    ->orderBy('event_type')
+    ->get();
+echo json_encode([
+    'exists' => true,
+    'tenant_id' => $tenant->id,
+    'outbox' => $outbox,
+    'inbox' => $inbox,
+    'failed_types' => $failedTypes,
+], JSON_UNESCAPED_UNICODE);
+"""
+    proc = php_bootstrap_eval(cfg, code, [tenant_slug])
+    if proc.returncode != 0:
+        return {"exists": False, "error": proc.stderr or proc.stdout}
+    try:
+        return json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"exists": False, "error": proc.stdout}
+
+
 def reset_sync_inbox_events(
     cfg: Config,
     tenant_slug: str,
@@ -711,6 +758,10 @@ def run_worker_action(cfg: Config, tenant_slug: str, action: str) -> int:
     worker_cmd = cfg.repo_dir / "scripts" / "sync-worker.cmd"
     if not worker_cmd.exists():
         raise RuntimeError(f"No existe {worker_cmd}")
+    if action == "restart":
+        stop_rc = run_worker_action(cfg, tenant_slug, "stop")
+        start_rc = run_worker_action(cfg, tenant_slug, "start")
+        return start_rc if start_rc != 0 else stop_rc
     if action == "run-now":
         action = "start"
     cmd = ["cmd.exe", "/c", str(worker_cmd), action, "-TenantSlug", tenant_slug]
@@ -1314,10 +1365,11 @@ def cmd_status(args, cfg: Config) -> int:
     n_warn = 0
     n_fail = 0
     for label, status, detail in checks:
-        if status == "ok":
+        normalized_status = status.lower()
+        if normalized_status in ("ok", "existe", "active", "running"):
             sym = green("OK")
             n_ok += 1
-        elif status == "skip":
+        elif normalized_status in ("skip", "desconocido", "unknown", "inactive"):
             sym = yellow("-")
             n_warn += 1
         else:
@@ -1779,7 +1831,18 @@ def cmd_doctor(args, cfg: Config) -> int:
     for tenant in targets:
         step(f"Doctor tecnico ({tenant})")
         failed_count = get_failed_sync_inbox_count(cfg, tenant)
+        sync_summary = get_sync_health_summary(cfg, tenant)
         print(f"Inbox fallidos: {failed_count}")
+        if sync_summary.get("exists"):
+            outbox = sync_summary.get("outbox") or {}
+            inbox = sync_summary.get("inbox") or {}
+            print(f"Outbox pending: {outbox.get('pending', 0)}")
+            print(f"Inbox received: {inbox.get('received', 0)}")
+            failed_types = sync_summary.get("failed_types") or []
+            if failed_types:
+                print("Tipos fallidos:")
+                for item in failed_types:
+                    print(f"  - {item.get('event_type')}: {item.get('total')}")
 
         worker_rc = run_worker_action(cfg, tenant, "status")
         worker_ok = worker_rc == 0
