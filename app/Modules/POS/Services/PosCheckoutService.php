@@ -18,6 +18,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Services\ProductPriceService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
@@ -456,6 +457,10 @@ class PosCheckoutService
         $defaultPriceList = null;
         $priceListIds = collect($items)
             ->map(function (array $item) use (&$defaultPriceList, $tenantId): ?int {
+                if (($item['price_source'] ?? null) === ProductPriceService::PRICE_SOURCE_BASE) {
+                    return null;
+                }
+
                 if (! empty($item['price_list_id'])) {
                     return (int) $item['price_list_id'];
                 }
@@ -789,6 +794,8 @@ class PosCheckoutService
             'sale.items.priceList',
         ]);
 
+        $serialUnitsBySaleItem = $this->loadSerialUnitsForOrder($order);
+
         $session = $order->cashRegisterSession;
         $customer = $order->customer ?? $order->sale?->customer;
 
@@ -869,6 +876,7 @@ class PosCheckoutService
                     'exchange_rate_type_code' => $item->exchange_rate_type_code,
                     'exchange_rate' => $item->exchange_rate === null ? null : (string) $item->exchange_rate,
                     'product_unit_ids' => $item->product_unit_ids ?? [],
+                    'product_serial_units' => $serialUnitsBySaleItem[$item->id] ?? [],
                     'discount_type' => $item->discount_type,
                     'discount_value' => (string) ($item->discount_value ?? 0),
                     'discount_amount' => (string) ($item->discount_amount ?? 0),
@@ -901,5 +909,46 @@ class PosCheckoutService
             ],
             idempotencyKey: "{$eventType}:pos_order:{$order->id}:{$order->status}:payments:{$order->payments->count()}"
         );
+    }
+
+    /**
+     * @return array<int, list<array{serial_type:string, serial_number:string}>>
+     */
+    private function loadSerialUnitsForOrder(PosOrder $order): array
+    {
+        $items = $order->sale?->items ?? collect();
+        $unitIds = $items
+            ->flatMap(fn ($item): array => $item->product_unit_ids ?? [])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($unitIds === []) {
+            return [];
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->get(['id', 'serial_type', 'serial_number'])
+            ->keyBy('id');
+
+        $result = [];
+        foreach ($items as $item) {
+            $identities = [];
+            foreach (($item->product_unit_ids ?? []) as $unitId) {
+                $unit = $units->get($unitId);
+                if (! $unit) {
+                    continue;
+                }
+                $identities[] = [
+                    'serial_type' => (string) $unit->serial_type,
+                    'serial_number' => (string) $unit->serial_number,
+                ];
+            }
+            $result[$item->id] = $identities;
+        }
+
+        return $result;
     }
 }

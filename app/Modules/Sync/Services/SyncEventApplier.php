@@ -473,7 +473,7 @@ class SyncEventApplier
         // Mapeamos al shape que espera applyProductEntry.
         $mapped = [
             'document_number' => $documentNumber,
-            'reason' => "Compra a proveedor " . ($supplierName ?? ''),
+            'reason' => 'Compra a proveedor '.($supplierName ?? ''),
             'reference' => $documentNumber,
             'notes' => $supplierName ? "Proveedor: {$supplierName} | Doc compra: {$documentNumber}" : null,
             'status' => 'processed',
@@ -647,6 +647,7 @@ class SyncEventApplier
             ]);
         }
     }
+
     private function applyInventoryTransfer(Tenant $tenant, array $payload): string
     {
         $fromWarehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'from_warehouse_code'));
@@ -730,9 +731,8 @@ class SyncEventApplier
     }
 
     /**
-     * Cross-tenant. Replica el efecto del accept local: ajusta stock en origen y
-     * destino, marca ProductUnit REMOVED en origen y crea nuevas en destino,
-     * replica product_exit + product_entry. Status=completed.
+     * Cross-tenant. Replica el efecto del accept local: descuenta stock en la
+     * empresa que responde y lo ingresa en la empresa solicitante.
      * Es idempotente: si el request ya esta completed, no hace nada.
      */
     private function applyInventoryTransferRequestAccepted(Tenant $tenant, array $payload): string
@@ -749,7 +749,7 @@ class SyncEventApplier
             return 'applied';
         }
 
-        return DB::transaction(function () use ($payload, $existing): string {
+        return DB::transaction(function () use ($payload): string {
             $this->upsertTransferRequest($payload, [
                 'status' => 'completed',
                 'destination_warehouse_id' => $payload['destination_warehouse_id'] ?? null,
@@ -882,10 +882,7 @@ class SyncEventApplier
     }
 
     /**
-     * Aplica los efectos de un item aceptado: replica la salida interempresa
-     * (adjustmentOut en origen) y la entrada interempresa (purchase en destino).
-     * Cruza tenants: usa TenantManager para que BelongsToTenant scope se aplique
-     * al tenant correcto en cada operacion.
+     * Aplica la salida en la empresa que responde y la entrada en la solicitante.
      */
     private function applyTransferRequestItemAccepted(
         int $requestId,
@@ -914,25 +911,25 @@ class SyncEventApplier
             ->value('document_number');
 
         try {
-            $tenantManager->set(Tenant::query()->findOrFail($originTenantId));
-            $originExitDocNumber = $documentNumber ? $documentNumber.'-OUT' : 'TREQ-OUT-'.$requestId;
-            $outMovementId = $this->createCloudProductExit(
-                tenantId: $originTenantId,
-                productId: $originProductId,
-                warehouseId: $fromWarehouseId,
-                quantity: $quantity,
-                documentNumber: $originExitDocNumber,
-                productUnitIds: $itemPayload['product_unit_ids'] ?? [],
-            );
-
             $tenantManager->set(Tenant::query()->findOrFail($destinationTenantId));
-            $destinationEntryDocNumber = $documentNumber ? $documentNumber.'-IN' : 'TREQ-IN-'.$requestId;
-            $inMovementId = $this->createCloudProductEntry(
+            $destinationExitDocNumber = $documentNumber ? $documentNumber.'-OUT' : 'TREQ-OUT-'.$requestId;
+            $outMovementId = $this->createCloudProductExit(
                 tenantId: $destinationTenantId,
                 productId: $destinationProductId,
                 warehouseId: $destinationWarehouseId,
                 quantity: $quantity,
-                documentNumber: $destinationEntryDocNumber,
+                documentNumber: $destinationExitDocNumber,
+                serialUnits: $itemPayload['serial_units'] ?? [],
+            );
+
+            $tenantManager->set(Tenant::query()->findOrFail($originTenantId));
+            $originEntryDocNumber = $documentNumber ? $documentNumber.'-IN' : 'TREQ-IN-'.$requestId;
+            $inMovementId = $this->createCloudProductEntry(
+                tenantId: $originTenantId,
+                productId: $originProductId,
+                warehouseId: $fromWarehouseId,
+                quantity: $quantity,
+                documentNumber: $originEntryDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
             );
 
@@ -964,7 +961,7 @@ class SyncEventApplier
         int $warehouseId,
         float $quantity,
         string $documentNumber,
-        array $productUnitIds,
+        array $serialUnits,
     ): int {
         $now = now();
 
@@ -975,6 +972,31 @@ class SyncEventApplier
 
         if ($existing) {
             return (int) $existing->id;
+        }
+
+        $productUnitIds = [];
+        if ($serialUnits !== []) {
+            $productUnitIds = DB::table('product_units')
+                ->where('tenant_id', $tenantId)
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('status', 'available')
+                ->where(function ($query) use ($serialUnits): void {
+                    foreach ($serialUnits as $serialUnit) {
+                        $query->orWhere(function ($unitQuery) use ($serialUnit): void {
+                            $unitQuery
+                                ->where('serial_type', $serialUnit['serial_type'] ?? '')
+                                ->where('serial_number', $serialUnit['serial_number'] ?? '');
+                        });
+                    }
+                })
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+
+            if (count($productUnitIds) !== count($serialUnits)) {
+                throw new RuntimeException('No se encontraron todos los IMEIs disponibles para aplicar la salida interempresa.');
+            }
         }
 
         $sequence = ((int) DB::table('product_exits')->where('tenant_id', $tenantId)->max('sequence')) + 1;
@@ -1380,7 +1402,7 @@ class SyncEventApplier
     {
         $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
         $orderPayload = $payload['order'] ?? $payload;
-        $salePayload = $payload['sale'] ?? $payload;
+        $salePayload = $payload['sale'] ?? [];
         $sourceOrderId = (int) ($orderPayload['id'] ?? $payload['order_id'] ?? $event['aggregate_id'] ?? 0);
         $sourceSaleId = (int) ($salePayload['id'] ?? $payload['sale_id'] ?? 0);
 
@@ -1451,13 +1473,13 @@ class SyncEventApplier
             ]
         );
 
-        $this->syncPosSaleItems($tenant, $saleId, $sourceNodeCode, $payload['items'] ?? []);
+        $this->syncPosSaleItems($tenant, $saleId, $sourceNodeCode, $saleStatus, $payload['items'] ?? []);
         $this->syncPosPayments($tenant, $orderId, $sourceNodeCode, $payload['payments'] ?? []);
 
         return 'applied';
     }
 
-    private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, array $items): void
+    private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, string $saleStatus, array $items): void
     {
         if ($items === []) {
             return;
@@ -1517,6 +1539,11 @@ class SyncEventApplier
                     'updated_at' => $now,
                 ]
             );
+
+            if ($saleStatus === 'confirmed') {
+                $this->applyCloudStockOut($tenant, $product->id, $warehouse->id, (float) ($item['quantity'] ?? 0));
+                $this->applyCloudSerialSold($tenant, $product->id, $warehouse->id, $item['product_serial_units'] ?? []);
+            }
         }
 
         DB::table('sale_items')
@@ -1525,6 +1552,66 @@ class SyncEventApplier
             ->where('sync_source_node_code', $sourceNodeCode)
             ->whereNotIn('sync_source_id', $sourceIds)
             ->delete();
+    }
+
+    private function applyCloudStockOut(Tenant $tenant, int $productId, int $warehouseId, float $quantity): void
+    {
+        if ($quantity <= 0.0) {
+            return;
+        }
+
+        $now = now();
+
+        $balance = DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($balance) {
+            DB::table('stock_balances')
+                ->where('tenant_id', $tenant->id)
+                ->where('warehouse_id', $warehouseId)
+                ->where('product_id', $productId)
+                ->update([
+                    'quantity_available' => max(0, (float) $balance->quantity_available - $quantity),
+                    'updated_at' => $now,
+                ]);
+        } else {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $productId,
+                'quantity_available' => 0,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+    }
+
+    private function applyCloudSerialSold(Tenant $tenant, int $productId, int $warehouseId, array $serialUnits): void
+    {
+        if ($serialUnits === []) {
+            return;
+        }
+
+        foreach ($serialUnits as $serialUnit) {
+            if (! isset($serialUnit['serial_type'], $serialUnit['serial_number'])) {
+                continue;
+            }
+
+            DB::table('product_units')
+                ->where('tenant_id', $tenant->id)
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('serial_type', $serialUnit['serial_type'])
+                ->where('serial_number', $serialUnit['serial_number'])
+                ->update([
+                    'status' => 'sold',
+                    'updated_at' => now(),
+                ]);
+        }
     }
 
     private function syncPosPayments(Tenant $tenant, int $orderId, string $sourceNodeCode, array $payments): void

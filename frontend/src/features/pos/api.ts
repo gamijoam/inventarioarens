@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
@@ -319,6 +320,166 @@ export function useCashSessions() {
       return z.array(CashRegisterSessionSchema).parse(response.data);
     },
   });
+}
+
+export const BootstrapWarehouseSchema = z.object({
+  id: z.number().int(),
+  branch_id: z.number().int().nullish(),
+  code: z.string().nullish(),
+  name: z.string(),
+  status: z.string().nullish(),
+  branch_name: z.string().nullish(),
+  branch_code: z.string().nullish(),
+}).transform((value) => ({
+  id: value.id,
+  branch_id: value.branch_id ?? null,
+  code: value.code,
+  name: value.name,
+  status: value.status,
+  branch_name: value.branch_name,
+  branch_code: value.branch_code,
+}));
+export type BootstrapWarehouse = z.infer<typeof BootstrapWarehouseSchema>;
+
+export const BootstrapCashRegisterSchema = z.object({
+  id: z.number().int(),
+  branch_id: z.number().int().nullish(),
+  code: z.string().nullish(),
+  name: z.string(),
+  branch_name: z.string().nullish(),
+}).transform((value) => ({
+  id: value.id,
+  branch_id: value.branch_id ?? null,
+  code: value.code,
+  name: value.name,
+  branch_name: value.branch_name,
+}));
+export type BootstrapCashRegister = z.infer<typeof BootstrapCashRegisterSchema>;
+
+export const BootstrapBranchSchema = z.object({
+  id: z.number().int(),
+  code: z.string().nullish(),
+  name: z.string(),
+}).transform((value) => ({
+  id: value.id,
+  code: value.code,
+  name: value.name,
+}));
+export type BootstrapBranch = z.infer<typeof BootstrapBranchSchema>;
+
+export const BootstrapExchangeRateTypeSchema = z.object({
+  id: z.number().int(),
+  code: z.string().nullish(),
+  name: z.string(),
+  is_default: z.boolean().nullish(),
+}).transform((value) => ({
+  id: value.id,
+  code: value.code ?? '',
+  name: value.name,
+  is_default: value.is_default ?? false,
+}));
+export type BootstrapExchangeRateType = z.infer<typeof BootstrapExchangeRateTypeSchema>;
+
+export const BootstrapExchangeRateSchema = z.object({
+  id: z.number().int(),
+  exchange_rate_type_id: z.number().int(),
+  base_currency: z.string(),
+  quote_currency: z.string(),
+  rate: z.number(),
+  effective_at: z.string().nullable().optional(),
+}).passthrough();
+export type BootstrapExchangeRate = z.infer<typeof BootstrapExchangeRateSchema>;
+
+export const PosBootstrapSchema = z.object({
+  warehouses: z.array(BootstrapWarehouseSchema),
+  branches: z.array(BootstrapBranchSchema),
+  cash_registers: z.array(BootstrapCashRegisterSchema),
+  payment_methods: z.array(PaymentMethodSchema),
+  price_lists: z.array(PriceListSchema),
+  exchange_rate_types: z.array(BootstrapExchangeRateTypeSchema),
+  exchange_rates: z.array(BootstrapExchangeRateSchema),
+  open_session: CashRegisterSessionSchema.nullable(),
+});
+export type PosBootstrap = z.infer<typeof PosBootstrapSchema>;
+
+/**
+ * Hook crudo: devuelve el payload completo del bootstrap sin normalizar.
+ * Para datos derivados con tipos estrictos usar `useBootstrapRefsForPos`.
+ */
+export function usePosBootstrap() {
+  return useQuery({
+    queryKey: [...posKeys.all, 'bootstrap'] as const,
+    queryFn: async () => {
+      const raw = await getOne<unknown>('/pos/bootstrap');
+      const data = typeof raw === 'object' && raw && 'data' in raw
+        ? (raw as { data: unknown }).data
+        : raw;
+      return PosBootstrapSchema.parse(data);
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface BootstrapRefs {
+  warehouses: Array<{
+    id: number;
+    branch_id: number | null;
+    code: string;
+    name: string;
+    status: 'active' | 'inactive';
+    branch_name: string | null;
+    branch_code: string | null;
+  }>;
+  cash_registers: Array<{
+    id: number;
+    branch_id: number | null;
+    code: string;
+    name: string;
+  }>;
+  branches: Array<{
+    id: number;
+    code: string;
+    name: string;
+  }>;
+}
+
+export interface BootstrapCombined {
+  refs: BootstrapRefs | undefined;
+}
+
+/**
+ * Combina el payload del bootstrap con las refs normalizadas (warehouses,
+ * branches, cash_registers con `code` no-null). Reutiliza la cache de
+ * `usePosBootstrap` para evitar un fetch duplicado.
+ */
+export function useBootstrapRefsForPos() {
+  const query = usePosBootstrap();
+  const refs = useMemo<BootstrapCombined['refs']>(() => {
+    if (!query.data) return undefined;
+    return {
+      warehouses: query.data.warehouses.map((warehouse) => ({
+        id: warehouse.id,
+        branch_id: warehouse.branch_id ?? null,
+        code: warehouse.code ?? '',
+        name: warehouse.name,
+        status: (warehouse.status ?? 'active') as 'active' | 'inactive',
+        branch_name: warehouse.branch_name ?? null,
+        branch_code: warehouse.branch_code ?? null,
+      })),
+      cash_registers: query.data.cash_registers.map((register) => ({
+        id: register.id,
+        branch_id: register.branch_id ?? null,
+        code: register.code ?? '',
+        name: register.name,
+      })),
+      branches: query.data.branches.map((branch) => ({
+        id: branch.id,
+        code: branch.code ?? '',
+        name: branch.name,
+      })),
+    };
+  }, [query.data]);
+  return { ...query, refs };
 }
 
 export function useCashSessionsList(filters: { status?: 'open' | 'closed' | 'cancelled'; cashier?: 'me'; perPage?: number } = {}) {

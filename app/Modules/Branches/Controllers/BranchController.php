@@ -7,6 +7,7 @@ use App\Modules\Branches\Requests\StoreBranchRequest;
 use App\Modules\Branches\Requests\UpdateBranchRequest;
 use App\Modules\Branches\Resources\BranchResource;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
@@ -14,14 +15,16 @@ use Illuminate\Support\Facades\Gate;
 
 class BranchController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Branch::class);
+
+        $perPage = $this->resolvePerPage($request);
 
         return BranchResource::collection(
             Branch::query()
                 ->orderBy('name')
-                ->paginate(25)
+                ->paginate($perPage)
         );
     }
 
@@ -59,5 +62,12 @@ class BranchController extends Controller
         $branch->update(['status' => Branch::STATUS_INACTIVE]);
 
         return response()->noContent();
+    }
+
+    private function resolvePerPage(Request $request): int
+    {
+        $raw = $request->query('per_page', $request->query('limit', 25));
+
+        return max(1, min(100, (int) $raw));
     }
 }

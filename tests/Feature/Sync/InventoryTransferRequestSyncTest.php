@@ -6,14 +6,13 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Services\InventoryTransferRequestService;
-use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -28,7 +27,7 @@ class InventoryTransferRequestSyncTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
@@ -87,7 +86,7 @@ class InventoryTransferRequestSyncTest extends TestCase
         ];
     }
 
-    private function createRequest(Tenant $tenantA, User $userA, Warehouse $warehouseA, Product $productA, Tenant $tenantB, Product $productB, Warehouse $warehouseB): InventoryTransferRequest
+    private function createRequest(Tenant $tenantA, User $userA, Warehouse $warehouseA, Product $productA, Tenant $tenantB, Product $productB, Warehouse $warehouseB, float $quantity = 10): InventoryTransferRequest
     {
         app(TenantManager::class)->set($tenantA);
         setPermissionsTeamId($tenantA->id);
@@ -99,7 +98,7 @@ class InventoryTransferRequestSyncTest extends TestCase
             'from_warehouse_id' => $warehouseA->id,
             'reason' => 'Sync test',
             'items' => [
-                ['product_id' => $productA->id, 'quantity' => 10],
+                ['product_id' => $productA->id, 'quantity' => $quantity],
             ],
         ]);
 
@@ -157,7 +156,7 @@ class InventoryTransferRequestSyncTest extends TestCase
             'updated_at' => now(),
         ]);
 
-app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync_inbox')->where('event_uuid', '11111111-1111-1111-1111-111111111111')->first());
+        app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync_inbox')->where('event_uuid', '11111111-1111-1111-1111-111111111111')->first());
 
         $this->assertTrue(
             DB::table('inventory_transfer_requests')
@@ -178,9 +177,35 @@ app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync
     {
         $data = $this->setupTenants();
 
+        DB::table('products')
+            ->whereIn('id', [$data['productA']->id, $data['productB']->id])
+            ->update(['tracking_type' => Product::TRACKING_SERIALIZED]);
+        DB::table('product_units')->insert([
+            [
+                'tenant_id' => $data['tenantB']->id,
+                'product_id' => $data['productB']->id,
+                'warehouse_id' => $data['warehouseB']->id,
+                'serial_type' => 'imei',
+                'serial_number' => 'SYNC-IMEI-001',
+                'status' => 'available',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'tenant_id' => $data['tenantB']->id,
+                'product_id' => $data['productB']->id,
+                'warehouse_id' => $data['warehouseB']->id,
+                'serial_type' => 'imei',
+                'serial_number' => 'SYNC-IMEI-002',
+                'status' => 'available',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
         $request = $this->createRequest(
             $data['tenantA'], $data['userA'], $data['warehouseA'], $data['productA'],
-            $data['tenantB'], $data['productB'], $data['warehouseB']
+            $data['tenantB'], $data['productB'], $data['warehouseB'], 2
         );
 
         DB::table('sync_inbox')->insert([
@@ -213,9 +238,12 @@ app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync
                         'id' => $request->items->first()->id,
                         'origin_product_id' => $data['productA']->id,
                         'destination_product_id' => $data['productB']->id,
-                        'quantity' => '10.0000',
+                        'quantity' => '2.0000',
                         'product_unit_ids' => [],
-                        'serial_units' => [],
+                        'serial_units' => [
+                            ['serial_type' => 'imei', 'serial_number' => 'SYNC-IMEI-001'],
+                            ['serial_type' => 'imei', 'serial_number' => 'SYNC-IMEI-002'],
+                        ],
                         'out_stock_movement_id' => null,
                         'in_stock_movement_id' => null,
                     ],
@@ -229,46 +257,59 @@ app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync
 
         app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync_inbox')->where('event_uuid', '22222222-2222-2222-2222-222222222222')->first());
 
-        $this->assertSame('90.0000', (string) DB::table('stock_balances')
+        $this->assertSame('102.0000', (string) DB::table('stock_balances')
             ->where('tenant_id', $data['tenantA']->id)
             ->where('warehouse_id', $data['warehouseA']->id)
             ->where('product_id', $data['productA']->id)
             ->value('quantity_available'));
 
-        $this->assertSame('60.0000', (string) DB::table('stock_balances')
+        $this->assertSame('48.0000', (string) DB::table('stock_balances')
             ->where('tenant_id', $data['tenantB']->id)
             ->where('warehouse_id', $data['warehouseB']->id)
             ->where('product_id', $data['productB']->id)
             ->value('quantity_available'));
 
         $this->assertDatabaseHas('stock_movements', [
-            'tenant_id' => $data['tenantA']->id,
+            'tenant_id' => $data['tenantB']->id,
             'type' => 'exit',
             'reference_type' => 'product_exit',
         ]);
 
         $this->assertDatabaseHas('stock_movements', [
-            'tenant_id' => $data['tenantB']->id,
+            'tenant_id' => $data['tenantA']->id,
             'type' => 'entry',
             'reference_type' => 'product_entry',
         ]);
 
-$this->assertDatabaseHas('inventory_transfer_requests', [
+        $this->assertDatabaseHas('inventory_transfer_requests', [
             'origin_tenant_id' => $data['tenantA']->id,
             'sequence' => $request->sequence,
             'status' => 'completed',
         ]);
 
         $this->assertDatabaseHas('product_exit_items', [
-            'tenant_id' => $data['tenantA']->id,
-            'product_id' => $data['productA']->id,
-            'quantity' => '10.0000',
+            'tenant_id' => $data['tenantB']->id,
+            'product_id' => $data['productB']->id,
+            'quantity' => '2.0000',
         ]);
 
         $this->assertDatabaseHas('product_entry_items', [
+            'tenant_id' => $data['tenantA']->id,
+            'product_id' => $data['productA']->id,
+            'quantity' => '2.0000',
+        ]);
+        $this->assertDatabaseHas('product_units', [
             'tenant_id' => $data['tenantB']->id,
-            'product_id' => $data['productB']->id,
-            'quantity' => '10.0000',
+            'serial_number' => 'SYNC-IMEI-001',
+            'status' => 'removed',
+            'warehouse_id' => null,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $data['tenantA']->id,
+            'product_id' => $data['productA']->id,
+            'warehouse_id' => $data['warehouseA']->id,
+            'serial_number' => 'SYNC-IMEI-001',
+            'status' => 'available',
         ]);
     }
 
@@ -337,7 +378,7 @@ $this->assertDatabaseHas('inventory_transfer_requests', [
             ->where('product_id', $data['productA']->id)
             ->value('quantity_available');
 
-$this->assertSame($stockBalanceA_before, $stockBalanceA_after, 'Stock no debe cambiar en rejected');
+        $this->assertSame($stockBalanceA_before, $stockBalanceA_after, 'Stock no debe cambiar en rejected');
 
         $this->assertTrue(
             DB::table('inventory_transfer_requests')
@@ -414,7 +455,7 @@ $this->assertSame($stockBalanceA_before, $stockBalanceA_after, 'Stock no debe ca
             ->where('product_id', $data['productA']->id)
             ->value('quantity_available');
 
-$this->assertSame($stockBalanceA_before, $stockBalanceA_after, 'Stock no debe cambiar en cancelled');
+        $this->assertSame($stockBalanceA_before, $stockBalanceA_after, 'Stock no debe cambiar en cancelled');
 
         $this->assertTrue(
             DB::table('inventory_transfer_requests')

@@ -33,7 +33,7 @@ class InventoryTransferRequestApiTest extends TestCase
         $destinationUser = $this->userInTenant($destinationTenant);
         $this->grantRole($originTenant, $originUser, 'Gerente Origen', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
         $this->grantRole($destinationTenant, $destinationUser, 'Gerente Destino', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
-        $this->stock($originTenant, $originWarehouse, $originProduct, $originUser, 10);
+        $this->stock($destinationTenant, $destinationWarehouse, $destinationProduct, $destinationUser, 10);
 
         $createResponse = $this
             ->actingAs($originUser)
@@ -68,16 +68,16 @@ class InventoryTransferRequestApiTest extends TestCase
             ->assertJsonPath('data.destination_warehouse_id', $destinationWarehouse->id);
 
         $this->useTenant($originTenant);
-        $this->assertSame(6.0, (float) $this->balance($originWarehouse, $originProduct)->quantity_available);
+        $this->assertSame(4.0, (float) $this->balance($originWarehouse, $originProduct)->quantity_available);
         $this->useTenant($destinationTenant);
-        $this->assertSame(4.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
+        $this->assertSame(6.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
         $this->assertDatabaseHas('stock_movements', [
-            'tenant_id' => $originTenant->id,
+            'tenant_id' => $destinationTenant->id,
             'type' => 'transfer_request_out',
             'reference_type' => InventoryTransferRequest::class,
         ]);
         $this->assertDatabaseHas('stock_movements', [
-            'tenant_id' => $destinationTenant->id,
+            'tenant_id' => $originTenant->id,
             'type' => 'transfer_request_in',
             'reference_type' => InventoryTransferRequest::class,
         ]);
@@ -93,8 +93,8 @@ class InventoryTransferRequestApiTest extends TestCase
         $destinationUser = $this->userInTenant($destinationTenant);
         $this->grantRole($originTenant, $originUser, 'Gerente Origen', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
         $this->grantRole($destinationTenant, $destinationUser, 'Gerente Destino', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
-        $movement = $this->stock($originTenant, $originWarehouse, $originProduct, $originUser, 2);
-        $units = $this->units($originTenant, $originWarehouse, $originProduct, $movement->id, '862000', 2);
+        $movement = $this->stock($destinationTenant, $destinationWarehouse, $destinationProduct, $destinationUser, 2);
+        $units = $this->units($destinationTenant, $destinationWarehouse, $destinationProduct, $movement->id, '862000', 2);
 
         $createResponse = $this
             ->actingAs($originUser)
@@ -105,7 +105,6 @@ class InventoryTransferRequestApiTest extends TestCase
                 'items' => [[
                     'product_id' => $originProduct->id,
                     'quantity' => 1,
-                    'product_unit_ids' => [$units[0]->id],
                 ]],
             ])
             ->assertCreated();
@@ -118,8 +117,6 @@ class InventoryTransferRequestApiTest extends TestCase
                 'items' => [[
                     'request_item_id' => $createResponse->json('data.items.0.id'),
                     'destination_product_id' => $destinationProduct->id,
-                    // El destino envia el IMEI del payload; el backend hace
-                    // lookup por serial_number para eliminar la unit del origin.
                     'serial_units' => [[
                         'serial_type' => 'imei',
                         'serial_number' => $units[0]->serial_number,
@@ -130,15 +127,15 @@ class InventoryTransferRequestApiTest extends TestCase
             ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
 
         $this->assertDatabaseHas('product_units', [
-            'tenant_id' => $originTenant->id,
+            'tenant_id' => $destinationTenant->id,
             'id' => $units[0]->id,
             'status' => ProductUnit::STATUS_REMOVED,
             'warehouse_id' => null,
         ]);
         $this->assertDatabaseHas('product_units', [
-            'tenant_id' => $destinationTenant->id,
-            'product_id' => $destinationProduct->id,
-            'warehouse_id' => $destinationWarehouse->id,
+            'tenant_id' => $originTenant->id,
+            'product_id' => $originProduct->id,
+            'warehouse_id' => $originWarehouse->id,
             'serial_number' => $units[0]->serial_number,
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
@@ -146,10 +143,6 @@ class InventoryTransferRequestApiTest extends TestCase
 
     public function test_destination_can_choose_imeis_when_origin_did_not_provide_them(): void
     {
-        // Caso: Empresa A pide 2 celulares SIN especificar IMEIs (solo
-        // producto + cantidad). Empresa B acepta y elige 2 IMEIs de SU stock.
-        // El backend debe buscar las ProductUnit del origin por serial_number
-        // y eliminarlas, luego crear nuevas ProductUnit en el destination.
         $originTenant = Tenant::create(['name' => 'Empresa Origen', 'slug' => 'empresa-origen-2']);
         $destinationTenant = Tenant::create(['name' => 'Empresa Destino', 'slug' => 'empresa-destino-2']);
         [$originWarehouse, $originProduct] = $this->warehouseAndProduct($originTenant, 'TREQ-NOIMEI-O', Product::TRACKING_SERIALIZED);
@@ -158,10 +151,9 @@ class InventoryTransferRequestApiTest extends TestCase
         $destinationUser = $this->userInTenant($destinationTenant);
         $this->grantRole($originTenant, $originUser, 'Gerente Origen 2', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
         $this->grantRole($destinationTenant, $destinationUser, 'Gerente Destino 2', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
-        $movement = $this->stock($originTenant, $originWarehouse, $originProduct, $originUser, 2);
-        $originUnits = $this->units($originTenant, $originWarehouse, $originProduct, $movement->id, 'IMEI-NEW-', 2);
+        $movement = $this->stock($destinationTenant, $destinationWarehouse, $destinationProduct, $destinationUser, 2);
+        $selectedUnits = $this->units($destinationTenant, $destinationWarehouse, $destinationProduct, $movement->id, 'IMEI-NEW-', 2);
 
-        // Crear: sin product_unit_ids ni serial_units.
         $createResponse = $this
             ->actingAs($originUser)
             ->withHeader('X-Tenant', $originTenant->slug)
@@ -175,7 +167,6 @@ class InventoryTransferRequestApiTest extends TestCase
             ])
             ->assertCreated();
 
-        // Aceptar: el destino elige los 2 IMEIs via serial_numbers.
         $this
             ->actingAs($destinationUser)
             ->withHeader('X-Tenant', $destinationTenant->slug)
@@ -185,40 +176,169 @@ class InventoryTransferRequestApiTest extends TestCase
                     'request_item_id' => $createResponse->json('data.items.0.id'),
                     'destination_product_id' => $destinationProduct->id,
                     'serial_units' => [
-                        ['serial_type' => 'imei', 'serial_number' => $originUnits[0]->serial_number],
-                        ['serial_type' => 'imei', 'serial_number' => $originUnits[1]->serial_number],
+                        ['serial_type' => 'imei', 'serial_number' => $selectedUnits[0]->serial_number],
+                        ['serial_type' => 'imei', 'serial_number' => $selectedUnits[1]->serial_number],
                     ],
                 ]],
             ])
             ->assertOk()
             ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
 
-        // Verificar que las ProductUnit del origin se eliminaron (status=removed, warehouse=null).
         $this->assertDatabaseHas('product_units', [
-            'id' => $originUnits[0]->id,
+            'tenant_id' => $destinationTenant->id,
+            'id' => $selectedUnits[0]->id,
             'status' => ProductUnit::STATUS_REMOVED,
             'warehouse_id' => null,
         ]);
         $this->assertDatabaseHas('product_units', [
-            'id' => $originUnits[1]->id,
+            'tenant_id' => $destinationTenant->id,
+            'id' => $selectedUnits[1]->id,
             'status' => ProductUnit::STATUS_REMOVED,
             'warehouse_id' => null,
         ]);
 
-        // Verificar que se crearon 2 nuevas ProductUnit en el destination.
         $this->assertDatabaseHas('product_units', [
-            'tenant_id' => $destinationTenant->id,
-            'product_id' => $destinationProduct->id,
-            'warehouse_id' => $destinationWarehouse->id,
-            'serial_number' => $originUnits[0]->serial_number,
+            'tenant_id' => $originTenant->id,
+            'product_id' => $originProduct->id,
+            'warehouse_id' => $originWarehouse->id,
+            'serial_number' => $selectedUnits[0]->serial_number,
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
         $this->assertDatabaseHas('product_units', [
-            'tenant_id' => $destinationTenant->id,
-            'product_id' => $destinationProduct->id,
-            'warehouse_id' => $destinationWarehouse->id,
-            'serial_number' => $originUnits[1]->serial_number,
+            'tenant_id' => $originTenant->id,
+            'product_id' => $originProduct->id,
+            'warehouse_id' => $originWarehouse->id,
+            'serial_number' => $selectedUnits[1]->serial_number,
             'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+    }
+
+    public function test_requester_without_stock_can_receive_serialized_units_from_responding_company(): void
+    {
+        $requesterTenant = Tenant::create(['name' => 'Empresa Solicitante', 'slug' => 'empresa-solicitante-sin-stock']);
+        $respondingTenant = Tenant::create(['name' => 'Empresa Proveedora', 'slug' => 'empresa-proveedora-con-stock']);
+        [$requesterWarehouse, $requesterProduct] = $this->warehouseAndProduct($requesterTenant, 'TREQ-RECV-O', Product::TRACKING_SERIALIZED);
+        [$respondingWarehouse, $respondingProduct] = $this->warehouseAndProduct($respondingTenant, 'TREQ-SEND-D', Product::TRACKING_SERIALIZED);
+        $requesterUser = $this->userInTenant($requesterTenant);
+        $respondingUser = $this->userInTenant($respondingTenant);
+        $this->grantRole($requesterTenant, $requesterUser, 'Gerente Solicitante', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
+        $this->grantRole($respondingTenant, $respondingUser, 'Gerente Proveedor', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
+        $movement = $this->stock($respondingTenant, $respondingWarehouse, $respondingProduct, $respondingUser, 2);
+        $units = $this->units($respondingTenant, $respondingWarehouse, $respondingProduct, $movement->id, 'IMEI-SUP-', 2);
+
+        $createResponse = $this
+            ->actingAs($requesterUser)
+            ->withHeader('X-Tenant', $requesterTenant->slug)
+            ->postJson('/api/inventory-transfer-requests', [
+                'destination_tenant_slug' => $respondingTenant->slug,
+                'from_warehouse_id' => $requesterWarehouse->id,
+                'items' => [[
+                    'product_id' => $requesterProduct->id,
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($respondingUser)
+            ->withHeader('X-Tenant', $respondingTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$createResponse->json('data.id')}/accept", [
+                'destination_warehouse_id' => $respondingWarehouse->id,
+                'items' => [[
+                    'request_item_id' => $createResponse->json('data.items.0.id'),
+                    'destination_product_id' => $respondingProduct->id,
+                    'serial_units' => [
+                        ['serial_type' => 'imei', 'serial_number' => $units[0]->serial_number],
+                        ['serial_type' => 'imei', 'serial_number' => $units[1]->serial_number],
+                    ],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
+
+        $this->useTenant($requesterTenant);
+        $this->assertSame(2.0, (float) $this->balance($requesterWarehouse, $requesterProduct)->quantity_available);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $requesterTenant->id,
+            'product_id' => $requesterProduct->id,
+            'warehouse_id' => $requesterWarehouse->id,
+            'serial_number' => $units[0]->serial_number,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+
+        $this->useTenant($respondingTenant);
+        $this->assertSame(0.0, (float) $this->balance($respondingWarehouse, $respondingProduct)->quantity_available);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $respondingTenant->id,
+            'id' => $units[0]->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+            'warehouse_id' => null,
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $respondingTenant->id,
+            'event_type' => 'inventory_transfer_request.accepted',
+        ]);
+    }
+
+    public function test_accept_rejects_unavailable_imei_without_moving_stock(): void
+    {
+        $requesterTenant = Tenant::create(['name' => 'Empresa Solicitante', 'slug' => 'empresa-solicitante-imei-invalido']);
+        $respondingTenant = Tenant::create(['name' => 'Empresa Proveedora', 'slug' => 'empresa-proveedora-imei-invalido']);
+        [$requesterWarehouse, $requesterProduct] = $this->warehouseAndProduct($requesterTenant, 'TREQ-INVALID-O', Product::TRACKING_SERIALIZED);
+        [$respondingWarehouse, $respondingProduct] = $this->warehouseAndProduct($respondingTenant, 'TREQ-INVALID-D', Product::TRACKING_SERIALIZED);
+        $requesterUser = $this->userInTenant($requesterTenant);
+        $respondingUser = $this->userInTenant($respondingTenant);
+        $this->grantRole($requesterTenant, $requesterUser, 'Solicitante IMEI', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
+        $this->grantRole($respondingTenant, $respondingUser, 'Proveedor IMEI', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view']);
+        $movement = $this->stock($respondingTenant, $respondingWarehouse, $respondingProduct, $respondingUser, 1);
+        $units = $this->units($respondingTenant, $respondingWarehouse, $respondingProduct, $movement->id, 'IMEI-VALID-', 1);
+
+        $createResponse = $this
+            ->actingAs($requesterUser)
+            ->withHeader('X-Tenant', $requesterTenant->slug)
+            ->postJson('/api/inventory-transfer-requests', [
+                'destination_tenant_slug' => $respondingTenant->slug,
+                'from_warehouse_id' => $requesterWarehouse->id,
+                'items' => [[
+                    'product_id' => $requesterProduct->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($respondingUser)
+            ->withHeader('X-Tenant', $respondingTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$createResponse->json('data.id')}/accept", [
+                'destination_warehouse_id' => $respondingWarehouse->id,
+                'items' => [[
+                    'request_item_id' => $createResponse->json('data.items.0.id'),
+                    'destination_product_id' => $respondingProduct->id,
+                    'serial_units' => [[
+                        'serial_type' => 'imei',
+                        'serial_number' => 'IMEI-NO-DISPONIBLE',
+                    ]],
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items']);
+
+        $this->useTenant($respondingTenant);
+        $this->assertSame(1.0, (float) $this->balance($respondingWarehouse, $respondingProduct)->quantity_available);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $respondingTenant->id,
+            'id' => $units[0]->id,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+            'warehouse_id' => $respondingWarehouse->id,
+        ]);
+        $this->assertDatabaseHas('inventory_transfer_requests', [
+            'id' => $createResponse->json('data.id'),
+            'status' => InventoryTransferRequest::STATUS_REQUESTED,
+        ]);
+        $this->assertDatabaseMissing('stock_balances', [
+            'tenant_id' => $requesterTenant->id,
+            'warehouse_id' => $requesterWarehouse->id,
+            'product_id' => $requesterProduct->id,
         ]);
     }
 

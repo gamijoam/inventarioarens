@@ -11,11 +11,18 @@ use Illuminate\Validation\ValidationException;
 
 class ProductPriceService
 {
-    public function quote(Product $product, ?int $priceListId = null): array
-    {
-        $productPrice = $this->productPriceFor($product, $priceListId);
+    public const PRICE_SOURCE_BASE = 'base';
 
-        if (! $productPrice && $product->base_price === null) {
+    public const PRICE_SOURCE_LIST = 'list';
+
+    public function quote(Product $product, ?int $priceListId = null, ?string $priceSource = null): array
+    {
+        $source = $this->resolvePriceSource($priceListId, $priceSource);
+        $productPrice = $source === self::PRICE_SOURCE_BASE
+            ? null
+            : $this->productPriceFor($product, $priceListId);
+
+        if ($source === self::PRICE_SOURCE_BASE && $product->base_price === null) {
             throw ValidationException::withMessages([
                 'base_price' => 'El producto no tiene precio base configurado.',
             ]);
@@ -48,7 +55,7 @@ class ProductPriceService
             'product_id' => $product->id,
             'price_list_id' => $productPrice?->price_list_id,
             'price_list_name' => $productPrice?->priceList?->name,
-            'price_source' => $productPrice ? 'price_list' : 'product_base',
+            'price_source' => $productPrice ? self::PRICE_SOURCE_LIST : self::PRICE_SOURCE_BASE,
             'base_price_usd' => $basePriceUsd,
             'sale_currency' => $saleCurrency,
             'sale_price' => $salePrice,
@@ -61,6 +68,27 @@ class ProductPriceService
             'exchange_rate' => $exchangeRate,
             'exchange_rate_effective_at' => $rate?->effective_at?->toISOString(),
         ];
+    }
+
+    private function resolvePriceSource(?int $priceListId, ?string $priceSource): string
+    {
+        $normalized = is_string($priceSource) ? strtolower(trim($priceSource)) : null;
+
+        if ($normalized === self::PRICE_SOURCE_BASE) {
+            return self::PRICE_SOURCE_BASE;
+        }
+
+        if ($normalized === self::PRICE_SOURCE_LIST) {
+            if ($priceListId === null) {
+                throw ValidationException::withMessages([
+                    'price_list_id' => 'price_source=list requiere una lista de precios.',
+                ]);
+            }
+
+            return self::PRICE_SOURCE_LIST;
+        }
+
+        return self::PRICE_SOURCE_LIST;
     }
 
     private function productPriceFor(Product $product, ?int $priceListId): ?ProductPrice

@@ -182,7 +182,7 @@ El modulo `ProductExits` cubre salidas operativas de inventario que no son venta
 
 El modulo `InventoryTransfers` cubre traslados internos entre almacenes de una misma empresa. Cada item genera un movimiento `transfer_out` en el almacen origen y un movimiento `transfer_in` en el almacen destino, ambos enlazados al documento de transferencia. Para productos serializados, los IMEIs siguen en estado disponible y cambian de almacen. Las transferencias entre companias no se ejecutaran directo: se modelaran como solicitud interempresa con empresa destino, aceptacion/rechazo y trazabilidad separada para cada tenant.
 
-El modulo `InventoryTransferRequests` cubre las solicitudes interempresa. La solicitud vive fuera del scope automatico de un solo tenant porque referencia una empresa origen y una empresa destino. Crear la solicitud no mueve stock. Al aceptar, el servicio cambia de contexto de tenant de forma controlada: primero descuenta en origen con `adjustment_out`, luego incrementa en destino con `purchase`. Si hay IMEIs, el origen queda `removed` y el destino recibe nuevas unidades disponibles con los mismos seriales.
+El modulo `InventoryTransferRequests` cubre las solicitudes interempresa. La solicitud vive fuera del scope automatico de un solo tenant porque referencia una empresa solicitante y una empresa que responde. Crear la solicitud no mueve stock. Al aceptar, el servicio cambia de contexto de tenant de forma controlada: primero descuenta en la empresa que responde con `transfer_request_out` (origen del stock fisico) y luego incrementa en la empresa solicitante con `transfer_request_in`. Si hay IMEIs, las unidades se retiran en la empresa que responde y se recrean disponibles en la empresa solicitante con los mismos seriales.
 
 ## Objetivo
 

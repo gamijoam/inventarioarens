@@ -3438,13 +3438,13 @@ Body:
 
 Reglas:
 
-- solo la empresa destino puede aceptar;
-- debe indicar almacen destino y producto destino por cada item;
-- el producto destino debe tener el mismo tipo de control: cantidad o serializado;
-- al aceptar, la empresa origen genera salida `adjustment_out`;
-- al aceptar, la empresa destino genera entrada `purchase`;
-- en serializados, el IMEI original queda `removed` en origen y se crea disponible en destino;
-- si ya no hay stock suficiente en origen, la aceptacion falla y no se mueve nada.
+- solo la empresa que responde puede aceptar;
+- debe indicar almacen de salida y producto seleccionado por cada item;
+- el producto seleccionado debe tener el mismo tipo de control: cantidad o serializado;
+- al aceptar, la empresa que responde genera salida `transfer_request_out`;
+- al aceptar, la empresa solicitante genera entrada `transfer_request_in`;
+- en serializados, la empresa que responde retira IMEIs disponibles del almacen seleccionado y la empresa solicitante recibe las unidades disponibles;
+- si no hay stock suficiente en la empresa que responde, la aceptacion falla y no se mueve nada.
 
 ### Rechazar solicitud
 

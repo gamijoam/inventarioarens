@@ -40,22 +40,16 @@ import {
   useAddCashMovement,
   useAddPosPayments,
   useAvailableProductSerialsForPos,
-  useBranchesForPos,
   useCancelPosOrder,
-  useCashRegisters,
-  useCashSessions,
   useCheckout,
   useCloseCashSession,
   useCreateCustomerForPos,
-  useCurrentExchangeRatesForPos,
   useCustomers,
-  useExchangeRateTypesForPos,
   useOpenCashSession,
   useOpenPosOrders,
-  usePaymentMethods,
-  usePriceListsForPos,
+  useBootstrapRefsForPos,
+  usePosBootstrap,
   usePosProducts,
-  useWarehousesForPos,
 } from './api';
 import {
   calculateCartTotals,
@@ -144,10 +138,16 @@ export function PosTerminal() {
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
 
-  const { data: warehouses = [] } = useWarehousesForPos();
-  const { data: branches = [] } = useBranchesForPos();
-  const { data: cashRegisters = [] } = useCashRegisters();
-  const { data: sessions = [], isLoading: loadingSessions, refetch: refetchCashSessions } = useCashSessions();
+  const bootstrapRefs = useBootstrapRefsForPos();
+  const bootstrap = usePosBootstrap();
+  const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
+  const warehouses = useMemo(() => bootstrapRefs.refs?.warehouses ?? [], [bootstrapRefs.refs]);
+  const branches = useMemo(() => bootstrapRefs.refs?.branches ?? [], [bootstrapRefs.refs]);
+  const cashRegisters = useMemo(() => bootstrapRefs.refs?.cash_registers ?? [], [bootstrapRefs.refs]);
+  const sessions = useMemo(
+    () => (bootstrap.data?.open_session ? [bootstrap.data.open_session] : []),
+    [bootstrap.data],
+  );
   const { data: pendingOrders = [] } = useOpenPosOrders();
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
@@ -155,13 +155,21 @@ export function PosTerminal() {
   const { data: productPage, isLoading: loadingProducts } = usePosProducts(activeProductSearch, warehouseId, {
     enabled: shouldSearchProducts,
   });
-  const { data: configuredPaymentMethods = [] } = usePaymentMethods();
-  const { data: priceLists = [] } = usePriceListsForPos();
-  const { data: exchangeRateTypes = [] } = useExchangeRateTypesForPos();
-  const { data: currentRates = [] } = useCurrentExchangeRatesForPos();
+  const configuredPaymentMethods = useMemo(
+    () => bootstrap.data?.payment_methods ?? [],
+    [bootstrap.data],
+  );
+  const priceLists = useMemo(() => bootstrap.data?.price_lists ?? [], [bootstrap.data]);
+  const exchangeRateTypes = useMemo(
+    () => bootstrap.data?.exchange_rate_types ?? [],
+    [bootstrap.data],
+  );
+  const currentRates = useMemo(() => bootstrap.data?.exchange_rates ?? [], [bootstrap.data]);
   const { data: printerStations = [] } = usePrinterStations({ enabled: canPrint || canDigital || canReprint });
   const activePaymentMethods = useMemo(
-    () => configuredPaymentMethods.filter((method) => method.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
+    () => configuredPaymentMethods
+      .filter((method) => method.is_active !== false)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
     [configuredPaymentMethods],
   );
   const selectedPriceList = useMemo(
@@ -184,7 +192,7 @@ export function PosTerminal() {
   const updatePrintJobStatus = useUpdatePrintJobStatus();
 
   const activeCashRegisters = useMemo(
-    () => cashRegisters.filter((register) => (register.status ?? 'active') === 'active'),
+    () => cashRegisters.filter((register) => (register as { status?: string }).status !== 'inactive'),
     [cashRegisters],
   );
   const activeSession = useMemo(
@@ -295,7 +303,7 @@ export function PosTerminal() {
     );
   }
 
-  if (!activeSession && !loadingSessions) {
+  if (!activeSession && !bootstrap.isLoading && !bootstrap.isError && bootstrapReady) {
     return (
       <OpenCashScreen
         canOpenCash={canOpenCash}
@@ -325,7 +333,7 @@ export function PosTerminal() {
             notes: 'Apertura desde POS',
           }, {
             onError: (error) => {
-              void refetchCashSessions();
+              void bootstrap.refetch();
               toast.error(errorMessage(error));
             },
           });
@@ -978,7 +986,7 @@ export function PosTerminal() {
       setPanel('receipt');
       toast.success('Venta confirmada.');
     } catch (error) {
-      void refetchCashSessions();
+      void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
     }
   }
@@ -1021,7 +1029,7 @@ export function PosTerminal() {
       setPanel('receipt');
       toast.success('Venta enviada a cuentas por cobrar.');
     } catch (error) {
-      void refetchCashSessions();
+      void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar la venta a CxC.');
     }
   }
@@ -1094,7 +1102,7 @@ export function PosTerminal() {
       clearTicket();
       toast.success('Venta puesta en espera.');
     } catch (error) {
-      void refetchCashSessions();
+      void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo poner la venta en espera.');
     }
   }

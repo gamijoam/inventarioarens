@@ -10,6 +10,7 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -20,9 +21,8 @@ class InventoryTransferRequestService
 {
     public function __construct(
         private readonly InventoryMovementService $inventory,
-        private readonly \App\Modules\Sync\Services\SyncCatalogOutboxService $syncCatalog,
-    ) {
-    }
+        private readonly SyncCatalogOutboxService $syncCatalog,
+    ) {}
 
     public function create(User $user, array $data): InventoryTransferRequest
     {
@@ -77,7 +77,7 @@ class InventoryTransferRequestService
 
     public function accept(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
     {
-        return DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
+        $accepted = DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
             $request = InventoryTransferRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -137,9 +137,9 @@ class InventoryTransferRequestService
             ]);
         });
 
-        $this->syncCatalog->inventoryTransferRequestAccepted($request->refresh());
+        $this->syncCatalog->inventoryTransferRequestAccepted($accepted);
 
-        return $request;
+        return $accepted;
     }
 
     public function reject(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
@@ -203,75 +203,59 @@ class InventoryTransferRequestService
     ): void {
         $tenantManager = app(TenantManager::class);
         $currentTenant = $tenantManager->current();
-        $originTenant = Tenant::query()->findOrFail($request->origin_tenant_id);
-        $destinationTenant = Tenant::query()->findOrFail($request->destination_tenant_id);
+        $requesterTenant = Tenant::query()->findOrFail($request->origin_tenant_id);
+        $respondingTenant = Tenant::query()->findOrFail($request->destination_tenant_id);
 
-        $tenantManager->set($originTenant);
-        $originProduct = Product::query()->findOrFail($item->origin_product_id);
-        $originWarehouse = Warehouse::query()->findOrFail($request->from_warehouse_id);
+        $tenantManager->set($requesterTenant);
+        $requesterProduct = Product::query()->findOrFail($item->origin_product_id);
+        $requesterWarehouse = Warehouse::query()->findOrFail($request->from_warehouse_id);
 
-        $tenantManager->set($destinationTenant);
-        $destinationProduct = Product::query()->findOrFail($destinationProductId);
+        $tenantManager->set($respondingTenant);
+        $respondingProduct = Product::query()->findOrFail($destinationProductId);
 
-        if ($originProduct->requiresSerializedTracking() !== $destinationProduct->requiresSerializedTracking()) {
+        if ($requesterProduct->requiresSerializedTracking() !== $respondingProduct->requiresSerializedTracking()) {
             $tenantManager->set($currentTenant);
 
             throw ValidationException::withMessages([
-                'items' => 'El producto destino debe tener el mismo tipo de control que el producto origen.',
+                'items' => 'El producto seleccionado debe tener el mismo tipo de control que el producto solicitado.',
             ]);
         }
 
         try {
-            $tenantManager->set($originTenant);
-            // Tipo 'transfer_request_out' (no 'adjustment_out') para que el
-            // kardex distinga este caso de un ajuste de inventario normal.
+            $tenantManager->set($respondingTenant);
+            [$unitIds, $serialUnits] = $this->resolveRespondingUnits(
+                $respondingProduct,
+                $destinationWarehouse,
+                (float) $item->quantity,
+                $serialUnitsFromPayload,
+            );
             $outMovement = $this->inventory->transferRequestOut(
-                warehouse: $originWarehouse,
-                product: $originProduct,
+                warehouse: $destinationWarehouse,
+                product: $respondingProduct,
                 quantity: (float) $item->quantity,
                 createdBy: $user,
                 reason: "Salida interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
             );
+            $this->removeRespondingUnits($unitIds, $outMovement->id);
 
-            // Resolver product_unit_ids a partir de los serial_units del payload del accept.
-            // Si el solicitante ya habia enviado product_unit_ids, los usamos.
-            // Si no, los buscamos por serial_number en el stock del origin warehouse.
-            $unitIds = $item->product_unit_ids ?? [];
-            if (empty($unitIds) && is_array($serialUnitsFromPayload) && count($serialUnitsFromPayload) > 0) {
-                $serialNumbers = array_map(
-                    fn ($u) => trim((string) ($u['serial_number'] ?? '')),
-                    $serialUnitsFromPayload,
-                );
-                $unitIds = ProductUnit::query()
-                    ->where('product_id', $originProduct->id)
-                    ->where('warehouse_id', $originWarehouse->id)
-                    ->whereIn('serial_number', $serialNumbers)
-                    ->pluck('id')
-                    ->all();
-            }
-            $this->removeOriginUnits($unitIds, $outMovement->id);
-
-            $tenantManager->set($destinationTenant);
-            // Tipo 'transfer_request_in' (no 'purchase') por la misma razon.
+            $tenantManager->set($requesterTenant);
             $inMovement = $this->inventory->transferRequestIn(
-                warehouse: $destinationWarehouse,
-                product: $destinationProduct,
+                warehouse: $requesterWarehouse,
+                product: $requesterProduct,
                 quantity: (float) $item->quantity,
                 createdBy: $user,
                 reason: "Entrada interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
             );
-
-            // IMEIs/seriales: priorizar los del payload del accept (los que B eligio).
-            // Fallback: los del item original (compatibilidad hacia atras).
-            $serialUnits = is_array($serialUnitsFromPayload) && count($serialUnitsFromPayload) > 0
-                ? $serialUnitsFromPayload
-                : ($item->serial_units ?? []);
-            $this->createDestinationUnits($destinationProduct, $destinationWarehouse, $inMovement->id, $serialUnits);
-        } catch (InsufficientStockException|InvalidStockQuantityException $exception) {
+            $this->createRequesterUnits($requesterProduct, $requesterWarehouse, $inMovement->id, $serialUnits);
+        } catch (InsufficientStockException $exception) {
+            throw ValidationException::withMessages([
+                'items' => 'El almacen de salida no tiene stock suficiente para completar la solicitud.',
+            ]);
+        } catch (InvalidStockQuantityException $exception) {
             throw ValidationException::withMessages([
                 'items' => $exception->getMessage(),
             ]);
@@ -280,10 +264,77 @@ class InventoryTransferRequestService
         }
 
         $item->update([
-            'destination_product_id' => $destinationProduct->id,
+            'destination_product_id' => $respondingProduct->id,
+            'product_unit_ids' => $unitIds ?: null,
+            'serial_units' => $serialUnits,
             'out_stock_movement_id' => $outMovement->id,
             'in_stock_movement_id' => $inMovement->id,
         ]);
+    }
+
+    private function resolveRespondingUnits(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        ?array $serialUnits,
+    ): array {
+        if (! $product->requiresSerializedTracking()) {
+            if (is_array($serialUnits) && $serialUnits !== []) {
+                throw ValidationException::withMessages([
+                    'items' => 'Solo los productos serializados pueden seleccionar IMEIs o seriales.',
+                ]);
+            }
+
+            return [[], []];
+        }
+
+        $expected = (int) $quantity;
+        $normalized = collect($serialUnits ?? [])->map(fn (array $unit): array => [
+            'serial_type' => (string) ($unit['serial_type'] ?? ''),
+            'serial_number' => trim((string) ($unit['serial_number'] ?? '')),
+        ])->values()->all();
+
+        if (count($normalized) !== $expected) {
+            throw ValidationException::withMessages([
+                'items' => "Debe seleccionar {$expected} IMEI(s) o serial(es) disponibles.",
+            ]);
+        }
+
+        $keys = array_map(
+            fn (array $unit): string => $unit['serial_type'].'|'.$unit['serial_number'],
+            $normalized,
+        );
+
+        if (count(array_unique($keys)) !== $expected) {
+            throw ValidationException::withMessages([
+                'items' => 'No se puede seleccionar el mismo IMEI o serial mas de una vez.',
+            ]);
+        }
+
+        $availableUnits = ProductUnit::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->whereIn('serial_number', array_column($normalized, 'serial_number'))
+            ->lockForUpdate()
+            ->get()
+            ->keyBy(fn (ProductUnit $unit): string => $unit->serial_type.'|'.$unit->serial_number);
+
+        $unitIds = [];
+        foreach ($normalized as $unit) {
+            $key = $unit['serial_type'].'|'.$unit['serial_number'];
+            $availableUnit = $availableUnits->get($key);
+
+            if (! $availableUnit) {
+                throw ValidationException::withMessages([
+                    'items' => "El IMEI o serial {$unit['serial_number']} no esta disponible en el almacen de salida seleccionado.",
+                ]);
+            }
+
+            $unitIds[] = $availableUnit->id;
+        }
+
+        return [$unitIds, $normalized];
     }
 
     private function validateOriginItems(Warehouse $fromWarehouse, array $items): void
@@ -395,7 +446,7 @@ class InventoryTransferRequestService
             ->all();
     }
 
-    private function removeOriginUnits(array $unitIds, int $movementId): void
+    private function removeRespondingUnits(array $unitIds, int $movementId): void
     {
         if ($unitIds === []) {
             return;
@@ -408,7 +459,7 @@ class InventoryTransferRequestService
             ->each(function (ProductUnit $unit) use ($movementId): void {
                 if ($unit->status !== ProductUnit::STATUS_AVAILABLE) {
                     throw ValidationException::withMessages([
-                        'items' => 'Una unidad serializada ya no esta disponible en la empresa origen.',
+                        'items' => 'Una unidad serializada ya no esta disponible en el almacen de salida seleccionado.',
                     ]);
                 }
 
@@ -420,7 +471,7 @@ class InventoryTransferRequestService
             });
     }
 
-    private function createDestinationUnits(Product $product, Warehouse $warehouse, int $movementId, array $serialUnits): void
+    private function createRequesterUnits(Product $product, Warehouse $warehouse, int $movementId, array $serialUnits): void
     {
         if (! $product->requiresSerializedTracking()) {
             return;
@@ -432,7 +483,7 @@ class InventoryTransferRequestService
                 ->where('serial_number', $serialUnit['serial_number'])
                 ->exists()) {
                 throw ValidationException::withMessages([
-                    'items' => "El serial {$serialUnit['serial_number']} ya existe en la empresa destino.",
+                    'items' => "El serial {$serialUnit['serial_number']} ya existe en la empresa solicitante.",
                 ]);
             }
 

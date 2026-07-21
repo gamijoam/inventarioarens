@@ -7,6 +7,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Requests\AddPosOrderPaymentsRequest;
 use App\Modules\POS\Requests\StorePosCheckoutRequest;
 use App\Modules\POS\Resources\PosOrderResource;
+use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -20,13 +21,41 @@ class PosOrderController extends Controller
     {
         Gate::authorize('viewAny', PosOrder::class);
 
-        return PosOrderResource::collection(
-            PosOrder::query()
-                ->with(['cashRegisterSession', 'customer', 'sale.items.product', 'payments'])
-                ->when(request('status'), fn ($query, string $status) => $query->where('status', $status))
-                ->latest()
-                ->paginate(25)
-        );
+        $request = request();
+        $perPage = max(1, min(100, (int) $request->query('per_page', 25)));
+        $summary = $request->boolean('summary');
+
+        $query = PosOrder::query()
+            ->with([
+                'customer',
+                'sale',
+                'sale.items',
+                'payments.paymentMethod:id,name',
+            ])
+            ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
+            ->when($request->query('cash_register_session_id'),
+                fn ($query, int $sessionId) => $query->where('cash_register_session_id', $sessionId))
+            ->when($request->query('cashier_id'),
+                fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId))
+            ->when($request->query('customer_id'),
+                fn ($query, int $customerId) => $query->where('customer_id', $customerId))
+            ->when($request->query('date_from'),
+                fn ($query, string $from) => $query->where('opened_at', '>=', $from))
+            ->when($request->query('date_to'),
+                fn ($query, string $to) => $query->where('opened_at', '<=', $to))
+            ->when($request->query('search'), function ($query, string $search): void {
+                $needle = '%'.strtolower($search).'%';
+                $query->where(function ($q) use ($needle): void {
+                    $q->whereRaw('LOWER(document_number) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(customer_name) LIKE ?', [$needle])
+                        ->orWhere('id', is_numeric($search) ? (int) $search : 0);
+                });
+            })
+            ->latest('opened_at');
+
+        $resourceClass = $summary ? PosOrderSummaryResource::class : PosOrderResource::class;
+
+        return $resourceClass::collection($query->paginate($perPage));
     }
 
     public function checkout(StorePosCheckoutRequest $request, PosCheckoutService $checkout): JsonResponse

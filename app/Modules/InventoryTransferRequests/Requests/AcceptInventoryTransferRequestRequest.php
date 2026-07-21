@@ -19,6 +19,7 @@ class AcceptInventoryTransferRequestRequest extends FormRequest
             'items.*.request_item_id' => ['required', 'integer'],
             'items.*.destination_product_id' => ['required', Rule::exists('products', 'id')->where('tenant_id', $tenantId)],
             'items.*.serial_units' => ['nullable', 'array'],
+            'items.*.serial_units.*' => ['array'],
             'items.*.serial_units.*.serial_type' => ['required_with:items.*.serial_units', 'string', 'in:imei,serial'],
             'items.*.serial_units.*.serial_number' => ['required_with:items.*.serial_units', 'string', 'max:100'],
         ];

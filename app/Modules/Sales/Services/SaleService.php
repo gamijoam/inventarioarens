@@ -20,8 +20,7 @@ class SaleService
     public function __construct(
         private readonly ProductPriceService $prices,
         private readonly InventoryMovementService $inventory,
-    ) {
-    }
+    ) {}
 
     public function createDraft(User $user, array $items, ?int $customerId = null): Sale
     {
@@ -44,7 +43,11 @@ class SaleService
                     throw ValidationException::withMessages(['items' => 'La cantidad debe ser mayor que cero.']);
                 }
 
-                $quote = $this->prices->quote($product, $item['price_list_id'] ?? null);
+                $quote = $this->prices->quote(
+                    $product,
+                    $item['price_list_id'] ?? null,
+                    $item['price_source'] ?? null,
+                );
                 $baseUnitPrice = (float) $quote['base_price_usd'];
                 $baseTotal = round($baseUnitPrice * $quantity, 4);
                 $unitPrice = (float) $quote['sale_price'];
