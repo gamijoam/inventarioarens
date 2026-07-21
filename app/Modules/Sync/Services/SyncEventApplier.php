@@ -156,6 +156,8 @@ class SyncEventApplier
                 'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
                 'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
                 'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
+                'product.image.uploaded', 'product.image.updated' => $this->applyProductImage($tenant, $payload),
+                'product.image.deleted' => $this->applyProductImageDeleted($tenant, $payload),
                 'customer.updated', 'customer.created' => $this->applyCustomer($tenant, $payload),
                 'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
                 'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
@@ -1201,6 +1203,88 @@ class SyncEventApplier
         }
 
         return $movementId;
+    }
+
+    /**
+     * Aplica un evento product.image.{uploaded,updated} en la BD local.
+     * NO descarga el archivo binario — esa parte la hace SyncDownloadService
+     * (Fase 3, todavia no implementado). Aqui solo replicamos la fila y las
+     * 3 variantes para que el ProductResource funcione localmente.
+     */
+    private function applyProductImage(Tenant $tenant, array $payload): string
+    {
+        $uuid = $payload['uuid'] ?? null;
+        if (! $uuid) {
+            return 'skipped:missing_uuid';
+        }
+
+        $image = \App\Modules\Products\Models\ProductImage::query()
+            ->withTrashed()
+            ->firstOrNew(['uuid' => $uuid, 'tenant_id' => $tenant->id]);
+
+        $image->fill([
+            'product_id' => $payload['product_id'] ?? $image->product_id,
+            'mime' => $payload['mime'] ?? $image->mime ?? 'image/webp',
+            'size' => $payload['size'] ?? $image->size ?? 0,
+            'width' => $payload['width'] ?? $image->width,
+            'height' => $payload['height'] ?? $image->height,
+            'sha256' => $payload['sha256'] ?? $image->sha256,
+            'alt' => $payload['alt'] ?? $image->alt,
+            'sort' => $payload['sort'] ?? $image->sort ?? 0,
+            'is_primary' => (bool) ($payload['is_primary'] ?? $image->is_primary ?? false),
+            'deleted_at' => null,
+        ]);
+
+        // Si el path apunta al cloud, guardamos la URL en storage_path como
+        // marcador temporal hasta que SyncDownloadService baje el archivo.
+        // Mientras tanto, ProductImageResource::url() devuelve esa URL remota
+        // y el frontend puede servirla directo.
+        $image->storage_path = $payload['cloud_url'] ?? $image->storage_path;
+        $image->save();
+
+        // Variantes.
+        foreach (($payload['variants'] ?? []) as $variantName => $variantData) {
+            $variant = \App\Modules\Products\Models\ProductImageVariant::query()
+                ->updateOrCreate(
+                    [
+                        'product_image_id' => $image->id,
+                        'variant' => $variantName,
+                    ],
+                    [
+                        'tenant_id' => $tenant->id,
+                        'storage_path' => $variantData['cloud_url'] ?? '',
+                        'mime' => $variantData['mime'] ?? 'image/webp',
+                        'size' => $variantData['size'] ?? 0,
+                        'width' => $variantData['width'] ?? 0,
+                        'height' => $variantData['height'] ?? 0,
+                    ],
+                );
+        }
+
+        return "product_image:{$image->id}";
+    }
+
+    /**
+     * Aplica product.image.deleted. Solo soft-delete local (los archivos se
+     * borran del storage despues de 30d via job de limpieza, Nivel 3).
+     */
+    private function applyProductImageDeleted(Tenant $tenant, array $payload): string
+    {
+        $uuid = $payload['uuid'] ?? null;
+        if (! $uuid) {
+            return 'skipped:missing_uuid';
+        }
+
+        $image = \App\Modules\Products\Models\ProductImage::query()
+            ->where('uuid', $uuid)
+            ->where('tenant_id', $tenant->id)
+            ->first();
+
+        if ($image) {
+            $image->delete();
+        }
+
+        return "product_image_deleted:{$uuid}";
     }
 
     private function applyProductUnit(Tenant $tenant, array $payload): string

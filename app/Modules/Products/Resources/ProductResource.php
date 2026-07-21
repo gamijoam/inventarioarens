@@ -20,6 +20,22 @@ class ProductResource extends JsonResource
             'sku' => $this->sku,
             'barcode' => $this->barcode,
             'image_url' => $this->image_url,
+            // Galeria de imagenes propias (Nivel 2). Mantenemos image_url como
+            // fallback para URLs externas (fabricante, proveedor).
+            'images' => $this->whenLoaded('images', fn () => $this->images->map(fn ($img) => [
+                'id' => (int) $img->id,
+                'uuid' => $img->uuid,
+                'mime' => $img->mime,
+                'width' => (int) ($img->width ?? 0),
+                'height' => (int) ($img->height ?? 0),
+                'alt' => $img->alt,
+                'sort' => (int) $img->sort,
+                'is_primary' => (bool) $img->is_primary,
+                'url' => $img->url(),
+                'thumb_url' => $img->thumbUrl(),
+                'medium_url' => $img->mediumUrl(),
+            ])),
+            'primary_image_url' => $this->whenLoaded('images', fn () => $this->images->firstWhere('is_primary', true)?->url()),
 
             'tracking_type' => $this->tracking_type,
             'unit_of_measure' => $this->unit_of_measure,

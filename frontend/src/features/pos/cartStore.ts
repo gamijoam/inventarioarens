@@ -17,6 +17,7 @@
  * activa), panel (UI state), openingBranchId/openingRegisterId (form
  * modales efimeros), serialLineId (seleccion puntual).
  */
+import { useEffect } from 'react';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
@@ -340,66 +341,59 @@ export function clearPersistedCart(tenantId: number | null, cashierId: number | 
  * distintos cajeros en distintos tenants no comparten carrito. La
  * hidratacion es unica: se setea un flag en window para no re-hidratar
  * entre componentes (ej: si el PosTerminal se re-monta en una SPA).
+ *
+ * IMPORTANTE: cuando tenantId/cashierId son null (caja cerrada o
+ * todavia no cargo la sesion) NO suscribimos ni hidratamos nada, asi
+ * evitamos que la suscripcion se quede con una clave `none_none` que
+ * pisa el estado correcto cuando llega la sesion real.
  */
 export function usePosCartPersistence(
   tenantId: number | null,
   cashierId: number | null,
 ): void {
-  if (typeof window === 'undefined') return;
+  const sessionReady = tenantId !== null && cashierId !== null;
 
-  const w = window as unknown as {
-    __posCartHydrated?: { tenantId: number | null; cashierId: number | null };
-  };
+  // Hidratacion + suscripcion agrupadas en un solo useEffect con la
+  // sesion como dep. Asi garantizamos:
+  // 1) Solo se ejecuta una vez por cambio de (tenantId, cashierId).
+  // 2) Se desuscribe y rehidrata limpiamente cuando cambia el contexto.
+  // 3) El closure del subscriber captura el tenantId/cashierId actuales,
+  //    no valores stale del primer render.
+  // 4) Si el componente se desmonta, se desuscribe para evitar leaks.
+  useEffect(() => {
+    if (!sessionReady) return;
+    if (typeof window === 'undefined') return;
 
-  // 1) Hidratamos el store UNA sola vez por (tenantId, cashierId).
-  //    Si el componente se re-monta (StrictMode, hot reload, navegacion
-  //    SPA), la flag evita re-hidratar. Si el tenant+cajero cambia (caso
-  //    switch-tenant), la flag es distinta y re-hidratamos desde el
-  //    sessionStorage del nuevo contexto.
-  if (
-    !w.__posCartHydrated ||
-    w.__posCartHydrated.tenantId !== tenantId ||
-    w.__posCartHydrated.cashierId !== cashierId
-  ) {
-    w.__posCartHydrated = { tenantId, cashierId };
+    // 1) Hidratamos UNA vez por sesion. Si la sesion cambia (switch-tenant
+    //    o login distinto) la dep del useEffect re-ejecuta este bloque y
+    //    carga el carrito del nuevo contexto.
     const persisted = loadPersistedCart(tenantId, cashierId);
     if (persisted) {
-      // setTimeout 0 evita setState durante render en React 18 strict
-      // mode. usePosCartStore.setState se ejecuta fuera del render.
-      window.setTimeout(() => {
-        usePosCartStore.setState({
-          lines: persisted.lines ?? [],
-          payments: persisted.payments ?? [],
-          warehouseId: persisted.warehouseId ?? null,
-          selectedPriceListId: persisted.selectedPriceListId ?? null,
-          selectedCustomer: persisted.selectedCustomer ?? null,
-          customerName: persisted.customerName ?? 'Consumidor Final',
-        });
-      }, 0);
+      usePosCartStore.setState({
+        lines: persisted.lines ?? [],
+        payments: persisted.payments ?? [],
+        warehouseId: persisted.warehouseId ?? null,
+        selectedPriceListId: persisted.selectedPriceListId ?? null,
+        selectedCustomer: persisted.selectedCustomer ?? null,
+        customerName: persisted.customerName ?? 'Consumidor Final',
+      });
     } else {
-      // No hay carrito persistido para este tenant+cajero: limpiamos
-      // el store para empezar fresh.
-      window.setTimeout(() => {
-        usePosCartStore.setState({
-          lines: [],
-          payments: [],
-          warehouseId: null,
-          selectedPriceListId: null,
-          selectedCustomer: null,
-          customerName: 'Consumidor Final',
-        });
-      }, 0);
+      // No hay carrito persistido: empezamos fresh para esta sesion.
+      usePosCartStore.setState({
+        lines: [],
+        payments: [],
+        warehouseId: null,
+        selectedPriceListId: null,
+        selectedCustomer: null,
+        customerName: 'Consumidor Final',
+      });
     }
-  }
 
-  // 2) Suscribimos cambios del store a sessionStorage. Usamos una clave
-  //    unica por (tenantId, cashierId) para evitar duplicar el subscriber
-  //    cuando el componente se re-monta con el mismo contexto.
-  const subKey = `${tenantId ?? 'none'}_${cashierId ?? 'none'}`;
-  const wSub = window as unknown as { __posCartSubs?: Record<string, () => void> };
-  if (!wSub.__posCartSubs) wSub.__posCartSubs = {};
-  if (!wSub.__posCartSubs[subKey]) {
-    wSub.__posCartSubs[subKey] = usePosCartStore.subscribe(
+    // 2) Suscribimos cambios del store a sessionStorage. El closure
+    //    captura los tenantId/cashierId actuales, asi los writes van
+    //    a la clave correcta. cleanup desuscribe al desmontar o al
+    //    cambiar de sesion.
+    const unsubscribe = usePosCartStore.subscribe(
       (state) => ({
         lines: state.lines,
         payments: state.payments,
@@ -417,5 +411,7 @@ export function usePosCartPersistence(
         }
       },
     );
-  }
+
+    return unsubscribe;
+  }, [tenantId, cashierId, sessionReady]);
 }

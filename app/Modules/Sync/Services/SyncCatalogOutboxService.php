@@ -12,6 +12,7 @@ use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use Carbon\CarbonInterface;
@@ -36,6 +37,21 @@ class SyncCatalogOutboxService
     public function productDeactivated(Product $product): void
     {
         $this->recordProduct('product.updated', $product);
+    }
+
+    public function imageUploaded(ProductImage $image): void
+    {
+        $this->recordProductImage('product.image.uploaded', $image, includeDeleted: false);
+    }
+
+    public function imageUpdated(ProductImage $image): void
+    {
+        $this->recordProductImage('product.image.updated', $image, includeDeleted: false);
+    }
+
+    public function imageDeleted(ProductImage $image): void
+    {
+        $this->recordProductImage('product.image.deleted', $image, includeDeleted: true);
     }
 
     public function priceListCreated(PriceList $priceList): void
@@ -316,6 +332,73 @@ class SyncCatalogOutboxService
     public function productUnitUpdated(ProductUnit $unit): void
     {
         $this->recordProductUnit('product_unit.updated', $unit);
+    }
+
+    /**
+     * Serializa una ProductImage (y sus variantes) para sync.
+     * El payload incluye:
+     *  - uuid: id publico unico (se conserva entre nodos via sha256 + tenant).
+     *  - cloud_url: URL publica del archivo (relativa al APP_URL del cloud).
+     *  - variants: {thumb, medium, original} con su cloud_url individual.
+     *  - sha256: para que el local verifique integridad al descargar.
+     *
+     * Si `includeDeleted` es true (evento *.deleted), omite los campos pesados
+     * y solo manda uuid + tenant_id + product_id.
+     */
+    private function recordProductImage(string $eventType, ProductImage $image, bool $includeDeleted): void
+    {
+        $cloudBase = rtrim((string) config('app.url'), '/');
+
+        if ($includeDeleted) {
+            $payload = [
+                'uuid' => $image->uuid,
+                'product_id' => $image->product_id,
+            ];
+            $this->outbox->record(
+                eventType: $eventType,
+                aggregateType: 'product_image',
+                aggregateId: (int) ($image->id ?? crc32($image->uuid)),
+                payload: $payload,
+                idempotencyKey: $this->eventKey($eventType, 'product_image', $image->id, $image->updated_at ?? $image->deleted_at),
+            );
+
+            return;
+        }
+
+        $variants = $image->relationLoaded('variants') ? $image->variants : $image->variants()->get();
+        $variantMap = [];
+        foreach ($variants as $variant) {
+            $variantMap[$variant->variant] = [
+                'cloud_url' => "{$cloudBase}/storage/{$variant->storage_path}",
+                'size' => (int) $variant->size,
+                'mime' => $variant->mime,
+                'width' => (int) $variant->width,
+                'height' => (int) $variant->height,
+            ];
+        }
+
+        $payload = [
+            'uuid' => $image->uuid,
+            'product_id' => $image->product_id,
+            'cloud_url' => "{$cloudBase}/storage/{$image->storage_path}",
+            'mime' => $image->mime,
+            'size' => (int) $image->size,
+            'width' => (int) $image->width,
+            'height' => (int) $image->height,
+            'sha256' => $image->sha256,
+            'alt' => $image->alt,
+            'sort' => (int) $image->sort,
+            'is_primary' => (bool) $image->is_primary,
+            'variants' => $variantMap,
+        ];
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'product_image',
+            aggregateId: (int) ($image->id ?? crc32($image->uuid)),
+            payload: $payload,
+            idempotencyKey: $this->eventKey($eventType, 'product_image', $image->id, $image->updated_at),
+        );
     }
 
     private function recordProduct(string $eventType, Product $product): void

@@ -5,6 +5,7 @@ namespace App\Modules\Products\Models;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Products\Models\ProductImage;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -106,6 +107,11 @@ class Product extends Model
     public function audits(): HasMany
     {
         return $this->hasMany(ProductAudit::class);
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort')->orderBy('id');
     }
 
     public function prices(): HasMany

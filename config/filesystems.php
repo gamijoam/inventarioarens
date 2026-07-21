@@ -60,6 +60,29 @@ return [
             'report' => false,
         ],
 
+        // Imagenes de productos subidas por el usuario.
+        // Multi-tenant: cada producto vive bajo tenant_id en el path.
+        // Public visibility: nginx lo sirve via symlink + alias /storage/*.
+        // Migrar a S3 cambiando driver + env (Nivel 3, ~+1 sprint).
+        'product-images' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public/products'),
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage/products',
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Cache local de imagenes descargadas via sync desde la nube.
+        // Privado (no se expone al publico). El proxy /api/images/{uuid} lo sirve.
+        'synced-images' => [
+            'driver' => 'local',
+            'root' => storage_path('app/synced-images/products'),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*
