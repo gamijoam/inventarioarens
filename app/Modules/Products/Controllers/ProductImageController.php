@@ -9,12 +9,15 @@ use App\Modules\Products\Requests\UploadProductImageRequest;
 use App\Modules\Products\Resources\ProductImageResource;
 use App\Modules\Products\Services\ProductImageService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 class ProductImageController extends Controller
 {
+    use AuthorizesRequests;
+
     public function __construct(private readonly ProductImageService $service) {}
 
     public function index(Request $request, Product $product): JsonResponse

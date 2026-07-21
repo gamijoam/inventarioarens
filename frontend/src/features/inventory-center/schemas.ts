@@ -825,4 +825,27 @@ export const InventoryFiltersSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(25),
 });
+
+// =====================================================================
+// Imagenes de producto (Nivel 2 - Sprint de galería multi-imagen)
+// =====================================================================
+
+export const ProductImageSchema = z.object({
+  id: z.number().int().positive(),
+  uuid: z.string(),
+  product_id: z.number().int().positive(),
+  mime: z.string(),
+  size: z.number().int().nonnegative(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
+  alt: z.string().nullable().optional(),
+  sort: z.number().int().nonnegative(),
+  is_primary: z.boolean(),
+  url: z.string(),
+  thumb_url: z.string(),
+  medium_url: z.string(),
+  original_name: z.string().nullable().optional(),
+  uploaded_at: z.string().nullable().optional(),
+});
+export type ProductImage = z.infer<typeof ProductImageSchema>;
 export type InventoryFilters = z.infer<typeof InventoryFiltersSchema>;

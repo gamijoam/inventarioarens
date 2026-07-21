@@ -948,6 +948,7 @@ export function PosTerminal() {
           price_list_id: selectedPriceList?.id ?? null,
           price_list_name: quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
           price_issue: null,
+          image_url: product.image_url,
           tracking_type: product.tracking_type,
           // `track_stock` por defecto es true en el backend; si el producto
           // es un servicio o concepto facturable, el listado lo trae en
@@ -1343,21 +1344,36 @@ function CartLineRow({
   return (
     <div className={cn('grid gap-3 p-3 xl:grid-cols-[minmax(220px,1fr)_440px_120px_40px] xl:items-center', (stockIssue || serialIssue) && 'bg-warning/10')}>
       <div className="min-w-0 space-y-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-base font-semibold">{line.name}</p>
-          <Badge variant={stockIssue ? 'warning' : 'success'} className="shrink-0 text-[10px]">
-            Stock {line.available_stock}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-          <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
-          <span>{money(line.unit_price)} c/u</span>
-          {line.price_list_name && <Badge variant="default" className="text-[10px]">{line.price_list_name}</Badge>}
-          {line.tracking_type === 'serialized' && (
-            <button type="button" className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')} onClick={onSerials}>
-              IMEI {serialCount}/{line.quantity}
-            </button>
-          )}
+        <div className="flex min-w-0 items-start gap-3">
+          {line.image_url ? (
+            <img
+              src={line.image_url}
+              alt={line.name}
+              loading="lazy"
+              className="size-10 shrink-0 rounded object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-base font-semibold">{line.name}</p>
+              <Badge variant={stockIssue ? 'warning' : 'success'} className="shrink-0 text-[10px]">
+                Stock {line.available_stock}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+              <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
+              <span>{money(line.unit_price)} c/u</span>
+              {line.price_list_name && <Badge variant="default" className="text-[10px]">{line.price_list_name}</Badge>}
+              {line.tracking_type === 'serialized' && (
+                <button type="button" className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')} onClick={onSerials}>
+                  IMEI {serialCount}/{line.quantity}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         {line.tracking_type === 'serialized' && serialCount > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -1779,19 +1795,37 @@ function ProductSearchPanel({
               onClick={() => void onSelect(product)}
               className="rounded border border-border bg-bg/40 p-3 text-left transition-colors hover:border-primary"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{product.name}</p>
-                  <p className="font-mono text-xs text-text-muted">{product.sku ?? product.barcode ?? 'Sin codigo'}</p>
+              <div className="flex gap-3">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    loading="lazy"
+                    className="size-14 shrink-0 rounded object-cover"
+                    onError={(e) => {
+                      // Si la URL externa falla, ocultar el thumbnail.
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{product.name}</p>
+                      <p className="font-mono text-xs text-text-muted">
+                        {product.sku ?? product.barcode ?? 'Sin codigo'}
+                      </p>
+                    </div>
+                    <Badge variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'} className="text-[10px]">
+                      {Number(product.available_stock ?? 0) > 0
+                        ? `Stock ${Number(product.available_stock)}`
+                        : 'Sin stock'}
+                    </Badge>
+                  </div>
+                  {Number(product.available_stock ?? 0) <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
+                    <p className="mt-1 text-[10px] text-warning">Stock bajo (min {product.min_stock})</p>
+                  )}
                 </div>
-                <Badge variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'} className="text-[10px]">
-                  {Number(product.available_stock ?? 0) > 0
-                    ? `Stock ${Number(product.available_stock)}`
-                    : 'Sin stock'}
-                </Badge>
-                {Number(product.available_stock ?? 0) <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
-                  <p className="mt-1 text-[10px] text-warning">Stock bajo (min {product.min_stock})</p>
-                )}
               </div>
               <p className="mt-3 text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
               <p className="mt-1 text-xs text-text-muted">Se valida precio de lista al seleccionar</p>

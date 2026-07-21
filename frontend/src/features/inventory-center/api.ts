@@ -1,18 +1,24 @@
 /**
  * API completa del modulo de inventario.
- * Endpoints cubiertos (ver docs/INVENTORY_CATALOG_API.md, INVENTORY_ALERTS_API.md):
- *   - GET    /api/products                            (listado con filtros)
+ * Endpoints cubiertos (ver docs/INVENTORY_CATALOG_API.md, INVENTORY_ALERTS_API.md,
+ * docs/PRODUCT_IMAGES.md):
+ *   - GET    /api/products                                 (listado con filtros)
  *   - GET    /api/products/{id}
- *   - POST   /api/products                            (crear)
- *   - PATCH  /api/products/{id}                       (actualizar)
- *   - DELETE /api/products/{id}                       (soft delete)
+ *   - POST   /api/products                                 (crear)
+ *   - PATCH  /api/products/{id}                            (actualizar)
+ *   - DELETE /api/products/{id}                            (soft delete)
+ *   - GET    /api/products/{id}/images                     (galeria)
+ *   - POST   /api/products/{id}/images                     (upload)
+ *   - PATCH  /api/products/{id}/images/{imageId}           (update alt/primary)
+ *   - DELETE /api/products/{id}/images/{imageId}           (soft delete)
+ *   - PATCH  /api/products/{id}/images/reorder             (reorder)
  *   - GET    /api/products/{id}/stock-status
  *   - GET    /api/inventory-center/reorder-suggestions
  *   - GET    /api/inventory-center/alerts-summary
  *   - POST   /api/inventory-center/products/bulk-action
  *   - GET    /api/brands
  *   - POST   /api/brands
- *   - GET    /api/categories                          (lista plana)
+ *   - GET    /api/categories                               (lista plana)
  *   - GET    /api/categories/tree                     (arbol)
  *   - GET    /api/tags
  *   - GET    /api/warranty-policies
@@ -23,7 +29,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
+import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import {
   AlertsSummarySchema,
   BrandSchema,
@@ -770,5 +776,130 @@ export function useAvailableProductUnits(
     },
     enabled: Boolean(productId && warehouseId),
     staleTime: 30_000,
+  });
+}
+
+// =====================================================================
+// Producto: galería multi-imagen (Sprint de imágenes Nivel 2)
+// =====================================================================
+
+import { ProductImageSchema, type ProductImage } from './schemas';
+
+const productImageKeys = {
+  list: (productId: number) => ['product-images', productId] as const,
+  all: () => ['product-images'] as const,
+};
+
+/**
+ * Lista la galería completa de un producto (ordenadas por `sort`).
+ * Cache de 60s. Invalida en cualquier mutación de imagen.
+ */
+export function useProductImages(productId: number | null) {
+  return useQuery({
+    queryKey: productImageKeys.list(productId ?? 0),
+    queryFn: async (): Promise<ProductImage[]> => {
+      if (!productId) return [];
+      // Endpoint retorna { data: ProductImage[] }
+      const response = await getMany<ProductImage>(
+        `/products/${productId}/images`,
+      );
+      return z.array(ProductImageSchema).parse(response);
+    },
+    enabled: Number.isFinite(productId) && Number(productId) > 0,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Sube una imagen via multipart/form-data. Invalida la galería del producto
+ * y todas las imagenes (el backend emite sync event).
+ */
+export function useUploadProductImage(productId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { file: File; alt?: string }) => {
+      const formData = new FormData();
+      formData.append('image', payload.file);
+      if (payload.alt) formData.append('alt', payload.alt);
+      const response = await api.post<{ data: ProductImage }>(
+        `/products/${productId}/images`,
+        formData,
+        // axios detecta FormData y multipart automaticamente; sin Content-Type
+        // explicito para que el boundary se setee solo.
+      );
+      return ProductImageSchema.parse(response.data.data);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
+      void qc.invalidateQueries({ queryKey: productImageKeys.all() });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Actualiza alt/sort/is_primary de una imagen. `is_primary=true` swaps
+ * atomicamente en el backend.
+ */
+export function useUpdateProductImage(productId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: number;
+      alt?: string;
+      sort?: number;
+      is_primary?: boolean;
+    }) => {
+      const body: Record<string, unknown> = {};
+      if (payload.alt !== undefined) body.alt = payload.alt;
+      if (payload.sort !== undefined) body.sort = payload.sort;
+      if (payload.is_primary !== undefined) body.is_primary = payload.is_primary;
+      const response = await api.patch<{ data: ProductImage }>(
+        `/products/${productId}/images/${payload.id}`,
+        body,
+      );
+      return ProductImageSchema.parse(response.data.data);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+    },
+  });
+}
+
+/**
+ * Soft delete. La fila queda con deleted_at; un job de limpieza la borra
+ * fisicamente despues de 30 dias (Nivel 4).
+ */
+export function useDeleteProductImage(productId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (imageId: number) => {
+      await deleteOne(`/products/${productId}/images/${imageId}`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
+      void qc.invalidateQueries({ queryKey: productImageKeys.all() });
+    },
+  });
+}
+
+/**
+ * Reordena la galería (drag-drop). Backend persiste el nuevo `sort` por
+ * cada imagen en una sola request.
+ */
+export function useReorderProductImages(productId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      await api.patch(
+        `/products/${productId}/images/reorder`,
+        { ordered_ids: orderedIds },
+      );
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
+    },
   });
 }

@@ -69,6 +69,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           isSubmitting={isSubmitting}
           onCancel={() => onOpenChange(false)}
           submitLabel="Guardar cambios"
+          productId={product.id}
         />
       </DialogContent>
     </Dialog>

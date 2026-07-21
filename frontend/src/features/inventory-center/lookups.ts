@@ -11,4 +11,5 @@ export {
   useExchangeRateTypes,
   usePriceLists,
   useWarehouses,
+  useProductImages,
 } from './api';

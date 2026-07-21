@@ -20,6 +20,12 @@ export interface PosCartLine {
   price_list_id?: number | null;
   price_list_name?: string | null;
   price_issue?: string | null;
+  /**
+   * URL de la imagen (del listado de productos, sin auth requerida).
+   * Usado por CartLineRow para mostrar un thumbnail en el carrito.
+   * Opcional: el componente hace fallback si no esta presente.
+   */
+  image_url?: string | null;
   tracking_type?: string | null;
   /**
    * Si `false`, el producto no exige stock ni genera movimiento de

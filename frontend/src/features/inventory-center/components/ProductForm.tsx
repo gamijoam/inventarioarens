@@ -1,14 +1,16 @@
 ﻿/**
  * ProductForm: formulario completo de producto (create + edit).
- * Renderiza todos los campos del backend (ver docs/INVENTORY_CATALOG_API.md).
+ * Renderiza todos los campos del backend (ver docs/INVENTORY_CATALOG_API.md,
+ * docs/PRODUCT_IMAGES.md).
  * Usa react-hook-form + zodResolver via useProductForm().
  *
  * Secciones:
- *  1. Identificacion (name, sku, barcode, image_url)
- *  2. Catalogos (brand, categories, tags) — con inline create.
- *  3. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
- *  4. Precios (base_price, sale_currency, sale_exchange_rate_type)
- *  5. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
+ *  1. Identificacion (name, sku, barcode, image_url externa)
+ *  2. Imagenes (galeria, SOLO si productId esta definido - modo edit)
+ *  3. Catalogos (brand, categories, tags) — con inline create.
+ *  4. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
+ *  5. Precios (base_price, sale_currency, sale_exchange_rate_type)
+ *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
 import { type UseFormReturn } from 'react-hook-form';
 import { useMemo } from 'react';
@@ -36,11 +38,13 @@ import {
   useBrands,
   useCategoriesTree,
   useExchangeRateTypes,
+  useProductImages,
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
 import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
+import { ImageGallery } from './ImageGallery';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -52,6 +56,12 @@ export interface ProductFormProps {
   submitLabel?: string;
   onSubmit: () => void;
   isSubmitting: boolean;
+  /**
+   * Si se pasa, se renderiza la seccion "Galeria de imagenes" (upload,
+   * reorder, set primary, delete). Solo aplica en modo edit (no tiene
+   * sentido antes de que el producto exista en el backend).
+   */
+  productId?: number;
 }
 
 export function ProductForm({
@@ -62,11 +72,15 @@ export function ProductForm({
   submitLabel = 'Guardar',
   onSubmit,
   isSubmitting,
+  productId,
 }: ProductFormProps) {
   const { data: brands = [] } = useBrands();
   const { data: categoryTree = [] } = useCategoriesTree();
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
   const { data: rateTypes = [] } = useExchangeRateTypes();
+  // Galeria de imagenes (Sprint de imagenes Nivel 2). Solo se carga si
+  // hay productId (modo edit). El useQuery queda deshabilitado en create.
+  const { data: galleryImages = [] } = useProductImages(productId ?? null);
 
   // Convertir brand/warranty/rate a options.
   const brandOptions = useMemo(
@@ -120,10 +134,28 @@ export function ProductForm({
           <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
             <Input {...form.register('barcode')} placeholder="0194253714750" />
           </Field>
-          <Field name="image_url" label="URL de imagen" error={form.formState.errors.image_url?.message}>
+          <Field name="image_url" label="URL externa (opcional)" hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo." error={form.formState.errors.image_url?.message}>
             <Input {...form.register('image_url')} placeholder="https://..." />
           </Field>
         </div>
+
+        {/* Galeria multi-imagen (Sprint de imagenes Nivel 2). Solo visible
+            cuando hay productId (modo edit). En create, el usuario primero
+            crea el producto y luego edita para subir fotos. */}
+        {productId !== undefined && (
+          <div className="space-y-2 rounded border border-border bg-bg/30 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase text-text-muted">
+                Galería de imágenes
+              </p>
+              <p className="text-[10px] text-text-muted">
+                Sube hasta 10 fotos. WebP automatico, 3 variantes por imagen.
+              </p>
+            </div>
+            <ImageGallery productId={productId} images={galleryImages} canEdit />
+          </div>
+        )}
+
         <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
           <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
         </Field>
