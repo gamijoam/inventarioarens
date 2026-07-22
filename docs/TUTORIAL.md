@@ -24,7 +24,15 @@ de la arquitectura del SaaS) usa la toolbox para configurar una maquina local
 2. Descomprimir en una carpeta estable, por ejemplo:
    - Linux:   `~/inventoryarens-toolbox/`
    - Windows: `C:\inventoryarens-toolbox\`
-3. Verificar contenido:
+3. **Hacer ejecutable el CLI en Linux** (unzip a veces no preserva el bit `+x`):
+   ```bash
+   cd ~/inventoryarens-toolbox
+   chmod +x inventoryarens
+   ```
+   Si te da error de "BOM" o "no encuentra el interprete" al ejecutar, es
+   porque el archivo tiene un BOM UTF-8 (3 bytes invisibles al inicio).
+   Quitalo con: `sed -i '1s/^\xEF\xBB\xBF//' inventoryarens && chmod +x inventoryarens`.
+4. Verificar contenido:
    ```
    inventoryarens-toolbox/
    â”œâ”€â”€ inventoryarens            (CLI)

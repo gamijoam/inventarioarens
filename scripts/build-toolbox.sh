@@ -28,6 +28,14 @@ mkdir -p "$OUT_DIR"
 # Limpiar zip previo si existe
 rm -f "$OUT_FILE"
 
+# Sanity check: el CLI no debe tener BOM UTF-8 (algunos editores commitean
+# con BOM y eso rompe el shebang en Linux: el kernel ve ﻿#!/ como path
+# del interprete y falla con "No existe el fichero o el directorio").
+if head -c 3 "$REPO_ROOT/bin/inventoryarens" | grep -q $'\xef\xbb\xbf'; then
+    echo "WARN: bin/inventoryarens tiene BOM UTF-8. Quitando..." >&2
+    sed -i '1s/^\xEF\xBB\xBF//' "$REPO_ROOT/bin/inventoryarens"
+fi
+
 # Estructura temporal para el zip (en /tmp).
 STAGE="$(mktemp -d)"
 trap "rm -rf '$STAGE'" EXIT
