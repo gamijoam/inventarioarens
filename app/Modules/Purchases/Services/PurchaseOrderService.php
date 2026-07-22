@@ -44,6 +44,11 @@ class PurchaseOrderService
                 'created_by' => $user->id,
             ]);
 
+            if (! $purchaseOrder->document_number) {
+                $purchaseOrder->document_number = 'COMPRA-'.str_pad((string) $purchaseOrder->id, 6, '0', STR_PAD_LEFT);
+                $purchaseOrder->save();
+            }
+
             $totalBase = 0.0;
             $totalLocal = 0.0;
 

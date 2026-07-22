@@ -15,6 +15,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -55,6 +56,40 @@ class PurchaseOrderApiTest extends TestCase
 
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseCount('stock_balances', 0);
+    }
+
+    public function test_purchase_without_document_number_gets_sync_safe_number(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'AUD-NODOC');
+        $supplier = $this->supplier($tenant, 'Proveedor Demo', '100-NODOC');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.view']);
+
+        $documentNumber = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 10,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.document_number');
+
+        $this->assertStringStartsWith('COMPRA-', $documentNumber);
+
+        $payload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'purchase_order.created')
+            ->value('payload'), true);
+
+        $this->assertSame($documentNumber, $payload['document_number'] ?? null);
     }
 
     public function test_receive_purchase_partially_then_fully_updates_inventory_and_payable(): void

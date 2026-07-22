@@ -16,13 +16,10 @@ use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Str;
 
 class SyncCatalogOutboxService
 {
-    public function __construct(private readonly SyncOutboxService $outbox)
-    {
-    }
+    public function __construct(private readonly SyncOutboxService $outbox) {}
 
     public function productCreated(Product $product): void
     {
@@ -157,13 +154,14 @@ class SyncCatalogOutboxService
     public function purchaseOrderCreated(PurchaseOrder $order): void
     {
         $order->loadMissing(['supplier', 'items.product', 'items.warehouse']);
+        $documentNumber = $this->purchaseDocumentNumber($order);
 
         $this->outbox->record(
             eventType: 'purchase_order.created',
             aggregateType: 'purchase_order',
             aggregateId: $order->id,
             payload: [
-                'document_number' => $order->document_number,
+                'document_number' => $documentNumber,
                 'status' => $order->status,
                 'supplier_name' => $order->supplier?->name,
                 'issued_at' => $order->issued_at?->toDateString(),
@@ -194,6 +192,7 @@ class SyncCatalogOutboxService
     public function purchaseOrderReceived(PurchaseOrder $order): void
     {
         $order->loadMissing(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+        $documentNumber = $this->purchaseDocumentNumber($order);
 
         // Solo emitimos los items que efectivamente se recibieron en esta
         // operacion (los que tienen `received_quantity > 0` y un stock_movement
@@ -221,7 +220,7 @@ class SyncCatalogOutboxService
             aggregateType: 'purchase_order',
             aggregateId: $order->id,
             payload: [
-                'document_number' => $order->document_number,
+                'document_number' => $documentNumber,
                 'status' => $order->status,
                 'supplier_name' => $order->supplier?->name,
                 'purchase_currency' => $order->purchase_currency,
@@ -231,6 +230,15 @@ class SyncCatalogOutboxService
             ],
             idempotencyKey: $this->eventKey('purchase_order.received', 'purchase_order', $order->id, $order->updated_at),
         );
+    }
+
+    private function purchaseDocumentNumber(PurchaseOrder $order): string
+    {
+        $documentNumber = trim((string) $order->document_number);
+
+        return $documentNumber !== ''
+            ? $documentNumber
+            : 'COMPRA-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
     }
 
     public function stockMovementCreated(StockMovement $movement): void
