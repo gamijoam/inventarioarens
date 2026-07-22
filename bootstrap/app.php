@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Modules/AccessControl/Commands',
         __DIR__.'/../app/Modules/Sync/Commands',
         __DIR__.'/../app/Console/Commands',
+        __DIR__.'/../app/Modules/DataImport/Commands',
     ])
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('images:download --limit=20')
@@ -30,6 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(10)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/images-download.log'));
+
+        $schedule->command('imports:cleanup --days=30')
+            ->dailyAt('03:00')
+            ->withoutOverlapping(30)
+            ->appendOutputTo(storage_path('logs/imports-cleanup.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
