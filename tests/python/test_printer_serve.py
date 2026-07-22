@@ -122,6 +122,7 @@ class TestPrinterServer(unittest.TestCase):
             self.assertEqual(data.get("status"), "generated")
             self.assertIn("pdf_path", data)
             self.assertTrue(Path(data["pdf_path"]).exists())
+            self.assertEqual(Path(data["pdf_path"]).suffix, ".txt")
         finally:
             self._wait(proc)
 

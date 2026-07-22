@@ -233,21 +233,7 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
-async function pdfBase64(job: PrintJob): Promise<string | null> {
-  if (job.output !== 'digital') return null;
-
-  const response = await api.get<ArrayBuffer>(`/printing/jobs/${job.id}/ticket.pdf`, {
-    responseType: 'arraybuffer',
-  });
-  const bytes = new Uint8Array(response.data);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-
-  return window.btoa(binary);
-}
-
 export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
-  const encodedPdf = await pdfBase64(job);
   const response = await fetch('http://127.0.0.1:17777/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -256,7 +242,6 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
       output: job.output,
       ticket_pdf_url: job.ticket_pdf_url,
       ticket_html_url: job.ticket_html_url,
-      pdf_base64: encodedPdf,
       station: job.station,
       payload: job.payload_snapshot,
     }),
@@ -271,6 +256,15 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
 
 export function ticketPdfUrl(job: PrintJob): string {
   return `/api/printing/jobs/${job.id}/ticket.pdf`;
+}
+
+export async function openTicketPdf(job: PrintJob): Promise<void> {
+  const response = await api.get<Blob>(`/printing/jobs/${job.id}/ticket.pdf`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  window.open(url, '_blank');
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function exampleTicketPayload(profile: PrintProfilePayload | PrintProfile) {
@@ -329,7 +323,6 @@ export async function sendTestTicketToLocalAgent(
   station: PrinterStation,
   profile: PrintProfilePayload | PrintProfile,
 ): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
-  const encodedPdf = output === 'digital' ? await previewPdfBase64(profile) : null;
   const response = await fetch('http://127.0.0.1:17777/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -337,7 +330,6 @@ export async function sendTestTicketToLocalAgent(
       job_id: `test-${Date.now()}`,
       output,
       station,
-      pdf_base64: encodedPdf,
       payload: exampleTicketPayload(profile),
     }),
   });
@@ -347,15 +339,4 @@ export async function sendTestTicketToLocalAgent(
   }
 
   return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;
-}
-
-async function previewPdfBase64(profile: PrintProfilePayload | PrintProfile): Promise<string> {
-  const response = await api.post<ArrayBuffer>('/printing/profiles/preview.pdf', profile, {
-    responseType: 'arraybuffer',
-  });
-  const bytes = new Uint8Array(response.data);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-
-  return window.btoa(binary);
 }

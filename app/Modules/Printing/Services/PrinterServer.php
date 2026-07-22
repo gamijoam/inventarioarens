@@ -2,7 +2,6 @@
 
 namespace App\Modules\Printing\Services;
 
-use App\Modules\Printing\Models\PrinterStation;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -44,8 +43,12 @@ class PrinterServer
         // Registrar senales para shutdown limpio.
         if (function_exists('pcntl_signal')) {
             pcntl_async_signals(true);
-            pcntl_signal(SIGTERM, function () use ($socket) { $this->shutdown($socket); });
-            pcntl_signal(SIGINT, function () use ($socket) { $this->shutdown($socket); });
+            pcntl_signal(SIGTERM, function () use ($socket) {
+                $this->shutdown($socket);
+            });
+            pcntl_signal(SIGINT, function () use ($socket) {
+                $this->shutdown($socket);
+            });
         }
 
         Log::info('printer.server.started', ['port' => $port, 'bind' => $bind]);
@@ -56,6 +59,7 @@ class PrinterServer
                 if ($maxRequests > 0 && $count >= $maxRequests) {
                     break;
                 }
+
                 continue;
             }
             $this->handleConnection($client, $port);
@@ -177,7 +181,7 @@ class PrinterServer
                 $result = $this->handlePrint($payload);
                 $status = 200;
             } catch (\JsonException $e) {
-                $result = ['ok' => false, 'message' => 'JSON invalido: ' . $e->getMessage()];
+                $result = ['ok' => false, 'message' => 'JSON invalido: '.$e->getMessage()];
                 $status = 400;
             } catch (\Throwable $e) {
                 Log::error('printer.server.handle_print_error', ['error' => $e->getMessage()]);
@@ -233,7 +237,7 @@ class PrinterServer
         // una vista de texto (compatibilidad con estaciones que mandan
         // PDF via API pero este agente recibe el raw).
         if (! empty($pdfBase64)) {
-            $path = $fileBase . '.pdf';
+            $path = $fileBase.'.pdf';
             $decoded = base64_decode($pdfBase64, true);
             if ($decoded === false) {
                 throw new RuntimeException('pdf_base64 invalido.');
@@ -245,7 +249,7 @@ class PrinterServer
 
         // Fallback de texto (para estaciones que mandan solo ticket en JSON).
         $text = $this->buildPlainTicket($ticket);
-        $path = $fileBase . '.txt';
+        $path = $fileBase.'.txt';
         file_put_contents($path, $text);
 
         return [
@@ -284,21 +288,24 @@ class PrinterServer
     {
         $home = $_SERVER['HOME'] ?? sys_get_temp_dir();
         if (! $requested || $requested === '') {
-            return $home . '/Desktop/Tickets';
+            return $home.'/Desktop/Tickets';
         }
         // Soportar paths absolutos y paths relativos a HOME/USERPROFILE.
         if ($requested[0] === '/') {
             return $requested;
         }
         if (PHP_OS_FAMILY === 'Windows') {
+            if (preg_match('/^[A-Za-z]:[\\\\\\/]/', $requested) === 1) {
+                return $requested;
+            }
             $up = $_SERVER['USERPROFILE'] ?? $home;
-            $path = $up . '\\' . str_replace('/', '\\', $requested);
+            $path = $up.'\\'.str_replace('/', '\\', $requested);
             if (is_dir($path)) {
                 return $path;
             }
         }
 
-        return $home . '/' . $requested;
+        return $home.'/'.$requested;
     }
 
     private function buildPlainTicket(array $ticket): string
@@ -306,7 +313,7 @@ class PrinterServer
         $lines = [];
         $lines[] = $ticket['tenant']['name'] ?? 'INVENTARIOARENS';
         $lines[] = sprintf('Ticket POS #%s', $ticket['pos_order']['id'] ?? '?');
-        $lines[] = 'Cliente: ' . ($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
+        $lines[] = 'Cliente: '.($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
         $lines[] = str_repeat('-', 48);
         foreach ($ticket['items'] ?? [] as $item) {
             $lines[] = $item['product_name'] ?? 'Producto';
@@ -315,12 +322,12 @@ class PrinterServer
             $total = (float) ($item['total'] ?? 0);
             $lines[] = sprintf('  %s x %s = %s', $qty, number_format($unit, 2, '.', ''), number_format($total, 2, '.', ''));
             foreach ($item['serials'] ?? [] as $serial) {
-                $lines[] = '  IMEI/Serial: ' . ($serial['serial_number'] ?? '');
+                $lines[] = '  IMEI/Serial: '.($serial['serial_number'] ?? '');
             }
         }
         $lines[] = str_repeat('-', 48);
-        $lines[] = 'Total USD: ' . number_format((float) ($ticket['totals']['total_base_amount'] ?? 0), 2, '.', '');
-        $lines[] = 'Pagado USD: ' . number_format((float) ($ticket['totals']['paid_base_amount'] ?? 0), 2, '.', '');
+        $lines[] = 'Total USD: '.number_format((float) ($ticket['totals']['total_base_amount'] ?? 0), 2, '.', '');
+        $lines[] = 'Pagado USD: '.number_format((float) ($ticket['totals']['paid_base_amount'] ?? 0), 2, '.', '');
 
         return implode("\n", $lines);
     }
@@ -333,16 +340,16 @@ class PrinterServer
         [$status, $body] = $response;
         $json = json_encode($body, JSON_UNESCAPED_UNICODE);
         $headers = [
-            'HTTP/1.1 ' . $status . ' ' . $this->statusText($status),
+            'HTTP/1.1 '.$status.' '.$this->statusText($status),
             'Content-Type: application/json; charset=utf-8',
-            'Content-Length: ' . strlen($json),
+            'Content-Length: '.strlen($json),
             'Access-Control-Allow-Origin: *',
             'Access-Control-Allow-Methods: GET, POST, OPTIONS',
             'Access-Control-Allow-Headers: Content-Type',
             'Access-Control-Max-Age: 86400',
         ];
         foreach ($headers as $h) {
-            fwrite($client, $h . "\r\n");
+            fwrite($client, $h."\r\n");
         }
         fwrite($client, "\r\n");
         fwrite($client, $json);

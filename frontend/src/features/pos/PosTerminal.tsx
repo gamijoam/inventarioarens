@@ -71,8 +71,8 @@ import {
 } from './posLogic';
 import {
   type PrintJob,
+  openTicketPdf,
   sendJobToLocalAgent,
-  ticketPdfUrl,
   useCreatePosPrintJob,
   usePrinterStations,
   useUpdatePrintJobStatus,
@@ -775,7 +775,7 @@ export function PosTerminal() {
               canDigital={canDigital}
               busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
               onPrint={(copy, output) => lastReceipt && createAndDispatchPrintJobs(lastReceipt, copy, output)}
-              onOpenPdf={(job) => window.open(ticketPdfUrl(job), '_blank')}
+              onOpenPdf={(job) => void openTicketPdf(job)}
             />
           )}
           {panel === 'product-search' && (
@@ -1305,7 +1305,7 @@ export function PosTerminal() {
             digitalPdfPath: result.pdf_path ?? null,
             digitalHtmlPath: result.html_path ?? null,
           });
-          if (job.output === 'digital' && result.pdf_path) toast.success(`PDF generado: ${result.pdf_path}`);
+          if (job.output === 'digital' && result.pdf_path) toast.success(`Ticket virtual generado: ${result.pdf_path}`);
           if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
         } catch (error) {
           await updatePrintJobStatus.mutateAsync({
@@ -1314,7 +1314,7 @@ export function PosTerminal() {
             message: error instanceof Error ? error.message : 'No se pudo imprimir.',
           });
           if (job.output === 'digital') {
-            window.open(ticketPdfUrl(job), '_blank');
+            await openTicketPdf(job);
             toast.warning('Agente no disponible. Abrimos el PDF en el navegador.');
             return;
           }
