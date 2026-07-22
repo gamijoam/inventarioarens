@@ -71,7 +71,7 @@ class PurchaseOrderSyncTest extends TestCase
 
     public function test_purchase_order_created_event_persists_metadata_in_cloud(): void
     {
-        [$tenant, , , , ] = $this->setupTenant();
+        [$tenant] = $this->setupTenant();
         $poId = 99;
 
         $payload = [
@@ -178,6 +178,61 @@ class PurchaseOrderSyncTest extends TestCase
             'quantity' => '10.0000',
             'unit_cost' => '8.5000',
         ]);
+    }
+
+    public function test_purchase_order_received_event_creates_available_serial_units(): void
+    {
+        [$tenant, , , $warehouse, $product] = $this->setupTenant();
+        DB::table('products')->where('id', $product->id)->update([
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+        ]);
+
+        $payload = [
+            'document_number' => 'PO-2026-SERIALS',
+            'status' => 'received',
+            'supplier_name' => 'Distribuidora IMEI',
+            'purchase_currency' => 'USD',
+            'received_at' => now()->toISOString(),
+            'items' => [
+                [
+                    'sku' => $product->sku,
+                    'warehouse_code' => $warehouse->code,
+                    'quantity' => '2.0000',
+                    'unit_cost' => '400.0000',
+                    'serial_units' => [
+                        ['serial_type' => 'imei', 'serial_number' => '111111111111111'],
+                        ['serial_type' => 'imei', 'serial_number' => '222222222222222'],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->enqueueEvent($tenant->id, 'purchase_order.received', $payload, 100);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => 'imei',
+            'serial_number' => '111111111111111',
+            'status' => 'available',
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => 'imei',
+            'serial_number' => '222222222222222',
+            'status' => 'available',
+        ]);
+        $this->assertSame(2, DB::table('product_units')
+            ->where('tenant_id', $tenant->id)
+            ->where('product_id', $product->id)
+            ->where('status', 'available')
+            ->count());
     }
 
     public function test_purchase_order_received_is_idempotent(): void

@@ -3,6 +3,8 @@
 namespace App\Modules\Sync\Services;
 
 use App\Modules\Products\Models\ProductAudit;
+use App\Modules\Products\Models\ProductImage;
+use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
@@ -580,6 +582,7 @@ class SyncEventApplier
 
         $product = $this->productBySku($tenant, $productSku);
         $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
+        $normalizedSerialUnits = $this->normalizeSerialUnits($serialUnits);
 
         $stockBalance = DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
@@ -632,10 +635,19 @@ class SyncEventApplier
                 'quantity' => $quantity,
                 'unit_cost' => $unitCost,
                 'stock_movement_id' => $movementId,
-                'serial_units' => $serialUnits !== null ? json_encode($serialUnits) : null,
+                'serial_units' => $normalizedSerialUnits !== [] ? json_encode($normalizedSerialUnits) : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+
+            $this->upsertProductUnitsFromEntry(
+                tenant: $tenant,
+                productId: (int) $product->id,
+                warehouseId: (int) $warehouse->id,
+                movementId: $movementId,
+                serialUnits: $normalizedSerialUnits,
+                now: $now,
+            );
         } else {
             DB::table('product_exit_items')->insert([
                 'tenant_id' => $tenant->id,
@@ -644,10 +656,54 @@ class SyncEventApplier
                 'product_id' => $product->id,
                 'quantity' => $quantity,
                 'stock_movement_id' => $movementId,
-                'product_unit_ids' => $serialUnits !== null ? json_encode($serialUnits) : null,
+                'product_unit_ids' => $normalizedSerialUnits !== [] ? json_encode($normalizedSerialUnits) : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+        }
+    }
+
+    private function normalizeSerialUnits(mixed $serialUnits): array
+    {
+        if (is_string($serialUnits)) {
+            $decoded = json_decode($serialUnits, true);
+            $serialUnits = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($serialUnits)) {
+            return [];
+        }
+
+        return array_values(array_filter($serialUnits, fn ($serialUnit): bool => is_array($serialUnit)
+            && isset($serialUnit['serial_type'], $serialUnit['serial_number'])
+            && trim((string) $serialUnit['serial_type']) !== ''
+            && trim((string) $serialUnit['serial_number']) !== ''));
+    }
+
+    private function upsertProductUnitsFromEntry(
+        Tenant $tenant,
+        int $productId,
+        int $warehouseId,
+        int $movementId,
+        array $serialUnits,
+        $now,
+    ): void {
+        foreach ($serialUnits as $serialUnit) {
+            DB::table('product_units')->updateOrInsert(
+                [
+                    'tenant_id' => $tenant->id,
+                    'serial_type' => $serialUnit['serial_type'],
+                    'serial_number' => $serialUnit['serial_number'],
+                ],
+                [
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
+                    'status' => 'available',
+                    'acquired_stock_movement_id' => $movementId,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
+            );
         }
     }
 
@@ -1221,7 +1277,7 @@ class SyncEventApplier
 
         $productId = $this->resolveProductIdForImage($tenant, $payload);
 
-        $image = \App\Modules\Products\Models\ProductImage::query()
+        $image = ProductImage::query()
             ->withTrashed()
             ->firstOrNew(['uuid' => $uuid, 'tenant_id' => $tenant->id]);
 
@@ -1247,7 +1303,7 @@ class SyncEventApplier
 
         // Variantes.
         foreach (($payload['variants'] ?? []) as $variantName => $variantData) {
-            $variant = \App\Modules\Products\Models\ProductImageVariant::query()
+            $variant = ProductImageVariant::query()
                 ->updateOrCreate(
                     [
                         'product_image_id' => $image->id,
@@ -1316,7 +1372,7 @@ class SyncEventApplier
             return 'skipped:missing_uuid';
         }
 
-        $image = \App\Modules\Products\Models\ProductImage::query()
+        $image = ProductImage::query()
             ->where('uuid', $uuid)
             ->where('tenant_id', $tenant->id)
             ->first();
