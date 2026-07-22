@@ -50,8 +50,9 @@ import {
   useOpenPosOrders,
   useBootstrapRefsForPos,
   usePosBootstrap,
-    usePosProductsDebounced,
+  usePosProductsDebounced,
   useSessionOrders,
+  useWarehousesForPos,
 } from './api';
 import {
   calculateCartTotals,
@@ -206,7 +207,25 @@ export function PosTerminal() {
   const bootstrapRefs = useBootstrapRefsForPos();
   const bootstrap = usePosBootstrap();
   const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
-  const warehouses = useMemo(() => bootstrapRefs.refs?.warehouses ?? [], [bootstrapRefs.refs]);
+
+  // Fallback: si /api/pos/bootstrap no devolvio warehouses (cache vacio o
+  // query fallo), consultamos /api/warehouses directo. Esto evita que el
+  // selector quede vacio y los queries de productos fallen con warehouseId=null.
+  // Sprint POS 5 fix: antes si bootstrap fallaba, warehouses quedaba vacio.
+  const bootstrapHasWarehouses = (bootstrapRefs.refs?.warehouses?.length ?? 0) > 0;
+  const { data: standaloneWarehouses } = useWarehousesForPos();
+  const standaloneWarehousesList = useMemo(() => standaloneWarehouses ?? [], [standaloneWarehouses]);
+
+  const warehouses: Array<{ id: number; code: string; name: string; branch_id: number | null }> = useMemo(() => {
+    if (bootstrapHasWarehouses) {
+      return (bootstrapRefs.refs?.warehouses ?? []) as Array<{
+        id: number; code: string; name: string; branch_id: number | null;
+      }>;
+    }
+    return standaloneWarehousesList as Array<{
+      id: number; code: string; name: string; branch_id: number | null;
+    }>;
+  }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
   const branches = useMemo(() => bootstrapRefs.refs?.branches ?? [], [bootstrapRefs.refs]);
   const cashRegisters = useMemo(() => bootstrapRefs.refs?.cash_registers ?? [], [bootstrapRefs.refs]);
   const sessions = useMemo(
@@ -310,7 +329,19 @@ export function PosTerminal() {
   const openingRate = bestActiveRate(currentRates, exchangeRateTypes);
 
   useEffect(() => {
-    if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
+    // Sprint POS 5 fix: validar que warehouses[0]?.id sea un numero positivo
+    // antes de setearlo. Antes el codigo era:
+    //   if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
+    // que lanzaba NaN si warehouses[0] era undefined (caso bootstrap fallo).
+    const firstId = warehouses[0]?.id;
+    if (
+      typeof firstId === "number"
+      && Number.isFinite(firstId)
+      && firstId > 0
+      && firstId !== warehouseId
+    ) {
+      setWarehouseId(firstId);
+    }
   }, [warehouseId, warehouses]);
 
   useEffect(() => {
