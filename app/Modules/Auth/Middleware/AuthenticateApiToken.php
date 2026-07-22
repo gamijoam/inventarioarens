@@ -49,7 +49,7 @@ class AuthenticateApiToken
 
     public const SOURCE_COOKIE = 'cookie';
 
-public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next): Response
     {
         $request->attributes->set('auth_token_source', null);
 
@@ -61,7 +61,19 @@ public function handle(Request $request, Closure $next): Response
             $plainToken = $request->cookie(CookieIssuer::COOKIE_NAME);
 
             if ($plainToken) {
-                $this->assertCsrfProtection($request);
+                // CSRF solo aplica a metodos que mutan estado. GET / HEAD /
+                // OPTIONS son safe segun RFC 7231 y no requieren proteccion
+                // CSRF (un atacante no puede causar un side-effect via GET
+                // porque los browsers no envian cookies cross-origin sin
+                // CORS, y la proteccion CSRF existe justamente para
+                // bloquear side-effects cross-origin).
+                //
+                // Esto permite que links <a href="/api/import/templates/x"
+                // download> y window.open(...) funcionen directamente desde
+                // el frontend sin necesidad de fetch manual con axios.
+                if (! in_array($request->method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+                    $this->assertCsrfProtection($request);
+                }
                 $request->attributes->set('auth_token_source', self::SOURCE_COOKIE);
             }
         }

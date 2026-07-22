@@ -38,7 +38,7 @@ class CookieAuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_emits_httpOnly_cookie_when_request_looks_like_spa(): void
+    public function test_login_emits_http_only_cookie_when_request_looks_like_spa(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         $user = $this->userInTenant($tenant);
@@ -111,11 +111,13 @@ class CookieAuthTest extends TestCase
         $user = $this->userInTenant($tenant);
         $token = $this->loginToken($tenant, $user);
 
-        // Cookie + sin X-Requested-With = CSRF bloqueado.
+        // Cookie + POST sin X-Requested-With = CSRF bloqueado.
+        // GET con cookie sin X-Requested-With pasa (CSRF solo aplica a metodos
+        // que mutan estado, ver AuthenticateApiToken::handle).
         $this->withCredentials()
             ->withCookie(CookieIssuer::COOKIE_NAME, $token)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/auth/me')
+            ->postJson('/api/auth/logout')
             ->assertStatus(403);
     }
 
@@ -125,12 +127,13 @@ class CookieAuthTest extends TestCase
         $user = $this->userInTenant($tenant);
         $token = $this->loginToken($tenant, $user);
 
+        // POST cross-origin con cookie debe ser rechazado (CSRF Origin check).
         $this->withCredentials()
             ->withCookie(CookieIssuer::COOKIE_NAME, $token)
             ->withHeader('X-Tenant', $tenant->slug)
             ->withHeader('X-Requested-With', 'XMLHttpRequest')
             ->withHeader('Origin', 'https://evil.example.com')
-            ->getJson('/api/auth/me')
+            ->postJson('/api/auth/logout')
             ->assertStatus(403);
     }
 
@@ -163,6 +166,7 @@ class CookieAuthTest extends TestCase
     {
         // El check debe comparar scheme + host + port exactamente.
         // http://localhost:5173 != http://localhost (puertos diferentes).
+        // POST cross-origin con puerto distinto debe ser rechazado.
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         $user = $this->userInTenant($tenant);
         $token = $this->loginToken($tenant, $user);
@@ -171,13 +175,12 @@ class CookieAuthTest extends TestCase
             'app.allowed_origins_for_csrf' => ['http://localhost'],
         ]);
 
-        // Browser envia :5173 pero la allowlist solo tiene :80 (default).
         $this->withCredentials()
             ->withCookie(CookieIssuer::COOKIE_NAME, $token)
             ->withHeader('X-Tenant', $tenant->slug)
             ->withHeader('X-Requested-With', 'XMLHttpRequest')
             ->withHeader('Origin', 'http://localhost:5173')
-            ->getJson('/api/auth/me')
+            ->postJson('/api/auth/logout')
             ->assertStatus(403);  // blocked por mismatch de puerto
     }
 
@@ -223,12 +226,13 @@ class CookieAuthTest extends TestCase
         $user = $this->userInTenant($tenant);
         $token = $this->loginToken($tenant, $user);
 
+        // POST con Origin cross-origin disallowed debe ser rechazado.
         $this->withCredentials()
             ->withCookie(CookieIssuer::COOKIE_NAME, $token)
             ->withHeader('X-Tenant', $tenant->slug)
             ->withHeader('X-Requested-With', 'XMLHttpRequest')
             ->withHeader('Origin', 'https://attacker.example.com')
-            ->getJson('/api/auth/me')
+            ->postJson('/api/auth/logout')
             ->assertStatus(403);
     }
 

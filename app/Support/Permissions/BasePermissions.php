@@ -132,6 +132,10 @@ class BasePermissions
         'sync.issue_token',
         'ai.use',
         'ai.configure',
+        'data_import.view',
+        'data_import.create',
+        'data_import.execute',
+        'data_import.delete',
     ];
 
     public const ROLE_PERMISSIONS = [
@@ -233,6 +237,9 @@ class BasePermissions
             'users.view',
             'sync.issue_token',
             'ai.use',
+            'data_import.view',
+            'data_import.create',
+            'data_import.execute',
         ],
         'Vendedor' => [
             'products.view',
@@ -351,6 +358,7 @@ class BasePermissions
             'warranty_policies.view',
             'warranties.view',
             'users.view',
+            'data_import.view',
         ],
     ];
 }
