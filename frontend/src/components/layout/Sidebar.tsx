@@ -26,6 +26,7 @@ import {
   ShieldQuestion,
   BarChart3,
   Printer,
+  Upload,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -157,6 +158,12 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Reportes',
     icon: BarChart3,
     permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
+  },
+  {
+    to: '/import',
+    label: 'Importar datos',
+    icon: Upload,
+    permission: PERMISSIONS.DATA_IMPORT_VIEW,
   },
   // Submenu de Acceso (Fase A+B: usuarios; Fase C: roles y permisos;
   // Fase E: catalogo de permisos standalone).

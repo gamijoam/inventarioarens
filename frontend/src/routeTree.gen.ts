@@ -33,6 +33,7 @@ import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
 import { Route as AuthedCashRegisterRouteImport } from './routes/_authed/cash-register'
 import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inventory/index'
+import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
@@ -43,6 +44,7 @@ import { Route as AuthedInventoryTransferRequestsRequestIdRouteImport } from './
 import { Route as AuthedAccessRolesRouteImport } from './routes/_authed/access/roles'
 import { Route as AuthedAccessPermissionsRouteImport } from './routes/_authed/access/permissions'
 import { Route as AuthedAccessGroupsRouteImport } from './routes/_authed/access/groups'
+import { Route as AuthedImportSessionsSessionIdRouteImport } from './routes/_authed/import/sessions/$sessionId'
 import { Route as AuthedAccessRolesRoleIdRouteImport } from './routes/_authed/access/roles/$roleId'
 
 const SetupRoute = SetupRouteImport.update({
@@ -165,6 +167,11 @@ const AuthedInventoryIndexRoute = AuthedInventoryIndexRouteImport.update({
   path: '/inventory/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedImportIndexRoute = AuthedImportIndexRouteImport.update({
+  id: '/import/',
+  path: '/import/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
@@ -218,6 +225,12 @@ const AuthedAccessGroupsRoute = AuthedAccessGroupsRouteImport.update({
   path: '/access/groups',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedImportSessionsSessionIdRoute =
+  AuthedImportSessionsSessionIdRouteImport.update({
+    id: '/import/sessions/$sessionId',
+    path: '/import/sessions/$sessionId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedAccessRolesRoleIdRoute = AuthedAccessRolesRoleIdRouteImport.update({
   id: '/$roleId',
   path: '/$roleId',
@@ -257,8 +270,10 @@ export interface FileRoutesByFullPath {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/import/': typeof AuthedImportIndexRoute
   '/inventory/': typeof AuthedInventoryIndexRoute
   '/access/roles/$roleId': typeof AuthedAccessRolesRoleIdRoute
+  '/import/sessions/$sessionId': typeof AuthedImportSessionsSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -293,8 +308,10 @@ export interface FileRoutesByTo {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/import': typeof AuthedImportIndexRoute
   '/inventory': typeof AuthedInventoryIndexRoute
   '/access/roles/$roleId': typeof AuthedAccessRolesRoleIdRoute
+  '/import/sessions/$sessionId': typeof AuthedImportSessionsSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -331,8 +348,10 @@ export interface FileRoutesById {
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
+  '/_authed/import/': typeof AuthedImportIndexRoute
   '/_authed/inventory/': typeof AuthedInventoryIndexRoute
   '/_authed/access/roles/$roleId': typeof AuthedAccessRolesRoleIdRoute
+  '/_authed/import/sessions/$sessionId': typeof AuthedImportSessionsSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -369,8 +388,10 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/transfers/$transferId'
     | '/users/$userId'
+    | '/import/'
     | '/inventory/'
     | '/access/roles/$roleId'
+    | '/import/sessions/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -405,8 +426,10 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/transfers/$transferId'
     | '/users/$userId'
+    | '/import'
     | '/inventory'
     | '/access/roles/$roleId'
+    | '/import/sessions/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -442,8 +465,10 @@ export interface FileRouteTypes {
     | '/_authed/inventory/currency'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
+    | '/_authed/import/'
     | '/_authed/inventory/'
     | '/_authed/access/roles/$roleId'
+    | '/_authed/import/sessions/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -624,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/import/': {
+      id: '/_authed/import/'
+      path: '/import'
+      fullPath: '/import/'
+      preLoaderRoute: typeof AuthedImportIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/$userId': {
       id: '/_authed/users/$userId'
       path: '/$userId'
@@ -692,6 +724,13 @@ declare module '@tanstack/react-router' {
       path: '/access/groups'
       fullPath: '/access/groups'
       preLoaderRoute: typeof AuthedAccessGroupsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/import/sessions/$sessionId': {
+      id: '/_authed/import/sessions/$sessionId'
+      path: '/import/sessions/$sessionId'
+      fullPath: '/import/sessions/$sessionId'
+      preLoaderRoute: typeof AuthedImportSessionsSessionIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/access/roles/$roleId': {
@@ -779,7 +818,9 @@ interface AuthedRouteChildren {
   AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
+  AuthedImportIndexRoute: typeof AuthedImportIndexRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
+  AuthedImportSessionsSessionIdRoute: typeof AuthedImportSessionsSessionIdRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -808,7 +849,9 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
+  AuthedImportIndexRoute: AuthedImportIndexRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,
+  AuthedImportSessionsSessionIdRoute: AuthedImportSessionsSessionIdRoute,
 }
 
 const AuthedRouteWithChildren =

@@ -207,6 +207,12 @@ export const PERMISSIONS = {
 
   // Tenants
   TENANTS_VIEW: 'tenants.view',
+
+  // Data Import
+  DATA_IMPORT_VIEW: 'data_import.view',
+  DATA_IMPORT_CREATE: 'data_import.create',
+  DATA_IMPORT_EXECUTE: 'data_import.execute',
+  DATA_IMPORT_DELETE: 'data_import.delete',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
