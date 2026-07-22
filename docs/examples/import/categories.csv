@@ -1,0 +1,6 @@
+slug,name,parent_slug,description,sort_order,is_active
+electronica,Electronica,,Productos electronicos en general,0,true
+celulares,Celulares,electronica,Smartphones y feature phones,1,true
+accesorios,Accesorios Celulares,electronica,Cables, fundas y cargadores,2,true
+hogar,Hogar,,Articulos para el hogar,3,true
+cocina,Cocina,hogar,Electrodomesticos de cocina,4,true

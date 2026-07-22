@@ -1,0 +1,3 @@
+document_type,document_number,name,phone,email,notes,is_active
+J,12345678,Distribuidora Mayor CA,+582121234567,ventas@distribuidoramayor.com,Proveedor principal de electronica,true
+J,87654321,Importadora del Norte,+582124321876,info@importadoranorte.com,Importaciones celulares,true

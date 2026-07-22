@@ -1,0 +1,7 @@
+code,name,method,currency_mode,requires_reference,is_active,sort_order
+CASH,Efectivo,cash,USD,false,true,1
+DEBIT,Tarjeta Debito,card,flexible,true,true,2
+CREDIT,Tarjeta Credito,card,flexible,true,true,3
+ZELLE,Zelle,zelle,USD,true,true,4
+PM,Pago Movil,mobile_payment,VES,true,true,5
+TRANS,Transferencia,transfer,flexible,true,true,6

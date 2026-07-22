@@ -1,0 +1,4 @@
+code,name,description,is_default,is_active,sort_order,payment_method_codes
+RETAIL,Precio Publico,Precio de venta al publico,true,true,1,CASH|DEBIT|CREDIT|PM
+MAYORISTA,Precio Mayorista,Lista de precios para mayoristas,false,true,2,CASH|TRANS
+VIP,Cliente VIP,Precios especiales para clientes VIP,false,true,3,

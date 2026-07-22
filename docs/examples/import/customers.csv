@@ -1,0 +1,5 @@
+document_type,document_number,name,phone,email,fiscal_address,is_active
+V,12345678,Juan Perez,+584141234567,juan.perez@example.com,Av. Principal Caracas,true
+V,87654321,Maria Lopez,+584148765432,maria.lopez@example.com,Calle 42 Maracaibo,true
+J,123456789,Empresa XYZ CA,+582125551212,contacto@xyz.com,Centro Empresarial Caracas,true
+E,987654321,Inversiones Norte EU,+582126667788,info@invnorte.com,Av. Libertador,true

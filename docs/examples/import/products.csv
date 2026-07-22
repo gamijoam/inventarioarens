@@ -1,0 +1,6 @@
+sku,name,barcode,description,brand_slug,category_slugs,tag_slugs,unit_of_measure,tracking_type,base_price,sale_currency,min_stock,max_stock,reorder_quantity,is_active,stock_inicial,almacen_codigo,costo_unitario
+SKU-001,Galaxy S24 256GB,7501234567890,Smartphone Samsung Galaxy S24 256GB Negro,samsung,celulares,nuevo|oferta,unit,serialized,899.00,USD,2,20,5,true,,,
+SKU-002,iPhone 15 Pro 128GB,7501234567891,Apple iPhone 15 Pro 128GB Titanio,apple,celulares,nuevo,unit,serialized,1099.00,USD,1,10,3,true,,,
+SKU-003,Cargador USB-C 65W,7501234567892,Cargador rapido 65W GaN,apple,accesorios,oferta,unit,quantity,29.99,USD,10,50,15,true,50,PRINCIPAL,12.00
+SKU-004,Funda iPhone 15 Silicona,7501234567893,Funda silicona original Apple,apple,accesorios,,unit,quantity,49.00,USD,5,30,10,true,20,PRINCIPAL,18.00
+SKU-005,Microondas 20L Samsung,7501234567894,Microondas digital Samsung 20L blanco,samsung,,,unit,quantity,189.00,USD,1,8,2,true,5,PRINCIPAL,120.00

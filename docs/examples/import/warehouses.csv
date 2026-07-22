@@ -1,0 +1,4 @@
+code,name,branch_code,status
+PRINCIPAL,Almacen Principal,PRINCIPAL,active
+NORTE-PRINCIPAL,Almacen Norte,NORTE,active
+SUR-DESPACHO,Almacen Despacho,SUR,inactive
