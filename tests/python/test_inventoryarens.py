@@ -13,10 +13,22 @@ import platform
 import subprocess
 import sys
 import unittest
+import importlib.machinery
+import importlib.util
+import tempfile
 from pathlib import Path
 
 # Path al binario del CLI.
 CLI = Path(__file__).resolve().parent.parent.parent / "bin" / "inventoryarens"
+
+
+def load_cli_module():
+    loader = importlib.machinery.SourceFileLoader("inventoryarens_cli_under_test", str(CLI))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[loader.name] = module
+    loader.exec_module(module)
+    return module
 
 
 def run_cli(*args: str, env: dict = None) -> subprocess.CompletedProcess:
@@ -84,6 +96,7 @@ class TestCliBasics(unittest.TestCase):
         result = run_cli("worker", "--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("restart", result.stdout)
+        self.assertIn("install-task", result.stdout)
         self.assertIn("refresh-and-retry", result.stdout)
 
     def test_printer_help(self):
@@ -181,6 +194,65 @@ class TestCliOutput(unittest.TestCase):
         result = run_cli("--no-color", "--help")
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("\033[", result.stdout)
+
+
+class TestCliDoctorRepair(unittest.TestCase):
+    def test_windows_doctor_reinstalls_missing_worker_task(self):
+        module = load_cli_module()
+        calls = []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_dir = Path(temp_dir)
+            (repo_dir / "storage" / "app" / "sync-worker").mkdir(parents=True)
+            (repo_dir / "artisan").write_text("<?php", encoding="utf-8")
+            (repo_dir / "storage" / "app" / "sync-worker" / "sync-config.json").write_text(
+                '{"tenants":{"mi-empresa":{"token":"abc","interval":15}}}',
+                encoding="utf-8",
+            )
+            cfg = module.Config(
+                os="windows",
+                repo_dir=repo_dir,
+                bin_dir=repo_dir / "bin",
+                toolbox_root=repo_dir,
+                php_bin="php",
+                ssh_host="212.28.176.157",
+                ssh_user="root",
+                php_artisan=repo_dir / "artisan",
+                state_dir=repo_dir / "state",
+                lockfile=repo_dir / "state" / "toolbox.lock",
+                env_file=None,
+                user="tester",
+                home=repo_dir,
+            )
+
+            original_get_failed = module.get_failed_sync_inbox_count
+            original_get_summary = module.get_sync_health_summary
+            original_run_worker = module.run_worker_action
+            original_task_exists = module.windows_sync_task_exists
+            original_install = module.windows_install_sync
+            original_is_active = module.is_windows_worker_active
+            try:
+                module.get_failed_sync_inbox_count = lambda _cfg, _tenant: 0
+                module.get_sync_health_summary = lambda _cfg, _tenant: {"exists": True}
+                module.run_worker_action = lambda _cfg, tenant, action: calls.append(("worker", tenant, action)) or 0
+                module.windows_sync_task_exists = lambda tenant: False
+                module.windows_install_sync = lambda _cfg, tenant: calls.append(("install-task", tenant))
+                module.is_windows_worker_active = lambda _cfg, tenant: True
+
+                result = module.cmd_doctor(
+                    module.argparse.Namespace(tenant="mi-empresa", all=False, fix=True, event_type="", limit=100),
+                    cfg,
+                )
+            finally:
+                module.get_failed_sync_inbox_count = original_get_failed
+                module.get_sync_health_summary = original_get_summary
+                module.run_worker_action = original_run_worker
+                module.windows_sync_task_exists = original_task_exists
+                module.windows_install_sync = original_install
+                module.is_windows_worker_active = original_is_active
+
+        self.assertEqual(result, 0)
+        self.assertIn(("install-task", "mi-empresa"), calls)
 
 
 if __name__ == "__main__":

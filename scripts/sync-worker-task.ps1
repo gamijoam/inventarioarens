@@ -86,23 +86,36 @@ function Install-WorkerTask {
     Write-Launcher
 
     Write-Step "Instalando tarea automatica de Windows (inicio oculto)"
-    $taskAction = New-ScheduledTaskAction `
-        -Execute "wscript.exe" `
-        -Argument ("`"" + $HiddenRunner + "`" `"" + $LauncherFile + "`"")
-    Register-ScheduledTask -TaskName $TaskName -Trigger $(
-        New-ScheduledTaskTrigger -AtStartup
-    ) -Action $taskAction -Settings (
-        New-ScheduledTaskSettingsSet `
-            -AllowStartIfOnBatteries `
-            -DontStopIfGoingOnBatteries `
-            -StartWhenAvailable `
-            -ExecutionTimeLimit (New-TimeSpan -Hours 72)
-    ) -Description "Inventario Arens - worker de sincronizacion para $TenantSlug (inicio oculto)." -Force | Out-Null
-    $repetition = (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition
-    $repetition.Interval = "PT5M"
-    $repetition.StopAtDurationEnd = $false
-    (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition = $repetition
-    Set-ScheduledTask -TaskName $TaskName -Trigger (Get-ScheduledTask -TaskName $TaskName).Triggers | Out-Null
+    try {
+        $taskAction = New-ScheduledTaskAction `
+            -Execute "wscript.exe" `
+            -Argument ("`"" + $HiddenRunner + "`" `"" + $LauncherFile + "`"")
+        Register-ScheduledTask -TaskName $TaskName -Trigger $(
+            New-ScheduledTaskTrigger -AtStartup
+        ) -Action $taskAction -Settings (
+            New-ScheduledTaskSettingsSet `
+                -AllowStartIfOnBatteries `
+                -DontStopIfGoingOnBatteries `
+                -StartWhenAvailable `
+                -ExecutionTimeLimit (New-TimeSpan -Hours 72)
+        ) -Description "Inventario Arens - worker de sincronizacion para $TenantSlug (inicio oculto)." -Force | Out-Null
+        $repetition = (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition
+        $repetition.Interval = "PT5M"
+        $repetition.StopAtDurationEnd = $false
+        (Get-ScheduledTask -TaskName $TaskName).Triggers[0].Repetition = $repetition
+        Set-ScheduledTask -TaskName $TaskName -Trigger (Get-ScheduledTask -TaskName $TaskName).Triggers | Out-Null
+    } catch {
+        Write-Host "Aviso: Windows bloqueo la tarea de inicio del sistema. Se instalara como tarea del usuario cada 5 minutos." -ForegroundColor Yellow
+        $taskRun = "wscript.exe $HiddenRunner $LauncherFile"
+        Invoke-ScheduledTaskCommand @(
+            "/Create",
+            "/TN", $TaskName,
+            "/TR", $taskRun,
+            "/SC", "MINUTE",
+            "/MO", "5",
+            "/F"
+        )
+    }
 
     Write-Step "Iniciando sincronizacion ahora"
     & $WorkerCmd start -TenantSlug $TenantSlug

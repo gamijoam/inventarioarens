@@ -199,6 +199,20 @@ def windows_task_exists(task_name: str) -> bool:
     """Devuelve True si existe una tarea programada de Windows."""
     return run_silent(["schtasks", "/query", "/tn", task_name, "/fo", "LIST", "/v"]) == 0
 
+
+def windows_task_query_state(task_name: str) -> tuple[str, str]:
+    """Devuelve estado legible de una tarea: existe, no existe o sin_permiso."""
+    proc = run_capture(["schtasks", "/query", "/tn", task_name, "/fo", "LIST", "/v"])
+    output = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    lowered = output.lower()
+    if proc.returncode == 0:
+        return "existe", ""
+    if "access is denied" in lowered or "acceso denegado" in lowered:
+        return "sin_permiso", "Windows no permite consultar esta tarea desde esta sesion"
+    if "cannot find" in lowered or "no puede encontrar" in lowered:
+        return "no existe", ""
+    return "desconocido", output.splitlines()[0] if output else "sin salida de schtasks"
+
 def ensure_state_dir(cfg: Config) -> None:
     try:
         cfg.state_dir.mkdir(parents=True, exist_ok=True)
@@ -1161,9 +1175,9 @@ def windows_status(cfg: Config, tenant_slug: str = "mi-empresa") -> dict:
     info_w = []
     safe_tenant = safe_tenant_slug(tenant_slug)
     task_name = f"SistemaInventarioSync-{safe_tenant}"
-    task_exists = windows_task_exists(task_name)
-    info_w.append((f"Task Scheduler ({task_name})", "existe" if task_exists else "no existe"))
-    if task_exists:
+    task_state, task_detail = windows_task_query_state(task_name)
+    info_w.append((f"Task Scheduler ({task_name})", task_state if not task_detail else f"{task_state}: {task_detail}"))
+    if task_state == "existe":
         # Status
         res2 = run_capture(["schtasks", "/query", "/tn", task_name, "/fo", "LIST", "/v", "/nh"])
         output = (res2.stdout or "") + "\n" + (res2.stderr or "")
@@ -1174,6 +1188,11 @@ def windows_status(cfg: Config, tenant_slug: str = "mi-empresa") -> dict:
                 break
         info_w.append(("Ultima corrida", last_run))
     return dict(info_w)
+
+
+def windows_sync_task_exists(tenant_slug: str) -> bool:
+    state, _detail = windows_task_query_state(f"SistemaInventarioSync-{safe_tenant_slug(tenant_slug)}")
+    return state in ("existe", "sin_permiso")
 
 
 def sync_worker_log_health(cfg: Config, tenant_slug: str) -> tuple[str, str]:
@@ -1550,7 +1569,7 @@ def cmd_status(args, cfg: Config) -> int:
         if normalized_status in ("ok", "existe", "active", "running"):
             sym = green("OK")
             n_ok += 1
-        elif normalized_status in ("skip", "desconocido", "unknown", "inactive"):
+        elif normalized_status in ("skip", "desconocido", "unknown", "inactive") or normalized_status.startswith("sin_permiso"):
             sym = yellow("-")
             n_warn += 1
         else:
@@ -1576,7 +1595,8 @@ def cmd_status(args, cfg: Config) -> int:
                     if cfg.os == "linux":
                         info(f"  - systemctl --user status {linux_sync_unit_name(tenant_slug)}.timer")
                     else:
-                        info(f"  - schtasks /query /tn SistemaInventarioSync-{safe_tenant_slug(tenant_slug)} /fo LIST /v")
+                        info(f"  - inventoryarens install sync --tenant {tenant_slug} (reparar tarea)")
+                        info(f"  - inventoryarens worker restart --tenant {tenant_slug}")
                 elif "printer" in label.lower():
                     if cfg.os == "linux":
                         info("  - systemctl --user status inventoryarens-printer.service")
@@ -1852,6 +1872,24 @@ def cmd_worker(args, cfg: Config) -> int:
     action = args.action
 
     step(f"Worker sync: {action} ({tenant_slug})")
+    if action == "install-task":
+        if cfg.os == "linux":
+            try:
+                linux_install_sync(cfg, tenant_slug)
+            except Exception as exc:
+                err(f"No se pudo instalar/reparar systemd: {exc}")
+                return 1
+            ok("Timer systemd instalado/reparado.")
+            return 0
+
+        try:
+            windows_install_sync(cfg, tenant_slug)
+        except Exception as exc:
+            err(f"No se pudo instalar/reparar la tarea de Windows: {exc}")
+            return 1
+        ok("Tarea programada de Windows instalada/reparada.")
+        return 0
+
     if action == "refresh-and-retry":
         rc = run_worker_action(cfg, tenant_slug, "restart")
         if rc != 0:
@@ -1867,6 +1905,17 @@ def cmd_worker(args, cfg: Config) -> int:
 
     rc = run_worker_action(cfg, tenant_slug, action)
     if action == "status":
+        if cfg.os == "windows":
+            task_state, task_detail = windows_task_query_state(f"SistemaInventarioSync-{safe_tenant_slug(tenant_slug)}")
+            if task_state == "existe":
+                ok(f"Tarea programada: SistemaInventarioSync-{safe_tenant_slug(tenant_slug)} existe.")
+            elif task_state == "sin_permiso":
+                warn(f"Tarea programada: no se puede consultar desde esta sesion. {task_detail}")
+                info("Si fue creada como administrador, verifica con PowerShell como administrador.")
+            else:
+                warn(f"Tarea programada: SistemaInventarioSync-{safe_tenant_slug(tenant_slug)} no existe.")
+                info(f"Para reparar sin emitir token: inventoryarens worker install-task --tenant {tenant_slug}")
+
         heartbeat_status, heartbeat_detail = sync_worker_log_health(cfg, tenant_slug)
         if heartbeat_status == "ok":
             ok(f"Ultimo ciclo real: {heartbeat_detail}")
@@ -2055,6 +2104,15 @@ def cmd_doctor(args, cfg: Config) -> int:
             continue
 
         step(f"Reparacion segura ({tenant})")
+        if cfg.os == "windows" and not windows_sync_task_exists(tenant):
+            warn("La tarea programada del worker no existe. Se reinstalara usando el token local guardado.")
+            try:
+                windows_install_sync(cfg, tenant)
+                ok("Tarea programada de Windows reinstalada.")
+            except Exception as exc:
+                err(f"No se pudo reinstalar la tarea programada: {exc}")
+                final_rc = 1
+
         worker_active = is_windows_worker_active(cfg, tenant)
         if worker_active is True:
             ok("Worker activo; no se reinicia durante la reparacion.")
@@ -2185,6 +2243,7 @@ def cmd_toolbox(args, cfg: Config) -> int:
         print("15. Impresion: detener agente")
         print("16. Impresion: probar agente")
         print("17. Impresion: logs")
+        print("18. Worker sync: instalar/reparar tarea local")
         print("0. Salir")
         choice = prompt_value("Opcion", "1").strip()
 
@@ -2254,6 +2313,9 @@ def cmd_toolbox(args, cfg: Config) -> int:
                 cmd_printer(argparse.Namespace(action="test", port=port), cfg)
             elif choice == "17":
                 cmd_logs(argparse.Namespace(target="printer", tenant="mi-empresa"), cfg)
+            elif choice == "18":
+                tenant = prompt_value("Tenant", args.tenant or "")
+                cmd_worker(argparse.Namespace(action="install-task", tenant=tenant, event_type="", limit=100, all=False), cfg)
             else:
                 warn("Opcion no reconocida.")
         except KeyboardInterrupt:
@@ -2368,7 +2430,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # worker
     pwk = sub.add_parser("worker", help="Control del worker de sincronizacion")
-    pwk.add_argument("action", choices=["status", "start", "stop", "restart", "run-now", "refresh-and-retry"])
+    pwk.add_argument("action", choices=["status", "start", "stop", "restart", "run-now", "install-task", "refresh-and-retry"])
     pwk.add_argument("--tenant", default="", help="Slug del tenant. Si se omite, permite elegir desde sync-config.json")
     pwk.add_argument("--all", action="store_true", help="Ejecuta la accion en todos los tenants configurados")
     pwk.add_argument("--event-type", default="", help="Filtra eventos fallidos por tipo al usar refresh-and-retry")

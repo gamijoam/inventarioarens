@@ -49,6 +49,7 @@ El intervalo recomendado para una PC local es `15` segundos. La tarea de Windows
 |---|---|
 | `wizard` | Asistente interactivo para agregar una empresa a esta PC |
 | `install sync` | Emite token + configura auto-start (Linux systemd / Windows Task Scheduler) |
+| `worker install-task --tenant <slug>` | Repara sólo el auto-start local usando el token ya guardado, sin emitir token nuevo |
 | `install printer` | Instala/repara el printer agent en :17777 |
 | `printer status` | Verifica tarea/servicio y health check del agente local |
 | `printer start/stop/restart` | Controla el agente local de impresion |
@@ -212,6 +213,9 @@ powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker status --te
 
 # Reiniciar worker
 powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker restart --tenant demo-caracas
+
+# Reparar sólo la tarea local del worker, sin pedir token nuevo
+powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker install-task --tenant demo-caracas
 
 # Reiniciar worker y reintentar fallidos
 powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 worker refresh-and-retry --tenant demo-caracas
