@@ -1176,6 +1176,43 @@ def windows_status(cfg: Config, tenant_slug: str = "mi-empresa") -> dict:
     return dict(info_w)
 
 
+def sync_worker_log_health(cfg: Config, tenant_slug: str) -> tuple[str, str]:
+    safe_tenant = safe_tenant_slug(tenant_slug)
+    log_path = cfg.repo_dir / "storage" / "logs" / f"sync-worker-{safe_tenant}.log"
+    if not log_path.exists():
+        return "unknown", "sin log todavia"
+
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-300:]
+    except OSError as exc:
+        return "unknown", str(exc)
+
+    last_cycle: Optional[datetime] = None
+    for line in reversed(lines):
+        match = re.search(r"Ciclo\s+\d+\s+-\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})", line)
+        if match:
+            try:
+                last_cycle = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                last_cycle = None
+            break
+
+    if last_cycle is None:
+        return "unknown", "no encuentro ciclos recientes en el log"
+
+    config = read_sync_worker_config(cfg)
+    tenant_config = (config.get("tenants") or {}).get(tenant_slug) or {}
+    interval = int(tenant_config.get("interval") or 15)
+    max_age_seconds = max(90, interval * 6)
+    age_seconds = max(0, int((datetime.now() - last_cycle).total_seconds()))
+    detail = f"{last_cycle.strftime('%Y-%m-%d %H:%M:%S')} ({age_seconds}s)"
+
+    if age_seconds > max_age_seconds:
+        return "stale", detail
+
+    return "ok", detail
+
+
 # -----------------------------------------------------------------------------
 # Subcomandos
 # -----------------------------------------------------------------------------
@@ -1455,6 +1492,8 @@ def cmd_status(args, cfg: Config) -> int:
             for sub_label, sub_status in status_data.items():
                 color = green if sub_status.lower() in ("active", "existe", "ok") else red
                 checks.append((f"{label} - {sub_label}", sub_status.lower(), ""))
+        heartbeat_status, heartbeat_detail = sync_worker_log_health(cfg, tenant_slug)
+        checks.append((f"{label} - Ultimo ciclo real", heartbeat_status, heartbeat_detail))
     except Exception as e:
         checks.append((label, "fail", str(e)))
 
@@ -1827,6 +1866,15 @@ def cmd_worker(args, cfg: Config) -> int:
         return apply_inbox(cfg, tenant_slug, args.limit)
 
     rc = run_worker_action(cfg, tenant_slug, action)
+    if action == "status":
+        heartbeat_status, heartbeat_detail = sync_worker_log_health(cfg, tenant_slug)
+        if heartbeat_status == "ok":
+            ok(f"Ultimo ciclo real: {heartbeat_detail}")
+        elif heartbeat_status == "stale":
+            warn(f"Ultimo ciclo real atrasado: {heartbeat_detail}")
+            warn("El proceso puede estar vivo pero no sincronizando. Usa worker restart.")
+        else:
+            warn(f"Ultimo ciclo real: {heartbeat_detail}")
     if rc == 0:
         ok("Accion completada.")
     else:
