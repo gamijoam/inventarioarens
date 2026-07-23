@@ -4,149 +4,207 @@ import { z } from 'zod';
 
 import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
-import { BranchSchema, ExchangeRateTypeSchema, PriceListSchema, ProductSchema, WarehouseSchema } from '@/features/inventory-center/schemas';
+import {
+  BranchSchema,
+  ExchangeRateTypeSchema,
+  PriceListSchema,
+  type PriceList,
+  ProductSchema,
+  WarehouseSchema,
+} from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
 
-export type PosPaymentMethod = 'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'other';
+export type PosPaymentMethod =
+  'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'other';
 
-const nullableNumber = z.union([z.number(), z.string()]).nullable().optional().transform((v) => {
-  if (v == null || v === '') return null;
-  return Number(v);
-});
+const nullableNumber = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .optional()
+  .transform((v) => {
+    if (v == null || v === '') return null;
+    return Number(v);
+  });
 
-export const PaymentMethodSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  code: z.string().optional().nullable(),
-  method: z.string().optional().nullable(),
-  currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
-  is_active: z.boolean().optional(),
-  requires_reference: z.boolean().optional(),
-  sort_order: z.number().int().optional(),
-}).passthrough();
+export const PaymentMethodSchema = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    code: z.string().optional().nullable(),
+    method: z.string().optional().nullable(),
+    currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
+    is_active: z.boolean().optional(),
+    requires_reference: z.boolean().optional(),
+    sort_order: z.number().int().optional(),
+  })
+  .passthrough();
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
-export const CashRegisterSchema = z.object({
-  id: z.number().int(),
-  branch_id: z.number().int().nullable().optional(),
-  code: z.string().optional().nullable(),
-  name: z.string(),
-  status: z.string().optional().nullable(),
-  is_active: z.boolean().optional(),
-  open_session: z.unknown().nullable().optional(),
-}).passthrough();
+export const CashRegisterSchema = z
+  .object({
+    id: z.number().int(),
+    branch_id: z.number().int().nullable().optional(),
+    code: z.string().optional().nullable(),
+    name: z.string(),
+    status: z.string().optional().nullable(),
+    is_active: z.boolean().optional(),
+    open_session: z.unknown().nullable().optional(),
+  })
+  .passthrough();
 export type CashRegister = z.infer<typeof CashRegisterSchema>;
 
-export const CashRegisterSessionSchema = z.object({
-  id: z.number().int(),
-  branch_id: z.number().int(),
-  cash_register_id: z.number().int().nullable().optional(),
-  cashier_id: z.number().int().nullable().optional(),
-  status: z.string(),
-  opening_base_amount: nullableNumber,
-  opening_local_amount: nullableNumber,
-  expected_base_amount: nullableNumber,
-  expected_local_amount: nullableNumber,
-  counted_base_amount: nullableNumber,
-  counted_local_amount: nullableNumber,
-  difference_base_amount: nullableNumber,
-  difference_local_amount: nullableNumber,
-  opened_at: z.string().nullable().optional(),
-  closed_at: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
-  closing_notes: z.string().nullable().optional(),
-  cash_register: CashRegisterSchema.nullable().optional(),
-  branch: BranchSchema.nullable().optional(),
-  cashier: z.object({ id: z.number().int(), name: z.string().nullable().optional(), email: z.string().nullable().optional() }).nullable().optional(),
-  closer: z.object({ id: z.number().int(), name: z.string().nullable().optional(), email: z.string().nullable().optional() }).nullable().optional(),
-  movements: z.array(z.object({
+export const CashRegisterSessionSchema = z
+  .object({
     id: z.number().int(),
-    type: z.string(),
-    method: z.string().nullable().optional(),
-    currency: z.string(),
-    amount: nullableNumber,
-    amount_base: nullableNumber,
-    amount_local: nullableNumber,
+    branch_id: z.number().int(),
+    cash_register_id: z.number().int().nullable().optional(),
+    cashier_id: z.number().int().nullable().optional(),
+    status: z.string(),
+    opening_base_amount: nullableNumber,
+    opening_local_amount: nullableNumber,
+    expected_base_amount: nullableNumber,
+    expected_local_amount: nullableNumber,
+    counted_base_amount: nullableNumber,
+    counted_local_amount: nullableNumber,
+    difference_base_amount: nullableNumber,
+    difference_local_amount: nullableNumber,
+    opened_at: z.string().nullable().optional(),
+    closed_at: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
-    created_at: z.string().nullable().optional(),
-  }).passthrough()).optional(),
-}).passthrough();
+    closing_notes: z.string().nullable().optional(),
+    cash_register: CashRegisterSchema.nullable().optional(),
+    branch: BranchSchema.nullable().optional(),
+    cashier: z
+      .object({
+        id: z.number().int(),
+        name: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+    closer: z
+      .object({
+        id: z.number().int(),
+        name: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+    movements: z
+      .array(
+        z
+          .object({
+            id: z.number().int(),
+            type: z.string(),
+            method: z.string().nullable().optional(),
+            currency: z.string(),
+            amount: nullableNumber,
+            amount_base: nullableNumber,
+            amount_local: nullableNumber,
+            notes: z.string().nullable().optional(),
+            created_at: z.string().nullable().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough();
 export type CashRegisterSession = z.infer<typeof CashRegisterSessionSchema>;
 
-export const PosPaymentSchema = z.object({
-  id: z.number().int().optional(),
-  method: z.string(),
-  currency: z.enum(['USD', 'VES']),
-  amount: nullableNumber,
-  status: z.string().optional().nullable(),
-  reference: z.string().nullable().optional(),
-}).passthrough();
+export const PosPaymentSchema = z
+  .object({
+    id: z.number().int().optional(),
+    method: z.string(),
+    currency: z.enum(['USD', 'VES']),
+    amount: nullableNumber,
+    status: z.string().optional().nullable(),
+    reference: z.string().nullable().optional(),
+  })
+  .passthrough();
 export type PosPayment = z.infer<typeof PosPaymentSchema>;
 
-export const ProductSerialSchema = z.object({
-  id: z.number().int(),
-  serial_type: z.string().optional().nullable(),
-  serial_number: z.string(),
-  status: z.string(),
-  warehouse_id: z.number().int().nullable().optional(),
-  warehouse_name: z.string().nullable().optional(),
-}).passthrough();
+export const ProductSerialSchema = z
+  .object({
+    id: z.number().int(),
+    serial_type: z.string().optional().nullable(),
+    serial_number: z.string(),
+    status: z.string(),
+    warehouse_id: z.number().int().nullable().optional(),
+    warehouse_name: z.string().nullable().optional(),
+  })
+  .passthrough();
 export type ProductSerial = z.infer<typeof ProductSerialSchema>;
 
-export const CurrentExchangeRateSchema = z.object({
-  id: z.number().int(),
-  exchange_rate_type_id: z.number().int(),
-  exchange_rate_type_code: z.string().optional().nullable(),
-  exchange_rate_type_name: z.string().optional().nullable(),
-  base_currency: z.string(),
-  quote_currency: z.string(),
-  rate: z.union([z.number(), z.string()]).transform(Number),
-  is_active: z.boolean().optional(),
-}).passthrough();
+export const CurrentExchangeRateSchema = z
+  .object({
+    id: z.number().int(),
+    exchange_rate_type_id: z.number().int(),
+    exchange_rate_type_code: z.string().optional().nullable(),
+    exchange_rate_type_name: z.string().optional().nullable(),
+    base_currency: z.string(),
+    quote_currency: z.string(),
+    rate: z.union([z.number(), z.string()]).transform(Number),
+    is_active: z.boolean().optional(),
+  })
+  .passthrough();
 export type CurrentExchangeRate = z.infer<typeof CurrentExchangeRateSchema>;
 
-export const PosProductQuoteSchema = z.object({
-  product_id: z.number().int(),
-  price_list_id: z.number().int().nullable().optional(),
-  price_list_name: z.string().nullable().optional(),
-  price_source: z.string().optional(),
-  base_price_usd: z.union([z.number(), z.string()]).transform(Number),
-  sale_currency: z.enum(['USD', 'VES']),
-  sale_price: z.union([z.number(), z.string()]).transform(Number),
-  price_usd: z.union([z.number(), z.string()]).transform(Number),
-  price_ves: z.union([z.number(), z.string()]).nullable().optional().transform((value) => (value == null ? null : Number(value))),
-  exchange_rate_type_id: z.number().int().nullable().optional(),
-  exchange_rate_type_code: z.string().nullable().optional(),
-  exchange_rate: z.union([z.number(), z.string()]).nullable().optional().transform((value) => (value == null ? null : Number(value))),
-}).passthrough();
+export const PosProductQuoteSchema = z
+  .object({
+    product_id: z.number().int(),
+    price_list_id: z.number().int().nullable().optional(),
+    price_list_name: z.string().nullable().optional(),
+    price_source: z.string().optional(),
+    base_price_usd: z.union([z.number(), z.string()]).transform(Number),
+    sale_currency: z.enum(['USD', 'VES']),
+    sale_price: z.union([z.number(), z.string()]).transform(Number),
+    price_usd: z.union([z.number(), z.string()]).transform(Number),
+    price_ves: z
+      .union([z.number(), z.string()])
+      .nullable()
+      .optional()
+      .transform((value) => (value == null ? null : Number(value))),
+    exchange_rate_type_id: z.number().int().nullable().optional(),
+    exchange_rate_type_code: z.string().nullable().optional(),
+    exchange_rate: z
+      .union([z.number(), z.string()])
+      .nullable()
+      .optional()
+      .transform((value) => (value == null ? null : Number(value))),
+  })
+  .passthrough();
 export type PosProductQuote = z.infer<typeof PosProductQuoteSchema>;
 
-export const PosOrderSchema = z.object({
-  id: z.number().int(),
-  sale_id: z.number().int().nullable().optional(),
-  cash_register_session_id: z.number().int(),
-  customer_id: z.number().int().nullable().optional(),
-  status: z.string(),
-  customer_name: z.string().nullable().optional(),
-  total_base_amount: nullableNumber,
-  paid_base_amount: nullableNumber,
-  opened_at: z.string().nullable().optional(),
-  paid_at: z.string().nullable().optional(),
-  payments: z.array(PosPaymentSchema).optional(),
-  sale: z.unknown().optional(),
-}).passthrough();
+export const PosOrderSchema = z
+  .object({
+    id: z.number().int(),
+    sale_id: z.number().int().nullable().optional(),
+    cash_register_session_id: z.number().int(),
+    customer_id: z.number().int().nullable().optional(),
+    status: z.string(),
+    customer_name: z.string().nullable().optional(),
+    total_base_amount: nullableNumber,
+    paid_base_amount: nullableNumber,
+    opened_at: z.string().nullable().optional(),
+    paid_at: z.string().nullable().optional(),
+    payments: z.array(PosPaymentSchema).optional(),
+    sale: z.unknown().optional(),
+  })
+  .passthrough();
 export type PosOrder = z.infer<typeof PosOrderSchema>;
 
-export const CustomerSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  email: z.string().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  tax_id: z.string().nullable().optional(),
-  document_type: z.string().nullable().optional(),
-  document_number: z.string().nullable().optional(),
-  fiscal_address: z.string().nullable().optional(),
-}).passthrough();
+export const CustomerSchema = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    email: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+    tax_id: z.string().nullable().optional(),
+    document_type: z.string().nullable().optional(),
+    document_number: z.string().nullable().optional(),
+    fiscal_address: z.string().nullable().optional(),
+  })
+  .passthrough();
 export type Customer = z.infer<typeof CustomerSchema>;
 
 export interface CheckoutPayload {
@@ -244,18 +302,26 @@ export const posKeys = {
   all: ['pos'] as const,
   products: (filters: Partial<InventoryFilters>) => [...posKeys.all, 'products', filters] as const,
   orders: (status?: string) => [...posKeys.all, 'orders', status ?? 'all'] as const,
-  cashSessions: (filters?: string) => [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
+  bootstrap: () => [...posKeys.all, 'bootstrap'] as const,
+  cashSessions: (filters?: string) =>
+    [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
   priceLists: () => [...posKeys.all, 'price-lists'] as const,
-  productQuote: (productId: number, priceListId?: number | null) => [...posKeys.all, 'product-quote', productId, priceListId ?? 'default'] as const,
+  productQuote: (productId: number, priceListId?: number | null) =>
+    [...posKeys.all, 'product-quote', productId, priceListId ?? 'default'] as const,
   exchangeRateTypes: () => [...posKeys.all, 'exchange-rate-types'] as const,
   currentRates: () => [...posKeys.all, 'current-rates'] as const,
   customers: (search: string) => [...posKeys.all, 'customers', search] as const,
-  productSerials: (productId: number, warehouseId?: number | null) => [...posKeys.all, 'product-serials', productId, warehouseId ?? 'all'] as const,
+  productSerials: (productId: number, warehouseId?: number | null) =>
+    [...posKeys.all, 'product-serials', productId, warehouseId ?? 'all'] as const,
 };
 
-export function usePosProducts(search: string, warehouseId?: number | null, options: { enabled?: boolean } = {}) {
+export function usePosProducts(
+  search: string,
+  warehouseId?: number | null,
+  options: { enabled?: boolean } = {},
+) {
   const filters: InventoryFilters = {
     search,
     tracking_type: 'all',
@@ -263,6 +329,7 @@ export function usePosProducts(search: string, warehouseId?: number | null, opti
     active_status: 'active',
     page: 1,
     per_page: 12,
+    with_images: 1,
     warehouse_id: warehouseId || undefined,
   };
 
@@ -346,9 +413,11 @@ export function useSessionOrders(
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CheckoutPayload) => postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload),
+    mutationFn: async (payload: CheckoutPayload) =>
+      postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
+      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
     },
   });
@@ -357,8 +426,17 @@ export function useCheckout() {
 export function useAddPosPayments() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ orderId, payments }: { orderId: number; payments: CheckoutPayload['payments'] }) =>
-      postOne<{ payments: CheckoutPayload['payments'] }, PosOrder>(`/pos/orders/${orderId}/payments`, { payments }),
+    mutationFn: async ({
+      orderId,
+      payments,
+    }: {
+      orderId: number;
+      payments: CheckoutPayload['payments'];
+    }) =>
+      postOne<{ payments: CheckoutPayload['payments'] }, PosOrder>(
+        `/pos/orders/${orderId}/payments`,
+        { payments },
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
@@ -369,7 +447,8 @@ export function useAddPosPayments() {
 export function useCancelPosOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (orderId: number) => postOne<Record<string, never>, PosOrder>(`/pos/orders/${orderId}/cancel`, {}),
+    mutationFn: async (orderId: number) =>
+      postOne<Record<string, never>, PosOrder>(`/pos/orders/${orderId}/cancel`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
     },
@@ -380,78 +459,90 @@ export function useCashSessions() {
   return useQuery({
     queryKey: posKeys.cashSessions(),
     queryFn: async () => {
-      const response = await getPaginated<unknown>('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
+      const response = await getPaginated<unknown>(
+        '/cash-register/sessions?status=open&cashier_id=me&per_page=25',
+      );
       return z.array(CashRegisterSessionSchema).parse(response.data);
     },
   });
 }
 
-export const BootstrapWarehouseSchema = z.object({
-  id: z.number().int(),
-  branch_id: z.number().int().nullish(),
-  code: z.string().nullish(),
-  name: z.string(),
-  status: z.string().nullish(),
-  branch_name: z.string().nullish(),
-  branch_code: z.string().nullish(),
-}).transform((value) => ({
-  id: value.id,
-  branch_id: value.branch_id ?? null,
-  code: value.code ?? '',
-  name: value.name,
-  status: value.status ?? 'active',
-  branch_name: value.branch_name ?? null,
-  branch_code: value.branch_code ?? null,
-}));
+export const BootstrapWarehouseSchema = z
+  .object({
+    id: z.number().int(),
+    branch_id: z.number().int().nullish(),
+    code: z.string().nullish(),
+    name: z.string(),
+    status: z.string().nullish(),
+    branch_name: z.string().nullish(),
+    branch_code: z.string().nullish(),
+  })
+  .transform((value) => ({
+    id: value.id,
+    branch_id: value.branch_id ?? null,
+    code: value.code ?? '',
+    name: value.name,
+    status: value.status ?? 'active',
+    branch_name: value.branch_name ?? null,
+    branch_code: value.branch_code ?? null,
+  }));
 export type BootstrapWarehouse = z.infer<typeof BootstrapWarehouseSchema>;
 
-export const BootstrapCashRegisterSchema = z.object({
-  id: z.number().int(),
-  branch_id: z.number().int().nullish(),
-  code: z.string().nullish(),
-  name: z.string(),
-  branch_name: z.string().nullish(),
-}).transform((value) => ({
-  id: value.id,
-  branch_id: value.branch_id ?? null,
-  code: value.code ?? '',
-  name: value.name,
-  branch_name: value.branch_name ?? null,
-}));
+export const BootstrapCashRegisterSchema = z
+  .object({
+    id: z.number().int(),
+    branch_id: z.number().int().nullish(),
+    code: z.string().nullish(),
+    name: z.string(),
+    branch_name: z.string().nullish(),
+  })
+  .transform((value) => ({
+    id: value.id,
+    branch_id: value.branch_id ?? null,
+    code: value.code ?? '',
+    name: value.name,
+    branch_name: value.branch_name ?? null,
+  }));
 export type BootstrapCashRegister = z.infer<typeof BootstrapCashRegisterSchema>;
 
-export const BootstrapBranchSchema = z.object({
-  id: z.number().int(),
-  code: z.string().nullish(),
-  name: z.string(),
-}).transform((value) => ({
-  id: value.id,
-  code: value.code ?? '',
-  name: value.name,
-}));
+export const BootstrapBranchSchema = z
+  .object({
+    id: z.number().int(),
+    code: z.string().nullish(),
+    name: z.string(),
+  })
+  .transform((value) => ({
+    id: value.id,
+    code: value.code ?? '',
+    name: value.name,
+  }));
 export type BootstrapBranch = z.infer<typeof BootstrapBranchSchema>;
 
-export const BootstrapExchangeRateTypeSchema = z.object({
-  id: z.number().int(),
-  code: z.string().nullish(),
-  name: z.string(),
-  is_default: z.boolean().nullish(),
-}).transform((value) => ({
-  id: value.id,
-  code: value.code ?? '',
-  name: value.name,
-  is_default: value.is_default ?? false,
-}));
+export const BootstrapExchangeRateTypeSchema = z
+  .object({
+    id: z.number().int(),
+    code: z.string().nullish(),
+    name: z.string(),
+    is_default: z.boolean().nullish(),
+  })
+  .transform((value) => ({
+    id: value.id,
+    code: value.code ?? '',
+    name: value.name,
+    is_default: value.is_default ?? false,
+  }));
 export type BootstrapExchangeRateType = z.infer<typeof BootstrapExchangeRateTypeSchema>;
 
-export const BootstrapExchangeRateSchema = z.object({
-  id: z.number().int(),
-  exchange_rate_type_id: z.number().int(),
-  base_currency: z.string(),
-  quote_currency: z.string(),
-  rate: z.number(),
-  effective_at: z.string().nullable().optional(),
-}).passthrough();
+export const BootstrapExchangeRateSchema = z
+  .object({
+    id: z.number().int(),
+    exchange_rate_type_id: z.number().int(),
+    base_currency: z.string(),
+    quote_currency: z.string(),
+    rate: z.number(),
+    effective_at: z.string().nullable().optional(),
+  })
+  .passthrough();
 export type BootstrapExchangeRate = z.infer<typeof BootstrapExchangeRateSchema>;
 
 export const PosBootstrapSchema = z.object({
@@ -548,7 +639,9 @@ export function useBootstrapRefsForPos() {
   return { ...query, refs };
 }
 
-export function useCashSessionsList(filters: { status?: 'open' | 'closed' | 'cancelled'; cashier?: 'me'; perPage?: number } = {}) {
+export function useCashSessionsList(
+  filters: { status?: 'open' | 'closed' | 'cancelled'; cashier?: 'me'; perPage?: number } = {},
+) {
   const params = new URLSearchParams({ per_page: String(filters.perPage ?? 25) });
   if (filters.status) params.set('status', filters.status);
   if (filters.cashier) params.set('cashier_id', filters.cashier);
@@ -592,48 +685,143 @@ export function useWarehousesForPos() {
 export function usePaymentMethods() {
   return useQuery({
     queryKey: posKeys.paymentMethods(),
-    queryFn: async () => z.array(PaymentMethodSchema).parse(await getMany<unknown>('/payment-methods')),
+    queryFn: async () =>
+      z.array(PaymentMethodSchema).parse(await getMany<unknown>('/payment-methods')),
   });
 }
 
 export function usePriceListsForPos() {
   return useQuery({
     queryKey: posKeys.priceLists(),
-    queryFn: async () => z.array(PriceListSchema).parse(await getMany<unknown>('/price-lists?active_only=1')),
+    queryFn: async () =>
+      z.array(PriceListSchema).parse(await getMany<unknown>('/price-lists?active_only=1')),
   });
 }
 
-export async function quoteProductForPos(productId: number, priceListId: number | null): Promise<PosProductQuote> {
+type PosPriceListLike = {
+  id: number;
+  code: string;
+  name: string;
+  is_default?: boolean | null;
+  is_active?: boolean;
+  payment_method_ids?: number[];
+  payment_methods?: PriceList['payment_methods'];
+};
+
+export function mergePosPriceLists<T extends PosPriceListLike>(configured: T[], fallback: T[]): T[] {
+  if (configured.length === 0) return fallback;
+
+  const fallbackById = new Map(fallback.map((list) => [list.id, list] as const));
+
+  return configured.map((list) => {
+    const fallbackList = fallbackById.get(list.id);
+    return {
+      ...fallbackList,
+      ...list,
+      payment_method_ids:
+        list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
+      payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
+    };
+  });
+}
+
+type PosExchangeRateTypeLike = {
+  id: number;
+  code: string;
+  name: string;
+  is_default?: boolean;
+  is_active?: boolean;
+};
+
+export function mergePosExchangeRateTypes(
+  configured: PosExchangeRateTypeLike[],
+  fallback: PosExchangeRateTypeLike[],
+): PosExchangeRateTypeLike[] {
+  if (configured.length === 0) return fallback;
+
+  const fallbackById = new Map(fallback.map((type) => [type.id, type] as const));
+
+  return configured.map((type) => ({
+    ...fallbackById.get(type.id),
+    ...type,
+  }));
+}
+
+export function mergePosExchangeRates(
+  configured: BootstrapExchangeRate[],
+  fallback: BootstrapExchangeRate[],
+): BootstrapExchangeRate[] {
+  if (configured.length === 0) return fallback;
+
+  const fallbackByType = new Map(fallback.map((rate) => [rate.exchange_rate_type_id, rate] as const));
+
+  return configured.map((rate) => ({
+    ...fallbackByType.get(rate.exchange_rate_type_id),
+    ...rate,
+  }));
+}
+
+export function resolvePosOpenSession(
+  configured: CashRegisterSession | null | undefined,
+  fallback: CashRegisterSession[],
+): CashRegisterSession | null {
+  if (configured) return configured;
+  return (
+    fallback.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ??
+    fallback.find((session) => session.status === 'open') ??
+    null
+  );
+}
+
+export async function quoteProductForPos(
+  productId: number,
+  priceListId: number | null,
+): Promise<PosProductQuote> {
   const params = new URLSearchParams();
   if (priceListId) params.set('price_list_id', String(priceListId));
 
-  return PosProductQuoteSchema.parse(await getOne<unknown>(`/products/${productId}/price${params.toString() ? `?${params.toString()}` : ''}`));
+  return PosProductQuoteSchema.parse(
+    await getOne<unknown>(
+      `/products/${productId}/price${params.toString() ? `?${params.toString()}` : ''}`,
+    ),
+  );
 }
 
 export function useExchangeRateTypesForPos() {
   return useQuery({
     queryKey: posKeys.exchangeRateTypes(),
-    queryFn: async () => z.array(ExchangeRateTypeSchema).parse(await getMany<unknown>('/currency/rate-types')),
+    queryFn: async () =>
+      z.array(ExchangeRateTypeSchema).parse(await getMany<unknown>('/currency/rate-types')),
   });
 }
 
 export function useCurrentExchangeRatesForPos() {
   return useQuery({
     queryKey: posKeys.currentRates(),
-    queryFn: async () => z.array(CurrentExchangeRateSchema).parse(await getMany<unknown>('/currency/rates/current')),
+    queryFn: async () =>
+      z.array(CurrentExchangeRateSchema).parse(await getMany<unknown>('/currency/rates/current')),
   });
 }
 
-export function useAvailableProductSerialsForPos(productId: number | null, warehouseId?: number | null) {
+export function useAvailableProductSerialsForPos(
+  productId: number | null,
+  warehouseId?: number | null,
+) {
   return useQuery({
     queryKey: posKeys.productSerials(productId ?? 0, warehouseId),
     queryFn: async () => {
       const params = new URLSearchParams({ status: 'available', limit: '100' });
       if (warehouseId) params.set('warehouse_id', String(warehouseId));
-      const response = await getOne<unknown>(`/inventory-center/products/${productId}/serials?${params.toString()}`);
-      const items = typeof response === 'object' && response && 'data' in response && Array.isArray((response as { data?: unknown }).data)
-        ? (response as { data: unknown[] }).data
-        : [];
+      const response = await getOne<unknown>(
+        `/inventory-center/products/${productId}/serials?${params.toString()}`,
+      );
+      const items =
+        typeof response === 'object' &&
+        response &&
+        'data' in response &&
+        Array.isArray((response as { data?: unknown }).data)
+          ? (response as { data: unknown[] }).data
+          : [];
       return z.array(ProductSerialSchema).parse(items);
     },
     enabled: Number.isFinite(productId) && Number(productId) > 0,
@@ -686,13 +874,15 @@ export const ProductStockContextSchema = z.object({
   warehouse_id: z.number().int(),
   available: z.number(),
   reserved: z.number(),
-  other_warehouses: z.array(z.object({
-    warehouse_id: z.number().int(),
-    warehouse_name: z.string().nullable().optional(),
-    warehouse_code: z.string().nullable().optional(),
-    available: z.number(),
-    reserved: z.number(),
-  })),
+  other_warehouses: z.array(
+    z.object({
+      warehouse_id: z.number().int(),
+      warehouse_name: z.string().nullable().optional(),
+      warehouse_code: z.string().nullable().optional(),
+      available: z.number(),
+      reserved: z.number(),
+    }),
+  ),
   total_other: z.number(),
   total_all_warehouses: z.number(),
 });
@@ -720,7 +910,11 @@ export function useProductStockContext(productId: number | null, warehouseId: nu
       );
       return response.data;
     },
-    enabled: Number.isFinite(productId) && Number(productId) > 0 && Number.isFinite(warehouseId) && Number(warehouseId) > 0,
+    enabled:
+      Number.isFinite(productId) &&
+      Number(productId) > 0 &&
+      Number.isFinite(warehouseId) &&
+      Number(warehouseId) > 0,
     staleTime: 60_000,
   });
 }
@@ -728,7 +922,8 @@ export function useProductStockContext(productId: number | null, warehouseId: nu
 export function useCreatePaymentMethod() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: PaymentMethodPayload) => postOne<PaymentMethodPayload, PaymentMethod>('/payment-methods', payload),
+    mutationFn: async (payload: PaymentMethodPayload) =>
+      postOne<PaymentMethodPayload, PaymentMethod>('/payment-methods', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.paymentMethods() });
     },
@@ -760,7 +955,9 @@ export function useCustomers(search: string) {
   return useQuery({
     queryKey: posKeys.customers(search),
     queryFn: async () => {
-      const response = await getPaginated<unknown>(`/customers?search=${encodeURIComponent(search)}&per_page=8`);
+      const response = await getPaginated<unknown>(
+        `/customers?search=${encodeURIComponent(search)}&per_page=8`,
+      );
       return z.array(CustomerSchema).parse(response.data);
     },
     enabled: search.trim().length >= 2,
@@ -770,7 +967,8 @@ export function useCustomers(search: string) {
 export function useCreateCustomerForPos() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CreateCustomerPayload) => postOne<CreateCustomerPayload, Customer>('/customers', payload),
+    mutationFn: async (payload: CreateCustomerPayload) =>
+      postOne<CreateCustomerPayload, Customer>('/customers', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'customers'] });
     },
@@ -783,6 +981,7 @@ export function useOpenCashSession() {
     mutationFn: async (payload: OpenCashSessionPayload) =>
       postOne<OpenCashSessionPayload, CashRegisterSession>('/cash-register/sessions', payload),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
@@ -792,7 +991,8 @@ export function useOpenCashSession() {
 export function useCreatePosBranch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CreateBranchPayload) => postOne<CreateBranchPayload, unknown>('/branches', payload),
+    mutationFn: async (payload: CreateBranchPayload) =>
+      postOne<CreateBranchPayload, unknown>('/branches', payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'branches'] });
     },
@@ -813,8 +1013,17 @@ export function useCreateCashRegister() {
 export function useAddCashMovement() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ sessionId, payload }: { sessionId: number; payload: CashMovementPayload }) =>
-      postOne<CashMovementPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/movements`, payload),
+    mutationFn: async ({
+      sessionId,
+      payload,
+    }: {
+      sessionId: number;
+      payload: CashMovementPayload;
+    }) =>
+      postOne<CashMovementPayload, CashRegisterSession>(
+        `/cash-register/sessions/${sessionId}/movements`,
+        payload,
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
@@ -825,9 +1034,19 @@ export function useAddCashMovement() {
 export function useCloseCashSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ sessionId, payload }: { sessionId: number; payload: CloseCashSessionPayload }) =>
-      patchOne<CloseCashSessionPayload, CashRegisterSession>(`/cash-register/sessions/${sessionId}/close`, payload),
+    mutationFn: async ({
+      sessionId,
+      payload,
+    }: {
+      sessionId: number;
+      payload: CloseCashSessionPayload;
+    }) =>
+      patchOne<CloseCashSessionPayload, CashRegisterSession>(
+        `/cash-register/sessions/${sessionId}/close`,
+        payload,
+      ),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },

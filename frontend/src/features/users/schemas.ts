@@ -31,6 +31,7 @@ export const UserSchema = z.object({
     name: z.string(),
     slug: z.string(),
     is_group: z.boolean().optional(),
+    status: z.string().optional(),
   })).optional(),
   created_at: z.string().nullable().optional(),
 });
@@ -74,6 +75,7 @@ export type CreateUserInput = z.input<typeof CreateUserInputSchema>;
 
 export const UpdateUserRolesInputSchema = z.object({
   roles: z.array(z.string()).default([]),
+  tenant_id: z.number().int().positive().optional(),
 });
 export type UpdateUserRolesInput = z.input<typeof UpdateUserRolesInputSchema>;
 

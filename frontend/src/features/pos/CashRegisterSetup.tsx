@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -56,6 +57,46 @@ export function CashRegisterSetup() {
   const activeSession = mySessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null;
   const activeRate = bestActiveRate(rates, rateTypes);
   const rateLabel = activeRate ? `${activeRate.code} @ ${formatLocalNumber(activeRate.rate)}` : null;
+  const overviewStats = [
+    {
+      label: 'Tu turno',
+      value: activeSession ? 'Abierto' : 'Sin turno',
+      hint: activeSession
+        ? `${activeSession.cash_register?.name ?? 'Caja fisica'} · ${activeSession.branch?.name ?? 'Sucursal'}`
+        : 'Abre un turno para iniciar operaciones.',
+      tone: activeSession ? 'success' : 'warning',
+    },
+    {
+      label: 'Tasa activa',
+      value: rateLabel ?? 'Sin tasa',
+      hint: activeRate ? 'Se usa para fondos y cierre en VES.' : 'Necesaria para mover efectivo VES.',
+      tone: activeRate ? 'success' : 'warning',
+    },
+    {
+      label: 'Turnos abiertos',
+      value: String(openSessions.length),
+      hint: 'Historial operativo visible ahora.',
+      tone: 'default',
+    },
+    {
+      label: 'Sucursales activas',
+      value: String(branchOptions.length),
+      hint: 'Disponibles para apertura.',
+      tone: 'info',
+    },
+    {
+      label: 'Cajas activas',
+      value: String(registerOptions.length),
+      hint: 'Fisicas disponibles para turno.',
+      tone: 'info',
+    },
+    {
+      label: 'Turnos cerrados',
+      value: String(closedSessions.length),
+      hint: 'Historial reciente.',
+      tone: 'default',
+    },
+  ] as const;
 
   function submitOpen(): void {
     if (!openForm.branch_id || !openForm.cash_register_id) {
@@ -147,99 +188,173 @@ export function CashRegisterSetup() {
       }
     >
       <div className="space-y-4">
-        <CashSessionCard
-          session={activeSession}
-          loading={loadingMySession}
-          branches={branchOptions}
-          registers={registerOptions}
-          canOpen={canOpen}
-          canMove={canMove}
-          canClose={canClose}
-          openForm={openForm}
-          movementForm={movementForm}
-          closeForm={closeForm}
-          rate={activeRate?.rate ?? null}
-          rateLabel={rateLabel}
-          opening={openSession.isPending}
-          moving={addMovement.isPending}
-          closing={closeSession.isPending}
-          onOpenForm={setOpenForm}
-          onMovementForm={setMovementForm}
-          onCloseForm={setCloseForm}
-          onOpen={submitOpen}
-          onMovement={submitMovement}
-          onClose={submitClose}
-        />
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            <div className="border-border/80 border-b bg-gradient-to-br from-primary/10 via-surface to-surface px-5 py-5 lg:px-6 lg:py-6">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div className="max-w-2xl space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="primary">Operacion de caja</Badge>
+                    <Badge variant={activeRate ? 'success' : 'warning'}>{rateLabel ?? 'Sin tasa activa'}</Badge>
+                    <Badge variant={activeSession ? 'success' : 'default'}>{activeSession ? 'Turno abierto' : 'Sin turno abierto'}</Badge>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-semibold tracking-tight text-text-primary lg:text-3xl">Control de turnos y arqueos</h2>
+                    <p className="mt-1 max-w-xl text-sm text-text-muted">
+                      La lógica de apertura, movimientos y cierre se mantiene intacta. Solo reorganizamos la pantalla para que la caja se lea como un panel operativo, no como un formulario largo.
+                    </p>
+                  </div>
+                </div>
 
-        <SessionsBoard
-          title="Turnos abiertos"
-          description="Cajas actualmente pendientes de cierre. Las acciones dependen de permisos y rol."
-          sessions={openSessions}
-          loading={loadingOpenSessions}
-          canClose={canClose}
-          closeForm={closeForm}
-          rate={activeRate?.rate ?? null}
-          closing={closeSession.isPending}
-          onCloseForm={setCloseForm}
-          onClose={submitClose}
-        />
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {overviewStats.map((stat) => (
+                    <OverviewStat key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} tone={stat.tone} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <SessionsBoard
-          title="Turnos cerrados"
-          description="Historial reciente con declarado, esperado y diferencia final."
-          sessions={closedSessions}
-          loading={loadingClosedSessions}
-          canClose={false}
-          closeForm={closeForm}
-          rate={activeRate?.rate ?? null}
-          closing={false}
-          onCloseForm={setCloseForm}
-          onClose={submitClose}
-        />
+        <Tabs defaultValue="operacion" className="space-y-4">
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1 sm:w-fit">
+            <TabsTrigger value="operacion">Operacion</TabsTrigger>
+            <TabsTrigger value="historial">Historial</TabsTrigger>
+            <TabsTrigger value="infraestructura">Infraestructura</TabsTrigger>
+          </TabsList>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <BranchesCard
-            branches={branches}
-            branchOptions={branchOptions}
-            loading={loadingBranches}
-            form={branchForm}
-            creating={createBranch.isPending}
-            onForm={setBranchForm}
-            onCreate={() => {
-              if (!branchForm.name.trim() || !branchForm.code.trim()) {
-                toast.error('Indica nombre y codigo de la sucursal.');
-                return;
-              }
-              createBranch.mutate({
-                name: branchForm.name.trim(),
-                code: branchForm.code.trim().toUpperCase(),
-                status: 'active',
-              }, { onSuccess: () => setBranchForm({ name: '', code: '' }) });
-            }}
-          />
-          <RegistersCard
-            registers={registers}
-            branchOptions={branchOptions}
-            loading={loadingRegisters}
-            form={registerForm}
-            creating={createRegister.isPending}
-            onForm={setRegisterForm}
-            onCreate={() => {
-              if (!registerForm.name.trim() || !registerForm.code.trim() || !registerForm.branch_id) {
-                toast.error('Indica nombre, codigo y sucursal de la caja.');
-                return;
-              }
-              createRegister.mutate({
-                name: registerForm.name.trim(),
-                code: registerForm.code.trim().toUpperCase(),
-                branch_id: Number(registerForm.branch_id),
-                status: 'active',
-              }, { onSuccess: () => setRegisterForm({ name: '', code: '', branch_id: '' }) });
-            }}
-          />
-        </div>
+          <TabsContent value="operacion" className="space-y-4">
+            <div className="grid gap-4">
+              <CashSessionCard
+                session={activeSession}
+                loading={loadingMySession}
+                branches={branchOptions}
+                registers={registerOptions}
+                canOpen={canOpen}
+                canMove={canMove}
+                canClose={canClose}
+                openForm={openForm}
+                movementForm={movementForm}
+                closeForm={closeForm}
+                rate={activeRate?.rate ?? null}
+                rateLabel={rateLabel}
+                opening={openSession.isPending}
+                moving={addMovement.isPending}
+                closing={closeSession.isPending}
+                onOpenForm={setOpenForm}
+                onMovementForm={setMovementForm}
+                onCloseForm={setCloseForm}
+                onOpen={submitOpen}
+                onMovement={submitMovement}
+                onClose={submitClose}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="historial" className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-2">
+              <SessionsBoard
+                title="Turnos abiertos"
+                description="Cajas actualmente pendientes de cierre. Las acciones dependen de permisos y rol."
+                sessions={openSessions}
+                loading={loadingOpenSessions}
+                canClose={canClose}
+                closeForm={closeForm}
+                rate={activeRate?.rate ?? null}
+                closing={closeSession.isPending}
+                onCloseForm={setCloseForm}
+                onClose={submitClose}
+              />
+
+              <SessionsBoard
+                title="Turnos cerrados"
+                description="Historial reciente con declarado, esperado y diferencia final."
+                sessions={closedSessions}
+                loading={loadingClosedSessions}
+                canClose={false}
+                closeForm={closeForm}
+                rate={activeRate?.rate ?? null}
+                closing={false}
+                onCloseForm={setCloseForm}
+                onClose={submitClose}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="infraestructura" className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+              <BranchesCard
+                branches={branches}
+                branchOptions={branchOptions}
+                loading={loadingBranches}
+                form={branchForm}
+                creating={createBranch.isPending}
+                onForm={setBranchForm}
+                onCreate={() => {
+                  if (!branchForm.name.trim() || !branchForm.code.trim()) {
+                    toast.error('Indica nombre y codigo de la sucursal.');
+                    return;
+                  }
+                  createBranch.mutate({
+                    name: branchForm.name.trim(),
+                    code: branchForm.code.trim().toUpperCase(),
+                    status: 'active',
+                  }, { onSuccess: () => setBranchForm({ name: '', code: '' }) });
+                }}
+              />
+              <RegistersCard
+                registers={registers}
+                branchOptions={branchOptions}
+                loading={loadingRegisters}
+                form={registerForm}
+                creating={createRegister.isPending}
+                onForm={setRegisterForm}
+                onCreate={() => {
+                  if (!registerForm.name.trim() || !registerForm.code.trim() || !registerForm.branch_id) {
+                    toast.error('Indica nombre, codigo y sucursal de la caja.');
+                    return;
+                  }
+                  createRegister.mutate({
+                    name: registerForm.name.trim(),
+                    code: registerForm.code.trim().toUpperCase(),
+                    branch_id: Number(registerForm.branch_id),
+                    status: 'active',
+                  }, { onSuccess: () => setRegisterForm({ name: '', code: '', branch_id: '' }) });
+                }}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </PageLayout>
+  );
+}
+
+function OverviewStat({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone: 'success' | 'warning' | 'info' | 'default';
+}) {
+  const badgeVariant: 'outline' | 'success' | 'warning' | 'info' =
+    tone === 'default' ? 'outline' : tone;
+
+  return (
+    <Card className="min-w-[160px] border-border/80 bg-surface/80 shadow-none">
+      <CardContent className="space-y-1 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs uppercase tracking-wide text-text-muted">{label}</p>
+          <Badge variant={badgeVariant}>{tone === 'success' ? 'OK' : tone === 'warning' ? 'Atencion' : tone === 'info' ? 'Dato' : 'Estado'}</Badge>
+        </div>
+        <p className="text-lg font-semibold text-text-primary">{value}</p>
+        <p className="text-xs text-text-muted">{hint}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -304,18 +419,18 @@ function CashSessionCard({
         {loading ? (
           <LoadingLine label="Buscando tu turno abierto..." />
         ) : session ? (
-          <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_520px]">
             <SessionSummary session={session} />
-            <div className="space-y-3 rounded border border-border bg-bg/40 p-3">
+            <div className="space-y-3 rounded-lg border border-border bg-bg/40 p-4 shadow-sm">
               {canMove && (
-                <div className="grid gap-2 sm:grid-cols-[130px_1fr_auto]">
+                <div className="grid gap-2 sm:grid-cols-[120px_1fr_auto]">
                   <Select value={movementForm.type} onChange={(event) => onMovementForm({ ...movementForm, type: event.target.value })}>
                     <option value="inflow">Entrada</option>
                     <option value="outflow">Salida</option>
                     <option value="adjustment">Ajuste</option>
                   </Select>
                   <Input type="number" min="0" value={movementForm.amount} onChange={(event) => onMovementForm({ ...movementForm, amount: event.target.value })} placeholder="Monto USD" />
-                  <Button disabled={moving} onClick={onMovement}>{moving && <Loader2 className="size-4 animate-spin" />} Registrar</Button>
+                  <Button className="whitespace-nowrap" disabled={moving} onClick={onMovement}>{moving && <Loader2 className="size-4 animate-spin" />} Registrar</Button>
                   <Input className="sm:col-span-3" value={movementForm.notes} onChange={(event) => onMovementForm({ ...movementForm, notes: event.target.value })} placeholder="Notas del movimiento" />
                 </div>
               )}
@@ -422,15 +537,25 @@ function SessionsBoard({
 function SessionSummary({ session, compact = false }: { session: CashRegisterSession; compact?: boolean }) {
   return (
     <div className={compact ? '' : 'rounded border border-border bg-bg/40 p-3'}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase text-text-muted">{session.status === 'open' ? 'Caja abierta' : 'Caja cerrada'}</p>
-          <p className="text-lg font-semibold">{session.cash_register?.name ?? 'Caja fisica'}</p>
-          <p className="text-sm text-text-muted">{session.branch?.name ?? 'Sucursal'} - Cajero: {session.cashier?.name ?? session.cashier_id ?? '-'}</p>
-          <p className="text-xs text-text-muted">Abierta {formatDate(session.opened_at)}{session.closed_at ? ` - Cerrada ${formatDate(session.closed_at)}` : ''}</p>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-xs uppercase tracking-wide text-text-muted">{session.status === 'open' ? 'Caja abierta' : 'Caja cerrada'}</p>
+            <p className="break-words text-lg font-semibold leading-tight text-text-primary">{session.cash_register?.name ?? 'Caja fisica'}</p>
+            <p className="break-words text-sm leading-snug text-text-muted">
+              {session.branch?.name ?? 'Sucursal'}
+              <span className="mx-1">·</span>
+              Cajero: {session.cashier?.name ?? session.cashier_id ?? '-'}
+            </p>
+          </div>
+          <Badge variant={session.status === 'open' ? 'success' : 'default'}>{session.status === 'open' ? 'Abierta' : 'Cerrada'}</Badge>
         </div>
+        <p className="text-xs text-text-muted">
+          Abierta {formatDate(session.opened_at)}{session.closed_at ? ` · Cerrada ${formatDate(session.closed_at)}` : ''}
+        </p>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-4">
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
         <Metric label="Fondo USD" value={money(session.opening_base_amount)} />
         <Metric label="Fondo VES" value={localMoney(session.opening_local_amount)} />
         <Metric label="Esperado USD" value={money(session.expected_base_amount)} />
@@ -445,11 +570,11 @@ function SessionSummary({ session, compact = false }: { session: CashRegisterSes
         )}
       </div>
       {session.movements && session.movements.length > 0 && (
-        <div className="mt-4 divide-y divide-border rounded border border-border bg-surface">
+        <div className="mt-4 divide-y divide-border overflow-hidden rounded border border-border bg-surface">
           {session.movements.slice(0, 5).map((movement) => (
-            <div key={movement.id} className="flex items-center justify-between gap-3 p-2 text-sm">
-              <span>{movement.type} - {movement.notes ?? movement.method ?? 'movimiento'}</span>
-              <span className="font-medium">{movement.currency === 'VES' ? localMoney(movement.amount) : money(movement.amount)}</span>
+            <div key={movement.id} className="flex items-start justify-between gap-3 p-3 text-sm">
+              <span className="min-w-0 flex-1 break-words">{movement.type} - {movement.notes ?? movement.method ?? 'movimiento'}</span>
+              <span className="shrink-0 font-medium">{movement.currency === 'VES' ? localMoney(movement.amount) : money(movement.amount)}</span>
             </div>
           ))}
         </div>

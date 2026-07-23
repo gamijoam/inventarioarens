@@ -107,7 +107,7 @@ class PriceListImporter extends BaseImporter
                     ProductPrice::create([
                         'product_id' => $product->id,
                         'price_list_id' => $list->id,
-                        'price' => (float) $priceItem['price'],
+                        'price' => $this->normalizeDecimal($priceItem['price']) ?? 0.0,
                         'currency' => strtoupper($priceItem['currency'] ?? 'USD'),
                         'is_active' => true,
                     ]);

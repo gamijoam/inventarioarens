@@ -20,9 +20,9 @@ class CategoryImporter extends BaseImporter
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
-        $slug = $payload['slug'] ?? null;
+        $slug = $this->normalizeSlug($payload['slug'] ?? null);
         $name = $payload['name'] ?? null;
-        $parentSlug = $payload['parent_slug'] ?? null;
+        $parentSlug = $this->normalizeSlug($payload['parent_slug'] ?? null);
         $description = $payload['description'] ?? null;
         $sortOrder = (int) ($payload['sort_order'] ?? 0);
         $isActive = $this->parseBool($payload['is_active'] ?? null, true);

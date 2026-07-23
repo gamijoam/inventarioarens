@@ -4,11 +4,14 @@ namespace App\Modules\Tenancy\Controllers;
 
 use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Requests\StoreSpinoffRequest;
 use App\Modules\Tenancy\Requests\StoreTenantGroupRequest;
 use App\Modules\Tenancy\Resources\GroupResource;
+use App\Modules\Tenancy\Resources\SpinoffResource;
 use App\Modules\Tenancy\Resources\TenantResource;
 use App\Modules\Tenancy\Services\CrossTenantUserService;
 use App\Modules\Tenancy\Services\TenantRegistrationService;
+use App\Modules\Tenancy\Services\TenantSpinoffService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,6 +22,7 @@ class TenantGroupController extends Controller
     public function __construct(
         private readonly TenantRegistrationService $service,
         private readonly CrossTenantUserService $userService,
+        private readonly TenantSpinoffService $spinoffService,
     ) {}
 
     public function store(StoreTenantGroupRequest $request): JsonResponse
@@ -107,6 +111,20 @@ class TenantGroupController extends Controller
             ]);
 
         return response()->json(['data' => $spinoffs]);
+    }
+
+    public function createSpinoff(StoreSpinoffRequest $request, Tenant $group): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
+
+        $tenant = $this->spinoffService->createSpinoff($group, $request->validated(), $user);
+        $tenant->loadCount('users');
+
+        return SpinoffResource::make($tenant)
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     /**

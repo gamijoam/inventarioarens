@@ -173,6 +173,8 @@ A partir de la Fase 1 (jul-2026), los tenants forman una jerarquía explicita:
 
 **Cross-tenant por diseño** (sin scope): `tenants`, `tenant_user`, `inventory_transfer_requests`, `auth_tokens`.
 
+Al crear un spinoff, el Group Owner creador queda auto-asociado como miembro activo del nuevo tenant para que esa empresa aparezca en `POST /api/auth/tenants`.
+
 En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solicitante que recibirá el stock y `destination_tenant_id` a la empresa que responde y lo suministra. `from_warehouse_id` es el almacén receptor de la solicitante y `destination_warehouse_id` es el almacén de salida de la empresa que responde. Al aceptar, se genera la salida y se retiran los IMEIs en `destination_tenant_id`; luego se genera la entrada y se recrean disponibles en `origin_tenant_id`.
 
 

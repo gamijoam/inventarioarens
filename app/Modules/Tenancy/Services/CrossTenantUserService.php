@@ -87,9 +87,20 @@ class CrossTenantUserService
         $roles = $data['roles'] ?? [];
         $status = $data['status'] ?? 'active';
 
-        $user = $userId
-            ? User::query()->findOrFail($userId)
-            : User::query()->firstOrNew(['email' => $email]);
+        $user = null;
+        if ($userId) {
+            $user = User::query()->find($userId);
+            if (! $user && $email) {
+                $user = User::query()->firstOrNew(['email' => $email]);
+            }
+            if (! $user) {
+                throw ValidationException::withMessages([
+                    'user_id' => 'El usuario seleccionado ya no existe.',
+                ]);
+            }
+        } else {
+            $user = User::query()->firstOrNew(['email' => $email]);
+        }
 
         if (! $user->exists) {
             $user->name = $data['name'] ?? $email ?? 'User';

@@ -151,6 +151,7 @@ class AccessControlApiTest extends TestCase
             ->assertOk()
             ->assertJsonFragment(['email' => $owner->email])
             ->assertJsonFragment(['email' => $spinoffUser->email])
+            ->assertJsonFragment(['name' => 'Administrador'])
             ->assertJsonFragment(['slug' => 'danubio-empresa']);
     }
 
@@ -181,6 +182,7 @@ class AccessControlApiTest extends TestCase
             ->getJson("/api/users/{$spinoffUser->id}?scope=organization")
             ->assertOk()
             ->assertJsonPath('data.email', $spinoffUser->email)
+            ->assertJsonFragment(['name' => 'Administrador'])
             ->assertJsonFragment(['slug' => 'danubio-empresa']);
     }
 
@@ -390,6 +392,60 @@ class AccessControlApiTest extends TestCase
 
         $this->useTenant($tenant);
         $this->assertTrue($admin->hasRole('Administrador'));
+    }
+
+    public function test_update_user_roles_returns_validation_error_when_user_is_not_in_active_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+
+        $operator = $this->userInTenant($tenantA);
+        $target = $this->userInTenant($tenantB);
+
+        $this->grantRole($tenantA, $operator, 'Access Operator', ['users.update', 'users.view']);
+        $this->grantRole($tenantB, $target, 'Vendedor', ['products.view']);
+
+        $this
+            ->actingAs($operator)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->patchJson("/api/users/{$target->id}/roles", [
+                'roles' => ['Vendedor'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['user']);
+    }
+
+    public function test_owner_can_update_roles_in_selected_spinoff_tenant(): void
+    {
+        $group = Tenant::create(['name' => 'Grupo A', 'slug' => 'grupo-a', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Sucursal A',
+            'slug' => 'sucursal-a',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+
+        $owner = $this->userInTenant($group);
+        $owner->tenants()->attach($spinoff, ['status' => 'active']);
+        $this->grantRole($group, $owner, 'Owner', BasePermissions::PERMISSIONS);
+
+        $target = $this->userInTenant($spinoff);
+        $this->grantRole($spinoff, $target, 'Vendedor', ['products.view']);
+        $this->grantRole($spinoff, $target, 'Auditor', ['reports.view']);
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->patchJson("/api/users/{$target->id}/roles", [
+                'tenant_id' => $spinoff->id,
+                'roles' => ['Vendedor'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.roles.0.name', 'Vendedor');
+
+        $this->useTenant($spinoff);
+        $this->assertTrue($target->fresh()->hasRole('Vendedor'));
+        $this->assertFalse($target->fresh()->hasRole('Auditor'));
     }
 
     public function test_roles_and_permissions_seeder_assigns_sales_returns_permissions_in_clean_database(): void

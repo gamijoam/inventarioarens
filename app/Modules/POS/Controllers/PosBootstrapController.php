@@ -79,6 +79,7 @@ class PosBootstrapController extends Controller
                 ->all(),
             'price_lists' => PriceList::query()
                 ->where('is_active', true)
+                ->with(['paymentMethods:id,name,code,method,currency_mode,is_active,sort_order'])
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'code', 'name', 'is_default', 'is_active'])
@@ -87,6 +88,7 @@ class PosBootstrapController extends Controller
                     'code' => $list->code,
                     'name' => $list->name,
                     'is_default' => (bool) $list->is_default,
+                    'payment_method_ids' => $list->paymentMethods->pluck('id')->values(),
                 ])
                 ->all(),
             'exchange_rate_types' => ExchangeRateType::query()

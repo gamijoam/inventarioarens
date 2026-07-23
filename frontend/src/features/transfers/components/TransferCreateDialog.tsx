@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { SingleSelectCombobox } from '@/components/ui/SingleSelectCombobox';
 import {
   useCreateTransfer,
   useProductsForTransfer,
@@ -97,6 +98,19 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     [warehouses],
   );
 
+  const productOptions = useMemo(
+    () =>
+      products.map((p) => ({
+        value: p.id,
+        label: p.name,
+        hint: [p.sku ? `SKU: ${p.sku}` : null, p.barcode ? `BC: ${p.barcode}` : null]
+          .filter((value): value is string => value !== null)
+          .join(' · '),
+        badge: p.tracking_type === 'serialized' ? 'Serializado' : undefined,
+      })),
+    [products],
+  );
+
   function setRow(idx: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
@@ -105,7 +119,11 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
   }
 
-  function pickProduct(idx: number, productId: number) {
+  function pickProduct(idx: number, productId: number | null) {
+    if (productId == null || productId === 0) {
+      setRow(idx, { product_id: null, product_name: '', product_sku: '', tracking_type: 'quantity', serial_units: [] });
+      return;
+    }
     const p = products.find((x) => x.id === productId);
     if (!p) {
       setRow(idx, { product_id: productId, product_name: '', product_sku: '', tracking_type: 'quantity' });
@@ -327,20 +345,14 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_auto]">
                       <div className="space-y-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Producto</label>
-                        <select
-                          className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
-                          value={row.product_id ?? ''}
-                          onChange={(e) => pickProduct(idx, Number(e.target.value))}
-                        >
-                          <option value="">Seleccionar producto...</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                              {p.sku ? ` (${p.sku})` : ''}
-                              {p.tracking_type === 'serialized' ? ' [Serializado]' : ''}
-                            </option>
-                          ))}
-                        </select>
+                        <SingleSelectCombobox
+                          options={productOptions}
+                          value={row.product_id}
+                          onChange={(next) => pickProduct(idx, next == null ? null : Number(next))}
+                          placeholder="Buscar producto por nombre, SKU o barcode..."
+                          emptyMessage="No hay productos activos que coincidan"
+                          aria-label={`Buscar producto de la linea ${idx + 1}`}
+                        />
                         {row.product_sku && (
                           <div className="text-[10px] text-text-muted">SKU: {row.product_sku}</div>
                         )}
@@ -417,5 +429,3 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     </div>
   );
 }
-
-

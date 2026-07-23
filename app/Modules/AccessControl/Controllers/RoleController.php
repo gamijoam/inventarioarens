@@ -7,6 +7,8 @@ use App\Modules\AccessControl\Requests\UpdateRolePermissionsRequest;
 use App\Modules\AccessControl\Requests\UpdateRoleRequest;
 use App\Modules\AccessControl\Resources\RoleResource;
 use App\Modules\AccessControl\Services\AccessControlService;
+use App\Models\User;
+use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -25,7 +27,9 @@ class RoleController extends Controller
     {
         $this->authorizePermission($request, 'roles.view');
 
-        return RoleResource::collection($this->service->roles()->paginate(25));
+        $tenant = $this->resolveTargetTenant($request);
+
+        return RoleResource::collection($this->service->roles($tenant)->paginate(25));
     }
 
     public function store(StoreRoleRequest $request): JsonResponse
@@ -133,6 +137,32 @@ class RoleController extends Controller
     private function currentTenantId(): int
     {
         return (int) app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+    }
+
+    private function resolveTargetTenant(Request $request): ?Tenant
+    {
+        $tenantId = $request->integer('tenant_id');
+        if (! $tenantId) {
+            return null;
+        }
+
+        $tenant = Tenant::query()->findOrFail($tenantId);
+        $actor = $request->user();
+        abort_unless($actor instanceof User, Response::HTTP_FORBIDDEN);
+
+        if ($tenant->isGroup()) {
+            abort_unless($actor->isOwnerOf($tenant), Response::HTTP_FORBIDDEN);
+
+            return $tenant;
+        }
+
+        $parent = $tenant->parent()->first();
+        abort_unless(
+            $actor->belongsToTenant($tenant) || ($parent !== null && $actor->isOwnerOf($parent)),
+            Response::HTTP_FORBIDDEN,
+        );
+
+        return $tenant;
     }
 
     private function authorizePermission(Request $request, string $permission): void

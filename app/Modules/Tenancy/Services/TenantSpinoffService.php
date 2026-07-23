@@ -91,7 +91,15 @@ class TenantSpinoffService
                     ]);
                 }
 
+                $this->seedBaseRoles($tenant);
+
                 $admin = $this->upsertAdmin($tenant, $data['admin']);
+
+                $actor->tenants()->syncWithoutDetaching([
+                    $tenant->id => ['status' => 'active'],
+                ]);
+
+                $this->assignAdminRole($tenant, $actor);
 
                 $this->audit->record('tenant.spun_off_from_group', $tenant, $actor, null, [
                     'name' => $tenant->name,
@@ -181,5 +189,55 @@ class TenantSpinoffService
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return $user;
+    }
+
+    public function seedBaseRoles(Tenant $tenant): void
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        foreach (BasePermissions::ROLE_PERMISSIONS as $roleName => $permissions) {
+            foreach ($permissions as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
+
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where($teamColumn, $tenant->id)
+                ->first();
+
+            if (! $role) {
+                $role = Role::create([
+                    'name' => $roleName,
+                    'guard_name' => 'web',
+                    $teamColumn => $tenant->id,
+                ]);
+            }
+
+            $role->syncPermissions(
+                Permission::query()
+                    ->whereIn('name', $permissions)
+                    ->where('guard_name', 'web')
+                    ->get()
+            );
+        }
+    }
+
+    private function assignAdminRole(Tenant $tenant, User $user): void
+    {
+        $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        $role = Role::query()
+            ->where('name', 'Administrador')
+            ->where($teamColumn, $tenant->id)
+            ->first();
+
+        if (! $role) {
+            return;
+        }
+
+        setPermissionsTeamId($tenant->id);
+        $user->assignRole($role);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

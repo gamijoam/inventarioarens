@@ -6,7 +6,10 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\DataImport\Importers\CustomerImporter;
+use App\Modules\DataImport\Importers\BrandImporter;
+use App\Modules\DataImport\Importers\CategoryImporter;
 use App\Modules\DataImport\Importers\ProductImporter;
+use App\Modules\DataImport\Importers\TagImporter;
 use App\Modules\DataImport\Importers\SupplierImporter;
 use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\ProductEntries\Models\ProductEntry;
@@ -142,6 +145,41 @@ class CustomerProductSupplierImportersTest extends TestCase
         $this->assertSame(ImportRowResult::STATUS_SKIPPED, $results[0]->status);
     }
 
+    public function test_brand_importer_slugifies_slug_from_text_value(): void
+    {
+        $path = $this->writeCsv('brands.csv', "slug,name,description,is_active\nAccesorios de computadoras,Accesorios de computadoras,,,true\n");
+
+        $results = $this->results((new BrandImporter)->import($path));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
+        $this->assertDatabaseHas('brands', ['slug' => 'accesorios-de-computadoras', 'name' => 'Accesorios de computadoras']);
+    }
+
+    public function test_category_importer_slugifies_slug_and_parent_slug(): void
+    {
+        $path = $this->writeCsv(
+            'categories.csv',
+            "slug,name,parent_slug,description,sort_order,is_active\nElectronica,Electronica,,,,true\nAccesorios de computadoras,Accesorios de computadoras,ELECTRONICA,,,true\n"
+        );
+
+        $results = $this->results((new CategoryImporter)->import($path));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[1]->status);
+        $this->assertDatabaseHas('categories', ['slug' => 'electronica', 'name' => 'Electronica']);
+        $this->assertDatabaseHas('categories', ['slug' => 'accesorios-de-computadoras', 'name' => 'Accesorios de computadoras']);
+    }
+
+    public function test_tag_importer_slugifies_slug_from_text_value(): void
+    {
+        $path = $this->writeCsv('tags.csv', "slug,name,color\nPromocion Especial,Promocion Especial,#00FF00\n");
+
+        $results = $this->results((new TagImporter)->import($path));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
+        $this->assertDatabaseHas('tags', ['slug' => 'promocion-especial', 'name' => 'Promocion Especial']);
+    }
+
     public function test_product_importer_creates_simple_product(): void
     {
         $path = $this->writeCsv('products.csv', "sku,name,barcode,base_price\nSKU-001,Camisa Negra,7501234567890,15.50\n");
@@ -157,6 +195,22 @@ class CustomerProductSupplierImportersTest extends TestCase
             'base_price' => '15.5000',
             'tracking_type' => 'quantity',
             'is_active' => true,
+        ]);
+    }
+
+    public function test_product_importer_parses_decimal_comma_values(): void
+    {
+        $path = $this->writeCsv('products.csv', "sku,name,base_price,min_stock,max_stock,reorder_quantity\nSKU-COMMA,Producto coma,\"2,5\",\"1,5\",\"10,25\",\"7,5\"\n");
+
+        $results = $this->results((new ProductImporter)->import($path));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status, json_encode($results[0]->errors ?? []));
+        $this->assertDatabaseHas('products', [
+            'sku' => 'SKU-COMMA',
+            'base_price' => '2.5000',
+            'min_stock' => '1.5000',
+            'max_stock' => '10.2500',
+            'reorder_quantity' => '7.5000',
         ]);
     }
 
@@ -181,6 +235,32 @@ class CustomerProductSupplierImportersTest extends TestCase
         $this->assertSame($brand->id, $product->brand_id);
         $this->assertCount(2, $product->categories);
         $this->assertCount(1, $product->tags);
+    }
+
+    public function test_product_importer_resolves_uppercase_brand_categories_and_tags_slugs(): void
+    {
+        $brand = Brand::create(['slug' => 'samsung', 'name' => 'Samsung', 'is_active' => true]);
+        $cat1 = Category::create(['slug' => 'electronica', 'name' => 'Electronica', 'is_active' => true]);
+        $cat2 = Category::create(['slug' => 'celulares', 'name' => 'Celulares', 'parent_id' => $cat1->id, 'is_active' => true]);
+        $tag = Tag::create(['slug' => 'nuevo', 'name' => 'Nuevo']);
+
+        $path = $this->writeCsv(
+            'products.csv',
+            "sku,name,brand_slug,category_slugs,tag_slugs,base_price\nSKU-UP,Galaxy S24,SAMSUNG,ELECTRONICA|Celulares,NUEVO,500.00\n"
+        );
+
+        $results = $this->results((new ProductImporter)->import($path));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
+
+        $product = Product::query()->where('sku', 'SKU-UP')->first();
+        $this->assertNotNull($product);
+        $this->assertSame($brand->id, $product->brand_id);
+        $this->assertCount(2, $product->categories);
+        $this->assertCount(1, $product->tags);
+        $this->assertTrue($product->categories->contains('id', $cat1->id));
+        $this->assertTrue($product->categories->contains('id', $cat2->id));
+        $this->assertTrue($product->tags->contains('id', $tag->id));
     }
 
     public function test_product_importer_fails_when_brand_not_found(): void

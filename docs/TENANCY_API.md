@@ -349,6 +349,9 @@ curl -X POST https://app.miinventariofacil.com/api/groups/arens-holding/tenants 
   }'
 
 # Response 201 con el spinoff.
+# El Group Owner que lo crea queda como miembro activo del nuevo tenant,
+# para que también aparezca en el selector de empresas.
+# El spinoff nace con los 6 roles base del sistema semillados para ese tenant.
 
 # === Paso 6: el admin del spinoff hace login ===
 curl -X POST https://app.miinventariofacil.com/api/auth/login \

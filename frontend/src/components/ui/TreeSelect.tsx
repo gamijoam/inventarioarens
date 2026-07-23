@@ -10,7 +10,7 @@
  *   - Al final del nombre se muestra el breadcrumb (full_path) si difiere.
  */
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { Checkbox } from './Checkbox';
 
@@ -51,6 +51,20 @@ export function TreeSelect({
     visit(nodes, 0);
     return initial;
   });
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      const visit = (ns: TreeSelectNode[], depth: number) => {
+        for (const n of ns) {
+          if (depth < 1) next.add(n.id);
+          if (n.children) visit(n.children, depth + 1);
+        }
+      };
+      visit(nodes, 0);
+      return next;
+    });
+  }, [nodes]);
 
   const toggleExpand = (id: string | number) => {
     setExpanded((prev) => {

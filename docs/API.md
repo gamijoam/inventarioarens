@@ -4263,6 +4263,7 @@ Body:
 Reglas:
 
 - no se puede quitar el ultimo rol `Owner` o `Administrador` activo de la empresa;
+- opcionalmente acepta `tenant_id` para operar sobre otra empresa del mismo grupo;
 - la accion queda registrada en `audit_logs`.
 
 ### Ver permisos efectivos del usuario
@@ -4288,6 +4289,8 @@ Permiso requerido:
 ```txt
 roles.view
 ```
+
+Opcionalmente admite `?tenant_id=` para listar los roles de una empresa hija dentro de la misma organizacion.
 
 ### Crear rol
 

@@ -13,7 +13,7 @@
  *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
 import { type UseFormReturn } from 'react-hook-form';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link2, Tag as TagIcon, Tags as TagsIcon } from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
@@ -105,6 +105,13 @@ export function ProductForm({
       ...rateTypes.map((r) => ({ value: String(r.id), label: `${r.code} (${r.name})` })),
     ],
     [rateTypes],
+  );
+
+  const [categorySearch, setCategorySearch] = useState('');
+
+  const filteredCategoryTree = useMemo(
+    () => filterTreeByName(categoryTree as unknown as TreeLike[], categorySearch),
+    [categoryTree, categorySearch],
   );
 
   // Tags son dinámicos; el form mantiene un array de IDs pero necesitamos los
@@ -199,9 +206,9 @@ export function ProductForm({
             <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
           )}
         </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label>Categorías</Label>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Categorías</Label>
             <InlineCatalogCreate
               kind="category"
               onCreated={() => {
@@ -211,16 +218,28 @@ export function ProductForm({
               }}
             />
           </div>
+          <div className="space-y-1.5">
+            <Input
+              value={categorySearch}
+              onChange={(e) => setCategorySearch(e.target.value)}
+              placeholder="Buscar categoría por nombre..."
+            />
+            {categorySearch.trim() && (
+              <p className="text-xs text-text-muted">
+                Mostrando coincidencias para “{categorySearch.trim()}”.
+              </p>
+            )}
+          </div>
           <Controller
             control={form.control}
             name="category_ids"
             render={({ field }) => {
-              const tree = categoryTree as unknown as TreeLike[];
               return (
                 <TreeSelect
-                  nodes={tree.map(toNode)}
+                  nodes={filteredCategoryTree.map(toNode)}
                   value={field.value ?? []}
                   onChange={(v) => field.onChange(v)}
+                  emptyMessage={categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'}
                 />
               );
             }}
@@ -437,6 +456,29 @@ function SwitchField({
 
 interface TreeLike { id: number; name: string; children?: unknown[] }
 interface TreeNode { id: number; label: string; children?: TreeNode[] }
+
+function filterTreeByName(nodes: TreeLike[], query: string): TreeLike[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return nodes;
+
+  const visit = (node: TreeLike): TreeLike | null => {
+    const matches = node.name.toLowerCase().includes(q);
+    const children = (node.children as TreeLike[] | undefined)
+      ?.map((child) => visit(child))
+      .filter((child): child is TreeLike => child !== null) ?? [];
+
+    if (!matches && children.length === 0) return null;
+
+    return {
+      ...node,
+      children: children.length > 0 ? children : undefined,
+    };
+  };
+
+  return nodes
+    .map((node) => visit(node))
+    .filter((node): node is TreeLike => node !== null);
+}
 
 const toNode = (c: TreeLike): TreeNode => ({
   id: c.id,

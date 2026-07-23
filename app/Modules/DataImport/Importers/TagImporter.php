@@ -20,7 +20,7 @@ class TagImporter extends BaseImporter
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
-        $slug = $payload['slug'] ?? null;
+        $slug = $this->normalizeSlug($payload['slug'] ?? null);
         $name = $payload['name'] ?? null;
         $color = $payload['color'] ?? null;
 

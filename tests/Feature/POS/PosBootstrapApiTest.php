@@ -83,13 +83,16 @@ class PosBootstrapApiTest extends TestCase
             'is_active' => true,
         ]);
 
-        PaymentMethod::create([
+        $paymentMethod = PaymentMethod::create([
             'code' => 'CASH-POS',
             'name' => 'Efectivo POS',
             'method' => 'cash',
             'currency_mode' => PaymentMethod::CURRENCY_FLEXIBLE,
             'is_active' => true,
             'sort_order' => 1,
+        ]);
+        $listDefault->paymentMethods()->sync([
+            $paymentMethod->id => ['tenant_id' => $tenant->id],
         ]);
 
         $response = $this
@@ -105,6 +108,7 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonPath('cash_registers.0.code', 'CR-POS')
             ->assertJsonCount(2, 'price_lists')
             ->assertJsonPath('price_lists.0.is_default', true)
+            ->assertJsonPath('price_lists.0.payment_method_ids.0', $paymentMethod->id)
             ->assertJsonCount(1, 'exchange_rate_types')
             ->assertJsonCount(1, 'exchange_rates')
             ->assertJsonPath('exchange_rates.0.rate', 36.5)

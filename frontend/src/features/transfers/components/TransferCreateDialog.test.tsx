@@ -40,27 +40,19 @@ vi.mock('sonner', () => ({
 
 import { TransferCreateDialog } from './TransferCreateDialog';
 
-function getComboboxes(): HTMLSelectElement[] {
-  return screen.getAllByRole('combobox');
-}
-
 function getWarehouseSelect(which: 'from' | 'to'): HTMLSelectElement {
   // 0: from warehouse, 1: to warehouse, 2: validation_mode, 3: product (cuando hay items)
-  const selects = getComboboxes();
+  const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
   const idx = which === 'from' ? 0 : 1;
   const el = selects[idx];
   if (!el) throw new Error(`Warehouse ${which} select not found`);
   return el;
 }
 
-function getProductSelect(): HTMLSelectElement {
-  // Validamos longitud >= 4 porque hay from + to + validation_mode + product + (IMEI type en serialized)
-  const all = getComboboxes();
-  const productSelect = all.find((s) =>
-    Array.from(s.options).some((o) => o.textContent?.includes('PRODUCTO A')),
-  );
-  if (!productSelect) throw new Error('Product select no encontrado');
-  return productSelect;
+function getProductInput(): HTMLInputElement {
+  const input = screen.getByLabelText(/Buscar producto de la linea 1/i);
+  if (!(input instanceof HTMLInputElement)) throw new Error('Product input no encontrado');
+  return input;
 }
 
 describe('TransferCreateDialog', () => {
@@ -75,7 +67,8 @@ describe('TransferCreateDialog', () => {
 
     await userEvent.selectOptions(getWarehouseSelect('from'), '1');
     await userEvent.selectOptions(getWarehouseSelect('to'), '1');
-    await userEvent.selectOptions(getProductSelect(), '100');
+    await userEvent.type(getProductInput(), 'PRODUCTO A');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO A/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));
 
@@ -88,7 +81,8 @@ describe('TransferCreateDialog', () => {
   it('bloquea submit si falta almacen origen', async () => {
     render(<TransferCreateDialog open onOpenChange={vi.fn()} />);
     await userEvent.selectOptions(getWarehouseSelect('to'), '2');
-    await userEvent.selectOptions(getProductSelect(), '100');
+    await userEvent.type(getProductInput(), 'PRODUCTO A');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO A/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));
 
@@ -101,7 +95,8 @@ describe('TransferCreateDialog', () => {
   it('bloquea submit si falta almacen destino', async () => {
     render(<TransferCreateDialog open onOpenChange={vi.fn()} />);
     await userEvent.selectOptions(getWarehouseSelect('from'), '1');
-    await userEvent.selectOptions(getProductSelect(), '100');
+    await userEvent.type(getProductInput(), 'PRODUCTO A');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO A/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));
 
@@ -118,7 +113,8 @@ describe('TransferCreateDialog', () => {
 
     await userEvent.selectOptions(getWarehouseSelect('from'), '1');
     await userEvent.selectOptions(getWarehouseSelect('to'), '2');
-    await userEvent.selectOptions(getProductSelect(), '100');
+    await userEvent.type(getProductInput(), 'PRODUCTO A');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO A/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));
 
@@ -139,7 +135,8 @@ describe('TransferCreateDialog', () => {
 
     await userEvent.selectOptions(getWarehouseSelect('from'), '1');
     await userEvent.selectOptions(getWarehouseSelect('to'), '2');
-    await userEvent.selectOptions(getProductSelect(), '200');
+    await userEvent.type(getProductInput(), 'PRODUCTO B');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO B/i }));
     // product 200 es serialized, quantity arranca en 1, falta IMEI.
 
     fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));

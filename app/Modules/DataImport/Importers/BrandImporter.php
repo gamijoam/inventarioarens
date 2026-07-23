@@ -20,7 +20,7 @@ class BrandImporter extends BaseImporter
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
-        $slug = $payload['slug'] ?? null;
+        $slug = $this->normalizeSlug($payload['slug'] ?? null);
         $name = $payload['name'] ?? null;
         $description = $payload['description'] ?? null;
         $isActiveRaw = $payload['is_active'] ?? null;

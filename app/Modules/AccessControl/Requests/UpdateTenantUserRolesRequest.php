@@ -9,6 +9,7 @@ class UpdateTenantUserRolesRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'roles' => ['required', 'array'],
             'roles.*' => ['required', 'string', 'max:150'],
         ];

@@ -2,12 +2,14 @@
 
 namespace App\Modules\AccessControl\Controllers;
 
+use App\Models\User;
 use App\Modules\AccessControl\Requests\StoreTenantUserRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserRolesRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserStatusRequest;
 use App\Modules\AccessControl\Resources\TenantUserResource;
 use App\Modules\AccessControl\Services\AccessControlService;
+use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -94,8 +96,13 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.update');
 
+        $tenant = $this->resolveTargetTenant($request->user(), $request->validated('tenant_id'));
+        $user = $tenant
+            ? $this->service->tenantUserIn($tenant, $tenantUser)
+            : $this->service->tenantUser($tenantUser);
+
         return TenantUserResource::make(
-            $this->service->updateUserRoles($this->service->tenantUser($tenantUser), $request->validated('roles'), $request->user())
+            $this->service->updateUserRoles($user, $request->validated('roles'), $request->user(), $tenant)
         );
     }
 
@@ -115,5 +122,21 @@ class TenantUserController extends Controller
     private function authorizePermission(Request $request, string $permission): void
     {
         abort_unless($request->user()?->can($permission), Response::HTTP_FORBIDDEN);
+    }
+
+    private function resolveTargetTenant(?User $actor, ?int $tenantId): ?Tenant
+    {
+        if ($tenantId === null) {
+            return null;
+        }
+
+        $tenant = Tenant::query()->findOrFail($tenantId);
+        abort_unless($actor instanceof User, Response::HTTP_FORBIDDEN);
+
+        $allowedTenantIds = $this->service->organizationTenantIdsForCurrentTenant($actor);
+
+        abort_unless(in_array($tenant->id, $allowedTenantIds, true), Response::HTTP_FORBIDDEN);
+
+        return $tenant;
     }
 }

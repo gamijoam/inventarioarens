@@ -57,6 +57,27 @@ type UsersSearch = { scope: 'tenant' | 'organization' };
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
+  { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
+  {
+    to: '/sales-returns',
+    label: 'Devoluciones',
+    icon: RotateCcw,
+    permission: PERMISSIONS.SALES_RETURNS_VIEW,
+  },
+  { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW },
+  {
+    to: '/cash-register',
+    label: 'Cajas',
+    icon: Banknote,
+    permission: PERMISSIONS.CASH_REGISTER_VIEW,
+  },
+  {
+    to: '/receivables',
+    label: 'Cuentas por cobrar',
+    icon: Wallet,
+    permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
+  },
   {
     to: '/inventory',
     label: 'Inventario',
@@ -89,40 +110,19 @@ const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
-  {
-    to: '/sales-returns',
-    label: 'Devoluciones',
-    icon: RotateCcw,
-    permission: PERMISSIONS.SALES_RETURNS_VIEW,
-  },
-  { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
-  {
-    to: '/printing',
-    label: 'Impresion',
-    icon: Printer,
-    permission: PERMISSIONS.PRINTING_VIEW,
-  },
-  {
-    to: '/cash-register',
-    label: 'Cajas',
-    icon: Banknote,
-    permission: PERMISSIONS.CASH_REGISTER_VIEW,
-  },
-  {
-    to: '/payment-methods',
-    label: 'Metodos de pago',
-    icon: CreditCard,
-    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
-  },
-  { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW },
+  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW },
   {
     to: '/suppliers',
     label: 'Proveedores',
     icon: Building,
     permission: PERMISSIONS.SUPPLIERS_VIEW,
   },
-  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW },
+  {
+    to: '/payables',
+    label: 'Cuentas por pagar',
+    icon: Receipt,
+    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
+  },
   {
     to: '/transfers',
     label: 'Traslados',
@@ -134,18 +134,6 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Solicitudes inter-empresa',
     icon: Building2,
     permission: PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW,
-  },
-  {
-    to: '/receivables',
-    label: 'Cuentas por cobrar',
-    icon: Wallet,
-    permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
-  },
-  {
-    to: '/payables',
-    label: 'Cuentas por pagar',
-    icon: Receipt,
-    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
   },
   {
     to: '/warranties',
@@ -160,6 +148,18 @@ const NAV_ITEMS: NavItem[] = [
     permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
   },
   {
+    to: '/printing',
+    label: 'Impresion',
+    icon: Printer,
+    permission: PERMISSIONS.PRINTING_VIEW,
+  },
+  {
+    to: '/payment-methods',
+    label: 'Metodos de pago',
+    icon: CreditCard,
+    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
+  },
+  {
     to: '/import',
     label: 'Importar datos',
     icon: Upload,
@@ -171,7 +171,7 @@ const NAV_ITEMS: NavItem[] = [
     to: '/users',
     label: 'Acceso',
     icon: ShieldCheck,
-    permission: PERMISSIONS.USERS_VIEW,
+    permissionAny: [PERMISSIONS.USERS_VIEW, PERMISSIONS.ROLES_VIEW, PERMISSIONS.TENANTS_VIEW],
     children: [
       { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
       {
@@ -256,15 +256,16 @@ export function Sidebar() {
                 currentPath === item.to || currentPath.startsWith(`${item.to}/`);
               return (
                 <li key={item.to}>
-                  <Can I={item.permission ?? ''} fallback={null}>
+                  <NavItemAccess item={item}>
                     <Group
                       item={item}
                       isParentActive={isParentActive}
                       currentPath={currentPath}
                       collapsed={collapsed}
                       usersScope={usersScope}
+                      shouldHideOrgItem={shouldHideOrgItem}
                     />
-                  </Can>
+                  </NavItemAccess>
                 </li>
               );
             }
@@ -295,15 +296,7 @@ export function Sidebar() {
 
             return (
               <li key={item.to}>
-                {item.permissionAny ? (
-                  <CanAny permissions={item.permissionAny}>{linkContent}</CanAny>
-                ) : item.permission ? (
-                  <Can I={item.permission} fallback={null}>
-                    {linkContent}
-                  </Can>
-                ) : (
-                  linkContent
-                )}
+                <NavItemAccess item={item}>{linkContent}</NavItemAccess>
               </li>
             );
           })}
@@ -349,6 +342,22 @@ function CanAny({ permissions, children }: { permissions: string[]; children: Re
   return useCanAny(permissions) ? <>{children}</> : null;
 }
 
+function NavItemAccess({ item, children }: { item: NavItem; children: React.ReactNode }) {
+  if (item.permissionAny) {
+    return <CanAny permissions={item.permissionAny}>{children}</CanAny>;
+  }
+
+  if (item.permission) {
+    return (
+      <Can I={item.permission} fallback={null}>
+        {children}
+      </Can>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 /**
  * Group: renderiza un NavItem que tiene children como un submenu colapsable.
  * Cuando el usuario esta en una ruta del grupo, el submenu se expande.
@@ -359,14 +368,19 @@ function Group({
   currentPath,
   collapsed,
   usersScope,
+  shouldHideOrgItem,
 }: {
   item: NavItem;
   isParentActive: boolean;
   currentPath: string;
   collapsed: boolean;
   usersScope: UsersSearch['scope'];
+  shouldHideOrgItem: boolean;
 }) {
   const [open, setOpen] = useState(isParentActive);
+  const visibleChildren = item.children!.filter((sub) =>
+    sub.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
+  );
 
   // Si el padre se vuelve activo (navigate), abrimos el submenu.
   if (isParentActive && !open) {
@@ -430,24 +444,28 @@ function Group({
       </div>
       {open && (
         <ul className="border-border mt-0.5 ml-4 space-y-0.5 border-l pl-2">
-          {item.children!.map((sub) => {
+          {visibleChildren.map((sub) => {
             const isSubActive = currentPath === sub.to;
+            const linkContent = (
+              <Link
+                to={sub.to}
+                search={sub.to === '/users' ? { scope: usersScope } : undefined}
+                className={cn(
+                  'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
+                  isSubActive
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-text-secondary hover:bg-bg hover:text-text-primary',
+                )}
+                aria-current={isSubActive ? 'page' : undefined}
+              >
+                <sub.icon className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{sub.label}</span>
+              </Link>
+            );
+
             return (
               <li key={sub.to}>
-                <Link
-                  to={sub.to}
-                  search={sub.to === '/users' ? { scope: usersScope } : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
-                    isSubActive
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-text-secondary hover:bg-bg hover:text-text-primary',
-                  )}
-                  aria-current={isSubActive ? 'page' : undefined}
-                >
-                  <sub.icon className="size-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{sub.label}</span>
-                </Link>
+                <NavItemAccess item={sub}>{linkContent}</NavItemAccess>
               </li>
             );
           })}

@@ -36,8 +36,13 @@ class ProductController extends Controller
         $normalizedSearch = mb_strtolower($search);
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
 
+        $relations = ['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'];
+        if ($request->boolean('with_images')) {
+            $relations[] = 'images.variants';
+        }
+
         $query = Product::query()
-            ->with(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'])
+            ->with($relations)
             ->withCount('units');
 
         // Suma de stock_balances.quantity_available. Usamos SIEMPRE el
@@ -66,6 +71,26 @@ class ProductController extends Controller
                     ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
                     ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"]);
             });
+
+            $query->orderByRaw(
+                'CASE
+                    WHEN LOWER(COALESCE(barcode, \'\')) = ? THEN 0
+                    WHEN LOWER(COALESCE(sku, \'\')) = ? THEN 1
+                    WHEN LOWER(COALESCE(name, \'\')) = ? THEN 2
+                    WHEN LOWER(COALESCE(barcode, \'\')) LIKE ? THEN 3
+                    WHEN LOWER(COALESCE(sku, \'\')) LIKE ? THEN 4
+                    WHEN LOWER(COALESCE(name, \'\')) LIKE ? THEN 5
+                    ELSE 6
+                END',
+                [
+                    $normalizedSearch,
+                    $normalizedSearch,
+                    $normalizedSearch,
+                    "%{$normalizedSearch}%",
+                    "%{$normalizedSearch}%",
+                    "%{$normalizedSearch}%",
+                ]
+            );
         }
 
         if ($request->filled('brand_id')) {
@@ -90,9 +115,13 @@ class ProductController extends Controller
             $query->where('is_active', true);
         }
 
-        return ProductResource::collection(
-            $query->orderBy('name')->paginate($limit)
-        );
+        if ($search === '') {
+            $query->orderBy('name');
+        } else {
+            $query->orderBy('name');
+        }
+
+        return ProductResource::collection($query->paginate($limit));
     }
 
     public function store(StoreProductRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse

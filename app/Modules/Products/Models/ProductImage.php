@@ -110,7 +110,9 @@ class ProductImage extends Model
      */
     public function mediumUrl(): string
     {
-        $variant = $this->variants()->where('variant', 'medium')->first();
+        $variant = $this->relationLoaded('variants')
+            ? $this->variants->firstWhere('variant', 'medium')
+            : $this->variants()->where('variant', 'medium')->first();
         $rel = $variant?->storage_path ?? $this->storage_path;
 
         return $this->storagePublicUrl($rel);
@@ -121,7 +123,9 @@ class ProductImage extends Model
      */
     public function thumbUrl(): string
     {
-        $variant = $this->variants()->where('variant', 'thumb')->first();
+        $variant = $this->relationLoaded('variants')
+            ? $this->variants->firstWhere('variant', 'thumb')
+            : $this->variants()->where('variant', 'thumb')->first();
         $rel = $variant?->storage_path ?? $this->storage_path;
 
         return $this->storagePublicUrl($rel);

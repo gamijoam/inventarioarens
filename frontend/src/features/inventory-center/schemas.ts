@@ -48,10 +48,7 @@ export const CategorySchema: z.ZodType<Category> = z.lazy(() =>
     sort_order: z.number().int().optional(),
     is_active: z.boolean(),
     full_path: z.string().optional(),
-    parent: z
-      .object({ id: z.number(), name: z.string(), slug: z.string() })
-      .nullable()
-      .optional(),
+    parent: z.object({ id: z.number(), name: z.string(), slug: z.string() }).nullable().optional(),
     children: z.array(CategorySchema).optional(),
     products_count: z.number().int().nonnegative().optional(),
   }),
@@ -365,6 +362,28 @@ const ProductTagRefSchema = z.object({
   color: z.string().nullable().optional(),
 });
 
+// Imagenes de producto (Nivel 2 - Sprint de galería multi-imagen)
+// Se define antes de ProductSchema porque el listado de productos puede
+// incluir thumbnails cuando POS pide `with_images=1`.
+export const ProductImageSchema = z.object({
+  id: z.number().int().positive(),
+  uuid: z.string(),
+  product_id: z.number().int().positive().optional(),
+  mime: z.string().optional(),
+  size: z.number().int().nonnegative().optional(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
+  alt: z.string().nullable().optional(),
+  sort: z.number().int().nonnegative(),
+  is_primary: z.boolean(),
+  url: z.string(),
+  thumb_url: z.string(),
+  medium_url: z.string(),
+  original_name: z.string().nullable().optional(),
+  uploaded_at: z.string().nullable().optional(),
+});
+export type ProductImage = z.infer<typeof ProductImageSchema>;
+
 /**
  * Schema del producto en respuesta del backend.
  *
@@ -388,6 +407,8 @@ export const ProductSchema = z.object({
   description: z.string().nullable().optional(),
   long_description: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  images: z.array(ProductImageSchema).optional(),
+  primary_image_url: z.string().nullable().optional(),
   tracking_type: z.enum(TRACKING_TYPES),
   unit_of_measure: z.enum(UNITS_OF_MEASURE).optional(),
   track_stock: z.boolean().optional(),
@@ -403,7 +424,13 @@ export const ProductSchema = z.object({
   sale_currency: z.enum(SALE_CURRENCIES).nullable().optional(),
   sale_exchange_rate_type_id: z.number().int().nullable().optional(),
   sale_exchange_rate_type: z
-    .object({ id: z.number(), code: z.string(), name: z.string(), is_default: z.boolean(), is_active: z.boolean() })
+    .object({
+      id: z.number(),
+      code: z.string(),
+      name: z.string(),
+      is_default: z.boolean(),
+      is_active: z.boolean(),
+    })
     .nullable()
     .optional(),
   // Stock levels: number | string (toleramos ambos), null permitido.
@@ -419,7 +446,12 @@ export const ProductSchema = z.object({
   average_cost_visible: z.boolean().optional(),
   warranty_policy_id: z.number().int().nullable().optional(),
   warranty_policy: z
-    .object({ id: z.number(), name: z.string(), duration_days: z.number(), coverage_type: z.string() })
+    .object({
+      id: z.number(),
+      name: z.string(),
+      duration_days: z.number(),
+      coverage_type: z.string(),
+    })
     .nullable()
     .optional(),
   can_change_tracking_type: z.boolean().optional(),
@@ -548,10 +580,8 @@ export const ProductPriceSchema = z
   .transform((p) => ({
     id: p.id,
     price_list_id: p.price_list_id,
-    price_list_code:
-      p.price_list?.code ?? p.price_list_code ?? '',
-    price_list_name:
-      p.price_list?.name ?? p.price_list_name ?? '',
+    price_list_code: p.price_list?.code ?? p.price_list_code ?? '',
+    price_list_name: p.price_list?.name ?? p.price_list_name ?? '',
     amount: String(p.price ?? p.amount ?? ''),
     currency: p.currency,
     exchange_rate: p.exchange_rate ?? null,
@@ -610,16 +640,22 @@ export const PriceListSchema = z.object({
   is_active: z.boolean(),
   sort_order: z.number().int().optional(),
   payment_method_ids: z.array(z.number().int()).optional(),
-  payment_methods: z.array(z.object({
-    id: z.number().int(),
-    name: z.string(),
-    code: z.string().nullable().optional(),
-    method: z.string().nullable().optional(),
-    currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
-    is_active: z.boolean().optional(),
-    requires_reference: z.boolean().optional(),
-    sort_order: z.number().int().optional(),
-  }).passthrough()).optional(),
+  payment_methods: z
+    .array(
+      z
+        .object({
+          id: z.number().int(),
+          name: z.string(),
+          code: z.string().nullable().optional(),
+          method: z.string().nullable().optional(),
+          currency_mode: z.enum(['USD', 'VES', 'flexible']).optional(),
+          is_active: z.boolean().optional(),
+          requires_reference: z.boolean().optional(),
+          sort_order: z.number().int().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
 });
 export type PriceList = z.infer<typeof PriceListSchema>;
 
@@ -670,9 +706,7 @@ export const StoreExchangeRateSchema = z
     base_currency: z.string().default('USD'),
     quote_currency: z.string().default('VES'),
     rate: z.coerce.number().positive(),
-    effective_at: z
-      .string()
-      .min(1, 'La fecha efectiva es obligatoria.'),
+    effective_at: z.string().min(1, 'La fecha efectiva es obligatoria.'),
     source: z.string().optional(),
     is_active: z.boolean().optional(),
   })
@@ -749,10 +783,7 @@ export const WARRANTY_COVERAGE_LABELS: Record<WarrantyCoverageType, string> = {
 
 export const StoreWarrantyPolicySchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'El nombre es obligatorio.')
-      .max(150),
+    name: z.string().min(1, 'El nombre es obligatorio.').max(150),
     duration_days: z.coerce
       .number()
       .int('Debe ser un numero entero.')
@@ -780,10 +811,7 @@ export type StoreWarrantyPolicyValues = z.output<typeof StoreWarrantyPolicySchem
 
 export const StorePriceListSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'El nombre es obligatorio.')
-      .max(255),
+    name: z.string().min(1, 'El nombre es obligatorio.').max(255),
     code: z
       .string()
       .min(1, 'El codigo es obligatorio.')
@@ -822,30 +850,10 @@ export const InventoryFiltersSchema = z.object({
   tag_id: z.coerce.number().int().positive().optional(),
   warehouse_id: z.coerce.number().int().positive().optional(),
   low_stock_threshold: z.coerce.number().min(0).max(999999).optional(),
+  with_images: z.union([z.literal(1), z.literal(0), z.boolean()]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(25),
 });
 
 // =====================================================================
-// Imagenes de producto (Nivel 2 - Sprint de galería multi-imagen)
-// =====================================================================
-
-export const ProductImageSchema = z.object({
-  id: z.number().int().positive(),
-  uuid: z.string(),
-  product_id: z.number().int().positive(),
-  mime: z.string(),
-  size: z.number().int().nonnegative(),
-  width: z.number().int().nonnegative(),
-  height: z.number().int().nonnegative(),
-  alt: z.string().nullable().optional(),
-  sort: z.number().int().nonnegative(),
-  is_primary: z.boolean(),
-  url: z.string(),
-  thumb_url: z.string(),
-  medium_url: z.string(),
-  original_name: z.string().nullable().optional(),
-  uploaded_at: z.string().nullable().optional(),
-});
-export type ProductImage = z.infer<typeof ProductImageSchema>;
 export type InventoryFilters = z.infer<typeof InventoryFiltersSchema>;

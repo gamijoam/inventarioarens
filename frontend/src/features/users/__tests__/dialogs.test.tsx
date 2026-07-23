@@ -32,7 +32,7 @@ vi.mock('@/features/users/api', () => ({
 }));
 
 vi.mock('@/features/access/api', () => ({
-  useRoles: () => mockUseRoles() as unknown as { data: unknown; isLoading: boolean },
+  useRoles: (filters?: unknown) => mockUseRoles(filters) as unknown as { data: unknown; isLoading: boolean },
   roleKeys: { all: ['roles'], lists: () => ['roles','list'], list: () => ['roles','list',{}] },
 }));
 
@@ -68,6 +68,10 @@ const fakeUser: User = {
   email: 'lucia@test.test',
   status: 'active',
   roles: [{ id: 2, name: 'Gerente' }],
+  tenants: [
+    { id: 10, name: 'Grupo Demo', slug: 'grupo-demo', is_group: true, status: 'active' },
+    { id: 11, name: 'Sucursal Demo', slug: 'sucursal-demo', is_group: false, status: 'active' },
+  ],
   created_at: '2026-07-15T10:00:00.000000Z',
 };
 
@@ -154,6 +158,16 @@ describe('ChangeRolesDialog', () => {
     // El rol Owner (id=1) no.
     const ownerCheckbox = screen.getByTestId('change-role-1');
     expect(ownerCheckbox).not.toBeChecked();
+    expect(screen.getByTestId('change-roles-tenant')).toBeTruthy();
+    expect(screen.getByTestId('change-roles-tenant-search')).toBeTruthy();
+  });
+
+  it('filtra las empresas por busqueda', async () => {
+    render(<ChangeRolesDialog open onOpenChange={vi.fn()} user={fakeUser} />, { wrapper: makeWrapper() });
+    await userEvent.type(screen.getByTestId('change-roles-tenant-search'), 'inexistente');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(screen.getByText(/Grupo Demo/)).toBeTruthy();
+    expect(screen.queryByText(/Sucursal Demo/)).toBeNull();
   });
 
   it('filtra los roles por busqueda', async () => {
@@ -168,6 +182,11 @@ describe('ChangeRolesDialog', () => {
   it('envia el nuevo set de roles al guardar', async () => {
     const onUpdated = vi.fn();
     render(<ChangeRolesDialog open onOpenChange={vi.fn()} user={fakeUser} onUpdated={onUpdated} />, { wrapper: makeWrapper() });
+    await userEvent.selectOptions(screen.getByTestId('change-roles-tenant'), '11');
+    await waitFor(() => {
+      const lastCall = mockUseRoles.mock.calls[mockUseRoles.mock.calls.length - 1]?.[0] as { tenant_id?: number };
+      expect(lastCall?.tenant_id).toBe(11);
+    });
     // Agregar Owner.
     await userEvent.click(screen.getByTestId('change-role-1'));
     // Quitar Gerente.
@@ -179,6 +198,7 @@ describe('ChangeRolesDialog', () => {
     const payload = mockMutateAsync.mock.calls[0]?.[0];
     expect(payload.id).toBe(5);
     expect(payload.values.roles).toEqual(['Owner']);
+    expect(payload.values.tenant_id).toBe(11);
   });
 });
 

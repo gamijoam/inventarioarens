@@ -7,6 +7,25 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { ProductForm } from './ProductForm';
 import { type StoreProductInput, type StoreProductValues } from '../schemas';
 
+vi.mock('@/features/inventory-center/lookups', () => ({
+  useBrands: () => ({ data: [] }),
+  useCategoriesTree: () => ({
+    data: [
+      {
+        id: 1,
+        name: 'Telefonia',
+        children: [
+          { id: 2, name: 'Smartphones' },
+          { id: 3, name: 'Cargadores' },
+        ],
+      },
+    ],
+  }),
+  useExchangeRateTypes: () => ({ data: [] }),
+  useProductImages: () => ({ data: [] }),
+  useWarrantyPolicies: () => ({ data: [] }),
+}));
+
 function makeForm(initial?: Partial<StoreProductValues>) {
   let captured: UseFormReturn<StoreProductInput, unknown, StoreProductValues> | null = null;
   function FormCapture() {
@@ -93,6 +112,27 @@ describe('<ProductForm>', () => {
     );
     await user.click(screen.getByRole('button', { name: /Guardar/i }));
     expect(onSubmit).toHaveBeenCalled();
+  });
+
+  it('filtra las categorias por nombre', async () => {
+    const user = userEvent.setup();
+    const form = makeForm();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Guardar"
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText('Smartphones')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText(/Buscar categoría/i), 'Cargadores');
+    expect(screen.getByText('Cargadores')).toBeInTheDocument();
+    expect(screen.queryByText('Smartphones')).not.toBeInTheDocument();
   });
 
   it('muestra el spinner cuando isSubmitting=true', () => {

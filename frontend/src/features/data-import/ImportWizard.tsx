@@ -36,11 +36,11 @@ export function ImportWizard() {
   const [state, setState] = useState<StepState>(initial);
 
   const createSession = useCreateDataImportSession();
-  const upload = useUploadImportFile(state.sessionId ?? 0, state.entity ?? 'branches');
-  const run = useRunImportEntity(state.sessionId ?? 0, state.entity ?? 'branches');
+  const upload = useUploadImportFile();
+  const run = useRunImportEntity();
 
   function pickEntity(entity: SupportedEntity) {
-    setState({ ...initial, entity });
+    setState({ ...initial, entity, step: 'upload' });
   }
 
   async function downloadTemplate() {
@@ -58,7 +58,7 @@ export function ImportWizard() {
       if (!state.sessionId) {
         setState((s) => ({ ...s, sessionId: session }));
       }
-      await upload.mutateAsync({ file });
+      await upload.mutateAsync({ file, sessionId: session, entity: state.entity ?? 'branches' });
       setState((s) => ({
         ...s,
         sessionId: session,
@@ -74,7 +74,10 @@ export function ImportWizard() {
   async function handleRun() {
     setState((s) => ({ ...s, step: 'running' }));
     try {
-      const result = await run.mutateAsync();
+      const result = await run.mutateAsync({
+        sessionId: state.sessionId ?? 0,
+        entity: state.entity ?? 'branches',
+      });
       setState((s) => ({ ...s, step: 'done', previewRows: [], uploadedFileName: null }));
       const { ok, skipped, failed } = result.summary;
       if (failed === 0) {
@@ -125,16 +128,31 @@ export function ImportWizard() {
 
       {state.step !== 'select' && state.entity && (
         <div className="rounded-md border bg-white p-4">
-          <div className="mb-3 text-sm text-gray-600">
-            Tipo: <strong>{ENTITY_LABELS[state.entity]}</strong>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+            <div>
+              Tipo: <strong>{ENTITY_LABELS[state.entity]}</strong>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={downloadTemplate} variant="secondary" size="sm">
+                Descargar plantilla
+              </Button>
+              <Button onClick={resetWizard} variant="ghost" size="sm">
+                Cambiar tipo
+              </Button>
+            </div>
           </div>
 
           {state.step === 'upload' && (
-            <FileDropzone
-              onFile={handleFile}
-              fileName={state.uploadedFileName}
-              loading={upload.isPending || createSession.isPending}
-            />
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Sube aqui el CSV ya completado usando la plantilla del tipo elegido.
+              </p>
+              <FileDropzone
+                onFile={handleFile}
+                fileName={state.uploadedFileName}
+                loading={upload.isPending || createSession.isPending}
+              />
+            </div>
           )}
 
           {state.step === 'preview' && (

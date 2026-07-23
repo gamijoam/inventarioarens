@@ -108,7 +108,7 @@ class ProductImporter extends BaseImporter
 
         $brandId = null;
         if ($brandSlug) {
-            $brand = Brand::query()->where('slug', $brandSlug)->first();
+            $brand = Brand::query()->where('slug', $this->normalizeSlug($brandSlug))->first();
             if (! $brand) {
                 return ImportRowResult::failed(
                     ['brand_slug' => "Marca '{$brandSlug}' no existe. Importala primero."],
@@ -122,7 +122,8 @@ class ProductImporter extends BaseImporter
         if ($categorySlugs) {
             $slugs = array_filter(array_map('trim', explode('|', $categorySlugs)));
             foreach ($slugs as $slug) {
-                $cat = Category::query()->where('slug', $slug)->first();
+                $normalizedSlug = $this->normalizeSlug($slug);
+                $cat = Category::query()->where('slug', $normalizedSlug)->first();
                 if (! $cat) {
                     return ImportRowResult::failed(
                         ['category_slugs' => "Categoria '{$slug}' no existe. Importala primero."],
@@ -137,7 +138,8 @@ class ProductImporter extends BaseImporter
         if ($tagSlugs) {
             $slugs = array_filter(array_map('trim', explode('|', $tagSlugs)));
             foreach ($slugs as $slug) {
-                $tag = Tag::query()->where('slug', $slug)->first();
+                $normalizedSlug = $this->normalizeSlug($slug);
+                $tag = Tag::query()->where('slug', $normalizedSlug)->first();
                 if (! $tag) {
                     return ImportRowResult::failed(
                         ['tag_slugs' => "Tag '{$slug}' no existe. Importala primero."],
@@ -254,15 +256,15 @@ class ProductImporter extends BaseImporter
             'tag_slugs' => $payload['tag_slugs'] ?? null,
             'unit_of_measure' => strtolower($payload['unit_of_measure'] ?? 'unit'),
             'tracking_type' => strtolower($payload['tracking_type'] ?? 'quantity'),
-            'base_price' => ($payload['base_price'] ?? '') !== '' ? (float) $payload['base_price'] : 0.0,
+            'base_price' => $this->normalizeDecimal($payload['base_price'] ?? null) ?? 0.0,
             'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
-            'min_stock' => ($payload['min_stock'] ?? '') !== '' ? (float) $payload['min_stock'] : null,
-            'max_stock' => ($payload['max_stock'] ?? '') !== '' ? (float) $payload['max_stock'] : null,
-            'reorder_quantity' => ($payload['reorder_quantity'] ?? '') !== '' ? (float) $payload['reorder_quantity'] : null,
+            'min_stock' => $this->normalizeDecimal($payload['min_stock'] ?? null),
+            'max_stock' => $this->normalizeDecimal($payload['max_stock'] ?? null),
+            'reorder_quantity' => $this->normalizeDecimal($payload['reorder_quantity'] ?? null),
             'is_active' => $this->parseBool($payload['is_active'] ?? null, true),
-            'stock_inicial' => ($payload['stock_inicial'] ?? '') !== '' ? (float) $payload['stock_inicial'] : null,
+            'stock_inicial' => $this->normalizeDecimal($payload['stock_inicial'] ?? null),
             'almacen_codigo' => $payload['almacen_codigo'] ?? null,
-            'costo_unitario' => ($payload['costo_unitario'] ?? '') !== '' ? (float) $payload['costo_unitario'] : null,
+            'costo_unitario' => $this->normalizeDecimal($payload['costo_unitario'] ?? null),
         ];
     }
 }

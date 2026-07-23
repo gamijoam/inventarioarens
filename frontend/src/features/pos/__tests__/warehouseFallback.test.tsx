@@ -23,11 +23,7 @@ vi.mock('@/api/client', () => ({
   postOne: vi.fn(),
 }));
 
-import {
-  useBootstrapRefsForPos,
-  usePosBootstrap,
-  useWarehousesForPos,
-} from '../api';
+import { useBootstrapRefsForPos, usePosBootstrap, useWarehousesForPos } from '../api';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -41,7 +37,7 @@ describe('pos warehouse selector fallback', () => {
   });
 
   it('usa useBootstrapRefsForPos cuando bootstrap devuelve warehouses', async () => {
-    mockGetMany.mockResolvedValueOnce({
+    mockApiGet.mockResolvedValueOnce({
       data: {
         warehouses: [{ id: 1, code: 'PRINCIPAL', name: 'Almacen Principal', branch_id: null }],
         branches: [],
@@ -53,31 +49,16 @@ describe('pos warehouse selector fallback', () => {
         open_session: null,
       },
     });
-    mockApiGet.mockResolvedValueOnce({ data: null });
 
     // Solo verificamos que el query bootstrap se llama (no renderizamos
     // el POS completo porque requiere cart store + bootstrap + auth).
-    const { result } = renderHook(
-      () => useBootstrapRefsForPos(),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useBootstrapRefsForPos(), { wrapper });
     await waitFor(() => expect(result.current.refs?.warehouses?.length).toBe(1));
     expect(result.current.refs?.warehouses?.[0]?.code).toBe('PRINCIPAL');
   });
 
-  it('useWarehousesForPos devuelve fallback cuando bootstrap no tiene data', async () => {
-    mockGetMany.mockResolvedValueOnce({
-      data: {
-        warehouses: [],
-        branches: [],
-        cash_registers: [],
-        payment_methods: [],
-        price_lists: [],
-        exchange_rate_types: [],
-        exchange_rates: [],
-        open_session: null,
-      },
-    });
+  it('useWarehousesForPos devuelve fallback cuando bootstrap no tiene data', () => {
+    mockGetMany.mockResolvedValueOnce([]);
 
     const { result } = renderHook(() => useWarehousesForPos(), { wrapper });
     // El query mock no se llama todavia hasta que el componente se monte
@@ -96,7 +77,7 @@ describe('pos warehouse selector fallback integration', () => {
 
   it('cai en /api/warehouses cuando bootstrap no devuelve warehouses', async () => {
     // 1) bootstrap retorna warehouses: []
-    mockGetMany.mockResolvedValueOnce({
+    mockApiGet.mockResolvedValueOnce({
       data: {
         warehouses: [],
         branches: [],
@@ -109,11 +90,9 @@ describe('pos warehouse selector fallback integration', () => {
       },
     });
     // 2) fallback /api/warehouses retorna warehouses
-    mockGetMany.mockResolvedValueOnce({
-      data: [
-        { id: 5, code: 'FALLBACK01', name: 'Almacen Fallback 1', branch_id: 2 },
-      ],
-    });
+    mockGetMany.mockResolvedValueOnce([
+      { id: 5, code: 'FALLBACK01', name: 'Almacen Fallback 1', branch_id: 2 },
+    ]);
 
     // En la implementacion real, esto se controla en el merge del POS.
     // Aqui solo verificamos que el hook devuelve data cuando bootstrap

@@ -55,7 +55,30 @@ class AccessControlService
             ->users()
             ->with('roles.permissions')
             ->whereKey($userId)
-            ->firstOrFail();
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'user' => 'El usuario no pertenece a la empresa activa o ya no esta asignado.',
+            ]);
+        }
+
+        return $user;
+    }
+
+    public function tenantUserIn(Tenant $tenant, int $userId): User
+    {
+        $user = $tenant
+            ->users()
+            ->with('roles.permissions')
+            ->whereKey($userId)
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'user' => 'El usuario no pertenece a la empresa seleccionada o ya no esta asignado.',
+            ]);
+        }
 
         return $user;
     }
@@ -81,12 +104,13 @@ class AccessControlService
             ->orderBy('name')
             ->paginate($perPage);
 
-        $paginator->getCollection()->each(function (User $user): void {
+        $paginator->getCollection()->each(function (User $user) use ($tenantIds): void {
             $status = $user->tenants
                 ->pluck('pivot.status')
                 ->contains('active') ? 'active' : ($user->tenants->first()?->pivot?->status ?? 'inactive');
 
             $user->setAttribute('organization_status', $status);
+            $user->setRelation('roles', $this->organizationRoles($user, $tenantIds));
         });
 
         return $paginator;
@@ -114,6 +138,7 @@ class AccessControlService
             ->contains('active') ? 'active' : ($user->tenants->first()?->pivot?->status ?? 'inactive');
 
         $user->setAttribute('organization_status', $status);
+        $user->setRelation('roles', $this->organizationRoles($user, $tenantIds));
 
         return $user;
     }
@@ -216,42 +241,78 @@ class AccessControlService
         return $user;
     }
 
-    public function updateUserRoles(User $user, array $roles, User $actor): User
+    public function updateUserRoles(User $user, array $roles, User $actor, ?Tenant $tenant = null): User
     {
         $this->ensureRolesExist($roles);
 
-        setPermissionsTeamId(app(TenantManager::class)->require()->id);
-        $oldRoles = $this->userRoleNames($user);
+        $tenantManager = app(TenantManager::class);
+        $targetTenant = $tenant ?? $tenantManager->require();
+        $previousTenant = $tenantManager->current();
+        $previousTeamId = function_exists('getPermissionsTeamId') ? getPermissionsTeamId() : null;
 
-        if (
-            array_intersect($oldRoles, self::CRITICAL_ADMIN_ROLES) !== []
-            && array_intersect($roles, self::CRITICAL_ADMIN_ROLES) === []
-            && $this->activeCriticalAdministratorCount() <= 1
-        ) {
+        if (! $user->belongsToTenant($targetTenant)) {
             throw ValidationException::withMessages([
-                'roles' => 'No puedes quitar el ultimo rol administrador activo de la empresa.',
+                'user' => 'El usuario no pertenece a la empresa seleccionada o ya no esta asignado.',
             ]);
         }
 
-        $user->syncRoles($roles);
+        $tenantManager->set($targetTenant);
+        setPermissionsTeamId($targetTenant->id);
 
-        $user = $this->tenantUser($user->id);
+        try {
+            $oldRoles = $this->userRoleNames($user);
 
-        $this->audit->record('access.user.roles_updated', $user, $actor, [
-            'roles' => $oldRoles,
-        ], [
-            'roles' => $this->userRoleNames($user),
-        ]);
+            if (
+                array_intersect($oldRoles, self::CRITICAL_ADMIN_ROLES) !== []
+                && array_intersect($roles, self::CRITICAL_ADMIN_ROLES) === []
+                && $this->activeCriticalAdministratorCount() <= 1
+            ) {
+                throw ValidationException::withMessages([
+                    'roles' => 'No puedes quitar el ultimo rol administrador activo de la empresa.',
+                ]);
+            }
 
-        return $user;
+            $user->syncRoles($roles);
+
+            $user = $this->tenantUser($user->id);
+
+            $this->audit->record('access.user.roles_updated', $user, $actor, [
+                'roles' => $oldRoles,
+            ], [
+                'roles' => $this->userRoleNames($user),
+                'tenant_id' => $targetTenant->id,
+            ]);
+
+            return $user;
+        } finally {
+            if ($previousTenant) {
+                $tenantManager->set($previousTenant);
+                if ($previousTeamId !== null && function_exists('setPermissionsTeamId')) {
+                    setPermissionsTeamId($previousTeamId);
+                }
+            } else {
+                $tenantManager->clear();
+            }
+        }
     }
 
-    public function roles(): mixed
+    public function roles(?Tenant $tenant = null): mixed
     {
+        $tenant ??= app(TenantManager::class)->require();
+
+        if (! $tenant->isGroup()) {
+            app(\App\Modules\Tenancy\Services\TenantSpinoffService::class)->seedBaseRoles($tenant);
+        }
+
         return Role::query()
-            ->where($this->teamColumn(), app(TenantManager::class)->require()->id)
+            ->where($this->teamColumn(), $tenant->id)
             ->with('permissions')
             ->orderBy('name');
+    }
+
+    public function organizationTenantIdsForCurrentTenant(User $actor): array
+    {
+        return $this->organizationTenantIds($this->ownedGroupForCurrentTenant($actor));
     }
 
     public function role(int $roleId): Role
@@ -584,5 +645,25 @@ class AccessControlService
             ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
+    }
+
+    private function organizationRoles(User $user, array $tenantIds): \Illuminate\Database\Eloquent\Collection
+    {
+        $teamColumn = $this->teamColumn();
+
+        return Role::query()
+            ->withoutGlobalScopes()
+            ->whereIn("roles.{$teamColumn}", $tenantIds)
+            ->whereIn('roles.id', function ($query) use ($user, $teamColumn, $tenantIds): void {
+                $query->select('role_id')
+                    ->from('model_has_roles')
+                    ->where('model_type', User::class)
+                    ->where('model_id', $user->id)
+                    ->whereIn("model_has_roles.{$teamColumn}", $tenantIds);
+            })
+            ->orderBy('name')
+            ->get()
+            ->unique('name')
+            ->values();
     }
 }

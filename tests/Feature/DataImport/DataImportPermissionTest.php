@@ -72,7 +72,13 @@ class DataImportPermissionTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.tenant_id', $tenant->id)
-            ->assertJsonPath('data.user_id', $admin->id);
+            ->assertJsonPath('data.user_id', $admin->id)
+            ->assertJsonPath('data.total_entities', 0)
+            ->assertJsonPath('data.total_rows', 0)
+            ->assertJsonPath('data.processed_rows', 0)
+            ->assertJsonPath('data.succeeded_rows', 0)
+            ->assertJsonPath('data.skipped_rows', 0)
+            ->assertJsonPath('data.failed_rows', 0);
 
         $this->assertDatabaseHas('data_imports', [
             'tenant_id' => $tenant->id,

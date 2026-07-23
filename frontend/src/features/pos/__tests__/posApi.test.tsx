@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetPaginated = vi.fn();
 const mockGetOne = vi.fn();
 const mockPostOne = vi.fn();
+const mockPatchOne = vi.fn();
 const mockApiGet = vi.fn();
 
 vi.mock('@/api/client', () => ({
@@ -13,11 +14,35 @@ vi.mock('@/api/client', () => ({
   getMany: vi.fn(),
   getOne: (path: string) => mockGetOne(path),
   getPaginated: (path: string) => mockGetPaginated(path),
-  patchOne: vi.fn(),
+  patchOne: (path: string, body: unknown) => mockPatchOne(path, body),
   postOne: (path: string, body: unknown) => mockPostOne(path, body),
 }));
 
-import { useAvailableProductSerialsForPos, useBootstrapRefsForPos, useBranchesForPos, useCashSessions, useCheckout, useCreateCashRegister, useCreateCustomerForPos, useCreatePaymentMethod, useOpenCashSession, usePosBootstrap, usePosProducts, usePosProductsDebounced } from '../api';
+import type { CashRegisterSession } from '../api';
+import {
+  mergePosExchangeRateTypes,
+  mergePosExchangeRates,
+  mergePosPriceLists,
+  resolvePosOpenSession,
+  useAvailableProductSerialsForPos,
+  useBootstrapRefsForPos,
+  useBranchesForPos,
+  useCashSessions,
+  useCheckout,
+  useCreateCashRegister,
+  useCreateCustomerForPos,
+  useCreatePaymentMethod,
+  useCloseCashSession,
+  useOpenCashSession,
+  usePosBootstrap,
+  usePosProducts,
+  usePosProductsDebounced,
+} from '../api';
+import {
+  shouldHandlePosGlobalShortcut,
+  shouldTriggerPosCheckoutOnEnter,
+  shouldTriggerPosCheckoutShortcut,
+} from '../PosTerminal';
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,6 +55,7 @@ describe('pos api', () => {
     mockGetPaginated.mockReset();
     mockGetOne.mockReset();
     mockPostOne.mockReset();
+    mockPatchOne.mockReset();
     mockApiGet.mockReset();
   });
 
@@ -61,6 +87,94 @@ describe('pos api', () => {
     expect(mockGetOne).not.toHaveBeenCalled();
     expect(result.current.data?.warehouses).toHaveLength(1);
     expect(result.current.data?.warehouses[0]?.code).toBe('CCN-01');
+  });
+
+  it('fusiona listas y tasas del bootstrap con el fallback cuando faltan campos', () => {
+    const mergedLists = mergePosPriceLists(
+      [{ id: 1, code: 'BASE', name: 'Base', is_active: true }],
+      [{ id: 1, code: 'BASE', name: 'Base', is_active: true, payment_method_ids: [7, 9] }],
+    );
+    const mergedTypes = mergePosExchangeRateTypes(
+      [{ id: 2, code: 'BCV', name: 'BCV', is_default: true }],
+      [{ id: 2, code: 'BCV', name: 'BCV', is_default: false }],
+    );
+    const mergedRates = mergePosExchangeRates(
+      [{ id: 10, exchange_rate_type_id: 2, base_currency: 'USD', quote_currency: 'VES', rate: 36.5 }],
+      [{ id: 10, exchange_rate_type_id: 2, base_currency: 'USD', quote_currency: 'VES', rate: 35.1 }],
+    );
+
+    expect(mergedLists[0]?.payment_method_ids).toEqual([7, 9]);
+    expect(mergedTypes[0]?.is_default).toBe(true);
+    expect(mergedRates[0]?.rate).toBe(36.5);
+  });
+
+  it('resuelve la sesion abierta desde bootstrap o fallback del cajero', () => {
+    const fallbackSession = {
+      id: 9,
+      branch_id: 1,
+      cash_register_id: 3,
+      cashier_id: 7,
+      status: 'open',
+      opening_base_amount: '0.0000',
+      opening_local_amount: '0.0000',
+      expected_base_amount: '0.0000',
+      expected_local_amount: '0.0000',
+    } as unknown as CashRegisterSession;
+
+    expect(resolvePosOpenSession(null, [fallbackSession])).toEqual(fallbackSession);
+    expect(resolvePosOpenSession(fallbackSession, [])).toEqual(fallbackSession);
+    expect(
+      resolvePosOpenSession(null, [
+        {
+          ...fallbackSession,
+          cash_register_id: null,
+        } as unknown as CashRegisterSession,
+      ]),
+    ).toMatchObject({ id: 9, status: 'open', cash_register_id: null });
+  });
+
+  it('permite atajos POS globales aun con un campo editable enfocado', () => {
+    expect(shouldHandlePosGlobalShortcut('F2', true)).toBe(true);
+    expect(shouldHandlePosGlobalShortcut('F6', true)).toBe(true);
+    expect(shouldHandlePosGlobalShortcut('Delete', true)).toBe(false);
+    expect(shouldHandlePosGlobalShortcut('Delete', false)).toBe(true);
+  });
+
+  it('solo confirma cobro con Enter en el contexto correcto', () => {
+    expect(
+      shouldTriggerPosCheckoutOnEnter({ panel: null, isEditableField: false, isSearchInput: false }),
+    ).toBe(true);
+    expect(
+      shouldTriggerPosCheckoutOnEnter({ panel: 'pay', isEditableField: false, isSearchInput: false }),
+    ).toBe(true);
+    expect(
+      shouldTriggerPosCheckoutOnEnter({
+        panel: 'product-search',
+        isEditableField: false,
+        isSearchInput: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldTriggerPosCheckoutOnEnter({ panel: null, isEditableField: true, isSearchInput: false }),
+    ).toBe(false);
+    expect(
+      shouldTriggerPosCheckoutOnEnter({ panel: null, isEditableField: false, isSearchInput: true }),
+    ).toBe(false);
+  });
+
+  it('permite confirmar cobro con Enter o F10 fuera de campos editables', () => {
+    expect(
+      shouldTriggerPosCheckoutShortcut('Enter', { panel: null, isEditableField: false, isSearchInput: false }),
+    ).toBe(true);
+    expect(
+      shouldTriggerPosCheckoutShortcut('F10', { panel: 'pay', isEditableField: false, isSearchInput: false }),
+    ).toBe(true);
+    expect(
+      shouldTriggerPosCheckoutShortcut('F10', { panel: 'product-search', isEditableField: false, isSearchInput: false }),
+    ).toBe(false);
+    expect(
+      shouldTriggerPosCheckoutShortcut('Enter', { panel: null, isEditableField: true, isSearchInput: false }),
+    ).toBe(false);
   });
 
   it('useBootstrapRefsForPos normaliza code/status y devuelve refs', async () => {
@@ -229,6 +343,46 @@ describe('pos api', () => {
       opening_local_amount: 5000,
       exchange_rate_type_id: 2,
     });
+  });
+
+  it('cierra caja e invalida el bootstrap del POS', async () => {
+    mockPatchOne.mockResolvedValue({
+      id: 8,
+      branch_id: 1,
+      cash_register_id: 5,
+      status: 'closed',
+      opening_base_amount: '30.0000',
+      opening_local_amount: '5000.0000',
+      expected_base_amount: '30.0000',
+      expected_local_amount: '5000.0000',
+      counted_base_amount: '30.0000',
+      counted_local_amount: '5000.0000',
+      difference_base_amount: '0.0000',
+      difference_local_amount: '0.0000',
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+    const closeWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useCloseCashSession(), { wrapper: closeWrapper });
+    result.current.mutate({
+      sessionId: 8,
+      payload: {
+        counted_base_amount: 30,
+        counted_local_amount: 5000,
+      },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPatchOne).toHaveBeenCalledWith('/cash-register/sessions/8/close', {
+      counted_base_amount: 30,
+      counted_local_amount: 5000,
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pos', 'bootstrap'] });
   });
 
   it('crea metodo de pago operativo para POS', async () => {

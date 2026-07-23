@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductImage;
+use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
@@ -172,6 +174,36 @@ class ProductCatalogApiTest extends TestCase
         $this->assertCount(1, $response->json('data'));
     }
 
+    public function test_search_prioritizes_exact_barcode_matches(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Otro producto',
+            'sku' => 'OTRO-1',
+            'barcode' => '1230000000000',
+            'tracking_type' => 'quantity',
+        ]);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto buscado',
+            'sku' => 'BUSC-1',
+            'barcode' => '7501055309900',
+            'tracking_type' => 'quantity',
+        ]);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=7501055309900');
+
+        $response->assertOk();
+        $this->assertSame('Producto buscado', $response->json('data.0.name'));
+    }
+
     public function test_filter_by_brand(): void
     {
         $tenant = $this->tenant();
@@ -293,5 +325,56 @@ class ProductCatalogApiTest extends TestCase
             ->assertJsonPath('data.min_stock', 10)
             ->assertJsonPath('data.max_stock', 50)
             ->assertJsonPath('data.unit_of_measure', 'kg');
+    }
+
+    public function test_index_includes_product_images_only_when_requested(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+        $product = Product::create([
+            'name' => 'Producto con foto',
+            'sku' => 'IMG-1',
+            'tracking_type' => 'quantity',
+        ]);
+        $image = ProductImage::create([
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'uuid' => '11111111-1111-4111-8111-111111111111',
+            'storage_path' => 'products/demo/original.webp',
+            'mime' => 'image/webp',
+            'size' => 1000,
+            'width' => 800,
+            'height' => 800,
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+        ProductImageVariant::create([
+            'tenant_id' => $tenant->id,
+            'product_image_id' => $image->id,
+            'variant' => ProductImageVariant::VARIANT_THUMB,
+            'storage_path' => 'products/demo/thumb.webp',
+            'mime' => 'image/webp',
+            'size' => 300,
+            'width' => 200,
+            'height' => 200,
+        ]);
+
+        $baseResponse = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=IMG-1');
+
+        $baseResponse->assertOk();
+        $this->assertArrayNotHasKey('images', $baseResponse->json('data.0'));
+
+        $withImagesResponse = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=IMG-1&with_images=1');
+
+        $withImagesResponse->assertOk()
+            ->assertJsonPath('data.0.images.0.id', $image->id)
+            ->assertJsonPath('data.0.images.0.is_primary', true);
+        $this->assertStringContainsString('thumb.webp', $withImagesResponse->json('data.0.images.0.thumb_url'));
     }
 }

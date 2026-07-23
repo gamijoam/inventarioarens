@@ -7,6 +7,15 @@ use Illuminate\Validation\Rule;
 
 class StoreSpinoffRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'branch' => $this->normalizeOptionalObject($this->input('branch')),
+            'warehouse' => $this->normalizeOptionalObject($this->input('warehouse')),
+            'exchange_rate_type' => $this->normalizeOptionalObject($this->input('exchange_rate_type')),
+        ]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -37,5 +46,16 @@ class StoreSpinoffRequest extends FormRequest
             'exchange_rate_type.code' => ['required_with:exchange_rate_type', 'string', 'max:20'],
             'exchange_rate_type.name' => ['required_with:exchange_rate_type', 'string', 'max:150'],
         ];
+    }
+
+    private function normalizeOptionalObject(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        $filtered = array_filter($value, static fn ($item) => $item !== null && $item !== '');
+
+        return $filtered === [] ? null : $value;
     }
 }

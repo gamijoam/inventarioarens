@@ -23,6 +23,9 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
+import { useSessionStore } from '@/stores/session';
 
 import { useUpdateUserRoles, type User } from '../api';
 import { useRoles as useAccessRoles } from '@/features/access/api';
@@ -36,18 +39,52 @@ interface ChangeRolesDialogProps {
 
 export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: ChangeRolesDialogProps) {
   const [search, setSearch] = useState('');
+  const [tenantSearch, setTenantSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tenantId, setTenantId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const currentTenantId = useSessionStore((s) => s.tenant?.id ?? null);
 
   useEffect(() => {
     if (open && user) {
       setSearch('');
+      setTenantSearch('');
       setSelected(new Set(user.roles.map((r) => r.name)));
+      const tenantIds = user.tenants?.map((tenant) => tenant.id) ?? [];
+      if (tenantIds.length > 0) {
+        setTenantId((prev) => {
+          if (prev && tenantIds.includes(prev)) return prev;
+          if (currentTenantId && tenantIds.includes(currentTenantId)) return currentTenantId;
+          return tenantIds[0] ?? null;
+        });
+      } else {
+        setTenantId(currentTenantId);
+      }
     }
-  }, [open, user]);
+  }, [open, user, currentTenantId]);
 
   const update = useUpdateUserRoles();
-  const { data: rolesData, isLoading: rolesLoading } = useAccessRoles();
+  const { data: rolesData, isLoading: rolesLoading } = useAccessRoles({
+    search: '',
+    page: 1,
+    per_page: 100,
+    tenant_id: tenantId ?? undefined,
+  });
+
+  const tenantOptions = user?.tenants ?? [];
+  const filteredTenants = useMemo(() => {
+    const term = tenantSearch.trim().toLowerCase();
+    const filtered = !term
+      ? tenantOptions
+      : tenantOptions.filter((tenant) => {
+      return tenant.name.toLowerCase().includes(term) || tenant.slug.toLowerCase().includes(term);
+    });
+    if (tenantId && !filtered.some((tenant) => tenant.id === tenantId)) {
+      const selectedTenant = tenantOptions.find((tenant) => tenant.id === tenantId);
+      return selectedTenant ? [selectedTenant, ...filtered] : filtered;
+    }
+    return filtered;
+  }, [tenantId, tenantOptions, tenantSearch]);
 
   const availableRoles = useMemo(() => {
     const list = rolesData?.data ?? [];
@@ -72,7 +109,7 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
     try {
       await update.mutateAsync({
         id: user.id,
-        values: { roles: Array.from(selected) },
+        values: { roles: Array.from(selected), tenant_id: tenantId ?? undefined },
       });
       toast.success('Roles actualizados.');
       onUpdated?.();
@@ -108,6 +145,37 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
               placeholder="Buscar rol por nombre..."
               data-testid="change-roles-search"
             />
+
+            {tenantOptions.length > 1 && (
+              <div className="space-y-1">
+                <Label>Empresa destino</Label>
+                <Input
+                  value={tenantSearch}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setTenantSearch(e.target.value)}
+                  placeholder="Buscar empresa..."
+                  data-testid="change-roles-tenant-search"
+                />
+                <Select
+                  value={tenantId ? String(tenantId) : ''}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                    const value = e.target.value;
+                    setTenantId(value ? Number(value) : null);
+                  }}
+                  data-testid="change-roles-tenant"
+                >
+                  {filteredTenants.map((tenant) => (
+                    <option key={tenant.id} value={tenant.id}>
+                      {tenant.name} ({tenant.slug})
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-text-muted">
+                  {filteredTenants.length === 0
+                    ? 'Sin empresas que coincidan.'
+                    : `${filteredTenants.length} empresa(s) disponibles.`}
+                </p>
+              </div>
+            )}
 
             {rolesLoading ? (
               <div className="text-sm text-text-muted">Cargando roles...</div>

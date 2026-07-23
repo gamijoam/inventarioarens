@@ -105,21 +105,21 @@ export function useDeleteDataImportSession() {
   });
 }
 
-export function useUploadImportFile(sessionId: number, entity: SupportedEntity) {
+export function useUploadImportFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { file: File }) => {
+    mutationFn: async (payload: { sessionId: number; entity: SupportedEntity; file: File }) => {
       const fd = new FormData();
       fd.append('file', payload.file);
       const response = await api.post<{ data: unknown }>(
-        `/import/sessions/${sessionId}/entities/${entity}/upload`,
+        `/import/sessions/${payload.sessionId}/entities/${payload.entity}/upload`,
         fd,
       );
-      const raw = (response as { data?: unknown }).data ?? response;
-      return DataImportSchema.parse(raw);
+      const raw = (response as { data?: { session?: unknown } }).data ?? {};
+      return DataImportSchema.parse(raw.session);
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: dataImportKeys.session(sessionId) });
+    onSuccess: (_, variables) => {
+      void qc.invalidateQueries({ queryKey: dataImportKeys.session(variables.sessionId) });
     },
   });
 }
@@ -133,20 +133,20 @@ export interface RunSummary {
   error_summary?: { row: number; natural_key: string | null; errors: Record<string, unknown> }[] | null;
 }
 
-export function useRunImportEntity(sessionId: number, entity: SupportedEntity) {
+export function useRunImportEntity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<{ summary: RunSummary; session: unknown }> => {
+    mutationFn: async (payload: { sessionId: number; entity: SupportedEntity }): Promise<{ summary: RunSummary; session: unknown }> => {
       const response = await api.post<unknown>(
-        `/import/sessions/${sessionId}/entities/${entity}/run`,
+        `/import/sessions/${payload.sessionId}/entities/${payload.entity}/run`,
         {},
       );
       const raw = response as unknown;
       const data = (raw as { data?: { summary: RunSummary; session: unknown } }).data ?? raw;
       return data as { summary: RunSummary; session: unknown };
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: dataImportKeys.session(sessionId) });
+    onSuccess: (_, variables) => {
+      void qc.invalidateQueries({ queryKey: dataImportKeys.session(variables.sessionId) });
     },
   });
 }
@@ -166,11 +166,11 @@ export function useImportEntityRows(sessionId: number, entity: SupportedEntity) 
 }
 
 export function templateUrl(entity: SupportedEntity): string {
-  return `${import.meta.env.VITE_API_BASE_URL ?? '/api'}/import/templates/${entity}`;
+  return `/import/templates/${entity}`;
 }
 
 export function reportUrl(sessionId: number): string {
-  return `${import.meta.env.VITE_API_BASE_URL ?? '/api'}/import/sessions/${sessionId}/report`;
+  return `/import/sessions/${sessionId}/report`;
 }
 
 /**
