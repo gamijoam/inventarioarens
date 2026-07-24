@@ -9,12 +9,26 @@ use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\Tag;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ProductImporter extends BaseImporter
 {
+    /**
+     * Inyectamos SharedCatalogPropagationService para que cada producto
+     * creado via importacion se replique automaticamente a los spinoffs
+     * del grupo. Antes solo se creaba en el grupo, dejando los spinoffs
+     * vacios hasta que se ejecutara manualmente el comando
+     * `php artisan catalog:resync-stock` o se creara el producto
+     * via la UI (que si llamaba a `propagateMaster`).
+     */
+    public function __construct(
+        private readonly SharedCatalogPropagationService $propagation,
+    ) {}
+
     public function entity(): string
     {
         return 'products';
@@ -188,6 +202,7 @@ class ProductImporter extends BaseImporter
                 'max_stock' => $maxStock,
                 'reorder_quantity' => $reorderQty,
                 'is_active' => $isActive,
+                'is_catalog_master' => app(TenantManager::class)->current()?->isGroup() ?? false,
             ]);
 
             if (! empty($categoryIds)) {
@@ -221,6 +236,32 @@ class ProductImporter extends BaseImporter
                         ['stock_inicial' => 'Producto creado, pero no se pudo registrar inventario: '.$e->getMessage()],
                         $sku,
                     );
+                }
+            }
+
+            // Replicar el producto a los spinoffs del grupo, igual que
+            // lo hace ProductController::store. Tambien propaga los
+            // catalogos referenciados (brand, categorias, tags,
+            // warranty policy, exchange rate type) si todavia no
+            // existen localmente en el spinoff. El import se ejecuta
+            // desde el grupo (el tenant actual es el grupo), asi que
+            // el servicio propaga el maestro a cada spinoff activo.
+            try {
+                if ($product->isCatalogMaster()) {
+                    $this->propagation->propagateMaster($product);
+                    $this->propagation->propagateReferencedCatalogForMaster($product);
+                }
+            } catch (\Throwable $e) {
+                // Si la propagacion falla (por ejemplo, el grupo no
+                // tiene spinoffs activos, o el sync catalog falla), NO
+                // abortamos el import: el producto ya se creo en el
+                // grupo. Logueamos y seguimos.
+                if (function_exists('logger')) {
+                    logger()->warning('Propagacion de producto importado fallo', [
+                        'sku' => $sku,
+                        'product_id' => $product->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
