@@ -12,11 +12,12 @@ class StorePaymentMethodRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:50', Rule::unique('payment_methods', 'code')->where('tenant_id', $tenantId)],
+            'code' => ['required', 'string', 'max:50', Rule::unique('payment_methods', 'code')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))],
             'method' => ['required', 'string', Rule::in(self::methods())],
             'currency_mode' => ['required', 'string', Rule::in([
                 PaymentMethod::CURRENCY_USD,

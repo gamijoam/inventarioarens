@@ -14,9 +14,7 @@ use Illuminate\Routing\Controller;
 
 class GroupController extends Controller
 {
-    public function __construct(private readonly TenantSpinoffService $service)
-    {
-    }
+    public function __construct(private readonly TenantSpinoffService $service) {}
 
     public function listSpinoffs(Request $request, Tenant $group): AnonymousResourceCollection
     {

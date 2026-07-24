@@ -11,7 +11,9 @@ class StoreProductEntryRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantManager = app(TenantManager::class);
+        $tenantId = $tenantManager->current()?->id ?? $tenantManager->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'reason' => ['required', 'string', 'max:150'],
@@ -20,7 +22,7 @@ class StoreProductEntryRequest extends FormRequest
             'processed_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId)],
-            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('tenant_id', $tenantId)],
+            'items.*.product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'gte:0'],
             'items.*.serial_units' => ['nullable', 'array'],

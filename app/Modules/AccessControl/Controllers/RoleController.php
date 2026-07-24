@@ -2,13 +2,14 @@
 
 namespace App\Modules\AccessControl\Controllers;
 
+use App\Models\User;
 use App\Modules\AccessControl\Requests\StoreRoleRequest;
 use App\Modules\AccessControl\Requests\UpdateRolePermissionsRequest;
 use App\Modules\AccessControl\Requests\UpdateRoleRequest;
 use App\Modules\AccessControl\Resources\RoleResource;
 use App\Modules\AccessControl\Services\AccessControlService;
-use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -19,9 +20,7 @@ use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
-    public function __construct(private readonly AccessControlService $service)
-    {
-    }
+    public function __construct(private readonly AccessControlService $service) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -124,7 +123,7 @@ class RoleController extends Controller
                 'module_count' => count($modules),
                 'modules' => array_keys($modules),
                 'wildcards_count' => 0,
-                'protected' => in_array($role->name, \App\Modules\AccessControl\Services\AccessControlService::PROTECTED_ROLES, true),
+                'protected' => in_array($role->name, AccessControlService::PROTECTED_ROLES, true),
             ],
         ]);
     }
@@ -136,7 +135,7 @@ class RoleController extends Controller
 
     private function currentTenantId(): int
     {
-        return (int) app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+        return (int) app(TenantManager::class)->require()->id;
     }
 
     private function resolveTargetTenant(Request $request): ?Tenant

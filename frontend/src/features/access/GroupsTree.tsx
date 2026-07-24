@@ -15,14 +15,19 @@
  */
 import { useState } from 'react';
 import {
+  Boxes,
   Building2,
   ChevronDown,
   ChevronRight,
+  CreditCard,
   ExternalLink,
   Loader2,
+  Package,
   Plus,
   RefreshCw,
   ShieldCheck,
+  Tag,
+  TrendingUp,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -38,6 +43,7 @@ import {
   useTenantGroups,
   useGroupSpinoffs,
   useGroupUsers,
+  useGroupSharedCatalog,
   type TenantGroup,
   type TenantSpinoff,
   type GroupUser,
@@ -292,6 +298,60 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
               </div>
             </div>
           </div>
+
+          <div className="rounded border border-border bg-bg/30 px-3 py-2">
+            <div className="mb-2 flex items-start gap-2">
+              <Boxes className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  Catalogo compartido del grupo
+                </h4>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Productos, listas de precios, metodos de pago y tasas viven en el grupo y se
+                  replican a cada tienda. El stock sigue siendo independiente por empresa.
+                </p>
+              </div>
+            </div>
+            <ul
+              className="grid gap-2 md:grid-cols-2"
+              data-testid={`group-shared-catalog-${group.id}`}
+            >
+              <SharedCatalogLink
+                href="/inventory"
+                icon={<Package className="size-3.5" aria-hidden="true" />}
+                label="Productos"
+                hint="SKU, marca, categorias y tags a nivel grupo."
+              />
+              <SharedCatalogLink
+                href="/inventory/catalogs"
+                icon={<Tag className="size-3.5" aria-hidden="true" />}
+                label="Catalogos"
+                hint="Marcas, categorias y tags compartidos."
+              />
+              <SharedCatalogLink
+                href="/inventory/currency"
+                icon={<TrendingUp className="size-3.5" aria-hidden="true" />}
+                label="Tipos de tasa"
+                hint="BCV, paralelo y tasa tienda del grupo."
+              />
+              <SharedCatalogLink
+                href="/payment-methods"
+                icon={<CreditCard className="size-3.5" aria-hidden="true" />}
+                label="Metodos de pago"
+                hint="Efectivo, tarjeta, transferencia y pago movil del grupo."
+              />
+            </ul>
+            <p
+              className="mt-2 text-[11px] text-text-muted"
+              data-testid={`group-shared-catalog-policy-${group.id}`}
+            >
+              Politica: solo el Owner del grupo puede crear, editar o desactivar
+              el catalogo compartido. Las sucursales (spinoffs) lo consumen en
+              lectura; sus administradores ven los mismos productos, listas,
+              tasas y metodos de pago, pero no los pueden modificar.
+            </p>
+            <SharedCatalogProducts groupId={group.id} />
+          </div>
         </CardContent>
       )}
 
@@ -335,6 +395,133 @@ function SummaryTile({
       <p className="mt-1 text-lg font-semibold text-text-primary">{value}</p>
       <p className="truncate text-xs text-text-muted">{detail}</p>
     </div>
+  );
+}
+
+/**
+ * Lista compacta de los productos maestros del grupo con checkmarks por
+ * spinoff. Carga via useGroupSharedCatalog (endpoint solo Owners).
+ */
+function SharedCatalogProducts({ groupId }: { groupId: number }) {
+  const { data, isLoading, isError, error } = useGroupSharedCatalog(groupId);
+
+  if (isLoading) {
+    return (
+      <p className="mt-3 text-xs text-text-muted" data-testid={`shared-catalog-loading-${groupId}`}>
+        Cargando catalogo maestro...
+      </p>
+    );
+  }
+
+  if (isError) {
+    return (
+      <p
+        className="mt-3 text-xs text-danger"
+        data-testid={`shared-catalog-error-${groupId}`}
+      >
+        No se pudo cargar el catalogo maestro: {error instanceof Error ? error.message : 'error'}
+      </p>
+    );
+  }
+
+  if (!data || data.products.length === 0) {
+    return (
+      <p
+        className="mt-3 text-xs text-text-muted"
+        data-testid={`shared-catalog-empty-${groupId}`}
+      >
+        Aun no hay productos maestros en este grupo. Crea uno desde la pagina de inventario
+        del grupo para empezar a replicarlo a las tiendas hijas.
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="mt-3 space-y-2"
+      data-testid={`shared-catalog-table-${groupId}`}
+    >
+      <div
+        className="grid items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+        style={{ gridTemplateColumns: `minmax(180px, 1fr) repeat(${data.spinoffs.length}, minmax(80px, auto))` }}
+      >
+        <span>Producto maestro</span>
+        {data.spinoffs.map((s) => (
+          <span key={s.id} className="truncate text-center" title={s.name}>
+            {s.slug}
+          </span>
+        ))}
+      </div>
+      {data.products.map((entry) => (
+        <div
+          key={entry.master.id}
+          className="grid items-center gap-2 rounded border border-border bg-surface px-2 py-1.5 text-xs"
+          style={{ gridTemplateColumns: `minmax(180px, 1fr) repeat(${data.spinoffs.length}, minmax(80px, auto))` }}
+          data-testid={`shared-catalog-row-${entry.master.id}`}
+        >
+          <div className="min-w-0">
+            <p className="truncate font-medium text-text-primary">{entry.master.name}</p>
+            <p className="font-mono text-[10px] text-text-muted">{entry.master.sku ?? '-'}</p>
+          </div>
+          {entry.copies.map((copy) => {
+            const status = !copy.propagated
+              ? 'pendiente'
+              : copy.is_catalog_active === false
+                ? 'desactivado'
+                : copy.is_active === false
+                  ? 'inactivo'
+                  : 'ok';
+            const variant =
+              status === 'ok'
+                ? 'success'
+                : status === 'pendiente'
+                  ? 'default'
+                  : 'warning';
+            return (
+              <div key={copy.spinoff_id} className="flex items-center justify-center">
+                <Badge variant={variant} className="text-[10px]">
+                  {status}
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SharedCatalogLink({
+  href,
+  icon,
+  label,
+  hint,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <li>
+      <a
+        href={href}
+        className="group flex items-start gap-2 rounded border border-border bg-surface px-3 py-2 text-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+        data-testid={`group-shared-link-${label.toLowerCase().replace(/\s+/g, '-')}`}
+      >
+        <span className="mt-0.5 text-primary" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-text-primary">{label}</span>
+          <span className="mt-0.5 block text-xs text-text-muted">{hint}</span>
+        </span>
+        <ExternalLink
+          className="size-3.5 shrink-0 text-text-muted transition-colors group-hover:text-primary"
+          aria-hidden="true"
+        />
+      </a>
+    </li>
   );
 }
 

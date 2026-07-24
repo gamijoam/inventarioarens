@@ -5,10 +5,12 @@ namespace App\Modules\AccessControl\Services;
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\TenantSpinoffService;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -301,7 +303,7 @@ class AccessControlService
         $tenant ??= app(TenantManager::class)->require();
 
         if (! $tenant->isGroup()) {
-            app(\App\Modules\Tenancy\Services\TenantSpinoffService::class)->seedBaseRoles($tenant);
+            app(TenantSpinoffService::class)->seedBaseRoles($tenant);
         }
 
         return Role::query()
@@ -647,7 +649,7 @@ class AccessControlService
             ->all();
     }
 
-    private function organizationRoles(User $user, array $tenantIds): \Illuminate\Database\Eloquent\Collection
+    private function organizationRoles(User $user, array $tenantIds): Collection
     {
         $teamColumn = $this->teamColumn();
 

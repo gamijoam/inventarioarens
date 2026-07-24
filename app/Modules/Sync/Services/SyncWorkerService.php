@@ -17,8 +17,7 @@ class SyncWorkerService
         private readonly SyncTransportService $transport,
         private readonly SyncEventApplier $applier,
         private readonly SyncReadinessService $readiness,
-    ) {
-    }
+    ) {}
 
     public function run(
         Tenant $tenant,
@@ -128,8 +127,7 @@ class SyncWorkerService
         string $token,
         string $installationCode,
         bool $initialSnapshot,
-    ): void
-    {
+    ): void {
         $response = $this->client($tenant, $token)
             ->post($this->url($cloudUrl, 'sync/nodes'), [
                 'code' => $nodeCode,

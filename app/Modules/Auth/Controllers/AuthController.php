@@ -3,6 +3,7 @@
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
+use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Auth\Requests\LoginRequest;
 use App\Modules\Auth\Requests\PlatformLoginRequest;
 use App\Modules\Auth\Requests\SwitchTenantRequest;
@@ -23,8 +24,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly AuthService $auth,
         private readonly CookieIssuer $cookies,
-    ) {
-    }
+    ) {}
 
     public function tenants(TenantLookupRequest $request): JsonResponse
     {
@@ -199,14 +199,14 @@ class AuthController extends Controller
         $user = $request->user();
         $currentToken = $request->attributes->get('auth_token');
 
-        $sessions = \App\Modules\Auth\Models\AuthToken::query()
+        $sessions = AuthToken::query()
             ->where('tenant_id', $tenant->id)
             ->where('user_id', $user->id)
             ->whereNull('revoked_at')
             ->orderByDesc('last_used_at')
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (\App\Modules\Auth\Models\AuthToken $token): array => [
+            ->map(fn (AuthToken $token): array => [
                 'id' => $token->id,
                 'name' => $token->name,
                 'ip_address' => $token->ip_address,
@@ -227,7 +227,7 @@ class AuthController extends Controller
         $tenant = app(TenantManager::class)->require();
         $user = $request->user();
 
-        $token = \App\Modules\Auth\Models\AuthToken::query()
+        $token = AuthToken::query()
             ->where('tenant_id', $tenant->id)
             ->where('user_id', $user->id)
             ->whereKey($tokenId)

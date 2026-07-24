@@ -405,6 +405,26 @@ export function PosTerminal() {
     setQuickSearchIndex(0);
   }, [query, quickSearchResults.length]);
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
+
+  // Tasa representativa del carrito: si todos los items cotizados usan la
+  // misma tasa (ej. PARALELO anclada al producto), usamos ESA para mostrar
+  // el equivalente VES en la sidebar Y para los pagos. Si hay tasas
+  // mixtas, caemos a la tasa global del bootstrap.
+  const cartRate = useMemo(() => {
+    const ratesFromCart = cart
+      .map((line) => Number(line.exchange_rate ?? 0))
+      .filter((rate) => rate > 0);
+    if (ratesFromCart.length === 0) return null;
+    const first = ratesFromCart[0];
+    const allSame = ratesFromCart.every((rate) => rate === first);
+    if (!allSame) return null;
+    return {
+      code: (cart[0]?.exchange_rate_type_code as string | null) ?? null,
+      rate: first,
+      exchange_rate_type_id:
+        (cart[0]?.exchange_rate_type_id as number | null) ?? null,
+    };
+  }, [cart]);
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
@@ -945,13 +965,17 @@ export function PosTerminal() {
             </div>
             <div className="border-border bg-bg/50 mt-4 space-y-2 rounded border p-3">
               <AmountRow label="Restante USD" value={paymentTotals.remaining} />
-              {activeRate && (
-                <AmountRow
-                  label={`Restante VES (${activeRate.code})`}
-                  value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', activeRate.rate)}
-                  currency="VES"
-                />
-              )}
+              {(() => {
+                const tasaParaSidebar = cartRate ?? (activeRate ? { code: activeRate.code, rate: activeRate.rate } : null);
+                if (!tasaParaSidebar) return null;
+                return (
+                  <AmountRow
+                    label={`Restante VES (${tasaParaSidebar.code ?? '?'})`}
+                    value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', tasaParaSidebar.rate)}
+                    currency="VES"
+                  />
+                );
+              })()}
               <div className="bg-success/10 mt-2 rounded p-3">
                 <p className="text-text-muted text-xs">Vuelto</p>
                 <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
@@ -1311,6 +1335,9 @@ export function PosTerminal() {
           base_unit_price: Number(product.base_price ?? 0),
           currency: quote?.sale_currency ?? product.sale_currency ?? 'USD',
           base_currency: product.sale_currency ?? 'USD',
+          exchange_rate: quote?.exchange_rate ?? null,
+          exchange_rate_type_id: quote?.exchange_rate_type_id ?? null,
+          exchange_rate_type_code: quote?.exchange_rate_type_code ?? null,
           price_list_id: selectedPriceList?.id ?? null,
           price_list_name:
             quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
@@ -1428,7 +1455,10 @@ export function PosTerminal() {
       : null;
     const currencyMode = configured?.currency_mode ?? 'USD';
     const currency = currencyMode === 'VES' ? 'VES' : 'USD';
-    const rate = activeRate;
+    // Prioridad: tasa del carrito (anclada al producto) > tasa default.
+    // Esto respeta la tasa del producto cuando todos los items comparten
+    // la misma. Si las tasas son mixtas, cae a activeRate.
+    const rate = cartRate ?? activeRate;
     setPayments((current) => [
       ...current,
       {
@@ -3370,10 +3400,11 @@ function previewQuickPayment(
 function bestActiveRate(
   rates: {
     exchange_rate_type_id: number;
-    exchange_rate_type_code?: string | null;
+    exchange_rate_type_code?: string | null | undefined;
     rate: number;
-    base_currency?: string;
-    quote_currency?: string;
+    base_currency?: string | undefined;
+    quote_currency?: string | undefined;
+    effective_at?: string | null | undefined;
   }[],
   rateTypes: { id: number; code?: string; is_default?: boolean; is_active?: boolean }[],
 ): { exchange_rate_type_id: number; code: string; rate: number } | null {
@@ -3385,13 +3416,32 @@ function bestActiveRate(
   );
   if (validRates.length === 0) return null;
 
+  // 1. Preferir siempre el tipo de tasa marcado como is_default=true
+  //    (si esta activo). Esto evita que el POS use una tasa vieja o una
+  //    que el admin acaba de activar por error.
   const defaultType = rateTypes.find(
-    (rateType) => rateType.is_default && rateType.is_active !== false,
+    (rateType) => rateType.is_default === true && rateType.is_active !== false,
   );
-  const defaultRate = defaultType
-    ? validRates.find((rate) => rate.exchange_rate_type_id === defaultType.id)
-    : null;
-  const selected = defaultRate ?? validRates[0];
+  if (defaultType) {
+    const rate = validRates.find((r) => r.exchange_rate_type_id === defaultType.id);
+    if (rate) {
+      const type = rateTypes.find((t) => t.id === defaultType.id);
+      return {
+        exchange_rate_type_id: defaultType.id,
+        code: rate.exchange_rate_type_code ?? type?.code ?? 'Tasa',
+        rate: Number(rate.rate),
+      };
+    }
+  }
+
+  // 2. Si no hay default, usar la tasa con effective_at mas reciente
+  //    (la ultima que el admin registro).
+  const sortedByDate = [...validRates].sort((a, b) => {
+    const dateA = a.effective_at ? new Date(a.effective_at).getTime() : 0;
+    const dateB = b.effective_at ? new Date(b.effective_at).getTime() : 0;
+    return dateB - dateA;
+  });
+  const selected = sortedByDate[0];
   if (!selected) return null;
   const type = rateTypes.find((rateType) => rateType.id === selected.exchange_rate_type_id);
 

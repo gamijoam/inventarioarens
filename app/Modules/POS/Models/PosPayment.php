@@ -30,15 +30,23 @@ class PosPayment extends Model
     use BelongsToTenant;
 
     public const METHOD_CASH = 'cash';
+
     public const METHOD_CARD = 'card';
+
     public const METHOD_MOBILE_PAYMENT = 'mobile_payment';
+
     public const METHOD_TRANSFER = 'transfer';
+
     public const METHOD_ZELLE = 'zelle';
+
     public const METHOD_EXTERNAL_FINANCING = 'external_financing';
+
     public const METHOD_OTHER = 'other';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_CAPTURED = 'captured';
+
     public const STATUS_FAILED = 'failed';
 
     protected function casts(): array

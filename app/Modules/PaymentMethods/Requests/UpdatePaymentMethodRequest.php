@@ -11,7 +11,8 @@ class UpdatePaymentMethodRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
         $paymentMethod = $this->route('paymentMethod');
 
         return [
@@ -22,7 +23,7 @@ class UpdatePaymentMethodRequest extends FormRequest
                 'string',
                 'max:50',
                 Rule::unique('payment_methods', 'code')
-                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))
                     ->ignore($paymentMethod?->id),
             ],
             'method' => ['sometimes', 'required', 'string', Rule::in(StorePaymentMethodRequest::methods())],

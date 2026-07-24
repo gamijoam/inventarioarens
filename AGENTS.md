@@ -145,7 +145,7 @@ A partir de la Fase 1 (jul-2026), los tenants forman una jerarquía explicita:
   - Su Owner (rol "Owner" con team_id = group.id) puede crear empresas hijas via `POST /api/tenant-groups/{group}/tenants`.
 - **Tenant Spinoff** (`is_group = false`, `parent_id = group.id`): empresa hija del grupo.
   - Su admin (rol "Administrador" con team_id = spinoff.id) opera esa empresa.
-- **Tenant standalone**: ya NO existe como concepto separado. Toda empresa es spinoff de un grupo. Para crear la primera empresa de un grupo nuevo, usar `POST /api/tenant-groups` (self-serve) que crea grupo + tenant inicial en una sola transaccion.
+- **Tenant root sin hijos**: funciona como empresa normal. Si no tiene spinoffs, opera igual que antes y su catalogo compartido queda limitado a ese tenant. Cuando tiene hijos, ese root actua como grupo y comparte catalogo/precios/tasas/metodos con sus spinoffs.
 
 **Endpoints clave**:
 
@@ -167,7 +167,7 @@ A partir de la Fase 1 (jul-2026), los tenants forman una jerarquía explicita:
 
 **Implicaciones para codigo nuevo**:
 
-- NO crear empresas sin `parent_group_id`. Toda empresa pertenece a un grupo.
+- NO asumir que toda empresa tiene spinoffs. Una empresa normal puede quedar como tenant raiz sin hijos y seguir su flujo habitual.
 - NO usar `whereNull('parent_id')` para detectar grupos — usar `where('is_group', true)` o el scope `Tenant::groups()`.
 - Para que un user sea "Owner real" del grupo, usar `User::isOwnerOf(group)`.
 

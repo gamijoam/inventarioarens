@@ -15,9 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class UserOverrideController extends Controller
 {
-    public function __construct(private readonly CapabilityResolver $resolver)
-    {
-    }
+    public function __construct(private readonly CapabilityResolver $resolver) {}
 
     public function index(Request $request, Tenant $tenant, User $user): JsonResponse
     {

@@ -3,8 +3,8 @@
 namespace App\Modules\Auth\Services;
 
 use App\Models\User;
-use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\Request;

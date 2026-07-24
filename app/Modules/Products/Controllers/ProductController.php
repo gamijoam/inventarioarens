@@ -13,7 +13,9 @@ use App\Modules\Products\Resources\ProductPriceListResource;
 use App\Modules\Products\Resources\ProductPriceResource;
 use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,6 +30,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
+    use SharedCatalogWriteGuard;
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Product::class);
@@ -124,7 +128,7 @@ class ProductController extends Controller
         return ProductResource::collection($query->paginate($limit));
     }
 
-    public function store(StoreProductRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
+    public function store(StoreProductRequest $request, SyncCatalogOutboxService $syncCatalog, SharedCatalogPropagationService $propagation): JsonResponse
     {
         Gate::authorize('create', Product::class);
 
@@ -135,14 +139,19 @@ class ProductController extends Controller
         $userId = $request->user()?->id;
 
         // Defensa explicita: forzamos tenant_id al tenant del request
-        // (resuelto por el middleware ResolveTenant desde X-Tenant).
-        // Esto previene que un cliente envie un tenant_id diferente en
-        // el body o que el TenantManager::current() (que es global al
-        // request) apunte a otro tenant por algun bug.
-        $tenantId = app(TenantManager::class)->require()->id;
+        // (resuelto por el middleware ResolveTenant desde X-Tenant). El
+        // producto SIEMPRE pertenece al tenant operativo actual, no al
+        // grupo padre. Esto es coherente con el modelo "scope estricto
+        // por tenant" introducido en Fase 6: el maestro del grupo se
+        // crea solo cuando el tenant actual es el grupo (is_group=true);
+        // los spinoffs crean su propia copia local al propagarse.
+        $tenantManager = app(TenantManager::class);
+        $currentTenant = $tenantManager->current();
+        $tenantId = $currentTenant?->id ?? $tenantManager->require()->id;
         $data['tenant_id'] = $tenantId;
+        $data['is_catalog_master'] = $currentTenant?->isGroup() ?? false;
 
-        $product = DB::transaction(function () use ($data, $categoryIds, $tagIds, $userId, $syncCatalog): Product {
+        $product = DB::transaction(function () use ($data, $categoryIds, $tagIds, $userId, $syncCatalog, $propagation): Product {
             $created = Product::create($data)
                 ->refresh()
                 ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
@@ -157,6 +166,14 @@ class ProductController extends Controller
             $this->recordAudit($created, ProductAudit::ACTION_CREATED, [], $created->only($this->auditedFields()), $userId);
             $syncCatalog->productCreated($created);
 
+            if ($created->isCatalogMaster()) {
+                // Propaga el producto maestro a cada spinoff. Tambien propaga
+                // los catalogos referenciados (brand/categorias/tags) si
+                // todavia no existen localmente en el spinoff.
+                $propagation->propagateMaster($created);
+                $propagation->propagateReferencedCatalogForMaster($created);
+            }
+
             return $created->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
         });
 
@@ -169,7 +186,17 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        return ProductResource::make($product->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units'));
+        return ProductResource::make(
+            $product
+                ->load([
+                    'saleExchangeRateType',
+                    'warrantyPolicy',
+                    'brand',
+                    'categories.parent',
+                    'tags',
+                ])
+                ->loadCount('units')
+        );
     }
 
     public function price(Product $product, ProductPriceService $priceService): ProductPriceResource
@@ -297,9 +324,16 @@ class ProductController extends Controller
         return $this->prices($product);
     }
 
-    public function update(UpdateProductRequest $request, Product $product, SyncCatalogOutboxService $syncCatalog): ProductResource
+    public function update(UpdateProductRequest $request, Product $product, SyncCatalogOutboxService $syncCatalog, SharedCatalogPropagationService $propagation): ProductResource
     {
         Gate::authorize('update', $product);
+
+        if (
+            $this->modelBelongsToSharedCatalog($product)
+            && ! $this->canWriteSharedCatalog($request->user())
+        ) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         $data = $request->validated();
         $userId = $request->user()?->id;
@@ -314,7 +348,7 @@ class ProductController extends Controller
             ]);
         }
 
-        $product = DB::transaction(function () use ($data, $product, $userId, $syncCatalog): Product {
+        $product = DB::transaction(function () use ($data, $product, $userId, $syncCatalog, $propagation): Product {
             $before = $product->only(array_keys($data));
             $product->update($data);
 
@@ -331,30 +365,76 @@ class ProductController extends Controller
                 $data['base_price'] = $product->base_price;
             }
 
+            // Sincronizar categorias y tags si vienen en el payload.
+            // Antes el controller los descartaba (ver prepareProductData)
+            // y solo se sincronizaban via endpoints dedicados, lo cual el
+            // frontend no llamaba al editar.
+            $syncedCategories = false;
+            if (array_key_exists('category_ids', $data)) {
+                $categoryIds = array_values(array_map('intval', (array) $data['category_ids']));
+                $product->categories()->syncWithPivotValues(
+                    $categoryIds,
+                    ['tenant_id' => $product->tenant_id],
+                );
+                $syncedCategories = true;
+            }
+            $syncedTags = false;
+            if (array_key_exists('tag_ids', $data)) {
+                $tagIds = array_values(array_map('intval', (array) $data['tag_ids']));
+                $product->tags()->syncWithPivotValues(
+                    $tagIds,
+                    ['tenant_id' => $product->tenant_id],
+                );
+                $syncedTags = true;
+            }
+
             $after = $product->refresh()->only(array_keys($data));
             $changes = $this->changedValues($before, $after);
 
-            if ($changes !== []) {
-                $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $changes['before'], $changes['after'], $userId);
+            if ($changes !== [] || $syncedCategories || $syncedTags) {
+                $beforeValues = $changes['before'] ?? [];
+                $afterValues = $changes['after'] ?? [];
+                $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $beforeValues, $afterValues, $userId);
                 $syncCatalog->productUpdated($product);
             }
 
-            return $product->refresh()->load(['saleExchangeRateType', 'warrantyPolicy'])->loadCount('units');
+            if ($product->isCatalogMaster() && $this->touchedMasterField($data)) {
+                $propagation->syncMasterFieldsToCopies($product);
+            }
+
+            if ($syncedCategories && $product->isCatalogMaster()) {
+                $propagation->propagateReferencedCatalogForMaster($product);
+            }
+
+            return $product->refresh()
+                ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'])
+                ->loadCount('units');
         });
 
         return ProductResource::make($product);
     }
 
-    public function destroy(Product $product, SyncCatalogOutboxService $syncCatalog): Response
+    public function destroy(Product $product, SyncCatalogOutboxService $syncCatalog, SharedCatalogPropagationService $propagation): Response
     {
         Gate::authorize('delete', $product);
 
+        if (
+            $this->modelBelongsToSharedCatalog($product)
+            && ! $this->canWriteSharedCatalog(request()->user())
+        ) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $before = ['is_active' => $product->is_active];
 
-        DB::transaction(function () use ($product, $before, $syncCatalog): void {
-            $product->update(['is_active' => false]);
+        DB::transaction(function () use ($product, $before, $syncCatalog, $propagation): void {
+            $product->update(['is_active' => false, 'is_catalog_active' => false]);
             $this->recordAudit($product, ProductAudit::ACTION_DEACTIVATED, $before, ['is_active' => false], request()->user()?->id);
             $syncCatalog->productDeactivated($product->refresh());
+
+            if ($product->isCatalogMaster()) {
+                $propagation->deactivateCopiesForMaster($product);
+            }
         });
 
         return response()->noContent();
@@ -413,6 +493,11 @@ class ProductController extends Controller
             'warranty_policy_id',
             'is_active',
         ];
+    }
+
+    private function touchedMasterField(array $data): bool
+    {
+        return (bool) array_intersect_key(array_flip(Product::MASTER_FIELDS), $data);
     }
 
     private function prepareProductData(array $data): array

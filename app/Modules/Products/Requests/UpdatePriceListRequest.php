@@ -10,7 +10,8 @@ class UpdatePriceListRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
         $priceList = $this->route('priceList');
 
         return [
@@ -21,7 +22,7 @@ class UpdatePriceListRequest extends FormRequest
                 'string',
                 'max:50',
                 Rule::unique('price_lists', 'code')
-                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))
                     ->ignore($priceList?->id),
             ],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -31,7 +32,7 @@ class UpdatePriceListRequest extends FormRequest
             'payment_method_ids' => ['sometimes', 'array'],
             'payment_method_ids.*' => [
                 'integer',
-                Rule::exists('payment_methods', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),
             ],
         ];
     }

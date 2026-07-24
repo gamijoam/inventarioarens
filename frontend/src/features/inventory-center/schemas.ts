@@ -457,6 +457,16 @@ export const ProductSchema = z.object({
   can_change_tracking_type: z.boolean().optional(),
   units_count: z.union([z.number(), z.string()]).optional(),
   is_active: z.boolean(),
+
+  // Catalogo compartido (Fase 1 arquitecto maestro + copia local).
+  // `catalog_product_id` apunta al maestro del grupo cuando este registro
+  // es la copia operativa de un spinoff. `is_catalog_master=true` significa
+  // que es el original. `is_catalog_active` replica la desactivacion logica
+  // del maestro a todas las copias.
+  catalog_product_id: z.number().int().nullable().optional(),
+  is_catalog_master: z.boolean().optional(),
+  is_catalog_active: z.boolean().optional(),
+
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

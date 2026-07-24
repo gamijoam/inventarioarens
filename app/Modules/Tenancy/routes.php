@@ -45,6 +45,10 @@ Route::middleware(['api.auth'])->group(function (): void {
 
     // GET spinoffs: cualquier miembro activo (lectura). Verificacion inline.
     Route::get('tenant-groups/{group}/spinoffs', [TenantGroupController::class, 'spinoffs']);
+
+    // Promueve una empresa normal a grupo multi-empresa.
+    // El actor debe ser miembro activo del tenant actual.
+    Route::post('tenants/{tenant}/promote-to-group', [TenantGroupController::class, 'promote']);
 });
 
 // POST spinoffs + GET/POST users del grupo: solo Owners estrictos
@@ -55,6 +59,8 @@ Route::middleware(['api.auth', EnsureGroupOwner::class])
         Route::post('tenants', [TenantGroupController::class, 'createSpinoff']);
         Route::get('users', [TenantGroupController::class, 'users']);
         Route::post('users', [TenantGroupController::class, 'attachUser']);
+        // Catalogo compartido (maestro + copias por spinoff). Solo Owners.
+        Route::get('shared-products', [TenantGroupController::class, 'sharedProducts']);
     });
 
 /**

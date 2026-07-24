@@ -1,5 +1,1227 @@
 # Registro de implementación
 
+## 2026-07-22 - Decision tecnica: catalogo compartido con operacion local
+
+### Contexto
+
+- Se detecto que el enfoque actual de productos compartidos por jerarquia permite lectura desde
+  spinoffs, pero no resuelve correctamente operaciones fisicas de inventario.
+- Bug inmediato: `StoreProductEntryRequest` usa `$tenantId` sin declararlo al validar almacenes.
+- Causa raiz: stock, movimientos, IMEIs y entradas usan FKs compuestas `tenant_id + product_id`, por
+  lo que una tienda no debe operar stock contra un producto cuyo `tenant_id` pertenece al grupo.
+
+### Decision propuesta
+
+- Adoptar modelo de catalogo maestro compartido + copia operativa local por tienda.
+- El grupo mantiene la fuente de verdad comercial; cada tienda opera con su propio producto local
+  vinculado al maestro.
+- No seguir ampliando `BelongsToTenantHierarchy` para operar productos del grupo directamente desde
+  spinoffs; se mantiene como aprendizaje util para lectura, pero no como modelo final de inventario.
+
+### Documento
+
+- `docs/CATALOGO_COMPARTIDO_OPERACION_LOCAL_2026-07-22.md` documenta bug, causa raiz, alternativas,
+  modelo recomendado, fases de implementacion y tests obligatorios.
+
+### Fase 0 aplicada (2026-07-22)
+
+- Hotfix en `app/Modules/ProductEntries/Requests/StoreProductEntryRequest.php`: se declara
+  `$tenantId = app(TenantManager::class)->require()->id` antes de la regla `where('tenant_id', $tenantId)`
+  en `items.*.warehouse_id`, junto con `$tenantIds = app(TenantManager::class)->sharedTenantIds()` para
+  `items.*.product_id`. Esto elimina el `Undefined variable $tenantId` que podia aparecer al registrar
+  entradas.
+- Test de regresion nuevo `test_store_request_does_not_raise_undefined_tenant_id_when_validating_warehouse`
+  en `tests/Feature/ProductEntries/ProductEntryApiTest.php` que confirma: (a) la validacion del warehouse
+  rechaza correctamente cuando pertenece a otro tenant y (b) un happy path posterior sigue creando la
+  entrada sin error de variable indefinida.
+- `phpunit` del modulo: 7/7 verde, 44 assertions.
+- `vendor/bin/pint` aplicado al request y al test modificados.
+
+### Fases 1, 2 y parte de 3 aplicadas (2026-07-22)
+
+- Migracion nueva `2026_07_22_120000_add_catalog_link_to_products_table.php`: agrega a `products`
+  los campos `catalog_product_id` (FK logica al maestro), `is_catalog_master` (bool default false)
+  e `is_catalog_active` (bool default true), ademas de un indice unico parcial
+  `(tenant_id, catalog_product_id) WHERE catalog_product_id IS NOT NULL`.
+- `App\Modules\Products\Models\Product` extendido con constantes `MASTER_FIELDS` y `LOCAL_FIELDS`,
+  helpers `isCatalogMaster()`, `isCatalogCopy()`, `isCatalogActiveForCurrent()`, `catalogMaster()`,
+  `localCopies()` y un hook `creating` que rellena `unit_of_measure` y `track_stock` por defecto.
+- Servicio nuevo `App\Modules\Products\Services\SharedCatalogPropagationService` con tres metodos:
+  - `propagateMaster(Product $master)`: crea la copia operativa en cada spinoff del grupo.
+  - `syncMasterFieldsToCopies(Product $master)`: propaga cambios en campos maestros a las copias.
+  - `deactivateCopiesForMaster(Product $master)`: marca copias como inactivas al desactivar maestro.
+  - `ensureCopyFor(Product $master, Tenant $spinoff)`: idempotente, devuelve o crea la copia local.
+  Implementado con `DB::table('products')->insert()` para evitar que el hook `creating` de
+  `BelongsToTenantHierarchy` sobrescriba `tenant_id` con `sharedTenantId()` (que devolveria el
+  grupo padre en lugar del spinoff).
+- `TenantSpinoffService::createSpinoff` ahora invoca `bootstrapSharedCatalog` justo despues de
+  asignar el rol admin: clona los productos maestros del grupo en el spinoff recien creado. Esto
+  garantiza que una tienda nueva reciba el catalogo maestro sin intervencion manual.
+- `ProductController::store`, `update` y `destroy` invocan la propagacion al grupo, ademas de
+  marcar `is_catalog_master` automaticamente cuando el tenant actual es un grupo.
+- `App\Modules\Currency\Models\ExchangeRateType` cambio de `BelongsToTenantHierarchy` a
+  `BelongsToTenant` (ahora es local por tienda). Esto evita que un spinoff escriba sobre tipos de
+  tasa del grupo al crearlos. Tests `SharedCatalogWritePolicyTest::test_spinoff_admin_cannot_edit_shared_exchange_rate_type`
+  y `PosBootstrapApiTest::test_bootstrap_for_spinoff_includes_group_shared_catalogs` adaptados.
+- Tests nuevos:
+  - `tests/Feature/Products/SharedCatalogPropagationTest.php` (5/5 verde) cubre: crear maestro y
+    propagar a spinoff existente, update de maestro sincroniza copias, deactivate propaga, bootstrap
+    al crear un nuevo spinoff y entrada desde spinoff usando el `product_id` local.
+  - Hotfix anterior: `test_store_request_does_not_raise_undefined_tenant_id_when_validating_warehouse`.
+
+### Verificacion final
+
+- Suite de regresion afectada: 209/212 tests verde.
+- 3 fallas restantes son pre-existentes y no relacionadas con este cambio:
+  - `ProductApiTest::test_user_can_manage_product_price_lists_and_quote_selected_price` espera
+    `price_source='price_list'` pero el codigo actual (sprint QW1) usa `'list'`.
+  - `OperationalTenantIsolationTest::test_users_products_cash_registers_and_pos_sales_are_isolated_by_company`
+    requiere migracion `accounts_payable_payment_requests` (no aplicada en la DB local de tests).
+  - `ProductImageApiTest::test_user_can_upload_image_and_index_returns_3_variants` falla por
+    `Array to string conversion` en flujo de upload, pre-existente.
+- `vendor/bin/pint` aplicado a todos los archivos modificados.
+
+### Pendiente (Fases 4..6 del documento)
+
+- **Fase 5**: Backfill de productos existentes para grupos ya creados. Hoy no hay datos, pero cuando
+  aplique se necesita un script/migracion que cree copias para spinoffs de cada maestro.
+- **Fase 6**: Frontend (label "Compartido" en catalogo, ocultar maestro al spinoff en UI).
+
+## 2026-07-23 - Fix duplicados en listado del spinoff
+
+### Diagnostico
+
+El spinoff (`danubio-soledad`) veia en `/inventory` los productos maestros del grupo
+(`danubio`) ademas de sus propias copias. La pantalla mostraba `CARAMELO Maestro`
+y `CARAMELO Compartido` (dos filas para el mismo producto). Causa: el modelo
+`Product` seguia usando `BelongsToTenantHierarchy`, cuyo scope incluye el
+tenant actual + el grupo padre en listados. Para spinoffs eso significa
+"traer tambien los productos del grupo", lo cual rompe el modelo operativo
+(una tienda no debe ver el producto maestro de su grupo, solo su copia).
+
+### Decision arquitectonica
+
+Se adopta el modelo "scope estricto por tenant" para todo el modulo de
+catalogos: cada tienda ve SOLO sus productos. El catalogo maestro del
+grupo solo es visible para el Owner del grupo desde una pantalla dedicada
+(ya implementada: `GET /api/tenant-groups/{group}/shared-products`).
+
+Consecuencias:
+- `Product`, `Brand`, `Category`, `Tag`, `PriceList`, `ProductPrice`,
+  `ProductImage`, `ProductImageVariant` y `PaymentMethod` ahora usan
+  `BelongsToTenant` (scope solo tenant actual).
+- Los spinoffs crean su propia copia local de cada catalogo. Esto se
+  hace al crear el spinoff (`TenantSpinoffService::bootstrapSharedCatalog`),
+  copiando productos maestros. El resto del catalogo (marcas, categorias,
+  tags) queda como tarea pendiente del servicio de propagacion.
+- El `ProductController::store` ya no fuerza `tenant_id = sharedTenantId()`;
+  usa `current()->id` para que el producto siempre sea local.
+
+### Tests adaptados
+
+- `ProductCatalogApiTest::test_spinoff_can_use_group_brand_and_store_product_in_group_tenant`:
+  el spinoff crea su propia brand local (FK compuesta `(tenant_id, brand_id)`).
+- `SharedCatalogWritePolicyTest::test_spinoff_admin_cannot_edit_product_owned_by_group`:
+  ahora el spinoff recibe 404 (no encuentra el producto del grupo) en vez de 403.
+- `SharedCatalogWritePolicyTest::test_spinoff_admin_cannot_edit_shared_payment_method`:
+  mismo cambio, 404 en vez de 403.
+- `PosBootstrapApiTest::test_bootstrap_for_spinoff_includes_group_shared_catalogs`:
+  el spinoff ve 0 elementos de los catalogos del grupo (previamente esperaba 1
+  de cada uno, comportamiento del scope jerarquico).
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods`
+  = 242/245 (3 fallas pre-existentes sin relacion: `price_list` vs `list`,
+  `OperationalTenantIsolationTest` requiere migracion ausente en DB local,
+  `ProductImageApiTest` falla por `Array to string conversion` pre-existente).
+- `pnpm typecheck` limpio.
+- `vendor/bin/pint` aplicado.
+
+### Pendiente derivado
+
+- Frontend: el badge "Compartido" del spinoff ahora describe correctamente
+  la copia local; el badge "Maestro" sigue siendo util cuando el Owner del
+  grupo navega por su propio catalogo.
+- Migracion de backfill (Fase 5) para grupos con catalogos existentes.
+
+## 2026-07-23 - Propagacion completa del catalogo del grupo
+
+### Contexto
+
+Hasta ahora solo `Product` se replicaba del grupo a los spinoffs. Brand,
+Category, Tag, PriceList, PaymentMethod, ExchangeRate, ExchangeRateType y
+WarrantyPolicy eran tenant-scoped estricto pero no se clonaban: si el
+Owner del grupo creaba una marca, los spinoffs no la veian y tenian que
+crear su propia copia local.
+
+### Implementado
+
+- `SharedCatalogPropagationService::propagateAllToSpinoff(Tenant $group, Tenant $spinoff)`:
+  clona TODO el catalogo del grupo al spinoff en una sola transaccion:
+  WarrantyPolicy, ExchangeRateType + tasas historicas, Brand, Category
+  (con jerarquia: procesa padres antes que hijos y traduce parent_id),
+  Tag, PaymentMethod, PriceList (con su pivote price_list_payment_method
+  usando los IDs locales del spinoff), Product maestros.
+
+- Nuevos metodos granulares:
+  - `ensureBrandCopyFor`, `ensureTagCopyFor`, `ensureWarrantyPolicyCopyFor`
+  - `ensureExchangeRateTypeCopyFor`, `ensureExchangeRateCopyFor`
+  - `ensurePaymentMethodCopyFor`, `ensurePriceListCopyFor`
+  - `syncPriceListPaymentMethods(PriceList $master, PriceList $copy, Tenant $spinoff)`
+
+- `propagateReferencedCatalogForMaster(Product $master)`: cuando se crea
+  o actualiza un producto maestro en el grupo, propaga solo los catalogos
+  referenciados (brand, warranty_policy, exchange_rate_type, categories
+  con sus ancestros, tags) a los spinoffs. Llamado desde
+  `ProductController::store` despues de `propagateMaster`.
+
+- `ensureProductCopyFor` traduce FKs antes de insertar el producto:
+  - `brand_id`, `warranty_policy_id`, `sale_exchange_rate_type_id` se
+    buscan por slug/code/name en el spinoff para usar los IDs locales.
+  - `categories` y `tags` se traducen via `translateForeignIdsToLocalIds`
+    que mapea IDs del grupo a IDs locales del spinoff usando `slug`.
+  - Si la copia ya existia, `refreshProductForeignKeys` actualiza FKs que
+    cambiaron.
+
+- `Product::categories()` y `Product::tags()` ahora usan
+  `->withoutGlobalScopes()` porque la pivot es tenant-local pero los modelos
+  target (Category/Tag) tienen `BelongsToTenant` (scope global). Sin esto,
+  al leer las relaciones sin `TenantManager` seteado, el scope filtra por
+  `tenant_id = current()` y vacia el resultado.
+
+- `TenantSpinoffService::bootstrapSharedCatalog` ahora invoca
+  `propagateAllToSpinoff` en vez de solo clonar productos. Asi un spinoff
+  nuevo recibe TODO el catalogo del grupo al crearse.
+
+### Bug encontrado durante desarrollo
+
+`upsertCopy` recibia `array $fields` como `[name, slug, description, ...]`
+(array indexado). El foreach interno usaba `$field => $override` y PHP
+reindexaba, generando columnas posicionales `0, 1, 2`. Fix: cambiar la
+firma a `[field => null, ...]` (array asociativo) y aceptar un parametro
+adicional `$overrides` para campos con valores precomputados (ej.
+FKs traducidas).
+
+### Tests
+
+`tests/Feature/Products/FullCatalogPropagationTest.php` (3 tests, 21 assertions):
+- `test_propagating_all_to_spinoff_clones_every_catalog_entity`: crea el
+  catalogo completo del grupo (marca, categoria padre+hijo, tag, metodo
+  de pago, lista de precios + su pivote, tipo de tasa + tasa historica,
+  politica de garantia, producto maestro con todas sus relaciones) y
+  verifica que cada entidad se clona correctamente en el spinoff, con
+  jerarquia, FKs traducidas y pivotes correctos.
+- `test_propagating_all_is_idempotent`: llama `propagateAllToSpinoff` 3
+  veces y verifica que no se duplican filas.
+- `test_referenced_catalog_propagation_runs_when_creating_master_with_brand`:
+  confirma que el flujo del controller (Product::create + propagacion)
+  crea la brand local antes de la copia del producto.
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods`
+  = 245/248 (3 fallas pre-existentes: `price_list` vs `list`,
+  `OperationalTenantIsolationTest`, `ProductImageApiTest`).
+- `pnpm typecheck` limpio.
+- `vendor/bin/pint` aplicado.
+
+### Efecto para el usuario
+
+- Crear un producto maestro en el grupo -> se replica a todos los
+  spinoffs con su brand/categoria/tag/warranty/exchange_rate_type.
+- Crear una marca en el grupo -> NO se replica automaticamente (queda como
+  TODO para Fase 5 backfill). Pero cuando se cree un producto que la use,
+  se propaga.
+- Crear un spinoff nuevo -> recibe TODO el catalogo del grupo al instante.
+- Editar una categoria en el grupo -> NO se propaga a copias existentes
+  (TODO). Pero el siguiente spinoff nuevo si la recibira.
+
+### TODOs derivados
+
+- Sincronizacion bidireccional: si el admin del spinoff edita su copia
+  local, propagar al grupo (o al menos notificar al Owner).
+- Editar un campo de un catalogo del grupo -> propagar a todas las
+  copias del spinoff (hoy solo la copia del producto se actualiza).
+- Migracion de backfill (Fase 5): script para poblar catalogos faltantes
+  en spinoffs existentes a partir del grupo.
+
+## 2026-07-23 - Propagacion automatica de catalogos del grupo
+
+### Contexto
+
+Hasta ahora los catalogos del grupo (Brand, Category, Tag, PriceList,
+PaymentMethod, ExchangeRateType, WarrantyPolicy) se replicaban SOLO al
+crear un spinoff nuevo o al crear un producto maestro que los referencie.
+El Owner del grupo tenia que crear productos primero para propagar.
+
+### Implementado
+
+Trait `App\Modules\Products\Concerns\PropagatesCatalogToSpinoffs`:
+
+- Hook `static::saved` en cada modelo de catalogo.
+- Detecta automaticamente si el tenant actual es un grupo (`isGroup`).
+- Solo propaga si el grupo TIENE spinoffs (no hace queries innecesarias).
+- En HTTP requests: propaga inmediatamente despues del save, dentro de
+  `DB::afterCommit()` si hay transaccion abierta (no contamina el
+  savepoint del grupo). Si la propagacion falla, se loggea y NO se
+  interrumpe la operacion principal.
+- En tests (`runningUnitTests`): la propagacion automatica se DESACTIVA
+  para no contaminar transacciones entre tests. Si un test quiere
+  verificar la propagacion, debe invocar el servicio directamente.
+- Cada modelo implementa `propagateToSpinoffs(Model $master)` que delega
+  al metodo correcto de `SharedCatalogPropagationService`.
+
+Modelos que ahora propagan automaticamente al guardar desde el grupo:
+
+| Modelo | Hook |
+|---|---|
+| `Brand` | `ensureBrandCopyFor` (por slug) |
+| `Category` | `propagateSingleCategoryToSpinoff` (clona ancestros y traduce `parent_id`) |
+| `Tag` | `ensureTagCopyFor` (por slug) |
+| `PriceList` | `ensurePriceListCopyFor` + `syncPriceListPaymentMethods` |
+| `PaymentMethod` | `ensurePaymentMethodCopyFor` (por code) |
+| `ExchangeRateType` | `ensureExchangeRateTypeCopyFor` + replica cada `ExchangeRate` |
+| `WarrantyPolicy` | `ensureWarrantyPolicyCopyFor` (por name) |
+
+### Bug encontrado y arreglado
+
+`upsertCategoryCopy` insertaba `description=null, sort_order=null` para
+categorias que no tenian esos campos seteados. La columna `sort_order` es
+NOT NULL. Fix: coalesce a 0 cuando es null.
+
+`propagateAllToSpinoff` (llamado desde bootstrap y desde el nuevo hook)
+abortaba la transaccion del grupo si algun INSERT del spinoff fallaba
+(misma transaccion). Fix: usar `DB::afterCommit()` en el hook y
+try/catch silencioso que solo loggea errores.
+
+### Safety
+
+- Propagacion idempotente: `ensureXCopyFor` busca por `code`/`slug`/`name`
+  en el spinoff. Si la copia ya existe, solo actualiza.
+- Si la propagacion falla, el guardado del grupo NO se interrumpe.
+- DB `inventory_arens` (la real del VPS/local) intacta. NO se ha corrido
+  `migrate:fresh` durante este cambio.
+
+### Tests
+
+`tests/Feature/Products/CatalogPropagationHookTest.php` (4 tests):
+- `test_brand_propagation_helper_is_idempotent`
+- `test_full_catalog_propagation_creates_all_local_copies`
+- `test_category_with_parent_propagates_parent_id_translated`
+- `test_propagation_helper_skips_when_current_tenant_is_not_group`
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods
+  tests/Feature/Inventory` = 295/298 (3 fallas pre-existentes sin relacion:
+  `price_list` vs `list`, `OperationalTenantIsolationTest` requiere
+  migracion ausente en DB local, `ProductImageApiTest` falla por
+  `Array to string conversion`).
+- DB `inventory_arens` real intacta: 3 tenants, 2 productos, 0 marcas,
+  48 categorias, 3 users.
+- `vendor/bin/pint` aplicado.
+
+### Bug fix: helper `db()` no existe
+
+El hook `static::saved` de `PropagatesCatalogToSpinoffs` usaba el helper
+global `db()->transactionLevel()` y `db()->afterCommit()`. Esos helpers
+globales solo existen en Laravel 12+ si estan registrados. En este
+proyecto (`laravel/framework ^12.5` pero el alias no estaba registrado),
+provocaba `Call to undefined function db()` que el navegador mostraba
+como error y abortaba el guardado en frontend.
+
+Fix: usar `\Illuminate\Support\Facades\DB::transactionLevel()` y
+`DB::afterCommit()`, que son APIs estables en Laravel 10/11/12.
+
+Sintoma que ve el usuario: la categoria SÍ se creaba en el grupo (el
+INSERT inicial pasaba), pero el dispatch del hook disparaba la
+propagacion y al fallar con `db()` no definido, el error se reportaba
+en el toast del frontend y el usuario veia "ya existe" en el segundo
+intento. Ademas la copia en el spinoff no se creaba porque la
+propagacion nunca llego a ejecutarse.
+
+## 2026-07-23 - Fix POS, detalle de producto y formulario vacio
+
+### Bug 1: POS no respetaba la tasa anclada al producto
+
+`ProductPriceService::rateTypeFor()` priorizaba `ProductPrice->exchange_rate_type_id`
+sobre `Product->sale_exchange_rate_type_id`. Si una lista de precios
+tenia su propia tasa, el POS cotizaba con esa, ignorando la que el
+admin del grupo habia anclado al producto.
+
+Sintoma: el admin ancla `Galaxy S24` a `PARALELO` (42 VES/USD), pero al
+vender en POS la tasa activa era `BCV` (36.5) porque la lista MAYOR
+la sobreescribia.
+
+Fix en `ProductPriceService.php`: invertir la prioridad. Ahora si el
+producto tiene `sale_exchange_rate_type_id`, SIEMPRE gana. La lista
+solo proporciona el monto del precio.
+
+### Bug 2: detalle de producto no mostraba brand/categories/tags
+
+`ProductController::show()` solo cargaba `saleExchangeRateType` y
+`warrantyPolicy`. El frontend recibia `brand=null`, `categories=[]`,
+`tags=[]` y los mostraba vacios en la pestana "General".
+
+Fix: cargar tambien `brand`, `categories.parent` (para que la jerarquia
+se pinte correctamente) y `tags`.
+
+### Bug 3: formulario de edicion venia vacio
+
+`EditProductDialog.tsx` mapea `product.brand_id`, `product.categories`
+y `product.tags` a initialValues del form. Si el backend no los cargaba,
+los initialValues quedaban undefined y el form se renderizaba vacio.
+
+Fix: con el bug 2 arreglado, el form recibe los datos completos.
+
+### Tests
+
+`tests/Feature/Products/ProductShowAndPricingTest.php` (2 tests):
+- `test_show_endpoint_includes_brand_categories_and_tags`
+- `test_product_rate_type_overrides_product_price_rate_type`
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods
+  tests/Feature/Inventory` = 297/300 (3 fallas pre-existentes sin
+  relacion).
+- DB `inventory_arens` real intacta: 3 tenants, 6 productos, 0 marcas,
+  52 categorias, 3 users.
+
+## 2026-07-23 - Banner del catalogo compartido + traduccion de tasa
+
+### Bug 1: Banner "Copia operativa del catalogo compartido"
+
+El usuario pidio eliminarlo de la UI. El banner vivia en
+`frontend/src/routes/_authed/inventory/$productId.tsx` y mostraba info
+sobre si el producto era maestro o copia. Para el usuario es ruido.
+
+Fix: eliminar el `<Card>` completo con la condicional `is_catalog_master
+|| catalog_product_id != null || is_catalog_active === false`. Tambien
+se removio el import sin uso de `Link2` desde `lucide-react`.
+
+### Bug 2: POS mostraba BCV en lugar de la tasa anclada al producto
+
+Diagnostico en vivo: el backend SÍ retornaba `PARALELO @ 200` cuando
+el producto estaba anclado a paralelo. El POS seguia mostrando BCV por
+datos viejos del navegador. La cache de TanStack Query NO aplica al
+endpoint `/products/{id}/price` porque `quoteProductForPos` se llama
+directo sin `useQuery`.
+
+Fix defensivo en `ProductPriceService::rateTypeFor()`: ademas de la
+jerarquia producto > lista > default, buscar el tipo de tasa del
+PRODUCTO por `code` (no por `id`) cuando el id del maestro no coincide
+con el id local del spinoff. Esto blinda el sistema contra futuras
+divergencias de id entre tenants.
+
+Adicional: si el usuario hace **hard reload** (Ctrl+Shift+R) en el
+POS, el navegador descarta el JS bundle viejo y `quoteProductForPos`
+vuelve a llamar al backend, que ya retorna la tasa correcta.
+
+### Bug 3: editar producto no guardaba categorias/tags
+
+`ProductController::update()` recibia `category_ids` y `tag_ids` en el
+payload pero `prepareProductData()` los descartaba con `unset()`. Solo
+los endpoints dedicados `PATCH /products/{id}/categories` y
+`PATCH /products/{id}/tags` sincronizaban, pero el frontend no los
+llamaba al editar el producto completo (solo los enviaba en el body
+del PATCH principal).
+
+Sintoma: el usuario veia "MASORCA" en el form (cache del navegador),
+al Guardar el backend descartaba el cambio, y el detalle mostraba
+"no tiene marca, categorias, tags ni garantia asignados".
+
+Fix en `ProductController::update()`:
+- Si vienen `category_ids` en `$data`, sincroniza via `syncWithPivotValues`
+  con `tenant_id = $product->tenant_id`.
+- Mismo para `tag_ids`.
+- Si el producto es maestro y se modificaron categorias, propaga el
+  catalogo referenciado al spinoff via `propagateReferencedCatalogForMaster`.
+- El return ahora carga `brand`, `categories.parent`, `tags` para que el
+  detalle quede consistente.
+
+### Bug 4: form de edicion sin margen de ganancia
+
+`EditProductDialog::productToFormValues` no copiaba `profit_margin` del
+producto al `initialValues`. Aunque la DB tiene el valor, el form lo
+veia vacio. Fix: agregar `profit_margin: p.profit_margin ? Number(p.profit_margin) : undefined`.
+
+### Bug 5: sidebar POS usaba tasa global en lugar de la del producto
+
+El "Restante VES (BCV @ 800)" de la sidebar POS usaba `bestActiveRate`
+que cae al tipo default si no hay default -> toma el primero. Si el
+producto estaba anclado a PARALELO, la sidebar seguia mostrando BCV.
+
+Fix en `PosTerminal.tsx`:
+- Nueva `cartRate` derivada de las lineas del carrito. Si todas las
+  lineas usan la misma tasa, esa tasa es la representativa.
+- La sidebar usa `cartRate` cuando existe, si no `activeRate` global.
+- El campo `PosCartLine` y `PosPaymentLine` ahora tienen
+  `exchange_rate`, `exchange_rate_type_id` y `exchange_rate_type_code`
+  para que el frontend guarde la tasa del quote.
+- `addProduct` ahora setea esos campos desde `quote` al crear la linea.
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods
+  tests/Feature/Inventory` = 297/300 (3 fallas pre-existentes).
+- `pnpm vitest run src/features/pos` = 42/42 verde.
+- DB `inventory_arens` real intacta: 3 tenants, 8 productos, 0 marcas,
+  52 categorias, 3 users, 5 exchange_rates.
+- `vendor/bin/pint` aplicado.
+
+### Para probarlo
+
+1. **Categorias/tags en edicion:** abrir `/inventory/8` en `danubio-soledad`,
+   dar a **Editar**, seleccionar categoria MASORCA + tags + margen
+   25%, **Guardar cambios**. El detalle deberia mostrar la categoria y los
+   tags. El form deberia tener el margen pre-rellenado.
+
+2. **POS con tasa del producto:** Ctrl+Shift+R en el POS. Agregar
+   `SOMBRILLA` al carrito. La sidebar deberia mostrar "Restante VES
+   (PARALELO) @ 200" y Bs 600. Si agregas otro producto con otra tasa,
+   cae al global hasta que sean consistentes.
+
+3. **Propagacion automatica:** editar el maestro en `danubio` para
+   anadirle una categoria. Al guardar, el hook propaga la categoria al
+   spinoff y la copia del producto queda con el mismo `category_id`
+   traducido al ID local.
+
+## 2026-07-23 - Auditoria del flujo de edicion y propagacion de stock
+
+### Hallazgos
+
+Auditoria completa del flujo de edicion de producto en empresa hija:
+
+1. **`min_stock`, `max_stock`, `reorder_quantity` NO se replicaban del
+   maestro al spinoff.** Estaban en `Product::LOCAL_FIELDS`. La copia del
+   spinoff quedaba con esos campos en `null` aunque el maestro tuviera
+   valores. Por eso el form veia campos vacios al editar en la hija.
+
+2. **`profit_margin` en el form se mostraba vacio cuando era 0.**
+   El form usaba `p.profit_margin ? Number(p.profit_margin) : undefined`
+   y `0` es falsy en JS. En BD estaba correcto pero el form lo veia
+   vacio.
+
+### Fixes
+
+- `Product::MASTER_FIELDS` ahora incluye `min_stock`, `max_stock`,
+  `reorder_quantity`. `Product::LOCAL_FIELDS` solo conserva
+  `average_cost`, `last_purchase_cost`, `is_active`, `is_catalog_active`.
+  Las tiendas pueden sobreescribir los stock localmente via
+  `PATCH /products/{id}` si su rotacion difiere del estandar.
+- `EditProductDialog::productToFormValues` usa comparacion `!== null
+  && !== undefined` en vez de truthy check, asi `0` se renderiza
+  correctamente en precio base, margen, stock min/max y reorder.
+- Nuevo comando artisan `catalog:resync-stock` con flag `--dry-run`
+  para backfill de productos ya creados. El comando itera los
+  productos maestros con copias en spinoffs y actualiza los tres
+  campos en cada copia con los valores actuales del maestro.
+
+### Tests
+
+`tests/Feature/Products/ProductStockPropagationTest.php` (3 tests):
+- `test_stock_fields_are_in_master_fields_constant`: invariante del modelo.
+- `test_creating_master_propagates_stock_to_spinoff_copy`: verifica que
+  `propagateAllToSpinoff` clona los stock fields correctamente.
+- `test_updating_master_propagates_stock_changes_to_copies`: verifica que
+  `syncMasterFieldsToCopies` propaga cambios al editar.
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods
+  tests/Feature/Inventory` = 299/303 (3 fallas pre-existentes + 1 nueva
+  flaky que pasa aislada).
+- DB `inventory_arens` real intacta: 3 tenants, 8 productos, 0 marcas,
+  52 categorias.
+
+### Para probarlo
+
+1. **Sin DB reset, solo comandos:**
+
+   ```bash
+   # Previsualizar
+   php artisan catalog:resync-stock --dry-run
+
+   # Aplicar (rellena min/max/reorder en las copias existentes)
+   php artisan catalog:resync-stock
+   ```
+
+   Despues de correrlo, abrir `/inventory/8` en `danubio-soledad`, dar a
+   **Editar**: el form ahora muestra `Stock minimo: 1`, `Stock maximo: 200`
+   y `Cantidad a reordenar: 0`. Guardar y ver el detalle.
+
+2. **Para productos NUEVOS** que crees en el grupo desde ahora,
+   `propagateAllToSpinoff` ya clona los stock fields automaticamente (no
+   necesitan resync manual).
+
+## 2026-07-23 - Fix asignacion de categorias/tags al editar
+
+### Hallazgo
+
+Auditando el flujo de edicion del producto en empresa hija, el backend
+NO estaba guardando `category_ids` ni `tag_ids` enviados en el payload
+del `PATCH /products/{id}`. Dos bugs encadenados:
+
+1. `UpdateProductRequest::rules()` no declaraba reglas de validacion
+   para `category_ids` y `tag_ids`. Laravel los filtraba del `validated()`.
+2. `ProductController::update()` recibia `$changes = []` cuando el
+   payload solo traia categorias/tags (porque `prepareProductData()`
+   hace `unset($data['category_ids'], $data['tag_ids'])`). El `if`
+   que llamaba a `recordAudit()` hacia `$changes['before']` que no existia
+   y lanzaba `Undefined array key "before"`.
+
+### Fixes
+
+- `UpdateProductRequest` ahora valida `category_ids` (array de enteros
+  existentes en `categories` del tenant) y `tag_ids` (array de enteros
+  existentes en `tags` del tenant). Mensajes de error personalizados.
+- `ProductController::update()` ahora usa `($changes['before'] ?? [])`
+  y `($changes['after'] ?? [])` para evitar el error de key undefined.
+  Ademas, emite audit + sync event incluso cuando `$changes` es vacio
+  pero `$syncedCategories` o `$syncedTags` son true.
+
+### Verificacion
+
+- Backend: probé con `curl PATCH /api/products/10` enviando
+  `{"category_ids":[52]}` (id de la categoria MASORCA del spinoff).
+  Resultado 200 OK + pivot `product_category` insertado correctamente
+  con `tenant_id=3` (spinoff).
+- GET `/api/products/10` ahora retorna la categoria MASORCA.
+- 254/257 phpunit verde (3 fallas pre-existentes sin relacion).
+- DB `inventory_arens` real intacta: 3 tenants, 10 productos, 52 categorias,
+  4 pivots en `product_category`.
+
+### Para probarlo
+
+1. Reinicia el backend para que cargue el codigo nuevo:
+   ```bash
+   pkill -f "artisan serve"
+   php artisan serve --host=127.0.0.1 --port=8000
+   ```
+
+2. En `danubio-soledad`, abre `/inventory/10`, dale a **Editar**.
+
+3. Selecciona categoria **MASORCA**, agrega tags, ajusta margen si quieres.
+
+4. **Guardar cambios**. El detalle debe mostrar:
+   - **Marca**: (la que asignes o "No tiene marca asignada" si no)
+   - **Categorias**: badge con `MASORCA`
+   - **Tags**: badges con los tags seleccionados
+   - **Garantia**: nombre de la politica o "Sin garantia"
+
+5. Como esto es la empresa hija, no propaga al maestro (el maestro es
+   solo lectura para el spinoff). Si editas el maestro en `danubio`, las
+   relaciones nuevas se propagan automaticamente al spinoff via el hook
+   `PropagatesCatalogToSpinoffs`.
+
+## 2026-07-23 - Auditoria POS: pago no respetaba la tasa del producto
+
+### Hallazgo
+
+Auditando el flujo del POS, `addPaymentLine()` usaba `const rate = activeRate;`
+donde `activeRate` venia de `bestActiveRate(currentRates, rateTypes)` que
+retorna el tipo de tasa **default** del bootstrap (no la del producto en el
+carrito).
+
+Sintoma: si el producto estaba anclado a PARALELO @ 200, el POS seguia
+calculando los pagos con BCV @ 800 (la tasa default del spinoff).
+
+Mi fix previo (`cartRate` derivado de las lineas del carrito) solo se
+usaba en la **sidebar** (visual), no en el **pago**. Faltaba propagarlo a
+`addPaymentLine` para que `amount`, `exchange_rate_type_id` y
+`exchange_rate` reflejen la tasa anclada al producto.
+
+### Fix
+
+`PosTerminal.tsx::addPaymentLine()` ahora usa `cartRate ?? activeRate`
+en lugar de solo `activeRate`. Asi:
+
+- Si el carrito tiene items con la misma tasa (ej. PARALELO @ 200),
+  el pago se calcula con ESA tasa.
+- Si las tasas son mixtas, cae a la tasa default del bootstrap.
+- El `exchange_rate_type_id` que se envia al backend tambien sale de
+  `cartRate`, asi el backend persiste la tasa correcta en `pos_payments`.
+
+Tambien agregue `exchange_rate_type_id` al tipo de `cartRate` para que
+el POS envie el id explicito (antes no se enviaba).
+
+### Verificacion
+
+- `pnpm typecheck` verde.
+- `pnpm vitest run src/features/pos` = 42/42 verde.
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS`
+  = 207/210 verde (3 fallas pre-existentes).
+- DB `inventory_arens` real intacta: 3 tenants, 12 productos.
+
+### Para probarlo
+
+1. Reinicia el backend y el frontend (los caches del navegador pueden
+   retener el JS viejo):
+   ```bash
+   pkill -f "artisan serve"; pkill -f vite
+   php artisan serve --host=127.0.0.1 --port=8000 &
+   cd frontend && pnpm dev
+   ```
+
+2. Abre el POS en `danubio-soledad`.
+
+3. Agrega el producto `SOMBRILLA` (anclado a PARALELO @ 200).
+
+4. Pulsa F2 para anhadir un pago. La conversion a VES debe usar 200
+   (no 800). El pago se guarda con `exchange_rate_type_id` apuntando a
+   PARALELO del spinoff.
+
+5. Si agregas otro producto con otra tasa al mismo carrito, los pagos
+   usan la tasa del primer producto del carrito (fallback a default si
+   son tasas mixtas).
+
+## 2026-07-23 - WebSocket push notifications (Laravel Reverb + Laravel Echo)
+
+### Contexto
+
+El badge del sidebar con el contador de solicitudes pendientes se
+actualizaba solo cuando el usuario visitaba `/inventory-transfer-requests`
+o cuando el polling de 30s del hook `useUnreadTransferRequestsCount`
+disparaba un re-fetch. Eso da hasta 30s de delay entre la creacion de
+la solicitud y la primera pista visual. Ademas, no habia campanada
+ni toast al recibir la solicitud.
+
+Esta fase implementa push real via WebSocket usando Laravel Reverb
+(broadcasting nativo de Laravel 12).
+
+### Implementado
+
+#### Backend
+
+- Composer: `composer require laravel/reverb` agrega `laravel/reverb ^1.11`.
+- `php artisan vendor:publish --tag=reverb-config` publica
+  `config/reverb.php` (default port 8081, apps inventadas).
+- `config/broadcasting.php` ya existia; confirma driver `reverb`.
+- `.env.example`: agrega `BROADCAST_CONNECTION=log` por default (para
+  dev sin servidor Reverb) + vars `REVERB_APP_ID/KEY/SECRET/HOST/PORT/
+  SCHEME`. En produccion se cambia `BROADCAST_CONNECTION=reverb`.
+- `App\Modules\InventoryTransferRequests\Events\TransferRequestCreated`:
+  implementa `ShouldBroadcast`. Canal privado `tenant.{destination_tenant_id}`.
+  Payload minimo: `{id, origin_tenant_id, destination_tenant_id,
+  requested_at}`. `broadcastAs()` retorna `inventory-transfer-requests.
+  created` para evitar problemas con FQCN largos.
+- `App\Modules\InventoryTransferRequests\Broadcasting\TransferRequestChannel`:
+  policy que verifica en `join(User $user, string $tenantId)` que el
+  user pertenezca al tenant destino y el tenant este activo. Blinda
+  contra suscripciones fraudulentas (user de danubio intenta escuchar
+  notificaciones de danubio-soledad).
+- `InventoryTransferRequestService::create()` dispara
+  `event(new TransferRequestCreated($request))` justo despues de
+  persistir la solicitud.
+
+#### Frontend
+
+- `pnpm add laravel-echo pusher-js`.
+- `frontend/vite.config.ts`: agrega `define` con defaults
+  `VITE_REVERB_*` (host=localhost, port=8081, scheme=http) + proxy
+  `/ws` con `ws: true` para WebSocket upgrade en desarrollo.
+- `frontend/src/lib/echo.ts`: `initEcho()` singleton que crea el
+  cliente `laravel-echo` con broadcaster `reverb`. Lee las vars de
+  `import.meta.env.VITE_REVERB_*` con fallback a defaults. Si Reverb no
+  esta disponible, retorna `null` y los hooks usan polling.
+- `frontend/src/features/inventory-transfer-requests/
+  useTransferRequestBroadcast.ts`: hook que se suscribe al canal
+  `tenant.{tenantId}`, escucha el evento `.inventory-transfer-requests.
+  created`, invalida la queryKey del badge + lista y dispara un toast
+  rojo con CTA "Ver" que navega a `/inventory-transfer-requests`.
+- `frontend/src/components/layout/Sidebar.tsx`: monta el hook nuevo
+  ADEMAS del polling existente (que queda como fallback si Reverb no
+  esta disponible). El test mock incluye el nuevo hook.
+
+### Tests
+
+- `tests/Feature/InventoryTransferRequests/TransferRequestBroadcastTest.php`
+  (3 tests):
+  - `test_creating_transfer_request_dispatches_broadcast_event`: con
+    `Event::fake([TransferRequestCreated::class])` verifica que crear
+    una solicitud via API dispatcha el evento.
+  - `test_broadcast_event_uses_private_channel_for_destination_tenant`:
+    verifica que el canal es `private-tenant.{destination_id}`.
+  - `test_broadcast_event_payload_excludes_sensitive_data`: verifica que
+    el payload solo trae IDs y timestamps (NO los items, que el cliente
+    obtiene via GET si los necesita).
+
+### Verificacion
+
+- Backend: `phpunit tests/Feature/InventoryTransfers
+  tests/Feature/InventoryTransferRequests tests/Feature/Products
+  tests/Feature/Tenancy` = **265/268 verde** (3 fallas pre-existentes).
+- Frontend: `pnpm typecheck` verde. `pnpm vitest run` = **436 tests verde**
+  (1 falla pre-existente del e2e Playwright por require de backend
+  corriendo).
+- DB `inventory_arens` real intacta: 3 tenants, 12 productos.
+
+### Coexistencia con el polling
+
+El usuario sigue viendo el toast aunque Reverb no este disponible,
+gracias a `useTransferRequestArrivalNotification` (polling reactivo).
+Ambos hooks coexisten: Reverb llega primero (< 1s), el polling es el
+fallback. Si ambos disparan un toast, sonner deduplica por contenido.
+
+### Para desplegar en VPS (documentado en docs/REVERB_WEBSOCKETS_PLAN.md)
+
+Pendiente: configurar servicio systemd, agregar ruta Traefik para
+`/ws/`, generar claves Reverb. Verificar que el puerto 8081 no este
+usado por otra app del VPS multi-tenant.
+
+## 2026-07-23 - Cobertura completa de eventos broadcast (accepted/rejected/cancelled)
+
+### Hallazgo
+
+El usuario reporta dos cosas:
+1. **"A veces no llegan las notificaciones"**: el hook
+   `useTransferRequestBroadcast` solo escuchaba el evento
+   `.inventory-transfer-requests.created`. Cuando llegaba `.accepted`,
+   `.rejected` o `.cancelled` (eventos que el backend NO disparaba),
+   el listener los ignoraba silenciosamente.
+2. **"No llegan notificaciones como si fue aceptada, cancelada, etc."**:
+   el backend solo disparaba el evento de creacion, no los de respuesta
+   del destino ni de cancelacion del origen.
+
+### Implementado
+
+#### Backend
+
+Tres nuevos eventos que complementan a `TransferRequestCreated`:
+
+- `App\Modules\InventoryTransferRequests\Events\TransferRequestAccepted`:
+  canal privado del ORIGEN (el admin que creo la solicitud quiere
+  saber que fue aceptada).
+- `App\Modules\InventoryTransferRequests\Events\TransferRequestRejected`:
+  canal privado del ORIGEN, payload incluye `response_notes` (motivo
+  del rechazo).
+- `App\Modules\InventoryTransferRequests\Events\TransferRequestCancelled`:
+  canal privado del DESTINO (el admin del destino quiere saber que la
+  solicitud fue retirada).
+
+`InventoryTransferRequestService::accept/reject/cancel` dispara el
+evento correspondiente al final del metodo, despues del
+`syncCatalog` (el sync es asincrono via outbox; el broadcast es
+sincrono via evento Laravel).
+
+#### Frontend
+
+`useTransferRequestBroadcast` refactorizado: ahora escucha los 4
+eventos con un solo handler generico. Cada tipo de evento tiene su
+titulo/descripcion/target configurados en un objeto `TOAST_BY_EVENT`.
+El handler verifica que el evento sea para el tenant actual
+(filtro defensivo ademas del canal policy) antes de disparar el toast.
+
+`useUnreadTransferRequestsCount` refactorizado: ya no cuenta el
+`total` del meta, sino que trae la lista completa (per_page=200) y
+cuenta solo items con `requested_at > lastSeenAt` (persistido en
+`localStorage`). Esto permite que el badge se limpie cuando el usuario
+visita la pagina `/inventory-transfer-requests` (que llama
+`markTransferRequestsAsSeen(tenantId)`).
+
+### Diagnosticado "a veces no llegan"
+
+- **Antes**: el listener solo escuchaba `.created`. Eventos
+  accepted/rejected/cancelled llegaban al backend pero el cliente los
+  ignoraba. Ademas, si Echo se desconectaba (Reverb caido, navegador en
+  background), no habia reintento automatico y el polling era el unico
+  camino. La coexistencia entre WebSocket y polling seguia funcionando.
+- **Ahora**: el listener recibe los 4 eventos; el filtro por target
+  evita toasts duplicados; cuando Reverb cae, polling cubre. Si Echo
+  esta conectado pero el navegador minimiza, pusher-js intenta
+  reconectar cada 60s; durante ese tiempo, polling muestra el badge
+  actualizado en el siguiente re-fetch (max 30s).
+
+### Tests
+
+`tests/Feature/InventoryTransferRequests/TransferRequestBroadcastTest.php`
+ahora tiene 6 tests:
+
+- `test_creating_transfer_request_dispatches_broadcast_event`: verifica
+  que crear solicitud dispatcha `TransferRequestCreated` (con
+  `Event::fake`).
+- `test_broadcast_event_uses_private_channel_for_destination_tenant`:
+  canal del created es `private-tenant.{destination_id}`.
+- `test_broadcast_event_payload_excludes_sensitive_data`: solo IDs y
+  timestamps, NO items (el cliente hace GET si los quiere).
+- `test_accepted_event_targets_origin_tenant`: canal del accepted es
+  `private-tenant.{origin_id}`.
+- `test_rejected_event_targets_origin_tenant`: canal y payload
+  (incluye `response_notes`).
+- `test_cancelled_event_targets_destination_tenant`: canal del cancelled
+  es `private-tenant.{destination_id}`.
+
+`frontend/src/features/inventory-transfer-requests/api.test.ts` tiene
+tests actualizados: en lugar de leer el `total` del meta, los tests
+verifican el contador de items nuevos vs lastSeenAt, y verifican que
+el endpoint usa `per_page=200`.
+
+### Verificacion
+
+- Backend: `phpunit tests/Feature/InventoryTransfers
+  tests/Feature/InventoryTransferRequests tests/Feature/Products
+  tests/Feature/Tenancy` = **268/271 verde** (3 fallas pre-existentes).
+- Frontend: `pnpm typecheck` verde. `pnpm vitest run
+  src/features/inventory-transfer-requests src/components/layout` =
+  **77/77 verde**.
+- DB `inventory_arens` real intacta: 3 tenants, 12 productos,
+  6 solicitudes de traslado.
+
+### Para probarlo
+
+1. Reinicia el backend y frontend:
+   ```bash
+   pkill -f "artisan serve"; pkill -f vite
+   php artisan serve --host=127.0.0.1 --port=8000 &
+   cd frontend && pnpm dev
+   ```
+
+2. Abre dos navegadores con empresas distintas (danubio y danubio-soledad).
+
+3. **Created**: danubio crea una solicitud hacia danubio-soledad.
+   Toast aparece en danubio-soledad en < 1s.
+
+4. **Accepted**: danubio-soledad acepta. Toast aparece en danubio
+   ("Tu solicitud de traslado fue aceptada").
+
+5. **Rejected**: danubio-soledad rechaza (con motivo). Toast aparece
+   en danubio ("Tu solicitud de traslado fue rechazada. Motivo: ...").
+
+6. **Cancelled**: danubio cancela una solicitud pendiente. Toast aparece
+   en danubio-soledad ("La solicitud de traslado fue cancelada").
+
+7. **Badge se limpia al visitar la pagina**: entra a danubio-soledad,
+   crea una solicitud, ves badge rojo (99+ o N). Da click a "Solicitudes
+   inter-empresa" en el sidebar. El badge se limpia (las solicitudes
+   quedan en status requested pero las marcas como "vistas" en
+   localStorage). Si llega OTRA solicitud nueva despues, el badge
+   vuelve a aparecer.
+
+8. **Fallback polling**: si Reverb esta caido, las notificaciones
+   siguen apareciendo cada 30s con el mismo toast (sonner deduplica).
+
+9. **Diagnosticar notificaciones que no llegan**: ver
+   `docs/REVERB_TROUBLESHOOTING.md` para la guia paso a paso. El log
+   `[ITR] WebSocket event received: ...` en la consola del navegador
+   confirma que el push llego.
+
+## 2026-07-23 - Reverb moría al primer broadcast (SerializesModels recursivo)
+
+### Causa raíz
+
+Los 4 eventos broadcast (`TransferRequestCreated/Accepted/Rejected/
+Cancelled`) usaban `use SerializesModels;` con `public readonly
+InventoryTransferRequest $request`. Cuando el `ShouldBroadcast` se
+serializa (sync via driver `reverb`, no via queue), Laravel intenta
+serializar el modelo entero con sus relaciones cargadas via
+`->load(['items.originProduct', 'items.destinationProduct', ...])` en
+el controller. Eso causa recursión o stack overflow en el proceso
+Reverb, que se mata silenciosamente. El usuario veia el proceso
+arrancar ("Starting server on 0.0.0.0:8081.") y morir al instante del
+primer evento.
+
+### Fix
+
+Los 4 eventos ya NO usan `SerializesModels`. En su lugar, reciben
+datos primitivos en el constructor y exponen un factory
+estatico `fromModel(InventoryTransferRequest $r): self` que
+descompone el modelo en sus campos escalares antes de construir el
+evento. Esto evita que Reverb intente serializar la jerarquia de
+relaciones.
+
+```php
+// Antes (mata Reverb):
+event(new TransferRequestCreated($request));
+
+// Despues (Reverb sobrevive):
+event(TransferRequestCreated::fromModel($request));
+```
+
+`fromModel` extrae `id`, `origin_tenant_id`, `destination_tenant_id` y
+los timestamps como strings ISO. La serializacion del broadcast
+queda acotada a estos primitivos.
+
+### Tests
+
+`tests/Feature/InventoryTransferRequests/TransferRequestBroadcastTest.php`
+actualizado: usa `TransferRequestCreated::fromModel($r)` en lugar de
+`new TransferRequestCreated($r)`. Los tests que verifican payload y
+channel ahora leen `$event->destinationTenantId` (propiedad
+explicita) en lugar de `$event->request->destination_tenant_id`.
+
+### Verificacion
+
+- `phpunit tests/Feature/InventoryTransferRequests` = **14/14 verde**.
+- DB `inventory_arens` real intacta: 3 tenants, 12 productos, 11
+  solicitudes.
+
+## 2026-07-23 - Incidente: Reverb no estaba corriendo en local
+
+### Sintoma
+
+El usuario reporta que las notificaciones de accept/reject/cancel no
+llegan a la empresa origin. Solo la de created llega en < 1s. Las
+demas tardan ~15-20s.
+
+### Causa raiz
+
+Reverb NO se autoinstala ni se arranca como parte de `php artisan
+serve` o de `pnpm dev`. El usuario (y cualquier dev) debe arrancarlo
+manualmente en una terminal separada. Sin Reverb:
+
+- El push WebSocket no viaja (esperado: 404 en /app/{key}).
+- El codigo del frontend SÍ escucha el evento (el hook esta
+  correctamente registrado), pero el canal no entrega nada.
+- El polling de 30s SÍ funciona, por eso las notificaciones aparecen
+  eventualmente (a los 15-30s) y el usuario las ve.
+- El usuario las describe como "no llegan" porque el delay rompe la
+  expectativa de push real.
+
+### Lecciones aprendidas
+
+1. **Reverb debe estar corriendo para push < 1s.** Sin Reverb, el
+   sistema cae a polling (max 30s de delay). Esto es diseno: el push
+   requiere infra que el dev debe levantar.
+2. **No confundir el delay de polling con bug del codigo.** El codigo
+   esta correcto; el push no viaja porque no hay transporte.
+3. **El log `[ITR]` en consola es la mejor diagnostico.** Permite al
+   usuario distinguir "el push no llega" (no hay log) vs "el push
+   llega pero el toast no se muestra" (si hay log).
+4. **Documentacion explicita en `docs/REVERB_TROUBLESHOOTING.md`** con
+   la guia paso a paso y `docs/REVERB_WEBSOCKETS_PLAN.md` con la seccion
+   "Arranque de Reverb en local".
+
+### Comandos utiles
+
+```bash
+# Arrancar Reverb
+php artisan reverb:start --host=0.0.0.0 --port=8081
+
+# Ver si esta corriendo
+ps aux | grep reverb
+curl -sI --max-time 3 http://127.0.0.1:8081/
+# 404 = OK, connection refused = NO esta corriendo
+
+# En background
+nohup php artisan reverb:start --host=0.0.0.0 --port=8081 > /tmp/reverb.log 2>&1 &
+```
+
+## 2026-07-23 - Bug: items sin origin_product en el listado
+
+### Hallazgo
+
+GET /api/inventory-transfer-requests (index) NO cargaba
+`items.originProduct` ni `items.destinationProduct`. Solo el detail
+(load en show) los cargaba. Resultado: el listado mostraba el count
+de items pero el detail los recibia con `origin_product = null` porque
+el navegador tenia cache del listado.
+
+### Fix
+
+`InventoryTransferRequestController::index` ahora hace eager-load:
+
+```php
+->with([
+    'originTenant', 'destinationTenant',
+    'fromWarehouse', 'destinationWarehouse',
+    'items', 'items.originProduct', 'items.destinationProduct',
+])
+```
+
+Items en el listado ahora vienen con `name`, `sku`, `tracking_type`
+correctos. El detail y la bandeja muestran los productos de origen
+y destino sin recargar la pagina.
+
+## 2026-07-23 - Auditoria 2 POS: el cache del navegador retenia tasas viejas
+
+### Hallazgo
+
+Auditoria adicional del flujo de tasas en POS. El usuario reportaba que
+tras desactivar la tasa BCV, el POS seguia mostrando BCV @ 800.
+
+Diagnostico en vivo:
+1. La DB tiene BCV con `is_active=1` y `default=0`. PARALELO id=4
+   tambien `is_active=1` con rate=100.
+2. El endpoint `GET /api/currency/rates/current` retorna SOLO rates
+   activas (filtra `where('is_active', true)`). El bootstrap del POS
+   (`GET /api/pos/bootstrap`) tambien filtra.
+3. Si BCV no tiene tasa activa en `exchange_rates`, NO deberia aparecer.
+4. El POS usa TanStack Query con `staleTime` default (5 minutos).
+   Cuando el usuario abrio el POS ayer (cuando BCV @ 800 estaba activo),
+   el query se cacheo con BCV @ 800. Aunque hoy BCV ya no tenga tasa
+   activa, el cache del navegador mantiene los rates viejos.
+
+### Fixes
+
+- `useCurrentExchangeRatesForPos` y `useExchangeRateTypesForPos` ahora
+  usan `staleTime: 0` y `refetchOnMount: 'always'`. Cada vez que el
+  usuario abre la pagina del POS, re-fetch desde el backend, sin cache.
+- `bestActiveRate` en `PosTerminal.tsx` ahora prioriza `is_default=true`
+  sobre el primer rate. Si no hay default, usa el rate con
+  `effective_at` mas reciente (la ultima que el admin registro). Esto
+  blinda el sistema contra caches viejos y contra tasas obsoletas.
+- `CurrentExchangeRateSchema` (Zod) ahora incluye `effective_at` como
+  campo opcional nullable, que `bestActiveRate` necesita para ordenar
+  por fecha.
+
+### Verificacion
+
+- `pnpm typecheck` verde.
+- `pnpm vitest run src/features/pos` = 42/42 verde.
+- DB `inventory_arens` real intacta: 3 tenants, 12 productos.
+- 207/210 phpunit verde (3 fallas pre-existentes).
+
+### Para probarlo
+
+1. Reinicia backend y frontend:
+   ```bash
+   pkill -f "artisan serve"; pkill -f vite
+   php artisan serve --host=127.0.0.1 --port=8000 &
+   cd frontend && pnpm dev
+   ```
+
+2. Abre el POS en `danubio-soledad` (Ctrl+Shift+R para forzar reload).
+
+3. El POS ahora SIEMPRE re-fetch al backend (sin cache). Si el admin
+   desactiva una tasa, el POS usara la siguiente disponible al re-abrir.
+
+4. Si aun asi ves una tasa vieja:
+   - Abre DevTools > Application > Local Storage > `localhost:5173`
+   - Borra todas las claves `pos` y recarga.
+   - O en DevTools > Network > Disable cache (checkbox).
+
+## 2026-07-23 - Fixes POS checkout, price list y scope de catalogos
+
+### Bug 1: POS "No query results for model ExchangeRateType"
+
+Al procesar una venta en un spinoff, `PosCheckoutService::rateTypeFor`
+ejecutaba `findOrFail($rateTypeId)` y devolvia `ModelNotFoundException` sin
+mensaje claro para el usuario.
+
+Causa adicional: con scope estricto por tenant, los spinoffs no ven
+automaticamente los tipos de tasa del grupo. Si el spinoff no creo su
+propio `ExchangeRateType` al bootear, el POS falla.
+
+Fixes:
+- `PosCheckoutService::rateTypeFor`: captura `find()` (no `findOrFail`) y
+  lanza `ValidationException` con mensajes claros:
+  - "Tipo de tasa no encontrado en la tienda actual."
+  - "No existe un tipo de tasa activo por defecto para el pago.
+     Configura uno en Catalogos > Tipos de tasa."
+- `TenantSpinoffService::createSpinoff`: si el caller no pasa
+  `exchange_rate_type` y el spinoff no tiene ninguno, crea un `BCV` default
+  automaticamente. El admin lo ajustara despues.
+
+### Bug 2: Price list FK violation en pivote
+
+Al crear una lista de precio en el spinoff vinculando `payment_method_ids`
+que pertenecen al grupo, el INSERT del pivote `price_list_payment_method`
+fallaba con FK violation porque `payment_methods` ahora es local por tenant
+y los IDs no coinciden con el `tenant_id` que `PriceListController::syncPayload`
+usaba (`sharedTenantId()` = grupo padre).
+
+Fix:
+- `PriceListController::syncPayload`: usa `current()->id` en vez de
+  `sharedTenantId()`, asi el `tenant_id` del pivote coincide con el de la
+  PriceList y los PaymentMethods (ambos locales del spinoff).
+- `StorePriceListRequest` y `UpdatePriceListRequest`: validan `code`
+  unico y `payment_method_ids.*` con `whereIn('tenant_id', $tenantIds)`
+  donde `$tenantIds` es solo el tenant actual.
+
+### Bug 3: Historial de tasas se veia en spinoff sin operar
+
+`ExchangeRate` usaba `BelongsToTenantHierarchy`, asi que el spinoff veia las
+tasas historicas del grupo en su listado (`useExchangeRates`), pero al
+operar el POS no encontraba nada activo porque las tasas activas son locales.
+
+Fix: `ExchangeRate` pasa a `BelongsToTenant` (scope local). Consecuencia:
+cada tienda mantiene su propio historial. El Owner del grupo debe crear las
+tasas en cada spinoff via propagacion.
+
+### Bug 4 (preventivo): Requests validaban contra grupo padre
+
+Multiples FormRequests usaban `sharedTenantIds()` para validar que `code`
+fuera unico, que `brand_id`, `category_id`, `tag_id`, `payment_method_id`
+y `exchange_rate_type_id` existieran, etc. Eso permitia al spinoff referenciar
+recursos del grupo, lo cual choca con el scope estricto.
+
+Fix en lote: en `app/Modules/{Products,Currency,PaymentMethods,Sales,
+Purchases,Inventory,InventoryTransfers,AccountsPayable,AccountsReceivable,
+CashRegister,POS,Warranties,FinancialAdjustments,Reports}/Requests/*.php`,
+reemplazado `sharedTenantIds()` por el tenant actual. Tambien limpios
+duplicados `$tenantId = require()->id;` que quedaron del hotfix previo.
+
+### Verificacion
+
+- `phpunit tests/Feature/Products tests/Feature/Tenancy tests/Feature/POS
+  tests/Feature/ProductEntries tests/Feature/ProductExits tests/Feature/Sales
+  tests/Feature/Purchases tests/Feature/Currency tests/Feature/PaymentMethods
+  tests/Feature/Inventory` = 288/291 verde (3 fallas pre-existentes sin
+  relacion con estos fixes).
+- `vendor/bin/pint` aplicado.
+
+## 2026-07-22 - UI Catalogo compartido (Fase 6 parcial)
+
+### Backend
+
+- `App\Modules\Products\Resources\ProductResource` expone los campos nuevos
+  `catalog_product_id`, `is_catalog_master` e `is_catalog_active` en todas las respuestas de producto.
+- `App\Modules\Tenancy\Controllers\TenantGroupController::sharedProducts` (GET) devuelve para un grupo
+  sus productos maestros y, por cada spinoff, si la copia se propago y su estado
+  (`propagated`, `is_active`, `is_catalog_active`). Solo accesible para Owners estrictos.
+- Ruta: `GET /api/tenant-groups/{group}/shared-products` bajo middleware `EnsureGroupOwner`.
+- `App\Modules\Products\Models\Product` ahora incluye `tenant_id` en `$fillable` (no estaba) para que
+  `Product::query()->withoutGlobalScopes()->create(['tenant_id' => $spinoffId, ...])` respete el
+  tenant explicito en tests/seeds.
+
+### Frontend
+
+- `frontend/src/features/inventory-center/schemas.ts`: agregados `catalog_product_id`,
+  `is_catalog_master`, `is_catalog_active` al `ProductSchema`.
+- `frontend/src/routes/_authed/inventory/index.tsx`: la columna Nombre muestra badges
+  "Compartido" (copia local de un maestro del grupo), "Maestro" (registro original del grupo) o
+  "Inactivo en grupo" cuando el maestro esta desactivado.
+- `frontend/src/routes/_authed/inventory/$productId.tsx`: banner superior en el detalle
+  explicando si el producto es maestro o copia, con link al maestro y aviso cuando el maestro
+  esta desactivado.
+- `frontend/src/features/access/tenantGroupsApi.ts`: schemas y hook `useGroupSharedCatalog` para
+  consumir el nuevo endpoint.
+- `frontend/src/features/access/GroupsTree.tsx`: panel "Catalogo maestro" dentro del card
+  expandido de cada grupo, con grid que muestra cada maestro y badges por spinoff
+  (ok, pendiente, inactivo, desactivado).
+- Test mock `frontend/src/features/access/__tests__/tenantGroups.test.tsx` actualizado para incluir
+  el nuevo hook.
+
+### Tests
+
+- `tests/Feature/Tenancy/SharedCatalogEndpointTest.php` (3 tests, 17 assertions):
+  - Owner puede listar maestro + copias.
+  - Outsider (no miembro) recibe 403.
+  - Spinoff sin copia reporta `propagated=false` y `product_id=null`.
+- Regresion backend: `phpunit tests/Feature/Products tests/Feature/Tenancy
+  tests/Feature/POS tests/Feature/ProductEntries tests/Feature/Currency
+  tests/Feature/PaymentMethods` = 212/215 (3 fallas pre-existentes sin relacion:
+  `price_list` vs `list`, `accounts_payable_payment_requests` migration ausente,
+  `Array to string` en `ProductImageApiTest`).
+- Regresion frontend vitest: 436 tests verde (la unica falla es un e2e Playwright que requiere
+  backend corriendo, no relacionado).
+- `pnpm typecheck` limpio.
+- `vendor/bin/pint` aplicado.
+
 ## 2026-07-21 - Migracion de VPS nube (217.216.80.158 → 212.28.176.157)
 
 ### Contexto

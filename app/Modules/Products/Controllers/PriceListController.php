@@ -7,6 +7,7 @@ use App\Modules\Products\Requests\StorePriceListRequest;
 use App\Modules\Products\Requests\UpdatePriceListRequest;
 use App\Modules\Products\Resources\PriceListResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\DB;
 
 class PriceListController extends Controller
 {
+    use SharedCatalogWriteGuard;
+
     public function index(Request $request): AnonymousResourceCollection
     {
         abort_unless($request->user()?->can('products.view'), Response::HTTP_FORBIDDEN);
@@ -33,6 +36,10 @@ class PriceListController extends Controller
 
     public function store(StorePriceListRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $data = $this->normalize($request->validated());
 
         $paymentMethodIds = $data['payment_method_ids'] ?? null;
@@ -59,6 +66,10 @@ class PriceListController extends Controller
 
     public function update(UpdatePriceListRequest $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): PriceListResource
     {
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $data = $this->normalize($request->validated());
 
         $paymentMethodIds = $data['payment_method_ids'] ?? null;
@@ -85,6 +96,10 @@ class PriceListController extends Controller
     {
         abort_unless($request->user()?->can('products.update'), Response::HTTP_FORBIDDEN);
 
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $priceList->update([
             'is_active' => false,
             'is_default' => false,
@@ -105,9 +120,15 @@ class PriceListController extends Controller
 
     private function syncPayload(array $paymentMethodIds): array
     {
+        // El pivote price_list_payment_method tiene FK compuesta
+        // (tenant_id, price_list_id, payment_method_id). Como PriceList y
+        // PaymentMethod ahora son locales por tenant, el tenant_id del
+        // pivote debe ser el del tenant actual (no el grupo padre).
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+
         return collect($paymentMethodIds)
             ->unique()
-            ->mapWithKeys(fn (int $id): array => [$id => ['tenant_id' => app(TenantManager::class)->require()->id]])
+            ->mapWithKeys(fn (int $id): array => [$id => ['tenant_id' => $tenantId]])
             ->all();
     }
 }

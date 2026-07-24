@@ -2,8 +2,8 @@
 
 namespace App\Modules\Tenancy\Middleware;
 
-use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Auth\Models\AuthToken;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Closure;
 use Illuminate\Http\Request;
@@ -11,9 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ResolveTenant
 {
-    public function __construct(private readonly TenantManager $tenants)
-    {
-    }
+    public function __construct(private readonly TenantManager $tenants) {}
 
     public function handle(Request $request, Closure $next): Response
     {

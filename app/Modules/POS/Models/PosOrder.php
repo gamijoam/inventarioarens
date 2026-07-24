@@ -32,7 +32,9 @@ class PosOrder extends Model
     use BelongsToTenant;
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected function casts(): array

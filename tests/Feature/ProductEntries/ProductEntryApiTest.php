@@ -295,6 +295,51 @@ class ProductEntryApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_store_request_does_not_raise_undefined_tenant_id_when_validating_warehouse(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        [$warehouseA, $productA] = $this->warehouseAndProduct($tenantA, 'HOTFIX-WH-A', Product::TRACKING_QUANTITY);
+        [$warehouseB, $productB] = $this->warehouseAndProduct($tenantB, 'HOTFIX-WH-B', Product::TRACKING_QUANTITY);
+        $userA = $this->userInTenant($tenantA);
+        $this->grantRole($tenantA, $userA, 'Almacen A', ['product_entries.create']);
+
+        $this->useTenant($tenantA);
+
+        $response = $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/product-entries', [
+                'reason' => 'Validacion tenant',
+                'items' => [[
+                    'warehouse_id' => $warehouseB->id,
+                    'product_id' => $productA->id,
+                    'quantity' => 1,
+                ]],
+            ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['items.0.warehouse_id']);
+
+        $this->assertDatabaseMissing('product_entries', [
+            'tenant_id' => $tenantA->id,
+            'reason' => 'Validacion tenant',
+        ]);
+
+        $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/product-entries', [
+                'reason' => 'Happy path post hotfix',
+                'items' => [[
+                    'warehouse_id' => $warehouseA->id,
+                    'product_id' => $productA->id,
+                    'quantity' => 5,
+                ]],
+            ])
+            ->assertCreated();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

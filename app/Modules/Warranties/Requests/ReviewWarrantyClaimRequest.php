@@ -22,12 +22,12 @@ class ReviewWarrantyClaimRequest extends FormRequest
                 'required_if:status,'.WarrantyClaim::STATUS_APPROVED,
                 'required_if:status,'.WarrantyClaim::STATUS_REJECTED,
                 Rule::in([
-                WarrantyClaim::RESOLUTION_REPAIR,
-                WarrantyClaim::RESOLUTION_REPLACEMENT,
-                WarrantyClaim::RESOLUTION_REFUND,
-                WarrantyClaim::RESOLUTION_REJECTED,
-                WarrantyClaim::RESOLUTION_PENDING_REVIEW,
-            ])],
+                    WarrantyClaim::RESOLUTION_REPAIR,
+                    WarrantyClaim::RESOLUTION_REPLACEMENT,
+                    WarrantyClaim::RESOLUTION_REFUND,
+                    WarrantyClaim::RESOLUTION_REJECTED,
+                    WarrantyClaim::RESOLUTION_PENDING_REVIEW,
+                ])],
             'resolution_notes' => ['nullable', 'string', 'max:2000'],
         ];
     }

@@ -14,6 +14,7 @@ class Branch extends Model
     use BelongsToTenant;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_INACTIVE = 'inactive';
 
     public function warehouses(): HasMany

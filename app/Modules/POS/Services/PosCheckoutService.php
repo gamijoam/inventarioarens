@@ -580,7 +580,15 @@ class PosCheckoutService
     private function rateTypeFor(?int $rateTypeId): ExchangeRateType
     {
         if ($rateTypeId) {
-            return ExchangeRateType::query()->findOrFail($rateTypeId);
+            $rateType = ExchangeRateType::query()->find($rateTypeId);
+
+            if (! $rateType) {
+                throw ValidationException::withMessages([
+                    'payments' => 'Tipo de tasa no encontrado en la tienda actual.',
+                ]);
+            }
+
+            return $rateType;
         }
 
         $rateType = ExchangeRateType::query()
@@ -590,7 +598,7 @@ class PosCheckoutService
 
         if (! $rateType) {
             throw ValidationException::withMessages([
-                'payments' => 'No existe un tipo de tasa activo por defecto para el pago.',
+                'payments' => 'No existe un tipo de tasa activo por defecto para el pago. Configura uno en Catalogos > Tipos de tasa.',
             ]);
         }
 

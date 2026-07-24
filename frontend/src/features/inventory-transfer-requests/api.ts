@@ -30,6 +30,13 @@ export const transferRequestKeys = {
   list: (filters: Record<string, unknown>) => [...transferRequestKeys.lists(), filters] as const,
   details: () => [...transferRequestKeys.all, 'detail'] as const,
   detail: (id: number) => [...transferRequestKeys.details(), id] as const,
+  // Contador del badge en el sidebar: solicitudes pendientes donde el
+  // tenant actual es el destino. Su queryKey incluye el tenant porque
+  // el contador depende del contexto (cada spinoff ve solo sus propias
+  // pendientes). Por eso las mutaciones invalidan `unreadCounts` (todas
+  // las claves que empiezan con `unread-count`) para refrescar el badge
+  // del tenant actual sin importar el id especifico.
+  unreadCounts: () => [...transferRequestKeys.all, 'unread-count'] as const,
 };
 
 function toQueryString(filters: Partial<TransferRequestListFilters>): string {
@@ -138,6 +145,10 @@ export function useCreateTransferRequest() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       await qc.refetchQueries({ queryKey: transferRequestKeys.lists() });
+      // El destinatario debe ver el badge incrementado al instante:
+      // invalidamos TODOS los contadores (unread-count) por si la cache
+      // actual ya conto la solicitud vieja.
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
       // Invalidar productos del origin: la solicitud no mueve stock hasta
       // ser aceptada, pero invalidamos por consistencia con otros modulos.
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
@@ -160,6 +171,9 @@ export function useAcceptTransferRequest() {
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
+      // El status pasa de `requested` a `accepted`/`dispatched`, asi que
+      // el contador del destinatario debe bajar al instante.
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
       void qc.invalidateQueries({ queryKey: productKeys.all });
     },
@@ -181,6 +195,8 @@ export function useRejectTransferRequest() {
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
+      // Mismo motivo que accept: el contador del destinatario baja.
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
     },
   });
 }
@@ -196,6 +212,8 @@ export function useCancelTransferRequest() {
     onSuccess: (_data, id) => {
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
+      // Si el origin cancela, el destinatario tambien debe enterarse.
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
     },
   });
 }
@@ -219,11 +237,19 @@ export interface UseUnreadCountOptions {
 /**
  * Cuenta solicitudes PENDIENTES donde el tenant actual es el destino
  * (osea solicitudes que la empresa actual debe responder). Usado por el
- * Sidebar para mostrar un badge rojo con el contador.
+ * Sidebar para mostrar un badge con el contador.
  *
  * Implementacion: hace un GET a la lista con filtros {status: 'requested'}
- * y cuenta los resultados del backend (no del array parseado, para no
- * descargar el payload completo).
+ * y descuenta las que el usuario ya vio (su `lastSeenAt` persistido en
+ * localStorage). De esta forma, cuando el usuario abre la pagina de
+ * Solicitudes inter-empresa, las solicitudes se marcan como "vistas"
+ * y el badge se limpia para reflejar "hay N sin responder" en
+ * lugar de "llegaron N despues de la ultima vez que mire".
+ *
+ * Persistencia en localStorage (clave por tenant) en lugar de backend
+ * para no requerir una migracion nueva ni un endpoint extra. Esto es
+ * una aproximacion pragmatica: si el user abre la app en otro navegador
+ * o en incognito, el contador se reinicia. Aceptable para v1.
  */
 export function useUnreadTransferRequestsCount(
   options: UseUnreadCountOptions = {},
@@ -233,21 +259,81 @@ export function useUnreadTransferRequestsCount(
     queryKey: [...transferRequestKeys.all, 'unread-count', currentTenantId] as const,
     enabled: typeof currentTenantId === 'number' && currentTenantId > 0,
     queryFn: async () => {
-      const raw = (await getMany<unknown>(`/inventory-transfer-requests?status=requested&per_page=1`)) as
-        | { meta?: { total?: number } }
-        | unknown[];
-      let total = 0;
+      // Traemos la lista completa (no el meta.total) porque necesitamos
+      // el `requested_at` de cada solicitud para filtrar por lastSeenAt.
+      // per_page=1 nos da solo el conteo via meta, pero per_page max
+      // del listado. Usamos per_page alto (200) para cubrir todos los
+      // pendientes en un solo request.
+      const raw = (await getMany<unknown>(
+        `/inventory-transfer-requests?status=requested&per_page=200`,
+      )) as { data?: Array<{ requested_at?: string }> } | Array<unknown>;
+
+      let items: Array<{ requested_at?: string }> = [];
       if (Array.isArray(raw)) {
-        total = raw.length;
-      } else if (raw && typeof raw === 'object' && 'meta' in raw) {
-        total = (raw.meta && typeof raw.meta.total === 'number') ? raw.meta.total : 0;
+        items = raw as Array<{ requested_at?: string }>;
+      } else if (raw && typeof raw === 'object' && Array.isArray(raw.data)) {
+        items = raw.data;
       }
-      return total;
+
+      const lastSeenIso = currentTenantId !== undefined ? readLastSeenFor(currentTenantId) : null;
+      if (!lastSeenIso) {
+        return items.length;
+      }
+      const lastSeen = new Date(lastSeenIso).getTime();
+      const unseen = items.filter((item) => {
+        if (!item.requested_at) return true;
+        return new Date(item.requested_at).getTime() > lastSeen;
+      });
+      return unseen.length;
     },
     refetchInterval,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Persistencia local (localStorage) de "ultima vez que vi las solicitudes
+ * pendientes" por tenant. La clave es estable entre paginaciones: no se
+ * borra al cerrar el navegador, solo cuando el user hace "clear site data".
+ */
+function lastSeenKey(tenantId: number): string {
+  return `itr.lastSeenAt.tenant.${tenantId}`;
+}
+
+function readLastSeenFor(tenantId: number): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(lastSeenKey(tenantId));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Marca las solicitudes pendientes como "vistas" para el tenant actual.
+ * Llamar desde la pagina `/inventory-transfer-requests` cuando el user
+ * entra (no al recibir el push, sino al visitar la lista).
+ */
+export function markTransferRequestsAsSeen(tenantId: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(lastSeenKey(tenantId), new Date().toISOString());
+  } catch {
+    // localStorage puede estar lleno o deshabilitado. No es critico:
+    // el badge seguira mostrando el conteo real hasta el proximo
+    // re-fetch y eventualmente se limpiara cuando el user recargue.
+  }
+}
+
+/**
+ * Helper para invalidar el badge de TODOS los tenants a la vez (usado
+ * por mutaciones que afectan al destinatario, no al actor). Como la
+ * queryKey del badge incluye el tenant id, invalidar la "familia"
+ * `unreadCounts` es mas robusto que adivinar ids especificos.
+ */
+export function invalidateUnreadCounts(qc: import('@tanstack/react-query').QueryClient): void {
+  void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
 }
 
 /**

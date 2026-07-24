@@ -10,7 +10,8 @@ class StoreSaleRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'customer_id' => [
@@ -27,16 +28,16 @@ class StoreSaleRequest extends FormRequest
             'items.*.product_id' => [
                 'required',
                 'integer',
-                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.price_list_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['sometimes', 'array'],
-            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
+            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', app(TenantManager::class)->require()->id)],
         ];
     }
 

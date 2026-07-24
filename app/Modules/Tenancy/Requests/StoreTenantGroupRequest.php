@@ -2,7 +2,6 @@
 
 namespace App\Modules\Tenancy\Requests;
 
-use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;

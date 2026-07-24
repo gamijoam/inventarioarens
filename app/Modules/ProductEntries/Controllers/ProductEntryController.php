@@ -7,10 +7,10 @@ use App\Modules\ProductEntries\Requests\StoreProductEntryRequest;
 use App\Modules\ProductEntries\Resources\ProductEntryResource;
 use App\Modules\ProductEntries\Services\ProductEntryService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class ProductEntryController extends Controller

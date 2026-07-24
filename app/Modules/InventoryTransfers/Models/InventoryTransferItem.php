@@ -50,9 +50,13 @@ class InventoryTransferItem extends Model
     }
 
     public const RESOLUTION_UNRESOLVED = 'unresolved';
+
     public const RESOLUTION_INVESTIGATING = 'investigating';
+
     public const RESOLUTION_ACCEPTED_LOSS = 'accepted_loss';
+
     public const RESOLUTION_RETURNED_TO_ORIGIN = 'returned_to_origin';
+
     public const RESOLUTION_ADJUSTED_MANUALLY = 'adjusted_manually';
 
     public const RESOLUTION_STATUSES = [

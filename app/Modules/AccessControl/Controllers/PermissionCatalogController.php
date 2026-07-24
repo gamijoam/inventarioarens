@@ -2,8 +2,8 @@
 
 namespace App\Modules\AccessControl\Controllers;
 
-use App\Modules\AccessControl\Services\PermissionCatalogService;
 use App\Modules\AccessControl\Services\AccessControlService;
+use App\Modules\AccessControl\Services\PermissionCatalogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -14,8 +14,7 @@ class PermissionCatalogController extends Controller
     public function __construct(
         private readonly PermissionCatalogService $catalog,
         private readonly AccessControlService $access,
-    ) {
-    }
+    ) {}
 
     /**
      * Catalogo plano agrupado por modulo (legacy).

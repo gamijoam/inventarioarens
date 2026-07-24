@@ -2,6 +2,9 @@
 
 namespace App\Modules\Products\Models;
 
+use App\Modules\Products\Concerns\PropagatesCatalogToSpinoffs;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['parent_id', 'name', 'slug', 'description', 'sort_order', 'is_active'])]
 class Category extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, PropagatesCatalogToSpinoffs;
 
     protected function casts(): array
     {
@@ -20,6 +23,26 @@ class Category extends Model
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function propagateToSpinoffs(Model $model): void
+    {
+        // Las categorias con jerarquia se procesan en orden topologico
+        // (padres antes que hijos) via el servicio de propagacion.
+        $group = Tenant::query()->withoutGlobalScopes()->find($model->tenant_id);
+        if (! $group || ! $group->isGroup()) {
+            return;
+        }
+
+        $spinoffs = Tenant::query()
+            ->where('parent_id', $group->id)
+            ->where('is_group', false)
+            ->get();
+
+        $svc = app(SharedCatalogPropagationService::class);
+        foreach ($spinoffs as $spinoff) {
+            $svc->propagateSingleCategoryToSpinoff($model, $spinoff);
+        }
     }
 
     public function parent(): BelongsTo

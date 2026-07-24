@@ -8,6 +8,7 @@ use App\Modules\Currency\Resources\ExchangeRateResource;
 use App\Modules\Currency\Services\ExchangeRateActivationService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -18,6 +19,8 @@ use Illuminate\Support\Facades\Gate;
 
 class ExchangeRateController extends Controller
 {
+    use SharedCatalogWriteGuard;
+
     public function __construct(private readonly SyncOutboxService $syncOutbox) {}
 
     public function index(): AnonymousResourceCollection
@@ -51,6 +54,10 @@ class ExchangeRateController extends Controller
     public function store(StoreExchangeRateRequest $request, ExchangeRateActivationService $activationService): JsonResponse
     {
         Gate::authorize('create', ExchangeRate::class);
+
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         $rate = DB::transaction(function () use ($request, $activationService): ExchangeRate {
             $data = $request->validated();
@@ -97,6 +104,10 @@ class ExchangeRateController extends Controller
     {
         Gate::authorize('update', $rate);
 
+        if (! $this->canWriteSharedCatalog(request()->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $rate = DB::transaction(function () use ($rate, $activationService): ExchangeRate {
             $deactivatedRates = ExchangeRate::query()
                 ->with('type')
@@ -121,6 +132,10 @@ class ExchangeRateController extends Controller
     public function deactivate(ExchangeRate $rate): ExchangeRateResource
     {
         Gate::authorize('update', $rate);
+
+        if (! $this->canWriteSharedCatalog(request()->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         $rate = DB::transaction(function () use ($rate): ExchangeRate {
             $rate->update(['is_active' => false]);

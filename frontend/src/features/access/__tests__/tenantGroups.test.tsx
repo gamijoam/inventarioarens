@@ -19,6 +19,7 @@ import type { ReactNode } from 'react';
 const mockMutateAsync = vi.fn();
 const mockUseTenantGroups = vi.fn();
 const mockUseGroupSpinoffs = vi.fn();
+const mockUseGroupSharedCatalog = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
@@ -56,6 +57,13 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
       data: unknown[];
       isLoading: boolean;
     },
+  useGroupSharedCatalog: (_id: number | string, enabled?: boolean) =>
+    mockUseGroupSharedCatalog(_id, enabled) as unknown as {
+      data: { group: { id: number; name: string; slug: string }; spinoffs: unknown[]; products: unknown[] } | undefined;
+      isLoading: boolean;
+      isError: boolean;
+      error: Error | null;
+    },
   useCreateTenantGroup: () => mockUseCreateTenantGroup(),
   useCreateSpinoff: (_id: number | string) => mockUseCreateSpinoff(_id),
   useAttachGroupUser: (_id: number | string) => mockUseAttachGroupUser(_id),
@@ -85,6 +93,13 @@ describe('GroupsTree', () => {
   beforeEach(() => {
     mockUseTenantGroups.mockReset();
     mockUseGroupSpinoffs.mockReset();
+    mockUseGroupSharedCatalog.mockReset();
+    mockUseGroupSharedCatalog.mockReturnValue({
+      data: { group: { id: 1, name: 'G', slug: 'g' }, spinoffs: [], products: [] },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
     mockMutateAsync.mockReset();
   });
 
@@ -224,6 +239,47 @@ describe('GroupsTree', () => {
     expect(screen.getByRole('link', { name: /Ficha/i })).toHaveAttribute(
       'href',
       '/users/100?scope=organization',
+    );
+  });
+
+  it('muestra accesos rapidos al catalogo compartido cuando se expande el grupo', async () => {
+    mockUseTenantGroups.mockReturnValue({
+      data: [
+        {
+          id: 1,
+          name: 'Grupo Demo',
+          slug: 'grupo-demo',
+          status: 'active',
+          is_owner: true,
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+    });
+    mockUseGroupSpinoffs.mockReturnValue({ data: [], isLoading: false });
+
+    renderWithProviders(<GroupsTree onCreateGroup={vi.fn()} />);
+    await userEvent.click(screen.getByTestId('group-toggle-1'));
+
+    expect(screen.getByTestId('group-shared-catalog-1')).toBeInTheDocument();
+    expect(screen.getByTestId('group-shared-link-productos')).toHaveAttribute('href', '/inventory');
+    expect(screen.getByTestId('group-shared-link-catalogos')).toHaveAttribute(
+      'href',
+      '/inventory/catalogs',
+    );
+    expect(screen.getByTestId('group-shared-link-tipos-de-tasa')).toHaveAttribute(
+      'href',
+      '/inventory/currency',
+    );
+    expect(screen.getByTestId('group-shared-link-metodos-de-pago')).toHaveAttribute(
+      'href',
+      '/payment-methods',
+    );
+    expect(screen.getByTestId('group-shared-catalog-policy-1')).toHaveTextContent(
+      /solo el Owner del grupo/i,
     );
   });
 });

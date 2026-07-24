@@ -85,7 +85,7 @@ class ProductImageController extends Controller
         $image->save();
 
         // Sync event para propagar alt/sort.
-        app(\App\Modules\Sync\Services\SyncCatalogOutboxService::class)->imageUpdated($image->fresh(['variants']));
+        app(SyncCatalogOutboxService::class)->imageUpdated($image->fresh(['variants']));
 
         return response()->json([
             'data' => (new ProductImageResource($image->fresh(['variants'])))->resolve(),

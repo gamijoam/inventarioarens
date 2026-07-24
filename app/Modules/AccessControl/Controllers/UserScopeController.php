@@ -19,7 +19,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 
 class UserScopeController extends Controller
 {
@@ -106,6 +105,7 @@ class UserScopeController extends Controller
             'scope_type' => 'branches',
             'count' => count($request->validated('branch_ids') ?? []),
         ]);
+
         return response()->noContent();
     }
 
@@ -120,6 +120,7 @@ class UserScopeController extends Controller
             'scope_type' => 'warehouses',
             'count' => count($request->validated('warehouse_ids') ?? []),
         ]);
+
         return response()->noContent();
     }
 
@@ -134,6 +135,7 @@ class UserScopeController extends Controller
             'scope_type' => 'customer_groups',
             'count' => count($request->validated('customer_group_ids') ?? []),
         ]);
+
         return response()->noContent();
     }
 
@@ -148,6 +150,7 @@ class UserScopeController extends Controller
             'scope_type' => 'vendor_of',
             'count' => count($request->validated('customer_group_ids') ?? []),
         ]);
+
         return response()->noContent();
     }
 

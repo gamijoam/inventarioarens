@@ -34,14 +34,15 @@ class InventoryCenterBulkActionRequest extends FormRequest
 
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'product_ids' => ['required', 'array', 'min:1', 'max:200'],
             'product_ids.*' => [
                 'integer',
                 'distinct',
-                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'action' => [
                 'required',
@@ -59,7 +60,7 @@ class InventoryCenterBulkActionRequest extends FormRequest
             'payload.price_list_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payload.strategy' => [
                 'nullable',
@@ -76,12 +77,12 @@ class InventoryCenterBulkActionRequest extends FormRequest
             'payload.warranty_policy_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('warranty_policies', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('warranty_policies', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payload.sale_exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
         ];
     }

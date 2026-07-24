@@ -130,18 +130,49 @@ class ProductPriceService
 
     private function rateTypeFor(Product $product, ?ProductPrice $productPrice): ?ExchangeRateType
     {
-        if ($productPrice?->exchange_rate_type_id) {
-            return $productPrice->exchangeRateType()->first();
+        // Prioridad: la tasa anclada al PRODUCTO gana sobre la de la lista
+        // de precios. Esto refleja la regla de negocio: si el admin del
+        // grupo ancla el producto a una tasa especifica (ej. paralelo),
+        // esa tasa se respeta aunque la lista de precios tenga otra.
+        if ($product->sale_exchange_rate_type_id) {
+            // Buscamos por code (no por id) porque el id del tipo de tasa
+            // en el grupo puede no coincidir con el id en el spinoff. El
+            // codigo (BCV, PARALELO, etc.) si se conserva durante la
+            // propagacion.
+            $currentType = $product->saleExchangeRateType()->first();
+            $code = $currentType?->code ?? $this->resolveRateTypeCodeFromProduct($product);
+
+            if ($code) {
+                $localType = ExchangeRateType::query()
+                    ->where('code', $code)
+                    ->where('is_active', true)
+                    ->first();
+                if ($localType) {
+                    return $localType;
+                }
+            }
         }
 
-        if ($product->sale_exchange_rate_type_id) {
-            return $product->saleExchangeRateType()->first();
+        if ($productPrice?->exchange_rate_type_id) {
+            return $productPrice->exchangeRateType()->first();
         }
 
         return ExchangeRateType::query()
             ->where('is_default', true)
             ->where('is_active', true)
             ->first();
+    }
+
+    /**
+     * Si el id del tipo de tasa esta roto (apunta a un id del grupo que
+     * no existe localmente), no podemos inferir el codigo via la
+     * relacion. Devolvemos null y el caller cae al default.
+     */
+    private function resolveRateTypeCodeFromProduct(Product $product): ?string
+    {
+        // Optimizacion: si el id es valido localmente, el caller ya lo
+        // encontro via la relacion. Este metodo es un fallback.
+        return null;
     }
 
     private function activeRateFor(ExchangeRateType $rateType): ?ExchangeRate

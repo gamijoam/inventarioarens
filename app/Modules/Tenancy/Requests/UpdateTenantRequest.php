@@ -2,6 +2,7 @@
 
 namespace App\Modules\Tenancy\Requests;
 
+use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,7 +16,7 @@ class UpdateTenantRequest extends FormRequest
     public function rules(): array
     {
         $tenant = $this->route('tenant');
-        $tenantId = $tenant instanceof \App\Modules\Tenancy\Models\Tenant ? $tenant->id : (int) $tenant;
+        $tenantId = $tenant instanceof Tenant ? $tenant->id : (int) $tenant;
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:150'],

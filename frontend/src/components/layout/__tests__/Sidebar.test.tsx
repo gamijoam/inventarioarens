@@ -16,6 +16,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useRouterState: () => ({ location: { pathname: '/dashboard' } }),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock('@/features/access/tenantGroupsApi', () => ({
@@ -24,6 +25,10 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
 
 vi.mock('@/features/inventory-transfer-requests/api', () => ({
   useUnreadTransferRequestsCount: () => mockUseUnreadTransferRequestsCount(),
+}));
+
+vi.mock('@/features/inventory-transfer-requests/useTransferRequestBroadcast', () => ({
+  useTransferRequestBroadcast: () => undefined,
 }));
 
 vi.mock('@/stores/session', () => ({

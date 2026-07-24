@@ -5,12 +5,18 @@ namespace Tests\Feature\Products;
 use App\Models\User;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
+use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Testing\FileFactory;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -50,7 +56,7 @@ class ProductImageApiTest extends TestCase
 
         $imageId = $response->json('data.id');
         // 3 variantes: contamos via DB (no esta expuesto en el resource).
-        $this->assertSame(3, \App\Modules\Products\Models\ProductImageVariant::query()
+        $this->assertSame(3, ProductImageVariant::query()
             ->where('product_image_id', $imageId)
             ->count());
 
@@ -187,7 +193,7 @@ class ProductImageApiTest extends TestCase
         imagejpeg($im, $tmp, 85);
         imagedestroy($im);
 
-        $uploaded = new \Illuminate\Http\UploadedFile(
+        $uploaded = new UploadedFile(
             $tmp,
             'perm.jpg',
             'image/jpeg',
@@ -214,7 +220,7 @@ class ProductImageApiTest extends TestCase
         Storage::fake('product-images');
 
         // .txt no es una imagen valida.
-        $uploaded = \Illuminate\Http\UploadedFile::fake()->createWithContent(
+        $uploaded = UploadedFile::fake()->createWithContent(
             'fake.txt',
             'not an image'
         );
@@ -233,7 +239,7 @@ class ProductImageApiTest extends TestCase
      */
     private function seedTenantWithOwner(string $slug = 'telefonos-demo'): array
     {
-        $tenancy = app(\App\Support\Tenancy\TenantManager::class);
+        $tenancy = app(TenantManager::class);
 
         // Crear tenants idempotentes (mismo slug si el test se corre 2 veces).
         $tenant = Tenant::firstOrCreate(
@@ -258,11 +264,11 @@ class ProductImageApiTest extends TestCase
         }
 
         // Crear Owner role con todos los permisos.
-        $ownerRole = \Spatie\Permission\Models\Role::firstOrCreate(
+        $ownerRole = Role::firstOrCreate(
             ['name' => 'Owner', 'guard_name' => 'web', 'tenant_id' => $tenant->id],
         );
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permName) {
-            $perm = \Spatie\Permission\Models\Permission::firstOrCreate([
+        foreach (BasePermissions::PERMISSIONS as $permName) {
+            $perm = Permission::firstOrCreate([
                 'name' => $permName,
                 'guard_name' => 'web',
             ]);
@@ -270,7 +276,7 @@ class ProductImageApiTest extends TestCase
                 $ownerRole->givePermissionTo($perm);
             }
         }
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         // Asignar rol solo si no lo tiene.
         if (! $user->hasRole('Owner')) {
@@ -285,17 +291,17 @@ class ProductImageApiTest extends TestCase
         [$tenant, $user] = $this->seedTenantWithOwner();
         setPermissionsTeamId($tenant->id);
 
-        $ownerRole = \Spatie\Permission\Models\Role::query()
+        $ownerRole = Role::query()
             ->where('tenant_id', $tenant->id)
             ->where('name', 'Owner')
             ->where('guard_name', 'web')
             ->first();
 
-        $updatePerm = \Spatie\Permission\Models\Permission::where('name', 'products.update')->first();
+        $updatePerm = Permission::where('name', 'products.update')->first();
         if ($updatePerm) {
             $ownerRole->permissions()->detach($updatePerm->id);
         }
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return [$tenant, $user];
     }
@@ -326,7 +332,7 @@ class ProductImageApiTest extends TestCase
         imagedestroy($im);
 
         return [
-            'image' => new \Illuminate\Http\UploadedFile(
+            'image' => new UploadedFile(
                 $tmp,
                 'demo.jpg',
                 'image/jpeg',
@@ -340,7 +346,7 @@ class ProductImageApiTest extends TestCase
     {
         $payload['image'] = $payload['image'] ?? null;
         if (isset($payload['image'])) {
-            $payload['image'] = new \Illuminate\Http\UploadedFile(
+            $payload['image'] = new UploadedFile(
                 $payload['image']->getPathname(),
                 $name.'.jpg',
                 'image/jpeg',

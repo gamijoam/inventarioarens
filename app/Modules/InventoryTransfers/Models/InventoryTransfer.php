@@ -45,12 +45,12 @@ class InventoryTransfer extends Model
 
     public const TYPE_INTERNAL = 'internal';
 
-
     public const TYPES = [
         self::TYPE_INTERNAL,
     ];
 
     public const VALIDATION_SIMPLE = 'simple';
+
     public const VALIDATION_LOGISTICS = 'logistics';
 
     public const VALIDATION_MODES = [
@@ -59,11 +59,17 @@ class InventoryTransfer extends Model
     ];
 
     public const STATUS_REQUESTED = 'requested';
+
     public const STATUS_PREPARED = 'prepared';
+
     public const STATUS_PREPARED_WITH_DIFFERENCES = 'prepared_with_differences';
+
     public const STATUS_DISPATCHED = 'dispatched';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_COMPLETED_WITH_DIFFERENCES = 'completed_with_differences';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const ALL_STATUSES = [
@@ -89,7 +95,9 @@ class InventoryTransfer extends Model
     ];
 
     public const RESOLUTION_UNRESOLVED = 'unresolved';
+
     public const RESOLUTION_PARTIAL = 'partial';
+
     public const RESOLUTION_RESOLVED = 'resolved';
 
     public const RESOLUTION_STATUSES = [
@@ -166,4 +174,3 @@ class InventoryTransfer extends Model
         return $this->belongsTo(User::class, 'resolved_by');
     }
 }
-

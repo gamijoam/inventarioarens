@@ -24,10 +24,13 @@ class InventoryTransferChecklist extends Model
     use BelongsToTenant;
 
     public const STAGE_PREPARATION = 'preparation';
+
     public const STAGE_RECEPTION = 'reception';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_COMPLETED_WITH_DIFFERENCES = 'completed_with_differences';
 
     protected function casts(): array

@@ -16,7 +16,8 @@ class StockReportRequest extends FormRequest
 
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'warehouse_id' => [
@@ -27,7 +28,7 @@ class StockReportRequest extends FormRequest
             'product_id' => [
                 'sometimes',
                 'integer',
-                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'threshold' => ['sometimes', 'numeric', 'gte:0'],
         ];

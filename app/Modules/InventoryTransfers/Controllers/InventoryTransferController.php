@@ -12,20 +12,21 @@ use App\Modules\InventoryTransfers\Requests\PrepareInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\ReceiveInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\ResolveInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Requests\StoreInventoryTransferRequest;
+use App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource;
 use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class InventoryTransferController extends Controller
 {
-    public function __construct(private readonly ScopeResolver $scopes)
-    {
-    }
+    public function __construct(private readonly ScopeResolver $scopes) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -38,10 +39,10 @@ class InventoryTransferController extends Controller
             ->when($request->query('from_warehouse_id'), fn ($query, string $wid) => $query->where('from_warehouse_id', (int) $wid))
             ->when($request->query('to_warehouse_id'), fn ($query, string $wid) => $query->where('to_warehouse_id', (int) $wid))
             ->when($request->query('date_from'), function ($query, string $date): void {
-                $query->where('processed_at', '>=', \Carbon\Carbon::parse($date)->startOfDay());
+                $query->where('processed_at', '>=', Carbon::parse($date)->startOfDay());
             })
             ->when($request->query('date_to'), function ($query, string $date): void {
-                $query->where('processed_at', '<=', \Carbon\Carbon::parse($date)->endOfDay());
+                $query->where('processed_at', '<=', Carbon::parse($date)->endOfDay());
             })
             ->latest('processed_at');
 
@@ -140,7 +141,7 @@ class InventoryTransferController extends Controller
         InventoryTransfer $inventoryTransfer,
         AssignDriverRequest $assignRequest,
         InventoryTransferService $service,
-    ): \App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource {
+    ): InventoryTransferDriverResource {
         Gate::authorize('assignDriver', $inventoryTransfer);
 
         $driver = $service->assignDriver(
@@ -149,14 +150,14 @@ class InventoryTransferController extends Controller
             $assignRequest->validated(),
         );
 
-        return \App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource::make($driver);
+        return InventoryTransferDriverResource::make($driver);
     }
 
     public function removeDriver(
         Request $request,
         InventoryTransfer $inventoryTransfer,
         InventoryTransferService $service,
-    ): \Illuminate\Http\Response {
+    ): Response {
         Gate::authorize('assignDriver', $inventoryTransfer);
         $service->removeDriver($request->user(), $inventoryTransfer);
 
@@ -171,11 +172,11 @@ class InventoryTransferController extends Controller
         Request $request,
         InventoryTransfer $inventoryTransfer,
         string $stage,
-    ): \Illuminate\Http\JsonResponse {
+    ): JsonResponse {
         Gate::authorize('view', $inventoryTransfer);
 
         if (! in_array($stage, ['preparation', 'reception'], true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'stage' => 'El stage debe ser preparation o reception.',
             ]);
         }
@@ -201,11 +202,11 @@ class InventoryTransferController extends Controller
         int $itemId,
         CheckChecklistItemRequest $checkRequest,
         InventoryTransferService $service,
-    ): \Illuminate\Http\JsonResponse {
+    ): JsonResponse {
         Gate::authorize('verify', $inventoryTransfer);
 
         if (! in_array($stage, ['preparation', 'reception'], true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'stage' => 'El stage debe ser preparation o reception.',
             ]);
         }
@@ -240,7 +241,7 @@ class InventoryTransferController extends Controller
      *   - notes: string|null
      *   - differences_count: int (solo en 'received')
      */
-    public function timeline(InventoryTransfer $inventoryTransfer): \Illuminate\Http\JsonResponse
+    public function timeline(InventoryTransfer $inventoryTransfer): JsonResponse
     {
         Gate::authorize('view', $inventoryTransfer);
 

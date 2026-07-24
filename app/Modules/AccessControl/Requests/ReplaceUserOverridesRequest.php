@@ -2,6 +2,7 @@
 
 namespace App\Modules\AccessControl\Requests;
 
+use App\Support\Permissions\BasePermissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +21,7 @@ class ReplaceUserOverridesRequest extends FormRequest
                 'required',
                 'string',
                 'max:150',
-                Rule::in(\App\Support\Permissions\BasePermissions::PERMISSIONS),
+                Rule::in(BasePermissions::PERMISSIONS),
             ],
             'items.*.effect' => ['required', 'string', 'in:allow,deny'],
         ];

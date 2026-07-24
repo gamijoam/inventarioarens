@@ -4,24 +4,23 @@ namespace App\Modules\Tenancy\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
-use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Branches\Models\Branch;
-use App\Modules\Warehouses\Models\Warehouse;
+use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class TenantGroupService
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     /**
      * Crea un grupo (tenant raiz con parent_id=NULL).
@@ -33,7 +32,7 @@ class TenantGroupService
         $slug = Str::slug((string) $data['slug']);
 
         if (Tenant::query()->where('slug', $slug)->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'slug' => "Ya existe una empresa con el slug '{$slug}'.",
             ]);
         }

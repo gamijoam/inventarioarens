@@ -7,6 +7,10 @@ use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\InventoryTransferRequests\Events\TransferRequestAccepted;
+use App\Modules\InventoryTransferRequests\Events\TransferRequestCancelled;
+use App\Modules\InventoryTransferRequests\Events\TransferRequestCreated;
+use App\Modules\InventoryTransferRequests\Events\TransferRequestRejected;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\Products\Models\Product;
@@ -71,6 +75,13 @@ class InventoryTransferRequestService
         });
 
         $this->syncCatalog->inventoryTransferRequestCreated($request);
+
+        // Difundir el evento al tenant destino. Esto activa
+        // el push in-app en el frontend del destinatario (< 1s).
+        // Usamos `fromModel()` para no serializar el modelo entero: el
+        // evento es primitivo para evitar que Reverb se caiga al
+        // serializar relaciones eager-loaded.
+        event(TransferRequestCreated::fromModel($request));
 
         return $request;
     }
@@ -139,6 +150,11 @@ class InventoryTransferRequestService
 
         $this->syncCatalog->inventoryTransferRequestAccepted($accepted);
 
+        // Difundir el evento al tenant ORIGEN para notificar al admin que
+        // su solicitud fue aceptada. `fromModel()` para no serializar
+        // el modelo entero (Reverb se cae si lo intenta).
+        event(TransferRequestAccepted::fromModel($accepted));
+
         return $accepted;
     }
 
@@ -165,6 +181,11 @@ class InventoryTransferRequestService
 
         $this->syncCatalog->inventoryTransferRequestRejected($rejected);
 
+        // Difundir el evento al tenant ORIGEN para notificar al admin que
+        // su solicitud fue rechazada (y el motivo si lo hay). `fromModel()`
+        // para no serializar el modelo entero.
+        event(TransferRequestRejected::fromModel($rejected));
+
         return $rejected;
     }
 
@@ -189,6 +210,11 @@ class InventoryTransferRequestService
         });
 
         $this->syncCatalog->inventoryTransferRequestCancelled($cancelled);
+
+        // Difundir el evento al tenant DESTINO para notificar al admin
+        // que la solicitud fue retirada. `fromModel()` para no
+        // serializar el modelo entero.
+        event(TransferRequestCancelled::fromModel($cancelled));
 
         return $cancelled;
     }

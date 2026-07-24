@@ -32,7 +32,7 @@ class SupplierController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $like = '%' . mb_strtolower($search) . '%';
+            $like = '%'.mb_strtolower($search).'%';
 
             $query->where(function ($builder) use ($like): void {
                 $builder

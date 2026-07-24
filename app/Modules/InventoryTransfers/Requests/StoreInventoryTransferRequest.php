@@ -11,7 +11,8 @@ class StoreInventoryTransferRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'type' => ['sometimes', Rule::in(InventoryTransfer::TYPES)],
@@ -27,7 +28,7 @@ class StoreInventoryTransferRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             'processed_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('tenant_id', $tenantId)],
+            'items.*.product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['nullable', 'array'],
             'items.*.product_unit_ids.*' => ['integer'],

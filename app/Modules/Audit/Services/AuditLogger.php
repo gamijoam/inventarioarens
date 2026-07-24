@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 class AuditLogger
 {
     public const PLACEHOLDER_ENTITY_TYPE = 'system';
+
     public const PLACEHOLDER_ENTITY_ID = 0;
 
     public function record(

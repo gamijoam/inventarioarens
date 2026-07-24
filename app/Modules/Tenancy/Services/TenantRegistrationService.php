@@ -20,9 +20,7 @@ use Spatie\Permission\PermissionRegistrar;
 
 class TenantRegistrationService
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     /**
      * Crea una empresa (spinoff) DENTRO de un grupo existente.

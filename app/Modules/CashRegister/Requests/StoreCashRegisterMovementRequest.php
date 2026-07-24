@@ -12,7 +12,8 @@ class StoreCashRegisterMovementRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'type' => [
@@ -43,7 +44,7 @@ class StoreCashRegisterMovementRequest extends FormRequest
             'exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],

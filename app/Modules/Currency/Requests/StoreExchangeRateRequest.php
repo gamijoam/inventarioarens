@@ -11,13 +11,14 @@ class StoreExchangeRateRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'exchange_rate_type_id' => [
                 'required',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'base_currency' => ['sometimes', 'string', 'size:3', Rule::in([ExchangeRate::BASE_USD])],
             'quote_currency' => ['sometimes', 'string', 'size:3', Rule::in([ExchangeRate::QUOTE_VES])],

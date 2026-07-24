@@ -11,8 +11,7 @@ class SyncTransportService
     public function __construct(
         private readonly SyncEventApplier $applier,
         private readonly SyncInitialSnapshotService $initialSnapshot,
-    ) {
-    }
+    ) {}
 
     public function registerNode(array $data): array
     {

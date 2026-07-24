@@ -13,6 +13,7 @@ class UserPermissionOverride extends Model
     use BelongsToTenant;
 
     public const EFFECT_ALLOW = 'allow';
+
     public const EFFECT_DENY = 'deny';
 
     public const EFFECTS = [self::EFFECT_ALLOW, self::EFFECT_DENY];

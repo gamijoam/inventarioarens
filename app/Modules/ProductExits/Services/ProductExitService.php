@@ -20,9 +20,7 @@ class ProductExitService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
-    )
-    {
-    }
+    ) {}
 
     public function create(User $user, array $data): ProductExit
     {

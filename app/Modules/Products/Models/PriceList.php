@@ -3,6 +3,9 @@
 namespace App\Modules\Products\Models;
 
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\Products\Concerns\PropagatesCatalogToSpinoffs;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class PriceList extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, PropagatesCatalogToSpinoffs;
 
     protected function casts(): array
     {
@@ -28,6 +31,20 @@ class PriceList extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    protected static function propagateToSpinoffs(Model $model): void
+    {
+        $spinoffs = Tenant::query()
+            ->where('parent_id', $model->tenant_id)
+            ->where('is_group', false)
+            ->get();
+
+        $svc = app(SharedCatalogPropagationService::class);
+        foreach ($spinoffs as $spinoff) {
+            $copy = $svc->ensurePriceListCopyFor($model, $spinoff);
+            $svc->syncPriceListPaymentMethods($model, $copy, $spinoff);
+        }
     }
 
     public function productPrices(): HasMany

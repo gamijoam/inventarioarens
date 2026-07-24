@@ -2,6 +2,7 @@
 
 namespace App\Modules\AdminPortal\Services;
 
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Query\Builder;
@@ -278,8 +279,8 @@ class AdminTransferService
      */
     private function auditEvents(int $transferId): array
     {
-        return \App\Modules\Audit\Models\AuditLog::query()
-            ->where('entity_type', \App\Modules\InventoryTransfers\Models\InventoryTransfer::class)
+        return AuditLog::query()
+            ->where('entity_type', InventoryTransfer::class)
             ->where('entity_id', $transferId)
             ->with('user:id,name')
             ->orderByDesc('created_at')
@@ -320,7 +321,7 @@ class AdminTransferService
 
         $baseColumns = $this->columns();
         $baseColumns[] = DB::raw('(select count(*) from inventory_transfer_items where inventory_transfer_items.inventory_transfer_id = inventory_transfers.id) as items_count');
-        $baseColumns[] = DB::raw("(select count(*) from inventory_transfer_items where inventory_transfer_items.inventory_transfer_id = inventory_transfers.id and inventory_transfer_items.difference_quantity != 0) as differences_count");
+        $baseColumns[] = DB::raw('(select count(*) from inventory_transfer_items where inventory_transfer_items.inventory_transfer_id = inventory_transfers.id and inventory_transfer_items.difference_quantity != 0) as differences_count');
 
         $rows = $this->baseQuery($tenant->id, $filters)
             ->orderByDesc('inventory_transfers.id')

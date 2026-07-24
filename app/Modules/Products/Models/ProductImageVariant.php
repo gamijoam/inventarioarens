@@ -32,8 +32,11 @@ class ProductImageVariant extends Model
     protected $table = 'product_image_variants';
 
     public const VARIANT_ORIGINAL = 'original';
+
     public const VARIANT_MEDIUM = 'medium';
+
     public const VARIANT_THUMB = 'thumb';
+
     public const ALL_VARIANTS = [self::VARIANT_ORIGINAL, self::VARIANT_MEDIUM, self::VARIANT_THUMB];
 
     protected function casts(): array

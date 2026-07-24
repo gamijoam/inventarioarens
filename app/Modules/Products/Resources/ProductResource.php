@@ -101,6 +101,17 @@ class ProductResource extends JsonResource
             'available_stock' => (float) ($this->available_stock ?? 0),
 
             'is_active' => (bool) $this->is_active,
+
+            // Catalogo compartido (Fase 1 arquitectura maestro + copia local).
+            // `catalog_product_id` apunta al producto maestro del grupo cuando
+            // este producto es una copia operativa de un spinoff.
+            // `is_catalog_master=true` indica que este registro es el original
+            // del grupo. `is_catalog_active` replica la desactivacion logica
+            // del maestro a todas las copias.
+            'catalog_product_id' => $this->catalog_product_id,
+            'is_catalog_master' => (bool) $this->is_catalog_master,
+            'is_catalog_active' => (bool) $this->is_catalog_active,
+
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

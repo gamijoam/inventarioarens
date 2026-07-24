@@ -45,9 +45,11 @@ class PaymentReceipt extends Model
     use BelongsToTenant;
 
     public const TYPE_CUSTOMER_COLLECTION = 'customer_collection';
+
     public const TYPE_SUPPLIER_PAYMENT = 'supplier_payment';
 
     public const STATUS_ISSUED = 'issued';
+
     public const STATUS_VOIDED = 'voided';
 
     protected function casts(): array

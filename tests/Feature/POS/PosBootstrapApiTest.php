@@ -117,6 +117,82 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonPath('open_session.cashier_id', $cashier->id);
     }
 
+    public function test_bootstrap_for_spinoff_includes_group_shared_catalogs(): void
+    {
+        $group = Tenant::create(['name' => 'Holding', 'slug' => 'holding-bootstrap', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Sucursal',
+            'slug' => 'sucursal-bootstrap',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+
+        $this->useTenant($group);
+        $list = PriceList::create([
+            'code' => 'LISTA-GRUPO',
+            'name' => 'Lista Grupo',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $rateType = ExchangeRateType::create([
+            'code' => 'BCV-GRUPO',
+            'name' => 'BCV Grupo',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        ExchangeRate::create([
+            'exchange_rate_type_id' => $rateType->id,
+            'base_currency' => ExchangeRate::BASE_USD,
+            'quote_currency' => ExchangeRate::QUOTE_VES,
+            'rate' => 40,
+            'effective_at' => now(),
+            'is_active' => true,
+        ]);
+        $paymentMethod = PaymentMethod::create([
+            'code' => 'CASH-GRUPO',
+            'name' => 'Efectivo Grupo',
+            'method' => 'cash',
+            'currency_mode' => PaymentMethod::CURRENCY_FLEXIBLE,
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $list->paymentMethods()->sync([
+            $paymentMethod->id => ['tenant_id' => $group->id],
+        ]);
+
+        $this->useTenant($spinoff);
+        $branch = Branch::create(['name' => 'Sucursal POS Grupo', 'code' => 'BR-GR']);
+        Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen POS Grupo', 'code' => 'WH-GR']);
+        $register = CashRegister::create([
+            'branch_id' => $branch->id,
+            'code' => 'CR-GR',
+            'name' => 'Caja Grupo',
+            'status' => CashRegister::STATUS_ACTIVE,
+        ]);
+        $cashier = User::factory()->create();
+        $cashier->tenants()->attach($spinoff, ['status' => 'active']);
+        $this->grantRole($spinoff, $cashier, 'Cajero', ['pos.view', 'pos.checkout']);
+
+        CashRegisterSession::create([
+            'branch_id' => $branch->id,
+            'cash_register_id' => $register->id,
+            'cashier_id' => $cashier->id,
+            'opened_by' => $cashier->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opened_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $spinoff->slug)
+            ->getJson('/api/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonCount(0, 'price_lists')
+            ->assertJsonCount(0, 'payment_methods')
+            ->assertJsonCount(0, 'exchange_rate_types')
+            ->assertJsonCount(0, 'exchange_rates');
+    }
+
     public function test_bootstrap_open_session_is_null_when_no_active_session(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa POS Sin Caja', 'slug' => 'empresa-pos-sin-caja']);

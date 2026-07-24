@@ -15,9 +15,7 @@ use Illuminate\Routing\Controller;
 
 class CrossTenantUserController extends Controller
 {
-    public function __construct(private readonly CrossTenantUserService $service)
-    {
-    }
+    public function __construct(private readonly CrossTenantUserService $service) {}
 
     /**
      * Lista usuarios de un tenant.

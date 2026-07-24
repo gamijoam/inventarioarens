@@ -2,12 +2,11 @@
 
 namespace App\Modules\Dashboard\Services;
 
-use App\Modules\AccountsPayable\Models\AccountsPayable;
-use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sales\Models\Sale;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -60,7 +59,7 @@ class DashboardSummaryService
      */
     private function aggregatedMetrics(Carbon $dateFrom, Carbon $dateTo, float $threshold): array
     {
-        $tenantId = (int) app(\App\Support\Tenancy\TenantManager::class)->require()->id;
+        $tenantId = (int) app(TenantManager::class)->require()->id;
         $dateFromStr = $dateFrom->toDateTimeString();
         $dateToStr = $dateTo->toDateTimeString();
         $thresholdStr = (string) $threshold;

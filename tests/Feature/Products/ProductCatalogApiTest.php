@@ -204,6 +204,67 @@ class ProductCatalogApiTest extends TestCase
         $this->assertSame('Producto buscado', $response->json('data.0.name'));
     }
 
+    public function test_spinoff_can_use_group_brand_and_store_product_in_group_tenant(): void
+    {
+        $group = Tenant::create(['name' => 'Holding', 'slug' => 'holding', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Sucursal',
+            'slug' => 'sucursal',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+        $sibling = Tenant::create([
+            'name' => 'Sucursal 2',
+            'slug' => 'sucursal-2',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+
+        // Cada tenant tiene su propio catalogo de marcas (FK compuesta
+        // (tenant_id, brand_id)). El spinoff debe tener la suya para poder
+        // referenciarla en sus productos.
+        app(TenantManager::class)->set($spinoff);
+        setPermissionsTeamId($spinoff->id);
+        $brand = Brand::create(['name' => 'Samsung', 'slug' => 'samsung']);
+
+        $admin = User::create([
+            'name' => 'Admin Spinoff',
+            'email' => 'admin-spinoff@example.test',
+            'password' => bcrypt('secret123'),
+        ]);
+        $admin->tenants()->attach($spinoff->id, ['status' => 'active']);
+        setPermissionsTeamId($spinoff->id);
+        $admin->givePermissionTo(['products.view', 'products.create', 'products.update']);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $spinoff->slug)
+            ->postJson('/api/products', [
+                'name' => 'Galaxy S24',
+                'sku' => 'GAL-S24',
+                'tracking_type' => 'quantity',
+                'brand_id' => $brand->id,
+                'sale_currency' => 'USD',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.brand.id', $brand->id)
+            ->assertJsonPath('data.sku', 'GAL-S24');
+
+        $this->assertDatabaseHas('products', [
+            'sku' => 'GAL-S24',
+            'tenant_id' => $spinoff->id,
+        ]);
+
+        // El grupo no ve el producto del spinoff en su listado (scope estricto).
+        app(TenantManager::class)->set($group);
+        $this->assertNull(Product::query()->where('sku', 'GAL-S24')->first());
+
+        // El spinoff hermano tampoco lo ve.
+        app(TenantManager::class)->set($sibling);
+        $this->assertNull(Product::query()->where('sku', 'GAL-S24')->first());
+    }
+
     public function test_filter_by_brand(): void
     {
         $tenant = $this->tenant();

@@ -35,8 +35,11 @@ class AccountsReceivable extends Model
     use BelongsToTenant;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PARTIAL = 'partial';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_OVERDUE = 'overdue';
 
     protected $table = 'accounts_receivables';

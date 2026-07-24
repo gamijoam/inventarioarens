@@ -3,7 +3,6 @@
 namespace App\Modules\AccessControl\Commands;
 
 use App\Models\User;
-use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Console\Command;

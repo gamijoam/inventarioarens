@@ -2,7 +2,6 @@
 
 namespace App\Modules\FinanceReports\Requests;
 
-use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;

@@ -17,17 +17,15 @@ use Spatie\Permission\PermissionRegistrar;
 
 class CrossTenantUserService
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     /**
      * Lista usuarios del tenant.
      *
      * @param  'tenant'|'organization'  $scope
-     *         - 'tenant' (default): solo usuarios del tenant especifico.
-     *         - 'organization': usuarios del grupo + todos sus spinoffs.
-     *           Solo valido si el $tenant es un grupo o si tiene parent_id.
+     *                                          - 'tenant' (default): solo usuarios del tenant especifico.
+     *                                          - 'organization': usuarios del grupo + todos sus spinoffs.
+     *                                          Solo valido si el $tenant es un grupo o si tiene parent_id.
      */
     public function listUsers(Tenant $tenant, string $scope = 'tenant'): mixed
     {

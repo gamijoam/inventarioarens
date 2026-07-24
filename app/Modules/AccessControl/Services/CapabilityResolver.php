@@ -61,7 +61,7 @@ class CapabilityResolver
 
         ksort($effective);
 
-        $scopeResolver = app(\App\Modules\AccessControl\Services\ScopeResolver::class);
+        $scopeResolver = app(ScopeResolver::class);
         $scopeStatus = $scopeResolver->statusFor($user);
 
         return [
@@ -81,7 +81,7 @@ class CapabilityResolver
      * Devuelve los IDs de branches/warehouses/groups asignados al user (si los tiene).
      * Si no tiene scope, retorna listas vacias.
      */
-    private function scopesFor(User $user, \App\Modules\AccessControl\Services\ScopeResolver $resolver, int $tenantId): array
+    private function scopesFor(User $user, ScopeResolver $resolver, int $tenantId): array
     {
         $branchIds = $resolver->branchIdsFor($user) ?? [];
         $warehouseIds = $resolver->warehouseIdsFor($user) ?? [];
@@ -130,7 +130,7 @@ class CapabilityResolver
      * Reemplaza TODOS los overrides del user en el tenant actual por la lista provista.
      * Idempotente. Registra audit log.
      */
-    public function replaceOverrides(User $user, array $items, ?\App\Models\User $actor = null): void
+    public function replaceOverrides(User $user, array $items, ?User $actor = null): void
     {
         $tenant = app(TenantManager::class)->require();
         setPermissionsTeamId($tenant->id);
@@ -166,7 +166,7 @@ class CapabilityResolver
         ]);
     }
 
-    public function removeOverride(User $user, string $permission, ?\App\Models\User $actor = null): void
+    public function removeOverride(User $user, string $permission, ?User $actor = null): void
     {
         $tenant = app(TenantManager::class)->require();
         setPermissionsTeamId($tenant->id);

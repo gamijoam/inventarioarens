@@ -2,7 +2,10 @@
 
 namespace App\Modules\PaymentMethods\Models;
 
+use App\Modules\Products\Concerns\PropagatesCatalogToSpinoffs;
 use App\Modules\Products\Models\PriceList;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 ])]
 class PaymentMethod extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, PropagatesCatalogToSpinoffs;
 
     public const CURRENCY_USD = 'USD';
+
     public const CURRENCY_VES = 'VES';
+
     public const CURRENCY_FLEXIBLE = 'flexible';
 
     protected function casts(): array
@@ -32,6 +37,19 @@ class PaymentMethod extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    protected static function propagateToSpinoffs(Model $model): void
+    {
+        $spinoffs = Tenant::query()
+            ->where('parent_id', $model->tenant_id)
+            ->where('is_group', false)
+            ->get();
+
+        $svc = app(SharedCatalogPropagationService::class);
+        foreach ($spinoffs as $spinoff) {
+            $svc->ensurePaymentMethodCopyFor($model, $spinoff);
+        }
     }
 
     public function priceLists(): BelongsToMany

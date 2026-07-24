@@ -11,7 +11,8 @@ class CloseCashRegisterSessionRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'counted_currency' => [
@@ -26,7 +27,7 @@ class CloseCashRegisterSessionRequest extends FormRequest
             'exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'closing_notes' => ['nullable', 'string'],
         ];

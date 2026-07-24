@@ -11,21 +11,22 @@ class SyncProductPricesRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'prices' => ['required', 'array'],
             'prices.*.price_list_id' => [
                 'required',
                 'integer',
-                Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'prices.*.price' => ['required', 'numeric', 'gte:0'],
             'prices.*.currency' => ['required', 'string', 'size:3', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
             'prices.*.exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'prices.*.is_active' => ['sometimes', 'boolean'],
         ];

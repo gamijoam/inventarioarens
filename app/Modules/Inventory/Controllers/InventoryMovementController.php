@@ -13,9 +13,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class InventoryMovementController extends Controller
 {
-    public function __construct(private readonly AuthorizedInventoryMovementService $inventory)
-    {
-    }
+    public function __construct(private readonly AuthorizedInventoryMovementService $inventory) {}
 
     public function purchase(InventoryMovementRequest $request): StockMovementResource
     {

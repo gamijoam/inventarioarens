@@ -5,11 +5,12 @@ namespace Tests\Feature\Tenancy;
 use App\Models\User;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -21,7 +22,7 @@ class GroupSpinoffApiTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
@@ -217,12 +218,12 @@ class GroupSpinoffApiTest extends TestCase
         $owner->tenants()->attach($group, ['status' => 'active']);
 
         setPermissionsTeamId($group->id);
-        $role = \Spatie\Permission\Models\Role::create([
+        $role = Role::create([
             'name' => 'Owner',
             'guard_name' => 'web',
             config('permission.column_names.team_foreign_key', 'team_id') => $group->id,
         ]);
-        $permissions = Permission::query()->whereIn('name', \App\Support\Permissions\BasePermissions::PERMISSIONS)->get();
+        $permissions = Permission::query()->whereIn('name', BasePermissions::PERMISSIONS)->get();
         $role->syncPermissions($permissions);
         $owner->assignRole($role);
 

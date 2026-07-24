@@ -12,14 +12,15 @@ class AddPosOrderPaymentsRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.payment_method_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('payment_methods', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payments.*.method' => [
                 'required',
@@ -44,7 +45,7 @@ class AddPosOrderPaymentsRequest extends FormRequest
             'payments.*.exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payments.*.status' => [
                 'sometimes',

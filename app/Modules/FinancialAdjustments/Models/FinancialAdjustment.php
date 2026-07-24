@@ -35,7 +35,9 @@ class FinancialAdjustment extends Model
     use BelongsToTenant;
 
     public const ACCOUNT_RECEIVABLE = 'receivable';
+
     public const ACCOUNT_PAYABLE = 'payable';
+
     public const STATUS_APPLIED = 'applied';
 
     protected function casts(): array

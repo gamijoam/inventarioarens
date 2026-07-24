@@ -16,9 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseReturnService
 {
-    public function __construct(private readonly InventoryMovementService $inventory)
-    {
-    }
+    public function __construct(private readonly InventoryMovementService $inventory) {}
 
     public function create(User $user, array $data): PurchaseReturn
     {

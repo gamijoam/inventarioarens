@@ -2,10 +2,8 @@
 
 namespace App\Modules\Customers\Models;
 
-use App\Models\User;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CustomerGroup extends Model
@@ -13,6 +11,7 @@ class CustomerGroup extends Model
     use BelongsToTenant;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_INACTIVE = 'inactive';
 
     protected $fillable = [

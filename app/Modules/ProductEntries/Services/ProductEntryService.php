@@ -20,9 +20,7 @@ class ProductEntryService
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
         private readonly InventoryValuationService $valuation,
-    )
-    {
-    }
+    ) {}
 
     public function create(User $user, array $data): ProductEntry
     {

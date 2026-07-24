@@ -2,10 +2,10 @@
 
 namespace App\Modules\Sync\Models;
 
+use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Support\Tenancy\Concerns\BelongsToTenant;
-use App\Modules\Tenancy\Models\Tenant;
 
 class SyncOutbox extends Model
 {

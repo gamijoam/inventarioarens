@@ -398,9 +398,31 @@ function useColumns(
       }),
       columnHelper.accessor('name', {
         header: 'Nombre',
-        cell: (info) => (
-          <span className="font-medium text-text-primary">{info.getValue()}</span>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          const isCopy = !row.is_catalog_master && row.catalog_product_id != null;
+          const masterActive = row.is_catalog_active !== false;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-text-primary">{info.getValue()}</span>
+              {isCopy && (
+                <Badge variant="info" className="font-normal" data-testid={`shared-badge-${row.id}`}>
+                  Compartido
+                </Badge>
+              )}
+              {row.is_catalog_master && (
+                <Badge variant="warning" className="font-normal" data-testid={`master-badge-${row.id}`}>
+                  Maestro
+                </Badge>
+              )}
+              {!masterActive && (
+                <Badge variant="default" className="font-normal">
+                  Inactivo en grupo
+                </Badge>
+              )}
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('tracking_type', {
         header: 'Tipo',

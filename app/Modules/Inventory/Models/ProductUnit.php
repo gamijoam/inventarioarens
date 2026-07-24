@@ -23,13 +23,19 @@ class ProductUnit extends Model
     use BelongsToTenant;
 
     public const SERIAL_TYPE_SERIAL = 'serial';
+
     public const SERIAL_TYPE_IMEI = 'imei';
 
     public const STATUS_AVAILABLE = 'available';
+
     public const STATUS_RESERVED = 'reserved';
+
     public const STATUS_SOLD = 'sold';
+
     public const STATUS_DAMAGED = 'damaged';
+
     public const STATUS_REMOVED = 'removed';
+
     public const STATUS_WARRANTY_HOLD = 'warranty_hold';
 
     public function product(): BelongsTo

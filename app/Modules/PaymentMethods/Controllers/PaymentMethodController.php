@@ -6,6 +6,7 @@ use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\PaymentMethods\Requests\StorePaymentMethodRequest;
 use App\Modules\PaymentMethods\Requests\UpdatePaymentMethodRequest;
 use App\Modules\PaymentMethods\Resources\PaymentMethodResource;
+use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -14,6 +15,8 @@ use Illuminate\Routing\Controller;
 
 class PaymentMethodController extends Controller
 {
+    use SharedCatalogWriteGuard;
+
     public function index(Request $request): AnonymousResourceCollection
     {
         abort_unless($request->user()?->can('payment_methods.view'), Response::HTTP_FORBIDDEN);
@@ -29,6 +32,10 @@ class PaymentMethodController extends Controller
 
     public function store(StorePaymentMethodRequest $request): JsonResponse
     {
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $paymentMethod = PaymentMethod::create($this->normalize($request->validated()));
 
         return PaymentMethodResource::make($paymentMethod)
@@ -38,6 +45,10 @@ class PaymentMethodController extends Controller
 
     public function update(UpdatePaymentMethodRequest $request, PaymentMethod $paymentMethod): PaymentMethodResource
     {
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $paymentMethod->update($this->normalize($request->validated()));
 
         return PaymentMethodResource::make($paymentMethod->refresh());
@@ -46,6 +57,10 @@ class PaymentMethodController extends Controller
     public function destroy(Request $request, PaymentMethod $paymentMethod): Response
     {
         abort_unless($request->user()?->can('payment_methods.update'), Response::HTTP_FORBIDDEN);
+
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         $paymentMethod->update(['is_active' => false]);
 

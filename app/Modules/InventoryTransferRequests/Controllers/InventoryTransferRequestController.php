@@ -25,7 +25,15 @@ class InventoryTransferRequestController extends Controller
 
         return InventoryTransferRequestResource::collection(
             InventoryTransferRequest::query()
-                ->with(['originTenant', 'destinationTenant', 'fromWarehouse', 'destinationWarehouse', 'items'])
+                ->with([
+                    'originTenant',
+                    'destinationTenant',
+                    'fromWarehouse',
+                    'destinationWarehouse',
+                    'items',
+                    'items.originProduct',
+                    'items.destinationProduct',
+                ])
                 ->where(function ($query) use ($tenantId): void {
                     $query
                         ->where('origin_tenant_id', $tenantId)

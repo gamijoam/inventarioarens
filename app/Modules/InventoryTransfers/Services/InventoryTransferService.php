@@ -19,6 +19,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,9 +29,7 @@ class InventoryTransferService
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
         private readonly AuditLogger $audit,
-    )
-    {
-    }
+    ) {}
 
     public function create(User $user, array $data): InventoryTransfer
     {
@@ -320,7 +319,7 @@ class InventoryTransferService
 
             $preparedAt = $data['prepared_at'] ?? now();
             if (is_string($preparedAt)) {
-                $preparedAt = \Carbon\Carbon::parse($preparedAt);
+                $preparedAt = Carbon::parse($preparedAt);
             }
             $transferStatus = $hasDifferences
                 ? InventoryTransfer::STATUS_PREPARED_WITH_DIFFERENCES
@@ -435,7 +434,7 @@ class InventoryTransferService
             $receptionChecklist = $this->ensureReceptionChecklist($transfer);
             $dispatchedAt = $data['dispatched_at'] ?? now();
             if (is_string($dispatchedAt)) {
-                $dispatchedAt = \Carbon\Carbon::parse($dispatchedAt);
+                $dispatchedAt = Carbon::parse($dispatchedAt);
             }
 
             $transfer->guide?->update([
@@ -599,7 +598,7 @@ class InventoryTransferService
 
             $receivedAt = $data['received_at'] ?? now();
             if (is_string($receivedAt)) {
-                $receivedAt = \Carbon\Carbon::parse($receivedAt);
+                $receivedAt = Carbon::parse($receivedAt);
             }
             $transferStatus = $hasDifferences
                 ? InventoryTransfer::STATUS_COMPLETED_WITH_DIFFERENCES
@@ -1001,7 +1000,7 @@ class InventoryTransferService
             $before = $driver ? $driver->only(['name', 'document_number', 'phone', 'vehicle_plate', 'carrier_company']) : null;
 
             if ($driver === null) {
-                $driver = new InventoryTransferDriver();
+                $driver = new InventoryTransferDriver;
                 $driver->inventory_transfer_id = $transfer->id;
                 $driver->tenant_id = $transfer->tenant_id;
             }
@@ -1215,7 +1214,7 @@ class InventoryTransferService
                 'source' => 'inventory_transfer_service',
                 'stock_moved' => false,
             ],
-            ]);
+        ]);
 
         $preparationChecklist = InventoryTransferChecklist::create([
             'inventory_transfer_id' => $transfer->id,
@@ -1243,7 +1242,7 @@ class InventoryTransferService
         // al 'prepare' del usuario. Esto modela empresas con protocolo
         // estricto donde el stock se aparta al solicitar.
         $tenantSetting = TenantTransferSetting::query()
-            ->where('tenant_id', app(\App\Support\Tenancy\TenantManager::class)->require()->id)
+            ->where('tenant_id', app(TenantManager::class)->require()->id)
             ->first();
         $reserveOnRequest = (bool) ($tenantSetting?->reserve_on_request ?? false);
 
@@ -1600,7 +1599,7 @@ class InventoryTransferService
      * a ProductUnits existentes (o los crea AVAILABLE si no existen). Retorna
      * los IDs en el mismo orden de entrada.
      *
-     * @param array<int, array{serial_type: string, serial_number: string}> $serialUnits
+     * @param  array<int, array{serial_type: string, serial_number: string}>  $serialUnits
      * @return array<int, int>
      */
     private function resolveSerialUnits(array $serialUnits, Product $product, Warehouse $warehouse): array
@@ -1609,9 +1608,9 @@ class InventoryTransferService
         $seenNumbers = [];
 
         foreach ($serialUnits as $su) {
-            $number = trim((string) ($su["serial_number"] ?? ""));
-            $type = trim((string) ($su["serial_type"] ?? "imei"));
-            if ($number === "") {
+            $number = trim((string) ($su['serial_number'] ?? ''));
+            $type = trim((string) ($su['serial_type'] ?? 'imei'));
+            if ($number === '') {
                 continue;
             }
             if (isset($seenNumbers[$number])) {
@@ -1623,18 +1622,18 @@ class InventoryTransferService
             // contextos sin TenantManager seteado.
             $unit = ProductUnit::query()
                 ->withoutGlobalScopes()
-                ->where("product_id", $product->id)
-                ->where("warehouse_id", $warehouse->id)
-                ->where("serial_number", $number)
+                ->where('product_id', $product->id)
+                ->where('warehouse_id', $warehouse->id)
+                ->where('serial_number', $number)
                 ->first();
 
             if (! $unit) {
                 $unit = ProductUnit::create([
-                    "product_id" => $product->id,
-                    "warehouse_id" => $warehouse->id,
-                    "serial_type" => $type,
-                    "serial_number" => $number,
-                    "status" => ProductUnit::STATUS_AVAILABLE,
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'serial_type' => $type,
+                    'serial_number' => $number,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
                 ]);
             }
             $ids[] = $unit->id;

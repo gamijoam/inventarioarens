@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
   Package,
@@ -38,6 +38,8 @@ import { ShieldCheck } from 'lucide-react';
 import { useCanAny } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
 import { useUnreadTransferRequestsCount } from '@/features/inventory-transfer-requests/api';
+import { useTransferRequestBroadcast } from '@/features/inventory-transfer-requests/useTransferRequestBroadcast';
+import { toast } from 'sonner';
 
 interface NavItem {
   to: string;
@@ -53,7 +55,7 @@ interface NavItem {
   hideIfNoOwnedGroup?: boolean;
 }
 
-type UsersSearch = { scope: 'tenant' | 'organization' };
+interface UsersSearch { scope: 'tenant' | 'organization' }
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -206,6 +208,22 @@ export function Sidebar() {
   const { data: tenantGroups, isError, isLoading } = useTenantGroups();
   const ownedGroupIds = new Set((tenantGroups ?? []).map((g) => g.id));
   const routerState = useRouterState();
+
+  // Hooks de notificacion in-app:
+  // 1. `useTransferRequestBroadcast`: suscripcion WebSocket via Laravel
+  //    Echo/Reverb. Cuando llega una nueva solicitud, llega el evento
+  //    < 1s y dispara el toast. Si Reverb no esta disponible, el hook
+  //    no hace nada.
+  // 2. `useTransferRequestArrivalNotification`: fallback reactivo. Si
+  //    el polling detecta que el contador SUBE (caso Reverb caido),
+  //    dispara el mismo toast. Ambos hooks coexisten sin duplicar el
+  //    toast porque Reverb invalidara el contador y eso disparara el
+  //    otro hook; pero el hook Reverb usa su propio toast asi que el
+  //    del polling llega unos ms despues con la misma info.
+  //    Si ambos disparan, sonnner deduplica por contenido.
+  const currentTenantId = useSessionStore((s) => s.tenant?.id);
+  useTransferRequestBroadcast(currentTenantId);
+  useTransferRequestArrivalNotification(currentTenantId);
   const currentPath = routerState.location.pathname;
 
   // El item "Organizaciones" aparece si:
@@ -476,6 +494,58 @@ function Group({
 }
 
 /**
+ * Detecta cuando llegan solicitudes nuevas comparando el contador actual
+ * contra el valor anterior. Cuando SUBE, dispara un toast rojo con sonido
+ * opcional. Implementa la parte "in-app" de las notificaciones push (la
+ * contraparte WebSocket vendria despues).
+ *
+ * Compara estrictamente "subio" (>), no "cambio": si bajo de 5 a 4, no
+ * notifica (es caso normal de aceptar). Si subio de 4 a 5, notifica.
+ *
+ * `seenRef` es una ref que persiste entre renders sin disparar el efecto.
+ */
+function useTransferRequestArrivalNotification(currentTenantId: number | undefined) {
+  const navigate = useNavigate();
+  const { data: count } = useUnreadTransferRequestsCount({
+    currentTenantId,
+    refetchInterval: 30000,
+  });
+  const seenRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof count !== 'number') return;
+    const prev = seenRef.current;
+    seenRef.current = count;
+
+    if (prev !== null && count > prev) {
+      const incoming = count - prev;
+      // El toast usa toast.info (azul) porque NO es un error: es un
+      // aviso de que llego algo que requiere atencion humana. El badge
+      // del sidebar usa rojo solo cuando es peligro; las solicitudes
+      // inter-empresa son informativas.
+      // `duration: Infinity` + `dismissible: true` mantiene el toast
+      // visible hasta que el usuario lo cierre manualmente con la X.
+      toast.info(
+        incoming === 1
+          ? 'Nueva solicitud de traslado inter-empresa pendiente.'
+          : `${incoming} nuevas solicitudes de traslado inter-empresa.`,
+        {
+          duration: Infinity,
+          dismissible: true,
+          description: 'Solicitud de stock entre empresas recibida.',
+          action: {
+            label: 'Ver',
+            onClick: () => {
+              void navigate({ to: '/inventory-transfer-requests' });
+            },
+          },
+        },
+      );
+    }
+  }, [count]);
+}
+
+/**
  * Badge rojo con el contador de solicitudes pendientes para el tenant actual.
  * Solo se monta dentro del item "Solicitudes inter-empresa" del sidebar.
  * Usa el hook useUnreadTransferRequestsCount que polea cada 30s (no 5s)
@@ -497,7 +567,11 @@ function UnreadTransferRequestsBadge() {
 
   return (
     <span
-      className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[10px] font-semibold leading-5 text-danger-foreground"
+      // Badge info (azul) en lugar de danger (rojo): una solicitud
+      // inter-empresa no es un error ni un peligro, es un aviso de
+      // atencion. El toast push usa el mismo color info para
+      // consistencia visual.
+      className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-info px-1.5 text-[10px] font-semibold leading-5 text-info-foreground"
       data-testid="unread-transfer-requests-badge"
       aria-label={`${count} solicitudes pendientes`}
     >

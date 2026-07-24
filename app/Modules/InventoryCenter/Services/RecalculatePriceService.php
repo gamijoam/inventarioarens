@@ -3,7 +3,6 @@
 namespace App\Modules\InventoryCenter\Services;
 
 use App\Modules\Products\Models\Product;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**

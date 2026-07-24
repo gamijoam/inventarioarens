@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { getOne, postOne } from '@/api/client';
+import { ProductSchema } from '@/features/inventory-center/schemas';
 
 // =====================================================================
 // Schemas
@@ -66,6 +67,38 @@ export const GroupUserSchema = z.object({
     .optional(),
 });
 export type GroupUser = z.infer<typeof GroupUserSchema>;
+
+export const SharedCatalogCopySchema = z.object({
+  spinoff_id: z.number().int().positive(),
+  spinoff_slug: z.string(),
+  spinoff_name: z.string(),
+  product_id: z.number().int().nullable().optional(),
+  is_active: z.boolean().nullable().optional(),
+  is_catalog_active: z.boolean().nullable().optional(),
+  propagated: z.boolean(),
+});
+export type SharedCatalogCopy = z.infer<typeof SharedCatalogCopySchema>;
+
+export const SharedCatalogEntrySchema = z.object({
+  master: ProductSchema,
+  copies: z.array(SharedCatalogCopySchema),
+});
+export type SharedCatalogEntry = z.infer<typeof SharedCatalogEntrySchema>;
+
+export const GroupSharedCatalogSchema = z.object({
+  group: z.object({
+    id: z.number().int().positive(),
+    name: z.string(),
+    slug: z.string(),
+  }),
+  spinoffs: z.array(z.object({
+    id: z.number().int().positive(),
+    name: z.string(),
+    slug: z.string(),
+  })),
+  products: z.array(SharedCatalogEntrySchema),
+});
+export type GroupSharedCatalog = z.infer<typeof GroupSharedCatalogSchema>;
 
 const _CreateGroupPayloadSchema = z.object({
   group: z.object({
@@ -176,6 +209,30 @@ const spinoffsKey = (groupIdOrSlug: number | string) =>
 const usersKey = (groupIdOrSlug: number | string) =>
   ['access', 'tenant-groups', groupIdOrSlug, 'users'] as const;
 
+const sharedCatalogKey = (groupIdOrSlug: number | string) =>
+  ['access', 'tenant-groups', groupIdOrSlug, 'shared-products'] as const;
+
+/**
+ * Catalogo compartido del grupo: para cada producto maestro del grupo,
+ * devuelve la copia operativa en cada spinoff (o null si aun no se
+ * propago). Solo Owners del grupo pueden llamar este endpoint.
+ *
+ * `getOne` ya devuelve `response.data.data` del body envuelto, asi que
+ * aqui recibimos directamente el payload `{ group, spinoffs, products }`.
+ */
+export function useGroupSharedCatalog(groupIdOrSlug: number | string, enabled = true) {
+  return useQuery({
+    queryKey: sharedCatalogKey(groupIdOrSlug),
+    queryFn: async (): Promise<GroupSharedCatalog> => {
+      const payload = await getOne<GroupSharedCatalog>(
+        `/tenant-groups/${groupIdOrSlug}/shared-products`,
+      );
+      return GroupSharedCatalogSchema.parse(payload);
+    },
+    enabled,
+  });
+}
+
 function unwrapList(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;
@@ -282,6 +339,24 @@ export function useAttachGroupUser(groupIdOrSlug: number | string) {
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: usersKey(groupIdOrSlug) });
+      void qc.invalidateQueries({ queryKey: groupsKey });
+    },
+  });
+}
+
+/**
+ * Promueve una empresa normal (root sin hijos) a grupo multi-empresa.
+ * El usuario autenticado pasa a ser Owner del grupo y conserva su
+ * Administrador de la empresa inicial.
+ */
+export function usePromoteTenant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tenantIdOrSlug: number | string) =>
+      postOne<never, { data: TenantGroup }>(
+        `/tenants/${tenantIdOrSlug}/promote-to-group`,
+      ),
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: groupsKey });
     },
   });

@@ -21,6 +21,15 @@ export interface PosCartLine {
   price_list_name?: string | null;
   price_issue?: string | null;
   /**
+   * Tasa de cambio asociada a esta linea. Viene del `quote` que retorna
+   * `GET /products/{id}/price` y refleja la tasa anclada al producto
+   * (ej. PARALELO), no la tasa default del bootstrap. El POS la usa
+   * para mostrar el equivalente VES correcto en la sidebar.
+   */
+  exchange_rate?: number | null;
+  exchange_rate_type_id?: number | null;
+  exchange_rate_type_code?: string | null;
+  /**
    * URL de la imagen (del listado de productos, sin auth requerida).
    * Usado por CartLineRow para mostrar un thumbnail en el carrito.
    * Opcional: el componente hace fallback si no esta presente.

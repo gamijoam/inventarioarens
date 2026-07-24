@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { useAuth, useAvailableTenants } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,8 +51,19 @@ export function Topbar() {
         <div className="flex size-8 items-center justify-center rounded-md bg-bg text-text-muted">
           <Building2 className="size-4" aria-hidden="true" />
         </div>
-        <div>
-          <p className="text-sm font-medium leading-tight">{tenant?.name ?? '—'}</p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium leading-tight">{tenant?.name ?? '—'}</p>
+            {tenant && (
+              <Badge
+                variant={tenant.is_group ? 'primary' : tenant.parent_id ? 'info' : 'outline'}
+                className="text-[10px]"
+                data-testid="tenant-context-badge"
+              >
+                {tenant.is_group ? 'Grupo' : tenant.parent_id ? 'Sucursal' : 'Empresa'}
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-text-muted leading-tight">{tenant?.slug ?? '—'}</p>
         </div>
       </div>

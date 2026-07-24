@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class SyncOutboxService
 {
-public function record(
+    public function record(
         string $eventType,
         string $aggregateType,
         ?int $aggregateId,
@@ -109,5 +109,4 @@ public function record(
             $aggregateId ?? 'none',
         ]);
     }
-
 }

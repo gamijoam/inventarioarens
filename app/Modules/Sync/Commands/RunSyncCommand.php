@@ -100,6 +100,7 @@ class RunSyncCommand extends Command
         if (! is_array($data) || ! isset($data['tenants'][$tenantSlug]) || ! is_array($data['tenants'][$tenantSlug])) {
             return [];
         }
+
         return $data['tenants'][$tenantSlug];
     }
 }

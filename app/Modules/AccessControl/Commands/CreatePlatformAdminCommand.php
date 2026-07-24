@@ -4,7 +4,6 @@ namespace App\Modules\AccessControl\Commands;
 
 use App\Models\User;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -23,7 +22,7 @@ class CreatePlatformAdminCommand extends Command
         $email = Str::lower(trim((string) $this->argument('email')));
         $password = (string) ($this->option('password') ?? '');
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->error("El email '{$email}' no es valido.");
 
             return self::FAILURE;
@@ -45,7 +44,7 @@ class CreatePlatformAdminCommand extends Command
 
         if ($password === '') {
             $password = Str::random(32);
-            $this->line("Contrasena generada automaticamente (mostrada abajo).");
+            $this->line('Contrasena generada automaticamente (mostrada abajo).');
         }
 
         $user = User::create([
@@ -56,7 +55,7 @@ class CreatePlatformAdminCommand extends Command
             'email_verified_at' => now(),
         ]);
 
-        $this->info("Platform Admin creado:");
+        $this->info('Platform Admin creado:');
         $this->line("  Nombre:  {$user->name}");
         $this->line("  Email:   {$user->email}");
         $this->line("  Contrasena inicial: {$password}");

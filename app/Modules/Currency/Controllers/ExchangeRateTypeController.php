@@ -8,6 +8,7 @@ use App\Modules\Currency\Requests\UpdateExchangeRateTypeRequest;
 use App\Modules\Currency\Resources\ExchangeRateTypeResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Gate;
 
 class ExchangeRateTypeController extends Controller
 {
+    use SharedCatalogWriteGuard;
+
     public function __construct(private readonly SyncOutboxService $syncOutbox) {}
 
     public function index(): AnonymousResourceCollection
@@ -34,6 +37,10 @@ class ExchangeRateTypeController extends Controller
     public function store(StoreExchangeRateTypeRequest $request): JsonResponse
     {
         Gate::authorize('create', ExchangeRateType::class);
+
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         $type = DB::transaction(function () use ($request): ExchangeRateType {
             $data = $request->validated();
@@ -64,6 +71,10 @@ class ExchangeRateTypeController extends Controller
     {
         Gate::authorize('update', $type);
 
+        if (! $this->canWriteSharedCatalog($request->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
         $type = DB::transaction(function () use ($request, $type): ExchangeRateType {
             $data = $request->validated();
 
@@ -86,6 +97,10 @@ class ExchangeRateTypeController extends Controller
     public function destroy(ExchangeRateType $type): Response
     {
         Gate::authorize('delete', $type);
+
+        if (! $this->canWriteSharedCatalog(request()->user())) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
 
         DB::transaction(function () use ($type): void {
             $type->update(['is_active' => false]);

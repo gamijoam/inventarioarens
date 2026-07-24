@@ -69,14 +69,20 @@ describe('useUnreadTransferRequestsCount', () => {
     mockGetMany.mockReset();
   });
 
-  it('lee el total del meta del backend y no del array', async () => {
-    // Solo el meta es relevante; el array viene vacio en el cuerpo.
+  it('cuenta items cuya requested_at es posterior al lastSeenAt en localStorage', async () => {
+    // Sin lastSeenAt en localStorage, retorna el total de items
+    // pendientes (todos son "nuevos" para el usuario).
     mockGetMany.mockResolvedValue({
-      data: [],
-      meta: { current_page: 1, last_page: 1, per_page: 1, total: 7 },
+      data: [
+        { id: 1, requested_at: '2026-07-23T10:00:00Z' },
+        { id: 2, requested_at: '2026-07-23T11:00:00Z' },
+        { id: 3, requested_at: '2026-07-23T12:00:00Z' },
+      ],
+      meta: { current_page: 1, last_page: 1, per_page: 200, total: 3 },
     });
 
-    // Disparamos el queryFn manualmente para verificar la logica.
+    localStorage.removeItem('itr.lastSeenAt.tenant.5');
+
     let captured: ((...args: unknown[]) => unknown) | undefined;
     mockUseQuery.mockImplementation((opts: unknown) => {
       const o = opts as { queryFn: (...args: unknown[]) => unknown };
@@ -87,9 +93,52 @@ describe('useUnreadTransferRequestsCount', () => {
     useUnreadTransferRequestsCount({ currentTenantId: 5 });
     expect(captured).toBeDefined();
     const result = await (captured as (...args: unknown[]) => unknown)();
-    expect(result).toBe(7);
-    // Verificamos que pegó al endpoint correcto.
-    expect(mockGetMany).toHaveBeenCalledWith('/inventory-transfer-requests?status=requested&per_page=1');
+    expect(result).toBe(3);
+  });
+
+  it('cuenta solo items posteriores al lastSeenAt persistido', async () => {
+    // El usuario reviso a las 11:30. Solo cuenta items con
+    // requested_at > 11:30 (despues del lastSeenAt).
+    mockGetMany.mockResolvedValue({
+      data: [
+        { id: 1, requested_at: '2026-07-23T10:00:00Z' }, // antes
+        { id: 2, requested_at: '2026-07-23T11:00:00Z' }, // antes
+        { id: 3, requested_at: '2026-07-23T12:00:00Z' }, // despues (nuevo)
+      ],
+      meta: { current_page: 1, last_page: 1, per_page: 200, total: 3 },
+    });
+
+    localStorage.setItem('itr.lastSeenAt.tenant.5', '2026-07-23T11:30:00.000Z');
+
+    let captured: ((...args: unknown[]) => unknown) | undefined;
+    mockUseQuery.mockImplementation((opts: unknown) => {
+      const o = opts as { queryFn: (...args: unknown[]) => unknown };
+      captured = o.queryFn;
+      return { data: undefined };
+    });
+
+    useUnreadTransferRequestsCount({ currentTenantId: 5 });
+    const result = await (captured as (...args: unknown[]) => unknown)();
+    expect(result).toBe(1);
+    // Cleanup
+    localStorage.removeItem('itr.lastSeenAt.tenant.5');
+  });
+
+  it('usa per_page alto (200) para traer todos los pendientes en un solo request', () => {
+    // Capturamos queryFn para ejecutarlo y asi verificar el endpoint
+    // al que el hook pega cuando currentTenantId es positivo.
+    localStorage.removeItem('itr.lastSeenAt.tenant.99');
+    let captured: ((...args: unknown[]) => unknown) | undefined;
+    mockUseQuery.mockImplementation((opts: unknown) => {
+      const o = opts as { queryFn: (...args: unknown[]) => unknown };
+      captured = o.queryFn;
+      return { data: 0 };
+    });
+
+    useUnreadTransferRequestsCount({ currentTenantId: 99 });
+    expect(captured).toBeDefined();
+    void (captured as (...args: unknown[]) => unknown)();
+    expect(mockGetMany).toHaveBeenCalledWith('/inventory-transfer-requests?status=requested&per_page=200');
   });
 
   it('solo se activa cuando currentTenantId es positivo (no requests anonimas)', () => {

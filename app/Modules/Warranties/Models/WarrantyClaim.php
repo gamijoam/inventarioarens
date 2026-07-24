@@ -4,8 +4,8 @@ namespace App\Modules\Warranties\Models;
 
 use App\Models\User;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
-use App\Modules\Customers\Models\Customer;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
@@ -59,16 +59,25 @@ class WarrantyClaim extends Model
     use BelongsToTenant;
 
     public const STATUS_RECEIVED = 'received';
+
     public const STATUS_UNDER_REVIEW = 'under_review';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_DELIVERED = 'delivered';
+
     public const STATUS_CLOSED = 'closed';
 
     public const RESOLUTION_REPAIR = 'repair';
+
     public const RESOLUTION_REPLACEMENT = 'replacement';
+
     public const RESOLUTION_REFUND = 'refund';
+
     public const RESOLUTION_REJECTED = 'rejected';
+
     public const RESOLUTION_PENDING_REVIEW = 'pending_review';
 
     protected function casts(): array

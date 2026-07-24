@@ -11,7 +11,8 @@ class RegisterAccountsReceivablePaymentRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'payment_currency' => ['required', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
@@ -21,7 +22,7 @@ class RegisterAccountsReceivablePaymentRequest extends FormRequest
                 'integer',
                 Rule::exists('cash_register_sessions', 'id')->where('tenant_id', $tenantId),
             ],
-            'exchange_rate_type_id' => ['nullable', Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId)],
+            'exchange_rate_type_id' => ['nullable', Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds)],
             'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'method' => ['nullable', 'string', 'max:100'],
             'reference' => ['nullable', 'string', 'max:150'],

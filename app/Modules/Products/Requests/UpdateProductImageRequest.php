@@ -3,7 +3,6 @@
 namespace App\Modules\Products\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateProductImageRequest extends FormRequest
 {

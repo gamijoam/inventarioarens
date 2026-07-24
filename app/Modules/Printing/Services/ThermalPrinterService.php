@@ -2,7 +2,6 @@
 
 namespace App\Modules\Printing\Services;
 
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -41,7 +40,7 @@ class ThermalPrinterService
             $cmd = $this->buildCommand($tmpFile, $printerName);
             $output = [];
             $rc = 0;
-            exec($cmd . ' 2>&1', $output, $rc);
+            exec($cmd.' 2>&1', $output, $rc);
             $msg = trim(implode("\n", $output));
             if ($rc !== 0) {
                 return [
@@ -49,6 +48,7 @@ class ThermalPrinterService
                     'message' => $msg ?: "Fallo al imprimir (rc={$rc})",
                 ];
             }
+
             return [
                 'ok' => true,
                 'message' => "Enviado a {$printerName}",
@@ -141,9 +141,9 @@ class ThermalPrinterService
                     $clean = mb_strimwidth($clean, 0, 61, '...');
                 }
             } elseif (strlen($clean) > 64) {
-                $clean = substr($clean, 0, 61) . '...';
+                $clean = substr($clean, 0, 61).'...';
             }
-            $out .= $clean . "\n";
+            $out .= $clean."\n";
         }
 
         return $out;

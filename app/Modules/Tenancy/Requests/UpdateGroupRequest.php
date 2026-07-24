@@ -2,6 +2,7 @@
 
 namespace App\Modules\Tenancy\Requests;
 
+use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,7 +16,7 @@ class UpdateGroupRequest extends FormRequest
     public function rules(): array
     {
         $group = $this->route('group');
-        $groupId = $group instanceof \App\Modules\Tenancy\Models\Tenant ? $group->id : (int) $group;
+        $groupId = $group instanceof Tenant ? $group->id : (int) $group;
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:150'],

@@ -11,7 +11,8 @@ class UpdateProductRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
         $product = $this->route('product');
 
         return [
@@ -25,7 +26,7 @@ class UpdateProductRequest extends FormRequest
                 'string',
                 'max:255',
                 Rule::unique('products', 'sku')
-                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))
                     ->ignore($product?->id),
             ],
             'barcode' => [
@@ -34,7 +35,7 @@ class UpdateProductRequest extends FormRequest
                 'string',
                 'max:50',
                 Rule::unique('products', 'barcode')
-                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))
                     ->ignore($product?->id)
                     ->whereNotNull('barcode'),
             ],
@@ -57,7 +58,7 @@ class UpdateProductRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'integer',
-                Rule::exists('brands', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('brands', 'id')->whereIn('tenant_id', $tenantIds),
             ],
 
             'base_price' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
@@ -78,15 +79,29 @@ class UpdateProductRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'warranty_policy_id' => [
                 'sometimes',
                 'nullable',
                 'integer',
-                Rule::exists('warranty_policies', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('warranty_policies', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'is_active' => ['sometimes', 'boolean'],
+
+            // Categorias y tags: el frontend los envia en el body del
+            // PATCH /products/{id}. Sin reglas de validacion aqui, Laravel
+            // los filtra del validated() y el controller nunca los ve.
+            'category_ids' => ['sometimes', 'array'],
+            'category_ids.*' => [
+                'integer',
+                Rule::exists('categories', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
+            'tag_ids' => ['sometimes', 'array'],
+            'tag_ids.*' => [
+                'integer',
+                Rule::exists('tags', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
         ];
     }
 
@@ -109,6 +124,8 @@ class UpdateProductRequest extends FormRequest
             'max_stock.gte' => 'El stock maximo no puede ser negativo.',
             'average_cost.prohibited' => 'El costo promedio se calcula automaticamente, no se puede asignar manualmente.',
             'brand_id.exists' => 'La marca seleccionada no pertenece a la empresa actual.',
+            'category_ids.*.exists' => 'Una o mas categorias seleccionadas no existen en la empresa actual.',
+            'tag_ids.*.exists' => 'Uno o mas tags seleccionados no existen en la empresa actual.',
             'sale_currency.in' => 'La moneda de venta debe ser USD o VES.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
         ];

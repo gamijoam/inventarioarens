@@ -4,10 +4,10 @@ namespace App\Modules\InventoryTransfers\Controllers;
 
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Services\TransferGuidePdfService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Genera la guia de traslado en PDF o HTML.
@@ -22,8 +22,7 @@ class InventoryTransferGuideController extends Controller
 {
     public function __construct(
         private readonly TransferGuidePdfService $service,
-    ) {
-    }
+    ) {}
 
     public function pdf(Request $request, InventoryTransfer $inventoryTransfer): Response
     {
@@ -57,7 +56,7 @@ class InventoryTransferGuideController extends Controller
     private function authorizeAccess(InventoryTransfer $transfer): void
     {
         // Multi-tenancy: solo el tenant dueno puede generar la guia.
-        $tenantManager = app(\App\Support\Tenancy\TenantManager::class);
+        $tenantManager = app(TenantManager::class);
         $currentTenantId = $tenantManager->current()?->id;
         abort_unless(
             $currentTenantId !== null && (int) $transfer->tenant_id === (int) $currentTenantId,

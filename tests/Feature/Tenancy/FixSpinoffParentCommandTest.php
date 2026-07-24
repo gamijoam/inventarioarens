@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Tenancy;
 
-use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

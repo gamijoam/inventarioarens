@@ -2,7 +2,6 @@
 
 namespace App\Modules\Tenancy\Controllers;
 
-use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\StoreTenantRequest;
 use App\Modules\Tenancy\Requests\UpdateTenantRequest;
@@ -16,9 +15,7 @@ use Illuminate\Routing\Controller;
 
 class TenantController extends Controller
 {
-    public function __construct(private readonly TenantRegistrationService $service)
-    {
-    }
+    public function __construct(private readonly TenantRegistrationService $service) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {

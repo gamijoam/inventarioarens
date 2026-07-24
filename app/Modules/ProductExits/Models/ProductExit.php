@@ -26,10 +26,15 @@ class ProductExit extends Model
     public const STATUS_PROCESSED = 'processed';
 
     public const REASON_DAMAGED = 'damaged';
+
     public const REASON_LOST = 'lost';
+
     public const REASON_INTERNAL_USE = 'internal_use';
+
     public const REASON_WARRANTY = 'warranty';
+
     public const REASON_ADMINISTRATIVE = 'administrative';
+
     public const REASON_OTHER = 'other';
 
     public const REASONS = [

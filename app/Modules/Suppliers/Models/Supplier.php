@@ -21,9 +21,13 @@ class Supplier extends Model
     use BelongsToTenant;
 
     public const DOCUMENT_V = 'V';
+
     public const DOCUMENT_E = 'E';
+
     public const DOCUMENT_J = 'J';
+
     public const DOCUMENT_G = 'G';
+
     public const DOCUMENT_P = 'P';
 
     protected function casts(): array

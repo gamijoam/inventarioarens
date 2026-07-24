@@ -10,14 +10,15 @@ class StoreExchangeRateTypeRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'code' => [
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('exchange_rate_types', 'code')->where('tenant_id', $tenantId),
+                Rule::unique('exchange_rate_types', 'code')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds)),
             ],
             'name' => ['required', 'string', 'max:255'],
             'is_default' => ['sometimes', 'boolean'],

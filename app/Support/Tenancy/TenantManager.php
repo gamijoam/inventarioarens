@@ -33,4 +33,47 @@ class TenantManager
     {
         return $this->tenant?->id;
     }
+
+    public function sharedTenantId(): ?int
+    {
+        $tenant = $this->current();
+
+        if (! $tenant) {
+            return null;
+        }
+
+        return $tenant->isGroup() || $tenant->parent_id === null
+            ? $tenant->id
+            : (int) $tenant->parent_id;
+    }
+
+    public function sharedTenantIds(): array
+    {
+        $tenant = $this->current();
+
+        if (! $tenant) {
+            return [];
+        }
+
+        if ($tenant->isGroup() || $tenant->parent_id === null) {
+            return [$tenant->id];
+        }
+
+        return [(int) $tenant->id, (int) $tenant->parent_id];
+    }
+
+    public function sharedTenant(): ?Tenant
+    {
+        $tenant = $this->current();
+
+        if (! $tenant) {
+            return null;
+        }
+
+        if ($tenant->isGroup() || $tenant->parent_id === null) {
+            return $tenant;
+        }
+
+        return $tenant->parent()->first() ?? $tenant;
+    }
 }

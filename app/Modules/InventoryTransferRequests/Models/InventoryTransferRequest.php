@@ -31,8 +31,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class InventoryTransferRequest extends Model
 {
     public const STATUS_REQUESTED = 'requested';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_COMPLETED = 'completed';
 
     protected function casts(): array

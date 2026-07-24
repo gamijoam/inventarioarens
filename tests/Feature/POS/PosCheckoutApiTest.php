@@ -1705,7 +1705,7 @@ class PosCheckoutApiTest extends TestCase
                 'amount' => 200,
             ]],
         ];
-        $idemKey = 'idem-test-' . uniqid();
+        $idemKey = 'idem-test-'.uniqid();
 
         $first = $this
             ->actingAs($user)
@@ -1743,7 +1743,7 @@ class PosCheckoutApiTest extends TestCase
         $this->grantRole($tenant, $user, 'Cajero Idem2', ['pos.checkout', 'pos.view']);
         $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
-        $idemKey = 'idem-conflict-' . uniqid();
+        $idemKey = 'idem-conflict-'.uniqid();
 
         $this
             ->actingAs($user)

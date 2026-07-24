@@ -11,7 +11,8 @@ class StoreProductRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -21,13 +22,13 @@ class StoreProductRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:255',
-                Rule::unique('products', 'sku')->where('tenant_id', $tenantId),
+                Rule::unique('products', 'sku')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds)),
             ],
             'barcode' => [
                 'nullable',
                 'string',
                 'max:50',
-                Rule::unique('products', 'barcode')->where('tenant_id', $tenantId)->whereNotNull('barcode'),
+                Rule::unique('products', 'barcode')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))->whereNotNull('barcode'),
             ],
             'image_url' => ['nullable', 'url', 'max:500'],
 
@@ -46,18 +47,18 @@ class StoreProductRequest extends FormRequest
             'brand_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('brands', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('brands', 'id')->whereIn('tenant_id', $tenantIds),
             ],
 
             'category_ids' => ['sometimes', 'array'],
             'category_ids.*' => [
                 'integer',
-                Rule::exists('categories', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('categories', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'tag_ids' => ['sometimes', 'array'],
             'tag_ids.*' => [
                 'integer',
-                Rule::exists('tags', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('tags', 'id')->whereIn('tenant_id', $tenantIds),
             ],
 
             'base_price' => ['nullable', 'numeric', 'gte:0'],
@@ -76,12 +77,12 @@ class StoreProductRequest extends FormRequest
             'sale_exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'warranty_policy_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('warranty_policies', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('warranty_policies', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'is_active' => ['sometimes', 'boolean'],
         ];

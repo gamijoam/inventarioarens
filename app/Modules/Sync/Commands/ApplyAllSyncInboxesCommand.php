@@ -23,6 +23,7 @@ class ApplyAllSyncInboxesCommand extends Command
         $tenants = Tenant::query()->where('status', 'active')->get();
         if ($tenants->isEmpty()) {
             $this->info('No hay tenants activos. Nada que hacer.');
+
             return self::SUCCESS;
         }
 
@@ -44,6 +45,7 @@ class ApplyAllSyncInboxesCommand extends Command
         }
 
         $this->info("Resumen: {$totalApplied} tenants OK, {$totalFailed} con error.");
+
         return $totalFailed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

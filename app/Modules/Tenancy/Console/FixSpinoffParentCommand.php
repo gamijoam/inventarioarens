@@ -3,7 +3,6 @@
 namespace App\Modules\Tenancy\Console;
 
 use App\Modules\Tenancy\Models\Tenant;
-use App\Modules\Tenancy\Services\TenantRegistrationService;
 use Illuminate\Console\Command;
 
 /**
@@ -41,29 +40,35 @@ class FixSpinoffParentCommand extends Command
         $spinoff = $this->resolveTenant($spinoffInput);
         $newParent = $this->resolveTenant($newParentInput);
 
-        if (!$spinoff) {
+        if (! $spinoff) {
             $this->error("Spinoff '{$spinoffInput}' no encontrado.");
+
             return self::FAILURE;
         }
-        if (!$newParent) {
+        if (! $newParent) {
             $this->error("Nuevo parent '{$newParentInput}' no encontrado.");
+
             return self::FAILURE;
         }
 
         if ($spinoff->isGroup()) {
             $this->error("'{$spinoff->slug}' (id={$spinoff->id}) es un GRUPO raiz, no un spinoff. No se puede reasignar.");
+
             return self::FAILURE;
         }
-        if (!$newParent->isGroup()) {
+        if (! $newParent->isGroup()) {
             $this->error("'{$newParent->slug}' (id={$newParent->id}) no es un grupo (is_group=false). El parent debe ser un grupo raiz.");
+
             return self::FAILURE;
         }
         if ($spinoff->id === $newParent->id) {
             $this->error('Spinoff y nuevo parent son el mismo tenant.');
+
             return self::FAILURE;
         }
         if ($spinoff->parent_id === $newParent->id) {
             $this->info("'{$spinoff->slug}' ya es hijo de '{$newParent->slug}'. Nada que hacer.");
+
             return self::SUCCESS;
         }
 
@@ -71,13 +76,14 @@ class FixSpinoffParentCommand extends Command
             ? Tenant::find($spinoff->parent_id)
             : null;
 
-        $this->info("Reasignacion de spinoff:");
+        $this->info('Reasignacion de spinoff:');
         $this->line("  Spinoff:   {$spinoff->slug} (id={$spinoff->id})");
-        $this->line("  Old parent: " . ($oldParent ? "{$oldParent->slug} (id={$oldParent->id})" : 'NULL'));
+        $this->line('  Old parent: '.($oldParent ? "{$oldParent->slug} (id={$oldParent->id})" : 'NULL'));
         $this->line("  New parent: {$newParent->slug} (id={$newParent->id})");
 
-        if (!$this->option('yes') && !$this->confirm('Continuar con la reasignacion?', false)) {
+        if (! $this->option('yes') && ! $this->confirm('Continuar con la reasignacion?', false)) {
             $this->warn('Cancelado por el usuario.');
+
             return self::FAILURE;
         }
 
@@ -94,6 +100,7 @@ class FixSpinoffParentCommand extends Command
         if (is_numeric($slugOrId)) {
             return Tenant::find((int) $slugOrId);
         }
+
         return Tenant::where('slug', $slugOrId)->first();
     }
 }

@@ -2,7 +2,9 @@
 
 namespace App\Modules\Products\Requests;
 
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTagRequest extends FormRequest
 {
@@ -13,9 +15,12 @@ class StoreTagRequest extends FormRequest
 
     public function rules(): array
     {
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
+
         return [
             'name' => ['required', 'string', 'min:1', 'max:80'],
-            'slug' => ['required', 'string', 'max:80', 'regex:/^[a-z0-9-]+$/'],
+            'slug' => ['required', 'string', 'max:80', 'regex:/^[a-z0-9-]+$/', Rule::unique('tags', 'slug')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ];
     }

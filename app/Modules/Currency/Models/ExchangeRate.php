@@ -21,6 +21,7 @@ class ExchangeRate extends Model
     use BelongsToTenant;
 
     public const BASE_USD = 'USD';
+
     public const QUOTE_VES = 'VES';
 
     protected function casts(): array

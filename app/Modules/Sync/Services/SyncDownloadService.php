@@ -6,7 +6,6 @@ use App\Modules\Products\Models\ProductImage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 
 /**
  * SyncDownloadService - Descarga archivos binarios del cloud al local.

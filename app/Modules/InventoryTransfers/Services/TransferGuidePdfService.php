@@ -3,6 +3,7 @@
 namespace App\Modules\InventoryTransfers\Services;
 
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use Barryvdh\DomPDF\ServiceProvider;
 use Illuminate\Support\Facades\View;
 
 /**
@@ -46,7 +47,7 @@ class TransferGuidePdfService
     {
         $html = $this->renderHtml($transfer);
 
-        /** @var \Barryvdh\DomPDF\ServiceProvider $dompdf */
+        /** @var ServiceProvider $dompdf */
         $dompdf = app('dompdf.wrapper');
         $dompdf->loadHTML($html);
         $dompdf->setPaper('letter', 'portrait');

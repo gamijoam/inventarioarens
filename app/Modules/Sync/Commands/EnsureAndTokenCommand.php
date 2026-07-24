@@ -92,7 +92,7 @@ class EnsureAndTokenCommand extends Command
             $tenant->users()->attach($user, ['status' => 'active']);
             $this->info("[NEW] Pivot tenant_user creado: tenant={$tenant->slug}, user={$user->email}, status=active");
         } else {
-            $this->line("[OK] Pivot tenant_user existente");
+            $this->line('[OK] Pivot tenant_user existente');
         }
 
         // 4. Sync node (crear si no existe).
@@ -152,21 +152,21 @@ class EnsureAndTokenCommand extends Command
         // 6. Output estructurado.
         $this->newLine();
         $this->line('========================================================');
-        $this->line('SYNC TOKEN para tenant "' . $tenant->slug . '"');
+        $this->line('SYNC TOKEN para tenant "'.$tenant->slug.'"');
         $this->line('========================================================');
-        $this->line('  Tenant ID:    ' . $tenant->id);
-        $this->line('  Tenant slug:  ' . $tenant->slug);
-        $this->line('  User ID:      ' . $user->id);
-        $this->line('  User email:   ' . $user->email);
-        $this->line('  Node ID:      ' . $node->id);
-        $this->line('  Node code:    ' . $node->code);
+        $this->line('  Tenant ID:    '.$tenant->id);
+        $this->line('  Tenant slug:  '.$tenant->slug);
+        $this->line('  User ID:      '.$user->id);
+        $this->line('  User email:   '.$user->email);
+        $this->line('  Node ID:      '.$node->id);
+        $this->line('  Node code:    '.$node->code);
         $this->newLine();
-        $this->line('  TOKEN=' . $session['token']);
+        $this->line('  TOKEN='.$session['token']);
         $this->newLine();
         $this->warn('  Copia este token AHORA. No se vuelve a mostrar.');
         $this->line('  Para usar en el .env del local:');
         $this->line('    SYNC_CLOUD_URL=https://app.miinventariofacil.com/api');
-        $this->line('    SYNC_CLOUD_TOKEN=' . $session['token']);
+        $this->line('    SYNC_CLOUD_TOKEN='.$session['token']);
         $this->line('========================================================');
 
         return self::SUCCESS;

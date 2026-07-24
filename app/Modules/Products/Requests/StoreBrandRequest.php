@@ -2,7 +2,9 @@
 
 namespace App\Modules\Products\Requests;
 
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreBrandRequest extends FormRequest
 {
@@ -13,9 +15,12 @@ class StoreBrandRequest extends FormRequest
 
     public function rules(): array
     {
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
+
         return [
             'name' => ['required', 'string', 'min:2', 'max:150'],
-            'slug' => ['required', 'string', 'max:100', 'regex:/^[a-z0-9-]+$/'],
+            'slug' => ['required', 'string', 'max:100', 'regex:/^[a-z0-9-]+$/', Rule::unique('brands', 'slug')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))],
             'description' => ['nullable', 'string', 'max:500'],
             'is_active' => ['boolean'],
         ];

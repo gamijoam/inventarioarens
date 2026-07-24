@@ -233,15 +233,31 @@ class TenantGroupApiTest extends TestCase
             ->assertCreated();
 
         $admin = User::where('email', 'admin@nueva.test')->firstOrFail();
+        $spinoff = Tenant::where('slug', 'empresa-nueva')->firstOrFail();
+
+        $spinoffId = $spinoff->id;
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        setPermissionsTeamId($spinoffId);
+
+        $roleCount = Role::query()->where('tenant_id', $spinoffId)->count();
+        $this->assertGreaterThanOrEqual(6, $roleCount);
+
+        // Generamos un token valido del spinoff (igual que usa el frontend).
+        $plain = Str::random(80);
+        AuthToken::create([
+            'tenant_id' => $spinoffId,
+            'user_id' => $admin->id,
+            'name' => 'test',
+            'token_hash' => hash('sha256', $plain),
+            'expires_at' => Carbon::now()->addDays(30),
+        ]);
 
         $this
-            ->actingAs($admin)
+            ->withHeader('Authorization', 'Bearer '.$plain)
             ->withHeader('X-Tenant', 'empresa-nueva')
             ->getJson('/api/roles')
             ->assertOk()
             ->assertJsonCount(6, 'data');
-
-        $spinoffId = Tenant::where('slug', 'empresa-nueva')->value('id');
 
         $this->assertDatabaseHas('roles', ['name' => 'Owner', 'tenant_id' => $spinoffId]);
         $this->assertDatabaseHas('roles', ['name' => 'Administrador', 'tenant_id' => $spinoffId]);
@@ -360,20 +376,19 @@ class TenantGroupApiTest extends TestCase
         $this->assertTrue($owner->isOwnerOf($group));
     }
 
-    public function test_attach_user_with_missing_user_id_returns_validation_error_instead_of_500(): void
+    public function test_attach_user_with_missing_tenant_slug_returns_validation_error_instead_of_500(): void
     {
         [$user, $token, $group] = $this->makeGroupWithOwner('Mi Holding', 'mi-holding');
 
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/tenant-groups/'.$group->id.'/users', [
-                'user_id' => 999999,
                 'name' => 'Usuario Fantasma',
                 'email' => 'fantasma@test.test',
                 'roles' => ['Vendedor'],
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['user_id']);
+            ->assertJsonValidationErrors(['tenant_slug']);
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -20,9 +21,10 @@ use Spatie\Permission\PermissionRegistrar;
 
 class TenantSpinoffService
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly SharedCatalogPropagationService $catalog,
+    ) {}
 
     /**
      * Crea una empresa spinoff dentro de un grupo existente.
@@ -89,6 +91,17 @@ class TenantSpinoffService
                         'is_default' => true,
                         'is_active' => true,
                     ]);
+                } elseif (ExchangeRateType::query()->count() === 0) {
+                    // El spinoff necesita al menos un tipo de tasa default para
+                    // operar el POS. Si el caller no paso uno, creamos un
+                    // BCV generico. El admin lo ajustara despues desde
+                    // Catalogos > Tipos de tasa.
+                    ExchangeRateType::query()->create([
+                        'code' => 'BCV',
+                        'name' => 'Banco Central de Venezuela',
+                        'is_default' => true,
+                        'is_active' => true,
+                    ]);
                 }
 
                 $this->seedBaseRoles($tenant);
@@ -100,6 +113,8 @@ class TenantSpinoffService
                 ]);
 
                 $this->assignAdminRole($tenant, $actor);
+
+                $this->bootstrapSharedCatalog($tenant, $group);
 
                 $this->audit->record('tenant.spun_off_from_group', $tenant, $actor, null, [
                     'name' => $tenant->name,
@@ -239,5 +254,13 @@ class TenantSpinoffService
         setPermissionsTeamId($tenant->id);
         $user->assignRole($role);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    private function bootstrapSharedCatalog(Tenant $spinoff, Tenant $group): void
+    {
+        // Clona el catalogo completo del grupo al spinoff (productos,
+        // marcas, categorias, tags, listas de precios, metodos de pago,
+        // tipos de tasa + tasas historicas, politicas de garantia).
+        $this->catalog->propagateAllToSpinoff($group, $spinoff);
     }
 }

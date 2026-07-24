@@ -16,6 +16,8 @@ class InventoryTransferRequest extends FormRequest
     public function rules(): array
     {
         $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'from_warehouse_id' => [
@@ -32,7 +34,7 @@ class InventoryTransferRequest extends FormRequest
             'product_id' => [
                 'required',
                 'integer',
-                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'reason' => ['sometimes', 'nullable', 'string', 'max:255'],

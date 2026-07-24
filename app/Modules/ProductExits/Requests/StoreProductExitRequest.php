@@ -11,7 +11,9 @@ class StoreProductExitRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantManager = app(TenantManager::class);
+        $tenantId = $tenantManager->current()?->id ?? $tenantManager->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'reason' => ['required', Rule::in(ProductExit::REASONS)],
@@ -20,7 +22,7 @@ class StoreProductExitRequest extends FormRequest
             'processed_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId)],
-            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('tenant_id', $tenantId)],
+            'items.*.product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['nullable', 'array'],
             'items.*.product_unit_ids.*' => ['integer'],

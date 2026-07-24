@@ -13,6 +13,8 @@ class StorePosCheckoutRequest extends FormRequest
     public function rules(): array
     {
         $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -37,16 +39,16 @@ class StorePosCheckoutRequest extends FormRequest
             'items.*.product_id' => [
                 'required',
                 'integer',
-                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.price_list_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['sometimes', 'array'],
-            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
+            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', app(TenantManager::class)->require()->id)],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(['percent', 'fixed'])],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
             'items.*.discount_reason' => ['nullable', 'string', 'max:255'],
@@ -54,7 +56,7 @@ class StorePosCheckoutRequest extends FormRequest
             'payments.*.payment_method_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('payment_methods', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payments.*.method' => [
                 'required',
@@ -79,7 +81,7 @@ class StorePosCheckoutRequest extends FormRequest
             'payments.*.exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'payments.*.status' => [
                 'sometimes',

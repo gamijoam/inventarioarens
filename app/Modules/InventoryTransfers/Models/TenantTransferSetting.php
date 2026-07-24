@@ -21,6 +21,7 @@ class TenantTransferSetting extends Model
     use BelongsToTenant;
 
     public const MODE_SIMPLE = 'simple';
+
     public const MODE_LOGISTICS = 'logistics';
 
     protected function casts(): array

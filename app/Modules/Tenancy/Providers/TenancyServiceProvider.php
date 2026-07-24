@@ -10,7 +10,7 @@ class TenancyServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->scoped(TenantManager::class, fn () => new TenantManager());
+        $this->app->scoped(TenantManager::class, fn () => new TenantManager);
     }
 
     public function boot(): void

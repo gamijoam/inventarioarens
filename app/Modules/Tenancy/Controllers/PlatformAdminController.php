@@ -4,7 +4,6 @@ namespace App\Modules\Tenancy\Controllers;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
-use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\CreatePlatformAdminRequest;
 use App\Modules\Tenancy\Requests\ResetPlatformAdminPasswordRequest;
 use App\Modules\Tenancy\Requests\UpdatePlatformAdminRequest;
@@ -21,9 +20,7 @@ use Illuminate\Validation\ValidationException;
 
 class PlatformAdminController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {

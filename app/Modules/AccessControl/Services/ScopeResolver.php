@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\DB;
 class ScopeResolver
 {
     public const SCOPE_NONE = 'none';
+
     public const SCOPE_ALLOW = 'allow';
+
     public const SCOPE_RESTRICT = 'restrict';
 
     /**
@@ -56,6 +58,7 @@ class ScopeResolver
         if (empty($branchIds)) {
             return self::SCOPE_ALLOW;
         }
+
         return self::SCOPE_RESTRICT;
     }
 
@@ -94,7 +97,7 @@ class ScopeResolver
      * $resourceKey es el nombre de la columna FK del recurso (branch_id, warehouse_id, etc).
      * $resourceIds es la lista de IDs. Array vacio = sin restricciones (default-allow).
      */
-    public function replaceScope(User $user, string $scopeTypeClass, string $resourceKey, array $resourceIds, ?\App\Models\User $actor = null): void
+    public function replaceScope(User $user, string $scopeTypeClass, string $resourceKey, array $resourceIds, ?User $actor = null): void
     {
         $tenant = app(TenantManager::class)->require();
 

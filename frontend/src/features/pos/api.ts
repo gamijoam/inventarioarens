@@ -144,6 +144,7 @@ export const CurrentExchangeRateSchema = z
     base_currency: z.string(),
     quote_currency: z.string(),
     rate: z.union([z.number(), z.string()]).transform(Number),
+    effective_at: z.string().optional().nullable(),
     is_active: z.boolean().optional(),
   })
   .passthrough();
@@ -792,6 +793,10 @@ export function useExchangeRateTypesForPos() {
     queryKey: posKeys.exchangeRateTypes(),
     queryFn: async () =>
       z.array(ExchangeRateTypeSchema).parse(await getMany<unknown>('/currency/rate-types')),
+    // Forzar re-fetch: si el admin desactiva una tasa, el POS no debe
+    // seguir usandola por cache viejo.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -800,6 +805,9 @@ export function useCurrentExchangeRatesForPos() {
     queryKey: posKeys.currentRates(),
     queryFn: async () =>
       z.array(CurrentExchangeRateSchema).parse(await getMany<unknown>('/currency/rates/current')),
+    // Mismo razon: re-fetch siempre al montar.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

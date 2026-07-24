@@ -81,7 +81,7 @@ class AdminPosSalesService
         $tenant = app(TenantManager::class)->require();
 
         if ((int) $order->tenant_id !== (int) $tenant->id) {
-            throw new NotFoundHttpException();
+            throw new NotFoundHttpException;
         }
 
         $row = $this->baseOrdersQuery($tenant->id, now()->subYears(20), now()->addYears(20), ['status' => 'all'])
@@ -89,7 +89,7 @@ class AdminPosSalesService
             ->first($this->orderColumns());
 
         if (! $row) {
-            throw new NotFoundHttpException();
+            throw new NotFoundHttpException;
         }
 
         return [

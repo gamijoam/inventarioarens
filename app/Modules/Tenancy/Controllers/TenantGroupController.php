@@ -3,6 +3,8 @@
 namespace App\Modules\Tenancy\Controllers;
 
 use App\Models\User;
+use App\Modules\Products\Models\Product;
+use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Requests\StoreSpinoffRequest;
 use App\Modules\Tenancy\Requests\StoreTenantGroupRequest;
@@ -10,6 +12,7 @@ use App\Modules\Tenancy\Resources\GroupResource;
 use App\Modules\Tenancy\Resources\SpinoffResource;
 use App\Modules\Tenancy\Resources\TenantResource;
 use App\Modules\Tenancy\Services\CrossTenantUserService;
+use App\Modules\Tenancy\Services\TenantPromotionService;
 use App\Modules\Tenancy\Services\TenantRegistrationService;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +26,7 @@ class TenantGroupController extends Controller
         private readonly TenantRegistrationService $service,
         private readonly CrossTenantUserService $userService,
         private readonly TenantSpinoffService $spinoffService,
+        private readonly TenantPromotionService $promotionService,
     ) {}
 
     public function store(StoreTenantGroupRequest $request): JsonResponse
@@ -113,6 +117,85 @@ class TenantGroupController extends Controller
         return response()->json(['data' => $spinoffs]);
     }
 
+    /**
+     * Catalogo compartido del grupo: lista los productos maestros del grupo
+     * junto con la copia operativa en cada spinoff (o null si no se ha
+     * propagado a esa tienda). Pensado para que el Owner del grupo vea el
+     * estado de propagacion de su catalogo.
+     */
+    public function sharedProducts(Request $request, Tenant $group): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
+        abort_unless($user->isOwnerOf($group), 403, 'Only Owners of the group can view the shared catalog.');
+
+        $masters = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $group->id)
+            ->where('is_catalog_master', true)
+            ->with(['saleExchangeRateType', 'warrantyPolicy'])
+            ->orderBy('name')
+            ->get();
+
+        $spinoffs = Tenant::query()
+            ->spinoffs()
+            ->where('parent_id', $group->id)
+            ->orderBy('name')
+            ->get();
+
+        $copiesByMaster = [];
+        foreach ($spinoffs as $spinoff) {
+            $rows = Product::query()
+                ->withoutGlobalScopes()
+                ->where('catalog_product_id', '!=', null)
+                ->whereIn('catalog_product_id', $masters->pluck('id'))
+                ->where('tenant_id', $spinoff->id)
+                ->get(['id', 'tenant_id', 'catalog_product_id', 'is_active', 'is_catalog_active']);
+
+            foreach ($rows as $row) {
+                $copiesByMaster[$row->catalog_product_id][$spinoff->id] = $row;
+            }
+        }
+
+        $data = $masters->map(function (Product $master) use ($request, $spinoffs, $copiesByMaster): array {
+            $copies = [];
+            foreach ($spinoffs as $spinoff) {
+                $copy = $copiesByMaster[$master->id][$spinoff->id] ?? null;
+                $copies[] = [
+                    'spinoff_id' => $spinoff->id,
+                    'spinoff_slug' => $spinoff->slug,
+                    'spinoff_name' => $spinoff->name,
+                    'product_id' => $copy?->id,
+                    'is_active' => $copy ? (bool) $copy->is_active : null,
+                    'is_catalog_active' => $copy ? (bool) $copy->is_catalog_active : null,
+                    'propagated' => $copy !== null,
+                ];
+            }
+
+            return [
+                'master' => ProductResource::make($master)->resolve($request),
+                'copies' => $copies,
+            ];
+        });
+
+        return response()->json([
+            'data' => [
+                'group' => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'slug' => $group->slug,
+                ],
+                'spinoffs' => $spinoffs->map(fn (Tenant $t): array => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'slug' => $t->slug,
+                ])->values(),
+                'products' => $data->values(),
+            ],
+        ]);
+    }
+
     public function createSpinoff(StoreSpinoffRequest $request, Tenant $group): JsonResponse
     {
         $user = $request->user();
@@ -125,6 +208,23 @@ class TenantGroupController extends Controller
         return SpinoffResource::make($tenant)
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    /**
+     * Promueve una empresa normal a grupo multi-empresa.
+     * El actor debe ser miembro activo del tenant actual.
+     */
+    public function promote(Request $request, Tenant $tenant): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        $promoted = $this->promotionService->promote($tenant, $user);
+        $promoted->loadCount(['children', 'users']);
+
+        return GroupResource::make($promoted)
+            ->response()
+            ->setStatusCode(Response::HTTP_OK);
     }
 
     /**

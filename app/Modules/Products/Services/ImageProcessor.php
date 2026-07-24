@@ -24,9 +24,13 @@ use RuntimeException;
 class ImageProcessor
 {
     public const MAX_INPUT_SIZE = 5 * 1024 * 1024; // 5 MB
+
     public const MAX_INPUT_DIMENSION = 4096;       // 4K
+
     public const ORIGINAL_MAX_SIDE = 2048;
+
     public const MEDIUM_SIZE = 800;
+
     public const THUMB_SIZE = 200;
 
     public const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -99,7 +103,7 @@ class ImageProcessor
      * Genera las 3 variantes a partir de la imagen original.
      * Retorna un array de paths temporales en /tmp donde se escribieron los archivos.
      *
-     * @param array $config Output de `analyze()`
+     * @param  array  $config  Output de `analyze()`
      * @return array<string, array{path: string, width: int, height: int, mime: string, size: int}> key = 'original'|'medium'|'thumb'
      */
     public function generateVariants(UploadedFile $file, array $config, string $baseTmpPath): array
@@ -149,7 +153,9 @@ class ImageProcessor
 
     // ---- Keys constantes para variants array ----
     public const VARIANT_KEY_ORIGINAL = 'original';
+
     public const VARIANT_KEY_MEDIUM = 'medium';
+
     public const VARIANT_KEY_THUMB = 'thumb';
 
     // ---- Helpers privados ----
@@ -196,6 +202,7 @@ class ImageProcessor
     private function loadGd(UploadedFile $file, string $mime)
     {
         $path = $file->getPathname();
+
         return match ($mime) {
             'image/jpeg' => @\imagecreatefromjpeg($path),
             'image/png' => @\imagecreatefrompng($path),
@@ -205,7 +212,7 @@ class ImageProcessor
     }
 
     /**
-     * @param resource $gdImage
+     * @param  resource  $gdImage
      */
     private function writeGd($gdImage, string $destPath, int $gdFormat, int $quality): bool
     {
@@ -220,7 +227,7 @@ class ImageProcessor
      * Resize "cover": escala al cuadrado mas chico y crop centrado al tamano exacto.
      * Asi medium y thumb son siempre 800x800 y 200x200 sin distorsionar.
      *
-     * @param resource $source
+     * @param  resource  $source
      * @return resource|false
      */
     private function resizeCover($source, int $targetW, int $targetH)

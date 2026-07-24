@@ -12,7 +12,8 @@ class ProcessSalesReturnRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
 
         return [
             'process_notes' => ['nullable', 'string'],
@@ -40,7 +41,7 @@ class ProcessSalesReturnRequest extends FormRequest
             'refund_exchange_rate_type_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+                Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'refund_exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'refund_cash_register_session_id' => [

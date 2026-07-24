@@ -5,12 +5,11 @@ namespace App\Modules\Kardex\Services;
 use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use Illuminate\Http\Request;
 
 class KardexService
 {
-    public function __construct(private readonly ScopeResolver $scopes)
-    {
-    }
+    public function __construct(private readonly ScopeResolver $scopes) {}
 
     private const IN_TYPES = [
         'purchase',
@@ -33,7 +32,7 @@ class KardexService
         'reserved',
     ];
 
-    public function product(Product $product, array $filters = [], ?\Illuminate\Http\Request $request = null): array
+    public function product(Product $product, array $filters = [], ?Request $request = null): array
     {
         $warehouseId = isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null;
         $dateFrom = $filters['date_from'] ?? null;
@@ -102,7 +101,7 @@ class KardexService
      * Aplica el scope del user actual a la query de movimientos antes de ejecutar.
      * Llamar desde product() antes de obtener opening balance y movements.
      */
-    private function applyUserScope($query, ?\Illuminate\Http\Request $request)
+    private function applyUserScope($query, ?Request $request)
     {
         if ($request === null) {
             return $query;
@@ -111,6 +110,7 @@ class KardexService
         if (! $user) {
             return $query;
         }
+
         return $this->scopes->applyWarehouseScope($query, $user, 'warehouse_id');
     }
 

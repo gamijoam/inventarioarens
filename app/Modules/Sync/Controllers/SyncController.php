@@ -3,10 +3,10 @@
 namespace App\Modules\Sync\Controllers;
 
 use App\Modules\Sync\Requests\AcknowledgeSyncEventRequest;
+use App\Modules\Sync\Requests\IssueSyncTokenRequest;
 use App\Modules\Sync\Requests\PullSyncEventsRequest;
 use App\Modules\Sync\Requests\PushSyncEventsRequest;
 use App\Modules\Sync\Requests\RegisterSyncNodeRequest;
-use App\Modules\Sync\Requests\IssueSyncTokenRequest;
 use App\Modules\Sync\Requests\SyncReadinessRequest;
 use App\Modules\Sync\Services\SyncReadinessService;
 use App\Modules\Sync\Services\SyncTokenService;
@@ -24,8 +24,7 @@ class SyncController extends Controller
         private readonly SyncReadinessService $readiness,
         private readonly SyncTokenService $tokens,
         private readonly TenantManager $tenancy,
-    ) {
-    }
+    ) {}
 
     public function registerNode(RegisterSyncNodeRequest $request): JsonResponse
     {

@@ -12,7 +12,6 @@ use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
-use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -33,9 +32,7 @@ class WarrantyClaimService
         private readonly InventoryMovementService $inventory,
         private readonly CashRegisterService $cashRegister,
         private readonly FinancialAdjustmentService $financialAdjustments,
-    )
-    {
-    }
+    ) {}
 
     public function create(User $user, array $data): WarrantyClaim
     {

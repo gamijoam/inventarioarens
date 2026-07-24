@@ -10,7 +10,8 @@ class UpdateExchangeRateTypeRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->require()->id;
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
         $type = $this->route('type');
 
         return [
@@ -20,7 +21,7 @@ class UpdateExchangeRateTypeRequest extends FormRequest
                 'string',
                 'max:50',
                 Rule::unique('exchange_rate_types', 'code')
-                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))
                     ->ignore($type?->id),
             ],
             'name' => ['sometimes', 'required', 'string', 'max:255'],

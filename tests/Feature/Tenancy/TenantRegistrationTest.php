@@ -5,12 +5,10 @@ namespace Tests\Feature\Tenancy;
 use App\Models\User;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Branches\Models\Branch;
-use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Tenancy\Models\Tenant;
-use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Permissions\BasePermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -25,7 +23,7 @@ class TenantRegistrationTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
