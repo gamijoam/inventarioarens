@@ -36,6 +36,7 @@ final class ImportStatus
         'tags',
         'products',
         'price_lists',
+        'product_prices',
         'payment_methods',
         'customers',
         'suppliers',
