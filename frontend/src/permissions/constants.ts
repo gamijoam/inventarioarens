@@ -29,6 +29,10 @@ export const PERMISSIONS = {
   INVENTORY_RESERVE: 'inventory.reserve',
   INVENTORY_RELEASE: 'inventory.release',
   INVENTORY_DAMAGE: 'inventory.damage',
+  INVENTORY_MANUAL_MOVEMENTS_VIEW: 'inventory.manual_movements.view',
+  INVENTORY_MANUAL_MOVEMENTS_CREATE: 'inventory.manual_movements.create',
+  INVENTORY_MANUAL_MOVEMENTS_APPROVE: 'inventory.manual_movements.approve',
+  INVENTORY_MANUAL_MOVEMENTS_CANCEL: 'inventory.manual_movements.cancel',
 
   // Sales
   SALES_VIEW: 'sales.view',

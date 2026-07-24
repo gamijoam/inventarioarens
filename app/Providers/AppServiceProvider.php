@@ -100,6 +100,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('inventory.sale-operation', [InventoryPolicy::class, 'sale']);
         Gate::define('inventory.adjust-operation', [InventoryPolicy::class, 'adjust']);
         Gate::define('inventory.transfer-operation', [InventoryPolicy::class, 'transfer']);
+        Gate::define('inventory.manual-movement-operation', [InventoryPolicy::class, 'approveManualMovement']);
 
         $this->configureRateLimiters();
 

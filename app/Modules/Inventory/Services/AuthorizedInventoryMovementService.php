@@ -94,4 +94,25 @@ class AuthorizedInventoryMovementService
 
         return $this->inventory->transfer($fromWarehouse, $toWarehouse, $product, $quantity, $user, $reason);
     }
+
+    public function manualOut(User $user, Warehouse $warehouse, Product $product, float $quantity, ?string $reason = null): StockMovement
+    {
+        Gate::forUser($user)->authorize('inventory.manual-movement-operation', [$warehouse, $product]);
+
+        return $this->inventory->adjustmentOut($warehouse, $product, $quantity, $user, $reason);
+    }
+
+    public function manualIn(User $user, Warehouse $warehouse, Product $product, float $quantity, ?string $reason = null): StockMovement
+    {
+        Gate::forUser($user)->authorize('inventory.manual-movement-operation', [$warehouse, $product]);
+
+        return $this->inventory->adjustmentIn($warehouse, $product, $quantity, $user, $reason);
+    }
+
+    public function manualDamaged(User $user, Warehouse $warehouse, Product $product, float $quantity, ?string $reason = null): StockMovement
+    {
+        Gate::forUser($user)->authorize('inventory.manual-movement-operation', [$warehouse, $product]);
+
+        return $this->inventory->markDamaged($warehouse, $product, $quantity, $user, $reason);
+    }
 }

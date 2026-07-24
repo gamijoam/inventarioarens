@@ -35,6 +35,13 @@ class InventoryPolicy
             && $this->hasTenantPermission($user, 'inventory.adjust');
     }
 
+    public function approveManualMovement(User $user, Warehouse $warehouse, Product $product): bool
+    {
+        return $this->owns($warehouse)
+            && $this->owns($product)
+            && $this->hasTenantPermission($user, 'inventory.manual_movements.approve');
+    }
+
     public function transfer(User $user, Warehouse $fromWarehouse, Warehouse $toWarehouse, Product $product): bool
     {
         return $this->owns($fromWarehouse)
