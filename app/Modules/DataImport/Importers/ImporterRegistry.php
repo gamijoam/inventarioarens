@@ -18,6 +18,7 @@ class ImporterRegistry
         'tags' => TagImporter::class,
         'products' => ProductImporter::class,
         'price_lists' => PriceListImporter::class,
+        'product_prices' => ProductPriceImporter::class,
         'payment_methods' => PaymentMethodImporter::class,
         'customers' => CustomerImporter::class,
         'suppliers' => SupplierImporter::class,

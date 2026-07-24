@@ -86,6 +86,14 @@ class TemplateBuilder
             ],
             'tenant_values' => null,
         ],
+        'product_prices' => [
+            'headers' => ['sku', 'list_code', 'price', 'currency', 'is_active', 'exchange_rate_type_code'],
+            'examples' => [
+                ['SKU-001', 'DETAL', '15.50', 'USD', 'true', ''],
+                ['SKU-001', 'MAYOR', '12.00', 'USD', 'true', 'BCV'],
+            ],
+            'tenant_values' => null,
+        ],
     ];
 
     public function build(string $entity): string
