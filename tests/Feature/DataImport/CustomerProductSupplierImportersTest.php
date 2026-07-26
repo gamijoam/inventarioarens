@@ -184,7 +184,7 @@ class CustomerProductSupplierImportersTest extends TestCase
     {
         $path = $this->writeCsv('products.csv', "sku,name,barcode,base_price\nSKU-001,Camisa Negra,7501234567890,15.50\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertCount(1, $results);
         $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
@@ -202,7 +202,7 @@ class CustomerProductSupplierImportersTest extends TestCase
     {
         $path = $this->writeCsv('products.csv', "sku,name,base_price,min_stock,max_stock,reorder_quantity\nSKU-COMMA,Producto coma,\"2,5\",\"1,5\",\"10,25\",\"7,5\"\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status, json_encode($results[0]->errors ?? []));
         $this->assertDatabaseHas('products', [
@@ -226,7 +226,7 @@ class CustomerProductSupplierImportersTest extends TestCase
             "sku,name,brand_slug,category_slugs,tag_slugs,base_price\nSKU-X,Galaxy S24,samsung,electronica|celulares,nuevo,500.00\n"
         );
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
 
@@ -249,7 +249,7 @@ class CustomerProductSupplierImportersTest extends TestCase
             "sku,name,brand_slug,category_slugs,tag_slugs,base_price\nSKU-UP,Galaxy S24,SAMSUNG,ELECTRONICA|Celulares,NUEVO,500.00\n"
         );
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status);
 
@@ -267,7 +267,7 @@ class CustomerProductSupplierImportersTest extends TestCase
     {
         $path = $this->writeCsv('products.csv', "sku,name,brand_slug\nSKU-X,Test,marca-fantasma\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_FAILED, $results[0]->status);
         $this->assertArrayHasKey('brand_slug', $results[0]->errors);
@@ -296,7 +296,7 @@ class CustomerProductSupplierImportersTest extends TestCase
             "sku,name,stock_inicial,almacen_codigo,costo_unitario\nSKU-001,Laptop,10,W1,800.50\n"
         );
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_OK, $results[0]->status, json_encode($results[0]->errors ?? []));
         $this->assertDatabaseHas('products', ['sku' => 'SKU-001', 'name' => 'Laptop']);
@@ -319,7 +319,7 @@ class CustomerProductSupplierImportersTest extends TestCase
         ]);
         $path = $this->writeCsv('products.csv', "sku,name\nDUP-001,Duplicado\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_SKIPPED, $results[0]->status);
         $this->assertDatabaseHas('products', ['sku' => 'DUP-001', 'name' => 'Original']);
@@ -329,7 +329,7 @@ class CustomerProductSupplierImportersTest extends TestCase
     {
         $path = $this->writeCsv('products.csv', "sku,name,min_stock,max_stock\nSKU-X,Test,100,50\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_FAILED, $results[0]->status);
         $this->assertArrayHasKey('max_stock', $results[0]->errors);
@@ -339,7 +339,7 @@ class CustomerProductSupplierImportersTest extends TestCase
     {
         $path = $this->writeCsv('products.csv', "sku,name,stock_inicial\nSKU-X,Test,50\n");
 
-        $results = $this->results((new ProductImporter)->import($path));
+        $results = $this->results((new ProductImporter(app(\App\Modules\Products\Services\SharedCatalogPropagationService::class)))->import($path));
 
         $this->assertSame(ImportRowResult::STATUS_FAILED, $results[0]->status);
         $this->assertArrayHasKey('almacen_codigo', $results[0]->errors);
