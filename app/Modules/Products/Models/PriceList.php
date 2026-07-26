@@ -44,6 +44,7 @@ class PriceList extends Model
         foreach ($spinoffs as $spinoff) {
             $copy = $svc->ensurePriceListCopyFor($model, $spinoff);
             $svc->syncPriceListPaymentMethods($model, $copy, $spinoff);
+            $svc->syncPriceListProductPrices($model, $copy, $spinoff);
         }
     }
 
