@@ -1,0 +1,391 @@
+Auditoría y Desarrollo — Módulo de Movimientos Manuales de Inventario
+1. Objetivo del proyecto
+
+Actualmente el sistema manejaba los movimientos de inventario principalmente mediante dos procesos:
+
+Ingresos: mediante compras.
+Salidas: mediante traslados entre almacenes.
+
+Esta estructura funcionaba para operaciones normales, pero dejaba un vacío para situaciones reales de operación, por ejemplo:
+
+Un jefe necesita retirar un producto para uso interno.
+Se pierde o daña un producto.
+Se requiere realizar un ajuste manual.
+Se encuentra mercancía que debe reincorporarse.
+Se necesita registrar consumos internos.
+
+En un sistema ERP profesional es necesario contar con un módulo independiente de Movimientos Manuales de Inventario, manteniendo:
+
+Arquitectura actual del sistema.
+Sistema de permisos existente.
+Multiempresa / tenancy.
+Auditoría completa.
+Trazabilidad de cada modificación de stock.
+2. Análisis inicial realizado
+
+Se revisó la arquitectura existente y se identificó:
+
+Procesos existentes
+Compras
+
+Generan entradas de inventario.
+
+Flujo:
+
+Compra
+ ↓
+Recepción
+ ↓
+Ingreso stock
+ ↓
+Actualización kardex
+Traslados
+
+Generan movimientos internos.
+
+Flujo:
+
+Almacén origen
+ ↓
+Solicitud traslado
+ ↓
+Aprobación
+ ↓
+Recepción
+ ↓
+Movimiento stock
+3. Propuesta implementada
+
+Se creó un nuevo flujo:
+
+Movimientos Manuales
+
+Nuevo concepto:
+
+Solicitud de movimiento
+          |
+          ↓
+      Pendiente
+          |
+     ┌────┴────┐
+     ↓         ↓
+ Aprobado   Rechazado
+     |
+     ↓
+ Movimiento real de stock
+
+La regla principal:
+
+Crear una solicitud NO modifica stock.
+El stock solamente cambia cuando un usuario autorizado aprueba el movimiento.
+
+4. Desarrollo realizado
+Fase 1 — Modelo base de movimientos manuales
+
+Se creó la estructura para almacenar:
+
+Producto.
+Almacén.
+Cantidad.
+Tipo de movimiento.
+Motivo.
+Notas.
+Usuario creador.
+Estado.
+
+Estados soportados:
+
+pending
+approved
+rejected
+
+Tipos de movimientos:
+
+Ejemplos:
+
+Consumo interno.
+Pérdida.
+Daño.
+Ajuste entrada.
+Encontrado.
+Fase 2 — Flujo de aprobación
+
+Se implementó el ciclo:
+
+Creación
+
+Usuario solicita:
+
+Producto:
+Laptop
+
+Cantidad:
+1
+
+Motivo:
+Uso administrativo
+
+Resultado:
+
+Estado:
+PENDING
+
+No afecta inventario.
+
+Aprobación
+
+Usuario autorizado aprueba.
+
+Proceso:
+
+Movimiento manual
+        |
+        ↓
+Validación permisos
+        |
+        ↓
+Generación movimiento inventario
+        |
+        ↓
+Actualización stock
+        |
+        ↓
+Registro auditoría
+Rechazo
+
+Permite rechazar solicitudes indicando:
+
+Usuario que rechaza.
+Fecha.
+Motivo.
+Fase 3 — Integración con inventario
+
+Se integró con el servicio existente de movimientos.
+
+Objetivo:
+
+No crear una segunda lógica de inventario.
+
+La arquitectura quedó:
+
+Movimiento Manual
+        |
+        ↓
+Servicio Inventario existente
+        |
+        ↓
+Stock
+        |
+        ↓
+Kardex
+
+Esto evita:
+
+Diferencias de stock.
+Movimientos duplicados.
+Kardex inconsistente.
+Fase 4 — Auditoría y trazabilidad
+
+Se agregaron datos para seguimiento:
+
+Creación
+
+Registra:
+
+Usuario creador.
+Fecha.
+Motivo.
+Aprobación
+
+Registra:
+
+Usuario aprobador.
+Fecha aprobación.
+Movimiento generado.
+Rechazo
+
+Registra:
+
+Usuario rechazador.
+Fecha.
+Razón del rechazo.
+
+Esto permite responder preguntas como:
+
+¿Quién sacó este producto?
+¿Quién autorizó la salida?
+¿Cuándo ocurrió?
+¿Por qué se hizo?
+5. Pruebas realizadas
+
+Se crearon pruebas automatizadas para validar:
+
+Workflow
+
+Validaciones:
+
+✅ Crear movimiento pendiente.
+✅ No modificar stock al crear.
+✅ Aprobar genera movimiento inventario.
+✅ Rechazar no genera movimiento.
+
+Permisos
+
+Validaciones:
+
+✅ Usuarios autorizados pueden aprobar.
+✅ Usuarios sin permisos no pueden aprobar/rechazar.
+
+Auditoría
+
+Validaciones:
+
+✅ Guarda aprobador.
+✅ Guarda fecha aprobación.
+✅ Guarda rechazador.
+✅ Guarda motivo rechazo.
+
+6. Estado actual
+
+Actualmente el backend del módulo está funcional:
+
+Área	Estado
+Modelo	✅ Completo
+Migraciones	✅ Completo
+Servicios	✅ Completo
+Aprobación	✅ Completo
+Rechazo	✅ Completo
+Auditoría	✅ Completo
+Permisos	✅ Completo
+API	✅ Implementada
+Tests principales	✅ Correctos
+
+Existe un test adicional:
+
+ManualMovementApiTest
+
+que presenta un cierre inesperado del proceso PHP durante ejecución.
+
+Investigación pendiente:
+
+Revisar serialización del endpoint.
+Revisar relaciones cargadas.
+Revisar comportamiento del Resource.
+
+No afecta la lógica principal del módulo.
+
+7. Próxima fase — Fase 5.2 UI
+Objetivo
+
+Crear la interfaz gráfica para usuarios finales.
+
+Pantalla principal
+
+Nueva sección:
+
+Inventario
+
+ ├── Productos
+ ├── Kardex
+ ├── Traslados
+ └── Movimientos Manuales
+Funcionalidades UI
+Listado
+
+Mostrar:
+
+Producto.
+Tipo.
+Cantidad.
+Almacén.
+Usuario.
+Estado.
+Fecha.
+
+Filtros:
+
+Estado.
+Tipo.
+Almacén.
+Fechas.
+Crear movimiento
+
+Formulario:
+
+Producto
+Almacén
+Cantidad
+Tipo
+Motivo
+Notas
+
+Resultado:
+
+Estado = Pendiente
+Aprobación
+
+Usuarios autorizados tendrán:
+
+[Aprobar]
+[Rechazar]
+Detalle
+
+Mostrar:
+
+Movimiento #125
+
+Producto:
+Laptop Dell
+
+Cantidad:
+1
+
+Solicitado por:
+Juan
+
+Estado:
+Aprobado
+
+Historial:
+- Creado
+- Aprobado
+- Movimiento stock generado
+8. Mejoras futuras recomendadas
+
+Después de finalizar la UI:
+
+Reportes
+
+Agregar:
+
+Movimientos manuales por usuario.
+Productos más retirados.
+Pérdidas por período.
+Consumos internos.
+Dashboard
+
+Indicadores:
+
+Movimientos pendientes
+Movimientos aprobados este mes
+Pérdidas acumuladas
+Consumo interno
+Flujo avanzado
+
+Opcional:
+
+Aprobación multinivel:
+
+Empleado
+   ↓
+Supervisor
+   ↓
+Gerente
+
+Para empresas con mayor control.
+
+Conclusión
+
+La implementación transforma el manejo de inventario de un flujo limitado (compras y traslados) a un sistema profesional con control operativo, auditoría y autorización.
+
+El siguiente paso recomendado es desarrollar la interfaz UI manteniendo la misma arquitectura visual y de permisos existente en InventarioArens.

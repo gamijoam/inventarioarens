@@ -121,6 +121,42 @@ class InventoryMovementController extends Controller
         return StockMovementResource::collection(collect($movements));
     }
 
+    public function internalWithdrawal(InventoryMovementRequest $request): StockMovementResource
+    {
+        $movement = $this->inventory->manualOut(
+            $request->user(),
+            $this->warehouse($request->integer('warehouse_id')),
+            $this->product($request->integer('product_id')),
+            (float) $request->input('quantity'),
+            $request->input('reason'),
+        );
+
+        return new StockMovementResource($movement);
+    }
+
+    public function consumption(InventoryMovementRequest $request): StockMovementResource
+    {
+        return $this->internalWithdrawal($request);
+    }
+
+    public function loss(InventoryMovementRequest $request): StockMovementResource
+    {
+        return $this->internalWithdrawal($request);
+    }
+
+    public function inventoryFound(InventoryMovementRequest $request): StockMovementResource
+    {
+        $movement = $this->inventory->manualIn(
+            $request->user(),
+            $this->warehouse($request->integer('warehouse_id')),
+            $this->product($request->integer('product_id')),
+            (float) $request->input('quantity'),
+            $request->input('reason'),
+        );
+
+        return new StockMovementResource($movement);
+    }
+
     private function warehouse(int $id): Warehouse
     {
         return Warehouse::query()->findOrFail($id);

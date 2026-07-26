@@ -27,6 +27,7 @@ import {
   BarChart3,
   Printer,
   Upload,
+  ClipboardList,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -55,7 +56,9 @@ interface NavItem {
   hideIfNoOwnedGroup?: boolean;
 }
 
-interface UsersSearch { scope: 'tenant' | 'organization' }
+interface UsersSearch {
+  scope: 'tenant' | 'organization';
+}
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -91,6 +94,12 @@ const NAV_ITEMS: NavItem[] = [
         label: 'Productos',
         icon: Package,
         permission: PERMISSIONS.PRODUCTS_VIEW,
+      },
+      {
+        to: '/inventory/manual-movements',
+        label: 'Movimientos manuales',
+        icon: ClipboardList,
+        permission: PERMISSIONS.INVENTORY_MANUAL_MOVEMENTS_VIEW,
       },
       {
         to: '/inventory/catalogs',
@@ -571,7 +580,7 @@ function UnreadTransferRequestsBadge() {
       // inter-empresa no es un error ni un peligro, es un aviso de
       // atencion. El toast push usa el mismo color info para
       // consistencia visual.
-      className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-info px-1.5 text-[10px] font-semibold leading-5 text-info-foreground"
+      className="bg-info text-info-foreground ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] leading-5 font-semibold"
       data-testid="unread-transfer-requests-badge"
       aria-label={`${count} solicitudes pendientes`}
     >

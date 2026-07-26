@@ -2,3 +2,5 @@
 
 PNPM DEV
 .\scripts\thermal-printer-agent.cmd
+
+PRUEBA MCP: Archivo modificado correctamente el 24/07/2026.
