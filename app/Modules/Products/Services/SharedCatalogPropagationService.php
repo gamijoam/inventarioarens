@@ -9,7 +9,9 @@ use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\Tag;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use Illuminate\Support\Collection;
@@ -310,7 +312,89 @@ class SharedCatalogPropagationService
             foreach ($masters as $master) {
                 $this->ensureProductCopyFor($master, $spinoff);
             }
+
+            foreach ($priceLists as $list) {
+                $copy = $this->ensurePriceListCopyFor($list, $spinoff);
+                $this->syncPriceListProductPrices($list, $copy, $spinoff);
+            }
+
+            $suppliers = Supplier::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $group->id)
+                ->orderBy('id')
+                ->get();
+            foreach ($suppliers as $supplier) {
+                $this->ensureSupplierCopyFor($supplier, $spinoff);
+            }
+
+            $this->deactivateOrphanedSharedCopies($group, $spinoff);
         });
+    }
+
+    public function syncProductPriceCopyFor(ProductPrice $master, Tenant $spinoff): ?ProductPrice
+    {
+        $master->loadMissing(['product', 'priceList', 'exchangeRateType']);
+
+        if (! $master->product?->isCatalogMaster() || ! $master->priceList) {
+            return null;
+        }
+
+        $copyProduct = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $master->product_id)
+            ->first();
+        $copyList = PriceList::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('code', $master->priceList->code)
+            ->first();
+
+        if (! $copyProduct || ! $copyList) {
+            return null;
+        }
+
+        $localRateTypeId = null;
+        if ($master->exchangeRateType) {
+            $localRateTypeId = $this->ensureExchangeRateTypeCopyFor(
+                $master->exchangeRateType,
+                $spinoff,
+            )->id;
+        }
+
+        $existing = ProductPrice::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copyProduct->id)
+            ->where('price_list_id', $copyList->id)
+            ->first();
+
+        $payload = [
+            'tenant_id' => $spinoff->id,
+            'product_id' => $copyProduct->id,
+            'price_list_id' => $copyList->id,
+            'price' => $master->price,
+            'currency' => $master->currency,
+            'exchange_rate_type_id' => $localRateTypeId,
+            'is_active' => $master->is_active,
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            DB::table('product_prices')->where('id', $existing->id)->update($payload);
+
+            return $existing->fresh();
+        }
+
+        $payload['created_at'] = now();
+        DB::table('product_prices')->insert($payload);
+
+        return ProductPrice::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copyProduct->id)
+            ->where('price_list_id', $copyList->id)
+            ->first();
     }
 
     public function ensureProductCopyFor(Product $master, Tenant $spinoff): Product
@@ -583,6 +667,11 @@ class SharedCatalogPropagationService
             ->pluck('payment_method_id')
             ->all();
 
+        DB::table('price_list_payment_method')
+            ->where('tenant_id', $spinoff->id)
+            ->where('price_list_id', $copy->id)
+            ->delete();
+
         if ($masterMethodIds === []) {
             return;
         }
@@ -607,6 +696,132 @@ class SharedCatalogPropagationService
         }
 
         DB::table('price_list_payment_method')->insert($rows);
+    }
+
+    public function syncPriceListProductPrices(PriceList $master, PriceList $copy, Tenant $spinoff): void
+    {
+        $masterPrices = ProductPrice::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $master->tenant_id)
+            ->where('price_list_id', $master->id)
+            ->with(['product', 'exchangeRateType'])
+            ->get();
+
+        $syncedIds = [];
+        foreach ($masterPrices as $masterPrice) {
+            $local = $this->syncProductPriceCopyFor($masterPrice, $spinoff);
+            if ($local) {
+                $syncedIds[] = $local->id;
+            }
+        }
+
+        $query = ProductPrice::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('price_list_id', $copy->id);
+
+        if ($syncedIds !== []) {
+            $query->whereNotIn('id', $syncedIds);
+        }
+
+        $query->update(['is_active' => false, 'updated_at' => now()]);
+    }
+
+    public function ensureSupplierCopyFor(Supplier $master, Tenant $spinoff): Supplier
+    {
+        $query = Supplier::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id);
+
+        if ($master->document_type !== null && $master->document_number !== null) {
+            $query->where('document_type', $master->document_type)
+                ->where('document_number', $master->document_number);
+        } else {
+            $query->where('name', $master->name);
+        }
+
+        $existing = $query->first();
+        $payload = [
+            'tenant_id' => $spinoff->id,
+            'name' => $master->name,
+            'document_type' => $master->document_type,
+            'document_number' => $master->document_number,
+            'phone' => $master->phone,
+            'email' => $master->email,
+            'fiscal_address' => $master->fiscal_address,
+            'notes' => $master->notes,
+            'is_active' => $master->is_active,
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            DB::table('suppliers')->where('id', $existing->id)->update($payload);
+
+            return $existing->fresh();
+        }
+
+        $payload['created_at'] = now();
+        DB::table('suppliers')->insert($payload);
+
+        return Supplier::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->when(
+                $master->document_type !== null && $master->document_number !== null,
+                fn ($q) => $q->where('document_type', $master->document_type)->where('document_number', $master->document_number),
+                fn ($q) => $q->where('name', $master->name),
+            )
+            ->firstOrFail();
+    }
+
+    private function deactivateOrphanedSharedCopies(Tenant $group, Tenant $spinoff): void
+    {
+        $this->deactivateOrphans('price_lists', $group, $spinoff, 'code');
+        $this->deactivateOrphans('exchange_rate_types', $group, $spinoff, 'code');
+        $this->deactivateOrphans('warranty_policies', $group, $spinoff, 'name');
+
+        $masterSuppliers = Supplier::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $group->id)
+            ->get(['document_type', 'document_number', 'name']);
+        $childSuppliers = Supplier::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->get();
+
+        foreach ($childSuppliers as $supplier) {
+            $exists = $masterSuppliers->contains(function (Supplier $master) use ($supplier): bool {
+                if ($master->document_type !== null && $master->document_number !== null) {
+                    return $master->document_type === $supplier->document_type
+                        && $master->document_number === $supplier->document_number;
+                }
+
+                return $master->name === $supplier->name;
+            });
+
+            if (! $exists) {
+                DB::table('suppliers')->where('id', $supplier->id)->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    private function deactivateOrphans(string $table, Tenant $group, Tenant $spinoff, string $key): void
+    {
+        $masterValues = DB::table($table)
+            ->where('tenant_id', $group->id)
+            ->pluck($key);
+
+        $query = DB::table($table)
+            ->where('tenant_id', $spinoff->id);
+
+        if ($masterValues->isNotEmpty()) {
+            $query->whereNotIn($key, $masterValues->all());
+        }
+
+        $query->update(['is_active' => false, 'updated_at' => now()]);
     }
 
     private function propagateCategoriesTopological(Tenant $group, Tenant $spinoff): void
