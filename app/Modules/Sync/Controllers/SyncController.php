@@ -3,11 +3,14 @@
 namespace App\Modules\Sync\Controllers;
 
 use App\Modules\Sync\Requests\AcknowledgeSyncEventRequest;
+use App\Modules\Sync\Requests\CreateSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\IssueSyncTokenRequest;
 use App\Modules\Sync\Requests\PullSyncEventsRequest;
 use App\Modules\Sync\Requests\PushSyncEventsRequest;
+use App\Modules\Sync\Requests\RedeemSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\RegisterSyncNodeRequest;
 use App\Modules\Sync\Requests\SyncReadinessRequest;
+use App\Modules\Sync\Services\SyncPairingService;
 use App\Modules\Sync\Services\SyncReadinessService;
 use App\Modules\Sync\Services\SyncTokenService;
 use App\Modules\Sync\Services\SyncTransportService;
@@ -23,6 +26,7 @@ class SyncController extends Controller
         private readonly SyncTransportService $sync,
         private readonly SyncReadinessService $readiness,
         private readonly SyncTokenService $tokens,
+        private readonly SyncPairingService $pairing,
         private readonly TenantManager $tenancy,
     ) {}
 
@@ -111,6 +115,28 @@ class SyncController extends Controller
                 days: $days,
                 ipAddress: (string) $request->ip(),
                 userAgent: $request->userAgent(),
+            ),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function createPairingCode(CreateSyncPairingCodeRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->pairing->create(
+                $this->tenancy->require(),
+                $request->user(),
+                $request->validated(),
+            ),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function redeemPairingCode(RedeemSyncPairingCodeRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->pairing->redeem(
+                $request->validated(),
+                (string) $request->ip(),
+                $request->userAgent(),
             ),
         ], Response::HTTP_CREATED);
     }

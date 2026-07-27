@@ -2,15 +2,12 @@
 
 namespace Tests\Feature\Local;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class InstallLocalSqliteCommandTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_installer_creates_and_migrates_a_sqlite_file_without_changing_environment(): void
     {
         $database = storage_path('framework/testing-local.sqlite');

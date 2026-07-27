@@ -1,10 +1,14 @@
 <?php
 
+use App\Modules\Sync\Controllers\SyncController;
 use Illuminate\Support\Facades\Route;
 
 require base_path('app/Modules/Auth/routes.php');
 
 require base_path('app/Modules/Bootstrap/routes.php');
+
+Route::post('sync/pairing-codes/redeem', [SyncController::class, 'redeemPairingCode'])
+    ->middleware('throttle:auth');
 
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes_phase3.php'));
