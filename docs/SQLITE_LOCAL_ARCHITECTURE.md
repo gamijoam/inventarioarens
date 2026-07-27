@@ -92,3 +92,17 @@ En Windows, el wrapper instala o consulta todas las tareas configuradas:
 Esto crea tareas separadas como `SistemaInventarioSync-caracas` y
 `SistemaInventarioSync-valencia`. Si una empresa falla, las demás continúan
 sin detener su sincronización.
+
+Para agregar una empresa nueva sin reinstalar, el instalador puede usar:
+
+```powershell
+$env:SYNC_NEW_TENANT_PASSWORD = "clave-local"
+$env:SYNC_NEW_TENANT_TOKEN = "token-emitido-por-el-vps"
+php artisan local:add-sync-tenant nueva-empresa "Nueva Empresa" admin@nueva.test `
+  --cloud-url=https://app.miinventariofacil.com/api `
+  --installation=POS-01
+```
+
+El comando prepara el tenant local, crea su usuario administrador y agrega su
+worker al archivo multiempresa. El token se lee desde una variable de entorno
+y no se imprime en la consola.
