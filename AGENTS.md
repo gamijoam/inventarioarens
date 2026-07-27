@@ -851,6 +851,15 @@ Para multi-tenant se necesitaria un token de plataforma (is_platform_admin)
 o refactor de las rutas de sync para saltar el middleware \	enant\. No
 recomendado para produccion.
 
+### Implementacion multiempresa local (2026-07-26)
+
+La limitacion de token por tenant se mantiene por seguridad: una instalacion
+local multiempresa usa un token y un worker independiente por cada empresa.
+`local:configure-sync-tenants` escribe `storage/app/sync-worker/sync-config.json`
+y `scripts/sync-worker-all.ps1` administra las tareas Windows de todas las
+empresas configuradas. No usar un token de plataforma para sustituir este
+aislamiento.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.

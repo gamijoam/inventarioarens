@@ -64,3 +64,31 @@ DB_DATABASE=storage/app/inventario.sqlite
 Para cargar los seeders por defecto se puede agregar `--seed`. El comando no
 usa `migrate:fresh` y rechaza `:memory:` para evitar crear una base efimera por
 accidente.
+
+## Varias empresas
+
+Una instalacion local puede atender varias empresas hijas sin compartir
+credenciales entre ellas. Se agrega una entrada por empresa:
+
+```bash
+php artisan local:configure-sync-tenants \
+  --cloud-url=https://app.miinventariofacil.com/api \
+  --installation=POS-01 \
+  --tenant=caracas=TOKEN_CARACAS \
+  --tenant=valencia=TOKEN_VALENCIA
+```
+
+El comando escribe `storage/app/sync-worker/sync-config.json` con un nodo y
+token independiente por tenant. Nunca se debe usar un token del grupo para
+simular acceso a sus empresas hijas.
+
+En Windows, el wrapper instala o consulta todas las tareas configuradas:
+
+```powershell
+.\scripts\sync-worker-all.ps1 install
+.\scripts\sync-worker-all.ps1 status
+```
+
+Esto crea tareas separadas como `SistemaInventarioSync-caracas` y
+`SistemaInventarioSync-valencia`. Si una empresa falla, las demás continúan
+sin detener su sincronización.
