@@ -44,3 +44,23 @@ php vendor/bin/phpunit -c phpunit.sqlite.xml tests/Feature/POS
 Las aserciones de cantidades deben comparar valores numericos, no la
 representacion textual decimal. PostgreSQL devuelve normalmente `10.0000`,
 mientras SQLite puede devolver `10` para la misma columna decimal.
+
+## Instalacion
+
+El comando crea el archivo y ejecuta las migraciones sin borrar datos
+existentes. No modifica `.env`:
+
+```bash
+php artisan local:install-sqlite --database=storage/app/inventario.sqlite
+```
+
+Luego configura el entorno de la instalacion para usar SQLite:
+
+```dotenv
+DB_CONNECTION=sqlite
+DB_DATABASE=storage/app/inventario.sqlite
+```
+
+Para cargar los seeders por defecto se puede agregar `--seed`. El comando no
+usa `migrate:fresh` y rechaza `:memory:` para evitar crear una base efimera por
+accidente.
