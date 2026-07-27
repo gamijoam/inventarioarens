@@ -164,21 +164,22 @@ class InventoryCenterSummaryService
      * Cuenta productos con stock bajo. Para los que tienen min_stock propio
      * usa ese umbral; para los demas usa el threshold global.
      *
-     * Nota: incluye productos sin stock (available <= 0) cuando el threshold
-     * es mayor a cero, manteniendo compatibilidad con el comportamiento previo.
+     * Los productos sin precio base se contabilizan por separado y no generan
+     * una alerta de stock bajo hasta estar listos para venderse.
      */
     private function lowStockCount($productStockQuery, float $fallbackThreshold): int
     {
         $rows = (clone $productStockQuery)
             ->selectRaw('COALESCE(stock_totals.quantity_available, 0) as quantity_available')
             ->selectRaw('products.min_stock as min_stock_raw')
+            ->selectRaw('products.base_price as base_price_raw')
             ->get();
 
         $count = 0;
         foreach ($rows as $row) {
             $available = (float) $row->quantity_available;
             $threshold = $row->min_stock_raw !== null ? (float) $row->min_stock_raw : $fallbackThreshold;
-            if ($threshold > 0 && $available <= $threshold) {
+            if ($row->base_price_raw !== null && $threshold > 0 && $available <= $threshold) {
                 $count++;
             }
         }
@@ -350,10 +351,7 @@ class InventoryCenterSummaryService
                 'low_stock',
                 'warning',
                 'Stock bajo',
-                (clone $productStockQuery)
-                    ->whereRaw('COALESCE(stock_totals.quantity_available, 0) > 0')
-                    ->whereRaw('COALESCE(stock_totals.quantity_available, 0) <= ?', [$threshold])
-                    ->count('products.id'),
+                $this->lowStockCount($productStockQuery, $threshold),
                 'Productos por debajo del mínimo operativo.',
                 'Revisar reposición o traslado.',
                 $this->productNamesForStock('low', $threshold)

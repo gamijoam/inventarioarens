@@ -68,6 +68,16 @@ class AccessControlService
         return $user;
     }
 
+    public function tenantUserOrFail(int $userId): User
+    {
+        return app(TenantManager::class)
+            ->require()
+            ->users()
+            ->with('roles.permissions')
+            ->whereKey($userId)
+            ->firstOrFail();
+    }
+
     public function tenantUserIn(Tenant $tenant, int $userId): User
     {
         $user = $tenant
@@ -245,8 +255,6 @@ class AccessControlService
 
     public function updateUserRoles(User $user, array $roles, User $actor, ?Tenant $tenant = null): User
     {
-        $this->ensureRolesExist($roles);
-
         $tenantManager = app(TenantManager::class);
         $targetTenant = $tenant ?? $tenantManager->require();
         $previousTenant = $tenantManager->current();
@@ -262,6 +270,7 @@ class AccessControlService
         setPermissionsTeamId($targetTenant->id);
 
         try {
+            $this->ensureRolesExist($roles);
             $oldRoles = $this->userRoleNames($user);
 
             if (
@@ -598,9 +607,10 @@ class AccessControlService
         $search = trim((string) ($filters?->query('search', '') ?? ''));
         if ($search !== '') {
             $query->where(function ($inner) use ($search): void {
+                $like = "%{$search}%";
                 $inner
-                    ->where('users.name', 'ilike', "%{$search}%")
-                    ->orWhere('users.email', 'ilike', "%{$search}%");
+                    ->whereRaw('LOWER(users.name) LIKE LOWER(?)', [$like])
+                    ->orWhereRaw('LOWER(users.email) LIKE LOWER(?)', [$like]);
             });
         }
 

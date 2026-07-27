@@ -77,6 +77,10 @@ class ProductPriceImporterTest extends TestCase
             'currency' => 'USD',
             'is_active' => true,
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'event_type' => 'product_price.created',
+            'aggregate_type' => 'product_price',
+        ]);
 
         $price = ProductPrice::query()->where('price', 15.50)->first();
         $product = Product::query()->where('sku', 'SKU-1')->first();

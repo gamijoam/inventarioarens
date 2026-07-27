@@ -2,6 +2,7 @@
 
 namespace App\Modules\Warranties\Controllers;
 
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warranties\Requests\StoreWarrantyPolicyRequest;
 use App\Modules\Warranties\Requests\UpdateWarrantyPolicyRequest;
@@ -25,13 +26,14 @@ class WarrantyPolicyController extends Controller
         );
     }
 
-    public function store(StoreWarrantyPolicyRequest $request): JsonResponse
+    public function store(StoreWarrantyPolicyRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         $this->authorizePermission($request, 'warranty_policies.manage');
 
-        return WarrantyPolicyResource::make(
-            WarrantyPolicy::create($request->validated())
-        )->response()->setStatusCode(Response::HTTP_CREATED);
+        $policy = WarrantyPolicy::create($request->validated())->refresh();
+        $syncCatalog->warrantyPolicyCreated($policy);
+
+        return WarrantyPolicyResource::make($policy)->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function show(Request $request, WarrantyPolicy $warrantyPolicy): WarrantyPolicyResource
@@ -41,19 +43,21 @@ class WarrantyPolicyController extends Controller
         return WarrantyPolicyResource::make($warrantyPolicy);
     }
 
-    public function update(UpdateWarrantyPolicyRequest $request, WarrantyPolicy $warrantyPolicy): WarrantyPolicyResource
+    public function update(UpdateWarrantyPolicyRequest $request, WarrantyPolicy $warrantyPolicy, SyncCatalogOutboxService $syncCatalog): WarrantyPolicyResource
     {
         $this->authorizePermission($request, 'warranty_policies.manage');
 
         $warrantyPolicy->update($request->validated());
+        $syncCatalog->warrantyPolicyUpdated($warrantyPolicy->refresh());
 
         return WarrantyPolicyResource::make($warrantyPolicy->refresh());
     }
 
-    public function destroy(Request $request, WarrantyPolicy $warrantyPolicy): Response
+    public function destroy(Request $request, WarrantyPolicy $warrantyPolicy, SyncCatalogOutboxService $syncCatalog): Response
     {
         $this->authorizePermission($request, 'warranty_policies.manage');
         $warrantyPolicy->update(['is_active' => false]);
+        $syncCatalog->warrantyPolicyUpdated($warrantyPolicy->refresh());
 
         return response()->noContent();
     }

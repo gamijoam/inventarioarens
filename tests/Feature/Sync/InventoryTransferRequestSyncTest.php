@@ -257,13 +257,13 @@ class InventoryTransferRequestSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyOne($data['tenantA'], (array) DB::table('sync_inbox')->where('event_uuid', '22222222-2222-2222-2222-222222222222')->first());
 
-        $this->assertSame('102.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(102.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $data['tenantA']->id)
             ->where('warehouse_id', $data['warehouseA']->id)
             ->where('product_id', $data['productA']->id)
             ->value('quantity_available'));
 
-        $this->assertSame('48.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(48.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $data['tenantB']->id)
             ->where('warehouse_id', $data['warehouseB']->id)
             ->where('product_id', $data['productB']->id)

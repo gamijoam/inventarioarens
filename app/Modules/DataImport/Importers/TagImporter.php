@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Importers;
 
 use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\Products\Models\Tag;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class TagImporter extends BaseImporter
@@ -51,6 +52,7 @@ class TagImporter extends BaseImporter
                 'name' => $name,
                 'color' => $color,
             ]);
+            app(SyncCatalogOutboxService::class)->tagCreated($tag->refresh());
 
             return ImportRowResult::ok($tag->id, $slug);
         });

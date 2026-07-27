@@ -85,7 +85,7 @@ class PosOrderStockSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyPending($tenant);
 
-        $this->assertSame('3.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(3.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $productId)
@@ -179,7 +179,7 @@ class PosOrderStockSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyPending($tenant);
 
-        $this->assertSame('0.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(0.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $productId)
@@ -268,7 +268,7 @@ class PosOrderStockSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyPending($tenant);
 
-        $this->assertSame('5.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(5.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $productId)

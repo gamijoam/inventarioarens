@@ -7,6 +7,7 @@ use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class PriceListImporter extends BaseImporter
@@ -82,6 +83,8 @@ class PriceListImporter extends BaseImporter
                 $list->paymentMethods()->syncWithPivotValues($pmIds, ['tenant_id' => $list->tenant_id]);
             }
 
+            app(SyncCatalogOutboxService::class)->priceListCreated($list->refresh()->load('paymentMethods'));
+
             if ($pricesRaw) {
                 $items = json_decode($pricesRaw, true);
                 if (! is_array($items)) {
@@ -104,13 +107,14 @@ class PriceListImporter extends BaseImporter
                             $code,
                         );
                     }
-                    ProductPrice::create([
+                    $productPrice = ProductPrice::create([
                         'product_id' => $product->id,
                         'price_list_id' => $list->id,
                         'price' => $this->normalizeDecimal($priceItem['price']) ?? 0.0,
                         'currency' => strtoupper($priceItem['currency'] ?? 'USD'),
                         'is_active' => true,
                     ]);
+                    app(SyncCatalogOutboxService::class)->productPriceCreated($productPrice->refresh());
                 }
             }
 

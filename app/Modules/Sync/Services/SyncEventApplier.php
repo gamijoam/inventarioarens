@@ -33,6 +33,21 @@ class SyncEventApplier
         'product_price.updated',
         'product_price.created',
         'price.updated',
+        'warranty_policy.updated',
+        'warranty_policy.created',
+        'supplier.updated',
+        'supplier.created',
+        'brand.updated',
+        'brand.created',
+        'brand.deleted',
+        'category.updated',
+        'category.created',
+        'category.deleted',
+        'tag.updated',
+        'tag.created',
+        'tag.deleted',
+        'payment_method.updated',
+        'payment_method.created',
         'exchange_rate_type.updated',
         'exchange_rate_type.created',
         'exchange_rate.updated',
@@ -166,6 +181,11 @@ class SyncEventApplier
                 'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
                 'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
                 'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
+                'warranty_policy.updated', 'warranty_policy.created' => $this->applyWarrantyPolicy($tenant, $payload),
+                'supplier.updated', 'supplier.created' => $this->applySupplier($tenant, $payload),
+                'brand.updated', 'brand.created', 'brand.deleted' => $this->applyBrand($tenant, $payload),
+                'category.updated', 'category.created', 'category.deleted' => $this->applyCategory($tenant, $payload),
+                'tag.updated', 'tag.created', 'tag.deleted' => $this->applyTag($tenant, $payload),
                 'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
                 'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
                 'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
@@ -246,11 +266,22 @@ class SyncEventApplier
         $fields = [
             'name' => $this->requiredString($payload, 'name'),
             'sku' => $sku,
+            'barcode' => $payload['barcode'] ?? null,
+            'description' => $payload['description'] ?? null,
+            'long_description' => $payload['long_description'] ?? null,
             'tracking_type' => $payload['tracking_type'] ?? 'quantity',
+            'unit_of_measure' => $payload['unit_of_measure'] ?? 'unit',
+            'track_stock' => array_key_exists('track_stock', $payload) ? (bool) $payload['track_stock'] : true,
             'base_price' => $payload['base_price'] ?? null,
+            'profit_margin' => $payload['profit_margin'] ?? null,
             'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
             'sale_exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['sale_exchange_rate_type_code'] ?? null, $payload['sale_exchange_rate_type_id'] ?? null),
             'warranty_policy_id' => $this->warrantyPolicyId($tenant, $payload),
+            'image_url' => $payload['image_url'] ?? null,
+            'min_stock' => $payload['min_stock'] ?? null,
+            'max_stock' => $payload['max_stock'] ?? null,
+            'reorder_quantity' => $payload['reorder_quantity'] ?? null,
+            'is_catalog_active' => array_key_exists('is_catalog_active', $payload) ? (bool) $payload['is_catalog_active'] : true,
             'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
             'updated_at' => $now,
         ];
@@ -269,9 +300,48 @@ class SyncEventApplier
         }
 
         $after = (array) DB::table('products')->where('tenant_id', $tenant->id)->where('id', $productId)->first();
+        $this->syncProductCatalogRelations($tenant, $productId, $payload);
         $this->recordProductAudit($productId, $before, $after);
 
         return 'applied';
+    }
+
+    private function syncProductCatalogRelations(Tenant $tenant, int $productId, array $payload): void
+    {
+        if (array_key_exists('brand_slug', $payload)) {
+            $brandId = $payload['brand_slug']
+                ? DB::table('brands')->where('tenant_id', $tenant->id)->where('slug', $payload['brand_slug'])->value('id')
+                : null;
+            DB::table('products')->where('tenant_id', $tenant->id)->where('id', $productId)->update(['brand_id' => $brandId]);
+        }
+
+        if (array_key_exists('category_slugs', $payload)) {
+            DB::table('product_category')->where('tenant_id', $tenant->id)->where('product_id', $productId)->delete();
+            foreach ((array) $payload['category_slugs'] as $slug) {
+                $categoryId = DB::table('categories')->where('tenant_id', $tenant->id)->where('slug', $slug)->value('id');
+                if ($categoryId) {
+                    DB::table('product_category')->insert([
+                        'tenant_id' => $tenant->id,
+                        'product_id' => $productId,
+                        'category_id' => $categoryId,
+                    ]);
+                }
+            }
+        }
+
+        if (array_key_exists('tag_slugs', $payload)) {
+            DB::table('product_tag')->where('tenant_id', $tenant->id)->where('product_id', $productId)->delete();
+            foreach ((array) $payload['tag_slugs'] as $slug) {
+                $tagId = DB::table('tags')->where('tenant_id', $tenant->id)->where('slug', $slug)->value('id');
+                if ($tagId) {
+                    DB::table('product_tag')->insert([
+                        'tenant_id' => $tenant->id,
+                        'product_id' => $productId,
+                        'tag_id' => $tagId,
+                    ]);
+                }
+            }
+        }
     }
 
     private function applyCustomer(Tenant $tenant, array $payload): string
@@ -1533,6 +1603,105 @@ class SyncEventApplier
                 'updated_at' => $now,
             ]
         );
+
+        return 'applied';
+    }
+
+    private function applyWarrantyPolicy(Tenant $tenant, array $payload): string
+    {
+        $name = $this->requiredString($payload, 'name');
+
+        $this->upsertByKeys(
+            'warranty_policies',
+            ['tenant_id' => $tenant->id, 'name' => $name],
+            [
+                'duration_days' => (int) ($payload['duration_days'] ?? 0),
+                'coverage_type' => $payload['coverage_type'] ?? 'store',
+                'conditions' => $payload['conditions'] ?? null,
+                'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+                'updated_at' => now(),
+            ]
+        );
+
+        return 'applied';
+    }
+
+    private function applySupplier(Tenant $tenant, array $payload): string
+    {
+        $documentType = $payload['document_type'] ?? null;
+        $documentNumber = $payload['document_number'] ?? null;
+        $keys = [
+            'tenant_id' => $tenant->id,
+            'document_type' => $documentType,
+            'document_number' => $documentNumber,
+        ];
+
+        if ($documentType === null || $documentNumber === null) {
+            $keys = ['tenant_id' => $tenant->id, 'name' => $this->requiredString($payload, 'name')];
+        }
+
+        $this->upsertByKeys('suppliers', $keys, [
+            'name' => $this->requiredString($payload, 'name'),
+            'document_type' => $documentType,
+            'document_number' => $documentNumber,
+            'phone' => $payload['phone'] ?? null,
+            'email' => $payload['email'] ?? null,
+            'fiscal_address' => $payload['fiscal_address'] ?? null,
+            'notes' => $payload['notes'] ?? null,
+            'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+            'updated_at' => now(),
+        ]);
+
+        return 'applied';
+    }
+
+    private function applyBrand(Tenant $tenant, array $payload): string
+    {
+        $this->upsertByKeys('brands', ['tenant_id' => $tenant->id, 'slug' => $this->requiredString($payload, 'slug')], [
+            'name' => $this->requiredString($payload, 'name'),
+            'description' => $payload['description'] ?? null,
+            'is_active' => ($payload['is_active'] ?? true) && ! (($payload['_deleted'] ?? false)),
+            'updated_at' => now(),
+        ]);
+
+        return 'applied';
+    }
+
+    private function applyCategory(Tenant $tenant, array $payload): string
+    {
+        $parentId = null;
+        if (! empty($payload['parent_slug'])) {
+            $parentId = DB::table('categories')
+                ->where('tenant_id', $tenant->id)
+                ->where('slug', $payload['parent_slug'])
+                ->value('id');
+        }
+
+        $this->upsertByKeys('categories', ['tenant_id' => $tenant->id, 'slug' => $this->requiredString($payload, 'slug')], [
+            'parent_id' => $parentId,
+            'name' => $this->requiredString($payload, 'name'),
+            'description' => $payload['description'] ?? null,
+            'sort_order' => (int) ($payload['sort_order'] ?? 0),
+            'is_active' => ($payload['is_active'] ?? true) && ! (($payload['_deleted'] ?? false)),
+            'updated_at' => now(),
+        ]);
+
+        return 'applied';
+    }
+
+    private function applyTag(Tenant $tenant, array $payload): string
+    {
+        if (($payload['_deleted'] ?? false) === true) {
+            DB::table('tags')->where('tenant_id', $tenant->id)->where('slug', $payload['slug'] ?? '')->delete();
+
+            return 'applied';
+        }
+
+        $this->upsertByKeys('tags', ['tenant_id' => $tenant->id, 'slug' => $this->requiredString($payload, 'slug')], [
+            'name' => $this->requiredString($payload, 'name'),
+            'color' => $payload['color'] ?? null,
+            'updated_at' => now(),
+        ]);
 
         return 'applied';
     }

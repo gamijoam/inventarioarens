@@ -8,13 +8,19 @@ use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
+use App\Modules\Products\Models\Brand;
+use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Products\Models\Tag;
 use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\Warranties\Models\WarrantyPolicy;
 use Carbon\CarbonInterface;
 
 class SyncCatalogOutboxService
@@ -74,6 +80,81 @@ class SyncCatalogOutboxService
     public function productPriceUpdated(ProductPrice $productPrice): void
     {
         $this->recordProductPrice('product_price.updated', $productPrice);
+    }
+
+    public function brandCreated(Brand $brand): void
+    {
+        $this->recordBrand('brand.created', $brand);
+    }
+
+    public function brandUpdated(Brand $brand): void
+    {
+        $this->recordBrand('brand.updated', $brand);
+    }
+
+    public function brandDeleted(Brand $brand): void
+    {
+        $this->recordBrand('brand.deleted', $brand);
+    }
+
+    public function categoryCreated(Category $category): void
+    {
+        $this->recordCategory('category.created', $category);
+    }
+
+    public function categoryUpdated(Category $category): void
+    {
+        $this->recordCategory('category.updated', $category);
+    }
+
+    public function categoryDeleted(Category $category): void
+    {
+        $this->recordCategory('category.deleted', $category);
+    }
+
+    public function tagCreated(Tag $tag): void
+    {
+        $this->recordTag('tag.created', $tag);
+    }
+
+    public function tagUpdated(Tag $tag): void
+    {
+        $this->recordTag('tag.updated', $tag);
+    }
+
+    public function tagDeleted(Tag $tag): void
+    {
+        $this->recordTag('tag.deleted', $tag);
+    }
+
+    public function paymentMethodCreated(PaymentMethod $method): void
+    {
+        $this->recordPaymentMethod('payment_method.created', $method);
+    }
+
+    public function paymentMethodUpdated(PaymentMethod $method): void
+    {
+        $this->recordPaymentMethod('payment_method.updated', $method);
+    }
+
+    public function warrantyPolicyCreated(WarrantyPolicy $policy): void
+    {
+        $this->recordWarrantyPolicy('warranty_policy.created', $policy);
+    }
+
+    public function warrantyPolicyUpdated(WarrantyPolicy $policy): void
+    {
+        $this->recordWarrantyPolicy('warranty_policy.updated', $policy);
+    }
+
+    public function supplierCreated(Supplier $supplier): void
+    {
+        $this->recordSupplier('supplier.created', $supplier);
+    }
+
+    public function supplierUpdated(Supplier $supplier): void
+    {
+        $this->recordSupplier('supplier.updated', $supplier);
     }
 
     public function customerCreated(Customer $customer): void
@@ -415,7 +496,7 @@ class SyncCatalogOutboxService
 
     private function recordProduct(string $eventType, Product $product): void
     {
-        $product->loadMissing(['saleExchangeRateType', 'warrantyPolicy']);
+        $product->loadMissing(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -424,17 +505,31 @@ class SyncCatalogOutboxService
             payload: [
                 'sku' => $product->sku,
                 'name' => $product->name,
+                'barcode' => $product->barcode,
+                'description' => $product->description,
+                'long_description' => $product->long_description,
                 'tracking_type' => $product->tracking_type,
+                'unit_of_measure' => $product->unit_of_measure,
+                'track_stock' => (bool) $product->track_stock,
                 'base_price' => $product->base_price === null ? null : (string) $product->base_price,
+                'profit_margin' => $product->profit_margin === null ? null : (string) $product->profit_margin,
                 'sale_currency' => $product->sale_currency,
                 'sale_exchange_rate_type_id' => $product->sale_exchange_rate_type_id,
                 'sale_exchange_rate_type_code' => $product->saleExchangeRateType?->code,
+                'image_url' => $product->image_url,
+                'brand_slug' => $product->brand?->slug,
+                'category_slugs' => $product->categories->pluck('slug')->values()->all(),
+                'tag_slugs' => $product->tags->pluck('slug')->values()->all(),
                 'warranty_policy_id' => $product->warranty_policy_id,
                 'warranty_policy_name' => $product->warrantyPolicy?->name,
                 'warranty_policy_duration_days' => $product->warrantyPolicy?->duration_days,
                 'warranty_policy_coverage_type' => $product->warrantyPolicy?->coverage_type,
                 'warranty_policy_conditions' => $product->warrantyPolicy?->conditions,
                 'warranty_policy_is_active' => $product->warrantyPolicy ? (bool) $product->warrantyPolicy->is_active : null,
+                'min_stock' => $product->min_stock === null ? null : (string) $product->min_stock,
+                'max_stock' => $product->max_stock === null ? null : (string) $product->max_stock,
+                'reorder_quantity' => $product->reorder_quantity === null ? null : (string) $product->reorder_quantity,
+                'is_catalog_active' => (bool) ($product->is_catalog_active ?? true),
                 'is_active' => (bool) $product->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'product', $product->id, $product->updated_at),
@@ -484,6 +579,80 @@ class SyncCatalogOutboxService
                 'is_active' => (bool) $productPrice->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'product_price', $productPrice->id, $productPrice->updated_at),
+        );
+    }
+
+    private function recordBrand(string $eventType, Brand $brand): void
+    {
+        $this->outbox->record($eventType, 'brand', $brand->id, [
+            'slug' => $brand->slug, 'name' => $brand->name, 'description' => $brand->description,
+            'is_active' => $eventType !== 'brand.deleted' && (bool) $brand->is_active,
+            '_deleted' => $eventType === 'brand.deleted',
+        ], $this->eventKey($eventType, 'brand', $brand->id, $brand->updated_at));
+    }
+
+    private function recordCategory(string $eventType, Category $category): void
+    {
+        $category->loadMissing('parent');
+        $this->outbox->record($eventType, 'category', $category->id, [
+            'slug' => $category->slug, 'name' => $category->name, 'description' => $category->description,
+            'sort_order' => (int) $category->sort_order, 'is_active' => $eventType !== 'category.deleted' && (bool) $category->is_active,
+            '_deleted' => $eventType === 'category.deleted',
+            'parent_slug' => $category->parent?->slug,
+        ], $this->eventKey($eventType, 'category', $category->id, $category->updated_at));
+    }
+
+    private function recordTag(string $eventType, Tag $tag): void
+    {
+        $this->outbox->record($eventType, 'tag', $tag->id, [
+            'slug' => $tag->slug, 'name' => $tag->name, 'color' => $tag->color,
+            '_deleted' => $eventType === 'tag.deleted',
+        ], $this->eventKey($eventType, 'tag', $tag->id, $tag->updated_at));
+    }
+
+    private function recordPaymentMethod(string $eventType, PaymentMethod $method): void
+    {
+        $this->outbox->record($eventType, 'payment_method', $method->id, [
+            'code' => $method->code, 'name' => $method->name, 'method' => $method->method,
+            'currency_mode' => $method->currency_mode, 'requires_reference' => (bool) $method->requires_reference,
+            'is_active' => (bool) $method->is_active, 'sort_order' => (int) $method->sort_order,
+        ], $this->eventKey($eventType, 'payment_method', $method->id, $method->updated_at));
+    }
+
+    private function recordWarrantyPolicy(string $eventType, WarrantyPolicy $policy): void
+    {
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'warranty_policy',
+            aggregateId: $policy->id,
+            payload: [
+                'name' => $policy->name,
+                'duration_days' => $policy->duration_days,
+                'coverage_type' => $policy->coverage_type,
+                'conditions' => $policy->conditions,
+                'is_active' => (bool) $policy->is_active,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'warranty_policy', $policy->id, $policy->updated_at),
+        );
+    }
+
+    private function recordSupplier(string $eventType, Supplier $supplier): void
+    {
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'supplier',
+            aggregateId: $supplier->id,
+            payload: [
+                'name' => $supplier->name,
+                'document_type' => $supplier->document_type,
+                'document_number' => $supplier->document_number,
+                'phone' => $supplier->phone,
+                'email' => $supplier->email,
+                'fiscal_address' => $supplier->fiscal_address,
+                'notes' => $supplier->notes,
+                'is_active' => (bool) $supplier->is_active,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'supplier', $supplier->id, $supplier->updated_at),
         );
     }
 

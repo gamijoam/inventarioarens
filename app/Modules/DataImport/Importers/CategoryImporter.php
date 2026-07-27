@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Importers;
 
 use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\Products\Models\Category;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class CategoryImporter extends BaseImporter
@@ -68,6 +69,7 @@ class CategoryImporter extends BaseImporter
                 'sort_order' => $sortOrder,
                 'is_active' => $isActive,
             ]);
+            app(SyncCatalogOutboxService::class)->categoryCreated($category->refresh());
 
             return ImportRowResult::ok($category->id, $slug);
         });

@@ -7,6 +7,7 @@ use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Requests\StoreBrandRequest;
 use App\Modules\Products\Requests\UpdateBrandRequest;
 use App\Modules\Products\Resources\BrandResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -29,9 +30,10 @@ class BrandController extends Controller
         return BrandResource::collection($query->paginate(25));
     }
 
-    public function store(StoreBrandRequest $request): BrandResource
+    public function store(StoreBrandRequest $request, SyncCatalogOutboxService $syncCatalog): BrandResource
     {
         $brand = Brand::create($request->validated())->refresh();
+        $syncCatalog->brandCreated($brand);
 
         return BrandResource::make($brand);
     }
@@ -43,16 +45,19 @@ class BrandController extends Controller
         return BrandResource::make($brand);
     }
 
-    public function update(UpdateBrandRequest $request, Brand $brand): BrandResource
+    public function update(UpdateBrandRequest $request, Brand $brand, SyncCatalogOutboxService $syncCatalog): BrandResource
     {
         $brand->fill($request->validated())->save();
+        $syncCatalog->brandUpdated($brand->refresh());
 
         return BrandResource::make($brand);
     }
 
-    public function destroy(Brand $brand): Response
+    public function destroy(Brand $brand, SyncCatalogOutboxService $syncCatalog): Response
     {
+        $deleted = clone $brand;
         $brand->delete();
+        $syncCatalog->brandDeleted($deleted);
 
         return response()->noContent();
     }

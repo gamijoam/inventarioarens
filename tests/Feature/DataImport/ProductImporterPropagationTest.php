@@ -83,6 +83,12 @@ class ProductImporterPropagationTest extends TestCase
             'sku' => 'SKU-IMP-01',
             'is_catalog_master' => true,
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $this->groupId(),
+            'event_type' => 'product.created',
+            'aggregate_type' => 'product',
+            'aggregate_id' => $master->id,
+        ]);
 
         $spinoffs = Tenant::query()->where('parent_id', $this->groupId())->get();
         $this->assertCount(2, $spinoffs);

@@ -10,6 +10,7 @@ use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\Auth;
@@ -211,6 +212,8 @@ class ProductImporter extends BaseImporter
             if (! empty($tagIds)) {
                 $product->tags()->syncWithPivotValues($tagIds, ['tenant_id' => $product->tenant_id]);
             }
+
+            app(SyncCatalogOutboxService::class)->productCreated($product->refresh()->load(['brand', 'categories', 'tags']));
 
             if ($stockInicial !== null && $stockInicial > 0 && $warehouseId !== null) {
                 try {

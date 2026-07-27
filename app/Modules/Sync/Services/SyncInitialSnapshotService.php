@@ -20,6 +20,11 @@ class SyncInitialSnapshotService
             'exchange_rate_type.created' => $this->queueExchangeRateTypes($tenant, $targetNodeId, $installationCode),
             'exchange_rate.created' => $this->queueExchangeRates($tenant, $targetNodeId, $installationCode),
             'payment_method.created' => $this->queuePaymentMethods($tenant, $targetNodeId, $installationCode),
+            'brand.created' => $this->queueBrands($tenant, $targetNodeId, $installationCode),
+            'category.created' => $this->queueCategories($tenant, $targetNodeId, $installationCode),
+            'tag.created' => $this->queueTags($tenant, $targetNodeId, $installationCode),
+            'warranty_policy.created' => $this->queueWarrantyPolicies($tenant, $targetNodeId, $installationCode),
+            'supplier.created' => $this->queueSuppliers($tenant, $targetNodeId, $installationCode),
             'price_list.created' => $this->queuePriceLists($tenant, $targetNodeId, $installationCode),
             'product.created' => $this->queueProducts($tenant, $targetNodeId, $installationCode),
             'product_price.created' => $this->queueProductPrices($tenant, $targetNodeId, $installationCode),
@@ -205,6 +210,113 @@ class SyncInitialSnapshotService
         return $count;
     }
 
+    private function queueBrands(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+        DB::table('brands')->where('tenant_id', $tenant->id)->orderBy('id')
+            ->chunkById(200, function ($brands) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($brands as $brand) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'brand.created', 'brand', (int) $brand->id, [
+                        'slug' => $brand->slug, 'name' => $brand->name, 'description' => $brand->description,
+                        'is_active' => (bool) $brand->is_active,
+                    ]);
+                    $count++;
+                }
+            });
+
+        return $count;
+    }
+
+    private function queueCategories(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+        DB::table('categories as categories')
+            ->leftJoin('categories as parents', function ($join): void {
+                $join->on('parents.id', '=', 'categories.parent_id')
+                    ->on('parents.tenant_id', '=', 'categories.tenant_id');
+            })
+            ->where('categories.tenant_id', $tenant->id)
+            ->orderBy('categories.id')
+            ->select('categories.*', 'parents.slug as parent_slug')
+            ->chunkById(200, function ($categories) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($categories as $category) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'category.created', 'category', (int) $category->id, [
+                        'slug' => $category->slug, 'name' => $category->name, 'description' => $category->description,
+                        'sort_order' => (int) $category->sort_order, 'is_active' => (bool) $category->is_active,
+                        'parent_slug' => $category->parent_slug,
+                    ]);
+                    $count++;
+                }
+            }, 'categories.id', 'id');
+
+        return $count;
+    }
+
+    private function queueTags(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+        DB::table('tags')->where('tenant_id', $tenant->id)->orderBy('id')
+            ->chunkById(200, function ($tags) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($tags as $tag) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'tag.created', 'tag', (int) $tag->id, [
+                        'slug' => $tag->slug, 'name' => $tag->name, 'color' => $tag->color,
+                    ]);
+                    $count++;
+                }
+            });
+
+        return $count;
+    }
+
+    private function queueWarrantyPolicies(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+
+        DB::table('warranty_policies')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('id')
+            ->chunkById(200, function ($policies) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($policies as $policy) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'warranty_policy.created', 'warranty_policy', (int) $policy->id, [
+                        'name' => $policy->name,
+                        'duration_days' => (int) $policy->duration_days,
+                        'coverage_type' => $policy->coverage_type,
+                        'conditions' => $policy->conditions,
+                        'is_active' => (bool) $policy->is_active,
+                    ]);
+                    $count++;
+                }
+            });
+
+        return $count;
+    }
+
+    private function queueSuppliers(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+
+        DB::table('suppliers')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('id')
+            ->chunkById(200, function ($suppliers) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($suppliers as $supplier) {
+                    $this->record($tenant, $targetNodeId, $installationCode, 'supplier.created', 'supplier', (int) $supplier->id, [
+                        'name' => $supplier->name,
+                        'document_type' => $supplier->document_type,
+                        'document_number' => $supplier->document_number,
+                        'phone' => $supplier->phone,
+                        'email' => $supplier->email,
+                        'fiscal_address' => $supplier->fiscal_address,
+                        'notes' => $supplier->notes,
+                        'is_active' => (bool) $supplier->is_active,
+                    ]);
+                    $count++;
+                }
+            });
+
+        return $count;
+    }
+
     private function queueProducts(Tenant $tenant, int $targetNodeId, string $installationCode): int
     {
         $count = 0;
@@ -219,14 +331,50 @@ class SyncInitialSnapshotService
             ->select('products.*', 'exchange_rate_types.code as sale_exchange_rate_type_code')
             ->chunkById(200, function ($products) use ($tenant, $targetNodeId, $installationCode, &$count): void {
                 foreach ($products as $product) {
+                    $brandSlug = DB::table('brands')->where('tenant_id', $tenant->id)->where('id', $product->brand_id)->value('slug');
+                    $categorySlugs = DB::table('product_category')
+                        ->join('categories', function ($join): void {
+                            $join->on('categories.id', '=', 'product_category.category_id')
+                                ->on('categories.tenant_id', '=', 'product_category.tenant_id');
+                        })
+                        ->where('product_category.tenant_id', $tenant->id)
+                        ->where('product_category.product_id', $product->id)
+                        ->pluck('categories.slug')
+                        ->values()
+                        ->all();
+                    $tagSlugs = DB::table('product_tag')
+                        ->join('tags', function ($join): void {
+                            $join->on('tags.id', '=', 'product_tag.tag_id')
+                                ->on('tags.tenant_id', '=', 'product_tag.tenant_id');
+                        })
+                        ->where('product_tag.tenant_id', $tenant->id)
+                        ->where('product_tag.product_id', $product->id)
+                        ->pluck('tags.slug')
+                        ->values()
+                        ->all();
+
                     $this->record($tenant, $targetNodeId, $installationCode, 'product.created', 'product', (int) $product->id, [
                         'sku' => $product->sku,
                         'name' => $product->name,
+                        'barcode' => $product->barcode,
+                        'description' => $product->description,
+                        'long_description' => $product->long_description,
                         'tracking_type' => $product->tracking_type,
+                        'unit_of_measure' => $product->unit_of_measure,
+                        'track_stock' => (bool) $product->track_stock,
                         'base_price' => $product->base_price === null ? null : (string) $product->base_price,
+                        'profit_margin' => $product->profit_margin === null ? null : (string) $product->profit_margin,
                         'sale_currency' => $product->sale_currency,
                         'sale_exchange_rate_type_code' => $product->sale_exchange_rate_type_code,
-                        'warranty_policy_id' => null,
+                        'image_url' => $product->image_url,
+                        'brand_slug' => $brandSlug,
+                        'category_slugs' => $categorySlugs,
+                        'tag_slugs' => $tagSlugs,
+                        'warranty_policy_id' => $product->warranty_policy_id,
+                        'min_stock' => $product->min_stock === null ? null : (string) $product->min_stock,
+                        'max_stock' => $product->max_stock === null ? null : (string) $product->max_stock,
+                        'reorder_quantity' => $product->reorder_quantity === null ? null : (string) $product->reorder_quantity,
+                        'is_catalog_active' => (bool) ($product->is_catalog_active ?? true),
                         'is_active' => (bool) $product->is_active,
                     ]);
                     $count++;

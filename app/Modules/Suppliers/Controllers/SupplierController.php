@@ -6,6 +6,7 @@ use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Suppliers\Requests\StoreSupplierRequest;
 use App\Modules\Suppliers\Requests\UpdateSupplierRequest;
 use App\Modules\Suppliers\Resources\SupplierResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -56,11 +57,12 @@ class SupplierController extends Controller
         );
     }
 
-    public function store(StoreSupplierRequest $request): JsonResponse
+    public function store(StoreSupplierRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         Gate::authorize('create', Supplier::class);
 
         $supplier = Supplier::create($request->validated())->refresh();
+        $syncCatalog->supplierCreated($supplier);
 
         return SupplierResource::make($supplier)
             ->response()
@@ -74,20 +76,22 @@ class SupplierController extends Controller
         return SupplierResource::make($supplier);
     }
 
-    public function update(UpdateSupplierRequest $request, Supplier $supplier): SupplierResource
+    public function update(UpdateSupplierRequest $request, Supplier $supplier, SyncCatalogOutboxService $syncCatalog): SupplierResource
     {
         Gate::authorize('update', $supplier);
 
         $supplier->update($request->validated());
+        $syncCatalog->supplierUpdated($supplier->refresh());
 
         return SupplierResource::make($supplier->refresh());
     }
 
-    public function destroy(Supplier $supplier): Response
+    public function destroy(Supplier $supplier, SyncCatalogOutboxService $syncCatalog): Response
     {
         Gate::authorize('delete', $supplier);
 
         $supplier->update(['is_active' => false]);
+        $syncCatalog->supplierUpdated($supplier->refresh());
 
         return response()->noContent();
     }

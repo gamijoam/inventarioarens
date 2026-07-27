@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Importers;
 
 use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\Products\Models\Brand;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class BrandImporter extends BaseImporter
@@ -58,6 +59,7 @@ class BrandImporter extends BaseImporter
                 'description' => $description,
                 'is_active' => $isActive,
             ]);
+            app(SyncCatalogOutboxService::class)->brandCreated($brand->refresh());
 
             return ImportRowResult::ok($brand->id, $slug);
         });

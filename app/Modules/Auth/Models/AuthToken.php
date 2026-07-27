@@ -41,6 +41,8 @@ class AuthToken extends Model
     protected function casts(): array
     {
         return [
+            'tenant_id' => 'integer',
+            'user_id' => 'integer',
             'abilities' => 'array',
             'last_used_at' => 'datetime',
             'expires_at' => 'datetime',

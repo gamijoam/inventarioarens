@@ -65,7 +65,7 @@ class TenantUserController extends Controller
 
         $user = $scope === 'organization'
             ? $this->service->organizationUser($tenantUser, $request)
-            : $this->service->tenantUser($tenantUser);
+            : $this->service->tenantUserOrFail($tenantUser);
 
         return TenantUserResource::make($user);
     }

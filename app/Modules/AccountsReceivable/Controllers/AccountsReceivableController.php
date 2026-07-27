@@ -47,15 +47,18 @@ class AccountsReceivableController extends Controller
             ->with(['customer', 'sale'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($innerQuery) use ($search): void {
+                    $like = "%{$search}%";
                     $innerQuery
-                        ->where('document_number', 'ilike', "%{$search}%")
+                        ->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
                         ->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                            $like = "%{$search}%";
                             $customerQuery
-                                ->where('name', 'ilike', "%{$search}%")
-                                ->orWhere('document_number', 'ilike', "%{$search}%");
+                                ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                                ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
                         })
                         ->orWhereHas('sale', function ($saleQuery) use ($search): void {
-                            $saleQuery->where('document_number', 'ilike', "%{$search}%");
+                            $like = "%{$search}%";
+                            $saleQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
                         });
                 });
             })

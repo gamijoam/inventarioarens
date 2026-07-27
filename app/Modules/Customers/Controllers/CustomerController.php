@@ -36,10 +36,10 @@ class CustomerController extends Controller
                     $query->where(function ($query) use ($search): void {
                         $like = "%{$search}%";
                         $query
-                            ->where('name', 'ilike', $like)
-                            ->orWhere('document_number', 'ilike', $like)
-                            ->orWhere('phone', 'ilike', $like)
-                            ->orWhere('email', 'ilike', $like);
+                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like]);
                     });
                 })
                 ->orderByDesc('is_generic')

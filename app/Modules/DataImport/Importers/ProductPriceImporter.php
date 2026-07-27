@@ -7,6 +7,7 @@ use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class ProductPriceImporter extends BaseImporter
@@ -98,6 +99,7 @@ class ProductPriceImporter extends BaseImporter
             if ($existing) {
                 $existing->update($attributes);
                 $resultingId = $existing->id;
+                app(SyncCatalogOutboxService::class)->productPriceUpdated($existing->refresh());
             } else {
                 $created = ProductPrice::create([
                     'product_id' => $product->id,
@@ -105,6 +107,7 @@ class ProductPriceImporter extends BaseImporter
                     ...$attributes,
                 ]);
                 $resultingId = $created->id;
+                app(SyncCatalogOutboxService::class)->productPriceCreated($created->refresh());
             }
 
             return ImportRowResult::ok($resultingId, $sku.':'.$listCode);

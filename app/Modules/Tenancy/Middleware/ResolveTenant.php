@@ -16,15 +16,18 @@ class ResolveTenant
     public function handle(Request $request, Closure $next): Response
     {
         $tenant = $this->resolveTenant($request);
+        $token = $request->attributes->get('auth_token');
+
+        if (! $tenant && $token instanceof AuthToken && $token->tenant_id === null) {
+            return $next($request);
+        }
 
         abort_unless($tenant, 404, 'Tenant not found.', [
             'WWW-Authenticate' => 'Bearer realm="api"',
         ]);
 
-        $token = $request->attributes->get('auth_token');
-
         if ($token instanceof AuthToken) {
-            abort_unless($token->tenant_id === $tenant->id, 403, 'Token does not belong to this tenant.', [
+            abort_unless((int) $token->tenant_id === (int) $tenant->id, 403, 'Token does not belong to this tenant.', [
                 'WWW-Authenticate' => 'Bearer realm="api", error="invalid_token", error_description="tenant_mismatch"',
             ]);
         }

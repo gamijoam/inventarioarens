@@ -10,7 +10,6 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -108,7 +107,7 @@ class ProductEntryExitSyncTest extends TestCase
             'unit_cost' => '8.5000',
         ]);
 
-        $this->assertSame('25.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(25.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
@@ -180,7 +179,7 @@ class ProductEntryExitSyncTest extends TestCase
             'quantity' => '8.0000',
         ]);
 
-        $this->assertSame('42.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(42.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
@@ -211,7 +210,7 @@ class ProductEntryExitSyncTest extends TestCase
         $this->enqueueEvent($tenant->id, 'product_entry.created', $payload, 1);
         app(SyncEventApplier::class)->applyPending($tenant, 5);
 
-        $this->assertSame('10.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(10.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)->value('quantity_available'));
 
         $this->enqueueEvent($tenant->id, 'product_entry.created', $payload, 1);
@@ -222,7 +221,7 @@ class ProductEntryExitSyncTest extends TestCase
             ->where('document_number', 'ENT-IDEMP-001')
             ->count(), 'No debe duplicarse el product_entry');
 
-        $this->assertSame('10.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(10.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)->value('quantity_available'),
             'Cantidad no debe duplicarse al re-procesar el evento');
     }
@@ -251,7 +250,7 @@ class ProductEntryExitSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyPending($tenant, 5);
 
-        $this->assertSame('10.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(10.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)->value('quantity_available'),
             'Cantidad debe sumarse al stock existente (7+3=10)');
     }
@@ -271,7 +270,7 @@ class ProductEntryExitSyncTest extends TestCase
 
         app(SyncEventApplier::class)->applyPending($tenant, 5);
 
-        $this->assertSame('5.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(5.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)->value('quantity_available'),
             'Debe crear el stock_balance inicial con la cantidad');
     }

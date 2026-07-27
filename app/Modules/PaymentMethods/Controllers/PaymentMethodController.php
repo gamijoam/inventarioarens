@@ -6,6 +6,7 @@ use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\PaymentMethods\Requests\StorePaymentMethodRequest;
 use App\Modules\PaymentMethods\Requests\UpdatePaymentMethodRequest;
 use App\Modules\PaymentMethods\Resources\PaymentMethodResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,31 +31,33 @@ class PaymentMethodController extends Controller
         );
     }
 
-    public function store(StorePaymentMethodRequest $request): JsonResponse
+    public function store(StorePaymentMethodRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
     {
         if (! $this->canWriteSharedCatalog($request->user())) {
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
 
         $paymentMethod = PaymentMethod::create($this->normalize($request->validated()));
+        $syncCatalog->paymentMethodCreated($paymentMethod->refresh());
 
         return PaymentMethodResource::make($paymentMethod)
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function update(UpdatePaymentMethodRequest $request, PaymentMethod $paymentMethod): PaymentMethodResource
+    public function update(UpdatePaymentMethodRequest $request, PaymentMethod $paymentMethod, SyncCatalogOutboxService $syncCatalog): PaymentMethodResource
     {
         if (! $this->canWriteSharedCatalog($request->user())) {
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
 
         $paymentMethod->update($this->normalize($request->validated()));
+        $syncCatalog->paymentMethodUpdated($paymentMethod->refresh());
 
         return PaymentMethodResource::make($paymentMethod->refresh());
     }
 
-    public function destroy(Request $request, PaymentMethod $paymentMethod): Response
+    public function destroy(Request $request, PaymentMethod $paymentMethod, SyncCatalogOutboxService $syncCatalog): Response
     {
         abort_unless($request->user()?->can('payment_methods.update'), Response::HTTP_FORBIDDEN);
 
@@ -63,6 +66,7 @@ class PaymentMethodController extends Controller
         }
 
         $paymentMethod->update(['is_active' => false]);
+        $syncCatalog->paymentMethodUpdated($paymentMethod->refresh());
 
         return response()->noContent();
     }

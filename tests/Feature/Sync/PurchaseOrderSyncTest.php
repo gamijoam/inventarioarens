@@ -163,7 +163,7 @@ class PurchaseOrderSyncTest extends TestCase
         ]);
 
         // Verifica que se incremento el stock_balance.
-        $this->assertSame('10.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(10.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
@@ -267,7 +267,7 @@ class PurchaseOrderSyncTest extends TestCase
         $summary2 = app(SyncEventApplier::class)->applyPending($tenant, 10);
         $this->assertSame(1, $summary2['applied']);
 
-        $this->assertSame('5.0000', (string) DB::table('stock_balances')
+        $this->assertEquals(5.0, (float) DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)

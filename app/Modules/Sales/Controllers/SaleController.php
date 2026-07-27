@@ -63,18 +63,20 @@ class SaleController extends Controller
                 }
 
                 $q->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                    $like = "%{$search}%";
                     $customerQuery
-                        ->where('name', 'ilike', "%{$search}%")
-                        ->orWhere('document_number', 'ilike', "%{$search}%")
-                        ->orWhere('email', 'ilike', "%{$search}%")
-                        ->orWhere('phone', 'ilike', "%{$search}%");
+                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like]);
                 });
 
                 $q->orWhereHas('items.product', function ($productQuery) use ($search): void {
+                    $like = "%{$search}%";
                     $productQuery
-                        ->where('name', 'ilike', "%{$search}%")
-                        ->orWhere('sku', 'ilike', "%{$search}%")
-                        ->orWhere('barcode', 'ilike', "%{$search}%");
+                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$like]);
                 });
             });
         }

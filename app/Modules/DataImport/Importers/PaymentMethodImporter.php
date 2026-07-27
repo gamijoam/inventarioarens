@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Importers;
 
 use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 
 class PaymentMethodImporter extends BaseImporter
@@ -60,6 +61,7 @@ class PaymentMethodImporter extends BaseImporter
                 'is_active' => $isActive,
                 'sort_order' => $sortOrder,
             ]);
+            app(SyncCatalogOutboxService::class)->paymentMethodCreated($pm->refresh());
 
             return ImportRowResult::ok($pm->id, $code);
         });

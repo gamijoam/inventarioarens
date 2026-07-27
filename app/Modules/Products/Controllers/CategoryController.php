@@ -7,6 +7,7 @@ use App\Modules\Products\Models\Category;
 use App\Modules\Products\Requests\StoreCategoryRequest;
 use App\Modules\Products\Requests\UpdateCategoryRequest;
 use App\Modules\Products\Resources\CategoryResource;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -51,9 +52,10 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function store(StoreCategoryRequest $request): CategoryResource
+    public function store(StoreCategoryRequest $request, SyncCatalogOutboxService $syncCatalog): CategoryResource
     {
         $category = Category::create($request->validated())->refresh();
+        $syncCatalog->categoryCreated($category);
 
         return CategoryResource::make($category);
     }
@@ -65,16 +67,19 @@ class CategoryController extends Controller
         return CategoryResource::make($category);
     }
 
-    public function update(UpdateCategoryRequest $request, Category $category): CategoryResource
+    public function update(UpdateCategoryRequest $request, Category $category, SyncCatalogOutboxService $syncCatalog): CategoryResource
     {
         $category->fill($request->validated())->save();
+        $syncCatalog->categoryUpdated($category->refresh());
 
         return CategoryResource::make($category->fresh(['parent', 'children'])->loadCount('products'));
     }
 
-    public function destroy(Category $category): Response
+    public function destroy(Category $category, SyncCatalogOutboxService $syncCatalog): Response
     {
+        $deleted = clone $category;
         $category->delete();
+        $syncCatalog->categoryDeleted($deleted);
 
         return response()->noContent();
     }
