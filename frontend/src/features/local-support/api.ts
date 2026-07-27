@@ -10,10 +10,11 @@ export interface LocalWorkerStatus {
 }
 
 export interface LocalTenantStatus {
-  id: number;
+  id: number | null;
   name: string;
   slug: string;
   configured: boolean;
+  ready: boolean;
   node_name: string | null;
   node_code: string | null;
   interval: number | null;
@@ -42,7 +43,7 @@ export interface ConnectLocalTenantPayload {
 
 export interface ConnectLocalTenantResult {
   tenant: { name: string; slug: string };
-  sync: { cycles: number; output: string; worker: LocalWorkerStatus };
+  download: { status: 'started'; message: string };
   worker: { output: string; status: LocalWorkerStatus };
 }
 
@@ -61,7 +62,7 @@ export function useConnectLocalTenant() {
   return useMutation({
     mutationFn: (payload: ConnectLocalTenantPayload) =>
       postOne<ConnectLocalTenantPayload, ConnectLocalTenantResult>('/local-support/connect', payload, {
-        timeout: 180_000,
+        timeout: 45_000,
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });

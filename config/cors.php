@@ -1,5 +1,18 @@
 <?php
 
+$originFromUrl = static function (?string $url): ?string {
+    if (! $url) {
+        return null;
+    }
+
+    $parts = parse_url($url);
+    if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {
+        return null;
+    }
+
+    return $parts['scheme'].'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');
+};
+
 return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
@@ -8,12 +21,14 @@ return [
 
     'allowed_origins' => array_filter([
         env('CORS_ALLOWED_ORIGINS_LOCAL') ?: 'http://localhost:8000',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
         env('CORS_ALLOWED_ORIGINS_DOMAINS') ?: 'https://app.miinventariofacil.com',
-        env('APP_URL') ? parse_url(env('APP_URL'), PHP_URL_SCHEME).'://'.parse_url(env('APP_URL'), PHP_URL_HOST) : null,
+        $originFromUrl(env('APP_URL')),
     ]),
 
     'allowed_origins_patterns' => array_filter([
-        env('APP_ENV') === 'local' ? '/^http:\/\/localhost:\d+$/' : null,
+        env('APP_ENV') === 'local' ? '/^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/' : null,
     ]),
 
     'allowed_headers' => ['*'],

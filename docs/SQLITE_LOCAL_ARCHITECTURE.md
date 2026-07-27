@@ -65,6 +65,16 @@ Para cargar los seeders por defecto se puede agregar `--seed`. El comando no
 usa `migrate:fresh` y rechaza `:memory:` para evitar crear una base efimera por
 accidente.
 
+En el instalador Windows `.exe`, la base local no queda dentro del repo ni en
+`Program Files`; queda en:
+
+```text
+C:\ProgramData\InventarioArens\inventario.sqlite
+```
+
+La guia operativa del instalador esta en
+`docs/INSTALADOR_WINDOWS_SQLITE_EXE.md`.
+
 ## Varias empresas
 
 Una instalacion local puede atender varias empresas hijas sin compartir

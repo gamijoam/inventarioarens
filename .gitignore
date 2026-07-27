@@ -9,6 +9,7 @@
 /.agents
 /.tools
 /dist
+/build/
 /inventoryarens-toolbox-v*.zip
 /inventoryarens-toolbox/
 /toolbox-dist/

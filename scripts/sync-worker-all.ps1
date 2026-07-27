@@ -22,7 +22,7 @@ if (!$config.tenants) {
 foreach ($property in $config.tenants.PSObject.Properties) {
     $slug = [string] $property.Name
     Write-Host "==> $Action sync para $slug" -ForegroundColor Cyan
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $TaskScript -Action $Action -TenantSlug $slug
+    & (Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe") -NoProfile -ExecutionPolicy Bypass -File $TaskScript -Action $Action -TenantSlug $slug
     if ($LASTEXITCODE -ne 0) {
         throw "La tarea de $slug fallo con codigo $LASTEXITCODE."
     }

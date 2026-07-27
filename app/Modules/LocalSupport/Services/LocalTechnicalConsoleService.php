@@ -17,11 +17,10 @@ class LocalTechnicalConsoleService
     public function assertAvailable(string $ip): void
     {
         $enabled = (bool) config('services.local_support.enabled');
-        $isLocalEnvironment = app()->environment('local') || app()->runningUnitTests();
         $isLoopback = in_array($ip, ['127.0.0.1', '::1'], true);
 
         abort_unless(
-            $enabled && $isLocalEnvironment && $isLoopback,
+            $enabled && $isLoopback,
             404,
             'La consola tecnica solo esta disponible desde una instalacion local.',
         );
@@ -30,36 +29,45 @@ class LocalTechnicalConsoleService
     public function status(): array
     {
         $settings = $this->readSettings();
-        $configured = $settings['tenants'] ?? [];
+        $configured = is_array($settings['tenants'] ?? null) ? $settings['tenants'] : [];
+        $localTenants = Tenant::withoutGlobalScopes()
+            ->orderBy('name')
+            ->get()
+            ->keyBy('slug');
+        $slugs = array_unique(array_merge(array_keys($configured), $localTenants->keys()->all()));
 
         return [
             'storage_path' => storage_path(),
             'database_path' => (string) config('database.connections.sqlite.database'),
             'cloud_url' => (string) config('services.local_support.cloud_url'),
-            'tenants' => Tenant::withoutGlobalScopes()
-                ->orderBy('name')
-                ->get()
-                ->map(function (Tenant $tenant) use ($configured): array {
-                    $configuration = is_array($configured[$tenant->slug] ?? null) ? $configured[$tenant->slug] : [];
-                    $state = SyncState::withoutGlobalScopes()
+            'tenants' => collect($slugs)
+                ->map(function (string $slug) use ($configured, $localTenants): array {
+                    /** @var Tenant|null $tenant */
+                    $tenant = $localTenants->get($slug);
+                    $configuration = is_array($configured[$slug] ?? null) ? $configured[$slug] : [];
+                    $state = $tenant instanceof Tenant
+                        ? SyncState::withoutGlobalScopes()
                         ->where('tenant_id', $tenant->id)
                         ->orderByDesc('last_attempt_at')
-                        ->first();
+                        ->first()
+                        : null;
 
                     return [
-                        'id' => $tenant->id,
-                        'name' => $tenant->name,
-                        'slug' => $tenant->slug,
+                        'id' => $tenant?->id,
+                        'name' => $tenant?->name ?? (string) ($configuration['tenant_name'] ?? $slug),
+                        'slug' => $slug,
                         'configured' => $configuration !== [],
+                        'ready' => $tenant instanceof Tenant,
                         'node_name' => $configuration['node_name'] ?? null,
                         'node_code' => $configuration['node_code'] ?? null,
                         'interval' => $configuration['interval'] ?? null,
-                        'worker' => $this->workerStatus($tenant->slug),
+                        'worker' => $this->workerStatus($slug),
                         'last_success_at' => $state?->last_success_at?->toISOString(),
                         'last_attempt_at' => $state?->last_attempt_at?->toISOString(),
                         'last_error' => $state?->last_error,
                     ];
                 })
+                ->sortBy('name')
                 ->values()
                 ->all(),
         ];
@@ -67,8 +75,6 @@ class LocalTechnicalConsoleService
 
     public function connect(array $data): array
     {
-        set_time_limit(180);
-
         $response = $this->redeemPairingCode($data);
         $tenant = $response['tenant'] ?? [];
         $slug = Str::slug((string) ($tenant['slug'] ?? ''));
@@ -83,7 +89,7 @@ class LocalTechnicalConsoleService
 
         $nodeCode = Str::upper(Str::slug((string) $data['node_code'], '-'));
         $nodeName = trim((string) $data['node_name']);
-        $this->writeTenantSettings($slug, $token, $nodeCode, $nodeName, (int) $data['interval']);
+        $this->writeTenantSettings($slug, $name, $token, $nodeCode, $nodeName, (int) $data['interval']);
 
         $this->runArtisan('migrate', ['--force' => true]);
         $this->withEnvironment('SYNC_BOOTSTRAP_PASSWORD', (string) $data['local_password'], function () use ($slug, $name, $data): void {
@@ -91,16 +97,18 @@ class LocalTechnicalConsoleService
                 'tenant_slug' => $slug,
                 'tenant_name' => $name,
                 'email' => (string) $data['local_email'],
-                '--user-name' => (string) ($data['local_user_name'] ?: $data['local_email']),
+                '--user-name' => (string) ($data['local_user_name'] ?? $data['local_email']),
             ]);
         });
 
-        $sync = $this->syncNow($slug, 3);
         $worker = $this->workerAction($slug, 'install');
 
         return [
             'tenant' => ['name' => $name, 'slug' => $slug],
-            'sync' => $sync,
+            'download' => [
+                'status' => 'started',
+                'message' => 'La descarga inicial se esta ejecutando en segundo plano. Puedes seguir su estado en la tarjeta de la empresa.',
+            ],
             'worker' => $worker,
         ];
     }
@@ -144,43 +152,21 @@ class LocalTechnicalConsoleService
             ]);
         }
 
-        $script = base_path('scripts/sync-worker-task.ps1');
-        if (! is_file($script)) {
+        $workerScript = base_path('scripts/sync-worker.cmd');
+        if (! is_file($workerScript)) {
             throw ValidationException::withMessages([
                 'worker' => 'No se encontro el controlador de worker de esta instalacion.',
             ]);
         }
 
-        $commands = match ($action) {
-            'install' => [['install']],
-            'start' => [['start']],
-            'stop' => [['stop']],
-            'restart' => [['stop'], ['start']],
-            default => throw ValidationException::withMessages(['worker' => 'Accion de worker invalida.']),
-        };
-
         $output = [];
-        foreach ($commands as [$command]) {
-            $process = new Process([
-                'powershell.exe',
-                '-NoProfile',
-                '-ExecutionPolicy',
-                'Bypass',
-                '-File',
-                $script,
-                $command,
-                '-TenantSlug',
-                $tenantSlug,
-            ]);
-            $process->setTimeout(30);
-            $process->run();
-            $output[] = trim($process->getOutput().' '.$process->getErrorOutput());
+        if (in_array($action, ['stop', 'restart'], true)) {
+            $output[] = $this->stopWindowsWorker($tenantSlug);
+        }
 
-            if (! $process->isSuccessful()) {
-                throw ValidationException::withMessages([
-                    'worker' => trim(implode("\n", $output)) ?: 'No se pudo actualizar el worker.',
-                ]);
-            }
+        if (in_array($action, ['install', 'start', 'restart'], true)) {
+            $output[] = $this->installWindowsWorkerTask($tenantSlug, $workerScript);
+            $output[] = $this->runWindowsWorkerTask($tenantSlug);
         }
 
         return [
@@ -220,7 +206,7 @@ class LocalTechnicalConsoleService
         return (array) $response->json('data');
     }
 
-    private function writeTenantSettings(string $slug, string $token, string $nodeCode, string $nodeName, int $interval): void
+    private function writeTenantSettings(string $slug, string $tenantName, string $token, string $nodeCode, string $nodeName, int $interval): void
     {
         $settings = $this->readSettings();
         $tenants = is_array($settings['tenants'] ?? null) ? $settings['tenants'] : [];
@@ -228,6 +214,7 @@ class LocalTechnicalConsoleService
         $cloudUrl = rtrim((string) config('services.local_support.cloud_url'), '/');
 
         $tenants[$slug] = [
+            'tenant_name' => $tenantName,
             'cloud_url' => $cloudUrl,
             'token' => $token,
             'node_code' => $nodeCode,
@@ -311,22 +298,140 @@ class LocalTechnicalConsoleService
         $safeSlug = preg_replace('/[^a-z0-9_-]/', '-', Str::lower($tenantSlug));
         $pidPath = storage_path('app/sync-worker/sync-worker-'.$safeSlug.'.pid');
         $pid = is_file($pidPath) ? (int) trim((string) file_get_contents($pidPath)) : 0;
+        $window = $this->workerHealthWindow($tenantSlug);
         $active = $pid > 0 && $this->isWindowsProcessActive($pid);
+        $recentPid = $pid > 0 && is_file($pidPath) && (int) filemtime($pidPath) >= now()->subSeconds($window)->getTimestamp();
+        $recentCycle = $this->hasRecentWorkerCycle($tenantSlug);
 
         return [
             'available' => true,
-            'active' => $active,
-            'pid' => $active ? $pid : null,
-            'message' => $active ? 'Worker activo.' : 'Worker detenido.',
+            'active' => $active || $recentPid || $recentCycle,
+            'pid' => ($active || $recentPid) ? $pid : null,
+            'message' => $active ? 'Worker activo.' : (($recentPid || $recentCycle) ? 'Worker activo: ciclo reciente confirmado.' : 'Worker detenido.'),
         ];
+    }
+
+    private function hasRecentWorkerCycle(string $tenantSlug): bool
+    {
+        $tenantId = Tenant::withoutGlobalScopes()->where('slug', $tenantSlug)->value('id');
+        if (! $tenantId) {
+            return false;
+        }
+
+        $attempt = SyncState::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->value('last_attempt_at');
+        if ($attempt === null) {
+            return false;
+        }
+
+        return now()->diffInSeconds($attempt, false) >= -$this->workerHealthWindow($tenantSlug);
+    }
+
+    private function workerHealthWindow(string $tenantSlug): int
+    {
+        $configuration = $this->readSettings()['tenants'][$tenantSlug] ?? [];
+        $interval = is_array($configuration) ? (int) ($configuration['interval'] ?? 15) : 15;
+
+        // A first sync can take more than one polling interval while it applies a snapshot.
+        return max(360, $interval * 12);
     }
 
     private function isWindowsProcessActive(int $pid): bool
     {
-        $process = new Process(['tasklist.exe', '/FI', 'PID eq '.$pid, '/FO', 'CSV', '/NH']);
+        $process = new Process([$this->windowsExecutable('tasklist.exe'), '/FI', 'PID eq '.$pid, '/FO', 'CSV', '/NH']);
         $process->setTimeout(5);
         $process->run();
 
         return $process->isSuccessful() && str_contains($process->getOutput(), '"'.$pid.'"');
+    }
+
+    private function installWindowsWorkerTask(string $tenantSlug, string $workerScript): string
+    {
+        $safeSlug = preg_replace('/[^a-z0-9_-]/', '-', Str::lower($tenantSlug));
+        $stateDirectory = storage_path('app/sync-worker');
+        $launcher = $stateDirectory.'/sync-task-'.$safeSlug.'.cmd';
+        $hiddenRunner = base_path('scripts/run-sync-hidden.vbs');
+        File::ensureDirectoryExists($stateDirectory);
+        File::put($launcher, sprintf(
+            "@echo off\r\ncd /d \"%s\"\r\ncall \"%s\" start -TenantSlug \"%s\"\r\n",
+            base_path(),
+            $workerScript,
+            $tenantSlug,
+        ));
+
+        if (! is_file($hiddenRunner)) {
+            throw ValidationException::withMessages([
+                'worker' => 'Falta el lanzador oculto requerido para iniciar el worker.',
+            ]);
+        }
+
+        $taskName = 'SistemaInventarioSync-'.$safeSlug;
+        $taskCommand = sprintf('"%s" "%s" "%s"', $this->windowsExecutable('wscript.exe'), $hiddenRunner, $launcher);
+        $process = new Process([
+            $this->windowsExecutable('schtasks.exe'),
+            '/Create',
+            '/TN', $taskName,
+            '/TR', $taskCommand,
+            '/SC', 'MINUTE',
+            '/MO', '5',
+            '/F',
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            return 'Inicio automatico instalado para '.$tenantSlug.'.';
+        }
+
+        throw ValidationException::withMessages([
+            'worker' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar el inicio automatico.',
+        ]);
+    }
+
+    private function runWindowsWorkerTask(string $tenantSlug): string
+    {
+        $process = new Process([
+            $this->windowsExecutable('schtasks.exe'),
+            '/Run',
+            '/TN', 'SistemaInventarioSync-'.preg_replace('/[^a-z0-9_-]/', '-', Str::lower($tenantSlug)),
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+
+        if (! $process->isSuccessful()) {
+            throw ValidationException::withMessages([
+                'worker' => $output !== '' ? $output : 'No se pudo iniciar la tarea del worker.',
+            ]);
+        }
+
+        return 'Worker iniciado mediante la tarea de Windows.';
+    }
+
+    private function stopWindowsWorker(string $tenantSlug): string
+    {
+        $safeSlug = preg_replace('/[^a-z0-9_-]/', '-', Str::lower($tenantSlug));
+        $pidPath = storage_path('app/sync-worker/sync-worker-'.$safeSlug.'.pid');
+        $pid = is_file($pidPath) ? (int) trim((string) file_get_contents($pidPath)) : 0;
+
+        if ($pid <= 0) {
+            return 'No habia un worker activo.';
+        }
+
+        $process = new Process([$this->windowsExecutable('taskkill.exe'), '/PID', (string) $pid, '/T', '/F']);
+        $process->setTimeout(10);
+        $process->run();
+        File::delete($pidPath);
+
+        return $process->isSuccessful() ? 'Worker detenido.' : 'El worker ya no estaba activo.';
+    }
+
+    private function windowsExecutable(string $name): string
+    {
+        $windowsRoot = (string) (getenv('SystemRoot') ?: getenv('WINDIR') ?: 'C:\\Windows');
+        $path = rtrim($windowsRoot, '\\/').'/System32/'.$name;
+
+        return is_file($path) ? $path : $name;
     }
 }

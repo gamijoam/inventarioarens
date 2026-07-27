@@ -12,7 +12,16 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 
-return Application::configure(basePath: dirname(__DIR__))
+$storagePath = null;
+$environmentFile = dirname(__DIR__).'/.env';
+if (is_readable($environmentFile)) {
+    $environment = (string) file_get_contents($environmentFile);
+    if (preg_match('/^\s*LARAVEL_STORAGE_PATH\s*=\s*(.+?)\s*$/m', $environment, $matches) === 1) {
+        $storagePath = trim($matches[1], " \t\n\r\0\x0B\"'");
+    }
+}
+
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
@@ -63,3 +72,9 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*'),
         );
     })->create();
+
+if ($storagePath !== null && $storagePath !== '') {
+    $app->useStoragePath($storagePath);
+}
+
+return $app;

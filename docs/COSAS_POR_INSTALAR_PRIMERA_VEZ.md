@@ -17,6 +17,8 @@ El proyecto necesita PHP 8.3+ y estas extensiones activas:
 
 La extension `gd` es obligatoria para subir imagenes de productos, generar WebP y crear miniaturas.
 
+Las instalaciones con el ejecutable de Windows incluyen y configuran automaticamente los certificados HTTPS que necesita la sincronizacion con la nube. No debes instalar certificados ni desactivar la validacion SSL.
+
 Verificar:
 
 ```powershell

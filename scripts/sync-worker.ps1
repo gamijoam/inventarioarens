@@ -129,6 +129,28 @@ function Resolve-PhpExecutable {
     Fail "No se encontro PHP. Instala el runtime local o pasa -PhpPath con la ruta a php.exe."
 }
 
+function Get-PhpTlsArguments {
+    $caBundle = Join-Path $StorageRoot "certificates\cacert.pem"
+    if (!(Test-Path -LiteralPath $caBundle)) {
+        return @()
+    }
+
+    $caBundleForPhp = $caBundle.Replace('\', '/')
+
+    return @('-d', "curl.cainfo=$caBundleForPhp", '-d', "openssl.cafile=$caBundleForPhp")
+}
+
+function Get-PhpIniScanDirectory {
+    $directory = Join-Path $StorageRoot "php-conf"
+    $configuration = Join-Path $directory "99-inventarioarens-https.ini"
+
+    if (Test-Path -LiteralPath $configuration) {
+        return $directory
+    }
+
+    return ""
+}
+
 function Read-EnvValue([string] $Name) {
     $envPath = Join-Path $RepoRoot ".env"
     if (!(Test-Path -LiteralPath $envPath)) {
@@ -306,7 +328,7 @@ function Start-Worker {
     if ($PullOnly) { $extraFlags += "--pull-only" }
     if ($NoApply) { $extraFlags += "--no-apply" }
 
-    $arguments = @(
+    $arguments = @(Get-PhpTlsArguments) + @(
         "artisan",
         "sync:daemon",
         $TenantSlug,
@@ -338,14 +360,17 @@ $commandLine >> "$LogFile" 2>>&1
     Write-Step "Iniciando worker de sincronizacion"
     $previousCloudUrl = [Environment]::GetEnvironmentVariable("SYNC_CLOUD_URL", "Process")
     $previousToken = [Environment]::GetEnvironmentVariable("SYNC_CLOUD_TOKEN", "Process")
+    $previousPhpIniScan = [Environment]::GetEnvironmentVariable("PHP_INI_SCAN_DIR", "Process")
     try {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $effectiveCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $effectiveToken, "Process")
+        [Environment]::SetEnvironmentVariable("PHP_INI_SCAN_DIR", (Get-PhpIniScanDirectory), "Process")
         $process = Start-Process -FilePath $effectivePhpPath -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
         Set-Content -LiteralPath $PidFile -Value ([string] $process.Id) -Encoding ASCII
     } finally {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $previousCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $previousToken, "Process")
+        [Environment]::SetEnvironmentVariable("PHP_INI_SCAN_DIR", $previousPhpIniScan, "Process")
     }
 
     Write-Host "Worker iniciado." -ForegroundColor Green
@@ -384,11 +409,13 @@ function Invoke-RunOnce {
 
     $previousCloudUrl = [Environment]::GetEnvironmentVariable("SYNC_CLOUD_URL", "Process")
     $previousToken = [Environment]::GetEnvironmentVariable("SYNC_CLOUD_TOKEN", "Process")
+    $previousPhpIniScan = [Environment]::GetEnvironmentVariable("PHP_INI_SCAN_DIR", "Process")
     try {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $effectiveCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $effectiveToken, "Process")
+        [Environment]::SetEnvironmentVariable("PHP_INI_SCAN_DIR", (Get-PhpIniScanDirectory), "Process")
 
-        $arguments = @(
+        $arguments = @(Get-PhpTlsArguments) + @(
             "artisan",
             "sync:run",
             $TenantSlug,
@@ -419,6 +446,7 @@ function Invoke-RunOnce {
     } finally {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $previousCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $previousToken, "Process")
+        [Environment]::SetEnvironmentVariable("PHP_INI_SCAN_DIR", $previousPhpIniScan, "Process")
     }
 }
 

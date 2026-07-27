@@ -49,6 +49,8 @@ Ya disponible:
 - Wrapper Windows `scripts/sync-worker-all.ps1`.
 - Tareas independientes como:
   `SistemaInventarioSync-caracas` y `SistemaInventarioSync-valencia`.
+- Centro tecnico grafico local en `/support` para vincular empresas, descargar
+  su informacion y administrar sus workers sin exponer tokens.
 - Pruebas PostgreSQL y SQLite de Auth, POS, Sync, DataImport, Bootstrap,
   AccessControl e InventoryCenter.
 
@@ -85,6 +87,32 @@ Para una instalacion de demostracion se puede usar `--seed`, pero no debe
 usarse en una instalacion productiva que ya tenga datos.
 
 ## 5. Una empresa
+
+### Flujo recomendado: interfaz grafica
+
+No usar SSH, Postman ni copiar tokens manualmente.
+
+1. En la nube, entrar en **Acceso > Organizaciones** con un Owner que tenga el
+   permiso `sync.issue_token`.
+2. En la organizacion correcta usar **Vincular equipo**.
+3. Seleccionar la empresa, el usuario autorizado, el nombre del equipo y la
+   vigencia del codigo. El codigo es de un solo uso.
+4. En la computadora local abrir **Soporte tecnico Inventario Arens** desde el
+   menu Inicio o visitar `http://127.0.0.1:5173/support`.
+5. Pegar el codigo temporal, identificar el equipo y crear o actualizar la
+   clave local del usuario.
+6. Pulsar **Vincular y descargar empresa**. La aplicacion prepara la empresa,
+   descarga la foto inicial y registra el worker de esa empresa.
+
+La consola muestra cada empresa vinculada en una tarjeta independiente. Desde
+ahi se puede sincronizar de inmediato, iniciar, detener, reiniciar o reparar
+el inicio automatico de su worker. El token se guarda localmente y no se
+muestra en pantalla.
+
+Para agregar una segunda empresa a la misma computadora se repiten los seis
+pasos. Cada una mantiene su propio token, nodo y worker.
+
+### Flujo avanzado por consola
 
 En el VPS, primero debe existir la empresa y un usuario perteneciente a ella.
 El administrador emite un token exclusivo:
@@ -271,6 +299,11 @@ Internet, reintento y restauracion de backup.
 
 ## 13. Construccion del instalador Windows
 
+La operacion del `.exe` instalado se documenta en
+`docs/INSTALADOR_WINDOWS_SQLITE_EXE.md`. Esa guia indica donde queda la base
+SQLite, como crear el primer usuario local y por que los workers se instalan
+despues de vincular una empresa.
+
 La compilacion se realiza en Windows, preferiblemente en CI:
 
 1. Instalar PHP portable NTS x64 compatible con PHP 8.3/8.4 en
@@ -293,6 +326,14 @@ El instalador crea la aplicacion en `Program Files` y los datos persistentes
 en `C:\ProgramData\InventarioArens`. El API local usa el puerto `8787` y el
 frontend el puerto `5173`. El frontend no necesita Node en la computadora del
 cliente; ambos procesos usan el PHP portable incluido.
+
+El instalador no crea usuarios ni workers automaticamente. Despues de instalar:
+
+- Para una instalacion nueva, abrir `http://127.0.0.1:5173/setup` y usar el
+  `APP_BOOTSTRAP_TOKEN` del `.env` instalado.
+- Para traer una empresa existente desde la nube, ejecutar el toolbox y usar
+  `Recuperar tenant desde nube`.
+- Para sincronizar, instalar el worker por empresa desde el toolbox.
 
 El runtime PHP debe descargarse de una fuente oficial y verificarse antes de
 copiarlo a `build/windows-runtime/php`. No se deben incluir tokens en el

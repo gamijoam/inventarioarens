@@ -80,7 +80,7 @@ export function LocalSupportPage() {
               </div>
               {status.data?.tenants.length ? (
                 <div className="grid gap-3 lg:grid-cols-2">
-                  {status.data.tenants.map((tenant) => <TenantCard key={tenant.id} tenant={tenant} />)}
+                  {status.data.tenants.map((tenant) => <TenantCard key={tenant.slug} tenant={tenant} />)}
                 </div>
               ) : (
                 <Card><CardContent className="py-10 text-center text-sm text-text-muted">Aun no hay empresas vinculadas. Usa el codigo temporal generado desde la organizacion.</CardContent></Card>
@@ -114,7 +114,7 @@ function ConnectCompanyCard() {
         local_user_name: name.trim() || undefined,
         local_password: password,
       });
-      toast.success(`${result.tenant.name} esta lista y su worker fue activado.`);
+      toast.success(`${result.tenant.name} fue vinculada. La descarga inicial continuara en segundo plano.`);
       setCode('');
       setPassword('');
     } catch (error) {
@@ -195,7 +195,9 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
           <CardTitle className="truncate text-base">{tenant.name}</CardTitle>
           <CardDescription className="mt-1 font-mono">{tenant.slug}</CardDescription>
         </div>
-        <Badge variant={tenant.worker.active ? 'success' : 'warning'}>{tenant.worker.active ? 'Worker activo' : 'Worker detenido'}</Badge>
+        <Badge variant={!tenant.ready ? 'info' : tenant.worker.active ? 'success' : 'warning'}>
+          {!tenant.ready ? 'Preparando empresa' : tenant.worker.active ? 'Worker activo' : 'Worker detenido'}
+        </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -204,8 +206,13 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
           <Detail label="Ultima sincronizacion" value={tenant.last_success_at ? formatDateTime(tenant.last_success_at) : 'Aun no registrada'} />
           <Detail label="Intervalo" value={tenant.interval ? `${tenant.interval} segundos` : 'Sin configurar'} />
         </div>
+        {!tenant.ready && (
+          <p className="rounded border border-primary/30 bg-primary/5 p-2 text-xs text-text-muted">
+            La vinculacion se guardo y esta computadora esta preparando la empresa. Actualiza esta pantalla en unos segundos.
+          </p>
+        )}
         {tenant.last_error && <p className="rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning">{tenant.last_error}</p>}
-        <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+        {tenant.ready && <div className="flex flex-wrap gap-2 border-t border-border pt-3">
           <Button size="sm" onClick={runSync} disabled={busy}><RefreshCw className="size-3.5" /> Sincronizar ahora</Button>
           {tenant.worker.available && <>
             <Button size="sm" variant="outline" onClick={() => changeWorker(tenant.worker.active ? 'restart' : 'start')} disabled={busy}>
@@ -214,7 +221,7 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
             {tenant.worker.active && <Button size="sm" variant="outline" onClick={() => changeWorker('stop')} disabled={busy}><Square className="size-3.5" /> Detener</Button>}
             {!tenant.worker.active && <Button size="sm" variant="ghost" onClick={() => changeWorker('install')} disabled={busy}><Activity className="size-3.5" /> Reparar inicio automatico</Button>}
           </>}
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );
