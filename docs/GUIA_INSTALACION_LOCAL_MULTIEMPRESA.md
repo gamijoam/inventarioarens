@@ -268,3 +268,32 @@ Internet, reintento y restauracion de backup.
 - El instalador `.exe` todavía requiere empaquetado de PHP, frontend y worker.
 - El modo multi-PC con una SQLite central por LAN todavía no está habilitado.
 - Un token sigue siendo exclusivo de un tenant por diseño de seguridad.
+
+## 13. Construccion del instalador Windows
+
+La compilacion se realiza en Windows, preferiblemente en CI:
+
+1. Instalar PHP portable NTS x64 compatible con PHP 8.3/8.4 en
+   `build/windows-runtime/php`.
+2. Instalar Composer, Node.js, pnpm e Inno Setup.
+3. Ejecutar desde PowerShell:
+
+```powershell
+.\scripts\build-windows-installer.ps1
+```
+
+El builder:
+
+- Compila `frontend/dist` con API local en `127.0.0.1:8787`.
+- Crea un staging sin `.env`, SQLite, logs ni tokens.
+- Incluye PHP portable y Laravel.
+- Genera `InventarioArens-Setup-1.0.0.exe` si `iscc.exe` está disponible.
+
+El instalador crea la aplicacion en `Program Files` y los datos persistentes
+en `C:\ProgramData\InventarioArens`. El API local usa el puerto `8787` y el
+frontend el puerto `5173`. El frontend no necesita Node en la computadora del
+cliente; ambos procesos usan el PHP portable incluido.
+
+El runtime PHP debe descargarse de una fuente oficial y verificarse antes de
+copiarlo a `build/windows-runtime/php`. No se deben incluir tokens en el
+staging ni en el instalador.
