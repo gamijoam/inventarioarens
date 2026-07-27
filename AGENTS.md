@@ -517,6 +517,15 @@ php artisan key:generate
 php artisan migrate --force
 ```
 
+Para instalaciones locales de una sola computadora se soporta SQLite mediante
+`.env.local-sqlite.example`. Usa WAL, `busy_timeout`, claves foraneas y
+transacciones `IMMEDIATE`; no se debe compartir el archivo SQLite por red.
+El perfil reproducible de pruebas es `phpunit.sqlite.xml`:
+
+```bash
+php vendor/bin/phpunit -c phpunit.sqlite.xml
+```
+
 **No hay** `pnpm install` ni `pnpm run build` — el frontend se sirve aparte (o se construirá
 en una fase posterior). El repo es **backend puro**.
 
