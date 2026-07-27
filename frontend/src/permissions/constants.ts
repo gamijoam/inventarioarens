@@ -208,6 +208,7 @@ export const PERMISSIONS = {
   // Sync
   SYNC_VIEW: 'sync.view',
   SYNC_MANAGE: 'sync.manage',
+  SYNC_ISSUE_TOKEN: 'sync.issue_token',
 
   // Tenants
   TENANTS_VIEW: 'tenants.view',

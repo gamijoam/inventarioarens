@@ -1,7 +1,7 @@
 param(
     [ValidateSet("start", "stop", "restart", "status", "run")]
     [string] $Action = "status",
-    [string] $PhpPath = "C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe",
+    [string] $PhpPath = "",
     [string] $TenantSlug = "demo-caracas",
     [string] $NodeCode = "LOCAL-01",
     [string] $NodeName = "",
@@ -20,14 +20,32 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$StateDir = Join-Path $RepoRoot "storage\app\sync-worker"
+$StorageRoot = $null
+
+function Resolve-InventoryStorageRoot {
+    $envPath = Join-Path $RepoRoot ".env"
+    if (Test-Path -LiteralPath $envPath) {
+        $line = Get-Content -LiteralPath $envPath | Where-Object {
+            $_ -match '^\s*LARAVEL_STORAGE_PATH\s*='
+        } | Select-Object -First 1
+        if ($line) {
+            $value = ($line -split '=', 2)[1].Trim().Trim('"').Trim("'")
+            if ($value) { return $value }
+        }
+    }
+
+    return (Join-Path $RepoRoot "storage")
+}
+
+$StorageRoot = Resolve-InventoryStorageRoot
+$StateDir = Join-Path $StorageRoot "app\sync-worker"
 $SafeTenantSlug = ($TenantSlug.ToLowerInvariant() -replace '[^a-z0-9_-]', '-')
 if (!$SafeTenantSlug) {
     $SafeTenantSlug = "default"
 }
 $PidFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.pid"
 $CommandFile = Join-Path $StateDir "sync-worker-$SafeTenantSlug.cmd"
-$LogFile = Join-Path $RepoRoot "storage\logs\sync-worker-$SafeTenantSlug.log"
+$LogFile = Join-Path $StorageRoot "logs\sync-worker-$SafeTenantSlug.log"
 
 function Normalize-ProcessPathEnvironment {
     $pathValue = [Environment]::GetEnvironmentVariable("Path", "Process")
@@ -90,6 +108,25 @@ function Ensure-StateDir {
     if (!(Test-Path -LiteralPath $StateDir)) {
         New-Item -ItemType Directory -Path $StateDir | Out-Null
     }
+}
+
+function Resolve-PhpExecutable {
+    if ($PhpPath -and (Test-Path -LiteralPath $PhpPath)) {
+        return $PhpPath
+    }
+
+    # El instalador lleva su propio PHP. Asi el worker no depende de Laragon ni del PATH del usuario.
+    $portablePhp = Join-Path $RepoRoot "runtime\php\php.exe"
+    if (Test-Path -LiteralPath $portablePhp) {
+        return $portablePhp
+    }
+
+    $systemPhp = Get-Command php.exe -ErrorAction SilentlyContinue
+    if ($systemPhp) {
+        return $systemPhp.Source
+    }
+
+    Fail "No se encontro PHP. Instala el runtime local o pasa -PhpPath con la ruta a php.exe."
 }
 
 function Read-EnvValue([string] $Name) {
@@ -235,10 +272,7 @@ function Stop-Worker {
 
 function Start-Worker {
     Ensure-StateDir
-
-    if (!(Test-Path -LiteralPath $PhpPath)) {
-        Fail "No se encontro PHP en: $PhpPath"
-    }
+    $effectivePhpPath = Resolve-PhpExecutable
 
     $current = Get-WorkerProcess
     if ($current) {
@@ -285,7 +319,7 @@ function Start-Worker {
     ) + $extraFlags
 
     $argumentLine = ($arguments | ForEach-Object { Quote-ProcessArgument $_ }) -join " "
-    $commandLine = (Quote-ProcessArgument $PhpPath) + " " + $argumentLine
+    $commandLine = (Quote-ProcessArgument $effectivePhpPath) + " " + $argumentLine
     $cmd = @"
 @echo off
 cd /d "$RepoRoot"
@@ -307,7 +341,7 @@ $commandLine >> "$LogFile" 2>>&1
     try {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $effectiveCloudUrl, "Process")
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_TOKEN", $effectiveToken, "Process")
-        $process = Start-Process -FilePath $PhpPath -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
+        $process = Start-Process -FilePath $effectivePhpPath -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
         Set-Content -LiteralPath $PidFile -Value ([string] $process.Id) -Encoding ASCII
     } finally {
         [Environment]::SetEnvironmentVariable("SYNC_CLOUD_URL", $previousCloudUrl, "Process")
@@ -321,10 +355,7 @@ $commandLine >> "$LogFile" 2>>&1
 
 function Invoke-RunOnce {
     Ensure-StateDir
-
-    if (!(Test-Path -LiteralPath $PhpPath)) {
-        Fail "No se encontro PHP en: $PhpPath"
-    }
+    $effectivePhpPath = Resolve-PhpExecutable
 
     $settings = Resolve-WorkerSettings
     $effectiveCloudUrl = $settings.CloudUrl
@@ -369,7 +400,7 @@ function Invoke-RunOnce {
 
         Push-Location $RepoRoot
         try {
-            $output = & $PhpPath @arguments 2>&1
+            $output = & $effectivePhpPath @arguments 2>&1
             $exitCode = $LASTEXITCODE
         } finally {
             Pop-Location

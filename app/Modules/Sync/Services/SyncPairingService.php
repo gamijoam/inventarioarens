@@ -15,11 +15,15 @@ class SyncPairingService
 
     public function create(Tenant $currentTenant, User $actor, array $data): array
     {
-        abort_unless($actor->isOwnerOf($currentTenant), 403, 'Solo el Owner puede crear codigos de vinculacion.');
+        $group = $currentTenant->isGroup()
+            ? $currentTenant
+            : Tenant::query()->find($currentTenant->parent_id);
+
+        abort_unless($group && $actor->isOwnerOf($group), 403, 'Solo el Owner puede crear codigos de vinculacion.');
 
         $target = Tenant::query()->findOrFail((int) $data['target_tenant_id']);
         abort_unless(
-            $target->id === $currentTenant->id || $target->parent_id === $currentTenant->id,
+            $target->id === $group->id || $target->parent_id === $group->id,
             403,
             'La empresa seleccionada no pertenece al grupo actual.',
         );

@@ -1,0 +1,229 @@
+import { Link } from '@tanstack/react-router';
+import { Activity, CloudDownload, HardDrive, MonitorCog, Play, RefreshCw, RotateCcw, ServerCrash, Square } from 'lucide-react';
+import type { FormEvent, ReactNode } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { formatDateTime } from '@/lib/format';
+
+import {
+  type LocalTenantStatus,
+  useConnectLocalTenant,
+  useLocalSupportStatus,
+  useLocalTenantSync,
+  useLocalWorkerAction,
+} from './api';
+
+export function LocalSupportPage() {
+  const status = useLocalSupportStatus();
+
+  return (
+    <main className="min-h-screen bg-bg px-5 py-8 text-text sm:px-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
+          <div className="flex items-start gap-3">
+            <div className="flex size-11 items-center justify-center rounded bg-primary text-primary-foreground">
+              <MonitorCog className="size-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Centro tecnico local</h1>
+              <p className="mt-1 text-sm text-text-muted">
+                Vincula empresas, descarga datos y supervisa la sincronizacion de esta computadora.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void status.refetch()} disabled={status.isFetching}>
+              <RefreshCw className={status.isFetching ? 'size-4 animate-spin' : 'size-4'} /> Actualizar
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/login">Entrar al sistema</Link>
+            </Button>
+          </div>
+        </header>
+
+        {status.isLoading ? (
+          <Card><CardContent className="py-8 text-sm text-text-muted">Comprobando esta instalacion...</CardContent></Card>
+        ) : status.isError ? (
+          <Card className="border-danger/40">
+            <CardContent className="py-8">
+              <div className="flex items-start gap-3 text-danger">
+                <ServerCrash className="mt-0.5 size-5 shrink-0" />
+                <div>
+                  <p className="font-semibold">La consola tecnica no esta disponible.</p>
+                  <p className="mt-1 text-sm text-text-muted">
+                    Abre esta pantalla desde el acceso “Soporte tecnico” de la instalacion local. No se expone en la nube.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+              <ConnectCompanyCard />
+              <InstallationCard storagePath={status.data?.storage_path ?? ''} databasePath={status.data?.database_path ?? ''} cloudUrl={status.data?.cloud_url ?? ''} />
+            </div>
+
+            <section>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Empresas de esta computadora</h2>
+                  <p className="text-sm text-text-muted">Cada empresa tiene su propio token, nodo y worker. No se mezclan entre si.</p>
+                </div>
+                <Badge variant="info">{status.data?.tenants.length ?? 0} configuradas</Badge>
+              </div>
+              {status.data?.tenants.length ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {status.data.tenants.map((tenant) => <TenantCard key={tenant.id} tenant={tenant} />)}
+                </div>
+              ) : (
+                <Card><CardContent className="py-10 text-center text-sm text-text-muted">Aun no hay empresas vinculadas. Usa el codigo temporal generado desde la organizacion.</CardContent></Card>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function ConnectCompanyCard() {
+  const connect = useConnectLocalTenant();
+  const [code, setCode] = useState('');
+  const [nodeName, setNodeName] = useState('Equipo local');
+  const [nodeCode, setNodeCode] = useState('LOCAL-01');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const result = await connect.mutateAsync({
+        code: code.trim().toUpperCase(),
+        node_name: nodeName.trim(),
+        node_code: nodeCode.trim().toUpperCase(),
+        interval: 15,
+        local_email: email.trim(),
+        local_user_name: name.trim() || undefined,
+        local_password: password,
+      });
+      toast.success(`${result.tenant.name} esta lista y su worker fue activado.`);
+      setCode('');
+      setPassword('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo vincular la empresa.');
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><CloudDownload className="size-5 text-primary" /> Vincular empresa</CardTitle>
+        <CardDescription>Usa un codigo temporal generado por el Owner. No necesitas SSH ni copiar tokens.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+          <Field label="Codigo de vinculacion" className="sm:col-span-2">
+            <Input value={code} onChange={(event) => setCode(event.target.value.replace(/\s/g, '').toUpperCase())} placeholder="ARNS-..." minLength={40} maxLength={40} required />
+          </Field>
+          <Field label="Nombre del equipo"><Input value={nodeName} onChange={(event) => setNodeName(event.target.value)} required /></Field>
+          <Field label="Codigo del equipo"><Input value={nodeCode} onChange={(event) => setNodeCode(event.target.value.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase())} required /></Field>
+          <Field label="Email local autorizado"><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></Field>
+          <Field label="Nombre local"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Opcional" /></Field>
+          <Field label="Contrasena local" className="sm:col-span-2"><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></Field>
+          <p className="sm:col-span-2 text-xs text-text-muted">La clave se usa solo para crear o actualizar el acceso local de esa persona; no se envia a la nube.</p>
+          <Button className="sm:col-span-2" loading={connect.isPending}><CloudDownload className="size-4" /> Vincular y descargar empresa</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InstallationCard({ storagePath, databasePath, cloudUrl }: { storagePath: string; databasePath: string; cloudUrl: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><HardDrive className="size-5 text-primary" /> Esta instalacion</CardTitle>
+        <CardDescription>Datos persistentes de esta computadora.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <Detail label="Base local" value={databasePath} />
+        <Detail label="Datos y registros" value={storagePath} />
+        <Detail label="Nube" value={cloudUrl} />
+        <div className="rounded border border-primary/20 bg-primary/5 p-3 text-xs text-text-muted">
+          Los tokens quedan protegidos en la configuracion local y nunca se muestran en esta pantalla.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
+  const sync = useLocalTenantSync();
+  const worker = useLocalWorkerAction();
+  const busy = sync.isPending || worker.isPending;
+
+  async function runSync() {
+    try {
+      await sync.mutateAsync({ tenant: tenant.slug, cycles: 1 });
+      toast.success(`Sincronizacion de ${tenant.name} completada.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo sincronizar.');
+    }
+  }
+
+  async function changeWorker(action: 'install' | 'start' | 'stop' | 'restart') {
+    try {
+      await worker.mutateAsync({ tenant: tenant.slug, action });
+      toast.success('Estado del worker actualizado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el worker.');
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="min-w-0">
+          <CardTitle className="truncate text-base">{tenant.name}</CardTitle>
+          <CardDescription className="mt-1 font-mono">{tenant.slug}</CardDescription>
+        </div>
+        <Badge variant={tenant.worker.active ? 'success' : 'warning'}>{tenant.worker.active ? 'Worker activo' : 'Worker detenido'}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <Detail label="Equipo" value={tenant.node_name ?? 'Sin nombre'} />
+          <Detail label="Nodo" value={tenant.node_code ?? 'Sin configurar'} />
+          <Detail label="Ultima sincronizacion" value={tenant.last_success_at ? formatDateTime(tenant.last_success_at) : 'Aun no registrada'} />
+          <Detail label="Intervalo" value={tenant.interval ? `${tenant.interval} segundos` : 'Sin configurar'} />
+        </div>
+        {tenant.last_error && <p className="rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning">{tenant.last_error}</p>}
+        <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+          <Button size="sm" onClick={runSync} disabled={busy}><RefreshCw className="size-3.5" /> Sincronizar ahora</Button>
+          {tenant.worker.available && <>
+            <Button size="sm" variant="outline" onClick={() => changeWorker(tenant.worker.active ? 'restart' : 'start')} disabled={busy}>
+              {tenant.worker.active ? <RotateCcw className="size-3.5" /> : <Play className="size-3.5" />} {tenant.worker.active ? 'Reiniciar worker' : 'Iniciar worker'}
+            </Button>
+            {tenant.worker.active && <Button size="sm" variant="outline" onClick={() => changeWorker('stop')} disabled={busy}><Square className="size-3.5" /> Detener</Button>}
+            {!tenant.worker.active && <Button size="sm" variant="ghost" onClick={() => changeWorker('install')} disabled={busy}><Activity className="size-3.5" /> Reparar inicio automatico</Button>}
+          </>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs text-text-muted">{label}</p><p className="mt-0.5 break-all font-medium text-text-primary">{value}</p></div>;
+}
+
+function Field({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return <div className={`space-y-1 ${className ?? ''}`}><Label>{label}</Label>{children}</div>;
+}

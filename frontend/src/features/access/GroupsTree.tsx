@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Loader2,
   Package,
+  Laptop,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -50,6 +51,9 @@ import {
 } from './tenantGroupsApi';
 import { CreateSpinoffDialog } from './CreateSpinoffDialog';
 import { CreateGroupUserDialog } from './CreateGroupUserDialog';
+import { PairDeviceDialog } from './PairDeviceDialog';
+import { PERMISSIONS } from '@/permissions/constants';
+import { useCan } from '@/permissions/useCan';
 
 interface GroupsTreeProps {
   onCreateGroup: () => void;
@@ -141,11 +145,16 @@ interface GroupCardProps {
 function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
   const [showSpinoffDialog, setShowSpinoffDialog] = useState(false);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [showPairDialog, setShowPairDialog] = useState(false);
+  const canIssueSyncToken = useCan(PERMISSIONS.SYNC_ISSUE_TOKEN);
   const { data: spinoffs = [], isLoading: loadingSpinoffs } = useGroupSpinoffs(
     group.id,
-    isExpanded,
+    isExpanded || showPairDialog,
   );
-  const { data: users = [], isLoading: loadingUsers } = useGroupUsers(group.id, isExpanded);
+  const { data: users = [], isLoading: loadingUsers } = useGroupUsers(
+    group.id,
+    isExpanded || showPairDialog,
+  );
   const activeUsers = users.filter((u) => u.status === 'active').length;
   const inactiveUsers = users.length - activeUsers;
   const assignedRoles = uniqueSorted(users.flatMap((u) => u.roles?.map((r) => r.name) ?? []));
@@ -197,6 +206,16 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
           >
             <UserPlus className="size-3.5" /> Agregar usuario
           </Button>
+          {canIssueSyncToken && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowPairDialog(true)}
+              data-testid={`group-pair-device-${group.id}`}
+            >
+              <Laptop className="size-3.5" /> Vincular equipo
+            </Button>
+          )}
           <Button
             size="icon-sm"
             variant="ghost"
@@ -373,6 +392,13 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
           setShowUserDialog(false);
           onCreated();
         }}
+      />
+      <PairDeviceDialog
+        open={showPairDialog}
+        onOpenChange={setShowPairDialog}
+        group={group}
+        spinoffs={spinoffs}
+        users={users}
       />
     </Card>
   );

@@ -10,6 +10,8 @@ require base_path('app/Modules/Bootstrap/routes.php');
 Route::post('sync/pairing-codes/redeem', [SyncController::class, 'redeemPairingCode'])
     ->middleware('throttle:auth');
 
+require base_path('app/Modules/LocalSupport/routes.php');
+
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes_phase3.php'));
 

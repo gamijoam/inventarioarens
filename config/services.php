@@ -40,4 +40,11 @@ return [
         'token' => env('SYNC_CLOUD_TOKEN'),
     ],
 
+    'local_support' => [
+        // Esta consola solamente se habilita para instalaciones locales. Sus
+        // rutas tambien exigen que el request llegue desde loopback.
+        'enabled' => (bool) env('LOCAL_TECHNICAL_CONSOLE_ENABLED', false),
+        'cloud_url' => env('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL', env('SYNC_CLOUD_URL')),
+    ],
+
 ];

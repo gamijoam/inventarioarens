@@ -47,6 +47,20 @@ export const TenantSpinoffSchema = z.object({
 });
 export type TenantSpinoff = z.infer<typeof TenantSpinoffSchema>;
 
+export interface SyncPairingCodePayload {
+  target_tenant_id: number;
+  user_email: string;
+  node_name: string;
+  expires_in_minutes?: number;
+}
+
+export interface SyncPairingCode {
+  code: string;
+  expires_at: string;
+  tenant: { id: number; name: string; slug: string };
+  node_name: string;
+}
+
 /** Shape del usuario devuelto por el endpoint de grupo. */
 export const GroupUserSchema = z.object({
   id: z.number().int().positive(),
@@ -359,6 +373,13 @@ export function usePromoteTenant() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: groupsKey });
     },
+  });
+}
+
+export function useCreateSyncPairingCode() {
+  return useMutation({
+    mutationFn: (payload: SyncPairingCodePayload) =>
+      postOne<SyncPairingCodePayload, SyncPairingCode>('/sync/pairing-codes', payload),
   });
 }
 

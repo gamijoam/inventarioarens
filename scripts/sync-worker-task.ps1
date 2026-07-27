@@ -8,7 +8,25 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$StateDir = Join-Path $RepoRoot "storage\app\sync-worker"
+$StorageRoot = $null
+
+function Resolve-InventoryStorageRoot {
+    $envPath = Join-Path $RepoRoot ".env"
+    if (Test-Path -LiteralPath $envPath) {
+        $line = Get-Content -LiteralPath $envPath | Where-Object {
+            $_ -match '^\s*LARAVEL_STORAGE_PATH\s*='
+        } | Select-Object -First 1
+        if ($line) {
+            $value = ($line -split '=', 2)[1].Trim().Trim('"').Trim("'")
+            if ($value) { return $value }
+        }
+    }
+
+    return (Join-Path $RepoRoot "storage")
+}
+
+$StorageRoot = Resolve-InventoryStorageRoot
+$StateDir = Join-Path $StorageRoot "app\sync-worker"
 $SafeTenantSlug = ($TenantSlug.ToLowerInvariant() -replace '[^a-z0-9_-]', '-')
 if (!$SafeTenantSlug) {
     $SafeTenantSlug = "default"
