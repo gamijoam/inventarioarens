@@ -338,3 +338,31 @@ El instalador no crea usuarios ni workers automaticamente. Despues de instalar:
 El runtime PHP debe descargarse de una fuente oficial y verificarse antes de
 copiarlo a `build/windows-runtime/php`. No se deben incluir tokens en el
 staging ni en el instalador.
+
+## 14. Reproduccion en Linux
+
+No es necesario cambiar de sistema operativo para probar login, SQLite,
+frontend, pairing o sync. El script Linux usa los mismos puertos y variables
+que la instalacion Windows:
+
+```bash
+bash scripts/run-local-sqlite.sh
+```
+
+Abre el centro tecnico en:
+
+```text
+http://127.0.0.1:5173/support
+```
+
+El API queda en `http://127.0.0.1:8787`. El script fuerza `APP_ENV=local` y
+`SESSION_SECURE_COOKIE=false`, por lo que las cookies de desarrollo HTTP no se
+marcan como `Secure`. Esto reproduce el comportamiento esperado del instalador
+Windows y evita el falso mensaje de “sesion caducada”.
+
+Para cambiar puertos o archivo SQLite:
+
+```bash
+DB_PATH=/tmp/arens.sqlite API_PORT=8877 FRONTEND_PORT=5177 \
+  bash scripts/run-local-sqlite.sh
+```

@@ -140,9 +140,14 @@ if (!(Test-Path -LiteralPath $envFile)) {
 
 $envText = Get-Content -LiteralPath $envFile -Raw
 $replacements = @{
+    'APP_ENV=.*' = 'APP_ENV=local'
+    'APP_DEBUG=.*' = 'APP_DEBUG=false'
     'DB_CONNECTION=.*' = 'DB_CONNECTION=sqlite'
     'DB_DATABASE=.*' = "DB_DATABASE=$databasePath"
     'APP_URL=.*' = 'APP_URL=http://127.0.0.1:8787'
+    'APP_ALLOWED_ORIGINS_FOR_CSRF=.*' = 'APP_ALLOWED_ORIGINS_FOR_CSRF=http://127.0.0.1:5173,http://localhost:5173'
+    'SESSION_SECURE_COOKIE=.*' = 'SESSION_SECURE_COOKIE=false'
+    'APP_FORCE_SECURE_COOKIES=.*' = 'APP_FORCE_SECURE_COOKIES=false'
     'LARAVEL_STORAGE_PATH=.*' = "LARAVEL_STORAGE_PATH=$dataRoot"
     'LOCAL_TECHNICAL_CONSOLE_ENABLED=.*' = 'LOCAL_TECHNICAL_CONSOLE_ENABLED=true'
     'LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=.*' = 'LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=https://app.miinventariofacil.com/api'

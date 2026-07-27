@@ -50,7 +50,11 @@ APP_URL=http://127.0.0.1:8787
 
 4. Genera `APP_KEY`.
 5. Genera `APP_BOOTSTRAP_TOKEN` si esta vacio.
-6. Ejecuta migraciones con `local:install-sqlite`.
+6. Fuerza `APP_ENV=local`, `SESSION_SECURE_COOKIE=false` y los origins locales
+   `http://127.0.0.1:5173,http://localhost:5173`. Esto es obligatorio porque
+   el API local usa HTTP; una cookie `Secure` no volveria al API y el frontend
+   mostraria erroneamente “sesion caducada”.
+7. Ejecuta migraciones con `local:install-sqlite`.
 
 El log del instalador queda en:
 
@@ -198,6 +202,11 @@ La ruta `LARAVEL_STORAGE_PATH` se resuelve durante el arranque del backend,
 antes de que Laravel cargue su configuracion. Esto evita que el backend intente
 escribir dentro de `Program Files`, incluso cuando su servidor interno crea un
 proceso separado.
+
+El cliente frontend tambien tiene fallback a
+`http://127.0.0.1:8787/api` cuando el build no tiene `VITE_API_BASE_URL`, para
+que una compilacion local no termine enviando el login al servidor estatico de
+Vite en el puerto `5173`.
 
 Para reparar una instalacion ya hecha con el codigo actualizado, abrir
 PowerShell como administrador y ejecutar:
