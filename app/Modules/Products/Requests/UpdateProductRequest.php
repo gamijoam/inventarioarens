@@ -63,6 +63,8 @@ class UpdateProductRequest extends FormRequest
 
             'base_price' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'profit_margin' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'lte:999.99'],
+            'pricing_mode' => ['sometimes', 'string', Rule::in([Product::PRICING_AUTOMATIC, Product::PRICING_MANUAL])],
+            'last_purchase_cost' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'min_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'max_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'reorder_quantity' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
@@ -120,6 +122,7 @@ class UpdateProductRequest extends FormRequest
             'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',
             'unit_of_measure.in' => 'La unidad de medida debe ser unit, kg, lt o m.',
             'base_price.gte' => 'El precio base no puede ser negativo.',
+            'last_purchase_cost.gte' => 'El costo unitario no puede ser negativo.',
             'min_stock.gte' => 'El stock minimo no puede ser negativo.',
             'max_stock.gte' => 'El stock maximo no puede ser negativo.',
             'average_cost.prohibited' => 'El costo promedio se calcula automaticamente, no se puede asignar manualmente.',

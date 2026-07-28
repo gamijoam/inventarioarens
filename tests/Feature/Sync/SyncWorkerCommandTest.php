@@ -426,6 +426,7 @@ class SyncWorkerCommandTest extends TestCase
         setPermissionsTeamId($tenant->id);
 
         $this->assertTrue($user->hasRole('Administrador local'));
+        $this->assertTrue($user->can('cash_register.close'));
         $this->assertGreaterThan(0, Role::query()
             ->where('name', 'Administrador local')
             ->where('tenant_id', $tenant->id)

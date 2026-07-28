@@ -65,6 +65,7 @@ class ProductResource extends JsonResource
 
             'base_price' => $this->base_price === null ? null : (float) $this->base_price,
             'profit_margin' => $this->profit_margin === null ? null : (float) $this->profit_margin,
+            'pricing_mode' => $this->pricing_mode ?? Product::PRICING_AUTOMATIC,
             'sale_currency' => $this->sale_currency,
             'sale_exchange_rate_type_id' => $this->sale_exchange_rate_type_id,
             'sale_exchange_rate_type' => $this->whenLoaded('saleExchangeRateType', fn () => $this->saleExchangeRateType ? [
@@ -81,6 +82,7 @@ class ProductResource extends JsonResource
             'suggested_purchase' => $this->when(isset($this->suggested_purchase), fn () => (float) $this->suggested_purchase),
 
             'average_cost' => $this->average_cost === null ? null : (float) $this->average_cost,
+            'last_purchase_cost' => $this->last_purchase_cost === null ? null : (float) $this->last_purchase_cost,
             'average_cost_visible' => (bool) ($request->user()?->can('finance.costs.view') ?? false),
 
             'warranty_policy_id' => $this->warranty_policy_id,

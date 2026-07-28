@@ -133,6 +133,8 @@ class ProductController extends Controller
         Gate::authorize('create', Product::class);
 
         $data = $request->validated();
+        $data['pricing_mode'] = $data['pricing_mode'] ?? Product::PRICING_AUTOMATIC;
+        $this->applyAutomaticPrice($data);
         $categoryIds = $data['category_ids'] ?? [];
         $tagIds = $data['tag_ids'] ?? [];
         $data = $this->prepareProductData($data);
@@ -338,6 +340,8 @@ class ProductController extends Controller
         $data = $request->validated();
         $userId = $request->user()?->id;
 
+        $this->applyAutomaticPrice($data, $product);
+
         if (
             array_key_exists('tracking_type', $data)
             && $data['tracking_type'] !== $product->tracking_type
@@ -351,19 +355,6 @@ class ProductController extends Controller
         $product = DB::transaction(function () use ($data, $product, $userId, $syncCatalog, $propagation): Product {
             $before = $product->only(array_keys($data));
             $product->update($data);
-
-            if (
-                array_key_exists('profit_margin', $data)
-                && $product->profit_margin !== null
-                && $product->last_purchase_cost !== null
-                && ! array_key_exists('base_price', $data)
-            ) {
-                $cost = (float) $product->last_purchase_cost;
-                $margin = (float) $product->profit_margin;
-                $product->base_price = round($cost * (1 + ($margin / 100)), 2);
-                $product->save();
-                $data['base_price'] = $product->base_price;
-            }
 
             // Sincronizar categorias y tags si vienen en el payload.
             // Antes el controller los descartaba (ver prepareProductData)
@@ -489,6 +480,8 @@ class ProductController extends Controller
             'tracking_type',
             'base_price',
             'sale_currency',
+            'profit_margin',
+            'pricing_mode',
             'sale_exchange_rate_type_id',
             'warranty_policy_id',
             'is_active',
@@ -512,6 +505,25 @@ class ProductController extends Controller
         unset($data['category_ids'], $data['tag_ids']);
 
         return $data;
+    }
+
+    private function applyAutomaticPrice(array &$data, ?Product $product = null): void
+    {
+        $mode = $data['pricing_mode'] ?? $product?->pricing_mode ?? Product::PRICING_AUTOMATIC;
+        if ($mode !== Product::PRICING_AUTOMATIC) {
+            return;
+        }
+
+        $cost = array_key_exists('last_purchase_cost', $data)
+            ? ($data['last_purchase_cost'] === null ? null : (float) $data['last_purchase_cost'])
+            : ($product?->last_purchase_cost === null ? null : (float) $product->last_purchase_cost);
+        $margin = array_key_exists('profit_margin', $data)
+            ? ($data['profit_margin'] === null ? null : (float) $data['profit_margin'])
+            : $product?->effectiveProfitMargin();
+
+        if ($cost !== null && $margin !== null) {
+            $data['base_price'] = round($cost * (1 + ($margin / 100)), 2);
+        }
     }
 
     private function generateSkuFromName(string $name): string

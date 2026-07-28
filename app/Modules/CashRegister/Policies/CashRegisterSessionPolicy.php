@@ -40,6 +40,14 @@ class CashRegisterSessionPolicy
             );
     }
 
+    public function review(User $user, CashRegisterSession $session): bool
+    {
+        return $this->ownsResource($session)
+            && $session->status === CashRegisterSession::STATUS_CLOSED
+            && $this->hasTenantPermission($user, 'cash_register.close')
+            && $this->isCashSupervisor($user);
+    }
+
     private function hasTenantPermission(User $user, string $permission): bool
     {
         $tenant = app(TenantManager::class)->current();
@@ -57,7 +65,7 @@ class CashRegisterSessionPolicy
 
     private function isCashSupervisor(User $user): bool
     {
-        return $user->hasAnyRole(['Owner', 'Administrador', 'Gerente']);
+        return $user->hasAnyRole(['Owner', 'Administrador', 'Administrador local', 'Gerente']);
     }
 
     private function ownsResource(CashRegisterSession $session): bool

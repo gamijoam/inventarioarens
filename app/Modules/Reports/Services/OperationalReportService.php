@@ -124,13 +124,14 @@ class OperationalReportService
         $limit = $filters['limit'] ?? 25;
 
         $sessions = CashRegisterSession::query()
-            ->with(['branch', 'cashRegister', 'cashier', 'movements'])
+            ->with(['branch', 'cashRegister', 'cashier', 'reviewer', 'movements'])
             ->where(function ($query) use ($from, $to): void {
                 $query->whereBetween('opened_at', [$from, $to])
                     ->orWhereBetween('closed_at', [$from, $to])
                     ->orWhere('status', CashRegisterSession::STATUS_OPEN);
             })
             ->when(($filters['status'] ?? 'all') !== 'all' && in_array($filters['status'], [CashRegisterSession::STATUS_OPEN, CashRegisterSession::STATUS_CLOSED, CashRegisterSession::STATUS_CANCELLED], true), fn ($query) => $query->where('status', $filters['status']))
+            ->when($filters['review_status'] ?? null, fn ($query, string $reviewStatus) => $query->where('review_status', $reviewStatus))
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['cash_register_id'] ?? null, fn ($query, int $registerId) => $query->where('cash_register_id', $registerId))
             ->when($filters['cashier_id'] ?? null, fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId))
@@ -297,6 +298,10 @@ class OperationalReportService
         return [
             'id' => $session->id,
             'status' => $session->status,
+            'review_status' => $session->review_status,
+            'reviewed_by_name' => $session->reviewer?->name,
+            'reviewed_at' => $session->reviewed_at?->toISOString(),
+            'review_notes' => $session->review_notes,
             'branch_name' => $session->branch?->name,
             'cash_register_name' => $session->cashRegister?->name,
             'cashier_name' => $session->cashier?->name,

@@ -3,17 +3,16 @@
  *
  * Muestra:
  *  - Precio de venta actual (base_price)
- *  - Margen actual (profit_margin) o CTA "Definir margen"
+  *  - Recargo sobre costo actual (profit_margin) o CTA "Definir margen"
  *  - Preview del precio proyectado: Costo actual * (1 + margen / 100)
  *
  * El dialog modal permite:
  *  1. Editar el margen (con preview en vivo del precio proyectado)
  *  2. Guardar el margen (PATCH /products/{id}/profit-margin)
- *  3. (Opcional) Recalcular el base_price con el nuevo margen
+ *  3. (Opcional) Recalcular el base_price con el nuevo margen si el modo es automatico
  *     (POST /products/{id}/recalculate-price)
  *
- * Si el producto ya tiene WAC, el backend recalcula el base_price
- * automaticamente al recibir el PATCH de profit_margin.
+ * El backend recalcula el base_price solo para productos en modo automatico.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Calculator, Loader2, Save, TrendingUp, X } from 'lucide-react';
@@ -57,6 +56,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
   const marginNum = product.profit_margin == null ? null : Number(product.profit_margin);
   const basePrice = product.base_price == null ? null : Number(product.base_price);
   const lastCost = product.last_purchase_cost == null ? null : Number(product.last_purchase_cost);
+  const isAutomatic = product.pricing_mode !== 'manual';
 
   const inputNum = marginInput.trim() === '' ? NaN : Number(marginInput);
   const validInput = !Number.isNaN(inputNum) && inputNum >= 0 && inputNum <= 999.99;
@@ -123,8 +123,9 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
             Precio de venta y margen
           </CardTitle>
           <CardDescription>
-            El margen se aplica automaticamente al recibir compras con costo
-            diferente al actual.
+            {isAutomatic
+              ? 'El precio se calcula automaticamente usando el costo y el recargo.'
+              : 'El precio es manual; cambiar el recargo no modifica el precio de venta.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -159,10 +160,10 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
             </div>
           </div>
 
-          {marginNum != null && lastCost != null && (
+          {isAutomatic && marginNum != null && lastCost != null && (
             <p className="text-xs text-text-muted">
-              Con el costo actual y {marginNum.toFixed(2)}% de margen, el precio
-              seria {formatMoney(lastCost * (1 + marginNum / 100))}.
+               Con el costo actual y {marginNum.toFixed(2)}% de recargo, el precio
+               seria {formatMoney(lastCost * (1 + marginNum / 100))}.
             </p>
           )}
 

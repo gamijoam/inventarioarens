@@ -11,6 +11,7 @@ const mockUseCashSessions = vi.fn();
 const mockUseCashSessionsList = vi.fn();
 const mockUseCurrentExchangeRatesForPos = vi.fn();
 const mockUseExchangeRateTypesForPos = vi.fn();
+const mockUseCashSessionsReport = vi.fn();
 
 const mockUseCreatePosBranch = vi.fn();
 const mockUseCreateCashRegister = vi.fn();
@@ -38,6 +39,12 @@ vi.mock('../api', () => ({
   useOpenCashSession: () => mockUseOpenCashSession(),
   useAddCashMovement: () => mockUseAddCashMovement(),
   useCloseCashSession: () => mockUseCloseCashSession(),
+  useCashSessionDetail: () => ({ data: undefined, isLoading: false }),
+  useReviewCashSession: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock('@/features/reports/api', () => ({
+  useCashSessions: () => mockUseCashSessionsReport(),
 }));
 
 import { CashRegisterSetup } from '../CashRegisterSetup';
@@ -79,6 +86,18 @@ beforeEach(() => {
   }));
   mockUseCurrentExchangeRatesForPos.mockReturnValue({ data: [{ exchange_rate_type_id: 1, exchange_rate_type_code: 'BCV', rate: 36.5, base_currency: 'USD', quote_currency: 'VES' }] });
   mockUseExchangeRateTypesForPos.mockReturnValue({ data: [{ id: 1, code: 'BCV', is_default: true, is_active: true }] });
+  mockUseCashSessionsReport.mockReturnValue({
+    data: {
+      period: { from: '2026-07-27', to: '2026-07-27', from_datetime: '', to_datetime: '' },
+      summary: { open_count: 1, closed_count: 0, expected_base_amount: 0, expected_local_amount: 0, difference_base_amount: 0 },
+      rows: [],
+      movement_breakdown: [],
+    },
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
 
   mockUseCreatePosBranch.mockReturnValue(mutation);
   mockUseCreateCashRegister.mockReturnValue(mutation);

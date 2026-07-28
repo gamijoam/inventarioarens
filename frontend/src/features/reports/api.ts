@@ -38,6 +38,7 @@ function toQueryString(filters: ReportFilters = {}): string {
   if (filters.customer_id) params.set('customer_id', String(filters.customer_id));
   if (filters.type && filters.type !== 'all') params.set('type', filters.type);
   if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.review_status) params.set('review_status', filters.review_status);
   if (filters.payment_method) params.set('payment_method', filters.payment_method);
   if (filters.date_from) params.set('date_from', filters.date_from);
   if (filters.date_to) params.set('date_to', filters.date_to);

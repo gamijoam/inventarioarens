@@ -136,6 +136,8 @@ export type ReorderSuggestionsResponse = z.infer<typeof ReorderSuggestionsRespon
 export const TRACKING_TYPES = ['quantity', 'serialized'] as const;
 export const UNITS_OF_MEASURE = ['unit', 'kg', 'lt', 'm'] as const;
 export const SALE_CURRENCIES = ['USD', 'VES'] as const;
+export const PRICING_MODES = ['automatic', 'manual'] as const;
+export type PricingMode = (typeof PRICING_MODES)[number];
 
 const trimmedString = (max: number) =>
   z
@@ -183,6 +185,7 @@ export const StoreProductSchema = z
     base_price: optionalNumber(0),
     profit_margin: optionalNumber(0),
     last_purchase_cost: optionalNumber(0),
+    pricing_mode: z.enum(PRICING_MODES).default('automatic'),
     sale_currency: z.enum(SALE_CURRENCIES).default('USD'),
     sale_exchange_rate_type_id: optionalNumber(1),
     min_stock: optionalNumber(0),
@@ -210,6 +213,13 @@ export const StoreProductSchema = z
         code: z.ZodIssueCode.custom,
         path: ['reorder_quantity'],
         message: 'reorder_quantity no puede superar (max_stock - min_stock)',
+      });
+    }
+    if (data.pricing_mode === 'manual' && data.base_price == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['base_price'],
+        message: 'El precio de venta es obligatorio en modo manual',
       });
     }
   })
@@ -264,6 +274,9 @@ const StoreProductBaseSchema = z.object({
   category_ids: z.array(z.number().int().positive()).default([]),
   tag_ids: z.array(z.number().int().positive()).default([]),
   base_price: optionalNumber(0),
+  profit_margin: optionalNumber(0),
+  last_purchase_cost: optionalNumber(0),
+  pricing_mode: z.enum(PRICING_MODES).optional(),
   sale_currency: z.enum(SALE_CURRENCIES).default('USD'),
   sale_exchange_rate_type_id: optionalNumber(1),
   min_stock: optionalNumber(0),
@@ -421,6 +434,7 @@ export const ProductSchema = z.object({
   base_price: z.union([z.number(), z.string()]).nullable().optional(),
   profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
   last_purchase_cost: z.union([z.number(), z.string()]).nullable().optional(),
+  pricing_mode: z.enum(PRICING_MODES).optional(),
   sale_currency: z.enum(SALE_CURRENCIES).nullable().optional(),
   sale_exchange_rate_type_id: z.number().int().nullable().optional(),
   sale_exchange_rate_type: z

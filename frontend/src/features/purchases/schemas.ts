@@ -90,19 +90,6 @@ export const PurchasePayableSummarySchema = z.object({
 });
 export type PurchasePayableSummary = z.infer<typeof PurchasePayableSummarySchema>;
 
-export const PurchasePriceReviewItemSchema = z.object({
-  item_id: z.number().int().positive(),
-  product_id: z.number().int().positive(),
-  product_name: z.string(),
-  previous_wac: z.union([z.number(), z.string()]).nullable().optional(),
-  previous_cost_reference: z.union([z.number(), z.string()]).nullable().optional(),
-  previous_base_price: z.union([z.number(), z.string()]).nullable().optional(),
-  new_unit_cost: z.union([z.number(), z.string()]),
-  profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
-  suggested_new_base_price: z.union([z.number(), z.string()]).nullable().optional(),
-  diff_percent: z.union([z.number(), z.string()]).nullable().optional(),
-});
-
 /**
  * Shape exacto de un PurchaseOrder serializado por PurchaseOrderResource.
  * Los montos son strings (decimal:4) -- los normalizamos a number.
@@ -132,7 +119,6 @@ export const PurchaseSchema = z.object({
   supplier: z.unknown().nullable().optional(),
   items: z.array(PurchaseItemSchema).optional(),
   account_payable: PurchasePayableSummarySchema.nullable().optional(),
-  price_review_items: z.array(PurchasePriceReviewItemSchema).optional(),
 });
 export type Purchase = z.infer<typeof PurchaseSchema>;
 

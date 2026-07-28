@@ -234,6 +234,10 @@ export const CashSessionsSchema = z.object({
     z.object({
       id: z.number(),
       status: z.string(),
+      review_status: z.string().optional(),
+      reviewed_by_name: z.string().nullable().optional(),
+      reviewed_at: z.string().nullable().optional(),
+      review_notes: z.string().nullable().optional(),
       branch_name: z.string().nullable().optional(),
       cash_register_name: z.string().nullable().optional(),
       cashier_name: z.string().nullable().optional(),
@@ -295,6 +299,7 @@ export const ReportFiltersSchema = z.object({
   customer_id: z.number().optional(),
   type: z.string().optional(),
   status: z.string().optional(),
+  review_status: z.string().optional(),
   date: z.string().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),

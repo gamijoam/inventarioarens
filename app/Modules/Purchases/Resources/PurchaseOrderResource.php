@@ -52,7 +52,6 @@ class PurchaseOrderResource extends JsonResource
                     AccountsPayable::STATUS_OVERDUE,
                 ], true),
             ]),
-            'price_review_items' => $this->getAttribute('price_review_items') ?? [],
         ];
     }
 }

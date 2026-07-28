@@ -202,8 +202,8 @@ class InventoryCenterController extends Controller
         $product->profit_margin = round($margin, 2);
 
         $newBasePrice = null;
-        if ($product->last_purchase_cost !== null) {
-            $newBasePrice = round(((float) $product->last_purchase_cost) * (1 + ($margin / 100)), 2);
+        if ($product->pricing_mode === Product::PRICING_AUTOMATIC && $product->last_purchase_cost !== null) {
+            $newBasePrice = round((float) $product->last_purchase_cost * (1 + ($margin / 100)), 2);
             $product->base_price = $newBasePrice;
         }
 

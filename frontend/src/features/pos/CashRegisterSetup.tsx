@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Banknote, Building2, Loader2, Plus, Store } from 'lucide-react';
+import { Banknote, Building2, Eye, EyeOff, Loader2, Plus, Store } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -27,8 +27,14 @@ import {
   useExchangeRateTypesForPos,
   useOpenCashSession,
 } from './api';
+import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
-type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string };
+type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
+type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
+const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
+  USD: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100],
+  VES: [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000],
+};
 
 export function CashRegisterSetup() {
   const { data: branches = [], isLoading: loadingBranches } = useBranchesForPos();
@@ -50,7 +56,7 @@ export function CashRegisterSetup() {
   const [registerForm, setRegisterForm] = useState({ name: '', code: '', branch_id: '' });
   const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', opening_base_amount: '0', opening_local_amount: '0' });
   const [movementForm, setMovementForm] = useState({ type: 'outflow', amount: '', notes: '' });
-  const [closeForm, setCloseForm] = useState<CloseForm>({ sessionId: null, usd: '', ves: '', notes: '' });
+  const [closeForm, setCloseForm] = useState<CloseForm>({ sessionId: null, usd: '', ves: '', notes: '', counts: [], blind: false });
 
   const branchOptions = useMemo(() => branches.filter((branch) => (branch.status ?? 'active') === 'active'), [branches]);
   const registerOptions = useMemo(() => registers.filter((register) => (register.status ?? 'active') === 'active'), [registers]);
@@ -144,8 +150,9 @@ export function CashRegisterSetup() {
   }
 
   function submitClose(session: CashRegisterSession): void {
-    const usd = Number(closeForm.usd || 0);
-    const ves = Number(closeForm.ves || 0);
+    const totals = cashCountTotals(closeForm.counts);
+    const usd = closeForm.counts.length ? totals.USD : Number(closeForm.usd || 0);
+    const ves = closeForm.counts.length ? totals.VES : Number(closeForm.ves || 0);
     const diff = closeDifference(session, closeForm, activeRate?.rate ?? null);
 
     if (usd < 0 || ves < 0) {
@@ -165,12 +172,14 @@ export function CashRegisterSetup() {
       sessionId: session.id,
       payload: {
         counted_base_amount: usd,
-        counted_local_amount: ves,
-        exchange_rate_type_id: ves > 0 ? activeRate?.exchange_rate_type_id : null,
-        closing_notes: closeForm.notes.trim() || null,
+         counted_local_amount: ves,
+         exchange_rate_type_id: ves > 0 ? activeRate?.exchange_rate_type_id : null,
+         counts: closeForm.counts.length ? closeForm.counts : undefined,
+         counting_mode: closeForm.blind ? 'blind' : 'standard',
+         closing_notes: closeForm.notes.trim() || null,
       },
     }, {
-      onSuccess: () => setCloseForm({ sessionId: null, usd: '', ves: '', notes: '' }),
+       onSuccess: () => setCloseForm({ sessionId: null, usd: '', ves: '', notes: '', counts: [], blind: false }),
       onError: (error) => toast.error(errorMessage(error)),
     });
   }
@@ -224,6 +233,7 @@ export function CashRegisterSetup() {
           </TabsList>
 
           <TabsContent value="operacion" className="space-y-4">
+            <CashRegisterCommandCenter branches={branchOptions} registers={registerOptions} />
             <div className="grid gap-4">
               <CashSessionCard
                 session={activeSession}
@@ -243,7 +253,7 @@ export function CashRegisterSetup() {
                 closing={closeSession.isPending}
                 onOpenForm={setOpenForm}
                 onMovementForm={setMovementForm}
-                onCloseForm={setCloseForm}
+                 onCloseForm={setCloseForm}
                 onOpen={submitOpen}
                 onMovement={submitMovement}
                 onClose={submitClose}
@@ -262,7 +272,7 @@ export function CashRegisterSetup() {
                 closeForm={closeForm}
                 rate={activeRate?.rate ?? null}
                 closing={closeSession.isPending}
-                onCloseForm={setCloseForm}
+                 onCloseForm={setCloseForm}
                 onClose={submitClose}
               />
 
@@ -516,7 +526,7 @@ function SessionsBoard({
               <div className="flex flex-col items-start gap-2 lg:items-end">
                 <Badge variant={session.status === 'open' ? 'success' : 'default'}>{session.status === 'open' ? 'Abierta' : 'Cerrada'}</Badge>
                 {canClose && session.status === 'open' && (
-                  <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: String(Number(session.expected_base_amount ?? 0).toFixed(2)), ves: String(Number(session.expected_local_amount ?? 0).toFixed(2)), notes: '' })}>
+                  <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: String(Number(session.expected_base_amount ?? 0).toFixed(2)), ves: String(Number(session.expected_local_amount ?? 0).toFixed(2)), notes: '', counts: [], blind: false })}>
                     Cerrar turno
                   </Button>
                 )}
@@ -592,22 +602,39 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
   onForm: (value: CloseForm) => void;
   onClose: (session: CashRegisterSession) => void;
 }) {
-  const activeForm = form.sessionId === session.id ? form : { sessionId: session.id, usd: '', ves: '', notes: '' };
-  const diff = closeDifference(session, activeForm, rate);
+  const activeForm = form.sessionId === session.id ? form : { sessionId: session.id, usd: '', ves: '', notes: '', counts: [], blind: false };
+  const totals = cashCountTotals(activeForm.counts);
+  const calculatedForm = activeForm.counts.length ? { ...activeForm, usd: String(totals.USD), ves: String(totals.VES) } : activeForm;
+  const diff = closeDifference(session, calculatedForm, rate);
   const needsNote = hasDifference(diff.base, diff.local);
 
   return (
     <div className="space-y-2 rounded border border-border bg-surface p-3">
-      <p className="font-semibold">Arqueo de cierre</p>
+      <div className="flex items-center justify-between gap-2">
+        <div><p className="font-semibold">Arqueo de cierre</p><p className="text-xs text-text-muted">{activeForm.blind ? 'El monto esperado está oculto.' : 'Puedes contar con referencia o usar cierre ciego.'}</p></div>
+        <Button size="sm" variant={activeForm.blind ? 'primary' : 'outline'} onClick={() => onForm({ ...activeForm, blind: !activeForm.blind, usd: activeForm.blind ? activeForm.usd : '', ves: activeForm.blind ? activeForm.ves : '', counts: activeForm.blind ? activeForm.counts : [] })}>
+          {activeForm.blind ? <EyeOff className="size-4" /> : <Eye className="size-4" />} {activeForm.blind ? 'Cierre ciego activo' : 'Usar cierre ciego'}
+        </Button>
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input type="number" min="0" value={activeForm.usd} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
-        <Input type="number" min="0" value={activeForm.ves} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado VES" />
+        <Input type="number" min="0" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
+        <Input type="number" min="0" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado VES" />
+      </div>
+      <div className="space-y-3 rounded border border-border/70 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Conteo por denominaciones</p>
+          {activeForm.counts.length > 0 && <Button size="sm" variant="ghost" onClick={() => onForm({ ...activeForm, counts: [] })}>Limpiar conteo</Button>}
+        </div>
+        <p className="text-xs text-text-muted">Si registras denominaciones, los totales anteriores se calculan automáticamente.</p>
+        <DenominationGrid currency="USD" form={activeForm} onForm={onForm} />
+        <DenominationGrid currency="VES" form={activeForm} onForm={onForm} />
       </div>
       <div className="grid gap-2 rounded border border-border/70 p-2 text-sm sm:grid-cols-2">
         <Metric label="Declarado USD equivalente" value={money(diff.declaredBase)} />
-        <Metric label="Diferencia USD" value={money(diff.base)} />
-        <Metric label="Declarado VES" value={localMoney(Number(activeForm.ves || 0))} />
-        <Metric label="Diferencia VES" value={localMoney(diff.local)} />
+        {!activeForm.blind && <Metric label="Diferencia USD" value={money(diff.base)} />}
+        <Metric label="Declarado VES" value={localMoney(Number(calculatedForm.ves || 0))} />
+        {!activeForm.blind && <Metric label="Diferencia VES" value={localMoney(diff.local)} />}
+        {activeForm.blind && <p className="rounded bg-primary/5 p-2 text-xs text-text-muted sm:col-span-2">La diferencia se calculará al confirmar el cierre y quedará visible para el responsable.</p>}
       </div>
       <Input value={activeForm.notes} onChange={(event) => onForm({ ...activeForm, notes: event.target.value })} placeholder={needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'} />
       <Button variant="danger" disabled={closing || (needsNote && !activeForm.notes.trim())} onClick={() => onClose(session)}>
@@ -721,6 +748,27 @@ function closeDifference(session: CashRegisterSession, form: CloseForm, rate: nu
 
 function hasDifference(base: number, local: number): boolean {
   return Math.abs(base) >= 0.01 || Math.abs(local) >= 0.01;
+}
+
+function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
+  return counts.reduce((totals, count) => {
+    totals[count.currency] += count.denomination * count.quantity;
+    return totals;
+  }, { USD: 0, VES: 0 });
+}
+
+function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{currency}</p>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {CASH_DENOMINATIONS[currency].map((denomination) => {
+          const count = form.counts.find((item) => item.currency === currency && item.denomination === denomination)?.quantity ?? 0;
+          return <label key={denomination} className="space-y-1 text-xs text-text-muted"><span>{denomination}</span><Input type="number" min="0" step="1" value={count} onChange={(event) => onForm({ ...form, counts: [...form.counts.filter((item) => !(item.currency === currency && item.denomination === denomination)), { currency, denomination, quantity: Math.max(0, Number(event.target.value) || 0) }] })} /></label>;
+        })}
+      </div>
+    </div>
+  );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

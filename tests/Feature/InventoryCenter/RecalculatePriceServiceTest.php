@@ -53,13 +53,13 @@ class RecalculatePriceServiceTest extends TestCase
         ]);
     }
 
-    public function test_recalculate_uses_last_purchase_cost_and_margin_without_rounding(): void
+    public function test_recalculate_uses_last_purchase_cost_and_markup(): void
     {
         $service = app(RecalculatePriceService::class);
 
         $result = $service->recalculate($this->product);
 
-        // Formula: 80 * (1 + 25/100) = 100.00 (sin redondeo psicologico).
+        // Formula: 80 * (1 + 25/100) = 100.00.
         $this->assertEquals(100.00, $result['base_price']);
         $this->assertEquals(25.0, $result['profit_margin']);
         $this->assertEquals(80.0, $result['last_purchase_cost']);
@@ -85,6 +85,15 @@ class RecalculatePriceServiceTest extends TestCase
         // 33.33 * (1 + 33.33/100) = 44.4399 -> round a 2 decimales = 44.44
         $result = $service->recalculate($this->product);
         $this->assertEquals(44.44, $result['base_price']);
+    }
+
+    public function test_fifty_percent_markup_on_five_dollar_cost_suggests_seven_fifty(): void
+    {
+        $this->product->update(['last_purchase_cost' => 5.00, 'profit_margin' => 50.00]);
+
+        $result = app(RecalculatePriceService::class)->recalculate($this->product);
+
+        $this->assertEquals(7.50, $result['base_price']);
     }
 
     public function test_recalculate_throws_when_no_profit_margin(): void

@@ -151,6 +151,7 @@ class CashRegisterService
             $this->recalculateExpectedTotals($session);
 
             $counted = $this->closingAmount($data);
+            $counts = $this->cashCounts($data);
 
             $session->update([
                 'status' => CashRegisterSession::STATUS_CLOSED,
@@ -161,11 +162,41 @@ class CashRegisterService
                 'difference_local_amount' => round(($counted['amount_local'] ?? 0) - (float) $session->expected_local_amount, 4),
                 'closed_at' => now(),
                 'closing_notes' => $data['closing_notes'] ?? null,
+                'counting_mode' => $data['counting_mode'] ?? CashRegisterSession::COUNTING_STANDARD,
             ]);
+
+            if ($counts !== []) {
+                $session->counts()->delete();
+                foreach ($counts as $count) {
+                    $session->counts()->create($count);
+                }
+            }
 
             $this->recordSessionSyncEvent($session->refresh(), 'cash.session.closed');
 
-            return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
+            return $session->refresh()->load(['branch', 'cashRegister', 'movements', 'counts']);
+        });
+    }
+
+    public function review(CashRegisterSession $session, array $data, User $operator): CashRegisterSession
+    {
+        return DB::transaction(function () use ($session, $data, $operator): CashRegisterSession {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+
+            if ($session->status !== CashRegisterSession::STATUS_CLOSED) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se pueden revisar turnos cerrados.',
+                ]);
+            }
+
+            $session->update([
+                'review_status' => $data['status'],
+                'reviewed_by' => $operator->id,
+                'reviewed_at' => now(),
+                'review_notes' => $data['review_notes'] ?? null,
+            ]);
+
+            return $session->refresh()->load(['branch', 'cashRegister', 'cashier', 'closer', 'reviewer', 'movements', 'counts']);
         });
     }
 
@@ -357,6 +388,12 @@ class CashRegisterService
 
     private function closingAmount(array $data): array
     {
+        if (! empty($data['counts'])) {
+            $amounts = $this->cashCountTotals($data['counts']);
+            $data['counted_base_amount'] = $amounts['USD'];
+            $data['counted_local_amount'] = $amounts['VES'];
+        }
+
         if (array_key_exists('counted_base_amount', $data) || array_key_exists('counted_local_amount', $data)) {
             $base = $this->resolveAmount([
                 'currency' => Product::CURRENCY_USD,
@@ -382,6 +419,32 @@ class CashRegisterService
             'amount' => $data['counted_amount'],
             'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
         ]);
+    }
+
+    private function cashCounts(array $data): array
+    {
+        if (empty($data['counts'])) {
+            return [];
+        }
+
+        return collect($data['counts'])
+            ->map(fn (array $count): array => [
+                'currency' => strtoupper($count['currency']),
+                'denomination' => round((float) $count['denomination'], 4),
+                'quantity' => (int) $count['quantity'],
+                'total_amount' => round((float) $count['denomination'] * (int) $count['quantity'], 4),
+            ])
+            ->filter(fn (array $count): bool => $count['quantity'] > 0)
+            ->values()
+            ->all();
+    }
+
+    private function cashCountTotals(array $counts): array
+    {
+        return collect($counts)
+            ->groupBy(fn (array $count): string => strtoupper($count['currency']))
+            ->map(fn ($group): float => round((float) $group->sum(fn (array $count): float => (float) $count['denomination'] * (int) $count['quantity']), 4))
+            ->all() + ['USD' => 0.0, 'VES' => 0.0];
     }
 
     private function recalculateExpectedTotals(CashRegisterSession $session): void
@@ -496,6 +559,11 @@ class CashRegisterService
                 'counted_local_amount' => $session->counted_local_amount === null ? null : (string) $session->counted_local_amount,
                 'difference_base_amount' => $session->difference_base_amount === null ? null : (string) $session->difference_base_amount,
                 'difference_local_amount' => $session->difference_local_amount === null ? null : (string) $session->difference_local_amount,
+                'counting_mode' => $session->counting_mode,
+                'review_status' => $session->review_status,
+                'reviewed_by' => $session->reviewed_by,
+                'reviewed_at' => $session->reviewed_at?->toJSON(),
+                'review_notes' => $session->review_notes,
                 'opened_at' => $session->opened_at?->toJSON(),
                 'closed_at' => $session->closed_at?->toJSON(),
             ],

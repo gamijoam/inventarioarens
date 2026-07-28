@@ -4,6 +4,7 @@ namespace App\Modules\CashRegister\Models;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\POS\Models\PosOrder;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'closed_at',
     'notes',
     'closing_notes',
+    'counting_mode',
+    'review_status',
+    'reviewed_by',
+    'reviewed_at',
+    'review_notes',
 ])]
 class CashRegisterSession extends Model
 {
@@ -39,6 +45,16 @@ class CashRegisterSession extends Model
     public const STATUS_CLOSED = 'closed';
 
     public const STATUS_CANCELLED = 'cancelled';
+
+    public const COUNTING_STANDARD = 'standard';
+
+    public const COUNTING_BLIND = 'blind';
+
+    public const REVIEW_PENDING = 'pending';
+
+    public const REVIEW_APPROVED = 'approved';
+
+    public const REVIEW_REJECTED = 'rejected';
 
     protected function casts(): array
     {
@@ -53,6 +69,7 @@ class CashRegisterSession extends Model
             'counted_local_amount' => 'decimal:4',
             'difference_base_amount' => 'decimal:4',
             'difference_local_amount' => 'decimal:4',
+            'reviewed_at' => 'datetime',
         ];
     }
 
@@ -81,8 +98,23 @@ class CashRegisterSession extends Model
         return $this->belongsTo(User::class, 'closed_by');
     }
 
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
     public function movements(): HasMany
     {
         return $this->hasMany(CashRegisterMovement::class);
+    }
+
+    public function posOrders(): HasMany
+    {
+        return $this->hasMany(PosOrder::class, 'cash_register_session_id');
+    }
+
+    public function counts(): HasMany
+    {
+        return $this->hasMany(CashRegisterSessionCount::class, 'cash_register_session_id');
     }
 }

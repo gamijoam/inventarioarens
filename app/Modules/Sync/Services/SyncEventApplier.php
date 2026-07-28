@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
@@ -274,6 +275,9 @@ class SyncEventApplier
             'track_stock' => array_key_exists('track_stock', $payload) ? (bool) $payload['track_stock'] : true,
             'base_price' => $payload['base_price'] ?? null,
             'profit_margin' => $payload['profit_margin'] ?? null,
+            // Events generated before pricing_mode existed must preserve the
+            // existing sale price instead of silently switching to automatic.
+            'pricing_mode' => $payload['pricing_mode'] ?? Product::PRICING_MANUAL,
             'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
             'sale_exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['sale_exchange_rate_type_code'] ?? null, $payload['sale_exchange_rate_type_id'] ?? null),
             'warranty_policy_id' => $this->warrantyPolicyId($tenant, $payload),

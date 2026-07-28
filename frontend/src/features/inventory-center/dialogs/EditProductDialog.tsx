@@ -96,6 +96,11 @@ function productToFormValues(p: Product): Partial<StoreProductValues> {
     tag_ids: p.tags?.map((t) => t.id) ?? [],
     base_price: p.base_price !== null && p.base_price !== undefined ? Number(p.base_price) : undefined,
     profit_margin: p.profit_margin !== null && p.profit_margin !== undefined ? Number(p.profit_margin) : undefined,
+    last_purchase_cost:
+      p.last_purchase_cost !== null && p.last_purchase_cost !== undefined
+        ? Number(p.last_purchase_cost)
+        : undefined,
+    pricing_mode: p.pricing_mode ?? 'manual',
     sale_currency: p.sale_currency ?? 'USD',
     sale_exchange_rate_type_id: p.sale_exchange_rate_type_id ?? undefined,
     min_stock: p.min_stock !== null && p.min_stock !== undefined ? Number(p.min_stock) : undefined,

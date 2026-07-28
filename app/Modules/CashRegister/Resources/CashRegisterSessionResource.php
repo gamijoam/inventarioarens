@@ -29,6 +29,11 @@ class CashRegisterSessionResource extends JsonResource
             'closed_at' => $this->closed_at?->toISOString(),
             'notes' => $this->notes,
             'closing_notes' => $this->closing_notes,
+            'counting_mode' => $this->counting_mode,
+            'review_status' => $this->review_status,
+            'reviewed_by' => $this->reviewed_by,
+            'reviewed_at' => $this->reviewed_at?->toISOString(),
+            'review_notes' => $this->review_notes,
             'branch' => $this->whenLoaded('branch'),
             'cash_register' => CashRegisterResource::make($this->whenLoaded('cashRegister')),
             'cashier' => $this->whenLoaded('cashier', fn () => [
@@ -41,7 +46,18 @@ class CashRegisterSessionResource extends JsonResource
                 'name' => $this->closer?->name,
                 'email' => $this->closer?->email,
             ]),
+            'reviewer' => $this->whenLoaded('reviewer', fn () => [
+                'id' => $this->reviewer?->id,
+                'name' => $this->reviewer?->name,
+                'email' => $this->reviewer?->email,
+            ]),
             'movements' => CashRegisterMovementResource::collection($this->whenLoaded('movements')),
+            'counts' => $this->whenLoaded('counts', fn () => $this->counts->map(fn ($count) => [
+                'currency' => $count->currency,
+                'denomination' => $count->denomination,
+                'quantity' => $count->quantity,
+                'total_amount' => $count->total_amount,
+            ])->values()),
         ];
     }
 }

@@ -54,6 +54,11 @@ class OperationalReportRequest extends FormRequest
                 CashRegisterSession::STATUS_CLOSED,
                 CashRegisterSession::STATUS_CANCELLED,
             ])],
+            'review_status' => ['nullable', Rule::in([
+                CashRegisterSession::REVIEW_PENDING,
+                CashRegisterSession::REVIEW_APPROVED,
+                CashRegisterSession::REVIEW_REJECTED,
+            ])],
             'payment_method' => ['nullable', 'string', 'max:80'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
@@ -71,6 +76,7 @@ class OperationalReportRequest extends FormRequest
             'cashier_id' => $this->filled('cashier_id') ? (int) $this->input('cashier_id') : null,
             'customer_id' => $this->filled('customer_id') ? (int) $this->input('customer_id') : null,
             'status' => $this->input('status', 'all'),
+            'review_status' => $this->input('review_status'),
             'payment_method' => $this->input('payment_method'),
             'limit' => min((int) $this->input('limit', 25), 100),
         ];

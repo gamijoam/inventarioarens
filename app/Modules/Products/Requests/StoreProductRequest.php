@@ -4,6 +4,7 @@ namespace App\Modules\Products\Requests;
 
 use App\Modules\Products\Models\Product;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -63,6 +64,8 @@ class StoreProductRequest extends FormRequest
 
             'base_price' => ['nullable', 'numeric', 'gte:0'],
             'profit_margin' => ['nullable', 'numeric', 'gte:0', 'lte:999.99'],
+            'pricing_mode' => ['sometimes', 'string', Rule::in([Product::PRICING_AUTOMATIC, Product::PRICING_MANUAL])],
+            'last_purchase_cost' => ['nullable', 'numeric', 'gte:0'],
             'min_stock' => ['nullable', 'numeric', 'gte:0'],
             'max_stock' => ['nullable', 'numeric', 'gte:0'],
             'reorder_quantity' => ['nullable', 'numeric', 'gte:0'],
@@ -93,6 +96,16 @@ class StoreProductRequest extends FormRequest
         return true;
     }
 
+    protected function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($this->input('pricing_mode', Product::PRICING_AUTOMATIC) === Product::PRICING_MANUAL
+                && $this->input('base_price') === null) {
+                $validator->errors()->add('base_price', 'El precio de venta es obligatorio en modo manual.');
+            }
+        });
+    }
+
     public function messages(): array
     {
         return [
@@ -104,6 +117,7 @@ class StoreProductRequest extends FormRequest
             'unit_of_measure.in' => 'La unidad de medida debe ser unit, kg, lt o m.',
             'base_price.numeric' => 'El precio base debe ser numérico.',
             'base_price.gte' => 'El precio base no puede ser negativo.',
+            'last_purchase_cost.gte' => 'El costo unitario no puede ser negativo.',
             'min_stock.gte' => 'El stock minimo no puede ser negativo.',
             'max_stock.gte' => 'El stock maximo no puede ser negativo.',
             'average_cost.prohibited' => 'El costo promedio se calcula automaticamente, no se puede asignar manualmente.',

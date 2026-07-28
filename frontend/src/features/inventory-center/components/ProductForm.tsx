@@ -9,7 +9,7 @@
  *  2. Imagenes (galeria, SOLO si productId esta definido - modo edit)
  *  3. Catalogos (brand, categories, tags) — con inline create.
  *  4. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
- *  5. Precios (base_price, sale_currency, sale_exchange_rate_type)
+  *  5. Precios (costo, recargo, precio de venta, sale_currency)
  *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
 import { type UseFormReturn } from 'react-hook-form';
@@ -29,6 +29,7 @@ import { Controller, useController } from 'react-hook-form';
 
 import {
   SALE_CURRENCIES,
+  PRICING_MODES,
   TRACKING_TYPES,
   UNITS_OF_MEASURE,
   type StoreProductInput,
@@ -81,6 +82,11 @@ export function ProductForm({
   // Galeria de imagenes (Sprint de imagenes Nivel 2). Solo se carga si
   // hay productId (modo edit). El useQuery queda deshabilitado en create.
   const { data: galleryImages = [] } = useProductImages(productId ?? null);
+  const pricingMode = form.watch('pricing_mode') ?? 'automatic';
+  const cost = Number(form.watch('last_purchase_cost'));
+  const margin = Number(form.watch('profit_margin'));
+  const calculatedSalePrice =
+    Number.isFinite(cost) && Number.isFinite(margin) ? (cost * (1 + margin / 100)).toFixed(2) : '';
 
   // Convertir brand/warranty/rate a options.
   const brandOptions = useMemo(
@@ -318,11 +324,37 @@ export function ProductForm({
       <fieldset className="space-y-3">
         <SectionLegend>Precios</SectionLegend>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field name="base_price" label="Precio base" error={form.formState.errors.base_price?.message}>
-            <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
+          <Field name="pricing_mode" label="Modo de precio">
+            <Select {...form.register('pricing_mode')}>
+              <option value={PRICING_MODES[0]}>Automático por costo</option>
+              <option value={PRICING_MODES[1]}>Precio manual</option>
+            </Select>
           </Field>
-          <Field name="profit_margin" label="Margen de ganancia (%)" error={form.formState.errors.profit_margin?.message}>
+          <Field
+            name="last_purchase_cost"
+            label="Costo unitario"
+            error={form.formState.errors.last_purchase_cost?.message}
+          >
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              {...form.register('last_purchase_cost', { valueAsNumber: true })}
+            />
+          </Field>
+          <Field name="profit_margin" label="Recargo sobre costo (%)" error={form.formState.errors.profit_margin?.message}>
             <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
+          </Field>
+          <Field
+            name="base_price"
+            label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
+            error={form.formState.errors.base_price?.message}
+          >
+            {pricingMode === 'automatic' ? (
+              <Input value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''} readOnly />
+            ) : (
+              <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
+            )}
           </Field>
           <Field name="sale_currency" label="Moneda de venta">
             <Select {...form.register('sale_currency')}>

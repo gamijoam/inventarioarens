@@ -89,6 +89,50 @@ class ProductApiTest extends TestCase
         ]);
     }
 
+    public function test_automatic_pricing_calculates_sale_price_from_initial_cost(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Precio', 'slug' => 'empresa-precio']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto automatico',
+                'sku' => 'AUTO-001',
+                'last_purchase_cost' => 100,
+                'profit_margin' => 25,
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.pricing_mode', Product::PRICING_AUTOMATIC)
+            ->assertJsonPath('data.last_purchase_cost', 100)
+            ->assertJsonPath('data.base_price', 125);
+    }
+
+    public function test_manual_pricing_preserves_entered_sale_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Manual', 'slug' => 'empresa-manual']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto manual',
+                'sku' => 'MANUAL-001',
+                'last_purchase_cost' => 100,
+                'profit_margin' => 25,
+                'pricing_mode' => Product::PRICING_MANUAL,
+                'base_price' => 140,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.pricing_mode', Product::PRICING_MANUAL)
+            ->assertJsonPath('data.base_price', 140);
+    }
+
     public function test_user_can_create_product_when_product_audits_table_is_missing(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

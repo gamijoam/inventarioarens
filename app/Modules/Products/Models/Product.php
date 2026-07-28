@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'brand_id',
     'base_price',
     'profit_margin',
+    'pricing_mode',
     'sale_currency',
     'sale_exchange_rate_type_id',
     'min_stock',
@@ -83,6 +84,7 @@ class Product extends Model
         'brand_id',
         'base_price',
         'profit_margin',
+        'pricing_mode',
         'sale_currency',
         'sale_exchange_rate_type_id',
         'image_url',
@@ -106,6 +108,10 @@ class Product extends Model
 
     /** Margen de ganancia por defecto cuando el admin no define uno custom. */
     public const DEFAULT_PROFIT_MARGIN = 25.0;
+
+    public const PRICING_AUTOMATIC = 'automatic';
+
+    public const PRICING_MANUAL = 'manual';
 
     public const TRACKING_QUANTITY = 'quantity';
 
@@ -156,6 +162,18 @@ class Product extends Model
         }
 
         return (float) $this->profit_margin;
+    }
+
+    public function calculateSalePrice(?float $cost = null, ?float $margin = null): ?float
+    {
+        $cost ??= $this->last_purchase_cost === null ? null : (float) $this->last_purchase_cost;
+        $margin ??= $this->effectiveProfitMargin();
+
+        if ($cost === null || $margin === null) {
+            return null;
+        }
+
+        return round($cost * (1 + ($margin / 100)), 2);
     }
 
     public function units(): HasMany

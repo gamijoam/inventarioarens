@@ -9,7 +9,9 @@ use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Requests\CloseCashRegisterSessionRequest;
 use App\Modules\CashRegister\Requests\OpenCashRegisterSessionRequest;
+use App\Modules\CashRegister\Requests\ReviewCashRegisterSessionRequest;
 use App\Modules\CashRegister\Requests\StoreCashRegisterMovementRequest;
+use App\Modules\CashRegister\Resources\CashRegisterSessionDetailResource;
 use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +30,7 @@ class CashRegisterSessionController extends Controller
         Gate::authorize('viewAny', CashRegisterSession::class);
 
         $query = CashRegisterSession::query()
-            ->with(['branch', 'cashRegister', 'cashier', 'closer', 'movements'])
+            ->with(['branch', 'cashRegister', 'cashier', 'closer', 'reviewer', 'movements'])
             ->latest();
 
         $status = $request->query('status');
@@ -83,7 +85,25 @@ class CashRegisterSessionController extends Controller
     {
         Gate::authorize('view', $cashRegisterSession);
 
-        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'cashRegister', 'cashier', 'closer', 'movements']));
+        return CashRegisterSessionResource::make($cashRegisterSession->load(['branch', 'cashRegister', 'cashier', 'closer', 'movements', 'counts']));
+    }
+
+    public function detail(CashRegisterSession $cashRegisterSession): CashRegisterSessionDetailResource
+    {
+        Gate::authorize('view', $cashRegisterSession);
+
+        return CashRegisterSessionDetailResource::make($cashRegisterSession->load([
+            'branch',
+            'cashRegister',
+            'cashier',
+            'closer',
+            'reviewer',
+            'movements',
+            'counts',
+            'posOrders.cashier',
+            'posOrders.customer',
+            'posOrders.payments.paymentMethod',
+        ]));
     }
 
     public function movement(
@@ -95,6 +115,18 @@ class CashRegisterSessionController extends Controller
 
         return CashRegisterSessionResource::make(
             $cashRegister->addMovement($cashRegisterSession, $request->validated(), $request->user())
+        );
+    }
+
+    public function review(
+        CashRegisterSession $cashRegisterSession,
+        ReviewCashRegisterSessionRequest $request,
+        CashRegisterService $cashRegister,
+    ): CashRegisterSessionResource {
+        Gate::authorize('review', $cashRegisterSession);
+
+        return CashRegisterSessionResource::make(
+            $cashRegister->review($cashRegisterSession, $request->validated(), $request->user())
         );
     }
 

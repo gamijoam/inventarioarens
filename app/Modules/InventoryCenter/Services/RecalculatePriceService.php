@@ -7,7 +7,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Recalcula el precio de venta (base_price) de un producto a partir
- * del costo de su ULTIMA COMPRA y su margen de ganancia.
+ * del costo de su ULTIMA COMPRA y su recargo de ganancia sobre costo.
  *
  * Formula:   new_base_price = last_purchase_cost * (1 + profit_margin / 100)
  *
@@ -35,6 +35,12 @@ class RecalculatePriceService
      */
     public function recalculate(Product $product, ?float $overrideMargin = null): array
     {
+        if ($product->pricing_mode === Product::PRICING_MANUAL) {
+            throw ValidationException::withMessages([
+                'pricing_mode' => 'El producto usa precio manual. Cambia el modo a automatico para recalcular.',
+            ]);
+        }
+
         $margin = $overrideMargin ?? $product->effectiveProfitMargin();
 
         if ($margin === null) {

@@ -72,6 +72,11 @@ export const CashRegisterSessionSchema = z
     closed_at: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
     closing_notes: z.string().nullable().optional(),
+    counting_mode: z.enum(['standard', 'blind']).optional(),
+    review_status: z.enum(['pending', 'approved', 'rejected']).optional(),
+    reviewed_by: z.number().int().nullable().optional(),
+    reviewed_at: z.string().nullable().optional(),
+    review_notes: z.string().nullable().optional(),
     cash_register: CashRegisterSchema.nullable().optional(),
     branch: BranchSchema.nullable().optional(),
     cashier: z
@@ -107,9 +112,59 @@ export const CashRegisterSessionSchema = z
           .passthrough(),
       )
       .optional(),
+    counts: z.array(z.object({
+      currency: z.enum(['USD', 'VES']),
+      denomination: nullableNumber,
+      quantity: z.number().int(),
+      total_amount: nullableNumber,
+    })).optional(),
   })
   .passthrough();
 export type CashRegisterSession = z.infer<typeof CashRegisterSessionSchema>;
+
+export const CashRegisterSessionDetailSchema = CashRegisterSessionSchema.extend({
+  summary: z.object({
+    movement_count: z.number(),
+    pos_order_count: z.number(),
+    pos_paid_order_count: z.number(),
+    pos_paid_base_amount: nullableNumber,
+    pos_paid_local_amount: nullableNumber,
+    receivable_collections_base_amount: z.number(),
+    payable_payments_base_amount: z.number(),
+    manual_movement_count: z.number(),
+  }),
+  payment_breakdown: z.array(z.object({
+    name: z.string(),
+    method: z.string(),
+    currency: z.string(),
+    payments_count: z.number(),
+    amount_base: z.number(),
+    amount_local: z.number(),
+  })),
+  orders: z.array(z.object({
+    id: z.number().int(),
+    status: z.string(),
+    cashier_name: z.string().nullable().optional(),
+    customer_name: z.string().nullable().optional(),
+    total_base_amount: nullableNumber,
+    total_local_amount: nullableNumber,
+    paid_base_amount: nullableNumber,
+    paid_local_amount: nullableNumber,
+    opened_at: z.string().nullable().optional(),
+    paid_at: z.string().nullable().optional(),
+    payments: z.array(z.object({
+      id: z.number().int(),
+      name: z.string(),
+      method: z.string(),
+      currency: z.string(),
+      amount: nullableNumber,
+      amount_base: nullableNumber,
+      amount_local: nullableNumber,
+      reference: z.string().nullable().optional(),
+    })),
+  })),
+});
+export type CashRegisterSessionDetail = z.infer<typeof CashRegisterSessionDetailSchema>;
 
 export const PosPaymentSchema = z
   .object({
@@ -262,6 +317,8 @@ export interface CloseCashSessionPayload {
   counted_local_amount?: number;
   exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
+  counts?: Array<{ currency: 'USD' | 'VES'; denomination: number; quantity: number }>;
+  counting_mode?: 'standard' | 'blind';
 }
 
 export interface CreateBranchPayload {
@@ -307,6 +364,7 @@ export const posKeys = {
   cashSessions: (filters?: string) =>
     [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
+  cashSessionDetail: (sessionId: number | null) => [...posKeys.all, 'cash-session-detail', sessionId] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
   priceLists: () => [...posKeys.all, 'price-lists'] as const,
   productQuote: (productId: number, priceListId?: number | null) =>
@@ -652,6 +710,27 @@ export function useCashSessionsList(
     queryFn: async () => {
       const response = await getPaginated<unknown>(`/cash-register/sessions?${params.toString()}`);
       return z.array(CashRegisterSessionSchema).parse(response.data);
+    },
+  });
+}
+
+export function useCashSessionDetail(sessionId: number | null) {
+  return useQuery({
+    queryKey: posKeys.cashSessionDetail(sessionId),
+    queryFn: async () => CashRegisterSessionDetailSchema.parse(await getOne<unknown>(`/cash-register/sessions/${sessionId}/detail`)),
+    enabled: Number.isInteger(sessionId) && Number(sessionId) > 0,
+  });
+}
+
+export function useReviewCashSession() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ sessionId, status, review_notes }: { sessionId: number; status: 'approved' | 'rejected'; review_notes?: string }) =>
+      postOne<{ status: string; review_notes?: string }>(`/cash-register/sessions/${sessionId}/review`, { status, review_notes }),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: ['reports', 'cash-sessions'] });
+      void qc.invalidateQueries({ queryKey: posKeys.cashSessionDetail(variables.sessionId) });
     },
   });
 }

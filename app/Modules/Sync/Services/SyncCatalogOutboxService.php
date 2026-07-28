@@ -513,6 +513,7 @@ class SyncCatalogOutboxService
                 'track_stock' => (bool) $product->track_stock,
                 'base_price' => $product->base_price === null ? null : (string) $product->base_price,
                 'profit_margin' => $product->profit_margin === null ? null : (string) $product->profit_margin,
+                'pricing_mode' => $product->pricing_mode ?? Product::PRICING_AUTOMATIC,
                 'sale_currency' => $product->sale_currency,
                 'sale_exchange_rate_type_id' => $product->sale_exchange_rate_type_id,
                 'sale_exchange_rate_type_code' => $product->saleExchangeRateType?->code,

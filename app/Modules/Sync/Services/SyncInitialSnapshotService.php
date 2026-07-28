@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
@@ -364,6 +365,7 @@ class SyncInitialSnapshotService
                         'track_stock' => (bool) $product->track_stock,
                         'base_price' => $product->base_price === null ? null : (string) $product->base_price,
                         'profit_margin' => $product->profit_margin === null ? null : (string) $product->profit_margin,
+                        'pricing_mode' => $product->pricing_mode ?? Product::PRICING_AUTOMATIC,
                         'sale_currency' => $product->sale_currency,
                         'sale_exchange_rate_type_code' => $product->sale_exchange_rate_type_code,
                         'image_url' => $product->image_url,
