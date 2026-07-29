@@ -179,6 +179,57 @@ class SyncApiTest extends TestCase
         $this->assertGreaterThanOrEqual(7, DB::table('sync_outbox')->where('tenant_id', $tenant->id)->count());
     }
 
+    public function test_registering_two_nodes_for_the_same_installation_queues_an_independent_snapshot_for_each_node(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-snapshot-multi-nodo');
+        $now = now();
+
+        $branchId = DB::table('branches')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Principal',
+            'code' => 'MAIN',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach (['LOCAL-A', 'LOCAL-B'] as $code) {
+            $this->actingAs($user)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/sync/nodes', [
+                    'code' => $code,
+                    'name' => 'Nodo '.$code,
+                    'type' => 'local',
+                    'metadata' => [
+                        'installation_code' => 'PC-CARACAS',
+                        'initial_snapshot' => true,
+                    ],
+                ])
+                ->assertCreated();
+        }
+
+        $nodes = DB::table('sync_nodes')
+            ->where('tenant_id', $tenant->id)
+            ->pluck('id', 'code');
+
+        $this->assertCount(2, $nodes);
+        $this->assertSame(2, DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'branch.created')
+            ->pluck('target_node_id')
+            ->unique()
+            ->count());
+
+        foreach ($nodes as $nodeId) {
+            $this->assertDatabaseHas('sync_outbox', [
+                'tenant_id' => $tenant->id,
+                'target_node_id' => $nodeId,
+                'event_type' => 'branch.created',
+                'idempotency_key' => 'initial-snapshot:PC-CARACAS:node-'.$nodeId.':branch.created:branch:'.$branchId,
+            ]);
+        }
+    }
+
     public function test_it_receives_pushed_events_idempotently(): void
     {
         [$tenant, $user] = $this->tenantUser('empresa-push');

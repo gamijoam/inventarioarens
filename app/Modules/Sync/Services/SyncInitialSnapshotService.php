@@ -46,7 +46,7 @@ class SyncInitialSnapshotService
         DB::table('sync_outbox')
             ->where('tenant_id', $tenant->id)
             ->where('target_node_id', $targetNodeId)
-            ->where('idempotency_key', 'like', $this->snapshotPrefix($installationCode).'%')
+            ->where('idempotency_key', 'like', $this->snapshotPrefix($installationCode, $targetNodeId).'%')
             ->delete();
     }
 
@@ -571,14 +571,14 @@ class SyncInitialSnapshotService
             'occurred_at' => now(),
             'available_at' => now(),
             'status' => 'pending',
-            'idempotency_key' => $this->snapshotPrefix($installationCode).$eventType.':'.$aggregateType.':'.$aggregateId,
+            'idempotency_key' => $this->snapshotPrefix($installationCode, $targetNodeId).$eventType.':'.$aggregateType.':'.$aggregateId,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
     }
 
-    private function snapshotPrefix(string $installationCode): string
+    private function snapshotPrefix(string $installationCode, int $targetNodeId): string
     {
-        return 'initial-snapshot:'.$installationCode.':';
+        return 'initial-snapshot:'.$installationCode.':node-'.$targetNodeId.':';
     }
 }
