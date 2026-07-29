@@ -36,13 +36,18 @@ export function initEcho(): Echo<'reverb'> | null {
 
   // Las vars se inyectan por Vite via define en vite.config.ts (defaults
   // locales) o via .env real en el build de produccion.
-  const key = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_REVERB_APP_KEY
+  const env = (import.meta as unknown as { env?: Record<string, string> }).env;
+  if (env?.VITE_REVERB_ENABLED !== 'true') {
+    return null;
+  }
+
+  const key = env?.VITE_REVERB_APP_KEY
     ?? 'inventarioarens-key';
-  const host = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_REVERB_HOST
+  const host = env?.VITE_REVERB_HOST
     ?? 'localhost';
-  const portStr = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_REVERB_PORT
+  const portStr = env?.VITE_REVERB_PORT
     ?? '8081';
-  const scheme = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_REVERB_SCHEME
+  const scheme = env?.VITE_REVERB_SCHEME
     ?? 'http';
   const port = Number.parseInt(portStr, 10);
 

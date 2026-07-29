@@ -33,6 +33,7 @@ class AddPosOrderPaymentsRequest extends FormRequest
                     PosPayment::METHOD_ZELLE,
                     PosPayment::METHOD_EXTERNAL_FINANCING,
                     PosPayment::METHOD_OTHER,
+                    PosPayment::METHOD_CUSTOMER_CREDIT,
                 ]),
             ],
             'payments.*.currency' => [

@@ -76,6 +76,23 @@ class ProductResource extends JsonResource
                 'is_active' => (bool) $this->saleExchangeRateType->is_active,
             ] : null),
 
+            'prices' => $this->whenLoaded('prices', fn () => $this->prices->map(fn ($price) => [
+                'id' => $price->id,
+                'price_list_id' => $price->price_list_id,
+                'price_list' => $price->priceList ? [
+                    'id' => $price->priceList->id,
+                    'name' => $price->priceList->name,
+                    'code' => $price->priceList->code,
+                    'is_default' => (bool) $price->priceList->is_default,
+                    'is_active' => (bool) $price->priceList->is_active,
+                ] : null,
+                'price' => (float) $price->price,
+                'currency' => $price->currency,
+                'exchange_rate_type_id' => $price->exchange_rate_type_id,
+                'exchange_rate_type_code' => $price->exchangeRateType?->code,
+                'is_active' => (bool) $price->is_active,
+            ])),
+
             'min_stock' => $this->min_stock === null ? null : (float) $this->min_stock,
             'max_stock' => $this->max_stock === null ? null : (float) $this->max_stock,
             'reorder_quantity' => $this->reorder_quantity === null ? null : (float) $this->reorder_quantity,

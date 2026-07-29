@@ -17,7 +17,7 @@ class ProcessSalesReturnRequest extends FormRequest
 
         return [
             'process_notes' => ['nullable', 'string'],
-            'refund_mode' => ['nullable', 'string', Rule::in(['none', 'cash', 'receivable'])],
+            'refund_mode' => ['nullable', 'string', Rule::in(['none', 'cash', 'customer_credit', 'receivable'])],
             'refund_currency' => [
                 'nullable',
                 'string',

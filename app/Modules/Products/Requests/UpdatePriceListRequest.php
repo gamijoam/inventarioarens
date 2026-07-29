@@ -26,6 +26,7 @@ class UpdatePriceListRequest extends FormRequest
                     ->ignore($priceList?->id),
             ],
             'description' => ['nullable', 'string', 'max:1000'],
+            'markup_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],

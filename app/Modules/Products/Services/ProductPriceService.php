@@ -13,7 +13,7 @@ class ProductPriceService
 {
     public const PRICE_SOURCE_BASE = 'base';
 
-    public const PRICE_SOURCE_LIST = 'list';
+    public const PRICE_SOURCE_LIST = 'price_list';
 
     public function quote(Product $product, ?int $priceListId = null, ?string $priceSource = null): array
     {
@@ -21,14 +21,20 @@ class ProductPriceService
         $productPrice = $source === self::PRICE_SOURCE_BASE
             ? null
             : $this->productPriceFor($product, $priceListId);
+        $priceList = $source === self::PRICE_SOURCE_LIST
+            ? $this->priceListFor($priceListId)
+            : null;
 
-        if ($source === self::PRICE_SOURCE_BASE && $product->base_price === null) {
+        if ($product->base_price === null && ! $productPrice) {
             throw ValidationException::withMessages([
                 'base_price' => 'El producto no tiene precio base configurado.',
             ]);
         }
 
-        $price = $productPrice ? (float) $productPrice->price : (float) $product->base_price;
+        $markup = $productPrice ? null : $priceList?->markup_percentage;
+        $price = $productPrice
+            ? (float) $productPrice->price
+            : (float) $product->base_price * (1 + ((float) $markup / 100));
         $rateType = $this->rateTypeFor($product, $productPrice);
         $rate = $rateType ? $this->activeRateFor($rateType) : null;
         $requiresRate = $productPrice
@@ -53,9 +59,10 @@ class ProductPriceService
 
         return [
             'product_id' => $product->id,
-            'price_list_id' => $productPrice?->price_list_id,
-            'price_list_name' => $productPrice?->priceList?->name,
-            'price_source' => $productPrice ? self::PRICE_SOURCE_LIST : self::PRICE_SOURCE_BASE,
+            'price_list_id' => $productPrice?->price_list_id ?? $priceList?->id,
+            'price_list_name' => $productPrice?->priceList?->name ?? $priceList?->name,
+            'price_source' => $source,
+            'markup_percentage' => $markup !== null ? (float) $markup : null,
             'base_price_usd' => $basePriceUsd,
             'sale_currency' => $saleCurrency,
             'sale_price' => $salePrice,
@@ -78,10 +85,10 @@ class ProductPriceService
             return self::PRICE_SOURCE_BASE;
         }
 
-        if ($normalized === self::PRICE_SOURCE_LIST) {
+        if ($normalized === self::PRICE_SOURCE_LIST || $normalized === 'list') {
             if ($priceListId === null) {
                 throw ValidationException::withMessages([
-                    'price_list_id' => 'price_source=list requiere una lista de precios.',
+                    'price_list_id' => 'price_source=price_list requiere una lista de precios.',
                 ]);
             }
 
@@ -102,7 +109,7 @@ class ProductPriceService
                 ->whereHas('priceList', fn ($query) => $query->where('is_active', true))
                 ->first();
 
-            if (! $price) {
+            if (! $price && $this->priceListFor($priceListId)?->markup_percentage === null) {
                 throw ValidationException::withMessages([
                     'price_list_id' => 'Este producto no tiene precio en esta lista.',
                 ]);
@@ -125,6 +132,15 @@ class ProductPriceService
             ->where('product_id', $product->id)
             ->where('price_list_id', $defaultPriceList->id)
             ->where('is_active', true)
+            ->first();
+    }
+
+    private function priceListFor(?int $priceListId): ?PriceList
+    {
+        return PriceList::query()
+            ->where('is_active', true)
+            ->when($priceListId !== null, fn ($query) => $query->whereKey($priceListId))
+            ->when($priceListId === null, fn ($query) => $query->where('is_default', true))
             ->first();
     }
 

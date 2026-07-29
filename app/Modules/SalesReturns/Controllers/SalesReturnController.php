@@ -4,6 +4,8 @@ namespace App\Modules\SalesReturns\Controllers;
 
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Requests\CancelSalesReturnRequest;
+use App\Modules\SalesReturns\Requests\CompleteSalesReturnExchangeRequest;
+use App\Modules\SalesReturns\Requests\ExchangeSalesReturnRequest;
 use App\Modules\SalesReturns\Requests\ProcessSalesReturnRequest;
 use App\Modules\SalesReturns\Requests\RejectSalesReturnRequest;
 use App\Modules\SalesReturns\Requests\StoreSalesReturnRequest;
@@ -23,7 +25,7 @@ class SalesReturnController extends Controller
 
         return SalesReturnResource::collection(
             SalesReturn::query()
-                ->with(['sale.customer', 'sale.receivable', 'items.saleItem', 'items.product', 'items.warehouse', 'creator', 'reviewer', 'processor', 'canceller'])
+                ->with(['sale.customer', 'sale.receivable', 'items.saleItem', 'items.product', 'items.warehouse', 'creator', 'reviewer', 'processor', 'canceller', 'refundFinancialAdjustment'])
                 ->latest()
                 ->paginate(25)
         );
@@ -84,5 +86,29 @@ class SalesReturnController extends Controller
         Gate::authorize('cancel', $salesReturn);
 
         return SalesReturnResource::make($returns->cancel($salesReturn, $request->user(), $request->validated('reason')));
+    }
+
+    public function exchange(ExchangeSalesReturnRequest $request, SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('process', $salesReturn);
+        Gate::authorize('refund', $salesReturn);
+
+        if (! $request->user()->can('pos.checkout')) {
+            abort(Response::HTTP_FORBIDDEN);
+        }
+
+        return SalesReturnResource::make($returns->exchange($salesReturn, $request->user(), $request->validated()));
+    }
+
+    public function completeExchange(CompleteSalesReturnExchangeRequest $request, SalesReturn $salesReturn, SalesReturnService $returns): SalesReturnResource
+    {
+        Gate::authorize('process', $salesReturn);
+        Gate::authorize('refund', $salesReturn);
+
+        if (! $request->user()->can('pos.checkout')) {
+            abort(Response::HTTP_FORBIDDEN);
+        }
+
+        return SalesReturnResource::make($returns->completeExchange($salesReturn, $request->validated('pos_order_id')));
     }
 }

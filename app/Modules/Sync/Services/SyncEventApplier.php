@@ -1504,6 +1504,9 @@ class SyncEventApplier
             [
                 'name' => $this->requiredString($payload, 'name'),
                 'description' => $payload['description'] ?? null,
+                'markup_percentage' => array_key_exists('markup_percentage', $payload) && $payload['markup_percentage'] !== null
+                    ? (float) $payload['markup_percentage']
+                    : null,
                 'is_default' => $isDefault,
                 'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
                 'sort_order' => (int) ($payload['sort_order'] ?? 0),

@@ -29,6 +29,7 @@ export const CustomerSchema = z.object({
   fiscal_address: z.string().nullable().optional(),
   is_generic: z.boolean().optional(),
   is_active: z.boolean().optional(),
+  credit_balance_base_amount: z.union([z.number(), z.string()]).optional().transform((value) => Number(value ?? 0)),
   customer_group_id: z.number().int().nullable().optional(),
   zone_id: z.number().int().nullable().optional(),
   created_at: z.string().optional(),

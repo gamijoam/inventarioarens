@@ -117,6 +117,7 @@ class SaleService
                         warehouse: $item->warehouse,
                         product: $item->product,
                         quantity: (float) $item->quantity,
+                        unitCost: $item->base_unit_cost === null ? $item->product->last_purchase_cost : (float) $item->base_unit_cost,
                         createdBy: $user,
                         reason: "Venta #{$sale->id}",
                         referenceType: Sale::class,
@@ -128,7 +129,12 @@ class SaleService
                     ]);
                 }
 
-                $item->update(['stock_movement_id' => $movement->id]);
+                $item->update([
+                    'stock_movement_id' => $movement->id,
+                    'base_unit_cost' => $item->base_unit_cost === null
+                        ? $item->product->last_purchase_cost
+                        : $item->base_unit_cost,
+                ]);
                 $this->markProductUnitsAsSold($productUnits, $movement->id);
             }
 

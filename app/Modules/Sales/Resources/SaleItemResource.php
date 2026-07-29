@@ -26,6 +26,7 @@ class SaleItemResource extends JsonResource
             'total_amount' => (float) $this->total_amount,
             'base_unit_price' => (float) $this->base_unit_price,
             'base_total_amount' => (float) $this->base_total_amount,
+            'base_unit_cost' => $this->when($request->user()?->can('finance.costs.view'), $this->base_unit_cost === null ? null : (float) $this->base_unit_cost),
             'discount_type' => $this->discount_type,
             'discount_value' => (float) $this->discount_value,
             'discount_amount' => (float) $this->discount_amount,

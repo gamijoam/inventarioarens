@@ -13,6 +13,7 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
+import { usePermissionContext } from '@/permissions/PermissionContext';
 import {
   type CashRegisterSession,
   useAddCashMovement,
@@ -27,6 +28,7 @@ import {
   useExchangeRateTypesForPos,
   useOpenCashSession,
 } from './api';
+import { useUsers } from '@/features/users/api';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
 type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
@@ -45,6 +47,16 @@ export function CashRegisterSetup() {
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const { data: rateTypes = [] } = useExchangeRateTypesForPos();
   const canOpen = useCan(PERMISSIONS.CASH_REGISTER_OPEN);
+  const { roles } = usePermissionContext();
+  const canAssignCashier = roles.some((role) => ['Owner', 'Administrador', 'Administrador local', 'Gerente'].includes(role));
+  const { data: usersResponse, isLoading: loadingUsers } = useUsers({
+    status: 'active',
+    scope: 'tenant',
+    page: 1,
+    per_page: 100,
+    search: '',
+  });
+  const cashierOptions = usersResponse?.data ?? [];
   const canMove = useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
   const canClose = useCan(PERMISSIONS.CASH_REGISTER_CLOSE);
   const createBranch = useCreatePosBranch();
@@ -54,7 +66,7 @@ export function CashRegisterSetup() {
   const closeSession = useCloseCashSession();
   const [branchForm, setBranchForm] = useState({ name: '', code: '' });
   const [registerForm, setRegisterForm] = useState({ name: '', code: '', branch_id: '' });
-  const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', opening_base_amount: '0', opening_local_amount: '0' });
+  const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', cashier_id: '', opening_base_amount: '0', opening_local_amount: '0' });
   const [movementForm, setMovementForm] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closeForm, setCloseForm] = useState<CloseForm>({ sessionId: null, usd: '', ves: '', notes: '', counts: [], blind: false });
 
@@ -117,12 +129,13 @@ export function CashRegisterSetup() {
     openSession.mutate({
       branch_id: Number(openForm.branch_id),
       cash_register_id: Number(openForm.cash_register_id),
+      ...(openForm.cashier_id ? { cashier_id: Number(openForm.cashier_id) } : {}),
       opening_base_amount: Number(openForm.opening_base_amount || 0),
       opening_local_amount: Number(openForm.opening_local_amount || 0),
       exchange_rate_type_id: Number(openForm.opening_local_amount || 0) > 0 ? activeRate?.exchange_rate_type_id : null,
       notes: 'Apertura desde modulo Cajas',
     }, {
-      onSuccess: () => setOpenForm({ branch_id: '', cash_register_id: '', opening_base_amount: '0', opening_local_amount: '0' }),
+      onSuccess: () => setOpenForm({ branch_id: '', cash_register_id: '', cashier_id: '', opening_base_amount: '0', opening_local_amount: '0' }),
       onError: (error) => toast.error(errorMessage(error)),
     });
   }
@@ -240,7 +253,10 @@ export function CashRegisterSetup() {
                 loading={loadingMySession}
                 branches={branchOptions}
                 registers={registerOptions}
-                canOpen={canOpen}
+        canOpen={canOpen}
+        canAssignCashier={canAssignCashier}
+        cashierOptions={cashierOptions}
+        loadingUsers={loadingUsers}
                 canMove={canMove}
                 canClose={canClose}
                 openForm={openForm}
@@ -374,6 +390,9 @@ function CashSessionCard({
   branches,
   registers,
   canOpen,
+  canAssignCashier,
+  cashierOptions,
+  loadingUsers,
   canMove,
   canClose,
   openForm,
@@ -396,9 +415,12 @@ function CashSessionCard({
   branches: Array<{ id: number; name: string; code: string }>;
   registers: Array<{ id: number; name: string; code?: string | null; branch_id?: number | null }>;
   canOpen: boolean;
+  canAssignCashier: boolean;
   canMove: boolean;
   canClose: boolean;
-  openForm: { branch_id: string; cash_register_id: string; opening_base_amount: string; opening_local_amount: string };
+  openForm: { branch_id: string; cash_register_id: string; cashier_id: string; opening_base_amount: string; opening_local_amount: string };
+  cashierOptions: Array<{ id: number; name: string; email: string }>;
+  loadingUsers: boolean;
   movementForm: { type: string; amount: string; notes: string };
   closeForm: CloseForm;
   rate: number | null;
@@ -406,7 +428,7 @@ function CashSessionCard({
   opening: boolean;
   moving: boolean;
   closing: boolean;
-  onOpenForm: (value: { branch_id: string; cash_register_id: string; opening_base_amount: string; opening_local_amount: string }) => void;
+  onOpenForm: (value: { branch_id: string; cash_register_id: string; cashier_id: string; opening_base_amount: string; opening_local_amount: string }) => void;
   onMovementForm: (value: { type: string; amount: string; notes: string }) => void;
   onCloseForm: (value: CloseForm) => void;
   onOpen: () => void;
@@ -457,7 +479,7 @@ function CashSessionCard({
               <p className="rounded border border-warning bg-warning/10 p-3 text-sm text-warning">No tienes permiso para abrir turno.</p>
             ) : (
               <>
-                <div className="grid gap-2 lg:grid-cols-[1fr_1fr_140px_140px_auto]">
+                <div className="grid gap-2 lg:grid-cols-[1fr_1fr_1.2fr_140px_140px_auto]">
                   <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })}>
                     <option value="">Sucursal...</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
@@ -466,13 +488,22 @@ function CashSessionCard({
                     <option value="">Caja fisica...</option>
                     {availableRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
                   </Select>
+                  {canAssignCashier ? (
+                    <Select value={openForm.cashier_id} onChange={(event) => onOpenForm({ ...openForm, cashier_id: event.target.value })}>
+                      <option value="">{loadingUsers ? 'Cargando cajeros...' : 'Cajero responsable...'}</option>
+                      {cashierOptions.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.email}</option>)}
+                    </Select>
+                  ) : null}
                   <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="Fondo USD" />
                   <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="Fondo VES" />
-                  <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id} onClick={onOpen}>
+                  <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id || (canAssignCashier && !openForm.cashier_id)} onClick={onOpen}>
                     {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-text-muted">
+                  {canAssignCashier
+                    ? 'Selecciona el cajero que será responsable de este turno. '
+                    : 'El turno se asignará a tu usuario. '}
                   {rateLabel ? `Fondo VES se convierte con ${rateLabel}.` : 'Sin tasa activa USD/VES para convertir fondo VES.'}
                 </p>
               </>

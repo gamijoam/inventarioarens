@@ -2,7 +2,8 @@
  * Listado de productos del Centro de Inventario.
  * Tabla densa con TanStack Table + filtros + paginacion server-side.
  */
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, createFileRoute } from '@tanstack/react-router';
 import {
   createColumnHelper,
@@ -11,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { Download, Eye, Package, Search } from 'lucide-react';
+import { ChevronDown, Download, Eye, Package, Search } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -23,15 +24,18 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
+import { useSessionStore } from '@/stores/session';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 
-import { useProducts } from '@/features/inventory-center/api';
+import { usePriceLists, useProducts } from '@/features/inventory-center/api';
 import { useWarehouses } from '@/features/inventory-center/api';
+import { useAlertsSummary } from '@/features/inventory-center/api';
+import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { BulkActionsMenu } from '@/features/inventory-center/bulk-actions/BulkActionsMenu';
 import { useExportProducts } from '@/features/inventory-center/useExportProducts';
-import type { Product } from '@/features/inventory-center/schemas';
+import type { PriceList, Product } from '@/features/inventory-center/schemas';
 
 type TrackingFilter = 'all' | 'quantity' | 'serialized';
 type StockFilter = 'all' | 'available' | 'low' | 'critical' | 'out' | 'overstock';
@@ -70,39 +74,36 @@ export const Route = createFileRoute('/_authed/inventory/')({
     page: typeof search.page === 'number' ? search.page : 1,
     brand_id:
       typeof search.brand_id === 'number'
-        ? (search.brand_id)
+        ? search.brand_id
         : typeof search.brand_id === 'string'
           ? Number(search.brand_id) || undefined
           : undefined,
     category_id:
       typeof search.category_id === 'number'
-        ? (search.category_id)
+        ? search.category_id
         : typeof search.category_id === 'string'
           ? Number(search.category_id) || undefined
           : undefined,
     tag_id:
       typeof search.tag_id === 'number'
-        ? (search.tag_id)
+        ? search.tag_id
         : typeof search.tag_id === 'string'
           ? Number(search.tag_id) || undefined
           : undefined,
     warehouse_id:
       typeof search.warehouse_id === 'number'
-        ? (search.warehouse_id)
+        ? search.warehouse_id
         : typeof search.warehouse_id === 'string'
           ? Number(search.warehouse_id) || undefined
           : undefined,
     low_stock_threshold:
       typeof search.low_stock_threshold === 'number'
-        ? (search.low_stock_threshold)
+        ? search.low_stock_threshold
         : typeof search.low_stock_threshold === 'string'
           ? Number(search.low_stock_threshold) || undefined
           : undefined,
-    sort_by: typeof search.sort_by === 'string' ? (search.sort_by) : undefined,
-    sort_dir:
-      search.sort_dir === 'asc' || search.sort_dir === 'desc'
-        ? (search.sort_dir)
-        : undefined,
+    sort_by: typeof search.sort_by === 'string' ? search.sort_by : undefined,
+    sort_dir: search.sort_dir === 'asc' || search.sort_dir === 'desc' ? search.sort_dir : undefined,
   }),
 });
 
@@ -114,7 +115,7 @@ function InventoryListPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-const filters = useMemo(
+  const filters = useMemo(
     () => ({
       search: search.search,
       tracking_type: search.tracking,
@@ -123,12 +124,19 @@ const filters = useMemo(
       warehouse_id: search.warehouse_id,
       page: search.page,
       per_page: 25,
+      with_prices: 1 as const,
     }),
     [search.search, search.tracking, search.stock, search.status, search.warehouse_id, search.page],
   );
 
   const { data, isLoading, isError } = useProducts(filters);
+  const { data: alerts } = useAlertsSummary();
+  const permissions = useSessionStore((state) => state.permissions);
+  const canViewCurrency = permissions?.has(PERMISSIONS.CURRENCY_VIEW) ?? false;
+  const { data: rates = [] } = useCurrentExchangeRatesForPos({ enabled: canViewCurrency });
+  const activeRate = rates.find((rate) => rate.is_active !== false) ?? rates[0] ?? null;
   const { data: warehouses = [] } = useWarehouses();
+  const { data: priceLists = [] } = usePriceLists(false);
   const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
@@ -139,7 +147,14 @@ const filters = useMemo(
     void navigate({ search: { ...search, page } });
   };
 
-  const columns = useColumns(selectedIds, setSelectedIds, data?.data ?? [], search);
+  const columns = useColumns(
+    selectedIds,
+    setSelectedIds,
+    data?.data ?? [],
+    search,
+    activeRate?.rate ?? null,
+    priceLists,
+  );
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -170,12 +185,14 @@ const filters = useMemo(
           </Button>
           <Can I={PERMISSIONS.PRODUCTS_CREATE}>
             <Button onClick={() => setCreateOpen(true)} data-testid="new-product">
-            + Nuevo producto
-          </Button>
+              + Nuevo producto
+            </Button>
           </Can>
         </div>
       }
     >
+      <InventoryKpis total={data?.meta.total ?? 0} alerts={alerts} />
+
       <BulkActionsMenu
         selectedIds={Array.from(selectedIds)}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -187,7 +204,7 @@ const filters = useMemo(
         <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="relative sm:col-span-2 lg:col-span-2">
             <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+              className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
               aria-hidden="true"
             />
             <Input
@@ -275,14 +292,14 @@ const filters = useMemo(
           )}
           {data && data.data.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full table-dense">
-                <thead className="border-b border-border bg-bg/60 text-left">
+              <table className="table-dense w-full">
+                <thead className="border-border bg-bg/60 border-b text-left">
                   {table.getHeaderGroups().map((hg) => (
                     <tr key={hg.id}>
                       {hg.headers.map((header) => (
                         <th
                           key={header.id}
-                          className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary"
+                          className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase"
                         >
                           {header.isPlaceholder
                             ? null
@@ -294,7 +311,10 @@ const filters = useMemo(
                 </thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b border-border last:border-b-0 hover:bg-bg/50">
+                    <tr
+                      key={row.id}
+                      className="border-border hover:bg-bg/50 border-b last:border-b-0"
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-3 py-2">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -324,7 +344,7 @@ const filters = useMemo(
             >
               Anterior
             </Button>
-            <span className="flex items-center px-2 text-text-muted">
+            <span className="text-text-muted flex items-center px-2">
               Pagina {data.meta.current_page} / {data.meta.last_page}
             </span>
             <Button
@@ -354,6 +374,8 @@ function useColumns(
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>,
   data: Product[],
   search: InventorySearch,
+  activeRate: number | null,
+  priceLists: PriceList[],
 ) {
   const columnHelper = createColumnHelper<Product>();
 
@@ -393,7 +415,7 @@ function useColumns(
       columnHelper.accessor('sku', {
         header: 'SKU',
         cell: (info) => (
-          <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{info.getValue()}</code>
+          <code className="bg-bg rounded px-1.5 py-0.5 text-xs">{info.getValue()}</code>
         ),
       }),
       columnHelper.accessor('name', {
@@ -404,14 +426,22 @@ function useColumns(
           const masterActive = row.is_catalog_active !== false;
           return (
             <div className="flex items-center gap-2">
-              <span className="font-medium text-text-primary">{info.getValue()}</span>
+              <span className="text-text-primary font-medium">{info.getValue()}</span>
               {isCopy && (
-                <Badge variant="info" className="font-normal" data-testid={`shared-badge-${row.id}`}>
+                <Badge
+                  variant="info"
+                  className="font-normal"
+                  data-testid={`shared-badge-${row.id}`}
+                >
                   Compartido
                 </Badge>
               )}
               {row.is_catalog_master && (
-                <Badge variant="warning" className="font-normal" data-testid={`master-badge-${row.id}`}>
+                <Badge
+                  variant="warning"
+                  className="font-normal"
+                  data-testid={`master-badge-${row.id}`}
+                >
                   Maestro
                 </Badge>
               )}
@@ -452,7 +482,7 @@ function useColumns(
             <span>
               Stock
               {search.warehouse_id && (
-                <span className="ml-1 text-[10px] font-normal text-text-muted">(filtrado)</span>
+                <span className="text-text-muted ml-1 text-[10px] font-normal">(filtrado)</span>
               )}
             </span>
           ),
@@ -471,6 +501,17 @@ function useColumns(
         header: 'Precio base',
         cell: (info) => formatMoney(info.getValue()),
       }),
+      columnHelper.display({
+        id: 'price_list',
+        header: 'Lista predeterminada',
+        cell: (info) => (
+          <PriceListCell
+            product={info.row.original}
+            activeRate={activeRate}
+            priceLists={priceLists}
+          />
+        ),
+      }),
       columnHelper.accessor('is_active', {
         header: 'Estado',
         cell: (info) => (
@@ -486,7 +527,7 @@ function useColumns(
           <Link
             to="/inventory/$productId"
             params={{ productId: String(info.row.original.id) }}
-            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
             data-testid={`inventory-view-${info.row.original.id}`}
           >
             <Eye className="size-3.5" aria-hidden="true" />
@@ -498,7 +539,215 @@ function useColumns(
     // selectedIds y setSelectedIds se incluyen como deps intencionalmente:
     // cambian cuando el user selecciona/deselecciona filas y la tabla
     // debe re-renderizar los checkboxes de cada fila.
-    [columnHelper, selectedIds, setSelectedIds, data, search.warehouse_id],
+    [columnHelper, selectedIds, setSelectedIds, data, search.warehouse_id, activeRate, priceLists],
+  );
+}
+
+function InventoryKpis({
+  total,
+  alerts,
+}: {
+  total: number;
+  alerts?: { out_count: number; low_count: number };
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <KpiCard label="Productos encontrados" value={total.toLocaleString('es-VE')} />
+      <KpiCard label="Sin stock" value={String(alerts?.out_count ?? '-')} tone="danger" />
+      <KpiCard label="Stock bajo" value={String(alerts?.low_count ?? '-')} tone="warning" />
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'danger' | 'warning';
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between p-3">
+        <span className="text-text-muted text-xs font-medium tracking-wide uppercase">{label}</span>
+        <strong
+          className={cn(
+            'text-xl tabular-nums',
+            tone === 'danger' && 'text-danger',
+            tone === 'warning' && 'text-warning',
+          )}
+        >
+          {value}
+        </strong>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PriceListCell({
+  product,
+  activeRate,
+  priceLists,
+}: {
+  product: Product;
+  activeRate: number | null;
+  priceLists: PriceList[];
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const manualPrices = (product.prices ?? []).filter((price) => price.is_active !== false);
+  const manualListIds = new Set(manualPrices.map((price) => price.price_list_id));
+  const automaticPrices = priceLists
+    .filter(
+      (list) => list.is_active && !manualListIds.has(list.id) && list.markup_percentage != null,
+    )
+    .flatMap((list) => {
+      if (product.base_price == null) return [];
+      return [
+        {
+          id: -list.id,
+          price_list_id: list.id,
+          price_list: {
+            id: list.id,
+            name: list.name,
+            code: list.code,
+            is_default: Boolean(list.is_default),
+            is_active: list.is_active,
+          },
+          price: Number(product.base_price) * (1 + Number(list.markup_percentage) / 100),
+          currency: 'USD',
+          is_active: true,
+          automatic: true,
+        },
+      ];
+    });
+  const prices = [...manualPrices, ...automaticPrices];
+  const defaultPrice = prices.find((price) => price.price_list?.is_default) ?? prices[0];
+  const [expanded, setExpanded] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
+
+  const displayLocal = (price: number, currency: string) => {
+    if (currency === 'VES')
+      return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!activeRate) return null;
+    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    function closeOnOutside(event: PointerEvent): void {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !popoverRef.current?.contains(target)) {
+        setExpanded(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') setExpanded(false);
+    }
+
+    function closeOnScroll(): void {
+      setExpanded(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('scroll', closeOnScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('scroll', closeOnScroll, true);
+    };
+  }, [expanded]);
+
+  function togglePopover(): void {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 256;
+    setPopoverPosition({
+      top: Math.min(rect.bottom + 8, window.innerHeight - 220),
+      left: Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8),
+    });
+    setExpanded(true);
+  }
+
+  return (
+    <div className="relative min-w-36">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="hover:text-primary flex items-center gap-1 text-left"
+        onClick={togglePopover}
+      >
+        <span>
+          <span className="text-text-muted block text-xs">
+            {defaultPrice.price_list?.name ?? 'Lista'}
+          </span>
+          <strong>
+            {defaultPrice.currency === 'VES'
+              ? `Bs ${defaultPrice.price.toFixed(2)}`
+              : `$${defaultPrice.price.toFixed(2)}`}
+          </strong>
+        </span>
+        {prices.length > 1 && (
+          <span className="bg-bg text-text-muted rounded-full px-1.5 text-[10px]">
+            +{prices.length - 1}
+          </span>
+        )}
+        <ChevronDown
+          className={cn('text-text-muted size-3 transition-transform', expanded && 'rotate-180')}
+        />
+      </button>
+      {expanded &&
+        popoverPosition &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="border-border bg-surface fixed z-[100] w-64 rounded-lg border p-2 shadow-xl"
+            style={{ top: popoverPosition.top, left: popoverPosition.left }}
+          >
+            <p className="text-text-muted mb-1 px-1 text-[10px] font-semibold tracking-wide uppercase">
+              Precios por lista
+            </p>
+            {prices.map((price) => (
+              <div
+                key={price.id}
+                className="hover:bg-bg flex items-center justify-between gap-2 rounded px-1 py-1.5 text-xs"
+              >
+                <span className="truncate">{price.price_list?.name ?? 'Lista'}</span>
+                <span className="text-right font-semibold">
+                  {price.currency === 'VES'
+                    ? `Bs ${price.price.toFixed(2)}`
+                    : `$${price.price.toFixed(2)}`}
+                  {displayLocal(price.price, price.currency) && price.currency !== 'VES' && (
+                    <small className="text-text-muted ml-1 block font-normal">
+                      {displayLocal(price.price, price.currency)}
+                    </small>
+                  )}
+                </span>
+              </div>
+            ))}
+            {activeRate && (
+              <p className="text-text-muted mt-1 px-1 text-[10px]">
+                VES calculado con tasa activa {activeRate}.
+              </p>
+            )}
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 }
 
@@ -511,10 +760,3 @@ function TableSkeleton() {
     </div>
   );
 }
-
-
-
-
-
-
-

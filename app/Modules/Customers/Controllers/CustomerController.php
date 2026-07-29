@@ -6,6 +6,7 @@ use App\Modules\Customers\Models\Customer;
 use App\Modules\Customers\Requests\StoreCustomerRequest;
 use App\Modules\Customers\Requests\UpdateCustomerRequest;
 use App\Modules\Customers\Resources\CustomerResource;
+use App\Modules\Customers\Services\CustomerCreditService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,7 @@ class CustomerController extends Controller
                 ->when($activeOnly, fn ($query) => $query->where('is_active', true))
                 ->when(! $activeOnly && $activeStatus === 'active', fn ($query) => $query->where('is_active', true))
                 ->when(! $activeOnly && $activeStatus === 'inactive', fn ($query) => $query->where('is_active', false))
+                ->withSum('creditTransactions as credit_balance_base_amount', 'amount_base')
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($query) use ($search): void {
                         $like = "%{$search}%";
@@ -68,11 +70,20 @@ class CustomerController extends Controller
     {
         Gate::authorize('view', $customer);
 
+        $customer->loadSum('creditTransactions', 'amount_base');
+
         if (str_contains((string) $request->query('include', ''), 'pos_history')) {
             $customer->setAttribute('pos_history', $this->posHistory($customer));
         }
 
         return CustomerResource::make($customer);
+    }
+
+    public function credit(Customer $customer, CustomerCreditService $credits): JsonResponse
+    {
+        Gate::authorize('view', $customer);
+
+        return response()->json(['data' => $credits->summary($customer)]);
     }
 
     public function update(UpdateCustomerRequest $request, Customer $customer, SyncCatalogOutboxService $syncCatalog): CustomerResource

@@ -3,6 +3,7 @@
 namespace App\Modules\SalesReturns\Models;
 
 use App\Models\User;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Sales\Models\Sale;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -34,6 +35,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'refund_reference',
     'refund_cash_register_movement_id',
     'refund_financial_adjustment_id',
+    'customer_credit_transaction_id',
+    'exchange_sale_id',
     'process_notes',
 ])]
 class SalesReturn extends Model
@@ -93,5 +96,15 @@ class SalesReturn extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SalesReturnItem::class);
+    }
+
+    public function refundFinancialAdjustment(): BelongsTo
+    {
+        return $this->belongsTo(FinancialAdjustment::class, 'refund_financial_adjustment_id');
+    }
+
+    public function exchangeSale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class, 'exchange_sale_id');
     }
 }

@@ -10,6 +10,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -213,11 +214,23 @@ class ProductApiTest extends TestCase
                 'code' => 'mayor',
                 'is_default' => true,
                 'sort_order' => 1,
+                'markup_percentage' => 45,
             ])
             ->assertCreated()
             ->assertJsonPath('data.code', 'MAYOR')
             ->assertJsonPath('data.is_default', true)
+            ->assertJsonPath('data.markup_percentage', 45)
             ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price?price_list_id={$priceListId}")
+            ->assertOk()
+            ->assertJsonPath('data.price_list_id', $priceListId)
+            ->assertJsonPath('data.markup_percentage', 45)
+            ->assertJsonPath('data.sale_price', 29)
+            ->assertJsonPath('data.price_ves', 14500);
 
         $this->assertDatabaseHas('sync_outbox', [
             'tenant_id' => $tenant->id,
@@ -297,6 +310,27 @@ class ProductApiTest extends TestCase
             'aggregate_type' => 'product_price',
             'status' => 'pending',
         ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/products/{$product->id}/prices", [
+                'prices' => [[
+                    'price_list_id' => $priceListId,
+                    'price' => null,
+                    'currency' => Product::CURRENCY_USD,
+                    'remove' => true,
+                ]],
+            ])
+            ->assertOk();
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}/price?price_list_id={$priceListId}")
+            ->assertOk()
+            ->assertJsonPath('data.markup_percentage', 45)
+            ->assertJsonPath('data.sale_price', 29);
     }
 
     public function test_product_price_list_does_not_mix_companies(): void
@@ -491,6 +525,37 @@ class ProductApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.name', 'Samsung A06 Azul')
             ->assertJsonPath('data.0.sku', 'SAM-A06-AZUL');
+    }
+
+    public function test_products_index_can_include_price_lists_on_demand(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Precios', 'slug' => 'empresa-precios']);
+        $product = $this->productFor($tenant, 'Producto Precio', 'PRECIO-001', [
+            'base_price' => 20,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $priceList = PriceList::create([
+            'name' => 'Mayorista',
+            'code' => 'MAYOR',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceList->id,
+            'price' => 18,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['products.view']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?with_prices=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.prices.0.price_list.name', 'Mayorista')
+            ->assertJsonPath('data.0.prices.0.price', 18);
     }
 
     public function test_sku_is_unique_inside_tenant_but_can_repeat_between_tenants(): void

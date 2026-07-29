@@ -63,43 +63,79 @@ export function PriceListsManager() {
           description="Crea la primera lista (detal, mayor, empleados) para poder asignar precios por lista a los productos."
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface">
-          <table className="w-full table-dense">
-            <thead className="border-b border-border bg-bg/60 text-left">
+        <div className="border-border bg-surface rounded-lg border">
+          <table className="table-dense w-full">
+            <thead className="border-border bg-bg/60 border-b text-left">
               <tr>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Nombre</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Codigo</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Orden</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Metodos POS</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Predet.</th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Estado</th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Nombre
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Codigo
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Incremento
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Orden
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Metodos POS
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Predet.
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Estado
+                </th>
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
               {priceLists.map((l) => (
-                <tr key={l.id} className="border-b border-border last:border-b-0">
+                <tr key={l.id} className="border-border border-b last:border-b-0">
                   <td className="px-3 py-2 font-medium">{l.name}</td>
-                  <td className="px-3 py-2 text-text-muted">
-                    <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{l.code}</code>
+                  <td className="text-text-muted px-3 py-2">
+                    <code className="bg-bg rounded px-1.5 py-0.5 text-xs">{l.code}</code>
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">
+                    {l.markup_percentage == null ? 'Manual' : `+${l.markup_percentage}%`}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{l.sort_order ?? 0}</td>
                   <td className="px-3 py-2">
                     <PaymentMethodBadges priceList={l} paymentMethods={paymentMethods} />
                   </td>
                   <td className="px-3 py-2">
-                    {l.is_default ? <Badge variant="info">Si</Badge> : <span className="text-text-muted">-</span>}
+                    {l.is_default ? (
+                      <Badge variant="info">Si</Badge>
+                    ) : (
+                      <span className="text-text-muted">-</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
-                    <Badge variant={l.is_active ? 'success' : 'default'}>{l.is_active ? 'Activa' : 'Inactiva'}</Badge>
+                    <Badge variant={l.is_active ? 'success' : 'default'}>
+                      {l.is_active ? 'Activa' : 'Inactiva'}
+                    </Badge>
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button size="icon-sm" variant="ghost" onClick={() => setEditing(l)} aria-label={`Editar ${l.name}`}>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => setEditing(l)}
+                        aria-label={`Editar ${l.name}`}
+                      >
                         <Pencil className="size-4" />
                       </Button>
-                      <Button size="icon-sm" variant="ghost" onClick={() => setDeleting(l)} aria-label={`Eliminar ${l.name}`}>
-                        <Trash2 className="size-4 text-danger" />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => setDeleting(l)}
+                        aria-label={`Eliminar ${l.name}`}
+                      >
+                        <Trash2 className="text-danger size-4" />
                       </Button>
                     </div>
                   </td>
@@ -114,7 +150,10 @@ export function PriceListsManager() {
         <FormDialog
           priceList={editing}
           paymentMethods={paymentMethods}
-          onClose={() => { setCreating(false); setEditing(null); }}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
           onSubmit={async (values) => {
             try {
               if (editing) {
@@ -137,7 +176,9 @@ export function PriceListsManager() {
       {deleting && (
         <ConfirmDialog
           open
-          onOpenChange={(open) => { if (!open) setDeleting(null); }}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null);
+          }}
           title={`Eliminar lista "${deleting.name}"`}
           description="Los precios asignados a esta lista quedaran huerfanos."
           confirmLabel="Eliminar"
@@ -177,6 +218,7 @@ function FormDialog({
       name: priceList?.name ?? '',
       code: priceList?.code ?? '',
       description: priceList?.description ?? '',
+      markup_percentage: priceList?.markup_percentage ?? null,
       is_default: priceList?.is_default ?? false,
       is_active: priceList?.is_active ?? true,
       sort_order: priceList?.sort_order ?? 0,
@@ -198,15 +240,40 @@ function FormDialog({
             <Input {...form.register('name')} placeholder="Detal" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Codigo" required hint="Mayusculas" error={form.formState.errors.code?.message}>
+            <Field
+              label="Codigo"
+              required
+              hint="Mayusculas"
+              error={form.formState.errors.code?.message}
+            >
               <Input {...form.register('code')} placeholder="RETAIL" />
             </Field>
             <Field label="Orden" error={form.formState.errors.sort_order?.message}>
-              <Input type="number" min={0} {...form.register('sort_order', { valueAsNumber: true })} />
+              <Input
+                type="number"
+                min={0}
+                {...form.register('sort_order', { valueAsNumber: true })}
+              />
             </Field>
           </div>
           <Field label="Descripcion" error={form.formState.errors.description?.message}>
             <Textarea {...form.register('description')} rows={2} placeholder="Opcional." />
+          </Field>
+          <Field
+            label="Incremento automatico sobre precio base (%)"
+            hint="Ejemplo: 45% convierte un precio base de $100 en $145. Dejalo vacio para trabajar solo con precios manuales."
+            error={form.formState.errors.markup_percentage?.message}
+          >
+            <Input
+              type="number"
+              min={0}
+              max={999.99}
+              step="0.01"
+              {...form.register('markup_percentage', {
+                setValueAs: (value) => (value === '' ? null : Number(value)),
+              })}
+              placeholder="Ej. 45"
+            />
           </Field>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -226,18 +293,26 @@ function FormDialog({
               <Label htmlFor="pl-active">Activa</Label>
             </div>
           </div>
-          <Field label="Metodos permitidos en POS" hint="Si no seleccionas metodos, esta lista no podra cobrarse en POS.">
-            <div className="max-h-52 space-y-2 overflow-auto rounded border border-border bg-bg/40 p-2">
+          <Field
+            label="Metodos permitidos en POS"
+            hint="Si no seleccionas metodos, esta lista no podra cobrarse en POS."
+          >
+            <div className="border-border bg-bg/40 max-h-52 space-y-2 overflow-auto rounded border p-2">
               {paymentMethods.length === 0 ? (
-                <p className="p-2 text-xs text-text-muted">No hay metodos de pago configurados.</p>
+                <p className="text-text-muted p-2 text-xs">No hay metodos de pago configurados.</p>
               ) : (
                 paymentMethods.map((method) => {
                   const selected = form.watch('payment_method_ids')?.includes(method.id) ?? false;
                   return (
-                    <label key={method.id} className="flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-2 text-sm hover:bg-surface">
+                    <label
+                      key={method.id}
+                      className="hover:bg-surface flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-2 text-sm"
+                    >
                       <span>
                         <span className="font-medium">{method.name}</span>
-                        <span className="ml-2 text-xs text-text-muted">{paymentMethodSummary(method)}</span>
+                        <span className="text-text-muted ml-2 text-xs">
+                          {paymentMethodSummary(method)}
+                        </span>
                       </span>
                       <input
                         type="checkbox"
@@ -260,8 +335,12 @@ function FormDialog({
             </div>
           </Field>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-            <Button type="submit" loading={loading}>{priceList ? 'Guardar' : 'Crear'}</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={loading}>
+              {priceList ? 'Guardar' : 'Crear'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -269,7 +348,13 @@ function FormDialog({
   );
 }
 
-function PaymentMethodBadges({ priceList, paymentMethods }: { priceList: PriceList; paymentMethods: PaymentMethod[] }) {
+function PaymentMethodBadges({
+  priceList,
+  paymentMethods,
+}: {
+  priceList: PriceList;
+  paymentMethods: PaymentMethod[];
+}) {
   const ids = priceList.payment_method_ids ?? [];
   if (ids.length === 0) return <Badge variant="warning">Sin metodos</Badge>;
 
@@ -290,11 +375,24 @@ function PaymentMethodBadges({ priceList, paymentMethods }: { priceList: PriceLi
 }
 
 function paymentMethodSummary(method: PaymentMethod): string {
-  const currency = method.currency_mode === 'flexible' ? 'USD/VES' : method.currency_mode ?? 'USD';
+  const currency =
+    method.currency_mode === 'flexible' ? 'USD/VES' : (method.currency_mode ?? 'USD');
   return `${currency} - ${method.method ?? 'metodo'}`;
 }
 
-function Field({ label, required, hint, error, children }: { label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="flex items-center gap-1">
@@ -302,8 +400,8 @@ function Field({ label, required, hint, error, children }: { label: string; requ
         {required && <span className="text-danger">*</span>}
       </Label>
       {children}
-      {hint && !error && <p className="text-xs text-text-muted">{hint}</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {hint && !error && <p className="text-text-muted text-xs">{hint}</p>}
+      {error && <p className="text-danger text-xs">{error}</p>}
     </div>
   );
 }

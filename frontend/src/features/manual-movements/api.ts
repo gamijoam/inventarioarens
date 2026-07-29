@@ -6,6 +6,7 @@ import {
   type ManualMovement,
   type ManualMovementFilters,
 } from './schemas';
+import { productKeys } from '@/features/inventory-center/queries';
 
 export const manualMovementKeys = {
   all: ['manual-movements'] as const,
@@ -53,6 +54,7 @@ export function useCreateManualMovement() {
       ),
     onSuccess: async (movement) => {
       await queryClient.invalidateQueries({ queryKey: manualMovementKeys.all });
+      await queryClient.invalidateQueries({ queryKey: productKeys.all });
       queryClient.setQueryData(manualMovementKeys.detail(movement.id), movement);
     },
   });
@@ -68,6 +70,7 @@ function actionMutation(path: (id: number) => string) {
         ),
       onSuccess: async (movement) => {
         await queryClient.invalidateQueries({ queryKey: manualMovementKeys.all });
+        await queryClient.invalidateQueries({ queryKey: productKeys.all });
         queryClient.setQueryData(manualMovementKeys.detail(movement.id), movement);
       },
     });

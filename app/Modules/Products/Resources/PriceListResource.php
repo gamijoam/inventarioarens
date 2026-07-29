@@ -16,6 +16,7 @@ class PriceListResource extends JsonResource
             'name' => $this->name,
             'code' => $this->code,
             'description' => $this->description,
+            'markup_percentage' => $this->markup_percentage !== null ? (float) $this->markup_percentage : null,
             'is_default' => (bool) $this->is_default,
             'is_active' => (bool) $this->is_active,
             'sort_order' => (int) $this->sort_order,

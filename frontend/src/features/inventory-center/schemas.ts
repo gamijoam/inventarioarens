@@ -447,6 +447,31 @@ export const ProductSchema = z.object({
     })
     .nullable()
     .optional(),
+  prices: z
+    .array(
+      z
+        .object({
+          id: z.number().int(),
+          price_list_id: z.number().int(),
+          price_list: z
+            .object({
+              id: z.number().int(),
+              name: z.string(),
+              code: z.string(),
+              is_default: z.boolean().optional(),
+              is_active: z.boolean().optional(),
+            })
+            .nullable()
+            .optional(),
+          price: z.union([z.number(), z.string()]).transform(Number),
+          currency: z.enum(SALE_CURRENCIES),
+          exchange_rate_type_id: z.number().int().nullable().optional(),
+          exchange_rate_type_code: z.string().nullable().optional(),
+          is_active: z.boolean().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
   // Stock levels: number | string (toleramos ambos), null permitido.
   min_stock: z.union([z.number(), z.string()]).nullable().optional(),
   max_stock: z.union([z.number(), z.string()]).nullable().optional(),
@@ -609,6 +634,7 @@ export const ProductPriceSchema = z
     amount: String(p.price ?? p.amount ?? ''),
     currency: p.currency,
     exchange_rate: p.exchange_rate ?? null,
+    is_active: p.is_active,
   }));
 export type ProductPrice = z.infer<typeof ProductPriceSchema>;
 
@@ -660,6 +686,7 @@ export const PriceListSchema = z.object({
   code: z.string(),
   name: z.string(),
   description: z.string().nullable().optional(),
+  markup_percentage: z.number().nullable().optional(),
   is_default: z.boolean().optional(),
   is_active: z.boolean(),
   sort_order: z.number().int().optional(),
@@ -846,6 +873,7 @@ export const StorePriceListSchema = z
       .max(1000)
       .optional()
       .transform((s) => (s?.trim() ? s.trim() : null)),
+    markup_percentage: z.number().min(0).max(999.99).nullable().optional(),
     is_default: z.boolean().optional(),
     is_active: z.boolean().default(true),
     sort_order: z.coerce.number().int().min(0).default(0),
@@ -875,6 +903,7 @@ export const InventoryFiltersSchema = z.object({
   warehouse_id: z.coerce.number().int().positive().optional(),
   low_stock_threshold: z.coerce.number().min(0).max(999999).optional(),
   with_images: z.union([z.literal(1), z.literal(0), z.boolean()]).optional(),
+  with_prices: z.union([z.literal(1), z.literal(0), z.boolean()]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(25),
 });

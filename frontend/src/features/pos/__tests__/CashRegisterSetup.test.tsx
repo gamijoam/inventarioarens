@@ -12,6 +12,7 @@ const mockUseCashSessionsList = vi.fn();
 const mockUseCurrentExchangeRatesForPos = vi.fn();
 const mockUseExchangeRateTypesForPos = vi.fn();
 const mockUseCashSessionsReport = vi.fn();
+const mockUseUsers = vi.fn();
 
 const mockUseCreatePosBranch = vi.fn();
 const mockUseCreateCashRegister = vi.fn();
@@ -47,12 +48,16 @@ vi.mock('@/features/reports/api', () => ({
   useCashSessions: () => mockUseCashSessionsReport(),
 }));
 
+vi.mock('@/features/users/api', () => ({
+  useUsers: () => mockUseUsers(),
+}));
+
 import { CashRegisterSetup } from '../CashRegisterSetup';
 
-function makeWrapper() {
+function makeWrapper(roles: string[] = []) {
   const value: PermissionContextValue = {
     permissions: new Set(Object.values(PERMISSIONS)),
-    roles: [],
+    roles,
     scopeStatus: 'none',
     scopes: {
       branches: [],
@@ -98,6 +103,7 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   });
+  mockUseUsers.mockReturnValue({ data: { data: [] }, isLoading: false });
 
   mockUseCreatePosBranch.mockReturnValue(mutation);
   mockUseCreateCashRegister.mockReturnValue(mutation);
@@ -115,5 +121,18 @@ describe('<CashRegisterSetup>', () => {
     expect(screen.getByRole('tab', { name: 'Historial' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Infraestructura' })).toBeInTheDocument();
     expect(screen.getByText('Mi turno abierto')).toBeInTheDocument();
+  });
+
+  it('muestra selector de cajero para supervisores al abrir un turno', () => {
+    mockUseCashSessions.mockReturnValue({ data: [], isLoading: false });
+    mockUseUsers.mockReturnValue({
+      data: { data: [{ id: 9, name: 'Juan Cajero', email: 'juan@test.test' }] },
+      isLoading: false,
+    });
+
+    render(<CashRegisterSetup />, { wrapper: makeWrapper(['Administrador']) });
+
+    expect(screen.getByText('Cajero responsable...')).toBeInTheDocument();
+    expect(screen.getByText('Juan Cajero - juan@test.test')).toBeInTheDocument();
   });
 });

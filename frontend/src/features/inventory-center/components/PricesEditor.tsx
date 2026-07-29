@@ -5,8 +5,6 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Save, X, Copy } from 'lucide-react';
-import { useSessionStore } from '@/stores/session';
-
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
@@ -18,17 +16,23 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { useProduct, useUpdateProduct, usePriceLists } from '@/features/inventory-center/api';
 import { InlinePriceListCreate } from './InlinePriceListCreate';
-import { putOne } from '@/api/client';
+import { getMany, putOne } from '@/api/client';
 import { formatMoney } from '@/lib/money';
 import { toast } from 'sonner';
 import { productKeys } from '@/features/inventory-center/queries';
-import { SALE_CURRENCIES, ProductPriceSchema, type ProductPrice } from '@/features/inventory-center/schemas';
+import {
+  SALE_CURRENCIES,
+  ProductPriceSchema,
+  type ProductPrice,
+} from '@/features/inventory-center/schemas';
 
 interface PriceRow {
   price_list_id: number;
   amount: string;
   currency: 'USD' | 'VES';
   isNew: boolean;
+  automatic: boolean;
+  remove: boolean;
   dirty: boolean;
 }
 
@@ -48,24 +52,16 @@ export function PricesEditor({ productId }: PricesEditorProps) {
   //              price: number, currency, exchange_rate_type_id, exchange_rate_type,
   //              is_active, created_at, updated_at }, ...] }
   const pricesQuery = useQuery({
-    queryKey: [...productKeys.detail(productId), 'prices'],
+    queryKey: productKeys.prices(productId),
     queryFn: async () => {
-      const { tenant } = useSessionStore.getState();
-      // Plan C: la cookie httpOnly se envia con credentials: 'include'.
-      const res = await fetch(`/api/products/${productId}/prices`, {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(tenant?.slug ? { 'X-Tenant': tenant.slug } : {}),
-        },
-      });
-      if (!res.ok) throw new Error('Error al cargar precios');
-      const json: unknown = await res.json();
-      const data = (json as { data?: unknown }).data;
-      return z.array(ProductPriceSchema).parse(data);
+      return z
+        .array(ProductPriceSchema)
+        .parse(await getMany<unknown>(`/products/${productId}/prices`))
+        .filter((price) => price.is_active !== false);
     },
     enabled: productId > 0,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Construye las filas del editor: union de listas existentes con precios.
@@ -77,11 +73,17 @@ export function PricesEditor({ productId }: PricesEditorProps) {
     (pricesQuery.data ?? []).forEach((p) => existingByList.set(p.price_list_id, p));
     const next: PriceRow[] = priceLists.map((pl) => {
       const existing = existingByList.get(pl.id);
+      const automatic = !existing && pl.markup_percentage != null && product?.base_price != null;
+      const automaticAmount = automatic
+        ? Number(product?.base_price ?? 0) * (1 + Number(pl.markup_percentage) / 100)
+        : null;
       return {
         price_list_id: pl.id,
-        amount: existing?.amount ?? '',
+        amount: existing?.amount ?? (automaticAmount == null ? '' : automaticAmount.toFixed(2)),
         currency: existing?.currency ?? 'USD',
         isNew: !existing,
+        automatic,
+        remove: false,
         dirty: false,
       };
     });
@@ -102,8 +104,9 @@ export function PricesEditor({ productId }: PricesEditorProps) {
         .filter((r) => r.dirty && r.amount !== '')
         .map((r) => ({
           price_list_id: r.price_list_id,
-          price: Number(r.amount),
+          price: r.remove ? null : Number(r.amount),
           currency: r.currency,
+          remove: r.remove,
         })),
     };
     if (payload.prices.length === 0) {
@@ -115,6 +118,8 @@ export function PricesEditor({ productId }: PricesEditorProps) {
       await putOne(`/products/${productId}/prices`, payload);
       toast.success('Precios actualizados.');
       void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
       void pricesQuery.refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar precios.');
@@ -140,7 +145,11 @@ export function PricesEditor({ productId }: PricesEditorProps) {
       <Empty>
         <p className="mb-2">Aun no hay listas de precio configuradas.</p>
         <p className="mb-3 text-xs">Crea una desde aca sin salir de la pantalla.</p>
-        <InlinePriceListCreate onCreated={() => { /* la query se revalida sola */ }} />
+        <InlinePriceListCreate
+          onCreated={() => {
+            /* la query se revalida sola */
+          }}
+        />
       </Empty>
     );
   }
@@ -154,13 +163,21 @@ export function PricesEditor({ productId }: PricesEditorProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 p-0">
-        <table className="w-full table-dense">
-          <thead className="border-b border-border bg-bg/60 text-left">
+        <table className="table-dense w-full">
+          <thead className="border-border bg-bg/60 border-b text-left">
             <tr>
-              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Lista</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Precio</th>
-              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Moneda</th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
+              <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                Lista
+              </th>
+              <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                Precio
+              </th>
+              <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                Moneda
+              </th>
+              <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -170,16 +187,21 @@ export function PricesEditor({ productId }: PricesEditorProps) {
               return (
                 <tr
                   key={r.price_list_id}
-                  className="border-b border-border last:border-b-0"
+                  className="border-border border-b last:border-b-0"
                   data-testid={`price-row-${r.price_list_id}`}
                 >
                   <td className="px-3 py-2">
                     <div className="font-medium">{list.name}</div>
-                    <div className="text-xs text-text-muted">
+                    <div className="text-text-muted text-xs">
                       {list.code}
                       {r.isNew && (
-                        <Badge variant="info" className="ml-2">
-                          Nuevo
+                        <Badge variant={r.automatic ? 'success' : 'info'} className="ml-2">
+                          {r.automatic ? `Automatico +${list.markup_percentage}%` : 'Nuevo'}
+                        </Badge>
+                      )}
+                      {!r.isNew && (
+                        <Badge variant="default" className="ml-2">
+                          Manual
                         </Badge>
                       )}
                       {r.dirty && (
@@ -195,7 +217,13 @@ export function PricesEditor({ productId }: PricesEditorProps) {
                       step="0.01"
                       min="0"
                       value={r.amount}
-                      onChange={(e) => setRow(r.price_list_id, { amount: e.target.value })}
+                      onChange={(e) =>
+                        setRow(r.price_list_id, {
+                          amount: e.target.value,
+                          automatic: false,
+                          remove: false,
+                        })
+                      }
                       className="text-right"
                     />
                   </td>
@@ -214,6 +242,23 @@ export function PricesEditor({ productId }: PricesEditorProps) {
                     </Select>
                   </td>
                   <td className="px-3 py-2 text-right">
+                    {list.markup_percentage != null && !r.automatic && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          const base = Number(product?.base_price ?? 0);
+                          const amount = base * (1 + Number(list.markup_percentage) / 100);
+                          setRow(r.price_list_id, {
+                            amount: amount.toFixed(2),
+                            automatic: true,
+                            remove: true,
+                          });
+                        }}
+                      >
+                        Usar automatico
+                      </Button>
+                    )}
                     <Button
                       size="icon-sm"
                       variant="ghost"
@@ -239,12 +284,7 @@ export function PricesEditor({ productId }: PricesEditorProps) {
             <X className="size-4" aria-hidden="true" />
             Cancelar
           </Button>
-          <Button
-            size="sm"
-            onClick={saveAll}
-            disabled={!dirty}
-            loading={updateProduct.isPending}
-          >
+          <Button size="sm" onClick={saveAll} disabled={!dirty} loading={updateProduct.isPending}>
             <Save className="size-4" aria-hidden="true" />
             Guardar cambios
           </Button>
@@ -256,7 +296,7 @@ export function PricesEditor({ productId }: PricesEditorProps) {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
+    <div className="border-border bg-surface text-text-muted rounded-lg border border-dashed p-6 text-center text-sm">
       {children}
     </div>
   );

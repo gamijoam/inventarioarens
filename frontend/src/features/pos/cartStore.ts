@@ -45,6 +45,7 @@ export interface AddLineInput {
     tracking_type?: 'quantity' | 'serialized' | string | null;
     track_stock?: boolean;
     base_price?: number | string | null;
+    available_stock?: number | string | null;
     sale_currency?: CurrencyCode | string | null;
   };
   warehouse: { id: number; name?: string; code?: string };
@@ -56,6 +57,15 @@ export interface AddLineInput {
   } | null;
   availableStock: number;
   defaultUnitPrice?: number;
+}
+
+export interface PosExchangeDraft {
+  salesReturnId: number;
+  customer: Customer;
+  creditAmount: number;
+  warehouseId: number;
+  product: AddLineInput['product'];
+  quantity: number;
 }
 
 export const usePosCartStore = create<{
@@ -78,6 +88,8 @@ export const usePosCartStore = create<{
 
   // ===== Pagos =====
   payments: PosPaymentLine[];
+  exchangeDraft?: PosExchangeDraft | null;
+  exchangeReturnId?: number | null;
 
   // ===== Acciones UI =====
   setPanel: (panel: Panel) => void;
@@ -109,6 +121,8 @@ export const usePosCartStore = create<{
   updatePayment: (id: string, patch: Partial<PosPaymentLine>) => void;
   removePayment: (id: string) => void;
   clearPayments: () => void;
+  setExchangeDraft: (draft: PosExchangeDraft | null) => void;
+  setExchangeReturnId: (id: number | null) => void;
 }>()(
   subscribeWithSelector((set, get) => ({
     // ===== UI state =====
@@ -130,6 +144,8 @@ export const usePosCartStore = create<{
 
     // ===== Pagos =====
     payments: [],
+    exchangeDraft: null,
+    exchangeReturnId: null,
 
     // ===== Acciones UI =====
     setPanel: (panel) => set({ panel }),
@@ -235,12 +251,14 @@ export const usePosCartStore = create<{
         ),
       }),
     clearLines: () => set({ lines: [] }),
-    clearAll: () =>
+     clearAll: () =>
       set({
         lines: [],
         payments: [],
         selectedCustomer: null,
         customerName: 'Consumidor Final',
+        exchangeDraft: null,
+        exchangeReturnId: null,
       }),
 
     // ===== Acciones de pagos =====
@@ -251,6 +269,8 @@ export const usePosCartStore = create<{
       }),
     removePayment: (id) => set({ payments: get().payments.filter((payment) => payment.id !== id) }),
     clearPayments: () => set({ payments: [] }),
+    setExchangeDraft: (exchangeDraft) => set({ exchangeDraft }),
+    setExchangeReturnId: (exchangeReturnId) => set({ exchangeReturnId }),
   })),
 );
 
@@ -287,6 +307,8 @@ interface PersistedCart {
   selectedPriceListId: number | null;
   selectedCustomer: Customer | null;
   customerName: string;
+  exchangeDraft?: PosExchangeDraft | null;
+  exchangeReturnId?: number | null;
 }
 
 function cartKey(tenantId: number | null, cashierId: number | null): string {
@@ -367,6 +389,7 @@ export function usePosCartPersistence(
     // 1) Hidratamos UNA vez por sesion. Si la sesion cambia (switch-tenant
     //    o login distinto) la dep del useEffect re-ejecuta este bloque y
     //    carga el carrito del nuevo contexto.
+    const currentState = usePosCartStore.getState();
     const persisted = loadPersistedCart(tenantId, cashierId);
     if (persisted) {
       usePosCartStore.setState({
@@ -376,6 +399,8 @@ export function usePosCartPersistence(
         selectedPriceListId: persisted.selectedPriceListId ?? null,
         selectedCustomer: persisted.selectedCustomer ?? null,
         customerName: persisted.customerName ?? 'Consumidor Final',
+        exchangeDraft: persisted.exchangeDraft ?? currentState.exchangeDraft ?? null,
+        exchangeReturnId: persisted.exchangeReturnId ?? currentState.exchangeReturnId ?? null,
       });
     } else {
       // No hay carrito persistido: empezamos fresh para esta sesion.
@@ -386,6 +411,8 @@ export function usePosCartPersistence(
         selectedPriceListId: null,
         selectedCustomer: null,
         customerName: 'Consumidor Final',
+        exchangeDraft: currentState.exchangeDraft ?? null,
+        exchangeReturnId: currentState.exchangeReturnId ?? null,
       });
     }
 
@@ -401,9 +428,14 @@ export function usePosCartPersistence(
         selectedPriceListId: state.selectedPriceListId,
         selectedCustomer: state.selectedCustomer,
         customerName: state.customerName,
+        exchangeDraft: state.exchangeDraft,
+        exchangeReturnId: state.exchangeReturnId,
       }),
       (snapshot) => {
-        const hasContent = snapshot.lines.length > 0 || snapshot.payments.length > 0;
+         const hasContent = snapshot.lines.length > 0
+           || snapshot.payments.length > 0
+           || snapshot.exchangeDraft != null
+           || snapshot.exchangeReturnId != null;
         if (hasContent) {
           savePersistedCart(tenantId, cashierId, snapshot);
         } else {

@@ -20,6 +20,7 @@ class CustomerResource extends JsonResource
             'fiscal_address' => $this->fiscal_address,
             'is_generic' => $this->is_generic,
             'is_active' => $this->is_active,
+            'credit_balance_base_amount' => $this->credit_balance_base_amount === null ? 0.0 : (float) $this->credit_balance_base_amount,
             'pos_history' => $this->when(
                 $this->resource->getAttribute('pos_history') !== null,
                 fn () => $this->resource->getAttribute('pos_history')

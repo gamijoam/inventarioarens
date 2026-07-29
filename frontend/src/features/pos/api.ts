@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
+import { productKeys } from '@/features/inventory-center/queries';
 import {
   BranchSchema,
   ExchangeRateTypeSchema,
@@ -15,7 +16,7 @@ import {
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
 
 export type PosPaymentMethod =
-  'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'other';
+  'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'customer_credit' | 'other';
 
 const nullableNumber = z
   .union([z.number(), z.string()])
@@ -293,6 +294,7 @@ export interface CheckoutPayload {
 export interface OpenCashSessionPayload {
   branch_id: number;
   cash_register_id?: number | null;
+  cashier_id?: number | null;
   opening_currency?: 'USD' | 'VES';
   opening_amount?: number;
   opening_base_amount?: number;
@@ -478,6 +480,7 @@ export function useCheckout() {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
+      void qc.invalidateQueries({ queryKey: productKeys.all });
     },
   });
 }
@@ -879,7 +882,7 @@ export function useExchangeRateTypesForPos() {
   });
 }
 
-export function useCurrentExchangeRatesForPos() {
+export function useCurrentExchangeRatesForPos(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: posKeys.currentRates(),
     queryFn: async () =>
@@ -887,6 +890,7 @@ export function useCurrentExchangeRatesForPos() {
     // Mismo razon: re-fetch siempre al montar.
     staleTime: 0,
     refetchOnMount: 'always',
+    enabled: options.enabled ?? true,
   });
 }
 

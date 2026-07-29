@@ -55,11 +55,26 @@ export const SalesReturnSchema = z.object({
   refund_amount_local: moneyValue,
   refund_method: z.string().nullable().optional(),
   refund_reference: z.string().nullable().optional(),
+  refund_financial_adjustment_id: z.number().int().nullable().optional(),
+  customer_credit_transaction_id: z.number().int().nullable().optional(),
+  exchange_sale_id: z.number().int().nullable().optional(),
+  refund_financial_adjustment: z.object({
+    id: z.number().int(),
+    document_number: z.string(),
+    status: z.string(),
+    currency: z.string(),
+    amount: moneyValue,
+    amount_base: moneyValue,
+    amount_local: moneyValue,
+    reason: z.string().nullable().optional(),
+    applied_at: z.string().nullable().optional(),
+  }).nullable().optional(),
   process_notes: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   sale: z.object({
     id: z.number().optional(),
     customer: z.object({
+      id: z.number().int().optional(),
       name: z.string().optional(),
       document_number: z.string().nullable().optional(),
     }).nullable().optional(),
@@ -91,7 +106,7 @@ export interface SalesReturnPayload {
 
 export interface ProcessSalesReturnPayload {
   process_notes?: string | null;
-  refund_mode?: 'none' | 'cash' | 'receivable';
+  refund_mode?: 'none' | 'cash' | 'customer_credit' | 'receivable';
   refund_currency?: 'USD' | 'VES' | null;
   refund_amount?: number | null;
   refund_method?: string | null;
@@ -99,6 +114,24 @@ export interface ProcessSalesReturnPayload {
   refund_exchange_rate_type_id?: number | null;
   refund_exchange_rate?: number | null;
   refund_cash_register_session_id?: number | null;
+}
+
+export interface ExchangeSalesReturnPayload {
+  cash_register_session_id: number;
+  customer_id: number;
+  credit_amount: number;
+  items: Array<{
+    warehouse_id: number;
+    product_id: number;
+    quantity: number;
+    product_unit_ids?: number[];
+  }>;
+  payments: Array<{
+    method: string;
+    currency: 'USD' | 'VES';
+    amount: number;
+    reference?: string | null;
+  }>;
 }
 
 export const salesReturnKeys = {
@@ -181,6 +214,34 @@ export function useCancelSalesReturn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+    },
+  });
+}
+
+export function useExchangeSalesReturn() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: ExchangeSalesReturnPayload }) =>
+      postOne<ExchangeSalesReturnPayload, SalesReturn>(`/sales-returns/${id}/exchange`, payload),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
+    },
+  });
+}
+
+export function useCompleteSalesReturnExchange() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, pos_order_id }: { id: number; pos_order_id: number }) =>
+      postOne<{ pos_order_id: number }, SalesReturn>(`/sales-returns/${id}/exchange/complete`, { pos_order_id }),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
     },
   });
 }

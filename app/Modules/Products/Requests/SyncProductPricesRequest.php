@@ -21,7 +21,7 @@ class SyncProductPricesRequest extends FormRequest
                 'integer',
                 Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
-            'prices.*.price' => ['required', 'numeric', 'gte:0'],
+            'prices.*.price' => ['nullable', 'numeric', 'gte:0', 'required_unless:prices.*.remove,true'],
             'prices.*.currency' => ['required', 'string', 'size:3', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
             'prices.*.exchange_rate_type_id' => [
                 'nullable',
@@ -29,6 +29,7 @@ class SyncProductPricesRequest extends FormRequest
                 Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'prices.*.is_active' => ['sometimes', 'boolean'],
+            'prices.*.remove' => ['sometimes', 'boolean'],
         ];
     }
 

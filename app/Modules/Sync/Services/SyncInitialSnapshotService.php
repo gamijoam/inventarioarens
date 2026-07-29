@@ -199,6 +199,7 @@ class SyncInitialSnapshotService
                         'code' => $list->code,
                         'name' => $list->name,
                         'description' => $list->description,
+                        'markup_percentage' => $list->markup_percentage === null ? null : (string) $list->markup_percentage,
                         'is_default' => (bool) $list->is_default,
                         'is_active' => (bool) $list->is_active,
                         'sort_order' => (int) $list->sort_order,

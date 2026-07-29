@@ -44,6 +44,10 @@ class ProductController extends Controller
         if ($request->boolean('with_images')) {
             $relations[] = 'images.variants';
         }
+        if ($request->boolean('with_prices')) {
+            $relations[] = 'prices.priceList';
+            $relations[] = 'prices.exchangeRateType';
+        }
 
         $query = Product::query()
             ->with($relations)
@@ -289,13 +293,31 @@ class ProductController extends Controller
                     ->where('price_list_id', $price['price_list_id'])
                     ->first();
 
+                $before = $productPrice ? $this->productPriceAuditData($productPrice) : null;
+
+                if (($price['remove'] ?? false) === true) {
+                    if ($productPrice) {
+                        $productPrice->update(['is_active' => false]);
+                        $after = $this->productPriceAuditData($productPrice->refresh());
+                        $this->recordAudit(
+                            $product,
+                            ProductAudit::ACTION_UPDATED,
+                            ['product_price' => $before],
+                            ['product_price' => $after],
+                            $request->user()?->id
+                        );
+                        $syncCatalog->productPriceUpdated($productPrice);
+                    }
+
+                    continue;
+                }
+
                 $attributes = [
                     'price' => $price['price'],
                     'currency' => $price['currency'],
                     'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
                     'is_active' => $price['is_active'] ?? true,
                 ];
-                $before = $productPrice ? $this->productPriceAuditData($productPrice) : null;
 
                 if ($productPrice) {
                     $productPrice->update($attributes);

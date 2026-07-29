@@ -3,12 +3,14 @@
 namespace Tests\Feature\SalesReturns;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
@@ -34,6 +36,7 @@ class SalesReturnApiTest extends TestCase
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-001');
+        $product->update(['last_purchase_cost' => 60]);
         StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales.view', 'sales_returns.create', 'sales_returns.view', 'sales_returns.review', 'sales_returns.process']);
@@ -96,6 +99,19 @@ class SalesReturnApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'type' => 'sale_return',
             'reference_type' => SalesReturn::class,
+            'unit_cost' => '60.0000',
+        ]);
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'id' => $sale->items->first()->id,
+            'base_unit_cost' => '60.0000',
+        ]);
+        $this->assertDatabaseHas('financial_adjustments', [
+            'tenant_id' => $tenant->id,
+            'account_type' => 'customer_credit',
+            'source_type' => SalesReturn::class,
+            'source_id' => $returnId,
+            'amount_base' => '100.0000',
         ]);
 
         $this
@@ -362,6 +378,11 @@ class SalesReturnApiTest extends TestCase
             'cash_register.move',
         ]);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
+        app(AccountsReceivableService::class)->registerPayment($sale->receivable, $user, [
+            'payment_currency' => Product::CURRENCY_USD,
+            'amount' => 100,
+            'method' => CashRegisterMovement::METHOD_CASH,
+        ]);
         $cashRegister = CashRegister::create([
             'branch_id' => $warehouse->branch_id,
             'name' => 'Mostrador',
@@ -422,6 +443,134 @@ class SalesReturnApiTest extends TestCase
         ]);
     }
 
+    public function test_cash_refund_cannot_exceed_amount_collected_for_sale(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-CAP');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'sales_returns.refund', 'cash_register.move']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1);
+        $cashRegister = CashRegister::create(['branch_id' => $warehouse->branch_id, 'name' => 'Mostrador', 'code' => 'MOST-CAP', 'status' => CashRegister::STATUS_ACTIVE]);
+        $session = CashRegisterSession::create([
+            'branch_id' => $warehouse->branch_id,
+            'cash_register_id' => $cashRegister->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 0,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 0,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+        ]);
+
+        $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
+            'sale_id' => $sale->id,
+            'items' => [['sale_item_id' => $sale->items->first()->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $returnId = $created->json('data.id');
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", [
+            'refund_mode' => 'cash',
+            'refund_currency' => Product::CURRENCY_USD,
+            'refund_amount' => 100,
+            'refund_method' => CashRegisterMovement::METHOD_CASH,
+            'refund_cash_register_session_id' => $session->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['refund_amount']);
+
+        $this->assertDatabaseMissing('cash_register_movements', ['source_type' => SalesReturn::class, 'source_id' => $returnId]);
+    }
+
+    public function test_processed_return_can_be_issued_as_customer_credit(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-CREDIT');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        $customer = Customer::create(['name' => 'Cliente Crédito', 'document_type' => Customer::DOCUMENT_V, 'document_number' => '12345678']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'sales_returns.refund', 'customers.view']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+
+        $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
+            'sale_id' => $sale->id,
+            'items' => [['sale_item_id' => $sale->items->first()->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $returnId = $created->json('data.id');
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", [
+            'refund_mode' => 'customer_credit',
+        ])->assertOk()->assertJsonPath('data.customer_credit_transaction_id', 1);
+
+        $this->assertDatabaseHas('customer_credit_transactions', [
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'type' => 'issued',
+            'amount_base' => '100.0000',
+            'source_type' => SalesReturn::class,
+            'source_id' => $returnId,
+        ]);
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->getJson("/api/customers/{$customer->id}/credit")
+            ->assertOk()
+            ->assertJsonPath('data.available_base_amount', 100);
+    }
+
+    public function test_customer_credit_can_be_used_for_exchange_and_collects_difference(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-EX-OLD');
+        $exchangeBranch = Branch::create(['name' => 'Sucursal RET-EX-NEW', 'code' => 'BR-RET-EX-NEW']);
+        $exchangeWarehouse = Warehouse::create(['branch_id' => $exchangeBranch->id, 'name' => 'Almacen RET-EX-NEW', 'code' => 'WH-RET-EX-NEW']);
+        $exchangeProduct = Product::create(['name' => 'Producto RET-EX-NEW', 'sku' => 'RET-EX-NEW', 'tracking_type' => Product::TRACKING_QUANTITY, 'base_price' => 150, 'sale_currency' => Product::CURRENCY_USD]);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        StockBalance::create(['warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity_available' => 2]);
+        $customer = Customer::create(['name' => 'Cliente Canje', 'document_type' => Customer::DOCUMENT_V, 'document_number' => '87654321']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', ['pos.checkout', 'sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'sales_returns.refund', 'cash_register.move']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        $cashRegister = CashRegister::create(['branch_id' => $exchangeWarehouse->branch_id, 'name' => 'Caja Canje', 'code' => 'CANJE-1', 'status' => CashRegister::STATUS_ACTIVE]);
+        $session = CashRegisterSession::create([
+            'branch_id' => $exchangeWarehouse->branch_id,
+            'cash_register_id' => $cashRegister->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 0,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 0,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+        ]);
+
+        $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
+            'sale_id' => $sale->id,
+            'items' => [['sale_item_id' => $sale->items->first()->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $returnId = $created->json('data.id');
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'customer_credit'])->assertOk();
+
+        $checkout = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/pos/checkouts', [
+            'cash_register_session_id' => $session->id,
+            'customer_id' => $customer->id,
+            'items' => [['warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity' => 1]],
+            'payments' => [
+                ['method' => 'customer_credit', 'currency' => Product::CURRENCY_USD, 'amount' => 100],
+                ['method' => CashRegisterMovement::METHOD_CASH, 'currency' => Product::CURRENCY_USD, 'amount' => 50],
+            ],
+        ])->assertCreated();
+
+        $exchange = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/exchange/complete", [
+            'pos_order_id' => $checkout->json('data.id'),
+        ])->assertOk()->assertJsonPath('data.exchange_sale_id', 2);
+
+        $this->assertNotNull($exchange->json('data.exchange_sale_id'));
+        $this->assertDatabaseHas('customer_credit_transactions', ['tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'type' => 'applied', 'amount_base' => '-100.0000']);
+        $this->assertDatabaseHas('cash_register_movements', ['tenant_id' => $tenant->id, 'cash_register_session_id' => $session->id, 'amount_base' => '50.0000']);
+        $this->assertDatabaseHas('stock_balances', ['tenant_id' => $tenant->id, 'warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity_available' => '1.0000']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -433,7 +582,7 @@ class SalesReturnApiTest extends TestCase
         }
     }
 
-    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity, array $productUnitIds = []): Sale
+    private function confirmedSale(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, float $quantity, array $productUnitIds = [], ?int $customerId = null): Sale
     {
         $this->useTenant($tenant);
 
@@ -442,7 +591,7 @@ class SalesReturnApiTest extends TestCase
             'product_id' => $product->id,
             'quantity' => $quantity,
             'product_unit_ids' => $productUnitIds,
-        ]]);
+        ]], $customerId);
 
         return app(SaleService::class)->confirm($sale, $user);
     }

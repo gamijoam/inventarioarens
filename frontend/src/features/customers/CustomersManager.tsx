@@ -103,6 +103,7 @@ export function CustomersManager() {
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Documento</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Contacto</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Tipo</th>
+                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Saldo a favor</th>
                 <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Estado</th>
                 <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
               </tr>
@@ -128,6 +129,13 @@ export function CustomersManager() {
                   </td>
                   <td className="px-3 py-2">
                     {c.is_generic ? <Badge variant="info">Generico</Badge> : <span className="text-text-muted">Regular</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {Number(c.credit_balance_base_amount ?? 0) > 0 ? (
+                      <Badge variant="success">${Number(c.credit_balance_base_amount).toFixed(2)}</Badge>
+                    ) : (
+                      <span className="text-text-muted">$0.00</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <Badge variant={c.is_active ? 'success' : 'default'}>

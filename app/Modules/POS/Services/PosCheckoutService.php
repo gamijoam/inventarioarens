@@ -10,6 +10,8 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\Customer;
+use App\Modules\Customers\Services\CustomerCreditService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -38,6 +40,7 @@ class PosCheckoutService
         private readonly InventoryMovementService $inventory,
         private readonly SyncOutboxService $syncOutbox,
         private readonly TenantReferenceCache $referenceCache,
+        private readonly CustomerCreditService $customerCredits,
     ) {}
 
     public function checkout(
@@ -68,7 +71,7 @@ class PosCheckoutService
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS validar metodos de pago',
-                    fn (): array => $this->validatePaymentMethods($items, $payments),
+                    fn (): array => $this->validatePaymentMethods($items, $payments, $customerId),
                     200,
                     ['items' => count($items), 'payments' => count($payments)]
                 );
@@ -102,6 +105,13 @@ class PosCheckoutService
                         150,
                         ['payment_index' => $index, 'currency' => strtoupper($payment['currency'])]
                     );
+
+                    if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT
+                        && $resolved['amount_base'] > round((float) $sale->total_base_amount, 4)) {
+                        throw ValidationException::withMessages([
+                            "payments.{$index}.amount" => 'El saldo a favor no puede superar el total de la nueva venta.',
+                        ]);
+                    }
                     $status = $payment['status'] ?? PosPayment::STATUS_CAPTURED;
                     $paymentMethod = $resolvedPaymentMethods[$index] ?? null;
 
@@ -125,12 +135,25 @@ class PosCheckoutService
                     if ($status === PosPayment::STATUS_CAPTURED) {
                         $paidBase += $resolved['amount_base'];
                         $paidLocal += $resolved['amount_local'] ?? 0.0;
-                        PerformanceProbe::measure(
-                            'POS registrar pago en caja',
-                            fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
-                            300,
-                            ['payment_id' => $posPayment->id]
-                        );
+                        if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT) {
+                            $customer = Customer::query()->findOrFail($customerId);
+                            $this->customerCredits->apply($customer, $cashier, [
+                                'currency' => strtoupper($payment['currency']),
+                                'amount' => $payment['amount'],
+                                'amount_base' => $resolved['amount_base'],
+                                'amount_local' => $resolved['amount_local'],
+                                'source_type' => PosOrder::class,
+                                'source_id' => $order->id,
+                                'notes' => "Credito aplicado en venta POS #{$order->id}",
+                            ]);
+                        } else {
+                            PerformanceProbe::measure(
+                                'POS registrar pago en caja',
+                                fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
+                                300,
+                                ['payment_id' => $posPayment->id]
+                            );
+                        }
                     }
                 }
 
@@ -209,7 +232,7 @@ class PosCheckoutService
 
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS pendiente validar metodos de pago',
-                    fn (): array => $this->validatePaymentMethods($this->itemsForExistingOrder($order), $payments),
+                    fn (): array => $this->validatePaymentMethods($this->itemsForExistingOrder($order), $payments, $order->customer_id),
                     200,
                     ['order_id' => $order->id, 'payments' => count($payments)]
                 );
@@ -242,12 +265,25 @@ class PosCheckoutService
                     ]);
 
                     if ($status === PosPayment::STATUS_CAPTURED) {
-                        PerformanceProbe::measure(
-                            'POS pendiente registrar pago en caja',
-                            fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
-                            300,
-                            ['order_id' => $order->id, 'payment_id' => $posPayment->id]
-                        );
+                        if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT) {
+                            $customer = Customer::query()->findOrFail($order->customer_id);
+                            $this->customerCredits->apply($customer, $cashier, [
+                                'currency' => strtoupper($payment['currency']),
+                                'amount' => $payment['amount'],
+                                'amount_base' => $resolved['amount_base'],
+                                'amount_local' => $resolved['amount_local'],
+                                'source_type' => PosOrder::class,
+                                'source_id' => $order->id,
+                                'notes' => "Credito aplicado en venta POS #{$order->id}",
+                            ]);
+                        } else {
+                            PerformanceProbe::measure(
+                                'POS pendiente registrar pago en caja',
+                                fn (): CashRegisterSession => $this->cashRegister->recordPosPayment($cashRegisterSession, $posPayment, $cashier),
+                                300,
+                                ['order_id' => $order->id, 'payment_id' => $posPayment->id]
+                            );
+                        }
                     }
                 }
 
@@ -393,7 +429,7 @@ class PosCheckoutService
         }
     }
 
-    private function validatePaymentMethods(array $items, array $payments): array
+    private function validatePaymentMethods(array $items, array $payments, ?int $customerId = null): array
     {
         $priceLists = $this->priceListsForItems($items);
         $priceListsWithoutMethods = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isEmpty());
@@ -408,6 +444,18 @@ class PosCheckoutService
         $resolved = [];
 
         foreach ($payments as $index => $payment) {
+            if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT) {
+                if (! $customerId) {
+                    throw ValidationException::withMessages([
+                        "payments.{$index}.method" => 'El saldo a favor requiere un cliente registrado.',
+                    ]);
+                }
+
+                $resolved[$index] = null;
+
+                continue;
+            }
+
             $paymentMethod = $this->resolveConfiguredPaymentMethod($payment, $restrictedPriceLists, $index);
             $resolved[$index] = $paymentMethod;
 
@@ -547,6 +595,33 @@ class PosCheckoutService
     {
         $currency = strtoupper($payment['currency']);
         $amount = (float) $payment['amount'];
+
+        if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT) {
+            if ($currency !== Product::CURRENCY_USD) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El saldo a favor se aplica en USD base.',
+                ]);
+            }
+
+            $rateType = $this->rateTypeFor(null);
+            $rate = $this->activeRateFor($rateType);
+
+            if (! $rate) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El saldo a favor requiere una tasa activa para registrar su equivalente local.',
+                ]);
+            }
+
+            $exchangeRate = (float) $rate->rate;
+
+            return [
+                'amount_base' => round($amount, 4),
+                'amount_local' => round($amount * $exchangeRate, 4),
+                'exchange_rate_type_id' => $rateType->id,
+                'exchange_rate_type_code' => $rateType->code,
+                'exchange_rate' => $exchangeRate,
+            ];
+        }
         $rateType = null;
         $rate = null;
 

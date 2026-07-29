@@ -11,6 +11,7 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Customers\Models\CustomerCreditTransaction;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
@@ -109,6 +110,48 @@ class PosCheckoutApiTest extends TestCase
             'aggregate_id' => $response->json('data.id'),
             'status' => 'pending',
         ]);
+    }
+
+    public function test_pos_checkout_applies_customer_credit_and_collects_remaining_difference(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Crédito', 'slug' => 'empresa-credito']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-CREDIT', 500);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+        $customer = $this->customer($tenant, 'Cliente con saldo', Customer::DOCUMENT_V, '556');
+        $this->useTenant($tenant);
+        CustomerCreditTransaction::create([
+            'customer_id' => $customer->id,
+            'type' => CustomerCreditTransaction::TYPE_ISSUED,
+            'currency' => Product::CURRENCY_USD,
+            'amount' => 40,
+            'amount_base' => 40,
+            'amount_local' => 0,
+            'notes' => 'Saldo de prueba',
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/pos/checkouts', [
+            'cash_register_session_id' => $session->id,
+            'customer_id' => $customer->id,
+            'items' => [['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity' => 1]],
+            'payments' => [
+                ['method' => PosPayment::METHOD_CUSTOMER_CREDIT, 'currency' => Product::CURRENCY_USD, 'amount' => 40],
+                ['method' => PosPayment::METHOD_CASH, 'currency' => Product::CURRENCY_USD, 'amount' => 60],
+            ],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('customer_credit_transactions', [
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'type' => CustomerCreditTransaction::TYPE_APPLIED,
+            'amount_base' => '-40.0000',
+            'source_id' => $response->json('data.id'),
+        ]);
+        $this->assertDatabaseHas('cash_register_movements', ['tenant_id' => $tenant->id, 'amount_base' => '60.0000']);
+        $this->assertDatabaseHas('accounts_receivables', ['tenant_id' => $tenant->id, 'collected_base_amount' => '100.0000', 'balance_base_amount' => '0.0000']);
     }
 
     public function test_pos_credit_checkout_confirms_sale_and_leaves_receivable_balance(): void

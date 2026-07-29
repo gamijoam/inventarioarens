@@ -360,6 +360,9 @@ export function useCreateExchangeRate() {
       postOne<Record<string, unknown>, unknown>('/currency/rates', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['pos', 'current-rates'] });
+      void qc.invalidateQueries({ queryKey: ['pos', 'bootstrap'] });
     },
   });
 }
@@ -371,6 +374,9 @@ export function useActivateExchangeRate() {
       patchOne<Record<string, never>, unknown>(`/currency/rates/${rateId}/activate`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['pos', 'current-rates'] });
+      void qc.invalidateQueries({ queryKey: ['pos', 'bootstrap'] });
     },
   });
 }
@@ -382,6 +388,9 @@ export function useDeactivateExchangeRate() {
       patchOne<Record<string, never>, unknown>(`/currency/rates/${rateId}/deactivate`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.exchangeRates() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['pos', 'current-rates'] });
+      void qc.invalidateQueries({ queryKey: ['pos', 'bootstrap'] });
     },
   });
 }
@@ -430,6 +439,7 @@ export function useCreateBrand() {
       postOne<Record<string, unknown>, unknown>('/brands', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -442,6 +452,7 @@ export function useUpdateBrand() {
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
       void qc.invalidateQueries({ queryKey: catalogKeys.brand(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -452,6 +463,7 @@ export function useDeleteBrand() {
     mutationFn: async (id: number) => deleteOne(`/brands/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.brands() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -464,6 +476,7 @@ export function useCreateCategory() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
       void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -477,6 +490,7 @@ export function useUpdateCategory() {
       void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
       void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
       void qc.invalidateQueries({ queryKey: catalogKeys.category(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -488,6 +502,7 @@ export function useDeleteCategory() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.categories() });
       void qc.invalidateQueries({ queryKey: catalogKeys.categoryTree() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -499,6 +514,7 @@ export function useCreateTag() {
       postOne<Record<string, unknown>, unknown>('/tags', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -511,6 +527,7 @@ export function useUpdateTag() {
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
       void qc.invalidateQueries({ queryKey: catalogKeys.tag(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -521,6 +538,7 @@ export function useDeleteTag() {
     mutationFn: async (id: number) => deleteOne(`/tags/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.tags() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -638,6 +656,7 @@ export function useCreatePriceList() {
       postOne<Record<string, unknown>, unknown>('/price-lists', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -649,6 +668,7 @@ export function useUpdatePriceList() {
       patchOne<Record<string, unknown>, unknown>(`/price-lists/${id}`, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }
@@ -659,6 +679,7 @@ export function useDeletePriceList() {
     mutationFn: async (id: number) => deleteOne(`/price-lists/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.priceLists() });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }

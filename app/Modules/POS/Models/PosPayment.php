@@ -43,6 +43,8 @@ class PosPayment extends Model
 
     public const METHOD_OTHER = 'other';
 
+    public const METHOD_CUSTOMER_CREDIT = 'customer_credit';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_CAPTURED = 'captured';

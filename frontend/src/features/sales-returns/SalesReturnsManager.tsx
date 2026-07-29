@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, FileText, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from '@tanstack/react-router';
 
 import { PermissionDenied } from '@/components/permissions/PermissionDenied';
 import { Badge } from '@/components/ui/Badge';
@@ -13,10 +14,13 @@ import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Textarea } from '@/components/ui/Textarea';
 import { useCashSessions, useCurrentExchangeRatesForPos } from '@/features/pos/api';
+import { usePosProductsDebounced, useWarehousesForPos } from '@/features/pos/api';
+import { useCustomerCredit } from '@/features/customers/api';
 import { activeUsdVesRate } from '@/features/receivables/currentBalance';
 import { cn } from '@/lib/cn';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
+import { usePosCartStore } from '@/features/pos/cartStore';
 import {
   useApproveSalesReturn,
   useCancelSalesReturn,
@@ -258,8 +262,24 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
   const reject = useRejectSalesReturn();
   const cancel = useCancelSalesReturn();
   const process = useProcessSalesReturn();
+  const navigate = useNavigate();
   const [rejectReason, setRejectReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeSearch, setExchangeSearch] = useState('');
+  const [exchangeWarehouseId, setExchangeWarehouseId] = useState<number | null>(item.items?.[0]?.warehouse_id ?? null);
+  const [exchangeProduct, setExchangeProduct] = useState<{
+    id: number;
+    name?: string | null;
+    sku?: string | null;
+    barcode?: string | null;
+    base_price?: number | string | null;
+    tracking_type?: string | null;
+    track_stock?: boolean;
+    available_stock?: number | string | null;
+  } | null>(null);
+  const [exchangeQuantity, setExchangeQuantity] = useState(1);
+  const [exchangeCredit, setExchangeCredit] = useState(0);
   const suggestedRefund = refundBaseAmount(item);
   const receivable = item.sale?.receivable ?? null;
   const balanceBase = receivableBalance(item);
@@ -274,9 +294,16 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
     refund_method: 'cash',
   });
   const { data: sessions = [] } = useCashSessions();
+  const { data: warehouses = [] } = useWarehousesForPos();
+  const { data: exchangeProducts } = usePosProductsDebounced(exchangeSearch, exchangeWarehouseId, { enabled: exchangeOpen && exchangeSearch.trim().length >= 2 });
+  const { data: customerCredit } = useCustomerCredit(item.sale?.customer?.id ?? null);
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const activeRate = activeUsdVesRate(rates);
   const activeSession = sessions[0] ?? null;
+  const availableCredit = Number(customerCredit?.available_base_amount ?? 0);
+  const exchangeTotal = exchangeProduct ? Number(exchangeProduct.base_price ?? 0) * exchangeQuantity : 0;
+  const exchangeCreditApplied = Math.min(Math.max(exchangeCredit, 0), Math.min(availableCredit, exchangeTotal));
+  const exchangeDifference = Math.max(exchangeTotal - exchangeCreditApplied, 0);
   const needsCashSession = processForm.refund_mode === 'cash';
   const hasVisibleActions =
     (item.status === 'requested' && canReview) ||
@@ -313,6 +340,39 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
 
     await process.mutateAsync({ id: item.id, payload });
     toast.success('Devolución procesada.');
+  }
+
+  async function handleExchange() {
+    if (!exchangeProduct || !exchangeWarehouseId || exchangeTotal <= 0) return toast.error('Selecciona un producto válido para el canje.');
+    if (exchangeCreditApplied <= 0) return toast.error('Indica un crédito a aplicar.');
+    const customer = item.sale?.customer;
+    if (!customer?.id || !customer.name) return toast.error('La devolución no tiene un cliente válido.');
+
+    usePosCartStore.getState().setExchangeDraft({
+      salesReturnId: item.id,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        document_number: customer.document_number ?? null,
+      },
+      creditAmount: exchangeCreditApplied,
+      warehouseId: exchangeWarehouseId,
+      product: {
+        id: exchangeProduct.id,
+        name: exchangeProduct.name ?? `Producto #${exchangeProduct.id}`,
+        sku: exchangeProduct.sku,
+        barcode: exchangeProduct.barcode,
+        base_price: exchangeProduct.base_price ?? 0,
+        available_stock: exchangeProduct.available_stock,
+        sale_currency: 'USD',
+        tracking_type: exchangeProduct.tracking_type ?? 'quantity',
+        track_stock: exchangeProduct.track_stock !== false,
+      },
+      quantity: exchangeQuantity,
+    });
+    setExchangeOpen(false);
+    toast.success('Canje preparado. Confirma el cobro desde el POS.');
+    await navigate({ to: '/pos' });
   }
 
   return (
@@ -361,6 +421,63 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
           <Metric label="Procesada por" value={item.processed_by_name ?? '-'} />
           {item.refund_amount_base > 0 && <Metric label="Reembolso" value={`${formatMoney(item.refund_amount_base)} · ${item.refund_method ?? 'caja'}`} />}
         </dl>
+
+        {item.refund_financial_adjustment && (
+          <div className="rounded border border-success/40 bg-success/10 px-3 py-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold">Nota de crédito</span>
+              <strong>{item.refund_financial_adjustment.document_number}</strong>
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+              <span className="text-text-muted">Importe aplicado a CxC</span>
+              <strong>{formatMoney(item.refund_financial_adjustment.amount_base)}</strong>
+            </div>
+            <p className="mt-1 text-xs text-text-muted">
+              Estado: {item.refund_financial_adjustment.status === 'applied' ? 'Aplicada' : item.refund_financial_adjustment.status}
+            </p>
+          </div>
+        )}
+
+        {item.exchange_sale_id && (
+          <div className="rounded border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+            Canje realizado mediante nueva venta <strong>#{item.exchange_sale_id}</strong>.
+          </div>
+        )}
+
+        {item.status === 'processed' && item.customer_credit_transaction_id && !item.exchange_sale_id && canProcess && canRefund && (
+          <div className="rounded border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+            {!exchangeOpen ? (
+              <Button size="sm" onClick={() => { setExchangeCredit(availableCredit); setExchangeOpen(true); }}>
+                Iniciar canje
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <strong>Canje con saldo a favor</strong>
+                <p className="text-xs text-text-muted">Disponible: {formatMoney(availableCredit)}</p>
+                <Select value={String(exchangeWarehouseId ?? '')} onChange={(event) => setExchangeWarehouseId(Number(event.target.value) || null)}>
+                  <option value="">Selecciona almacén</option>
+                  {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+                </Select>
+                <Input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} placeholder="Buscar producto sustituto..." />
+                {exchangeProducts?.data?.slice(0, 5).map((product) => (
+                  <button key={product.id} type="button" className="block w-full rounded border border-border bg-surface px-2 py-1 text-left text-xs" onClick={() => { setExchangeProduct(product); setExchangeSearch(product.name); }}>
+                    {product.name} · {formatMoney(Number(product.base_price ?? 0))}
+                  </button>
+                ))}
+                {exchangeProduct && <p className="text-xs">Producto: <strong>{exchangeProduct.name}</strong></p>}
+                <div className="grid grid-cols-3 gap-2">
+                  <Input type="number" min="1" value={exchangeQuantity} onChange={(event) => setExchangeQuantity(Math.max(1, Number(event.target.value) || 1))} />
+                  <Input type="number" min="0" value={exchangeCredit} onChange={(event) => setExchangeCredit(Number(event.target.value || 0))} placeholder="Crédito" />
+                  <div className="rounded border border-border px-2 py-2 text-xs">Faltante: <strong>{formatMoney(exchangeDifference)}</strong></div>
+                </div>
+                <div className="flex gap-2">
+                   <Button size="sm" onClick={() => void handleExchange()}>Continuar en POS</Button>
+                  <Button size="sm" variant="outline" onClick={() => setExchangeOpen(false)}>Cancelar</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded border border-border bg-bg px-3 py-2 text-sm">
           <div className="flex items-center justify-between gap-3">
@@ -414,9 +531,10 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
           <div className="space-y-3 border-t border-border pt-3">
             <div className="space-y-1">
               <Label>Finanzas</Label>
-              <Select value={processForm.refund_mode ?? 'none'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_mode: event.target.value as 'none' | 'cash' | 'receivable' }))}>
+              <Select value={processForm.refund_mode ?? 'none'} onChange={(event) => setProcessForm((current) => ({ ...current, refund_mode: event.target.value as 'none' | 'cash' | 'customer_credit' | 'receivable' }))}>
                 <option value="none">Sólo procesar devolución</option>
                 {canRefund && <option value="receivable" disabled={!receivable || balanceBase <= 0}>Aplicar contra CxC</option>}
+                {canRefund && <option value="customer_credit" disabled={!item.sale?.customer}>Dejar saldo a favor del cliente</option>}
                 {canRefund && <option value="cash">Reembolsar desde caja</option>}
               </Select>
             </div>
@@ -453,6 +571,11 @@ function ReturnDetail({ item, canReview, canProcess, canRefund, canCancel }: { i
                 <p className="text-xs text-text-muted">{activeSession ? `Caja: ${activeSession.cash_register?.name ?? activeSession.id}` : 'No hay caja abierta para reembolso.'}</p>
                 <Input value={processForm.refund_reference ?? ''} onChange={(event) => setProcessForm((current) => ({ ...current, refund_reference: event.target.value }))} placeholder="Referencia" />
               </div>
+            )}
+            {processForm.refund_mode === 'customer_credit' && (
+              <p className="rounded border border-success/40 bg-success/10 px-3 py-2 text-xs text-text-muted">
+                El importe quedará como saldo a favor de {item.sale?.customer?.name ?? 'el cliente'} para aplicarlo en una venta posterior.
+              </p>
             )}
             <Textarea value={processForm.process_notes ?? ''} onChange={(event) => setProcessForm((current) => ({ ...current, process_notes: event.target.value }))} placeholder="Notas de proceso" />
             <Button className="w-full" loading={process.isPending} onClick={() => void handleProcess()}>Procesar devolución</Button>

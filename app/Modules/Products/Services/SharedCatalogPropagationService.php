@@ -647,6 +647,7 @@ class SharedCatalogPropagationService
             'name' => null,
             'code' => null,
             'description' => null,
+            'markup_percentage' => null,
             'is_default' => null,
             'is_active' => null,
             'sort_order' => null,

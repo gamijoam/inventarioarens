@@ -549,6 +549,7 @@ class SyncCatalogOutboxService
                 'code' => $priceList->code,
                 'name' => $priceList->name,
                 'description' => $priceList->description,
+                'markup_percentage' => $priceList->markup_percentage === null ? null : (string) $priceList->markup_percentage,
                 'is_default' => (bool) $priceList->is_default,
                 'is_active' => (bool) $priceList->is_active,
                 'sort_order' => (int) $priceList->sort_order,

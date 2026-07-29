@@ -389,4 +389,15 @@ describe('StorePriceListSchema', () => {
     const result = StorePriceListSchema.parse({ name: 'X', code: 'X' });
     expect(result.sort_order).toBe(0);
   });
+
+  it('acepta incremento automatico sobre el precio base', () => {
+    const result = StorePriceListSchema.parse({ name: 'Mayor', code: 'MAYOR', markup_percentage: 45 });
+    expect(result.markup_percentage).toBe(45);
+  });
+
+  it('rechaza incrementos fuera del rango permitido', () => {
+    expect(() =>
+      StorePriceListSchema.parse({ name: 'Mayor', code: 'MAYOR', markup_percentage: 1000 }),
+    ).toThrow();
+  });
 });

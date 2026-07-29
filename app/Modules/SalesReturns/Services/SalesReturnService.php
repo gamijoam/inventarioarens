@@ -6,8 +6,15 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\Customers\Services\CustomerCreditService;
+use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
+use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\POS\Models\PosOrder;
+use App\Modules\POS\Models\PosPayment;
+use App\Modules\POS\Services\PosCheckoutService;
+use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -26,6 +33,9 @@ class SalesReturnService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly CashRegisterService $cashRegister,
+        private readonly FinancialAdjustmentService $financialAdjustments,
+        private readonly CustomerCreditService $customerCredits,
+        private readonly PosCheckoutService $posCheckout,
     ) {}
 
     public function create(User $user, array $data): SalesReturn
@@ -153,6 +163,7 @@ class SalesReturnService
                     'warehouse' => $saleItem->warehouse,
                     'product' => $saleItem->product,
                     'quantity' => (float) $returnItem->quantity,
+                    'unitCost' => $saleItem->base_unit_cost === null ? null : (float) $saleItem->base_unit_cost,
                     'createdBy' => $user,
                     'reason' => $returnItem->reason ?? $salesReturn->reason ?? "Devolucion venta #{$salesReturn->sale_id}",
                     'referenceType' => SalesReturn::class,
@@ -167,15 +178,134 @@ class SalesReturnService
                 $this->restoreProductUnits($returnItem->product_unit_ids ?? [], $returnItem->condition, (int) $saleItem->warehouse_id);
             }
 
-            app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
-            $this->applyRefund($salesReturn->refresh()->load(['sale.receivable', 'items.saleItem']), $user, $data);
-
             $salesReturn->update([
                 'status' => SalesReturn::STATUS_PROCESSED,
                 'processed_by' => $user->id,
                 'processed_at' => now(),
                 'process_notes' => $data['process_notes'] ?? null,
             ]);
+
+            app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
+            $salesReturn = $salesReturn->refresh()->load(['sale.receivable', 'items.saleItem']);
+            $adjustment = $this->createCreditNote($salesReturn, $user);
+            $this->applyRefund($salesReturn, $user, $data);
+            $customerCredit = ($data['refund_mode'] ?? 'none') === 'customer_credit'
+                ? $this->issueCustomerCredit($salesReturn, $user)
+                : null;
+            $salesReturn->update([
+                'refund_financial_adjustment_id' => $adjustment->id,
+                'customer_credit_transaction_id' => $customerCredit?->id,
+            ]);
+
+            return $this->loadReturn($salesReturn);
+        });
+    }
+
+    public function exchange(SalesReturn $salesReturn, User $user, array $data): SalesReturn
+    {
+        return DB::transaction(function () use ($salesReturn, $user, $data): SalesReturn {
+            $salesReturn = SalesReturn::query()
+                ->with(['sale.customer', 'items.saleItem'])
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            if ($salesReturn->status !== SalesReturn::STATUS_PROCESSED) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se puede hacer canje sobre una devolucion procesada.',
+                ]);
+            }
+
+            if (! $salesReturn->sale->customer || ! $salesReturn->customer_credit_transaction_id) {
+                throw ValidationException::withMessages([
+                    'customer_id' => 'La devolucion no tiene un saldo a favor de cliente disponible.',
+                ]);
+            }
+
+            $creditAmount = round((float) $data['credit_amount'], 4);
+            $availableCredit = $this->customerCredits->availableBase($salesReturn->sale->customer);
+
+            if ($creditAmount > $availableCredit) {
+                throw ValidationException::withMessages([
+                    'credit_amount' => 'El canje supera el saldo a favor disponible del cliente.',
+                ]);
+            }
+
+            $payments = $data['payments'] ?? [];
+            array_unshift($payments, [
+                'method' => 'customer_credit',
+                'currency' => Product::CURRENCY_USD,
+                'amount' => $creditAmount,
+                'status' => 'captured',
+            ]);
+
+            $order = $this->posCheckout->checkout(
+                cashier: $user,
+                cashRegisterSession: CashRegisterSession::query()->findOrFail($data['cash_register_session_id']),
+                items: $data['items'],
+                payments: $payments,
+                customerId: $salesReturn->sale->customer_id,
+                customerName: $salesReturn->sale->customer->name,
+            );
+
+            if ($order->status !== PosOrder::STATUS_PAID) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El canje requiere cubrir el total de la nueva venta con el saldo y/o el pago adicional.',
+                ]);
+            }
+
+            $salesReturn->update(['exchange_sale_id' => $order->sale_id]);
+
+            return $this->loadReturn($salesReturn);
+        });
+    }
+
+    public function completeExchange(SalesReturn $salesReturn, int $posOrderId): SalesReturn
+    {
+        return DB::transaction(function () use ($salesReturn, $posOrderId): SalesReturn {
+            $salesReturn = SalesReturn::query()
+                ->with('sale.customer')
+                ->lockForUpdate()
+                ->findOrFail($salesReturn->id);
+
+            if ($salesReturn->status !== SalesReturn::STATUS_PROCESSED) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se puede completar un canje sobre una devolucion procesada.',
+                ]);
+            }
+
+            if (! $salesReturn->sale->customer || ! $salesReturn->customer_credit_transaction_id) {
+                throw ValidationException::withMessages([
+                    'customer_id' => 'La devolucion no tiene un saldo a favor de cliente disponible.',
+                ]);
+            }
+
+            if ($salesReturn->exchange_sale_id) {
+                throw ValidationException::withMessages([
+                    'exchange' => 'La devolucion ya tiene una venta de canje asociada.',
+                ]);
+            }
+
+            $order = PosOrder::query()
+                ->with(['sale', 'payments'])
+                ->whereKey($posOrderId)
+                ->where('customer_id', $salesReturn->sale->customer_id)
+                ->where('status', PosOrder::STATUS_PAID)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $order || ! $order->sale_id || ! $order->sale) {
+                throw ValidationException::withMessages([
+                    'pos_order_id' => 'La orden POS debe estar pagada y pertenecer al cliente de la devolucion.',
+                ]);
+            }
+
+            if (! $order->payments->contains(fn (PosPayment $payment): bool => $payment->method === PosPayment::METHOD_CUSTOMER_CREDIT)) {
+                throw ValidationException::withMessages([
+                    'pos_order_id' => 'El checkout del canje debe aplicar saldo a favor del cliente.',
+                ]);
+            }
+
+            $salesReturn->update(['exchange_sale_id' => $order->sale_id]);
 
             return $this->loadReturn($salesReturn);
         });
@@ -190,6 +320,7 @@ class SalesReturnService
             'items.product',
             'items.warehouse',
             'items.stockMovement',
+            'refundFinancialAdjustment',
             'creator',
             'reviewer',
             'processor',
@@ -323,6 +454,10 @@ class SalesReturnService
             return;
         }
 
+        if ($mode === 'customer_credit') {
+            return;
+        }
+
         $this->assertRefundData($data);
 
         if ($mode === 'cash') {
@@ -364,6 +499,68 @@ class SalesReturnService
         }
     }
 
+    private function createCreditNote(SalesReturn $salesReturn, User $user): FinancialAdjustment
+    {
+        [$firstSaleItem, $currency, $baseAmount, $localAmount] = $this->returnAmounts($salesReturn);
+
+        return $this->financialAdjustments->createCreditNote($user, $salesReturn->sale->receivable, [
+            'account_type' => FinancialAdjustment::ACCOUNT_CUSTOMER_CREDIT,
+            'currency' => $currency,
+            'amount' => $currency === Product::CURRENCY_VES ? $localAmount : $baseAmount,
+            'exchange_rate_type_id' => $firstSaleItem->exchange_rate_type_id,
+            'exchange_rate' => $firstSaleItem->exchange_rate,
+            'reason' => "Nota de credito por devolucion #{$salesReturn->id}",
+            'notes' => $salesReturn->reason ?? 'Nota de credito generada por devolucion procesada.',
+            'source_type' => SalesReturn::class,
+            'source_id' => $salesReturn->id,
+        ]);
+    }
+
+    private function issueCustomerCredit(SalesReturn $salesReturn, User $user)
+    {
+        if (! $salesReturn->sale->customer) {
+            throw ValidationException::withMessages([
+                'refund_mode' => 'El saldo a favor requiere un cliente registrado en la venta.',
+            ]);
+        }
+
+        [$firstSaleItem, $currency, $baseAmount, $localAmount] = $this->returnAmounts($salesReturn);
+
+        return $this->customerCredits->issue($salesReturn->sale->customer, $user, [
+            'currency' => $currency,
+            'amount' => $currency === Product::CURRENCY_VES ? $localAmount : $baseAmount,
+            'amount_base' => $baseAmount,
+            'amount_local' => $localAmount,
+            'source_type' => SalesReturn::class,
+            'source_id' => $salesReturn->id,
+            'notes' => "Saldo a favor por devolucion #{$salesReturn->id}",
+        ]);
+    }
+
+    private function returnAmounts(SalesReturn $salesReturn): array
+    {
+        $firstSaleItem = $salesReturn->items->first()->saleItem;
+        $baseAmount = 0.0;
+        $localAmount = 0.0;
+
+        foreach ($salesReturn->items as $returnItem) {
+            $saleItem = $returnItem->saleItem;
+            $lineQuantity = (float) $saleItem->quantity;
+
+            if ($lineQuantity <= 0.0) {
+                continue;
+            }
+
+            $lineBase = round((float) $saleItem->base_total_amount / $lineQuantity * (float) $returnItem->quantity, 4);
+            $baseAmount += $lineBase;
+            $localAmount += $saleItem->exchange_rate
+                ? round($lineBase * (float) $saleItem->exchange_rate, 4)
+                : ($saleItem->sale_currency === Product::CURRENCY_VES ? round((float) $saleItem->unit_price * (float) $returnItem->quantity, 4) : 0.0);
+        }
+
+        return [$firstSaleItem, $firstSaleItem->sale_currency, round($baseAmount, 4), round($localAmount, 4)];
+    }
+
     private function assertRefundData(array $data): void
     {
         foreach (['refund_currency', 'refund_amount'] as $field) {
@@ -398,9 +595,17 @@ class SalesReturnService
             $maxRefundBase += round(((float) $saleItem->base_total_amount / $quantity) * (float) $returnItem->quantity, 4);
         }
 
+        $collectedBase = (float) ($salesReturn->sale->receivable?->collected_base_amount ?? 0);
+        $previousRefundedBase = (float) SalesReturn::query()
+            ->where('sale_id', $salesReturn->sale_id)
+            ->where('status', SalesReturn::STATUS_PROCESSED)
+            ->where('id', '!=', $salesReturn->id)
+            ->sum('refund_amount_base');
+        $maxRefundBase = min($maxRefundBase, max(0, round($collectedBase - $previousRefundedBase, 4)));
+
         if ($amountBase > round($maxRefundBase, 4)) {
             throw ValidationException::withMessages([
-                'refund_amount' => 'El reembolso supera el monto devuelto aprobado.',
+                'refund_amount' => 'El reembolso supera el monto cobrado disponible para esta venta o el monto devuelto aprobado.',
             ]);
         }
     }

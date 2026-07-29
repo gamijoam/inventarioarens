@@ -49,6 +49,27 @@ export function useCustomer(id: number) {
   });
 }
 
+const CustomerCreditSchema = z.object({
+  customer_id: z.number().int(),
+  available_base_amount: z.union([z.number(), z.string()]).transform(Number),
+  transactions: z.array(z.object({
+    id: z.number().int(),
+    type: z.string(),
+    amount_base: z.union([z.number(), z.string()]).transform(Number),
+    created_at: z.string().nullable().optional(),
+  }).passthrough()),
+});
+
+export type CustomerCredit = z.infer<typeof CustomerCreditSchema>;
+
+export function useCustomerCredit(id: number | null) {
+  return useQuery({
+    queryKey: [...customerKeys.all, 'credit', id] as const,
+    queryFn: async () => CustomerCreditSchema.parse(await getOne<unknown>(`/customers/${id}/credit`)),
+    enabled: Number.isFinite(id) && Number(id) > 0,
+  });
+}
+
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
