@@ -16,6 +16,7 @@ class AcceptInventoryTransferRequestRequest extends FormRequest
         return [
             'destination_warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', app(TenantManager::class)->require()->id)],
             'response_notes' => ['nullable', 'string', 'max:1000'],
+            'logistics_mode' => ['sometimes', 'boolean'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.request_item_id' => ['required', 'integer'],
             'items.*.destination_product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],

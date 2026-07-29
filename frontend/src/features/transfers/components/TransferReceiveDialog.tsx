@@ -49,7 +49,8 @@ function buildInitialRows(transfer: Transfer): ItemRow[] {
     const ordered = Number(it.requested_quantity ?? it.quantity ?? 0);
     const received = Number(it.received_quantity ?? 0);
     const pending = Math.max(0, ordered - received);
-    const product = it.product as { name?: string; sku?: string; tracking_type?: string } | null | undefined;
+    const product = it.product as
+      { name?: string; sku?: string; tracking_type?: string } | null | undefined;
     return {
       transfer_item_id: it.id,
       product_id: it.product_id,
@@ -85,14 +86,14 @@ export function TransferReceiveDialog({
     }
   }, [transfer, open]);
 
-  const itemsWithPending = useMemo(() => rows.filter((r) => r.pending > 0), [rows]);
+  const itemsWithPending = useMemo(() => rows, [rows]);
 
   if (!transfer) return null;
 
   if (itemsWithPending.length === 0) {
     return (
       <ModalShell open={open} onClose={() => onOpenChange(false)} title="Recibir mercancia">
-        <p className="text-sm text-text-muted">
+        <p className="text-text-muted text-sm">
           Este traslado no tiene items pendientes de recepcion.
         </p>
       </ModalShell>
@@ -107,19 +108,21 @@ export function TransferReceiveDialog({
     e.preventDefault();
     setSubmitting(true);
     try {
-      const items = rows
-        .filter((r) => r.receiving_quantity > 0 || r.receiving_serials.length > 0)
-        .map((r) => {
-          const isSerialized = r.tracking_type === 'serialized';
-          return {
-            inventory_transfer_item_id: r.transfer_item_id,
-            received_quantity: isSerialized ? undefined : r.receiving_quantity,
-            received_serial_units: isSerialized && r.receiving_serials.length > 0 ? r.receiving_serials : undefined,
-            received_product_unit_ids: undefined,
-            difference_reason: r.receiving_quantity < r.pending && r.difference_reason ? r.difference_reason : undefined,
-            difference_notes: undefined,
-          };
-        });
+      const items = rows.map((r) => {
+        const isSerialized = r.tracking_type === 'serialized';
+        const serials = r.receiving_serials.filter((serial) => serial.serial_number.trim() !== '');
+        return {
+          inventory_transfer_item_id: r.transfer_item_id,
+          received_quantity: isSerialized ? undefined : r.receiving_quantity,
+          received_serial_units: isSerialized && serials.length > 0 ? serials : undefined,
+          received_product_unit_ids: undefined,
+          difference_reason:
+            r.receiving_quantity < r.pending && r.difference_reason
+              ? r.difference_reason
+              : undefined,
+          difference_notes: undefined,
+        };
+      });
       const values: ReceiveTransferValues = {
         received_at: receivedAt,
         items,
@@ -137,9 +140,13 @@ export function TransferReceiveDialog({
   }
 
   return (
-    <ModalShell open={open} onClose={() => onOpenChange(false)} title={`Recibir mercancia — ${transfer.document_number ?? '#' + transfer.id}`}>
+    <ModalShell
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={`Recibir mercancia — ${transfer.document_number ?? '#' + transfer.id}`}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-text-muted">
+        <p className="text-text-muted text-sm">
           Confirma las cantidades recibidas. Para productos serializados, registra cada IMEI/serial.
           El stock entra al almacen destino como AVAILABLE.
         </p>
@@ -148,14 +155,18 @@ export function TransferReceiveDialog({
           {rows.map((r) => {
             const isSerialized = r.tracking_type === 'serialized';
             return (
-              <div key={r.transfer_item_id} className="rounded-md border border-border bg-bg/30 p-3">
+              <div
+                key={r.transfer_item_id}
+                className="border-border bg-bg/30 rounded-md border p-3"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{r.product_name}</div>
-                    <div className="text-xs text-text-muted">SKU: {r.product_sku}</div>
+                    <div className="text-text-muted text-xs">SKU: {r.product_sku}</div>
                   </div>
-                  <div className="text-xs text-text-muted">
-                    Pendiente: <span className="font-semibold tabular-nums">{r.pending.toFixed(2)}</span>
+                  <div className="text-text-muted text-xs">
+                    Pendiente:{' '}
+                    <span className="font-semibold tabular-nums">{r.pending.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -164,13 +175,18 @@ export function TransferReceiveDialog({
                     <ImeiScanner
                       productId={r.product_id}
                       warehouseId={transfer.to_warehouse_id}
-                      selected={r.receiving_serials.map((s) => s.serial_number).filter((s) => s.trim() !== '')}
+                      selected={r.receiving_serials
+                        .map((s) => s.serial_number)
+                        .filter((s) => s.trim() !== '')}
                       onChange={(sel) => {
                         const expected = r.receiving_quantity;
                         const type = r.new_unit_type;
-                        const next = sel.slice(0, expected).map((sn) => ({ serial_type: type, serial_number: sn }));
+                        const next = sel
+                          .slice(0, expected)
+                          .map((sn) => ({ serial_type: type, serial_number: sn }));
                         const padded = [...next];
-                        while (padded.length < expected) padded.push({ serial_type: type, serial_number: '' });
+                        while (padded.length < expected)
+                          padded.push({ serial_type: type, serial_number: '' });
                         updateRow(r.transfer_item_id, { receiving_serials: padded });
                       }}
                       max={r.receiving_quantity}
@@ -179,7 +195,9 @@ export function TransferReceiveDialog({
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">
-                    <Label htmlFor={`recv-${r.transfer_item_id}`} className="text-xs">Cantidad a recibir</Label>
+                    <Label htmlFor={`recv-${r.transfer_item_id}`} className="text-xs">
+                      Cantidad a recibir
+                    </Label>
                     <Input
                       id={`recv-${r.transfer_item_id}`}
                       type="number"
@@ -187,10 +205,36 @@ export function TransferReceiveDialog({
                       max={r.pending}
                       step={0.01}
                       value={r.receiving_quantity}
-                      onChange={(e) => updateRow(r.transfer_item_id, { receiving_quantity: Number(e.target.value) })}
+                      onChange={(e) =>
+                        updateRow(r.transfer_item_id, {
+                          receiving_quantity: Number(e.target.value),
+                        })
+                      }
                       className="w-32"
                     />
-                    <span className="text-xs text-text-muted">/ {r.pending.toFixed(2)} pendiente</span>
+                    <span className="text-text-muted text-xs">
+                      / {r.pending.toFixed(2)} pendiente
+                    </span>
+                  </div>
+                )}
+                {((isSerialized &&
+                  r.receiving_serials.filter((serial) => serial.serial_number.trim() !== '')
+                    .length < r.pending) ||
+                  (!isSerialized && r.receiving_quantity < r.pending)) && (
+                  <div className="mt-3 space-y-1">
+                    <Label htmlFor={`recv-reason-${r.transfer_item_id}`} className="text-xs">
+                      Motivo de la diferencia
+                    </Label>
+                    <Input
+                      id={`recv-reason-${r.transfer_item_id}`}
+                      value={r.difference_reason}
+                      onChange={(e) =>
+                        updateRow(r.transfer_item_id, { difference_reason: e.target.value })
+                      }
+                      placeholder="Ej. faltante, dañado o paquete abierto"
+                      maxLength={255}
+                      required
+                    />
                   </div>
                 )}
               </div>
@@ -208,8 +252,13 @@ export function TransferReceiveDialog({
           />
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+        <div className="border-border flex justify-end gap-2 border-t pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
             Cancelar
           </Button>
           <Button type="submit" loading={submitting} disabled={itemsWithPending.length === 0}>
@@ -234,11 +283,22 @@ function ModalShell({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-lg border border-border bg-surface max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 flex items-center justify-between border-b border-border bg-surface px-5 py-3">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="border-border bg-surface max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-border bg-surface sticky top-0 flex items-center justify-between border-b px-5 py-3">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-text-muted hover:bg-bg hover:text-text-primary" aria-label="Cerrar">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-text-muted hover:bg-bg hover:text-text-primary rounded p-1"
+            aria-label="Cerrar"
+          >
             <X className="size-4" />
           </button>
         </div>

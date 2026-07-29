@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'sequence',
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'from_warehouse_id',
     'destination_warehouse_id',
     'status',
+    'logistics_mode',
     'reason',
     'reference',
     'notes',
@@ -38,18 +40,26 @@ class InventoryTransferRequest extends Model
 
     public const STATUS_COMPLETED = 'completed';
 
+    public const STATUS_ACCEPTED = 'accepted';
+
     protected function casts(): array
     {
         return [
             'requested_at' => 'datetime',
             'responded_at' => 'datetime',
             'completed_at' => 'datetime',
+            'logistics_mode' => 'boolean',
         ];
     }
 
     public function items(): HasMany
     {
         return $this->hasMany(InventoryTransferRequestItem::class);
+    }
+
+    public function guide(): HasOne
+    {
+        return $this->hasOne(InventoryTransferRequestGuide::class);
     }
 
     public function originTenant(): BelongsTo

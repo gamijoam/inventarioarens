@@ -26,6 +26,14 @@ vi.mock('@/features/inventory-transfer-requests/api', () => ({
     mutate: mockUseCancelTransferRequest,
     isPending: false,
   }),
+  useDispatchTransferRequest: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useDeliverTransferRequest: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/stores/session', () => ({
@@ -33,22 +41,30 @@ vi.mock('@/stores/session', () => ({
     selector({ tenant: { id: 1 } } as unknown as { tenant: { id: number } | null }),
 }));
 
+vi.mock('@/permissions/useCan', () => ({
+  useCan: () => true,
+}));
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
-  Link: ({ children, ...props }: { children: React.ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
+  Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   Outlet: () => null,
   createFileRoute: () => () => ({}),
 }));
 
 // Mockeamos los dialogs para no necesitar su implementacion aqui.
-vi.mock('@/features/inventory-transfer-requests/components/AcceptInventoryTransferRequestDialog', () => ({
-  AcceptInventoryTransferRequestDialog: () => null,
-}));
-vi.mock('@/features/inventory-transfer-requests/components/RejectInventoryTransferRequestDialog', () => ({
-  RejectInventoryTransferRequestDialog: () => null,
-}));
+vi.mock(
+  '@/features/inventory-transfer-requests/components/AcceptInventoryTransferRequestDialog',
+  () => ({
+    AcceptInventoryTransferRequestDialog: () => null,
+  }),
+);
+vi.mock(
+  '@/features/inventory-transfer-requests/components/RejectInventoryTransferRequestDialog',
+  () => ({
+    RejectInventoryTransferRequestDialog: () => null,
+  }),
+);
 
 import { TransferRequestDetailInner } from '../$requestId';
 
@@ -59,13 +75,15 @@ function makeWrapper() {
   );
 }
 
-function makeRequest(overrides: Partial<{
-  id: number;
-  origin_tenant_id: number;
-  destination_tenant_id: number;
-  status: 'requested' | 'completed' | 'rejected' | 'cancelled';
-  document_number: string;
-}> = {}) {
+function makeRequest(
+  overrides: Partial<{
+    id: number;
+    origin_tenant_id: number;
+    destination_tenant_id: number;
+    status: 'requested' | 'completed' | 'rejected' | 'cancelled';
+    document_number: string;
+  }> = {},
+) {
   return {
     id: 7,
     origin_tenant_id: 2,

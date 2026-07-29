@@ -209,6 +209,7 @@ class AccountsReceivableService
         $returns = SalesReturn::query()
             ->with('items.saleItem')
             ->where('sale_id', $sale->id)
+            ->where('status', SalesReturn::STATUS_PROCESSED)
             ->get();
 
         $returnedBase = 0.0;

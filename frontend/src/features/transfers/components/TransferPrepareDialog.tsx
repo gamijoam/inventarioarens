@@ -46,12 +46,14 @@ interface ItemRow {
   preparing_serials: SerialEntry[];
   new_unit_serial: string;
   new_unit_type: 'imei' | 'serial';
+  difference_reason: string;
 }
 
 function buildInitialRows(transfer: Transfer): ItemRow[] {
   return (transfer.items ?? []).map((it) => {
     const requested = Number(it.requested_quantity ?? it.quantity ?? 0);
-    const product = it.product as { name?: string; sku?: string; tracking_type?: string } | null | undefined;
+    const product = it.product as
+      { name?: string; sku?: string; tracking_type?: string } | null | undefined;
     return {
       transfer_item_id: it.id,
       product_id: it.product_id,
@@ -63,6 +65,7 @@ function buildInitialRows(transfer: Transfer): ItemRow[] {
       preparing_serials: [],
       new_unit_serial: '',
       new_unit_type: 'imei',
+      difference_reason: '',
     };
   });
 }
@@ -86,10 +89,7 @@ export function TransferPrepareDialog({
     }
   }, [transfer, open]);
 
-  const itemsToSubmit = useMemo(
-    () => rows.filter((r) => r.preparing_quantity > 0 || r.preparing_serials.length > 0),
-    [rows],
-  );
+  const itemsToSubmit = useMemo(() => rows, [rows]);
 
   if (!transfer) return null;
 
@@ -114,14 +114,19 @@ export function TransferPrepareDialog({
     try {
       const items = itemsToSubmit.map((r) => {
         const isSerialized = r.tracking_type === 'serialized';
+        const serials = r.preparing_serials.filter((serial) => serial.serial_number.trim() !== '');
         return {
           inventory_transfer_item_id: r.transfer_item_id,
           prepared_quantity: isSerialized ? undefined : r.preparing_quantity,
           // Para serializados: enviamos serial_units con los IMEIs/seriales
           // REALES que el usuario ingreso. El backend los resuelve a IDs.
-          prepared_serial_units: isSerialized && r.preparing_serials.length > 0 ? r.preparing_serials : undefined,
+          prepared_serial_units: isSerialized && serials.length > 0 ? serials : undefined,
           // Mantenemos prepared_product_unit_ids vacio (legacy path).
           prepared_product_unit_ids: undefined,
+          difference_reason:
+            (isSerialized ? serials.length : r.preparing_quantity) < r.requested
+              ? r.difference_reason.trim() || undefined
+              : undefined,
         };
       });
       const values: PrepareTransferValues = {
@@ -141,25 +146,33 @@ export function TransferPrepareDialog({
   }
 
   return (
-    <ModalShell open={open} onClose={() => onOpenChange(false)} title={`Preparar mercancia — ${transfer.document_number ?? '#' + transfer.id}`}>
+    <ModalShell
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={`Preparar mercancia — ${transfer.document_number ?? '#' + transfer.id}`}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-text-muted">
-          Confirma las cantidades preparadas. Para productos serializados, registra cada IMEI/serial.
-          El stock se mueve a RESERVED en el almacen de origen.
+        <p className="text-text-muted text-sm">
+          Confirma las cantidades preparadas. Para productos serializados, registra cada
+          IMEI/serial. El stock se mueve a RESERVED en el almacen de origen.
         </p>
 
         <div className="space-y-2">
           {rows.map((r) => {
             const isSerialized = r.tracking_type === 'serialized';
             return (
-              <div key={r.transfer_item_id} className="rounded-md border border-border bg-bg/30 p-3">
+              <div
+                key={r.transfer_item_id}
+                className="border-border bg-bg/30 rounded-md border p-3"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{r.product_name}</div>
-                    <div className="text-xs text-text-muted">SKU: {r.product_sku}</div>
+                    <div className="text-text-muted text-xs">SKU: {r.product_sku}</div>
                   </div>
-                  <div className="text-xs text-text-muted">
-                    Solicitado: <span className="font-semibold tabular-nums">{r.requested.toFixed(2)}</span>
+                  <div className="text-text-muted text-xs">
+                    Solicitado:{' '}
+                    <span className="font-semibold tabular-nums">{r.requested.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -168,13 +181,18 @@ export function TransferPrepareDialog({
                     <ImeiScanner
                       productId={r.product_id}
                       warehouseId={transfer.from_warehouse_id}
-                      selected={r.preparing_serials.map((s) => s.serial_number).filter((s) => s.trim() !== '')}
+                      selected={r.preparing_serials
+                        .map((s) => s.serial_number)
+                        .filter((s) => s.trim() !== '')}
                       onChange={(sel) => {
                         const expected = r.preparing_quantity;
                         const type = r.new_unit_type;
-                        const next = sel.slice(0, expected).map((sn) => ({ serial_type: type, serial_number: sn }));
+                        const next = sel
+                          .slice(0, expected)
+                          .map((sn) => ({ serial_type: type, serial_number: sn }));
                         const padded = [...next];
-                        while (padded.length < expected) padded.push({ serial_type: type, serial_number: '' });
+                        while (padded.length < expected)
+                          padded.push({ serial_type: type, serial_number: '' });
                         updateRow(r.transfer_item_id, { preparing_serials: padded });
                       }}
                       max={r.preparing_quantity}
@@ -183,7 +201,9 @@ export function TransferPrepareDialog({
                   </div>
                 ) : (
                   <div className="mt-3 flex items-center gap-2">
-                    <Label htmlFor={`prep-${r.transfer_item_id}`} className="text-xs">Cantidad a preparar</Label>
+                    <Label htmlFor={`prep-${r.transfer_item_id}`} className="text-xs">
+                      Cantidad a preparar
+                    </Label>
                     <Input
                       id={`prep-${r.transfer_item_id}`}
                       type="number"
@@ -191,10 +211,36 @@ export function TransferPrepareDialog({
                       max={r.requested}
                       step={0.01}
                       value={r.preparing_quantity}
-                      onChange={(e) => updateRow(r.transfer_item_id, { preparing_quantity: Number(e.target.value) })}
+                      onChange={(e) =>
+                        updateRow(r.transfer_item_id, {
+                          preparing_quantity: Number(e.target.value),
+                        })
+                      }
                       className="w-32"
                     />
-                    <span className="text-xs text-text-muted">/ {r.requested.toFixed(2)} solicitado</span>
+                    <span className="text-text-muted text-xs">
+                      / {r.requested.toFixed(2)} solicitado
+                    </span>
+                  </div>
+                )}
+                {((isSerialized &&
+                  r.preparing_serials.filter((serial) => serial.serial_number.trim() !== '')
+                    .length < r.requested) ||
+                  (!isSerialized && r.preparing_quantity < r.requested)) && (
+                  <div className="mt-3 space-y-1">
+                    <Label htmlFor={`prep-reason-${r.transfer_item_id}`} className="text-xs">
+                      Motivo de la diferencia
+                    </Label>
+                    <Input
+                      id={`prep-reason-${r.transfer_item_id}`}
+                      value={r.difference_reason}
+                      onChange={(e) =>
+                        updateRow(r.transfer_item_id, { difference_reason: e.target.value })
+                      }
+                      placeholder="Ej. faltante, dañado o no ubicado"
+                      maxLength={255}
+                      required
+                    />
                   </div>
                 )}
               </div>
@@ -213,8 +259,13 @@ export function TransferPrepareDialog({
           />
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+        <div className="border-border flex justify-end gap-2 border-t pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
             Cancelar
           </Button>
           <Button type="submit" loading={submitting} disabled={itemsToSubmit.length === 0}>
@@ -239,11 +290,22 @@ function ModalShell({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-lg border border-border bg-surface max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 flex items-center justify-between border-b border-border bg-surface px-5 py-3">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="border-border bg-surface max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-border bg-surface sticky top-0 flex items-center justify-between border-b px-5 py-3">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-text-muted hover:bg-bg hover:text-text-primary" aria-label="Cerrar">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-text-muted hover:bg-bg hover:text-text-primary rounded p-1"
+            aria-label="Cerrar"
+          >
             <X className="size-4" />
           </button>
         </div>

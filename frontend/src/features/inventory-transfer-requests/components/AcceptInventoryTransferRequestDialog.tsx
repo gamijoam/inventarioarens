@@ -56,6 +56,7 @@ export function AcceptInventoryTransferRequestDialog({
 
   const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
   const [responseNotes, setResponseNotes] = useState('');
+  const [logisticsMode, setLogisticsMode] = useState(false);
   const [mapping, setMapping] = useState<Record<number, ItemMapping>>({});
   const [submitting, setSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -64,6 +65,7 @@ export function AcceptInventoryTransferRequestDialog({
     if (!open) return;
     setDestinationWarehouseId('');
     setResponseNotes('');
+    setLogisticsMode(false);
     const initial: Record<number, ItemMapping> = {};
     for (const item of request.items ?? []) {
       initial[item.id] = { destinationProductId: '', serialUnits: [] };
@@ -115,7 +117,9 @@ export function AcceptInventoryTransferRequestDialog({
     for (const it of request.items) {
       const m = getItemMapping(it.id);
       if (!m.destinationProductId) {
-        setFormErrors({ [`items.${it.id}.destination_product_id`]: 'Selecciona un producto destino.' });
+        setFormErrors({
+          [`items.${it.id}.destination_product_id`]: 'Selecciona un producto destino.',
+        });
         toast.error('Falta mapear un producto destino.');
         return;
       }
@@ -124,7 +128,9 @@ export function AcceptInventoryTransferRequestDialog({
         const qty = Number(it.quantity);
         const filled = m.serialUnits.filter((s) => s.trim().length > 0).length;
         if (qty > 0 && filled !== qty) {
-          setFormErrors({ [`items.${it.id}.serial_units`]: `Debes seleccionar ${qty} IMEI(s)/seriale(s) (llevas ${filled}).` });
+          setFormErrors({
+            [`items.${it.id}.serial_units`]: `Debes seleccionar ${qty} IMEI(s)/seriale(s) (llevas ${filled}).`,
+          });
           toast.error('Faltan IMEIs/seriales en items serializados.');
           return;
         }
@@ -158,9 +164,14 @@ export function AcceptInventoryTransferRequestDialog({
           destination_warehouse_id: Number(destinationWarehouseId),
           response_notes: responseNotes.trim() ? responseNotes.trim() : null,
           items: itemsPayload,
+          logistics_mode: logisticsMode,
         },
       });
-      toast.success('Solicitud aceptada. Stock transferido.');
+      toast.success(
+        logisticsMode
+          ? 'Solicitud aceptada. Guía logística creada.'
+          : 'Solicitud aceptada. Stock transferido.',
+      );
       onAccepted?.(accepted.id);
       onOpenChange(false);
     } catch (err) {
@@ -179,22 +190,39 @@ export function AcceptInventoryTransferRequestDialog({
       aria-labelledby="accept-req-title"
     >
       <div
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-surface"
+        className="border-border bg-surface max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg border"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-5 py-3">
+        <div className="border-border bg-surface sticky top-0 z-10 flex items-center justify-between border-b px-5 py-3">
+          <label className="border-border bg-bg/30 flex cursor-pointer items-start gap-3 rounded border p-3">
+            <input
+              type="checkbox"
+              checked={logisticsMode}
+              onChange={(e) => setLogisticsMode(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm font-medium">Usar flujo logístico</span>
+              <span className="text-text-muted block text-xs">
+                Crea una guía para preparar, despachar, entregar y recibir. El stock no se mueve al
+                aceptar.
+              </span>
+            </span>
+          </label>
+
           <div>
             <h2 id="accept-req-title" className="text-lg font-semibold">
               Aceptar solicitud {request.document_number ?? '#' + request.id}
             </h2>
-            <p className="mt-0.5 text-xs text-text-muted">
-              Mapea cada item a un producto de tu catalogo y, si es serializado, elige los IMEIs/seriales que envias.
+            <p className="text-text-muted mt-0.5 text-xs">
+              Mapea cada item a un producto de tu catalogo y, si es serializado, elige los
+              IMEIs/seriales que envias.
             </p>
           </div>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="rounded p-1 text-text-muted hover:bg-bg hover:text-text-primary"
+            className="text-text-muted hover:bg-bg hover:text-text-primary rounded p-1"
             aria-label="Cerrar"
           >
             <X className="size-4" />
@@ -211,12 +239,14 @@ export function AcceptInventoryTransferRequestDialog({
                 id="dest-wh"
                 value={destinationWarehouseId}
                 onChange={(e) => setDestinationWarehouseId(e.target.value)}
-                className="mt-1 w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
                 required
               >
                 <option value="">Selecciona almacen destino...</option>
                 {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.code}</option>
+                  <option key={w.id} value={w.id}>
+                    {w.code}
+                  </option>
                 ))}
               </select>
             )}
@@ -234,7 +264,10 @@ export function AcceptInventoryTransferRequestDialog({
                 productOptions={productOptions}
                 loadingProd={loadingProd}
                 destinationWarehouseId={Number(destinationWarehouseId) || null}
-                error={formErrors[`items.${it.id}.destination_product_id`] || formErrors[`items.${it.id}.serial_units`]}
+                error={
+                  formErrors[`items.${it.id}.destination_product_id`] ||
+                  formErrors[`items.${it.id}.serial_units`]
+                }
               />
             ))}
           </div>
@@ -247,17 +280,22 @@ export function AcceptInventoryTransferRequestDialog({
               onChange={(e) => setResponseNotes(e.target.value)}
               maxLength={1000}
               rows={2}
-              className="mt-1 w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+              className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
               placeholder="Comentarios para el solicitante..."
             />
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <div className="border-border flex justify-end gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={submitting} data-testid="submit-accept">
-              Confirmar aceptacion
+              {logisticsMode ? 'Aceptar y crear guía' : 'Confirmar aceptación'}
             </Button>
           </div>
         </form>
@@ -330,7 +368,7 @@ function ItemCard({
         <Badge variant={matchVariant} data-testid={`accept-card-badge-${item.id}`}>
           {matchLabel}
         </Badge>
-        <span className="text-xs text-text-muted">
+        <span className="text-text-muted text-xs">
           {isSerialized && mapping.serialUnits.length > 0
             ? `${mapping.serialUnits.length} IMEI(s) elegido(s) / ${qtyNum}`
             : 'Sin IMEIs adjuntos'}
@@ -339,34 +377,34 @@ function ItemCard({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
         {/* IZQUIERDA: producto ORIGEN */}
-        <div className="rounded-md border border-border bg-bg/40 p-3">
-          <div className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-text-muted">
+        <div className="border-border bg-bg/40 rounded-md border p-3">
+          <div className="text-text-muted mb-1 flex items-center gap-1 text-xs tracking-wide uppercase">
             Te piden
           </div>
           <div className="font-medium">{originName}</div>
           <dl className="mt-2 space-y-0.5 text-xs">
             {origin?.sku && (
               <div className="flex gap-2">
-                <dt className="w-14 text-text-muted">SKU</dt>
+                <dt className="text-text-muted w-14">SKU</dt>
                 <dd>
-                  <code className="rounded bg-bg px-1.5 py-0.5">{origin.sku}</code>
+                  <code className="bg-bg rounded px-1.5 py-0.5">{origin.sku}</code>
                 </dd>
               </div>
             )}
             {origin?.barcode && (
               <div className="flex gap-2">
-                <dt className="w-14 text-text-muted">Barcode</dt>
+                <dt className="text-text-muted w-14">Barcode</dt>
                 <dd>
-                  <code className="rounded bg-bg px-1.5 py-0.5">{origin.barcode}</code>
+                  <code className="bg-bg rounded px-1.5 py-0.5">{origin.barcode}</code>
                 </dd>
               </div>
             )}
             <div className="flex gap-2">
-              <dt className="w-14 text-text-muted">Cantidad</dt>
+              <dt className="text-text-muted w-14">Cantidad</dt>
               <dd className="font-semibold">{qtyNum.toLocaleString()}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="w-14 text-text-muted">Control</dt>
+              <dt className="text-text-muted w-14">Control</dt>
               <dd>{originTracking === 'serialized' ? 'Serializado (IMEI)' : 'Cantidad'}</dd>
             </div>
           </dl>
@@ -374,15 +412,15 @@ function ItemCard({
 
         {/* CENTRO: flecha */}
         <div className="flex items-center justify-center md:px-2">
-          <div className="flex flex-col items-center gap-1 text-text-muted">
+          <div className="text-text-muted flex flex-col items-center gap-1">
             <ArrowRight className="size-5 rotate-90 md:rotate-0" />
-            <span className="text-[10px] uppercase tracking-wide">recibo</span>
+            <span className="text-[10px] tracking-wide uppercase">recibo</span>
           </div>
         </div>
 
         {/* DERECHA: producto DESTINO con select + IMEIs */}
         <div>
-          <div className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-text-muted">
+          <div className="text-text-muted mb-1 flex items-center gap-1 text-xs tracking-wide uppercase">
             Producto destino
           </div>
           {loadingProd ? (
@@ -391,7 +429,7 @@ function ItemCard({
             <select
               value={mapping.destinationProductId}
               onChange={(e) => onChange({ destinationProductId: e.target.value })}
-              className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+              className="border-border-strong bg-surface w-full rounded border px-3 py-2 text-sm"
               required
               data-testid={`accept-product-${item.id}`}
             >
@@ -406,7 +444,7 @@ function ItemCard({
 
           {best && (
             <div
-              className="mt-1 text-[11px] text-text-muted"
+              className="text-text-muted mt-1 text-[11px]"
               data-testid={`accept-hint-${item.id}`}
             >
               Sugerencia: <strong>{best.label.replace(/^\[[^\]]+\]\s*/, '')}</strong>
@@ -427,19 +465,19 @@ function ItemCard({
             </div>
           )}
           {isSerialized && !mapping.destinationProductId && (
-            <p className="mt-1 text-[11px] text-text-muted">
+            <p className="text-text-muted mt-1 text-[11px]">
               Selecciona primero un producto destino para ver los IMEIs disponibles.
             </p>
           )}
           {isSerialized && mapping.destinationProductId && !destinationWarehouseId && (
-            <p className="mt-1 text-[11px] text-text-muted">
+            <p className="text-text-muted mt-1 text-[11px]">
               Selecciona primero un almacen destino para ver los IMEIs disponibles.
             </p>
           )}
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p className="text-danger mt-2 text-xs">{error}</p>}
     </div>
   );
 }

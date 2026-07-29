@@ -141,6 +141,59 @@ class InventoryTransferRequestApiTest extends TestCase
         ]);
     }
 
+    public function test_logistics_mode_defers_stock_until_receipt(): void
+    {
+        $originTenant = Tenant::create(['name' => 'Empresa Origen Logística', 'slug' => 'empresa-origen-log']);
+        $destinationTenant = Tenant::create(['name' => 'Empresa Destino Logística', 'slug' => 'empresa-destino-log']);
+        [$originWarehouse, $originProduct] = $this->warehouseAndProduct($originTenant, 'TREQ-LOG-O', Product::TRACKING_QUANTITY);
+        [$destinationWarehouse, $destinationProduct] = $this->warehouseAndProduct($destinationTenant, 'TREQ-LOG-D', Product::TRACKING_QUANTITY);
+        $originUser = $this->userInTenant($originTenant);
+        $destinationUser = $this->userInTenant($destinationTenant);
+        $this->grantRole($originTenant, $originUser, 'Origin Logistics', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view', 'inventory_transfer_requests.receive']);
+        $this->grantRole($destinationTenant, $destinationUser, 'Destination Logistics', ['inventory_transfer_requests.respond', 'inventory_transfer_requests.view', 'inventory_transfer_requests.prepare', 'inventory_transfer_requests.dispatch', 'inventory_transfer_requests.deliver']);
+        $this->grantRole($destinationTenant, $destinationUser, 'Transportista', ['inventory_transfer_requests.dispatch', 'inventory_transfer_requests.deliver']);
+        $this->stock($destinationTenant, $destinationWarehouse, $destinationProduct, $destinationUser, 10);
+
+        $created = $this->actingAs($originUser)->withHeader('X-Tenant', $originTenant->slug)->postJson('/api/inventory-transfer-requests', [
+            'destination_tenant_slug' => $destinationTenant->slug,
+            'from_warehouse_id' => $originWarehouse->id,
+            'items' => [['product_id' => $originProduct->id, 'quantity' => 4]],
+        ])->assertCreated();
+        $requestId = $created->json('data.id');
+        $itemId = $created->json('data.items.0.id');
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/accept", [
+            'logistics_mode' => true,
+            'destination_warehouse_id' => $destinationWarehouse->id,
+            'items' => [['request_item_id' => $itemId, 'destination_product_id' => $destinationProduct->id]],
+        ])->assertOk()->assertJsonPath('data.status', InventoryTransferRequest::STATUS_ACCEPTED);
+
+        $this->assertDatabaseMissing('stock_movements', ['reference_type' => InventoryTransferRequest::class, 'reference_id' => $requestId]);
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+            'carrier_name' => 'Juan Transportista',
+            'carrier_document_number' => 'V-12345678',
+            'vehicle_plate' => 'ABC123',
+            'carrier_user_id' => $destinationUser->id,
+            'items' => [['request_item_id' => $itemId, 'prepared_quantity' => 4]],
+        ])->assertOk();
+        $this->assertDatabaseHas('inventory_transfer_request_guides', [
+            'inventory_transfer_request_id' => $requestId,
+            'carrier_name' => 'Juan Transportista',
+            'vehicle_plate' => 'ABC123',
+        ]);
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/dispatch")->assertOk();
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/deliver")->assertOk();
+        $this->actingAs($originUser)->withHeader('X-Tenant', $originTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/receive", [
+            'items' => [['request_item_id' => $itemId, 'received_quantity' => 4]],
+        ])->assertOk()->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
+
+        $this->useTenant($originTenant);
+        $this->assertSame(4.0, (float) $this->balance($originWarehouse, $originProduct)->quantity_available);
+        $this->useTenant($destinationTenant);
+        $this->assertSame(6.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
+    }
+
     public function test_destination_can_choose_imeis_when_origin_did_not_provide_them(): void
     {
         $originTenant = Tenant::create(['name' => 'Empresa Origen', 'slug' => 'empresa-origen-2']);

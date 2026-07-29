@@ -311,9 +311,9 @@ class AccessControlService
     {
         $tenant ??= app(TenantManager::class)->require();
 
-        if (! $tenant->isGroup()) {
-            app(TenantSpinoffService::class)->seedBaseRoles($tenant);
-        }
+        // Every tenant, including groups, needs the base role catalog so user
+        // management and role assignment behave consistently across tenants.
+        app(TenantSpinoffService::class)->seedBaseRoles($tenant);
 
         return Role::query()
             ->where($this->teamColumn(), $tenant->id)

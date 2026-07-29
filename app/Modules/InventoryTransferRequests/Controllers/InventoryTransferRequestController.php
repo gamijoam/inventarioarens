@@ -4,6 +4,7 @@ namespace App\Modules\InventoryTransferRequests\Controllers;
 
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Requests\AcceptInventoryTransferRequestRequest;
+use App\Modules\InventoryTransferRequests\Requests\GuideItemsRequest;
 use App\Modules\InventoryTransferRequests\Requests\RejectInventoryTransferRequestRequest;
 use App\Modules\InventoryTransferRequests\Requests\StoreInventoryTransferRequestRequest;
 use App\Modules\InventoryTransferRequests\Resources\InventoryTransferRequestResource;
@@ -33,6 +34,7 @@ class InventoryTransferRequestController extends Controller
                     'items',
                     'items.originProduct',
                     'items.destinationProduct',
+                    'guide.items',
                 ])
                 ->where(function ($query) use ($tenantId): void {
                     $query
@@ -67,6 +69,7 @@ class InventoryTransferRequestController extends Controller
                 'destinationWarehouse',
                 'items.originProduct',
                 'items.destinationProduct',
+                'guide.items',
             ])
         );
     }
@@ -104,5 +107,33 @@ class InventoryTransferRequestController extends Controller
         return InventoryTransferRequestResource::make(
             $service->cancel($inventoryTransferRequest, request()->user())
         );
+    }
+
+    public function prepare(GuideItemsRequest $request, InventoryTransferRequest $inventoryTransferRequest, InventoryTransferRequestService $service): InventoryTransferRequestResource
+    {
+        Gate::authorize('prepare', $inventoryTransferRequest);
+
+        return InventoryTransferRequestResource::make($service->prepare($inventoryTransferRequest, $request->user(), $request->validated()));
+    }
+
+    public function dispatch(InventoryTransferRequest $inventoryTransferRequest, InventoryTransferRequestService $service): InventoryTransferRequestResource
+    {
+        Gate::authorize('dispatch', $inventoryTransferRequest);
+
+        return InventoryTransferRequestResource::make($service->dispatch($inventoryTransferRequest, request()->user()));
+    }
+
+    public function deliver(InventoryTransferRequest $inventoryTransferRequest, InventoryTransferRequestService $service): InventoryTransferRequestResource
+    {
+        Gate::authorize('deliver', $inventoryTransferRequest);
+
+        return InventoryTransferRequestResource::make($service->deliver($inventoryTransferRequest, request()->user()));
+    }
+
+    public function receive(GuideItemsRequest $request, InventoryTransferRequest $inventoryTransferRequest, InventoryTransferRequestService $service): InventoryTransferRequestResource
+    {
+        Gate::authorize('receive', $inventoryTransferRequest);
+
+        return InventoryTransferRequestResource::make($service->receive($inventoryTransferRequest, $request->user(), $request->validated()));
     }
 }

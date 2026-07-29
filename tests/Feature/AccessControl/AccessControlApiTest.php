@@ -83,6 +83,26 @@ class AccessControlApiTest extends TestCase
             ->assertJsonFragment(['module' => 'roles']);
     }
 
+    public function test_group_tenant_loads_all_base_roles_when_roles_are_requested(): void
+    {
+        $tenant = Tenant::create(['name' => 'Grupo A', 'slug' => 'grupo-a', 'is_group' => true]);
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Access Admin', ['roles.view']);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/roles')
+            ->assertOk();
+
+        $roleNames = collect($response->json('data'))->pluck('name');
+
+        $this->assertSame(
+            collect(array_keys(BasePermissions::ROLE_PERMISSIONS))->sort()->values()->all(),
+            $roleNames->intersect(array_keys(BasePermissions::ROLE_PERMISSIONS))->sort()->values()->all(),
+        );
+    }
+
     public function test_users_and_roles_are_isolated_between_companies(): void
     {
         [$tenantA, $tenantB] = [

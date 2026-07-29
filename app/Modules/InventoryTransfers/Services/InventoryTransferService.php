@@ -256,7 +256,7 @@ class InventoryTransferService
 
                 if ($product->requiresSerializedTracking()) {
                     $preparedQuantity = count($preparedUnitIds);
-                    $this->validatePreparedProductUnits($transfer, $item, $preparedUnitIds, $index);
+                    $this->validatePreparedProductUnits($transfer, $item, $preparedUnitIds, $preparedQuantity, $index);
                 } else {
                     if ($preparedUnitIds !== []) {
                         throw ValidationException::withMessages([
@@ -533,7 +533,7 @@ class InventoryTransferService
                             ),
                         ]);
                     }
-                    $this->validateReceivedProductUnits($transfer, $item, $receivedUnitIds, $index);
+                    $this->validateReceivedProductUnits($transfer, $item, $receivedUnitIds, $receivedQuantity, $index);
                 } else {
                     if ($receivedUnitIds !== []) {
                         throw ValidationException::withMessages([
@@ -1315,24 +1315,6 @@ class InventoryTransferService
             $unitIds = $item['product_unit_ids'] ?? [];
             $quantity = (float) $item['quantity'];
 
-            if ($product->requiresSerializedTracking()) {
-                if ($quantity !== floor($quantity)) {
-                    throw ValidationException::withMessages([
-                        "items.{$index}.quantity" => 'Los productos serializados requieren cantidad entera.',
-                    ]);
-                }
-
-                if (count($unitIds) !== (int) $quantity) {
-                    throw ValidationException::withMessages([
-                        "items.{$index}.product_unit_ids" => 'Debe indicar una unidad serializada disponible por cada cantidad de traslado.',
-                    ]);
-                }
-            } elseif ($unitIds !== []) {
-                throw ValidationException::withMessages([
-                    "items.{$index}.product_unit_ids" => 'Solo los productos serializados pueden trasladar unidades especificas.',
-                ]);
-            }
-
             foreach ($unitIds as $unitIndex => $unitId) {
                 if (isset($selectedUnitIds[$unitId])) {
                     throw ValidationException::withMessages([
@@ -1341,16 +1323,21 @@ class InventoryTransferService
                 }
 
                 $selectedUnitIds[$unitId] = true;
-                $unit = ProductUnit::query()->lockForUpdate()->find($unitId);
+            }
 
-                if (! $unit
-                    || (int) $unit->product_id !== (int) $item['product_id']
-                    || (int) $unit->warehouse_id !== (int) $fromWarehouse->id
-                    || $unit->status !== ProductUnit::STATUS_AVAILABLE) {
-                    throw ValidationException::withMessages([
-                        "items.{$index}.product_unit_ids.{$unitIndex}" => 'La unidad serializada no esta disponible en el almacen origen indicado.',
-                    ]);
-                }
+            try {
+                $this->inventory->validateSerializedUnits(
+                    product: $product,
+                    warehouse: $fromWarehouse,
+                    quantity: $quantity,
+                    unitIds: $unitIds,
+                );
+            } catch (ValidationException $exception) {
+                throw ValidationException::withMessages([
+                    $unitIds !== []
+                        ? "items.{$index}.product_unit_ids.0"
+                        : "items.{$index}.product_unit_ids" => $exception->getMessage(),
+                ]);
             }
         }
     }
@@ -1359,6 +1346,7 @@ class InventoryTransferService
         InventoryTransfer $transfer,
         InventoryTransferItem $item,
         array $unitIds,
+        float $quantity,
         int $itemIndex,
     ): void {
         if ((float) ($item->requested_quantity ?? $item->quantity) !== floor((float) ($item->requested_quantity ?? $item->quantity))) {
@@ -1381,32 +1369,25 @@ class InventoryTransferService
             ]);
         }
 
-        if ($unitIds === []) {
+        $product = Product::query()->findOrFail($item->product_id);
+        $warehouse = Warehouse::query()->findOrFail($transfer->from_warehouse_id);
+
+        if ($quantity <= 0 && $unitIds === []) {
             return;
         }
 
-        $units = ProductUnit::query()
-            ->whereIn('id', $unitIds)
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id');
-
-        if ($units->count() !== count($unitIds)) {
+        try {
+            $this->inventory->validateSerializedUnits(
+                product: $product,
+                warehouse: $warehouse,
+                quantity: $quantity,
+                unitIds: $unitIds,
+                allowedStatuses: [ProductUnit::STATUS_AVAILABLE, ProductUnit::STATUS_RESERVED],
+            );
+        } catch (ValidationException $exception) {
             throw ValidationException::withMessages([
-                "items.{$itemIndex}.prepared_product_unit_ids" => 'Uno o mas IMEIs o seriales no existen.',
+                "items.{$itemIndex}.prepared_product_unit_ids" => $exception->getMessage(),
             ]);
-        }
-
-        foreach ($unitIds as $unitIndex => $unitId) {
-            $unit = $units->get($unitId);
-
-            if ((int) $unit->product_id !== (int) $item->product_id
-                || (int) $unit->warehouse_id !== (int) $transfer->from_warehouse_id
-                || $unit->status !== ProductUnit::STATUS_AVAILABLE) {
-                throw ValidationException::withMessages([
-                    "items.{$itemIndex}.prepared_product_unit_ids.{$unitIndex}" => 'El IMEI o serial no esta disponible en el almacen origen.',
-                ]);
-            }
         }
     }
 
@@ -1492,6 +1473,7 @@ class InventoryTransferService
         InventoryTransfer $transfer,
         InventoryTransferItem $item,
         array $unitIds,
+        float $quantity,
         int $itemIndex,
     ): void {
         if (count($unitIds) !== count(array_unique($unitIds))) {
@@ -1508,32 +1490,25 @@ class InventoryTransferService
             ]);
         }
 
-        if ($unitIds === []) {
+        $product = Product::query()->findOrFail($item->product_id);
+        $warehouse = Warehouse::query()->findOrFail($transfer->from_warehouse_id);
+
+        if ($quantity <= 0 && $unitIds === []) {
             return;
         }
 
-        $units = ProductUnit::query()
-            ->whereIn('id', $unitIds)
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id');
-
-        if ($units->count() !== count($unitIds)) {
+        try {
+            $this->inventory->validateSerializedUnits(
+                product: $product,
+                warehouse: $warehouse,
+                quantity: $quantity,
+                unitIds: $unitIds,
+                allowedStatuses: [ProductUnit::STATUS_RESERVED],
+            );
+        } catch (ValidationException $exception) {
             throw ValidationException::withMessages([
-                "items.{$itemIndex}.received_product_unit_ids" => 'Uno o mas IMEIs o seriales no existen.',
+                "items.{$itemIndex}.received_product_unit_ids" => $exception->getMessage(),
             ]);
-        }
-
-        foreach ($unitIds as $unitIndex => $unitId) {
-            $unit = $units->get($unitId);
-
-            if ((int) $unit->product_id !== (int) $item->product_id
-                || (int) $unit->warehouse_id !== (int) $transfer->from_warehouse_id
-                || $unit->status !== ProductUnit::STATUS_RESERVED) {
-                throw ValidationException::withMessages([
-                    "items.{$itemIndex}.received_product_unit_ids.{$unitIndex}" => 'El IMEI o serial no esta despachado y pendiente por recibir.',
-                ]);
-            }
         }
     }
 
@@ -1563,7 +1538,9 @@ class InventoryTransferService
     {
         $tenantId = (int) app(TenantManager::class)->require()->id;
 
-        DB::statement('SELECT pg_advisory_xact_lock(?, ?)', [100, $tenantId]);
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('SELECT pg_advisory_xact_lock(?, ?)', [100, $tenantId]);
+        }
 
         return ((int) InventoryTransfer::query()
             ->orderByDesc('sequence')
@@ -1604,41 +1581,11 @@ class InventoryTransferService
      */
     private function resolveSerialUnits(array $serialUnits, Product $product, Warehouse $warehouse): array
     {
-        $ids = [];
-        $seenNumbers = [];
-
-        foreach ($serialUnits as $su) {
-            $number = trim((string) ($su['serial_number'] ?? ''));
-            $type = trim((string) ($su['serial_type'] ?? 'imei'));
-            if ($number === '') {
-                continue;
-            }
-            if (isset($seenNumbers[$number])) {
-                continue;
-            }
-            $seenNumbers[$number] = true;
-
-            // withoutGlobalScopes para evitar el scope BelongsToTenant en
-            // contextos sin TenantManager seteado.
-            $unit = ProductUnit::query()
-                ->withoutGlobalScopes()
-                ->where('product_id', $product->id)
-                ->where('warehouse_id', $warehouse->id)
-                ->where('serial_number', $number)
-                ->first();
-
-            if (! $unit) {
-                $unit = ProductUnit::create([
-                    'product_id' => $product->id,
-                    'warehouse_id' => $warehouse->id,
-                    'serial_type' => $type,
-                    'serial_number' => $number,
-                    'status' => ProductUnit::STATUS_AVAILABLE,
-                ]);
-            }
-            $ids[] = $unit->id;
-        }
-
-        return $ids;
+        return $this->inventory->resolveAvailableSerializedUnits(
+            product: $product,
+            warehouse: $warehouse,
+            quantity: count($serialUnits),
+            serialUnits: $serialUnits,
+        );
     }
 }

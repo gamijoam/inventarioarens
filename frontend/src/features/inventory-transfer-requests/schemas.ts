@@ -15,6 +15,10 @@ import { z } from 'zod';
 
 export const TRANSFER_REQUEST_STATUSES = [
   'requested',
+  'accepted',
+  'prepared',
+  'dispatched',
+  'delivered',
   'rejected',
   'cancelled',
   'completed',
@@ -23,10 +27,22 @@ export type TransferRequestStatus = (typeof TRANSFER_REQUEST_STATUSES)[number];
 
 export const TRANSFER_REQUEST_STATUS_LABELS: Record<TransferRequestStatus, string> = {
   requested: 'Pendiente',
+  accepted: 'Aceptada · logística',
+  prepared: 'Preparada',
+  dispatched: 'Despachada',
+  delivered: 'Entregada',
   rejected: 'Rechazada',
   cancelled: 'Cancelada',
   completed: 'Completada',
 };
+
+export const TRANSFER_REQUEST_GUIDE_STATUS_LABELS = {
+  draft: 'Borrador',
+  prepared: 'Preparada',
+  dispatched: 'Despachada',
+  delivered: 'Entregada',
+  received: 'Recibida',
+} as const;
 
 // Tabs de la bandeja principal. "Enviadas" = originamos la solicitud.
 // "Recibidas" = somos la empresa destino. "Pendientes" alias de requested.
@@ -100,6 +116,35 @@ export const TransferRequestItemSchema = z.object({
 });
 export type TransferRequestItem = z.infer<typeof TransferRequestItemSchema>;
 
+export const TransferRequestGuideItemSchema = z.object({
+  id: z.number().int().positive(),
+  guide_id: z.number().int().positive(),
+  inventory_transfer_request_item_id: z.number().int().positive(),
+  prepared_quantity: z.union([z.number(), z.string()]).transform(Number),
+  received_quantity: z.union([z.number(), z.string()]).transform(Number),
+  prepared_serial_units: z.array(SerialUnitSchema).nullable().optional(),
+  received_serial_units: z.array(SerialUnitSchema).nullable().optional(),
+  difference_reason: z.string().nullable().optional(),
+});
+
+export const TransferRequestGuideSchema = z.object({
+  id: z.number().int().positive(),
+  inventory_transfer_request_id: z.number().int().positive(),
+  status: z.enum(['draft', 'prepared', 'dispatched', 'delivered', 'received']),
+  carrier_name: z.string().nullable().optional(),
+  carrier_document_number: z.string().nullable().optional(),
+  carrier_phone: z.string().nullable().optional(),
+  vehicle_plate: z.string().nullable().optional(),
+  carrier_company: z.string().nullable().optional(),
+  carrier_user_id: z.number().int().positive().nullable().optional(),
+  prepared_at: z.string().nullable().optional(),
+  dispatched_at: z.string().nullable().optional(),
+  delivered_at: z.string().nullable().optional(),
+  received_at: z.string().nullable().optional(),
+  items: z.array(TransferRequestGuideItemSchema).optional(),
+});
+export type TransferRequestGuide = z.infer<typeof TransferRequestGuideSchema>;
+
 // =====================================================================
 // Solicitud (lectura)
 // =====================================================================
@@ -117,6 +162,8 @@ export const TransferRequestSchema = z.object({
   from_warehouse: WarehouseLiteSchema.nullable().optional(),
   destination_warehouse: WarehouseLiteSchema.nullable().optional(),
   status: z.enum(TRANSFER_REQUEST_STATUSES),
+  logistics_mode: z.boolean().default(false),
+  guide: TransferRequestGuideSchema.nullable().optional(),
   reason: z.string().nullable().optional(),
   reference: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -160,10 +207,10 @@ export const StoreTransferRequestSchema = z
     reference: data.reference?.trim() || null,
     notes: data.notes?.trim() || null,
   }))
-  .refine(
-    (data) => !!(data.destination_tenant_slug || data.destination_user_email),
-    { message: 'Indica slug de empresa destino o email de usuario destino.', path: ['destination_tenant_slug'] },
-  );
+  .refine((data) => !!(data.destination_tenant_slug || data.destination_user_email), {
+    message: 'Indica slug de empresa destino o email de usuario destino.',
+    path: ['destination_tenant_slug'],
+  });
 export type StoreTransferRequestValues = z.output<typeof StoreTransferRequestSchema>;
 
 // =====================================================================
@@ -194,12 +241,27 @@ export const AcceptTransferRequestSchema = z
     destination_warehouse_id: positiveNumber,
     response_notes: z.string().max(1000).optional(),
     items: z.array(AcceptTransferRequestItemSchema).min(1, 'Debe mapear todos los items.'),
+    logistics_mode: z.boolean().optional(),
   })
   .transform((data) => ({
     ...data,
     response_notes: data.response_notes?.trim() || null,
   }));
 export type AcceptTransferRequestValues = z.output<typeof AcceptTransferRequestSchema>;
+
+export const GuideItemQuantitySchema = z.object({
+  request_item_id: positiveNumber,
+  prepared_quantity: z.coerce.number().min(0).optional(),
+  received_quantity: z.coerce.number().min(0).optional(),
+  prepared_serial_units: z
+    .array(z.object({ serial_type: z.enum(['imei', 'serial']), serial_number: z.string().min(1) }))
+    .optional(),
+  received_serial_units: z
+    .array(z.object({ serial_type: z.enum(['imei', 'serial']), serial_number: z.string().min(1) }))
+    .optional(),
+  difference_reason: z.string().max(255).optional(),
+});
+export type GuideItemQuantity = z.input<typeof GuideItemQuantitySchema>;
 
 // =====================================================================
 // Form: reject

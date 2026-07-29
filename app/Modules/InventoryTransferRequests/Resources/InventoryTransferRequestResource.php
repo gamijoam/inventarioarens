@@ -22,6 +22,8 @@ class InventoryTransferRequestResource extends JsonResource
             'from_warehouse' => $this->whenLoaded('fromWarehouse'),
             'destination_warehouse' => $this->whenLoaded('destinationWarehouse'),
             'status' => $this->status,
+            'logistics_mode' => (bool) $this->logistics_mode,
+            'guide' => $this->whenLoaded('guide'),
             'reason' => $this->reason,
             'reference' => $this->reference,
             'notes' => $this->notes,

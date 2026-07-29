@@ -9,3 +9,7 @@ Route::get('inventory-transfer-requests/{inventoryTransferRequest}', [InventoryT
 Route::post('inventory-transfer-requests/{inventoryTransferRequest}/accept', [InventoryTransferRequestController::class, 'accept']);
 Route::post('inventory-transfer-requests/{inventoryTransferRequest}/reject', [InventoryTransferRequestController::class, 'reject']);
 Route::post('inventory-transfer-requests/{inventoryTransferRequest}/cancel', [InventoryTransferRequestController::class, 'cancel']);
+Route::post('inventory-transfer-requests/{inventoryTransferRequest}/guide/prepare', [InventoryTransferRequestController::class, 'prepare'])->name('inventory-transfer-requests.guide.prepare');
+Route::post('inventory-transfer-requests/{inventoryTransferRequest}/guide/dispatch', [InventoryTransferRequestController::class, 'dispatch']);
+Route::post('inventory-transfer-requests/{inventoryTransferRequest}/guide/deliver', [InventoryTransferRequestController::class, 'deliver']);
+Route::post('inventory-transfer-requests/{inventoryTransferRequest}/guide/receive', [InventoryTransferRequestController::class, 'receive'])->name('inventory-transfer-requests.guide.receive');

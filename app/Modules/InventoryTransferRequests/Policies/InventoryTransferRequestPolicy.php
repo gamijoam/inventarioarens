@@ -47,6 +47,39 @@ class InventoryTransferRequestPolicy
             && $this->hasTenantPermission($user, 'inventory_transfer_requests.cancel');
     }
 
+    public function prepare(User $user, InventoryTransferRequest $request): bool
+    {
+        return $this->destinationSide($user, $request, 'inventory_transfer_requests.prepare');
+    }
+
+    public function dispatch(User $user, InventoryTransferRequest $request): bool
+    {
+        return $this->destinationSide($user, $request, 'inventory_transfer_requests.dispatch');
+    }
+
+    public function deliver(User $user, InventoryTransferRequest $request): bool
+    {
+        return $this->destinationSide($user, $request, 'inventory_transfer_requests.deliver');
+    }
+
+    public function receive(User $user, InventoryTransferRequest $request): bool
+    {
+        $tenant = app(TenantManager::class)->current();
+
+        return $tenant
+            && (int) $request->origin_tenant_id === (int) $tenant->id
+            && $this->hasTenantPermission($user, 'inventory_transfer_requests.receive');
+    }
+
+    private function destinationSide(User $user, InventoryTransferRequest $request, string $permission): bool
+    {
+        $tenant = app(TenantManager::class)->current();
+
+        return $tenant
+            && (int) $request->destination_tenant_id === (int) $tenant->id
+            && $this->hasTenantPermission($user, $permission);
+    }
+
     private function hasTenantPermission(User $user, string $permission): bool
     {
         $tenant = app(TenantManager::class)->current();

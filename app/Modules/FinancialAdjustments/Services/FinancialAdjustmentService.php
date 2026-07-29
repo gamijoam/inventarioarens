@@ -32,6 +32,25 @@ class FinancialAdjustmentService
         });
     }
 
+    public function createCreditNote(User $user, AccountsReceivable $account, array $data): FinancialAdjustment
+    {
+        return DB::transaction(function () use ($user, $account, $data): FinancialAdjustment {
+            $account = AccountsReceivable::query()->lockForUpdate()->findOrFail($account->id);
+            [$rateType, $exchangeRate, $amountBase, $amountLocal] = $this->amounts(
+                $data['currency'],
+                (float) $data['amount'],
+                $data['exchange_rate_type_id'] ?? null,
+                isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
+            );
+
+            return $this->createAdjustment($user, $data, $rateType, $exchangeRate, $amountBase, $amountLocal, [
+                'accounts_receivable_id' => $account->id,
+                'source_type' => $data['source_type'] ?? null,
+                'source_id' => $data['source_id'] ?? null,
+            ])->refresh()->load('accountsReceivable');
+        });
+    }
+
     private function applyToReceivable(
         User $user,
         array $data,

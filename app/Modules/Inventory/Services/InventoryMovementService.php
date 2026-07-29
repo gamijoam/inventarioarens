@@ -7,12 +7,14 @@ use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Inventory\Exceptions\CrossTenantInventoryReferenceException;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class InventoryMovementService
 {
@@ -49,12 +51,14 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'sale',
             warehouse: $warehouse,
             product: $product,
             quantity: $quantity,
+            unitCost: $unitCost,
             createdBy: $createdBy,
             reason: $reason,
             referenceType: $referenceType,
@@ -96,13 +100,14 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->increaseAvailable(
             type: 'sale_return',
             warehouse: $warehouse,
             product: $product,
             quantity: $quantity,
-            unitCost: null,
+            unitCost: $unitCost,
             createdBy: $createdBy,
             reason: $reason,
             referenceType: $referenceType,
@@ -118,12 +123,14 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->increaseDamaged(
             type: 'sale_return',
             warehouse: $warehouse,
             product: $product,
             quantity: $quantity,
+            unitCost: $unitCost,
             createdBy: $createdBy,
             reason: $reason,
             referenceType: $referenceType,
@@ -343,6 +350,154 @@ class InventoryMovementService
         });
     }
 
+    /**
+     * Valida unidades serializadas antes de mover stock.
+     * La consulta bloquea las filas para que otra operacion no pueda tomar
+     * el mismo IMEI mientras la transaccion actual termina.
+     *
+     * @param  array<int, string>  $unitIds
+     * @param  array<int, string>  $allowedStatuses
+     * @return array<int, ProductUnit>
+     */
+    public function validateSerializedUnits(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        array $unitIds,
+        array $allowedStatuses = [ProductUnit::STATUS_AVAILABLE],
+    ): array {
+        $this->validateOperation($warehouse, $product, $quantity);
+
+        if (! $product->requiresSerializedTracking()) {
+            if ($unitIds !== []) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Solo los productos serializados pueden usar unidades especificas.',
+                ]);
+            }
+
+            return [];
+        }
+
+        if ($quantity !== floor($quantity)) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Los productos serializados requieren cantidad entera.',
+            ]);
+        }
+
+        $normalizedIds = array_values(array_map('intval', $unitIds));
+        if (count($normalizedIds) !== (int) $quantity) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'Debe indicar una unidad serializada por cada cantidad del movimiento.',
+            ]);
+        }
+
+        if (count($normalizedIds) !== count(array_unique($normalizedIds))) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'No se puede repetir la misma unidad serializada.',
+            ]);
+        }
+
+        $units = ProductUnit::query()
+            ->whereIn('id', $normalizedIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($units->count() !== count($normalizedIds)) {
+            throw ValidationException::withMessages([
+                'product_unit_ids' => 'Una o mas unidades serializadas no existen.',
+            ]);
+        }
+
+        foreach ($normalizedIds as $unitId) {
+            $unit = $units->get($unitId);
+            if ((int) $unit->product_id !== (int) $product->id
+                || (int) $unit->warehouse_id !== (int) $warehouse->id
+                || ! in_array($unit->status, $allowedStatuses, true)) {
+                throw ValidationException::withMessages([
+                    'product_unit_ids' => 'Una o mas unidades serializadas no estan disponibles en el almacen origen.',
+                ]);
+            }
+        }
+
+        return array_map(fn (int $unitId): ProductUnit => $units->get($unitId), $normalizedIds);
+    }
+
+    /**
+     * Resuelve IMEIs/seriales existentes y disponibles a sus IDs. Nunca crea
+     * unidades: los seriales deben entrar primero por compras o recepciones.
+     *
+     * @param  array<int, array{serial_type: string, serial_number: string}>  $serialUnits
+     * @return array<int, int>
+     */
+    public function resolveAvailableSerializedUnits(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        array $serialUnits,
+    ): array {
+        if (! $product->requiresSerializedTracking()) {
+            if ($serialUnits !== []) {
+                throw ValidationException::withMessages([
+                    'serial_units' => 'Solo los productos serializados pueden usar IMEIs o seriales.',
+                ]);
+            }
+
+            return [];
+        }
+
+        $normalized = array_map(fn (array $unit): array => [
+            'serial_type' => trim((string) ($unit['serial_type'] ?? '')),
+            'serial_number' => trim((string) ($unit['serial_number'] ?? '')),
+        ], $serialUnits);
+
+        if (count($normalized) !== (int) $quantity || $quantity !== floor($quantity)) {
+            throw ValidationException::withMessages([
+                'serial_units' => 'Debe indicar un IMEI o serial disponible por cada cantidad.',
+            ]);
+        }
+
+        foreach ($normalized as $index => $unit) {
+            if (! in_array($unit['serial_type'], [ProductUnit::SERIAL_TYPE_IMEI, ProductUnit::SERIAL_TYPE_SERIAL], true)
+                || $unit['serial_number'] === '') {
+                throw ValidationException::withMessages([
+                    "serial_units.{$index}" => 'Cada unidad debe tener un tipo y numero serial validos.',
+                ]);
+            }
+        }
+
+        $keys = array_map(fn (array $unit): string => $unit['serial_type'].'|'.$unit['serial_number'], $normalized);
+        if (count($keys) !== count(array_unique($keys))) {
+            throw ValidationException::withMessages([
+                'serial_units' => 'No se puede repetir el mismo IMEI o serial.',
+            ]);
+        }
+
+        $units = ProductUnit::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->whereIn('serial_number', array_column($normalized, 'serial_number'))
+            ->lockForUpdate()
+            ->get()
+            ->keyBy(fn (ProductUnit $unit): string => $unit->serial_type.'|'.$unit->serial_number);
+
+        $ids = [];
+        foreach ($keys as $index => $key) {
+            $unit = $units->get($key);
+            if (! $unit) {
+                throw ValidationException::withMessages([
+                    "serial_units.{$index}" => "El IMEI o serial {$normalized[$index]['serial_number']} no esta disponible en el almacen origen.",
+                ]);
+            }
+            $ids[] = $unit->id;
+        }
+
+        $this->validateSerializedUnits($product, $warehouse, $quantity, $ids);
+
+        return $ids;
+    }
+
     private function increaseAvailable(
         string $type,
         Warehouse $warehouse,
@@ -374,15 +529,16 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?float $unitCost = null,
     ): StockMovement {
-        return DB::transaction(function () use ($type, $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+        return DB::transaction(function () use ($type, $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product);
             $balance->quantity_damaged = (float) $balance->quantity_damaged + $quantity;
             $balance->save();
 
-            return $this->recordMovement($type, $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+            return $this->recordMovement($type, $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 
@@ -395,8 +551,9 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?float $unitCost = null,
     ): StockMovement {
-        return DB::transaction(function () use ($type, $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+        return DB::transaction(function () use ($type, $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product);
@@ -405,7 +562,7 @@ class InventoryMovementService
             $balance->quantity_available = (float) $balance->quantity_available - $quantity;
             $balance->save();
 
-            return $this->recordMovement($type, $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+            return $this->recordMovement($type, $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId);
         });
     }
 

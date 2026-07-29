@@ -18,6 +18,7 @@ import { productKeys } from '@/features/inventory-center/queries';
 import {
   TransferRequestSchema,
   type AcceptTransferRequestValues,
+  type GuideItemQuantity,
   type RejectTransferRequestValues,
   type StoreTransferRequestValues,
   type TransferRequest,
@@ -80,9 +81,10 @@ export function useTransferRequests(
   const query = useQuery({
     queryKey: transferRequestKeys.list(filters as Record<string, unknown>),
     queryFn: async (): Promise<{ data: TransferRequest[]; meta: TransferRequestListMeta }> => {
-      const raw = (await getMany<unknown>(`/inventory-transfer-requests${toQueryString(filters)}`)) as
-        | TransferRequest[]
-        | { data: TransferRequest[]; meta?: Partial<TransferRequestListMeta> };
+      const raw = (await getMany<unknown>(
+        `/inventory-transfer-requests${toQueryString(filters)}`,
+      )) as
+        TransferRequest[] | { data: TransferRequest[]; meta?: Partial<TransferRequestListMeta> };
       if (Array.isArray(raw)) {
         return {
           data: raw,
@@ -111,7 +113,8 @@ export function useTransferRequests(
     refetchInterval: options.refetchInterval ?? false,
   });
 
-  const payload = query.data as { data?: TransferRequest[]; meta?: TransferRequestListMeta } | undefined;
+  const payload = query.data as
+    { data?: TransferRequest[]; meta?: TransferRequestListMeta } | undefined;
   return {
     data: payload?.data ?? [],
     meta: payload?.meta ?? { current_page: 1, last_page: 1, per_page: 0, total: 0 },
@@ -158,11 +161,7 @@ export function useCreateTransferRequest() {
 
 export function useAcceptTransferRequest() {
   const qc = useQueryClient();
-  return useMutation<
-    TransferRequest,
-    Error,
-    { id: number; values: AcceptTransferRequestValues }
-  >({
+  return useMutation<TransferRequest, Error, { id: number; values: AcceptTransferRequestValues }>({
     mutationFn: async ({ id, values }) =>
       postOne<AcceptTransferRequestValues, TransferRequest>(
         `/inventory-transfer-requests/${id}/accept`,
@@ -180,13 +179,51 @@ export function useAcceptTransferRequest() {
   });
 }
 
-export function useRejectTransferRequest() {
+function useGuideMutation(action: 'prepare' | 'dispatch' | 'deliver' | 'receive') {
   const qc = useQueryClient();
   return useMutation<
     TransferRequest,
     Error,
-    { id: number; values: RejectTransferRequestValues }
+    {
+      id: number;
+      items?: GuideItemQuantity[];
+      carrier_name?: string;
+      carrier_document_number?: string;
+      carrier_phone?: string;
+      vehicle_plate?: string;
+      carrier_company?: string;
+      carrier_user_id?: number;
+    }
   >({
+    mutationFn: async ({ id, ...payload }) =>
+      postOne(`/inventory-transfer-requests/${id}/guide/${action}`, payload),
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
+      void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: productKeys.all });
+    },
+  });
+}
+
+export function usePrepareTransferRequest() {
+  return useGuideMutation('prepare');
+}
+
+export function useDispatchTransferRequest() {
+  return useGuideMutation('dispatch');
+}
+
+export function useDeliverTransferRequest() {
+  return useGuideMutation('deliver');
+}
+
+export function useReceiveTransferRequest() {
+  return useGuideMutation('receive');
+}
+
+export function useRejectTransferRequest() {
+  const qc = useQueryClient();
+  return useMutation<TransferRequest, Error, { id: number; values: RejectTransferRequestValues }>({
     mutationFn: async ({ id, values }) =>
       postOne<RejectTransferRequestValues, TransferRequest>(
         `/inventory-transfer-requests/${id}/reject`,
@@ -251,9 +288,7 @@ export interface UseUnreadCountOptions {
  * una aproximacion pragmatica: si el user abre la app en otro navegador
  * o en incognito, el contador se reinicia. Aceptable para v1.
  */
-export function useUnreadTransferRequestsCount(
-  options: UseUnreadCountOptions = {},
-) {
+export function useUnreadTransferRequestsCount(options: UseUnreadCountOptions = {}) {
   const { currentTenantId, refetchInterval = 30000 } = options;
   return useQuery({
     queryKey: [...transferRequestKeys.all, 'unread-count', currentTenantId] as const,
@@ -379,9 +414,8 @@ export function useSiblingCompanies(options: UseSiblingCompaniesOptions = {}) {
     queryKey: ['sibling-companies', groupId, currentTenantId] as const,
     enabled: typeof groupId === 'number' && groupId > 0 && typeof currentTenantId === 'number',
     queryFn: async (): Promise<SiblingCompany[]> => {
-      const raw = (await getMany<unknown>(
-        `/tenant-groups/${groupId}/spinoffs`,
-      )) as { data?: SiblingCompany[] } | SiblingCompany[];
+      const raw = (await getMany<unknown>(`/tenant-groups/${groupId}/spinoffs`)) as
+        { data?: SiblingCompany[] } | SiblingCompany[];
       const list = Array.isArray(raw) ? raw : (raw.data ?? []);
       // Filtrar mi propio tenant (no me puedo enviar solicitudes a mi mismo).
       return list.filter((c) => c.id !== currentTenantId);

@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryTransferRequests\Events;
 
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -36,7 +37,7 @@ class TransferRequestCreated implements ShouldBroadcast
         public readonly ?string $requestedAt,
     ) {}
 
-    public static function fromModel(\App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest $r): self
+    public static function fromModel(InventoryTransferRequest $r): self
     {
         $iso = null;
         if ($r->requested_at instanceof \DateTimeInterface) {

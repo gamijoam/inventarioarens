@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryTransferRequests\Events;
 
+use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -28,7 +29,7 @@ class TransferRequestCancelled implements ShouldBroadcast
         public readonly int $destinationTenantId,
     ) {}
 
-    public static function fromModel(\App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest $r): self
+    public static function fromModel(InventoryTransferRequest $r): self
     {
         return new self(
             (int) $r->id,

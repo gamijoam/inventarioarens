@@ -3,14 +3,19 @@
 namespace Tests\Feature\InventoryTransfers;
 
 use App\Models\User;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -18,19 +23,10 @@ use Tests\TestCase;
  * Tests del flujo de serial_units en InventoryTransfer::create.
  *
  * Estado (Fase 0):
- * - Backend: logica implementada en InventoryTransferService::validateItems
- *   (resuelve serial_units -> product_unit_ids via lookup o create).
+ * - Backend: logica central en InventoryMovementService valida que los
+ *   serial_units existan y esten disponibles antes del traslado.
  * - Frontend: TransferCreateDialog envia serial_units con {serial_type, serial_number}[].
  * - Frontend: TransferPrepareDialog y TransferReceiveDialog reusan el patron.
- *
- * Tests @todo(phase-1):
- * Estos tests usan DB::table() directo para crear ProductUnits (evitando
- * el trait BelongsToTenant de Eloquent). Sin embargo, el cache de
- * permissions de Spatie filtra las unidades por tenant_id=null cuando el
- * TenantManager no esta seteado. Hay que investigar por que
- * setPermissionsTeamId($tenant->id) antes de los tests no surte efecto.
- *
- * Mientras tanto, marcamos como skipped para no bloquear el resto del flujo.
  */
 class InventoryTransfersSerialUnitsTest extends TestCase
 {
@@ -40,7 +36,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $p) {
+        foreach (BasePermissions::PERMISSIONS as $p) {
             Permission::findOrCreate($p, 'web');
         }
     }
@@ -48,8 +44,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
     /**
      * @test
      * Backend: si llegan serial_units en el payload, se traducen a
-     * product_unit_ids existentes o se crean nuevas ProductUnits AVAILABLE.
-     * Skipped pending Phase 1 fix (cache de permissions en tests).
+     * product_unit_ids existentes y disponibles.
      */
     public function test_serial_units_resolves_to_existing_product_units(): void
     {
@@ -60,7 +55,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $user = User::factory()->create(['email' => 'a@t.test', 'password' => 'secret123']);
         $user->tenants()->attach($tenant, ['status' => 'active']);
 
-        $role = \Spatie\Permission\Models\Role::create([
+        $role = Role::create([
             'name' => 'Admin',
             'guard_name' => 'web',
             'tenant_id' => $tenant->id,
@@ -69,7 +64,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $role->givePermissionTo('inventory_transfers.create');
         $user->assignRole($role);
 
-        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
+        $branch = Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
         $fromW = Warehouse::create([
             'branch_id' => $branch->id,
             'name' => 'AO',
@@ -84,7 +79,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         ]);
         $product = Product::create([
             'name' => 'Celular Test',
-            'sku' => 'IMEI-' . uniqid(),
+            'sku' => 'IMEI-'.uniqid(),
             'tracking_type' => Product::TRACKING_SERIALIZED,
             'unit_of_measure' => Product::UNIT_UNIT,
             'is_active' => true,
@@ -115,7 +110,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $token = \Illuminate\Support\Str::random(80);
+        $token = Str::random(80);
         DB::table('auth_tokens')->insert([
             'tenant_id' => $tenant->id,
             'user_id' => $user->id,
@@ -129,7 +124,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         setPermissionsTeamId($tenant->id);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/inventory-transfers', [
                 'from_warehouse_id' => $fromW->id,
@@ -148,7 +143,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
 
         $response->assertCreated();
         $transferId = $response->json('data.id');
-        $item = \App\Modules\InventoryTransfers\Models\InventoryTransfer::findOrFail($transferId)
+        $item = InventoryTransfer::findOrFail($transferId)
             ->items()->first();
 
         $this->assertCount(3, $item->product_unit_ids);
@@ -156,8 +151,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
 
     /**
      * @test
-     * Backend: si llegan serial_units nuevos, se crean como AVAILABLE.
-     * Skipped pending Phase 1 fix.
+     * Backend: un traslado no puede crear unidades serializadas nuevas.
      */
     public function test_serial_units_creates_new_product_units_when_missing(): void
     {
@@ -168,7 +162,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $user = User::factory()->create(['email' => 'a@t.test', 'password' => 'secret123']);
         $user->tenants()->attach($tenant, ['status' => 'active']);
 
-        $role = \Spatie\Permission\Models\Role::create([
+        $role = Role::create([
             'name' => 'Admin',
             'guard_name' => 'web',
             'tenant_id' => $tenant->id,
@@ -177,7 +171,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         $role->givePermissionTo('inventory_transfers.create');
         $user->assignRole($role);
 
-        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
+        $branch = Branch::create(['name' => 'B1', 'code' => 'B1', 'status' => 'active']);
         $fromW = Warehouse::create([
             'branch_id' => $branch->id,
             'name' => 'AO',
@@ -192,14 +186,14 @@ class InventoryTransfersSerialUnitsTest extends TestCase
         ]);
         $product = Product::create([
             'name' => 'Celular Test',
-            'sku' => 'IMEI-' . uniqid(),
+            'sku' => 'IMEI-'.uniqid(),
             'tracking_type' => Product::TRACKING_SERIALIZED,
             'unit_of_measure' => Product::UNIT_UNIT,
             'is_active' => true,
             'tenant_id' => $tenant->id,
         ]);
 
-        $token = \Illuminate\Support\Str::random(80);
+        $token = Str::random(80);
         DB::table('auth_tokens')->insert([
             'tenant_id' => $tenant->id,
             'user_id' => $user->id,
@@ -225,7 +219,7 @@ class InventoryTransfersSerialUnitsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/inventory-transfers', [
                 'from_warehouse_id' => $fromW->id,
@@ -242,17 +236,13 @@ class InventoryTransfersSerialUnitsTest extends TestCase
                 ]],
             ]);
 
-        $response->assertCreated();
-        $transferId = $response->json('data.id');
-        $item = \App\Modules\InventoryTransfers\Models\InventoryTransfer::findOrFail($transferId)
-            ->items()->first();
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['serial_units.0']);
 
-        $this->assertCount(2, $item->product_unit_ids);
+        $this->assertDatabaseMissing('inventory_transfers', ['tenant_id' => $tenant->id]);
         foreach ($newSerials as $sn) {
             $unit = ProductUnit::where('serial_number', $sn)->first();
-            $this->assertNotNull($unit);
-            $this->assertSame(ProductUnit::STATUS_AVAILABLE, $unit->status);
-            $this->assertSame((int) $toW->id, (int) $unit->warehouse_id);
+            $this->assertNull($unit);
         }
     }
 }

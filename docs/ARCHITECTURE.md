@@ -15,6 +15,37 @@ Regla actual de rutas:
 - Las rutas de inventario viven en `app/Modules/Inventory/routes.php`.
 - Las rutas de reportes viven en `app/Modules/Reports/routes.php`.
 
+## Regla de costeo
+
+El sistema no utiliza WAC (costo promedio ponderado) como método operativo ni contable.
+`products.average_cost` y `InventoryValuationService` son legado/informativos y no deben alimentar
+precios, costo de ventas, devoluciones, márgenes, CxC/CxP, reportes ni ajustes financieros.
+
+Cuando una operación necesite costo, debe usar un snapshot histórico de la operación original, por
+ejemplo el costo unitario capturado en la línea de venta o en el movimiento de inventario. Las
+devoluciones nunca deben valorarse con el WAC vigente.
+
+Las devoluciones procesadas generan una nota de crédito financiera enlazada a `SalesReturn`. La
+nota reduce CxC mediante el retorno procesado y, si existe reembolso, se liquida con el movimiento
+de caja de la sesión abierta actual. La venta original, sus pagos y la caja histórica permanecen
+intactos.
+
+El modo `customer_credit` genera además un movimiento positivo en `customer_credit_transactions`
+para dejar saldo a favor del cliente. Estos movimientos son un ledger append-only y quedan
+enlazados a la devolución; el canje futuro deberá crear una nueva venta y registrar un movimiento
+negativo al aplicar ese crédito, sin modificar la venta original.
+
+El saldo disponible se muestra en el listado de clientes y en el POS al seleccionar un cliente. El
+POS puede aplicarlo como método de pago interno `customer_credit`; el importe restante se cobra con
+los métodos normales y el crédito aplicado no genera movimiento de caja.
+
+`customer_credit` es una clasificación de crédito/liabilidad del cliente, no una cuenta por cobrar
+ni una cuenta por pagar. CxC solo se reduce cuando la devolución afecta una deuda pendiente.
+
+El endpoint `POST /api/sales-returns/{salesReturn}/exchange` permite integrar el canje formal: recibe
+la nueva venta, el monto de crédito a aplicar y los pagos de diferencia; crea una venta POS nueva y
+guarda su ID en `sales_returns.exchange_sale_id`.
+
 ## Dashboard ejecutivo
 
 El dashboard inicial usa `GET /api/dashboard/summary` para cargar la portada del sistema con una sola llamada protegida. El objetivo es evitar que el frontend dispare varias consultas independientes al iniciar sesion.

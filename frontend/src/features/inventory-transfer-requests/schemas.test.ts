@@ -125,6 +125,16 @@ describe('AcceptTransferRequestSchema', () => {
       expect(r.data.items).toHaveLength(2);
     }
   });
+
+  it('acepta modo logistico sin cambiar el contrato de mapeo', () => {
+    const r = AcceptTransferRequestSchema.safeParse({
+      destination_warehouse_id: 5,
+      logistics_mode: true,
+      items: [{ request_item_id: 1, destination_product_id: 2 }],
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.logistics_mode).toBe(true);
+  });
 });
 
 describe('RejectTransferRequestSchema', () => {
@@ -159,6 +169,34 @@ describe('TransferRequestSchema (response)', () => {
     expect(parsed.id).toBe(1);
     expect(parsed.status).toBe('requested');
     expect(parsed.items).toEqual([]);
+  });
+
+  it('parsea una solicitud con guia logistica', () => {
+    const parsed = TransferRequestSchema.parse({
+      id: 1,
+      origin_tenant_id: 1,
+      destination_tenant_id: 2,
+      from_warehouse_id: 10,
+      status: 'prepared',
+      logistics_mode: true,
+      guide: {
+        id: 7,
+        inventory_transfer_request_id: 1,
+        status: 'prepared',
+        items: [
+          {
+            id: 8,
+            guide_id: 7,
+            inventory_transfer_request_item_id: 100,
+            prepared_quantity: '3',
+            received_quantity: '0',
+          },
+        ],
+      },
+      items: [],
+    });
+    expect(parsed.logistics_mode).toBe(true);
+    expect(parsed.guide?.items?.[0]?.prepared_quantity).toBe(3);
   });
 
   it('parsea respuesta con items y tenant embebido', () => {

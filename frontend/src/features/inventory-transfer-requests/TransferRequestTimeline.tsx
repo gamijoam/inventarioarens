@@ -4,14 +4,25 @@
  * Lee los timestamps y responded_by del modelo TransferRequest y los
  * renderiza como lista vertical con iconos y badges.
  */
-import { CheckCircle2, FileText, PackageX, XCircle } from 'lucide-react';
+import { CheckCircle2, FileText, PackageX, Truck, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import type { TransferRequest, TransferRequestStatus } from './schemas';
 
-const STAGE_META: Record<TransferRequestStatus, { label: string; icon: typeof FileText; variant: 'info' | 'warning' | 'success' | 'danger' | 'default' }> = {
+const STAGE_META: Record<
+  TransferRequestStatus,
+  {
+    label: string;
+    icon: typeof FileText;
+    variant: 'info' | 'warning' | 'success' | 'danger' | 'default';
+  }
+> = {
   requested: { label: 'Solicitada', icon: FileText, variant: 'info' },
+  accepted: { label: 'Aceptada', icon: CheckCircle2, variant: 'warning' },
+  prepared: { label: 'Preparada', icon: CheckCircle2, variant: 'warning' },
+  dispatched: { label: 'Despachada', icon: Truck, variant: 'info' },
+  delivered: { label: 'Entregada', icon: Truck, variant: 'info' },
   completed: { label: 'Completada', icon: CheckCircle2, variant: 'success' },
   rejected: { label: 'Rechazada', icon: XCircle, variant: 'danger' },
   cancelled: { label: 'Cancelada', icon: PackageX, variant: 'default' },
@@ -54,7 +65,12 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
     });
   }
   if (request.responded_at) {
-    const stage: TransferRequestStatus = request.status === 'rejected' ? 'rejected' : 'completed';
+    const stage: TransferRequestStatus =
+      request.status === 'rejected'
+        ? 'rejected'
+        : request.logistics_mode
+          ? 'accepted'
+          : 'completed';
     events.push({
       stage,
       at: request.responded_at,
@@ -87,7 +103,10 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
   }
 
   return (
-    <ol className="relative space-y-3 border-l border-border pl-4" data-testid="transfer-request-timeline">
+    <ol
+      className="border-border relative space-y-3 border-l pl-4"
+      data-testid="transfer-request-timeline"
+    >
       {events.map((event, idx) => {
         const meta = STAGE_META[event.stage]!;
         const Icon = meta.icon;
@@ -95,27 +114,31 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
         return (
           <li key={key} className="relative" data-testid={`timeline-${event.stage}`}>
             <span
-              className="absolute -left-[22px] top-0 flex size-6 items-center justify-center rounded-full border border-border bg-surface text-primary"
+              className="border-border bg-surface text-primary absolute top-0 -left-[22px] flex size-6 items-center justify-center rounded-full border"
               aria-hidden="true"
             >
               <Icon className="size-3.5" />
             </span>
             <div className="flex flex-wrap items-baseline gap-2">
               <Badge variant={meta.variant}>{meta.label}</Badge>
-              <time className="text-xs text-text-muted" dateTime={event.at ?? undefined}>
+              <time className="text-text-muted text-xs" dateTime={event.at ?? undefined}>
                 {formatDateTime(event.at)}
               </time>
               {event.isCurrent && (
-                <span className="text-[10px] uppercase tracking-wide text-primary">(actual)</span>
+                <span className="text-primary text-[10px] tracking-wide uppercase">(actual)</span>
               )}
             </div>
-            <div className="mt-1 text-sm text-text-muted">
-              {event.by_user_id
-                ? <span>por usuario #{event.by_user_id}</span>
-                : <span className="italic">sin responsable</span>}
+            <div className="text-text-muted mt-1 text-sm">
+              {event.by_user_id ? (
+                <span>por usuario #{event.by_user_id}</span>
+              ) : (
+                <span className="italic">sin responsable</span>
+              )}
             </div>
             {event.notes && (
-              <p className="mt-1 rounded bg-bg/40 px-2 py-1 text-xs text-text-secondary">{event.notes}</p>
+              <p className="bg-bg/40 text-text-secondary mt-1 rounded px-2 py-1 text-xs">
+                {event.notes}
+              </p>
             )}
           </li>
         );

@@ -30,21 +30,32 @@ import {
 } from '@/features/inventory-transfer-requests/api';
 import {
   TRANSFER_REQUEST_STATUS_LABELS,
+  TRANSFER_REQUEST_GUIDE_STATUS_LABELS,
   TRANSFER_REQUEST_TAB_LABELS,
   type TransferRequest,
   type TransferRequestStatus,
   type TransferRequestTab,
 } from '@/features/inventory-transfer-requests/schemas';
 import { useSessionStore } from '@/stores/session';
-function statusVariant(status: TransferRequestStatus): 'info' | 'warning' | 'success' | 'danger' | 'default' {
+function statusVariant(
+  status: TransferRequestStatus,
+): 'info' | 'warning' | 'success' | 'danger' | 'default' {
   switch (status) {
     case 'requested':
+      return 'info';
+    case 'accepted':
+    case 'prepared':
+      return 'warning';
+    case 'dispatched':
+    case 'delivered':
       return 'info';
     case 'completed':
       return 'success';
     case 'rejected':
       return 'danger';
     case 'cancelled':
+      return 'default';
+    default:
       return 'default';
   }
 }
@@ -73,10 +84,11 @@ export function InventoryTransferRequestsManager({
   // Polling automatico solo en tabs "activas" (Received/Pending).
   // En tabs de archivo (Sent/Completed/Rejected) se desactiva para no
   // gastar requests del backend ni bateria del navegador.
-  const refetchInterval: number | false =
-    tab === 'received' || tab === 'pending' ? 5000 : false;
+  const refetchInterval: number | false = tab === 'received' || tab === 'pending' ? 5000 : false;
   // useTransferRequests ahora retorna una forma aplanada: { data, meta, isLoading }.
-  const { data: requests, isLoading: isLoadingLocal } = useTransferRequests(undefined, { refetchInterval });
+  const { data: requests, isLoading: isLoadingLocal } = useTransferRequests(undefined, {
+    refetchInterval,
+  });
   const cancel = useCancelTransferRequest();
   // Lectura no-reactiva del tenant actual: el componente se re-renderiza
   // cuando cambian los datos de la query, que es suficiente para que el
@@ -87,8 +99,8 @@ export function InventoryTransferRequestsManager({
     const q = search.trim().toLowerCase();
     return requests.filter((r) => {
       // Filtrar por tab.
-      const isMine = (r.origin_tenant_id === currentTenantId);
-      const isTheirs = (r.destination_tenant_id === currentTenantId);
+      const isMine = r.origin_tenant_id === currentTenantId;
+      const isTheirs = r.destination_tenant_id === currentTenantId;
       switch (tab) {
         case 'sent':
           if (!isMine) return false;
@@ -126,9 +138,9 @@ export function InventoryTransferRequestsManager({
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative max-w-sm min-w-[200px] flex-1">
           <Search
-            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+            className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
             aria-hidden="true"
           />
           <Input
@@ -151,7 +163,9 @@ export function InventoryTransferRequestsManager({
       <Tabs value={tab} onValueChange={(v) => setTab(v as TransferRequestTab)}>
         <TabsList>
           {TRANSFER_REQUEST_TAB_LABELS_SAFE.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
           ))}
         </TabsList>
 
@@ -171,16 +185,28 @@ export function InventoryTransferRequestsManager({
             }
           />
         ) : (
-          <div className="mt-3 rounded-lg border border-border bg-surface">
-            <table className="w-full table-dense">
-              <thead className="border-b border-border bg-bg/60 text-left">
+          <div className="border-border bg-surface mt-3 rounded-lg border">
+            <table className="table-dense w-full">
+              <thead className="border-border bg-bg/60 border-b text-left">
                 <tr>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Documento</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Direccion</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Items</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Estado</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Fecha</th>
-                  <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">Acciones</th>
+                  <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                    Documento
+                  </th>
+                  <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                    Direccion
+                  </th>
+                  <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                    Items
+                  </th>
+                  <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                    Estado
+                  </th>
+                  <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                    Fecha
+                  </th>
+                  <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                    Acciones
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -191,7 +217,7 @@ export function InventoryTransferRequestsManager({
                   return (
                     <tr
                       key={r.id}
-                      className="cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-bg/40"
+                      className="border-border hover:bg-bg/40 cursor-pointer border-b transition-colors last:border-b-0"
                       data-testid={`row-${r.id}`}
                       onClick={() =>
                         navigate({
@@ -201,30 +227,36 @@ export function InventoryTransferRequestsManager({
                       }
                     >
                       <td className="px-3 py-2 font-medium">
-                        <code className="rounded bg-bg px-1.5 py-0.5 text-xs">
+                        <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
                           {r.document_number ?? `#${r.id}`}
                         </code>
                         {r.reason && (
-                          <div className="mt-0.5 text-xs text-text-muted">{r.reason}</div>
+                          <div className="text-text-muted mt-0.5 text-xs">{r.reason}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-text-muted">
+                      <td className="text-text-muted px-3 py-2">
                         <div className="flex items-center gap-1 text-xs">
                           <span>{r.origin_tenant?.slug ?? `T#${r.origin_tenant_id}`}</span>
                           <ArrowRight className="size-3" />
-                          <span>{r.destination_tenant?.slug ?? `T#${r.destination_tenant_id}`}</span>
+                          <span>
+                            {r.destination_tenant?.slug ?? `T#${r.destination_tenant_id}`}
+                          </span>
                         </div>
-                        <div className="text-[10px] uppercase tracking-wide">
+                        <div className="text-[10px] tracking-wide uppercase">
                           {isMine ? 'salida' : 'entrada'}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-text-muted tabular-nums">{r.items?.length ?? 0}</td>
+                      <td className="text-text-muted px-3 py-2 tabular-nums">
+                        {r.items?.length ?? 0}
+                      </td>
                       <td className="px-3 py-2">
                         <Badge variant={statusVariant(r.status)}>
-                          {TRANSFER_REQUEST_STATUS_LABELS[r.status]}
+                          {r.logistics_mode && r.guide
+                            ? `Guía: ${TRANSFER_REQUEST_GUIDE_STATUS_LABELS[r.guide.status]}`
+                            : TRANSFER_REQUEST_STATUS_LABELS[r.status]}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2 text-text-muted">
+                      <td className="text-text-muted px-3 py-2">
                         {r.requested_at ? new Date(r.requested_at).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -238,7 +270,7 @@ export function InventoryTransferRequestsManager({
                               title="Aceptar"
                               data-testid={`accept-${r.id}`}
                             >
-                              <CheckCircle2 className="size-4 text-success" />
+                              <CheckCircle2 className="text-success size-4" />
                             </Button>
                           )}
                           {canRespond && onReject && (
@@ -249,7 +281,7 @@ export function InventoryTransferRequestsManager({
                               aria-label={`Rechazar solicitud ${r.document_number ?? r.id}`}
                               title="Rechazar"
                             >
-                              <XCircle className="size-4 text-danger" />
+                              <XCircle className="text-danger size-4" />
                             </Button>
                           )}
                           {canCancel && (
@@ -260,11 +292,11 @@ export function InventoryTransferRequestsManager({
                               aria-label={`Cancelar solicitud ${r.document_number ?? r.id}`}
                               title="Cancelar"
                             >
-                              <XCircle className="size-4 text-text-muted" />
+                              <XCircle className="text-text-muted size-4" />
                             </Button>
                           )}
                           {!canRespond && !canCancel && (
-                            <span className="text-xs text-text-muted">
+                            <span className="text-text-muted text-xs">
                               <Truck className="inline size-3" />
                             </span>
                           )}
@@ -282,6 +314,6 @@ export function InventoryTransferRequestsManager({
   );
 }
 
-const TRANSFER_REQUEST_TAB_LABELS_SAFE = (Object.keys(TRANSFER_REQUEST_TAB_LABELS) as TransferRequestTab[]).map(
-  (value) => ({ value, label: TRANSFER_REQUEST_TAB_LABELS[value] }),
-);
+const TRANSFER_REQUEST_TAB_LABELS_SAFE = (
+  Object.keys(TRANSFER_REQUEST_TAB_LABELS) as TransferRequestTab[]
+).map((value) => ({ value, label: TRANSFER_REQUEST_TAB_LABELS[value] }));

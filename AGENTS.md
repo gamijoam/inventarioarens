@@ -28,7 +28,7 @@ de este repo y consume el backend vía `/api/*`. Diseño completo en `docs/FRONT
 
 **Infraestructura real (2026-07-21, post-migración)**:
 - Local: Windows + Laragon + PHP 8.4.23 (`C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe`)
-- Local DB: PostgreSQL 16 en `127.0.0.1:5434`, DB `inventory_arens`, user `inventory_arens`/`secret`
+- **Base de datos local canónica: SQLite** (`storage/framework/local-dev.sqlite` para desarrollo/pruebas). No asumir PostgreSQL al ejecutar comandos o tests localmente.
 - **VPS nube canónico: `212.28.176.157` (Contabo Ubuntu 24.04, multi-tenant con Docker)** — migrado el 2026-07-21 desde `217.216.80.158` (viejo, destruido). INVENTARIOARENS corre nativo (PHP-FPM 8.4 + nginx local en `172.18.0.1:8080` + PostgreSQL 16) detrás de Traefik (Docker) que termina TLS y enruta `app.miinventariofacil.com` → `:8080`. Detalles en `docs/MIGRACION_VPS_2026-07-21.md`.
 - **VPS nube viejo `217.216.80.158`: DESTRUIDO**. Solo relevante para rollback histórico.
 - DB nube: PostgreSQL 16 nativo (NO Docker) en `127.0.0.1:5432` del VPS nuevo, DB `inventory_arens`, user `postgres`/`GaboMac12`
@@ -305,7 +305,7 @@ Tablas `brands`, `categories` (con `parent_id` jerarquico), `tags` + pivots `pro
 - `track_stock` boolean (default true).
 - `brand_id` FK nullable a `brands`.
 - `min_stock`, `max_stock`, `reorder_quantity` decimales nullable — base del sistema de alertas.
-- `average_cost` WAC recalculado por `InventoryValuationService` (no se puede asignar manualmente).
+- `average_cost` WAC legado/informativo, recalculado internamente por `InventoryValuationService` si aplica; no es fuente operativa ni contable.
 - `image_url` URL opcional.
 
 Endpoints (24 nuevos):
@@ -341,9 +341,14 @@ GET    /api/inventory-center/reorder-suggestions
 GET    /api/inventory-center/alerts-summary
 ```
 
-**WAC**: `InventoryValuationService::recalculate(Product)` actualiza `products.average_cost`
-desde los `stock_movements` con `unit_cost`. Considera: purchase, purchase_return,
-adjustment_in/out, transfer_in/out, return_in/out.
+**WAC legado/informativo**: `InventoryValuationService::recalculate(Product)` puede actualizar
+`products.average_cost` desde los `stock_movements` con `unit_cost`, pero ese valor NO se usa para
+precios, costo de ventas, devoluciones, margen, CxC/CxP, reportes ni asientos contables. No diseñar
+código nuevo que dependa de `average_cost`.
+
+**Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
+operación original, nunca el WAC vigente. El WAC puede permanecer calculado por compatibilidad
+interna, pero no debe afectar ningún resultado visible u financiero.
 
 **Alertas**: `InventoryAlertService` calcula status por producto:
 - `out` (available <= 0), `critical` (available <= min/2), `low` (available <= min),
@@ -403,6 +408,7 @@ subject_type, subject_id) en 24h no se duplica.
 - **Doble cuenta** en cada movimiento monetario: `*_base_amount` (USD) + `*_local_amount` (VES).
 - Snapshot del rate: `exchange_rate_type_id`, `exchange_rate_type_code`, `exchange_rate` numérico.
 - NUNCA recalcular historicos — el rate congelado en su fila es la verdad.
+- Las devoluciones procesadas generan nota de crédito clasificada como `customer_credit`; no es CxC ni CxP. `customer_credit` genera además un ledger append-only de saldo a favor. Un canje siempre crea una nueva venta y aplica el crédito sin modificar la venta original.
 
 ### 8.7 Estilo
 - Pint 1.27 (`vendor/bin/pint` antes de commit).
@@ -517,7 +523,7 @@ php artisan key:generate
 php artisan migrate --force
 ```
 
-Para instalaciones locales de una sola computadora se soporta SQLite mediante
+Para instalaciones locales de una sola computadora se usa SQLite como configuración predeterminada mediante
 `.env.local-sqlite.example`. Usa WAL, `busy_timeout`, claves foraneas y
 transacciones `IMMEDIATE`; no se debe compartir el archivo SQLite por red.
 El perfil reproducible de pruebas es `phpunit.sqlite.xml`:
@@ -525,6 +531,8 @@ El perfil reproducible de pruebas es `phpunit.sqlite.xml`:
 ```bash
 php vendor/bin/phpunit -c phpunit.sqlite.xml
 ```
+
+**Separación de entornos:** local usa SQLite; el VPS de producción usa PostgreSQL 16 nativo.
 
 **No hay** `pnpm install` ni `pnpm run build` — el frontend se sirve aparte (o se construirá
 en una fase posterior). El repo es **backend puro**.

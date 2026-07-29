@@ -10,6 +10,7 @@ use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 #[Fillable([
     'sequence',
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'account_type',
     'accounts_receivable_id',
     'accounts_payable_id',
+    'source_type',
+    'source_id',
     'status',
     'currency',
     'amount',
@@ -35,6 +38,8 @@ class FinancialAdjustment extends Model
     use BelongsToTenant;
 
     public const ACCOUNT_RECEIVABLE = 'receivable';
+
+    public const ACCOUNT_CUSTOMER_CREDIT = 'customer_credit';
 
     public const ACCOUNT_PAYABLE = 'payable';
 
@@ -59,6 +64,11 @@ class FinancialAdjustment extends Model
     public function accountsPayable(): BelongsTo
     {
         return $this->belongsTo(AccountsPayable::class);
+    }
+
+    public function source(): MorphTo
+    {
+        return $this->morphTo();
     }
 
     public function exchangeRateType(): BelongsTo

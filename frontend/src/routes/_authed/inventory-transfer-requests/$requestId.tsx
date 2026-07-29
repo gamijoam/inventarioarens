@@ -25,31 +25,46 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   useAcceptTransferRequest,
   useCancelTransferRequest,
+  useDeliverTransferRequest,
+  useDispatchTransferRequest,
   useTransferRequest,
 } from '@/features/inventory-transfer-requests/api';
 import { AcceptInventoryTransferRequestDialog } from '@/features/inventory-transfer-requests/components/AcceptInventoryTransferRequestDialog';
 import { RejectInventoryTransferRequestDialog } from '@/features/inventory-transfer-requests/components/RejectInventoryTransferRequestDialog';
 import {
   TRANSFER_REQUEST_STATUS_LABELS,
+  TRANSFER_REQUEST_GUIDE_STATUS_LABELS,
   type TransferRequest,
   type TransferRequestStatus,
 } from '@/features/inventory-transfer-requests/schemas';
 import { useSessionStore } from '@/stores/session';
+import { useCan } from '@/permissions/useCan';
 import { TransferRequestTimeline } from '@/features/inventory-transfer-requests/TransferRequestTimeline';
+import { TransferRequestGuideDialog } from '@/features/inventory-transfer-requests/components/TransferRequestGuideDialog';
 
 export const Route = createFileRoute('/_authed/inventory-transfer-requests/$requestId')({
   component: TransferRequestDetailPage,
 });
 
-function statusVariant(status: TransferRequestStatus): 'info' | 'warning' | 'success' | 'danger' | 'default' {
+function statusVariant(
+  status: TransferRequestStatus,
+): 'info' | 'warning' | 'success' | 'danger' | 'default' {
   switch (status) {
     case 'requested':
+      return 'info';
+    case 'accepted':
+    case 'prepared':
+      return 'warning';
+    case 'dispatched':
+    case 'delivered':
       return 'info';
     case 'completed':
       return 'success';
     case 'rejected':
       return 'danger';
     case 'cancelled':
+      return 'default';
+    default:
       return 'default';
   }
 }
@@ -69,13 +84,20 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
   const navigate = useNavigate();
   const { data: request, isLoading, isError } = useTransferRequest(id);
   const currentTenantId = useSessionStore((s) => s.tenant?.id);
+  const canPreparePermission = useCan('inventory_transfer_requests.prepare');
+  const canDispatchPermission = useCan('inventory_transfer_requests.dispatch');
+  const canDeliverPermission = useCan('inventory_transfer_requests.deliver');
+  const canReceivePermission = useCan('inventory_transfer_requests.receive');
 
   const accept = useAcceptTransferRequest();
   const cancel = useCancelTransferRequest();
+  const dispatch = useDispatchTransferRequest();
+  const deliver = useDeliverTransferRequest();
 
   const [activeTab, setActiveTab] = useState('general');
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [guideMode, setGuideMode] = useState<'prepare' | 'receive' | null>(null);
 
   if (isLoading) {
     return (
@@ -93,7 +115,10 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
           title="No se encontro la solicitud"
           description="La solicitud puede haber sido eliminada o no tienes permiso para verla."
           action={
-            <Button variant="outline" onClick={() => navigate({ to: '/inventory-transfer-requests' })}>
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: '/inventory-transfer-requests' })}
+            >
               <ArrowLeft className="size-4" /> Volver a la bandeja
             </Button>
           }
@@ -110,6 +135,26 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
   const isOrigin = currentTenantId === request!.origin_tenant_id;
   const canRespond = request.status === 'requested' && isDestination;
   const canCancel = request.status === 'requested' && isOrigin;
+  const canPrepare =
+    request.logistics_mode &&
+    request.status === 'accepted' &&
+    isDestination &&
+    canPreparePermission;
+  const canDispatch =
+    request.logistics_mode &&
+    request.guide?.status === 'prepared' &&
+    isDestination &&
+    canDispatchPermission;
+  const canDeliver =
+    request.logistics_mode &&
+    request.guide?.status === 'dispatched' &&
+    isDestination &&
+    canDeliverPermission;
+  const canReceive =
+    request.logistics_mode &&
+    request.guide?.status === 'delivered' &&
+    isOrigin &&
+    canReceivePermission;
   const accepting = accept.isPending;
   const cancelling = cancel.isPending;
 
@@ -130,7 +175,7 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
       breadcrumb={
         <Link
           to="/inventory-transfer-requests"
-          className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary"
+          className="text-text-muted hover:text-primary inline-flex items-center gap-1 text-xs"
         >
           <ArrowLeft className="size-3" /> Solicitudes inter-empresa
         </Link>
@@ -140,6 +185,11 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
           <Badge variant={statusVariant(request.status)}>
             {TRANSFER_REQUEST_STATUS_LABELS[request.status]}
           </Badge>
+          {request.logistics_mode && request.guide && (
+            <Badge variant={request.guide.status === 'received' ? 'success' : 'info'}>
+              Guía: {TRANSFER_REQUEST_GUIDE_STATUS_LABELS[request.guide.status]}
+            </Badge>
+          )}
           {canRespond && (
             <>
               <Button
@@ -154,7 +204,7 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
               <Button
                 size="sm"
                 variant="outline"
-                leftIcon={<XCircle className="size-4 text-danger" />}
+                leftIcon={<XCircle className="text-danger size-4" />}
                 onClick={() => setRejectOpen(true)}
                 data-testid="detail-reject-btn"
               >
@@ -166,12 +216,40 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
             <Button
               size="sm"
               variant="ghost"
-              leftIcon={<PackageX className="size-4 text-text-muted" />}
+              leftIcon={<PackageX className="text-text-muted size-4" />}
               onClick={doCancel}
               loading={cancelling}
               data-testid="detail-cancel-btn"
             >
               Cancelar
+            </Button>
+          )}
+          {canPrepare && (
+            <Button size="sm" onClick={() => setGuideMode('prepare')}>
+              Preparar guía
+            </Button>
+          )}
+          {canDispatch && (
+            <Button
+              size="sm"
+              onClick={() => dispatch.mutate({ id: request.id })}
+              loading={dispatch.isPending}
+            >
+              Despachar
+            </Button>
+          )}
+          {canDeliver && (
+            <Button
+              size="sm"
+              onClick={() => deliver.mutate({ id: request.id })}
+              loading={deliver.isPending}
+            >
+              Marcar entregada
+            </Button>
+          )}
+          {canReceive && (
+            <Button size="sm" onClick={() => setGuideMode('receive')}>
+              Recibir guía
             </Button>
           )}
         </div>
@@ -197,8 +275,8 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
             <CardHeader>
               <CardTitle>Cronologia de la solicitud</CardTitle>
               <CardDescription>
-                Eventos registrados en orden cronologico: solicitud, aceptacion,
-                rechazo o cancelacion.
+                Eventos registrados en orden cronologico: solicitud, aceptacion, rechazo o
+                cancelacion.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -212,7 +290,9 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
         <AcceptInventoryTransferRequestDialog
           request={request}
           open={acceptOpen}
-          onOpenChange={(o) => { if (!o) setAcceptOpen(false); }}
+          onOpenChange={(o) => {
+            if (!o) setAcceptOpen(false);
+          }}
           onAccepted={() => {
             setAcceptOpen(false);
             // Refetch del detalle + bandeja.
@@ -225,10 +305,22 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
         <RejectInventoryTransferRequestDialog
           request={request}
           open={rejectOpen}
-          onOpenChange={(o) => { if (!o) setRejectOpen(false); }}
+          onOpenChange={(o) => {
+            if (!o) setRejectOpen(false);
+          }}
           onRejected={() => {
             setRejectOpen(false);
             navigate({ to: '/inventory-transfer-requests' });
+          }}
+        />
+      )}
+      {guideMode && (
+        <TransferRequestGuideDialog
+          request={request}
+          mode={guideMode}
+          open
+          onOpenChange={(open) => {
+            if (!open) setGuideMode(null);
           }}
         />
       )}
@@ -248,12 +340,16 @@ function GeneralTab({ request }: { request: TransferRequest }) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Nombre</div>
-            <div className="font-medium">{request.origin_tenant?.name ?? `Tenant #${request.origin_tenant_id}`}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Nombre</div>
+            <div className="font-medium">
+              {request.origin_tenant?.name ?? `Tenant #${request.origin_tenant_id}`}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Slug</div>
-            <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{request.origin_tenant?.slug ?? '-'}</code>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Slug</div>
+            <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
+              {request.origin_tenant?.slug ?? '-'}
+            </code>
           </div>
         </CardContent>
       </Card>
@@ -267,12 +363,16 @@ function GeneralTab({ request }: { request: TransferRequest }) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Nombre</div>
-            <div className="font-medium">{request.destination_tenant?.name ?? `Tenant #${request.destination_tenant_id}`}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Nombre</div>
+            <div className="font-medium">
+              {request.destination_tenant?.name ?? `Tenant #${request.destination_tenant_id}`}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Slug</div>
-            <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{request.destination_tenant?.slug ?? '-'}</code>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Slug</div>
+            <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
+              {request.destination_tenant?.slug ?? '-'}
+            </code>
           </div>
         </CardContent>
       </Card>
@@ -283,28 +383,46 @@ function GeneralTab({ request }: { request: TransferRequest }) {
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Motivo</div>
-            <div>{request.reason ?? <span className="italic text-text-muted">sin motivo</span>}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Motivo</div>
+            <div>
+              {request.reason ?? <span className="text-text-muted italic">sin motivo</span>}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Referencia</div>
-            <div>{request.reference ?? <span className="italic text-text-muted">sin referencia</span>}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Referencia</div>
+            <div>
+              {request.reference ?? <span className="text-text-muted italic">sin referencia</span>}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Notas del solicitante</div>
-            <div>{request.notes ?? <span className="italic text-text-muted">sin notas</span>}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">
+              Notas del solicitante
+            </div>
+            <div>{request.notes ?? <span className="text-text-muted italic">sin notas</span>}</div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Notas de respuesta</div>
-            <div>{request.response_notes ?? <span className="italic text-text-muted">aun sin responder</span>}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">
+              Notas de respuesta
+            </div>
+            <div>
+              {request.response_notes ?? (
+                <span className="text-text-muted italic">aun sin responder</span>
+              )}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Solicitada</div>
-            <div>{request.requested_at ? new Date(request.requested_at).toLocaleString() : '-'}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">Solicitada</div>
+            <div>
+              {request.requested_at ? new Date(request.requested_at).toLocaleString() : '-'}
+            </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Respondida / Completada</div>
-            <div>{request.responded_at ? new Date(request.responded_at).toLocaleString() : '-'}</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">
+              Respondida / Completada
+            </div>
+            <div>
+              {request.responded_at ? new Date(request.responded_at).toLocaleString() : '-'}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -315,9 +433,20 @@ function GeneralTab({ request }: { request: TransferRequest }) {
 interface ItemRow {
   id: number;
   origin_product_id: number;
-  origin_product?: { id: number; name: string; sku?: string | null; barcode?: string | null; tracking_type?: 'quantity' | 'serialized' } | null;
+  origin_product?: {
+    id: number;
+    name: string;
+    sku?: string | null;
+    barcode?: string | null;
+    tracking_type?: 'quantity' | 'serialized';
+  } | null;
   destination_product_id?: number | null;
-  destination_product?: { id: number; name: string; sku?: string | null; tracking_type?: 'quantity' | 'serialized' } | null;
+  destination_product?: {
+    id: number;
+    name: string;
+    sku?: string | null;
+    tracking_type?: 'quantity' | 'serialized';
+  } | null;
   quantity: number;
   serial_units?: Array<string | { serial_type?: string; serial_number: string }> | null;
 }
@@ -334,9 +463,7 @@ function ItemsTab({ request }: { request: TransferRequest }) {
         const destination = it.destination_product;
         const tracking = origin?.tracking_type;
         const serialList = Array.isArray(it.serial_units) ? it.serial_units : [];
-        const serialNumbers = serialList.map((s) =>
-          typeof s === 'string' ? s : s.serial_number,
-        );
+        const serialNumbers = serialList.map((s) => (typeof s === 'string' ? s : s.serial_number));
         return (
           <Card key={it.id} data-testid={`detail-item-${it.id}`}>
             <CardHeader>
@@ -345,7 +472,7 @@ function ItemsTab({ request }: { request: TransferRequest }) {
               </CardTitle>
               <CardDescription>
                 {origin?.sku && (
-                  <code className="mr-2 rounded bg-bg px-1.5 py-0.5 text-xs">{origin.sku}</code>
+                  <code className="bg-bg mr-2 rounded px-1.5 py-0.5 text-xs">{origin.sku}</code>
                 )}
                 <span className="text-text-muted">
                   Cantidad: <strong>{Number(it.quantity).toLocaleString()}</strong>
@@ -354,28 +481,32 @@ function ItemsTab({ request }: { request: TransferRequest }) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {destination ? (
-                <div className="rounded border border-border bg-bg/30 p-3">
-                  <div className="text-xs uppercase tracking-wide text-text-muted">Producto destino mapeado</div>
+                <div className="border-border bg-bg/30 rounded border p-3">
+                  <div className="text-text-muted text-xs tracking-wide uppercase">
+                    Producto destino mapeado
+                  </div>
                   <div className="mt-1 font-medium">{destination.name}</div>
                   {destination.sku && (
-                    <code className="mt-1 inline-block rounded bg-bg px-1.5 py-0.5 text-xs">
+                    <code className="bg-bg mt-1 inline-block rounded px-1.5 py-0.5 text-xs">
                       {destination.sku}
                     </code>
                   )}
                 </div>
               ) : (
-                <div className="rounded border border-dashed border-border bg-bg/30 p-3 text-text-muted">
-                  Producto destino <strong>no mapeado todavia</strong>. El destino debe aceptar y elegir el producto correspondiente.
+                <div className="border-border bg-bg/30 text-text-muted rounded border border-dashed p-3">
+                  Producto destino <strong>no mapeado todavia</strong>. El destino debe aceptar y
+                  elegir el producto correspondiente.
                 </div>
               )}
 
               {tracking === 'serialized' && (
                 <div data-testid={`detail-item-imeis-${it.id}`}>
-                  <div className="text-xs uppercase tracking-wide text-text-muted">
-                    IMEIs / seriales que llegaran a tu stock ({serialNumbers.length} / {Number(it.quantity).toLocaleString()})
+                  <div className="text-text-muted text-xs tracking-wide uppercase">
+                    IMEIs / seriales que llegaran a tu stock ({serialNumbers.length} /{' '}
+                    {Number(it.quantity).toLocaleString()})
                   </div>
                   {serialNumbers.length === 0 ? (
-                    <p className="mt-1 rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
+                    <p className="border-warning/30 bg-warning/10 text-warning mt-1 rounded border p-2 text-xs">
                       La solicitud no incluye IMEIs/seriales. Si aceptas sin ellos, las unidades
                       quedaran sin identificar en tu stock.
                     </p>
@@ -384,7 +515,7 @@ function ItemsTab({ request }: { request: TransferRequest }) {
                       {serialNumbers.map((sn, idx) => (
                         <li
                           key={`${it.id}-sn-${idx}`}
-                          className="inline-flex items-center rounded bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary"
+                          className="bg-primary/10 text-primary inline-flex items-center rounded px-2 py-0.5 font-mono text-[11px]"
                           data-testid={`detail-imei-${it.id}-${idx}`}
                         >
                           {sn}

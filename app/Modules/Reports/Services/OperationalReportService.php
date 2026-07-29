@@ -43,6 +43,7 @@ class OperationalReportService
         $receivables = $this->receivablesQuery($tenantId, $from, $to, $filters);
         $requestedReturns = $this->returnsQuery($tenantId, $from, $to, $filters, SalesReturn::STATUS_REQUESTED, 'created_at');
         $processedReturns = $this->returnsQuery($tenantId, $from, $to, $filters, SalesReturn::STATUS_PROCESSED, 'processed_at');
+        $processedReturnsBaseAmount = $this->returnsBaseAmount($processedReturns);
         $sessions = $this->sessionsQuery($tenantId, $from, $to, $filters);
 
         return [
@@ -51,6 +52,8 @@ class OperationalReportService
             'sales' => [
                 'confirmed_count' => (clone $sales)->where('sales.status', Sale::STATUS_CONFIRMED)->count(),
                 'confirmed_base_amount' => $this->sum($sales, 'sales.total_base_amount'),
+                'returned_base_amount' => $processedReturnsBaseAmount,
+                'net_base_amount' => round($this->sum($sales, 'sales.total_base_amount') - $processedReturnsBaseAmount, 4),
                 'pos_paid_count' => (clone $paidOrders)->count(),
                 'pos_paid_base_amount' => $this->sum($paidOrders, 'pos_orders.paid_base_amount'),
                 'pos_open_count' => (clone $openOrders)->count(),
@@ -61,6 +64,7 @@ class OperationalReportService
             'returns' => [
                 'requested_count' => (clone $requestedReturns)->count(),
                 'processed_count' => (clone $processedReturns)->count(),
+                'processed_base_amount' => $processedReturnsBaseAmount,
             ],
             'cash' => [
                 'open_count' => (clone $sessions)->where('cash_register_sessions.status', CashRegisterSession::STATUS_OPEN)->count(),
@@ -456,6 +460,20 @@ class OperationalReportService
         }
 
         return $query;
+    }
+
+    private function returnsBaseAmount(Builder $returns): float
+    {
+        return round((float) (clone $returns)
+            ->join('sales_return_items', function ($join): void {
+                $join->on('sales_return_items.sales_return_id', '=', 'sales_returns.id')
+                    ->on('sales_return_items.tenant_id', '=', 'sales_returns.tenant_id');
+            })
+            ->join('sale_items', function ($join): void {
+                $join->on('sale_items.id', '=', 'sales_return_items.sale_item_id')
+                    ->on('sale_items.tenant_id', '=', 'sales_return_items.tenant_id');
+            })
+            ->sum(DB::raw('CASE WHEN sale_items.quantity > 0 THEN sale_items.base_total_amount / sale_items.quantity * sales_return_items.quantity ELSE 0 END')), 4);
     }
 
     private function sessionsQuery(int $tenantId, Carbon $from, Carbon $to, array $filters): Builder
