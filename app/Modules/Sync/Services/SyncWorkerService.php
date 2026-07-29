@@ -103,14 +103,6 @@ class SyncWorkerService
 
     private function shouldRequestInitialSnapshot(Tenant $tenant, string $installationCode): bool
     {
-        $hasCoreCatalog = DB::table('branches')->where('tenant_id', $tenant->id)->exists()
-            && DB::table('warehouses')->where('tenant_id', $tenant->id)->exists()
-            && DB::table('products')->where('tenant_id', $tenant->id)->exists();
-
-        if (! $hasCoreCatalog) {
-            return true;
-        }
-
         $readiness = DB::table('sync_tenant_readiness')
             ->where('tenant_id', $tenant->id)
             ->where('installation_code', $installationCode)

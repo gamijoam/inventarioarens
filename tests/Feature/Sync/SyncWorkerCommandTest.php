@@ -227,6 +227,54 @@ class SyncWorkerCommandTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), "/sync/events/{$cloudEventUuid}/ack"));
     }
 
+    public function test_sync_worker_does_not_request_another_initial_snapshot_after_an_empty_catalog_completed_once(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Catalogo Vacio',
+            'slug' => 'empresa-catalogo-vacio',
+        ]);
+        $installationCode = 'LOCAL-EMPTY-CATALOG-01';
+        $now = now();
+
+        DB::table('sync_tenant_readiness')->insert([
+            'tenant_id' => $tenant->id,
+            'installation_code' => $installationCode,
+            'node_code' => 'LOCAL-EMPTY-01',
+            'node_name' => 'Local Empty 01',
+            'status' => 'ready',
+            'initial_sync_completed_at' => $now,
+            'last_success_at' => $now,
+            'metadata' => json_encode([]),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-EMPTY-01'],
+            ], 201),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [],
+            ], 200),
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-EMPTY-01',
+            '--name' => 'Local Empty 01',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--pull-only' => true,
+            '--installation' => $installationCode,
+        ])->assertExitCode(0);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://cloud.test/api/sync/nodes'
+                && $request['metadata']['initial_snapshot'] === false;
+        });
+    }
+
     public function test_sync_apply_inbox_recovers_ignored_customer_events(): void
     {
         $tenant = Tenant::create([
