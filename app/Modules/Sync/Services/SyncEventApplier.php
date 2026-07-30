@@ -2256,25 +2256,22 @@ class SyncEventApplier
             ->lockForUpdate()
             ->first();
 
-        if ($balance) {
-            DB::table('stock_balances')
-                ->where('tenant_id', $tenant->id)
-                ->where('warehouse_id', $warehouseId)
-                ->where('product_id', $productId)
-                ->update([
-                    'quantity_available' => max(0, (float) $balance->quantity_available - $quantity),
-                    'updated_at' => $now,
-                ]);
-        } else {
-            DB::table('stock_balances')->insert([
-                'tenant_id' => $tenant->id,
-                'warehouse_id' => $warehouseId,
-                'product_id' => $productId,
-                'quantity_available' => 0,
-                'quantity_reserved' => 0,
-                'quantity_damaged' => 0,
-            ]);
+        if (! $balance || (float) $balance->quantity_available < $quantity) {
+            throw new RuntimeException(sprintf(
+                'Conflicto de sincronizacion: stock insuficiente para el producto %d en el almacen %d.',
+                $productId,
+                $warehouseId,
+            ));
         }
+
+        DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->update([
+                'quantity_available' => (float) $balance->quantity_available - $quantity,
+                'updated_at' => $now,
+            ]);
     }
 
     private function applyCloudSerialSold(Tenant $tenant, int $productId, int $warehouseId, array $serialUnits): void
@@ -2288,14 +2285,26 @@ class SyncEventApplier
                 continue;
             }
 
-            DB::table('product_units')
+            $unit = DB::table('product_units')
                 ->where('tenant_id', $tenant->id)
                 ->where('product_id', $productId)
                 ->where('warehouse_id', $warehouseId)
                 ->where('serial_type', $serialUnit['serial_type'])
                 ->where('serial_number', $serialUnit['serial_number'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $unit || $unit->status !== ProductUnit::STATUS_AVAILABLE) {
+                throw new RuntimeException(sprintf(
+                    'Conflicto de sincronizacion: el serial %s ya no esta disponible para vender.',
+                    (string) $serialUnit['serial_number'],
+                ));
+            }
+
+            DB::table('product_units')
+                ->where('id', $unit->id)
                 ->update([
-                    'status' => 'sold',
+                    'status' => ProductUnit::STATUS_SOLD,
                     'updated_at' => now(),
                 ]);
         }

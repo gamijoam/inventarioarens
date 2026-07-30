@@ -403,13 +403,183 @@ class PosOrderStockSyncTest extends TestCase
             ->value('quantity_available'));
     }
 
-    private function insertInboxEvent(Tenant $tenant, string $eventType, array $payload, int $aggregateId): void
+    public function test_conflicting_remote_sales_do_not_clip_the_last_unit_or_confirm_the_second_sale(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Ultima Unidad', 'slug' => 'empresa-ultima-unidad']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal Ultima Unidad', 'code' => 'BR-LAST']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Ultima Unidad', 'code' => 'WH-LAST']);
+        $productId = Product::query()->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto Ultima Unidad',
+            'sku' => 'SKU-LAST-UNIT',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $productId,
+            'quantity_available' => 1,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $firstUuid = $this->insertInboxEvent($tenant, 'pos.order.paid', $this->paidOrderPayload(
+            sourceNodeCode: 'LOCAL-RACE-A',
+            orderId: 501,
+            saleId: 501,
+            productSku: 'SKU-LAST-UNIT',
+            warehouseCode: 'WH-LAST',
+        ), 501);
+        $secondUuid = $this->insertInboxEvent($tenant, 'pos.order.paid', $this->paidOrderPayload(
+            sourceNodeCode: 'LOCAL-RACE-B',
+            orderId: 502,
+            saleId: 502,
+            productSku: 'SKU-LAST-UNIT',
+            warehouseCode: 'WH-LAST',
+        ), 502);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(['applied' => 1, 'failed' => 1, 'ignored' => 0], $summary);
+        $this->assertEquals(0.0, (float) DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $productId)
+            ->value('quantity_available'));
+        $this->assertSame(1, DB::table('sales')->where('tenant_id', $tenant->id)->count());
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $firstUuid, 'status' => 'applied']);
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $secondUuid, 'status' => 'failed']);
+        $this->assertStringContainsString('stock insuficiente', (string) DB::table('sync_inbox')
+            ->where('event_uuid', $secondUuid)
+            ->value('last_error'));
+    }
+
+    public function test_conflicting_remote_imei_sale_keeps_the_second_event_for_manual_resolution(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa IMEI Unico', 'slug' => 'empresa-imei-unico']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal IMEI Unico', 'code' => 'BR-IMEI-LAST']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen IMEI Unico', 'code' => 'WH-IMEI-LAST']);
+        $productId = Product::query()->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Equipo IMEI Unico',
+            'sku' => 'SKU-IMEI-LAST',
+            'tracking_type' => Product::TRACKING_SERIALIZED,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $productId,
+            'quantity_available' => 2,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+        ProductUnit::create([
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-RACE-001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+
+        $firstUuid = $this->insertInboxEvent($tenant, 'pos.order.paid', $this->paidOrderPayload(
+            sourceNodeCode: 'LOCAL-IMEI-A',
+            orderId: 601,
+            saleId: 601,
+            productSku: 'SKU-IMEI-LAST',
+            warehouseCode: 'WH-IMEI-LAST',
+            serialNumber: 'IMEI-RACE-001',
+        ), 601);
+        $secondUuid = $this->insertInboxEvent($tenant, 'pos.order.paid', $this->paidOrderPayload(
+            sourceNodeCode: 'LOCAL-IMEI-B',
+            orderId: 602,
+            saleId: 602,
+            productSku: 'SKU-IMEI-LAST',
+            warehouseCode: 'WH-IMEI-LAST',
+            serialNumber: 'IMEI-RACE-001',
+        ), 602);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(['applied' => 1, 'failed' => 1, 'ignored' => 0], $summary);
+        $this->assertEquals(1.0, (float) DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $productId)
+            ->value('quantity_available'));
+        $this->assertSame(1, DB::table('sales')->where('tenant_id', $tenant->id)->count());
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $tenant->id,
+            'serial_number' => 'IMEI-RACE-001',
+            'status' => ProductUnit::STATUS_SOLD,
+        ]);
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $firstUuid, 'status' => 'applied']);
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $secondUuid, 'status' => 'failed']);
+        $this->assertStringContainsString('ya no esta disponible', (string) DB::table('sync_inbox')
+            ->where('event_uuid', $secondUuid)
+            ->value('last_error'));
+    }
+
+    private function paidOrderPayload(
+        string $sourceNodeCode,
+        int $orderId,
+        int $saleId,
+        string $productSku,
+        string $warehouseCode,
+        ?string $serialNumber = null,
+    ): array {
+        return [
+            'source_node_code' => $sourceNodeCode,
+            'order_id' => $orderId,
+            'sale_id' => $saleId,
+            'sale_status' => 'confirmed',
+            'status' => 'paid',
+            'total_base_amount' => '10.0000',
+            'total_local_amount' => '0.0000',
+            'paid_base_amount' => '10.0000',
+            'paid_local_amount' => '0.0000',
+            'items' => [[
+                'id' => $orderId,
+                'product_sku' => $productSku,
+                'warehouse_code' => $warehouseCode,
+                'price_list_code' => null,
+                'quantity' => '1.0000',
+                'sale_currency' => 'USD',
+                'unit_price' => '10.0000',
+                'total_amount' => '10.0000',
+                'base_unit_price' => '10.0000',
+                'base_total_amount' => '10.0000',
+                'exchange_rate_type_code' => null,
+                'exchange_rate' => null,
+                'product_unit_ids' => [],
+                'product_serial_units' => $serialNumber === null
+                    ? []
+                    : [['serial_type' => ProductUnit::SERIAL_TYPE_IMEI, 'serial_number' => $serialNumber]],
+            ]],
+            'payments' => [],
+        ];
+    }
+
+    private function insertInboxEvent(Tenant $tenant, string $eventType, array $payload, int $aggregateId): string
     {
         $encodedPayload = json_encode($payload);
+        $eventUuid = (string) Str::uuid();
 
         DB::table('sync_inbox')->insert([
             'tenant_id' => $tenant->id,
-            'event_uuid' => (string) Str::uuid(),
+            'event_uuid' => $eventUuid,
             'event_type' => $eventType,
             'aggregate_type' => 'pos_order',
             'aggregate_id' => $aggregateId,
@@ -420,5 +590,7 @@ class PosOrderStockSyncTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        return $eventUuid;
     }
 }
