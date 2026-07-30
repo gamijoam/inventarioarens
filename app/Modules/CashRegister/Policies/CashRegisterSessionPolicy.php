@@ -44,7 +44,7 @@ class CashRegisterSessionPolicy
     {
         return $this->ownsResource($session)
             && $session->status === CashRegisterSession::STATUS_CLOSED
-            && $this->hasTenantPermission($user, 'cash_register.close')
+            && $this->hasTenantPermission($user, 'cash_register.review')
             && $this->isCashSupervisor($user);
     }
 

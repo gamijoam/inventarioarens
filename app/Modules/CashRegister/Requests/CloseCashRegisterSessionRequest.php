@@ -25,6 +25,8 @@ class CloseCashRegisterSessionRequest extends FormRequest
             'counted_amount' => ['required_without_all:counted_base_amount,counted_local_amount,counts', 'numeric', 'gte:0'],
             'counted_base_amount' => ['required_without_all:counted_amount,counted_local_amount,counts', 'numeric', 'gte:0'],
             'counted_local_amount' => ['nullable', 'numeric', 'gte:0'],
+            'counted_cash_usd' => ['nullable', 'numeric', 'gte:0'],
+            'counted_cash_ves' => ['nullable', 'numeric', 'gte:0'],
             'counts' => ['nullable', 'array', 'min:1'],
             'counts.*.currency' => ['required_with:counts', 'string', 'size:3', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
             'counts.*.denomination' => ['required_with:counts', 'numeric', 'gt:0'],
@@ -34,7 +36,7 @@ class CloseCashRegisterSessionRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
-            'closing_notes' => ['nullable', 'string'],
+            'closing_notes' => ['nullable', 'string', 'min:3'],
             'counting_mode' => ['nullable', 'string', Rule::in([CashRegisterSession::COUNTING_STANDARD, CashRegisterSession::COUNTING_BLIND])],
         ];
     }

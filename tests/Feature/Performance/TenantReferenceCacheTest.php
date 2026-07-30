@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Performance;
 
-use App\Models\User;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
@@ -181,5 +180,24 @@ class TenantReferenceCacheTest extends TestCase
             [$list1->id, $list2->id],
             $result->pluck('id')->all()
         );
+    }
+
+    public function test_active_price_lists_discards_an_invalid_cached_value(): void
+    {
+        $tenant = $this->makeTenant();
+        $list = PriceList::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Lista recuperable',
+            'code' => 'RECOVER',
+            'is_active' => true,
+        ]);
+        $ids = [$list->id];
+        $key = 'tenant_ref:'.$tenant->id.':active_price_list_ids:'.md5(json_encode($ids));
+        Cache::put($key, new \stdClass, TenantReferenceCache::TTL_REFERENCE);
+
+        $result = app(TenantReferenceCache::class)->activePriceLists($tenant->id, $ids);
+
+        $this->assertCount(1, $result);
+        $this->assertSame($list->id, $result->first()->id);
     }
 }

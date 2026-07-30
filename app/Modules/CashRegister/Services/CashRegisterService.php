@@ -83,6 +83,8 @@ class CashRegisterService
             $openingMovements = $this->openingMovements($data);
             $openingBaseAmount = 0.0;
             $openingLocalAmount = 0.0;
+            $openingCashUsd = 0.0;
+            $openingCashVes = 0.0;
             $resolvedOpeningMovements = [];
 
             foreach ($openingMovements as $movement) {
@@ -94,6 +96,17 @@ class CashRegisterService
                 $movement['resolved'] = $resolved;
                 $openingBaseAmount += (float) $resolved['amount_base'];
                 $openingLocalAmount += (float) ($resolved['amount_local'] ?? 0);
+                if (($movement['method'] ?? CashRegisterMovement::METHOD_CASH) !== CashRegisterMovement::METHOD_CASH) {
+                    $resolvedOpeningMovements[] = $movement;
+
+                    continue;
+                }
+
+                if (strtoupper($movement['currency']) === Product::CURRENCY_USD) {
+                    $openingCashUsd += (float) $movement['amount'];
+                } else {
+                    $openingCashVes += (float) $movement['amount'];
+                }
                 $resolvedOpeningMovements[] = $movement;
             }
 
@@ -107,6 +120,8 @@ class CashRegisterService
                 'opening_local_amount' => round($openingLocalAmount, 4),
                 'expected_base_amount' => round($openingBaseAmount, 4),
                 'expected_local_amount' => round($openingLocalAmount, 4),
+                'expected_cash_usd' => round($openingCashUsd, 4),
+                'expected_cash_ves' => round($openingCashVes, 4),
                 'opened_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);
@@ -135,6 +150,7 @@ class CashRegisterService
         return DB::transaction(function () use ($session, $data, $operator): CashRegisterSession {
             $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
             $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
 
             $this->createMovement($session, $data['type'], $data['method'], $data, $operator);
             $this->recalculateExpectedTotals($session);
@@ -148,18 +164,33 @@ class CashRegisterService
         return DB::transaction(function () use ($session, $data, $operator): CashRegisterSession {
             $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
             $this->assertOpen($session);
+            $this->assertOperatorCanClose($session, $operator);
             $this->recalculateExpectedTotals($session);
 
             $counted = $this->closingAmount($data);
+            $countedPhysical = $this->closingPhysicalAmounts($data);
             $counts = $this->cashCounts($data);
+            $differenceCashUsd = round($countedPhysical['USD'] - (float) ($session->expected_cash_usd ?? $session->opening_base_amount), 4);
+            $differenceCashVes = round($countedPhysical['VES'] - (float) ($session->expected_cash_ves ?? $session->opening_local_amount), 4);
+
+            if ((abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01)
+                && mb_strlen(trim((string) ($data['closing_notes'] ?? ''))) < 3) {
+                throw ValidationException::withMessages([
+                    'closing_notes' => 'Debes justificar la diferencia de efectivo USD/VES antes de cerrar.',
+                ]);
+            }
 
             $session->update([
                 'status' => CashRegisterSession::STATUS_CLOSED,
                 'closed_by' => $operator->id,
                 'counted_base_amount' => $counted['amount_base'],
                 'counted_local_amount' => $counted['amount_local'] ?? 0,
+                'counted_cash_usd' => $countedPhysical['USD'],
+                'counted_cash_ves' => $countedPhysical['VES'],
                 'difference_base_amount' => round($counted['amount_base'] - (float) $session->expected_base_amount, 4),
                 'difference_local_amount' => round(($counted['amount_local'] ?? 0) - (float) $session->expected_local_amount, 4),
+                'difference_cash_usd' => $differenceCashUsd,
+                'difference_cash_ves' => $differenceCashVes,
                 'closed_at' => now(),
                 'closing_notes' => $data['closing_notes'] ?? null,
                 'counting_mode' => $data['counting_mode'] ?? CashRegisterSession::COUNTING_STANDARD,
@@ -205,6 +236,7 @@ class CashRegisterService
         return DB::transaction(function () use ($session, $payment, $operator): CashRegisterSession {
             $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
             $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
 
             CashRegisterMovement::create([
                 'cash_register_session_id' => $session->id,
@@ -224,10 +256,7 @@ class CashRegisterService
                 'created_by' => $operator->id,
             ]);
 
-            $session->update([
-                'expected_base_amount' => round((float) $session->expected_base_amount + (float) $payment->amount_base, 4),
-                'expected_local_amount' => round((float) $session->expected_local_amount + (float) ($payment->amount_local ?? 0), 4),
-            ]);
+            $this->recalculateExpectedTotals($session);
 
             return $session->refresh();
         });
@@ -263,10 +292,7 @@ class CashRegisterService
                 'created_by' => $operator->id,
             ]);
 
-            $session->update([
-                'expected_base_amount' => round((float) $session->expected_base_amount + (float) $payment->amount_base, 4),
-                'expected_local_amount' => round((float) $session->expected_local_amount + (float) ($payment->amount_local ?? 0), 4),
-            ]);
+            $this->recalculateExpectedTotals($session);
 
             return $session->refresh();
         });
@@ -302,10 +328,7 @@ class CashRegisterService
                 'created_by' => $operator->id,
             ]);
 
-            $session->update([
-                'expected_base_amount' => round((float) $session->expected_base_amount - (float) $payment->amount_base, 4),
-                'expected_local_amount' => round((float) $session->expected_local_amount - (float) ($payment->amount_local ?? 0), 4),
-            ]);
+            $this->recalculateExpectedTotals($session);
 
             return $session->refresh();
         });
@@ -316,6 +339,7 @@ class CashRegisterService
         return DB::transaction(function () use ($session, $data, $operator): CashRegisterMovement {
             $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
             $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
 
             $movement = $this->createMovement($session, CashRegisterMovement::TYPE_OUTFLOW, $data['method'], [
                 'currency' => $data['currency'],
@@ -455,17 +479,81 @@ class CashRegisterService
 
         $base = 0.0;
         $local = 0.0;
+        $cashUsd = 0.0;
+        $cashVes = 0.0;
 
         foreach ($movements as $movement) {
             $sign = $movement->type === CashRegisterMovement::TYPE_OUTFLOW ? -1 : 1;
             $base += $sign * (float) $movement->amount_base;
             $local += $sign * (float) ($movement->amount_local ?? 0);
+
+            if ($movement->method === CashRegisterMovement::METHOD_CASH) {
+                if ($movement->currency === Product::CURRENCY_USD) {
+                    $cashUsd += $sign * (float) $movement->amount;
+                } else {
+                    $cashVes += $sign * (float) $movement->amount;
+                }
+            }
         }
 
         $session->update([
             'expected_base_amount' => round($base, 4),
             'expected_local_amount' => round($local, 4),
+            'expected_cash_usd' => round($cashUsd, 4),
+            'expected_cash_ves' => round($cashVes, 4),
         ]);
+    }
+
+    private function closingPhysicalAmounts(array $data): array
+    {
+        if (! empty($data['counts'])) {
+            return $this->cashCountTotals($data['counts']);
+        }
+
+        $legacyCurrency = strtoupper($data['counted_currency'] ?? Product::CURRENCY_USD);
+        $legacyAmount = array_key_exists('counted_amount', $data)
+            ? (float) $data['counted_amount']
+            : 0.0;
+
+        return [
+            'USD' => round((float) ($data['counted_cash_usd'] ?? $data['counted_base_amount'] ?? ($legacyCurrency === Product::CURRENCY_USD ? $legacyAmount : 0)), 4),
+            'VES' => round((float) ($data['counted_cash_ves'] ?? $data['counted_local_amount'] ?? ($legacyCurrency === Product::CURRENCY_VES ? $legacyAmount : 0)), 4),
+        ];
+    }
+
+    private function assertOperatorCanOperate(CashRegisterSession $session, User $operator): void
+    {
+        if ((int) $session->cashier_id === (int) $operator->id) {
+            return;
+        }
+
+        if (! $this->isCashSupervisor($operator)) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'Solo el cajero o un supervisor autorizado puede mover dinero en este turno.',
+            ]);
+        }
+    }
+
+    private function assertOperatorCanClose(CashRegisterSession $session, User $operator): void
+    {
+        if ((int) $session->cashier_id === (int) $operator->id || $this->isCashSupervisor($operator)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'cash_register_session_id' => 'Solo el cajero o un supervisor autorizado puede cerrar este turno.',
+        ]);
+    }
+
+    private function isCashSupervisor(User $operator): bool
+    {
+        $tenant = app(TenantManager::class)->current();
+        if ($tenant && function_exists('setPermissionsTeamId')) {
+            setPermissionsTeamId($tenant->id);
+        }
+
+        return $operator->hasPermissionTo('cash_register.close')
+            && $operator->hasAnyRole(['Owner', 'Administrador', 'Administrador local', 'Gerente']);
     }
 
     private function resolveAmount(array $data): array
@@ -555,10 +643,16 @@ class CashRegisterService
                 'opening_local_amount' => (string) $session->opening_local_amount,
                 'expected_base_amount' => (string) $session->expected_base_amount,
                 'expected_local_amount' => (string) $session->expected_local_amount,
+                'expected_cash_usd' => $session->expected_cash_usd === null ? null : (string) $session->expected_cash_usd,
+                'expected_cash_ves' => $session->expected_cash_ves === null ? null : (string) $session->expected_cash_ves,
                 'counted_base_amount' => $session->counted_base_amount === null ? null : (string) $session->counted_base_amount,
                 'counted_local_amount' => $session->counted_local_amount === null ? null : (string) $session->counted_local_amount,
+                'counted_cash_usd' => $session->counted_cash_usd === null ? null : (string) $session->counted_cash_usd,
+                'counted_cash_ves' => $session->counted_cash_ves === null ? null : (string) $session->counted_cash_ves,
                 'difference_base_amount' => $session->difference_base_amount === null ? null : (string) $session->difference_base_amount,
                 'difference_local_amount' => $session->difference_local_amount === null ? null : (string) $session->difference_local_amount,
+                'difference_cash_usd' => $session->difference_cash_usd === null ? null : (string) $session->difference_cash_usd,
+                'difference_cash_ves' => $session->difference_cash_ves === null ? null : (string) $session->difference_cash_ves,
                 'counting_mode' => $session->counting_mode,
                 'review_status' => $session->review_status,
                 'reviewed_by' => $session->reviewed_by,

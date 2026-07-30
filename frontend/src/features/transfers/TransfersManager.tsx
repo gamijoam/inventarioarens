@@ -45,6 +45,8 @@ import {
 } from '@/features/transfers/schemas';
 import { useWarehouses } from '@/features/inventory-center/api';
 import { formatMoney } from '@/lib/money';
+import { useCan } from '@/permissions/useCan';
+import { PERMISSIONS } from '@/permissions/constants';
 
 const STATUS_FILTER_OPTIONS: { value: TransferListFilters['status']; label: string }[] = [
   { value: 'all', label: 'Todos los estados' },
@@ -106,6 +108,9 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
   const meta = queryResult?.meta;
   const cancel = useCancelTransfer();
   const [cancelling, setCancelling] = useState<Transfer | null>(null);
+  const canCreate = useCan(PERMISSIONS.INVENTORY_TRANSFERS_CREATE);
+  const canReceivePermission = useCan(PERMISSIONS.INVENTORY_TRANSFERS_RECEIVE);
+  const canCancelPermission = useCan(PERMISSIONS.INVENTORY_TRANSFERS_CANCEL);
 
   function setPage(page: number) {
     setFilters((f) => ({ ...f, page }));
@@ -229,9 +234,11 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
               Limpiar filtros
             </Button>
           )}
-          <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={onNew}>
-            Nuevo traslado
-          </Button>
+          {canCreate && (
+            <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={onNew}>
+              Nuevo traslado
+            </Button>
+          )}
         </div>
       </div>
 
@@ -266,8 +273,8 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                   const totalBase = Number(t.total_base_amount ?? 0);
                   const receivedBase = Number(t.received_base_amount ?? 0);
                   const progress = totalBase > 0 ? Math.min(100, Math.round((receivedBase / totalBase) * 100)) : 0;
-                  const canReceive = t.status === 'dispatched';
-                  const canCancel = t.status === 'requested' || t.status === 'prepared' || t.status === 'prepared_with_differences';
+                          const canReceive = t.status === 'dispatched' && canReceivePermission;
+                          const canCancel = canCancelPermission && (t.status === 'requested' || t.status === 'prepared' || t.status === 'prepared_with_differences');
                   return (
                     <tr
                       key={t.id}

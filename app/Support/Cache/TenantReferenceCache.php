@@ -6,6 +6,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Models\PriceList;
+use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -33,7 +34,7 @@ class TenantReferenceCache
 
     public function activePaymentMethods(int $tenantId): Collection
     {
-        return Cache::remember(
+        return $this->rememberCollection(
             $this->key('active_payment_methods', $tenantId),
             self::TTL_REFERENCE,
             fn () => PaymentMethod::query()
@@ -48,9 +49,10 @@ class TenantReferenceCache
 
     public function defaultPriceList(int $tenantId): ?PriceList
     {
-        return Cache::remember(
+        return $this->rememberModel(
             $this->key('default_price_list', $tenantId),
             self::TTL_REFERENCE,
+            PriceList::class,
             fn () => PriceList::query()
                 ->withoutGlobalScopes()
                 ->where('tenant_id', $tenantId)
@@ -63,7 +65,7 @@ class TenantReferenceCache
     public function activePriceLists(int $tenantId, ?array $ids = null): Collection
     {
         if ($ids === null || $ids === []) {
-            return Cache::remember(
+            return $this->rememberCollection(
                 $this->key('active_price_lists', $tenantId),
                 self::TTL_REFERENCE,
                 fn () => PriceList::query()
@@ -78,7 +80,7 @@ class TenantReferenceCache
         sort($ids);
         $cacheKey = $this->key('active_price_list_ids', $tenantId).':'.md5(json_encode($ids));
 
-        return Cache::remember(
+        return $this->rememberCollection(
             $cacheKey,
             self::TTL_REFERENCE,
             fn () => PriceList::query()
@@ -93,9 +95,10 @@ class TenantReferenceCache
 
     public function defaultExchangeRateType(int $tenantId): ?ExchangeRateType
     {
-        return Cache::remember(
+        return $this->rememberModel(
             $this->key('default_exchange_rate_type', $tenantId),
             self::TTL_REFERENCE,
+            ExchangeRateType::class,
             fn () => ExchangeRateType::query()
                 ->withoutGlobalScopes()
                 ->where('tenant_id', $tenantId)
@@ -107,7 +110,7 @@ class TenantReferenceCache
 
     public function activeExchangeRateTypes(int $tenantId): Collection
     {
-        return Cache::remember(
+        return $this->rememberCollection(
             $this->key('active_exchange_rate_types', $tenantId),
             self::TTL_REFERENCE,
             fn () => ExchangeRateType::query()
@@ -122,9 +125,10 @@ class TenantReferenceCache
 
     public function activeExchangeRate(int $tenantId, int $rateTypeId): ?ExchangeRate
     {
-        return Cache::remember(
+        return $this->rememberModel(
             $this->key('active_exchange_rate', $tenantId).':'.$rateTypeId,
             self::TTL_RATE,
+            ExchangeRate::class,
             fn () => ExchangeRate::query()
                 ->withoutGlobalScopes()
                 ->where('tenant_id', $tenantId)
@@ -161,5 +165,41 @@ class TenantReferenceCache
     private function key(string $name, int $tenantId): string
     {
         return "tenant_ref:{$tenantId}:{$name}";
+    }
+
+    private function rememberCollection(string $key, int $ttl, Closure $resolver): Collection
+    {
+        if (Cache::has($key)) {
+            $cached = Cache::get($key);
+            if ($cached instanceof Collection) {
+                return $cached;
+            }
+
+            Cache::forget($key);
+        }
+
+        $resolved = $resolver();
+        Cache::put($key, $resolved, $ttl);
+
+        return $resolved;
+    }
+
+    private function rememberModel(string $key, int $ttl, string $modelClass, Closure $resolver): mixed
+    {
+        if (Cache::has($key)) {
+            $cached = Cache::get($key);
+            if ($cached === null || $cached instanceof $modelClass) {
+                return $cached;
+            }
+
+            Cache::forget($key);
+        }
+
+        $resolved = $resolver();
+        if ($resolved !== null) {
+            Cache::put($key, $resolved, $ttl);
+        }
+
+        return $resolved;
     }
 }

@@ -65,10 +65,16 @@ export const CashRegisterSessionSchema = z
     opening_local_amount: nullableNumber,
     expected_base_amount: nullableNumber,
     expected_local_amount: nullableNumber,
+    expected_cash_usd: nullableNumber,
+    expected_cash_ves: nullableNumber,
     counted_base_amount: nullableNumber,
     counted_local_amount: nullableNumber,
+    counted_cash_usd: nullableNumber,
+    counted_cash_ves: nullableNumber,
     difference_base_amount: nullableNumber,
     difference_local_amount: nullableNumber,
+    difference_cash_usd: nullableNumber,
+    difference_cash_ves: nullableNumber,
     opened_at: z.string().nullable().optional(),
     closed_at: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
@@ -317,6 +323,8 @@ export interface CloseCashSessionPayload {
   counted_amount?: number;
   counted_base_amount?: number;
   counted_local_amount?: number;
+  counted_cash_usd?: number;
+  counted_cash_ves?: number;
   exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
   counts?: Array<{ currency: 'USD' | 'VES'; denomination: number; quantity: number }>;

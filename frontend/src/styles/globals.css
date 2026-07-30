@@ -1,4 +1,28 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --popover: #ffffff;
+  --popover-foreground: #172033;
+  --primary: #3158c8;
+  --primary-foreground: #ffffff;
+  --secondary: #edf1f7;
+  --secondary-foreground: #26334d;
+  --muted: #f1f3f6;
+  --muted-foreground: #657089;
+  --accent: #e8eefc;
+  --accent-foreground: #2446a8;
+  --destructive: #c83a4b;
+  --destructive-foreground: #ffffff;
+  --border: #dfe4ec;
+  --input: #cfd6e2;
+  --ring: #6d8bea;
+  --radius: 0.5rem;
+}
 
 /* ============================================================================
  * PALETA DE COLORES — INVENTARIOARENS Frontend
@@ -17,6 +41,20 @@
  * ============================================================================ */
 
 @theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
   /* === Marca (cambiar aqui = toda la UI cambia) === */
   --color-primary: #4d35ff;          /* Morado principal — botones primarios, links, focus ring */
   --color-primary-hover: #3a28cc;    /* Hover del primary */
@@ -173,6 +211,18 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-muted);
   }
+}
+
+/* Tokens de la skin operativa. Quedan al final para que dominen sobre la paleta historica. */
+@theme {
+  --color-primary: #3158c8;
+  --color-primary-hover: #2446a8;
+  --color-bg: #f7f8fa;
+  --color-border: #dfe4ec;
+  --color-border-strong: #cfd6e2;
+  --color-text-primary: #172033;
+  --color-text-secondary: #39465e;
+  --color-text-muted: #657089;
 }
 
 /* ============================================================================

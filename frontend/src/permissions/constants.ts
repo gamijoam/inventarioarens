@@ -60,6 +60,7 @@ export const PERMISSIONS = {
   CASH_REGISTER_MOVEMENTS: 'cash_register.movements',
   CASH_REGISTER_CREATE: 'cash_register.create',
   CASH_REGISTER_UPDATE: 'cash_register.update',
+  CASH_REGISTER_REVIEW: 'cash_register.review',
 
   // Inventory Transfers
   INVENTORY_TRANSFERS_VIEW: 'inventory_transfers.view',
@@ -75,6 +76,10 @@ export const PERMISSIONS = {
   INVENTORY_TRANSFER_REQUESTS_VIEW: 'inventory_transfer_requests.view',
   INVENTORY_TRANSFER_REQUESTS_CREATE: 'inventory_transfer_requests.create',
   INVENTORY_TRANSFER_REQUESTS_RESPOND: 'inventory_transfer_requests.respond',
+  INVENTORY_TRANSFER_REQUESTS_PREPARE: 'inventory_transfer_requests.prepare',
+  INVENTORY_TRANSFER_REQUESTS_DISPATCH: 'inventory_transfer_requests.dispatch',
+  INVENTORY_TRANSFER_REQUESTS_DELIVER: 'inventory_transfer_requests.deliver',
+  INVENTORY_TRANSFER_REQUESTS_RECEIVE: 'inventory_transfer_requests.receive',
   INVENTORY_TRANSFER_REQUESTS_CANCEL: 'inventory_transfer_requests.cancel',
 
   // Customers

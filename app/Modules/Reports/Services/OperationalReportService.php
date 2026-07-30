@@ -71,9 +71,19 @@ class OperationalReportService
                 'closed_count' => (clone $sessions)->where('cash_register_sessions.status', CashRegisterSession::STATUS_CLOSED)->count(),
                 'expected_base_amount' => $this->sum($sessions, 'cash_register_sessions.expected_base_amount'),
                 'expected_local_amount' => $this->sum($sessions, 'cash_register_sessions.expected_local_amount'),
+                'expected_cash_usd' => $this->sum($sessions, 'cash_register_sessions.expected_cash_usd'),
+                'expected_cash_ves' => $this->sum($sessions, 'cash_register_sessions.expected_cash_ves'),
                 'difference_base_amount' => $this->sum(
                     (clone $sessions)->where('cash_register_sessions.status', CashRegisterSession::STATUS_CLOSED),
                     'cash_register_sessions.difference_base_amount'
+                ),
+                'difference_cash_usd' => $this->sum(
+                    (clone $sessions)->where('cash_register_sessions.status', CashRegisterSession::STATUS_CLOSED),
+                    'cash_register_sessions.difference_cash_usd'
+                ),
+                'difference_cash_ves' => $this->sum(
+                    (clone $sessions)->where('cash_register_sessions.status', CashRegisterSession::STATUS_CLOSED),
+                    'cash_register_sessions.difference_cash_ves'
                 ),
             ],
             'payment_methods' => $this->paymentMethods($filters, 8),
@@ -151,7 +161,11 @@ class OperationalReportService
                 'closed_count' => $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->count(),
                 'expected_base_amount' => round((float) $sessions->sum('expected_base_amount'), 4),
                 'expected_local_amount' => round((float) $sessions->sum('expected_local_amount'), 4),
+                'expected_cash_usd' => round((float) $sessions->sum('expected_cash_usd'), 4),
+                'expected_cash_ves' => round((float) $sessions->sum('expected_cash_ves'), 4),
                 'difference_base_amount' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum('difference_base_amount'), 4),
+                'difference_cash_usd' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum(fn (CashRegisterSession $session): float => (float) ($session->difference_cash_usd ?? $session->difference_base_amount)), 4),
+                'difference_cash_ves' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum(fn (CashRegisterSession $session): float => (float) ($session->difference_cash_ves ?? $session->difference_local_amount)), 4),
             ],
             'rows' => $sessions->map(fn (CashRegisterSession $session): array => $this->cashSessionRow($session))->all(),
             'movement_breakdown' => $this->cashMovementBreakdown($tenantId, $from, $to, $filters),
@@ -313,10 +327,16 @@ class OperationalReportService
             'opening_local_amount' => (float) $session->opening_local_amount,
             'expected_base_amount' => (float) $session->expected_base_amount,
             'expected_local_amount' => (float) $session->expected_local_amount,
+            'expected_cash_usd' => (float) ($session->expected_cash_usd ?? $session->opening_base_amount),
+            'expected_cash_ves' => (float) ($session->expected_cash_ves ?? $session->opening_local_amount),
             'counted_base_amount' => $session->counted_base_amount === null ? null : (float) $session->counted_base_amount,
             'counted_local_amount' => $session->counted_local_amount === null ? null : (float) $session->counted_local_amount,
+            'counted_cash_usd' => $session->counted_cash_usd === null ? null : (float) $session->counted_cash_usd,
+            'counted_cash_ves' => $session->counted_cash_ves === null ? null : (float) $session->counted_cash_ves,
             'difference_base_amount' => $session->status === CashRegisterSession::STATUS_CLOSED ? (float) $session->difference_base_amount : null,
             'difference_local_amount' => $session->status === CashRegisterSession::STATUS_CLOSED ? (float) $session->difference_local_amount : null,
+            'difference_cash_usd' => $session->status === CashRegisterSession::STATUS_CLOSED ? (float) ($session->difference_cash_usd ?? $session->difference_base_amount) : null,
+            'difference_cash_ves' => $session->status === CashRegisterSession::STATUS_CLOSED ? (float) ($session->difference_cash_ves ?? $session->difference_local_amount) : null,
             'opened_at' => $session->opened_at?->toISOString(),
             'closed_at' => $session->closed_at?->toISOString(),
             'movements' => $session->movements->map(fn (CashRegisterMovement $movement): array => [
@@ -376,7 +396,10 @@ class OperationalReportService
 
         $closedWithDifference = (clone $sessions)
             ->where('cash_register_sessions.status', CashRegisterSession::STATUS_CLOSED)
-            ->whereRaw('ABS(COALESCE(cash_register_sessions.difference_base_amount, 0)) > 0.0001')
+            ->where(function ($query): void {
+                $query->whereRaw('ABS(COALESCE(cash_register_sessions.difference_cash_usd, cash_register_sessions.difference_base_amount, 0)) > 0.0001')
+                    ->orWhereRaw('ABS(COALESCE(cash_register_sessions.difference_cash_ves, cash_register_sessions.difference_local_amount, 0)) > 0.0001');
+            })
             ->count();
 
         $missingReference = collect($this->paymentMethods($filters, 100))->sum('missing_reference_count');

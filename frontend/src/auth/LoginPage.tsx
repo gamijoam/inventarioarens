@@ -1,14 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { Building2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
 
-import {
-  APP_NAME,
-  APP_TAGLINE,
-  APP_DESCRIPTION,
-  APP_FEATURES,
-} from '@/config/branding';
-
+import { APP_NAME } from '@/config/branding';
 import { lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
 import { useSessionStore } from '@/stores/session';
@@ -25,30 +19,29 @@ const DEBOUNCE_MS = 500;
 export function LoginPage() {
   const { signIn, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<TenantOption | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Lookup automatico de tenants con debounce.
   useEffect(() => {
     if (!isValidEmail(email)) {
       setTenants([]);
       setSelectedTenant(null);
       return;
     }
+
     const handle = window.setTimeout(async () => {
       setLookupLoading(true);
       setError(null);
       try {
         const data = await lookupTenants({ email });
         setTenants(data);
-        if (data.length === 1) setSelectedTenant(data[0]!);
-        else setSelectedTenant(null);
+        setSelectedTenant(data.length === 1 ? data[0]! : null);
       } catch {
         setTenants([]);
         setSelectedTenant(null);
@@ -56,19 +49,16 @@ export function LoginPage() {
         setLookupLoading(false);
       }
     }, DEBOUNCE_MS);
+
     return () => window.clearTimeout(handle);
   }, [email]);
 
-  // Doble check: si por alguna razon el user llego aqui con sesion hidratada,
-  // redirigir al dashboard. El beforeLoad ya cubre el caso comun.
   useEffect(() => {
-    if (isAuthenticated) {
-      void navigate({ to: '/dashboard' });
-    }
+    if (isAuthenticated) void navigate({ to: '/dashboard' });
   }, [isAuthenticated, navigate]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setError(null);
 
     if (!selectedTenant) {
@@ -82,8 +72,6 @@ export function LoginPage() {
 
     setLoginLoading(true);
     try {
-      // La cookie httpOnly la emite el backend automaticamente en el
-      // response del login. signIn ya no manipula tokens localmente.
       await signIn(selectedTenant.slug, {
         email,
         password,
@@ -91,130 +79,113 @@ export function LoginPage() {
       });
       await navigate({ to: '/dashboard' });
     } catch (err) {
-      // El interceptor 401 del cliente NO se dispara en errores de validacion
-      // (422), asi que limpiamos manualmente solo si es un fallo de credenciales.
-      // Para errores transitorios (500, network), dejamos el store intacto.
       const status = (err as { status?: number })?.status;
-      if (status === 401 || status === 422) {
-        useSessionStore.getState().clearSession();
-      }
-      const message = formatLoginError(err, selectedTenant.slug);
-      setError(message);
+      if (status === 401 || status === 422) useSessionStore.getState().clearSession();
+      setError(formatLoginError(err, selectedTenant.slug));
     } finally {
       setLoginLoading(false);
     }
   };
 
-  /**
-   * Helper: limpia el cache del navegador (localStorage + cookies stale)
-   * y recarga la pagina. Util cuando hay un tenant stale del lookup que
-   * ya no existe en el backend.
-   */
   const handleClearCache = () => {
     try {
-      // Limpiar todo el localStorage relacionado a la app.
       window.localStorage.removeItem('inventory_session');
-      // Limpiar todas las cookies del origin actual.
-      document.cookie.split('; ').forEach((c) => {
-        const name = c.split('=')[0];
-        if (name) {
-          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-        }
+      document.cookie.split('; ').forEach((cookie) => {
+        const name = cookie.split('=')[0];
+        if (name) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
       });
     } catch {
-      // ignore
+      // El navegador puede bloquear el acceso a cookies/localStorage.
     }
     window.location.reload();
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Panel izquierdo — branding */}
-      <aside className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
-        <div className="flex items-center gap-3 text-lg font-semibold">
-          <div className="flex size-10 items-center justify-center rounded-md bg-white/15">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#eef0f3] px-5 py-10 text-text sm:px-8">
+      <div className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
+      <div className="absolute left-6 top-6 hidden items-center gap-3 text-text-primary sm:flex">
+        <div className="flex size-9 items-center justify-center rounded bg-primary text-primary-foreground">
+          <ShieldCheck className="size-4" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold leading-none">{APP_NAME}</p>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-text-muted">Workspace access</p>
+        </div>
+      </div>
+      <div className="absolute right-6 top-7 hidden items-center gap-2 text-xs text-text-muted sm:flex">
+        <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+        Acceso protegido
+      </div>
+
+      <div className="w-full max-w-[480px]">
+        <header className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded bg-primary text-primary-foreground shadow-sm sm:hidden">
             <ShieldCheck className="size-5" aria-hidden="true" />
           </div>
-          {APP_NAME}
-        </div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">{APP_NAME}</p>
+          <h1 className="mt-3 text-[2.15rem] font-semibold leading-tight tracking-[-0.03em] text-text-primary">Entra a tu espacio de trabajo</h1>
+          <p className="mx-auto mt-3 max-w-[390px] text-sm leading-6 text-text-muted">
+            Identifícate para continuar con tus operaciones de inventario y ventas.
+          </p>
+        </header>
 
-        <div className="space-y-4">
-          <h2 className="text-3xl font-bold leading-tight">{APP_TAGLINE}</h2>
-          <p className="text-base text-primary-foreground/80">{APP_DESCRIPTION}</p>
-          <ul className="space-y-2 text-sm text-primary-foreground/80">
-            {APP_FEATURES.map((feature) => (
-              <li key={feature}>• {feature}</li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="text-xs text-primary-foreground/60">
-          v0.1 · Venezuela · USD base, VES operativo
-        </p>
-      </aside>
-
-      {/* Panel derecho — formulario */}
-      <main className="flex items-center justify-center bg-bg p-6 sm:p-10">
         <form
           onSubmit={handleSubmit}
-          className="w-full max-w-sm space-y-5"
+          className="relative rounded-lg border border-[#d9dce2] bg-surface p-6 shadow-[0_24px_70px_rgba(27,31,44,0.12)] sm:p-8"
           aria-label="Formulario de inicio de sesión"
         >
-          <header className="space-y-1 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
-            <p className="text-sm text-text-muted">
-              Ingresa tu email para ver las empresas donde estás activo.
-            </p>
-          </header>
+          <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">Acceso de usuario</p>
+              <p className="mt-1 text-sm text-text-primary">Usa tus credenciales de empresa</p>
+            </div>
+            <span className="rounded border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">Seguro</span>
+          </div>
 
           {error && (
-            <Alert variant="danger">
-              <AlertTitle>No pudimos iniciar sesión</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {error && (
-            <button
-              type="button"
-              onClick={handleClearCache}
-              className="w-full rounded border border-border bg-surface px-3 py-2 text-xs text-text-muted hover:bg-bg"
-              data-testid="login-clear-cache"
-            >
-              ¿Persiste el error? Limpiar caché del navegador y reintentar
-            </button>
+            <div className="mb-5 space-y-3">
+              <Alert variant="danger">
+                <AlertTitle>No pudimos iniciar sesión</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+              <button
+                type="button"
+                onClick={handleClearCache}
+                className="w-full rounded border border-border bg-surface px-3 py-2 text-xs text-text-muted hover:bg-bg"
+                data-testid="login-clear-cache"
+              >
+                ¿Persiste el error? Limpiar caché y reintentar
+              </button>
+            </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email de acceso</Label>
             <div className="relative">
-              <Mail
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted"
-                aria-hidden="true"
-              />
+              <Mail className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
               <Input
                 id="email"
                 type="email"
                 autoComplete="email"
+                autoFocus
                 required
                 placeholder="usuario@empresa.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 disabled={loginLoading}
                 className="pl-8"
                 data-testid="login-email"
               />
-              {lookupLoading && (
-                <Spinner
-                  size="sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                />
-              )}
+              {lookupLoading && <Spinner size="sm" className="absolute right-2 top-1/2 -translate-y-1/2" />}
             </div>
+            <p className="text-xs text-text-muted">Buscaremos las empresas donde tienes acceso activo.</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="tenant">Empresa</Label>
+          <div className="mt-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tenant">Empresa</Label>
+              {tenants.length > 1 && <span className="text-xs text-text-muted">{tenants.length} disponibles</span>}
+            </div>
             <TenantPicker
               tenants={tenants}
               selected={selectedTenant}
@@ -225,44 +196,55 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="mt-5 space-y-2">
             <Label htmlFor="password">Contraseña</Label>
             <div className="relative">
-              <Lock
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted"
-                aria-hidden="true"
-              />
+              <Lock className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
-                placeholder="••••••••"
+                placeholder="Tu contraseña"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 disabled={loginLoading}
-                className="pl-8"
+                className="pl-8 pr-10"
                 data-testid="login-password"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-text-muted transition-colors hover:bg-bg hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              </button>
             </div>
           </div>
 
           <Button
             type="submit"
             fullWidth
+            className="mt-6 h-11"
             loading={loginLoading}
             disabled={!selectedTenant || !email || !password}
             data-testid="login-submit"
           >
-            Ingresar
+            Entrar al sistema
           </Button>
 
-          <p className="text-center text-xs text-text-muted">
-            ¿Problemas para entrar? Contacta al administrador de tu empresa.
-          </p>
+          <div className="mt-5 border-t border-border pt-4 text-center">
+            <p className="text-xs leading-5 text-text-muted">Si no puedes entrar, solicita acceso al administrador de tu empresa.</p>
+            <Link to="/master/login" className="mt-2 inline-block text-xs font-medium text-primary hover:underline">
+              Acceso de plataforma
+            </Link>
+          </div>
         </form>
-      </main>
-    </div>
+
+        <p className="mt-5 text-center text-[11px] uppercase tracking-[0.12em] text-text-muted">Inventario · Punto de venta · Control operativo</p>
+      </div>
+    </main>
   );
 }
 
@@ -270,16 +252,6 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-/**
- * Formatea el mensaje de error del login segun el status code + body.
- *
- * El backend retorna diferentes mensajes segun el caso:
- *  - 401: credenciales invalidas (email/password).
- *  - 404: tenant no existe (slug mal escrito o eliminado).
- *  - 422: tenant existe pero user no pertenece, o password no cumple reglas.
- *  - 429: rate limit alcanzado.
- *  - 5xx: error del servidor.
- */
 function formatLoginError(err: unknown, slug: string): string {
   const status = (err as { status?: number })?.status;
   const message = (err as Error)?.message ?? 'Error al iniciar sesión.';
@@ -291,14 +263,10 @@ function formatLoginError(err: unknown, slug: string): string {
       return 'Tu cuenta no está activa. Contacta al administrador.';
     case 404:
       return `La empresa "${slug}" no existe. Selecciona otra empresa o limpia el caché.`;
-    case 422: {
-      // Mensaje del backend: "El usuario no pertenece a esta empresa
-      // o esta inactivo." o errores de validacion.
-      if (/no pertenece|inactiv/i.test(message)) {
-        return `Tu email no tiene acceso a la empresa "${slug}". Verifica que seleccionaste la empresa correcta.`;
-      }
-      return message;
-    }
+    case 422:
+      return /no pertenece|inactiv/i.test(message)
+        ? `Tu email no tiene acceso a la empresa "${slug}". Verifica que seleccionaste la empresa correcta.`
+        : message;
     case 429:
       return 'Demasiados intentos. Espera unos minutos antes de reintentar.';
     default:
@@ -317,30 +285,18 @@ interface TenantPickerProps {
 
 function TenantPicker({ tenants, selected, onChange, email, disabled, lookupLoading }: TenantPickerProps) {
   if (!isValidEmail(email)) {
-    return (
-      <div className="rounded border border-dashed border-border bg-surface px-3 py-2 text-sm text-text-muted">
-        Ingresa un email válido para buscar empresas.
-      </div>
-    );
+    return <div className="rounded border border-dashed border-border bg-bg px-3 py-3 text-sm text-text-muted">Ingresa un email válido para buscar empresas.</div>;
   }
   if (lookupLoading) {
-    return (
-      <div className="rounded border border-dashed border-border bg-surface px-3 py-2 text-sm text-text-muted">
-        Buscando empresas...
-      </div>
-    );
+    return <div className="rounded border border-dashed border-border bg-bg px-3 py-3 text-sm text-text-muted">Buscando empresas...</div>;
   }
   if (tenants.length === 0) {
-    return (
-      <div className="rounded border border-dashed border-warning bg-warning/5 px-3 py-2 text-sm text-warning">
-        No hay empresas activas para este email.
-      </div>
-    );
+    return <div className="rounded border border-warning bg-warning/5 px-3 py-3 text-sm text-warning">No hay empresas activas para este email.</div>;
   }
   if (tenants.length === 1) {
     return (
-      <div className="flex items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-sm">
-        <Building2 className="size-4 text-text-muted" aria-hidden="true" />
+      <div className="flex min-h-10 items-center gap-2 rounded border border-primary/40 bg-primary/5 px-3 text-sm">
+        <Building2 className="size-4 text-primary" aria-hidden="true" />
         <span className="font-medium">{tenants[0]!.name}</span>
         <span className="text-xs text-text-muted">({tenants[0]!.slug})</span>
       </div>
@@ -349,24 +305,17 @@ function TenantPicker({ tenants, selected, onChange, email, disabled, lookupLoad
   return (
     <select
       className={cn(
-        'flex h-9 w-full rounded border border-border-strong bg-surface px-3 text-sm shadow-sm',
+        'flex h-10 w-full rounded border border-border-strong bg-surface px-3 text-sm shadow-sm',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
         'disabled:cursor-not-allowed disabled:opacity-50',
       )}
       value={selected?.slug ?? ''}
-      onChange={(e) => {
-        const t = tenants.find((x) => x.slug === e.target.value) ?? null;
-        onChange(t);
-      }}
+      onChange={(event) => onChange(tenants.find((tenant) => tenant.slug === event.target.value) ?? null)}
       disabled={disabled}
       data-testid="login-tenant"
     >
       <option value="">— Selecciona una empresa —</option>
-      {tenants.map((t) => (
-        <option key={t.id} value={t.slug}>
-          {t.name} ({t.slug})
-        </option>
-      ))}
+      {tenants.map((tenant) => <option key={tenant.id} value={tenant.slug}>{tenant.name} ({tenant.slug})</option>)}
     </select>
   );
 }

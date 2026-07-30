@@ -166,6 +166,7 @@ function CommandCenterContent({
 }) {
   const detail = useCashSessionDetail(expandedId);
   const review = useReviewCashSession();
+  const canReview = useCan(PERMISSIONS.CASH_REGISTER_REVIEW);
   const [reviewNotes, setReviewNotes] = useState('');
   const difference = data.summary.difference_base_amount;
   const attentionCount = data.rows.filter(
@@ -222,7 +223,7 @@ function CommandCenterContent({
           <tbody className="divide-border divide-y">
             {data.rows.map((row) => {
               const expanded = expandedId === row.id;
-              const rowDifference = row.difference_base_amount ?? 0;
+              const rowDifference = row.difference_cash_usd ?? row.difference_base_amount ?? 0;
               return (
                 <tr key={row.id} className="hover:bg-bg/40 align-top">
                   <td colSpan={8} className="p-0">
@@ -253,15 +254,15 @@ function CommandCenterContent({
                         </Badge>
                       </span>
                       <span className="px-3 py-3 text-right font-medium">
-                        {formatMoney(row.expected_base_amount)}
+                        {formatMoney(row.expected_cash_usd ?? row.expected_base_amount)}
                       </span>
                       <span className="px-3 py-3 text-right">
-                        {formatMoney(row.counted_base_amount)}
+                        {formatMoney(row.counted_cash_usd ?? row.counted_base_amount)}
                       </span>
                       <span
                         className={`px-3 py-3 text-right font-semibold ${Math.abs(rowDifference) > 0.009 ? 'text-danger' : 'text-success'}`}
                       >
-                        {formatMoney(row.difference_base_amount)}
+                        {formatMoney(row.difference_cash_usd ?? row.difference_base_amount)}
                       </span>
                       <span className="text-text-muted px-3 py-3 text-xs">
                         {row.closed_at
@@ -277,6 +278,7 @@ function CommandCenterContent({
                         reviewNotes={reviewNotes}
                         reviewPending={review.isPending}
                         onReviewNotes={setReviewNotes}
+                        canReview={canReview}
                         onReview={(status) =>
                           review.mutate(
                             {
@@ -321,6 +323,7 @@ function SessionBreakdown({
   loading,
   reviewNotes,
   reviewPending,
+  canReview,
   onReviewNotes,
   onReview,
 }: {
@@ -329,6 +332,7 @@ function SessionBreakdown({
   loading: boolean;
   reviewNotes: string;
   reviewPending: boolean;
+  canReview: boolean;
   onReviewNotes: (value: string) => void;
   onReview: (status: 'approved' | 'rejected') => void;
 }) {
@@ -340,18 +344,23 @@ function SessionBreakdown({
         </p>
         <div className="grid gap-2 text-sm sm:grid-cols-2">
           <Detail label="Apertura USD" value={formatMoney(row.opening_base_amount)} />
+          <Detail label="Esperado físico USD" value={formatMoney(row.expected_cash_usd ?? row.expected_base_amount)} />
+          <Detail label="Contado físico USD" value={formatMoney(row.counted_cash_usd ?? row.counted_base_amount)} />
+          <Detail label="Diferencia física USD" value={formatMoney(row.difference_cash_usd ?? row.difference_base_amount)} />
           <Detail
             label="Apertura VES"
             value={formatMoney({ amount: String(row.opening_local_amount), currency: 'VES' })}
           />
           <Detail
-            label="Contado VES"
+            label="Contado físico VES"
             value={formatMoney(
-              row.counted_local_amount === null || row.counted_local_amount === undefined
-                ? null
-                : { amount: String(row.counted_local_amount), currency: 'VES' },
+                row.counted_cash_ves === null || row.counted_cash_ves === undefined
+                  ? null
+                : { amount: String(row.counted_cash_ves), currency: 'VES' },
             )}
           />
+          <Detail label="Esperado físico VES" value={formatMoney({ amount: String(row.expected_cash_ves ?? row.expected_local_amount), currency: 'VES' })} />
+          <Detail label="Diferencia física VES" value={formatMoney({ amount: String(row.difference_cash_ves ?? row.difference_local_amount), currency: 'VES' })} />
           <Detail
             label="Movimientos"
             value={
@@ -441,7 +450,7 @@ function SessionBreakdown({
             <AlertTriangle className="size-4 shrink-0" /> Requiere revisión del responsable.
           </p>
         )}
-        {row.status === 'closed' && row.review_status !== 'approved' && (
+        {canReview && row.status === 'closed' && row.review_status !== 'approved' && (
           <div className="border-border mt-4 space-y-2 border-t pt-3">
             <Input
               value={reviewNotes}

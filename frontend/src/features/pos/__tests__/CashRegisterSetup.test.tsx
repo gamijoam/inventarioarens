@@ -117,9 +117,10 @@ describe('<CashRegisterSetup>', () => {
     render(<CashRegisterSetup />, { wrapper: makeWrapper() });
 
     expect(screen.getByText('Control de turnos y arqueos')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Operacion' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Mi turno' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Supervisi/ })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Historial' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Infraestructura' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Configuraci/ })).toBeInTheDocument();
     expect(screen.getByText('Mi turno abierto')).toBeInTheDocument();
   });
 

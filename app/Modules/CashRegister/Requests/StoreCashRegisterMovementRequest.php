@@ -47,7 +47,7 @@ class StoreCashRegisterMovementRequest extends FormRequest
                 Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'reference' => ['nullable', 'string', 'max:255'],
-            'notes' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string', 'min:3'],
         ];
     }
 

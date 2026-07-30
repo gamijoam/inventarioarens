@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Activity, CloudDownload, HardDrive, MonitorCog, Play, RefreshCw, RotateCcw, ServerCrash, Square } from 'lucide-react';
+import { Activity, CloudDownload, HardDrive, MonitorCog, Play, Printer, RefreshCw, RotateCcw, ServerCrash, Square, Wrench } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import {
   useConnectLocalTenant,
   useLocalSupportStatus,
   useLocalTenantSync,
+  useLocalRetryFailed,
   useLocalWorkerAction,
 } from './api';
 
@@ -67,7 +68,7 @@ export function LocalSupportPage() {
           <>
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
               <ConnectCompanyCard />
-              <InstallationCard storagePath={status.data?.storage_path ?? ''} databasePath={status.data?.database_path ?? ''} cloudUrl={status.data?.cloud_url ?? ''} />
+              <InstallationCard storagePath={status.data?.storage_path ?? ''} databasePath={status.data?.database_path ?? ''} cloudUrl={status.data?.cloud_url ?? ''} printer={status.data?.printer} />
             </div>
 
             <section>
@@ -146,7 +147,7 @@ function ConnectCompanyCard() {
   );
 }
 
-function InstallationCard({ storagePath, databasePath, cloudUrl }: { storagePath: string; databasePath: string; cloudUrl: string }) {
+function InstallationCard({ storagePath, databasePath, cloudUrl, printer }: { storagePath: string; databasePath: string; cloudUrl: string; printer?: { available: boolean; message: string; url: string } }) {
   return (
     <Card>
       <CardHeader>
@@ -157,6 +158,10 @@ function InstallationCard({ storagePath, databasePath, cloudUrl }: { storagePath
         <Detail label="Base local" value={databasePath} />
         <Detail label="Datos y registros" value={storagePath} />
         <Detail label="Nube" value={cloudUrl} />
+        <div className="flex items-center justify-between gap-3 rounded border border-border p-3">
+          <div className="flex items-center gap-2"><Printer className="size-4 text-text-muted" /><div><p className="text-xs text-text-muted">Agente de impresion</p><p className="text-sm font-medium">{printer?.message ?? 'Sin comprobar'}</p></div></div>
+          <Badge variant={printer?.available ? 'success' : 'warning'}>{printer?.available ? 'Conectado' : 'Detenido'}</Badge>
+        </div>
         <div className="rounded border border-primary/20 bg-primary/5 p-3 text-xs text-text-muted">
           Los tokens quedan protegidos en la configuracion local y nunca se muestran en esta pantalla.
         </div>
@@ -167,8 +172,9 @@ function InstallationCard({ storagePath, databasePath, cloudUrl }: { storagePath
 
 function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
   const sync = useLocalTenantSync();
+  const retry = useLocalRetryFailed();
   const worker = useLocalWorkerAction();
-  const busy = sync.isPending || worker.isPending;
+  const busy = sync.isPending || worker.isPending || retry.isPending;
 
   async function runSync() {
     try {
@@ -185,6 +191,15 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
       toast.success('Estado del worker actualizado.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el worker.');
+    }
+  }
+
+  async function retryFailed() {
+    try {
+      const result = await retry.mutateAsync(tenant.slug);
+      toast.success(`${result.applied} eventos aplicados. ${result.failed} siguen fallando.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudieron reintentar los eventos.');
     }
   }
 
@@ -206,6 +221,13 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
           <Detail label="Ultima sincronizacion" value={tenant.last_success_at ? formatDateTime(tenant.last_success_at) : 'Aun no registrada'} />
           <Detail label="Intervalo" value={tenant.interval ? `${tenant.interval} segundos` : 'Sin configurar'} />
         </div>
+        <div className="grid gap-2 rounded border border-border bg-surface p-3 text-xs sm:grid-cols-5">
+          <Metric label="Outbox" value={tenant.sync.outbox_pending} tone={tenant.sync.outbox_pending ? 'warning' : 'default'} />
+          <Metric label="Outbox fallidos" value={tenant.sync.outbox_failed} tone={tenant.sync.outbox_failed ? 'danger' : 'default'} />
+          <Metric label="Inbox recibidos" value={tenant.sync.inbox_received} tone={tenant.sync.inbox_received ? 'info' : 'default'} />
+          <Metric label="Inbox fallidos" value={tenant.sync.inbox_failed} tone={tenant.sync.inbox_failed ? 'danger' : 'default'} />
+          <Metric label="Aplicados" value={tenant.sync.inbox_applied} tone="default" />
+        </div>
         {!tenant.ready && (
           <p className="rounded border border-primary/30 bg-primary/5 p-2 text-xs text-text-muted">
             La vinculacion se guardo y esta computadora esta preparando la empresa. Actualiza esta pantalla en unos segundos.
@@ -214,6 +236,7 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
         {tenant.last_error && <p className="rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning">{tenant.last_error}</p>}
         {tenant.ready && <div className="flex flex-wrap gap-2 border-t border-border pt-3">
           <Button size="sm" onClick={runSync} disabled={busy}><RefreshCw className="size-3.5" /> Sincronizar ahora</Button>
+          {tenant.sync.inbox_failed > 0 && <Button size="sm" variant="outline" onClick={retryFailed} disabled={busy}><Wrench className="size-3.5" /> Reintentar fallidos</Button>}
           {tenant.worker.available && <>
             <Button size="sm" variant="outline" onClick={() => changeWorker(tenant.worker.active ? 'restart' : 'start')} disabled={busy}>
               {tenant.worker.active ? <RotateCcw className="size-3.5" /> : <Play className="size-3.5" />} {tenant.worker.active ? 'Reiniciar worker' : 'Iniciar worker'}
@@ -225,6 +248,11 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
       </CardContent>
     </Card>
   );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: 'default' | 'warning' | 'danger' | 'info' }) {
+  const color = tone === 'danger' ? 'text-danger' : tone === 'warning' ? 'text-warning' : tone === 'info' ? 'text-primary' : 'text-text-primary';
+  return <div><p className="text-text-muted">{label}</p><p className={`mt-1 text-base font-semibold ${color}`}>{value}</p></div>;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

@@ -37,6 +37,8 @@ import {
   type TransferRequestTab,
 } from '@/features/inventory-transfer-requests/schemas';
 import { useSessionStore } from '@/stores/session';
+import { useCan } from '@/permissions/useCan';
+import { PERMISSIONS } from '@/permissions/constants';
 function statusVariant(
   status: TransferRequestStatus,
 ): 'info' | 'warning' | 'success' | 'danger' | 'default' {
@@ -90,6 +92,9 @@ export function InventoryTransferRequestsManager({
     refetchInterval,
   });
   const cancel = useCancelTransferRequest();
+  const canCreate = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_CREATE);
+  const canRespond = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_RESPOND);
+  const canCancelPermission = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_CANCEL);
   // Lectura no-reactiva del tenant actual: el componente se re-renderiza
   // cuando cambian los datos de la query, que es suficiente para que el
   // filtro se actualice si el usuario cambia de empresa.
@@ -150,14 +155,16 @@ export function InventoryTransferRequestsManager({
             className="pl-8"
           />
         </div>
-        <Button
-          size="sm"
-          leftIcon={<Plus className="size-4" />}
-          onClick={onCreate}
-          className="ml-auto"
-        >
-          Nueva solicitud
-        </Button>
+        {canCreate && (
+          <Button
+            size="sm"
+            leftIcon={<Plus className="size-4" />}
+            onClick={onCreate}
+            className="ml-auto"
+          >
+            Nueva solicitud
+          </Button>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TransferRequestTab)}>
@@ -181,7 +188,7 @@ export function InventoryTransferRequestsManager({
                 ? 'No has enviado solicitudes a otras empresas.'
                 : tab === 'received'
                   ? 'No tienes solicitudes pendientes de empresas hermanas.'
-                  : 'No hay solicitudes en esta categoria.'
+                : 'No hay solicitudes en esta categoría.'
             }
           />
         ) : (
@@ -193,7 +200,7 @@ export function InventoryTransferRequestsManager({
                     Documento
                   </th>
                   <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
-                    Direccion
+                    Dirección
                   </th>
                   <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                     Items
@@ -212,8 +219,8 @@ export function InventoryTransferRequestsManager({
               <tbody>
                 {filtered.map((r) => {
                   const isMine = r.origin_tenant_id === currentTenantId;
-                  const canRespond = !isMine && r.status === 'requested';
-                  const canCancel = isMine && r.status === 'requested';
+                  const canRespondToRequest = canRespond && !isMine && r.status === 'requested';
+                  const canCancelRequest = canCancelPermission && isMine && r.status === 'requested';
                   return (
                     <tr
                       key={r.id}
@@ -261,7 +268,7 @@ export function InventoryTransferRequestsManager({
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex justify-end gap-1">
-                          {canRespond && onAccept && (
+                          {canRespondToRequest && onAccept && (
                             <Button
                               size="icon-sm"
                               variant="ghost"
@@ -273,7 +280,7 @@ export function InventoryTransferRequestsManager({
                               <CheckCircle2 className="text-success size-4" />
                             </Button>
                           )}
-                          {canRespond && onReject && (
+                          {canRespondToRequest && onReject && (
                             <Button
                               size="icon-sm"
                               variant="ghost"
@@ -284,7 +291,7 @@ export function InventoryTransferRequestsManager({
                               <XCircle className="text-danger size-4" />
                             </Button>
                           )}
-                          {canCancel && (
+                          {canCancelRequest && (
                             <Button
                               size="icon-sm"
                               variant="ghost"
@@ -295,7 +302,7 @@ export function InventoryTransferRequestsManager({
                               <XCircle className="text-text-muted size-4" />
                             </Button>
                           )}
-                          {!canRespond && !canCancel && (
+                          {!canRespondToRequest && !canCancelRequest && (
                             <span className="text-text-muted text-xs">
                               <Truck className="inline size-3" />
                             </span>

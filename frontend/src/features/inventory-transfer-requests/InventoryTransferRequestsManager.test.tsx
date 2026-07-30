@@ -38,6 +38,10 @@ vi.mock('@/stores/session', () => ({
   hasAuthCookieWithValue: () => 'mock-token',
 }));
 
+vi.mock('@/permissions/useCan', () => ({
+  useCan: () => true,
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router');

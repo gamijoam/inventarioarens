@@ -2,7 +2,10 @@
 
 namespace App\Modules\LocalSupport\Services;
 
+use App\Modules\Sync\Models\SyncInbox;
+use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Sync\Models\SyncState;
+use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Artisan;
@@ -40,6 +43,7 @@ class LocalTechnicalConsoleService
             'storage_path' => storage_path(),
             'database_path' => (string) config('database.connections.sqlite.database'),
             'cloud_url' => (string) config('services.local_support.cloud_url'),
+            'printer' => $this->printerStatus(),
             'tenants' => collect($slugs)
                 ->map(function (string $slug) use ($configured, $localTenants): array {
                     /** @var Tenant|null $tenant */
@@ -47,9 +51,9 @@ class LocalTechnicalConsoleService
                     $configuration = is_array($configured[$slug] ?? null) ? $configured[$slug] : [];
                     $state = $tenant instanceof Tenant
                         ? SyncState::withoutGlobalScopes()
-                        ->where('tenant_id', $tenant->id)
-                        ->orderByDesc('last_attempt_at')
-                        ->first()
+                            ->where('tenant_id', $tenant->id)
+                            ->orderByDesc('last_attempt_at')
+                            ->first()
                         : null;
 
                     return [
@@ -65,6 +69,7 @@ class LocalTechnicalConsoleService
                         'last_success_at' => $state?->last_success_at?->toISOString(),
                         'last_attempt_at' => $state?->last_attempt_at?->toISOString(),
                         'last_error' => $state?->last_error,
+                        'sync' => $this->syncMetrics($tenant?->id),
                     ];
                 })
                 ->sortBy('name')
@@ -139,6 +144,30 @@ class LocalTechnicalConsoleService
             'cycles' => $cycles,
             'output' => implode("\n", array_filter($output)),
             'worker' => $this->workerStatus($tenantSlug),
+        ];
+    }
+
+    public function retryFailed(string $tenantSlug): array
+    {
+        $tenant = $this->configuredTenant($tenantSlug);
+        $reset = SyncInbox::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'failed')
+            ->update([
+                'status' => 'received',
+                'last_error' => null,
+                'updated_at' => now(),
+            ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 100);
+        $this->runArtisan('images:download', ['--tenant' => $tenantSlug, '--limit' => 100], false);
+
+        return [
+            'reset' => $reset,
+            'applied' => $summary['applied'],
+            'ignored' => $summary['ignored'],
+            'failed' => $summary['failed'],
+            'sync' => $this->syncMetrics($tenant->id),
         ];
     }
 
@@ -261,6 +290,56 @@ class LocalTechnicalConsoleService
             throw ValidationException::withMessages([
                 'tenant' => 'Esta empresa no tiene una vinculacion de sincronizacion configurada.',
             ]);
+        }
+    }
+
+    private function configuredTenant(string $tenantSlug): Tenant
+    {
+        $this->ensureConfiguredTenant($tenantSlug);
+
+        return Tenant::withoutGlobalScopes()->where('slug', Str::slug($tenantSlug))->firstOrFail();
+    }
+
+    private function syncMetrics(?int $tenantId): array
+    {
+        if ($tenantId === null) {
+            return [
+                'outbox_pending' => 0,
+                'outbox_failed' => 0,
+                'inbox_received' => 0,
+                'inbox_failed' => 0,
+                'inbox_applied' => 0,
+            ];
+        }
+
+        $inbox = SyncInbox::withoutGlobalScopes()->where('tenant_id', $tenantId);
+        $outbox = SyncOutbox::withoutGlobalScopes()->where('tenant_id', $tenantId);
+
+        return [
+            'outbox_pending' => (clone $outbox)->whereIn('status', ['pending', 'processing'])->count(),
+            'outbox_failed' => (clone $outbox)->where('status', 'failed')->count(),
+            'inbox_received' => (clone $inbox)->where('status', 'received')->count(),
+            'inbox_failed' => (clone $inbox)->where('status', 'failed')->count(),
+            'inbox_applied' => (clone $inbox)->whereIn('status', ['applied', 'processed'])->count(),
+        ];
+    }
+
+    private function printerStatus(): array
+    {
+        try {
+            $response = Http::acceptJson()->timeout(2)->get('http://127.0.0.1:17777/health');
+
+            return [
+                'available' => $response->successful(),
+                'message' => $response->successful() ? 'Agente de impresion disponible.' : 'El agente respondio con un error.',
+                'url' => 'http://127.0.0.1:17777',
+            ];
+        } catch (\Throwable) {
+            return [
+                'available' => false,
+                'message' => 'Agente de impresion detenido o no instalado.',
+                'url' => 'http://127.0.0.1:17777',
+            ];
         }
     }
 

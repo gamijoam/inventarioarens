@@ -9,6 +9,20 @@ export interface LocalWorkerStatus {
   message: string;
 }
 
+export interface LocalSyncMetrics {
+  outbox_pending: number;
+  outbox_failed: number;
+  inbox_received: number;
+  inbox_failed: number;
+  inbox_applied: number;
+}
+
+export interface LocalPrinterStatus {
+  available: boolean;
+  message: string;
+  url: string;
+}
+
 export interface LocalTenantStatus {
   id: number | null;
   name: string;
@@ -22,12 +36,14 @@ export interface LocalTenantStatus {
   last_success_at: string | null;
   last_attempt_at: string | null;
   last_error: string | null;
+  sync: LocalSyncMetrics;
 }
 
 export interface LocalSupportStatus {
   storage_path: string;
   database_path: string;
   cloud_url: string;
+  printer: LocalPrinterStatus;
   tenants: LocalTenantStatus[];
 }
 
@@ -86,6 +102,14 @@ export function useLocalWorkerAction() {
         { action },
         { timeout: 45_000 },
       ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
+  });
+}
+
+export function useLocalRetryFailed() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tenant: string) => postOne<undefined, { reset: number; applied: number; failed: number }>(`/local-support/tenants/${tenant}/retry-failed`, undefined),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });
 }

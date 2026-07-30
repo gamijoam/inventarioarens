@@ -157,7 +157,7 @@ class CashRegisterApiTest extends TestCase
         $cashier = $this->userInTenant($tenant);
         $manager = $this->userInTenant($tenant);
         $this->grantRole($tenant, $cashier, 'Cajero', ['cash_register.open', 'cash_register.close', 'cash_register.view']);
-        $this->grantRole($tenant, $manager, 'Administrador local', ['cash_register.view', 'cash_register.close']);
+        $this->grantRole($tenant, $manager, 'Administrador local', ['cash_register.view', 'cash_register.close', 'cash_register.review']);
 
         $sessionId = $this
             ->actingAs($cashier)
@@ -565,6 +565,112 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonPath('data.counted_local_amount', '6000.0000')
             ->assertJsonPath('data.difference_base_amount', '1.0000')
             ->assertJsonPath('data.difference_local_amount', '1000.0000');
+    }
+
+    public function test_physical_cash_expected_totals_ignore_non_cash_payments(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.move', 'cash_register.close']);
+
+        $sessionId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'opening_base_amount' => 20,
+                'opening_local_amount' => 5000,
+                'exchange_rate_type_id' => $this->rateType($tenant, 'BCV', 1000)->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.expected_cash_usd', '20.0000')
+            ->assertJsonPath('data.expected_cash_ves', '5000.0000')
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/cash-register/sessions/{$sessionId}/movements", [
+                'type' => CashRegisterMovement::TYPE_INFLOW,
+                'method' => CashRegisterMovement::METHOD_TRANSFER,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 10,
+                'reference' => 'TR-1',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.expected_cash_usd', '20.0000');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/cash-register/sessions/{$sessionId}/movements", [
+                'type' => CashRegisterMovement::TYPE_INFLOW,
+                'method' => CashRegisterMovement::METHOD_CASH,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 10,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.expected_cash_usd', '30.0000');
+    }
+
+    public function test_cash_difference_requires_backend_closing_note(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.close']);
+
+        $sessionId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", ['counted_amount' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['closing_notes']);
+    }
+
+    public function test_cashier_cannot_add_movement_to_another_cashiers_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch, 'Caja A', 'CJ-A');
+        $cashier = $this->userInTenant($tenant);
+        $otherCashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajero A', ['cash_register.open', 'cash_register.close']);
+        $this->grantRole($tenant, $otherCashier, 'Cajero B', ['cash_register.move', 'cash_register.view']);
+
+        $sessionId = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $register->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($otherCashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/cash-register/sessions/{$sessionId}/movements", [
+                'type' => CashRegisterMovement::TYPE_INFLOW,
+                'method' => CashRegisterMovement::METHOD_CASH,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 5,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cash_register_session_id']);
     }
 
     public function test_cashier_cannot_close_another_cashiers_session_but_supervisor_can(): void

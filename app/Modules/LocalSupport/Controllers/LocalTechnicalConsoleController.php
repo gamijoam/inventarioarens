@@ -54,4 +54,13 @@ class LocalTechnicalConsoleController extends Controller
             'data' => $this->console->workerAction(Str::slug($tenant), $data['action']),
         ]);
     }
+
+    public function retry(Request $request, string $tenant): JsonResponse
+    {
+        $this->console->assertAvailable((string) $request->ip());
+
+        return response()->json([
+            'data' => $this->console->retryFailed(Str::slug($tenant)),
+        ]);
+    }
 }
