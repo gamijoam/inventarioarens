@@ -72,4 +72,31 @@ class SyncLabCommandsTest extends TestCase
             '--require-inbox' => true,
         ])->assertSuccessful();
     }
+
+    public function test_it_runs_the_pos_credit_fixture_through_sale_and_collection(): void
+    {
+        $tenant = Tenant::create(['name' => 'Sync POS Lab', 'slug' => 'sync-pos-lab']);
+
+        $this->artisan('sync:lab:prepare-pos-credit', [
+            'tenant' => $tenant->slug,
+            'marker' => 'run-pos-01',
+        ])->assertSuccessful();
+
+        $this->artisan('sync:lab:emit-pos-credit', [
+            'tenant' => $tenant->slug,
+            'marker' => 'run-pos-01',
+            'phase' => 'sale',
+        ])->assertSuccessful();
+
+        $this->artisan('sync:lab:emit-pos-credit', [
+            'tenant' => $tenant->slug,
+            'marker' => 'run-pos-01',
+            'phase' => 'collection',
+        ])->assertSuccessful();
+
+        $this->artisan('sync:lab:verify-pos-credit', [
+            'tenant' => $tenant->slug,
+            'marker' => 'run-pos-01',
+        ])->assertSuccessful();
+    }
 }

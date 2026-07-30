@@ -115,6 +115,10 @@ try {
         Invoke-LabArtisan $nodeBDatabase $syncB
     }
 
+    Write-Host 'Preparando el catalogo minimo POS/CxC en ambos nodos...'
+    Invoke-LabArtisan $nodeADatabase @('sync:lab:prepare-pos-credit', $tenant, $Marker)
+    Invoke-LabArtisan $nodeBDatabase @('sync:lab:prepare-pos-credit', $tenant, $Marker)
+
     Write-Host 'Emitiendo un cambio local en el nodo A...'
     Invoke-LabArtisan $nodeADatabase @('sync:lab:emit-customer', $tenant, $Marker)
     Invoke-LabArtisan $nodeADatabase $syncA
@@ -128,6 +132,24 @@ try {
     }
     Invoke-LabArtisan $nodeBDatabase @('sync:lab:verify-customer', $tenant, $Marker, '--require-inbox')
 
+    Write-Host 'Emitiendo venta POS a credito desde el nodo A...'
+    Invoke-LabArtisan $nodeADatabase @('sync:lab:emit-pos-credit', $tenant, $Marker, 'sale')
+    Invoke-LabArtisan $nodeADatabase $syncA
+
+    Write-Host 'Registrando cobro posterior CxC mientras el nodo B esta desconectado...'
+    Invoke-LabArtisan $nodeADatabase @('sync:lab:emit-pos-credit', $tenant, $Marker, 'collection')
+    Invoke-LabArtisan $nodeADatabase $syncA
+
+    Write-Host 'Recuperando en B la venta, stock y cobranza...'
+    for ($round = 1; $round -le 3; $round++) {
+        Invoke-LabArtisan $nodeBDatabase $syncB
+    }
+    Invoke-LabArtisan $nodeBDatabase @('sync:lab:verify-pos-credit', $tenant, $Marker)
+
+    Write-Host 'Repitiendo el ciclo financiero para comprobar idempotencia...'
+    Invoke-LabArtisan $nodeBDatabase $syncB
+    Invoke-LabArtisan $nodeBDatabase @('sync:lab:verify-pos-credit', $tenant, $Marker)
+
     Write-Host 'Repitiendo el ciclo del nodo B para comprobar idempotencia...'
     Invoke-LabArtisan $nodeBDatabase $syncB
     Invoke-LabArtisan $nodeBDatabase @('sync:lab:verify-customer', $tenant, $Marker, '--require-inbox')
@@ -136,7 +158,7 @@ try {
     Write-Host 'Prueba E2E de sincronizacion completada.' -ForegroundColor Green
     Write-Host "Empresa: $tenant"
     Write-Host "Artefactos: $runRoot"
-    Write-Host 'Resultado: el evento viajo A -> nube -> B y el reintento no duplico el cliente.'
+    Write-Host 'Resultado: cliente, venta POS, stock y CxC viajaron A -> nube -> B sin duplicados.'
     $completed = $true
 } finally {
     if ($completed -and -not $KeepArtifacts -and (Test-Path -LiteralPath $runRoot)) {
