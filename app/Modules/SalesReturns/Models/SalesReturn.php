@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'sync_source_node_code',
+    'sync_source_id',
     'sale_id',
     'status',
     'reason',

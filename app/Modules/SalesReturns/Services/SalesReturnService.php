@@ -19,6 +19,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Models\SalesReturnItem;
+use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,6 +37,7 @@ class SalesReturnService
         private readonly FinancialAdjustmentService $financialAdjustments,
         private readonly CustomerCreditService $customerCredits,
         private readonly PosCheckoutService $posCheckout,
+        private readonly SyncOutboxService $syncOutbox,
     ) {}
 
     public function create(User $user, array $data): SalesReturn
@@ -83,7 +85,10 @@ class SalesReturnService
                 ]);
             }
 
-            return $this->loadReturn($salesReturn);
+            $salesReturn = $this->loadReturn($salesReturn);
+            $this->recordReturnSyncEvent($salesReturn);
+
+            return $salesReturn;
         });
     }
 
@@ -101,7 +106,10 @@ class SalesReturnService
             'reviewed_at' => now(),
         ]);
 
-        return $this->loadReturn($salesReturn);
+        $salesReturn = $this->loadReturn($salesReturn);
+        $this->recordReturnSyncEvent($salesReturn);
+
+        return $salesReturn;
     }
 
     public function reject(SalesReturn $salesReturn, User $user, string $reason): SalesReturn
@@ -119,7 +127,10 @@ class SalesReturnService
             'rejection_reason' => $reason,
         ]);
 
-        return $this->loadReturn($salesReturn);
+        $salesReturn = $this->loadReturn($salesReturn);
+        $this->recordReturnSyncEvent($salesReturn);
+
+        return $salesReturn;
     }
 
     public function cancel(SalesReturn $salesReturn, User $user, string $reason): SalesReturn
@@ -137,7 +148,10 @@ class SalesReturnService
             'cancellation_reason' => $reason,
         ]);
 
-        return $this->loadReturn($salesReturn);
+        $salesReturn = $this->loadReturn($salesReturn);
+        $this->recordReturnSyncEvent($salesReturn);
+
+        return $salesReturn;
     }
 
     public function process(SalesReturn $salesReturn, User $user, array $data): SalesReturn
@@ -197,7 +211,10 @@ class SalesReturnService
                 'customer_credit_transaction_id' => $customerCredit?->id,
             ]);
 
-            return $this->loadReturn($salesReturn);
+            $salesReturn = $this->loadReturn($salesReturn);
+            $this->recordReturnSyncEvent($salesReturn);
+
+            return $salesReturn;
         });
     }
 
@@ -326,6 +343,83 @@ class SalesReturnService
             'processor',
             'canceller',
         ]);
+    }
+
+    private function recordReturnSyncEvent(SalesReturn $salesReturn): void
+    {
+        $salesReturn->loadMissing([
+            'sale.receivable',
+            'items.saleItem',
+            'items.product',
+            'items.warehouse',
+        ]);
+
+        $unitIds = $salesReturn->items
+            ->flatMap(fn (SalesReturnItem $item) => $item->product_unit_ids ?? [])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $units = ProductUnit::query()
+            ->whereIn('id', $unitIds)
+            ->get()
+            ->keyBy('id');
+        $sale = $salesReturn->sale;
+        $receivable = $sale->receivable;
+
+        $this->syncOutbox->record(
+            eventType: 'sales_return.updated',
+            aggregateType: SalesReturn::class,
+            aggregateId: $salesReturn->id,
+            payload: [
+                'return' => [
+                    'id' => $salesReturn->id,
+                    'status' => $salesReturn->status,
+                    'reason' => $salesReturn->reason,
+                    'reviewed_at' => $salesReturn->reviewed_at?->toISOString(),
+                    'rejection_reason' => $salesReturn->rejection_reason,
+                    'processed_at' => $salesReturn->processed_at?->toISOString(),
+                    'cancelled_at' => $salesReturn->cancelled_at?->toISOString(),
+                    'cancellation_reason' => $salesReturn->cancellation_reason,
+                    'process_notes' => $salesReturn->process_notes,
+                ],
+                'sale' => [
+                    'id' => $sale->sync_source_id ?? $sale->id,
+                    'source_node_code' => $sale->sync_source_node_code,
+                ],
+                'items' => $salesReturn->items->map(function (SalesReturnItem $item) use ($units): array {
+                    $saleItem = $item->saleItem;
+                    $productUnits = collect($item->product_unit_ids ?? [])
+                        ->map(fn (int $unitId): ?array => ($unit = $units->get($unitId)) ? [
+                            'serial_type' => $unit->serial_type,
+                            'serial_number' => $unit->serial_number,
+                        ] : null)
+                        ->filter()
+                        ->values()
+                        ->all();
+
+                    return [
+                        'id' => $item->id,
+                        'sale_item_id' => $saleItem->sync_source_id ?? $saleItem->id,
+                        'sale_item_source_node_code' => $saleItem->sync_source_node_code,
+                        'product_sku' => $item->product->sku,
+                        'warehouse_code' => $item->warehouse->code,
+                        'quantity' => (float) $item->quantity,
+                        'condition' => $item->condition,
+                        'reason' => $item->reason,
+                        'product_serial_units' => $productUnits,
+                    ];
+                })->values()->all(),
+                'receivable' => $receivable ? [
+                    'status' => $receivable->status,
+                    'returned_base_amount' => (float) $receivable->returned_base_amount,
+                    'returned_local_amount' => (float) $receivable->returned_local_amount,
+                    'balance_base_amount' => (float) $receivable->balance_base_amount,
+                    'balance_local_amount' => (float) $receivable->balance_local_amount,
+                ] : null,
+            ],
+            idempotencyKey: "sales_return:{$salesReturn->id}:{$salesReturn->status}",
+        );
     }
 
     private function ensureReturnableQuantity(SaleItem $saleItem, float $quantity, ?int $ignoreSalesReturnId = null): void

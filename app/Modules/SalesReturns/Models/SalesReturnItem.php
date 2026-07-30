@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
+    'sync_source_node_code',
+    'sync_source_id',
     'sales_return_id',
     'sale_item_id',
     'warehouse_id',

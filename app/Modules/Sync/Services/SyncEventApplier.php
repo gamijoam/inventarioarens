@@ -2,11 +2,17 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
+use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
+use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Modules\SalesReturns\Models\SalesReturnItem;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +78,7 @@ class SyncEventApplier
         'pos.order.paid',
         'pos.order.cancelled',
         'accounts_receivable.payment_registered',
+        'sales_return.updated',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -206,6 +213,7 @@ class SyncEventApplier
                 'inventory_transfer_request.cancelled' => $this->applyInventoryTransferRequestCancelled($tenant, $payload),
                 'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
                 'accounts_receivable.payment_registered' => $this->applyReceivablePayment($tenant, $payload, $event),
+                'sales_return.updated' => $this->applySalesReturn($tenant, $payload, $event),
                 default => 'ignored',
             };
         } finally {
@@ -1981,6 +1989,197 @@ class SyncEventApplier
         $this->syncReceivablePayments($tenant, $accountId, $sourceNodeCode, [$payment]);
 
         return 'applied';
+    }
+
+    private function applySalesReturn(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $return = $payload['return'] ?? [];
+        $sale = $payload['sale'] ?? [];
+        $sourceReturnId = (int) ($return['id'] ?? $payload['sales_return_id'] ?? $event['aggregate_id'] ?? 0);
+        $sourceSaleId = (int) ($sale['id'] ?? $payload['sale_id'] ?? 0);
+        $saleSourceNodeCode = $sale['source_node_code'] ?? $sourceNodeCode;
+
+        if ($sourceReturnId <= 0 || $sourceSaleId <= 0 || ! is_string($saleSourceNodeCode) || $saleSourceNodeCode === '') {
+            return 'ignored';
+        }
+
+        $saleId = DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $saleSourceNodeCode)
+            ->where('sync_source_id', $sourceSaleId)
+            ->value('id');
+
+        if (! $saleId) {
+            throw new RuntimeException("No se encontro la venta sincronizada {$sourceSaleId} para aplicar la devolucion.");
+        }
+
+        $status = $return['status'] ?? SalesReturn::STATUS_REQUESTED;
+        if (! in_array($status, [
+            SalesReturn::STATUS_REQUESTED,
+            SalesReturn::STATUS_APPROVED,
+            SalesReturn::STATUS_REJECTED,
+            SalesReturn::STATUS_PROCESSED,
+            SalesReturn::STATUS_CANCELLED,
+        ], true)) {
+            return 'ignored';
+        }
+
+        $returnKeys = [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => $sourceNodeCode,
+            'sync_source_id' => $sourceReturnId,
+        ];
+        $previousStatus = DB::table('sales_returns')->where($returnKeys)->value('status');
+        $returnId = $this->upsertAndGetId('sales_returns', $returnKeys, [
+            'sale_id' => (int) $saleId,
+            'status' => $status,
+            'reason' => $return['reason'] ?? null,
+            'created_by' => null,
+            'reviewed_by' => null,
+            'reviewed_at' => $this->nullableDate($return['reviewed_at'] ?? null),
+            'rejection_reason' => $return['rejection_reason'] ?? null,
+            'processed_by' => null,
+            'processed_at' => $this->nullableDate($return['processed_at'] ?? null),
+            'cancelled_by' => null,
+            'cancelled_at' => $this->nullableDate($return['cancelled_at'] ?? null),
+            'cancellation_reason' => $return['cancellation_reason'] ?? null,
+            'process_notes' => $return['process_notes'] ?? null,
+            'updated_at' => now(),
+        ]);
+
+        foreach ($payload['items'] ?? [] as $item) {
+            $sourceItemId = (int) ($item['id'] ?? $item['sales_return_item_id'] ?? 0);
+            $sourceSaleItemId = (int) ($item['sale_item_id'] ?? 0);
+            $saleItemSourceNodeCode = $item['sale_item_source_node_code'] ?? $saleSourceNodeCode;
+
+            if ($sourceItemId <= 0 || $sourceSaleItemId <= 0 || ! is_string($saleItemSourceNodeCode) || $saleItemSourceNodeCode === '') {
+                throw new RuntimeException('La devolucion sincronizada contiene un item sin referencia de venta.');
+            }
+
+            $saleItem = DB::table('sale_items')
+                ->where('tenant_id', $tenant->id)
+                ->where('sync_source_node_code', $saleItemSourceNodeCode)
+                ->where('sync_source_id', $sourceSaleItemId)
+                ->first();
+
+            if (! $saleItem) {
+                throw new RuntimeException("No se encontro el item vendido {$sourceSaleItemId} para aplicar la devolucion.");
+            }
+
+            $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
+            $warehouse = $this->warehouseByCode($tenant, $this->requiredString($item, 'warehouse_code'));
+            $serialUnitIds = $this->localSerialUnitIds($tenant, (int) $product->id, (int) $warehouse->id, $item['product_serial_units'] ?? []);
+            $returnItemKeys = [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceItemId,
+            ];
+            $returnItemId = $this->upsertAndGetId('sales_return_items', $returnItemKeys, [
+                'sales_return_id' => $returnId,
+                'sale_item_id' => (int) $saleItem->id,
+                'warehouse_id' => (int) $warehouse->id,
+                'product_id' => (int) $product->id,
+                'quantity' => $item['quantity'] ?? 0,
+                'product_unit_ids' => $serialUnitIds === [] ? null : json_encode($serialUnitIds),
+                'condition' => $item['condition'] ?? SalesReturnItem::CONDITION_SELLABLE,
+                'reason' => $item['reason'] ?? null,
+                'updated_at' => now(),
+            ]);
+
+            if ($status !== SalesReturn::STATUS_PROCESSED || $previousStatus === SalesReturn::STATUS_PROCESSED) {
+                continue;
+            }
+
+            $quantity = (float) ($item['quantity'] ?? 0);
+            if ($quantity <= 0.0) {
+                throw new RuntimeException('La devolucion sincronizada contiene una cantidad invalida.');
+            }
+
+            $movement = ($item['condition'] ?? SalesReturnItem::CONDITION_SELLABLE) === SalesReturnItem::CONDITION_DAMAGED
+                ? app(InventoryMovementService::class)->damagedSaleReturn(
+                    Warehouse::query()->findOrFail($warehouse->id),
+                    Product::query()->findOrFail($product->id),
+                    $quantity,
+                    null,
+                    $item['reason'] ?? $return['reason'] ?? "Devolucion sincronizada #{$sourceReturnId}",
+                    SalesReturn::class,
+                    $returnId,
+                    $saleItem->base_unit_cost === null ? null : (float) $saleItem->base_unit_cost,
+                )
+                : app(InventoryMovementService::class)->saleReturn(
+                    Warehouse::query()->findOrFail($warehouse->id),
+                    Product::query()->findOrFail($product->id),
+                    $quantity,
+                    null,
+                    $item['reason'] ?? $return['reason'] ?? "Devolucion sincronizada #{$sourceReturnId}",
+                    SalesReturn::class,
+                    $returnId,
+                    $saleItem->base_unit_cost === null ? null : (float) $saleItem->base_unit_cost,
+                );
+
+            DB::table('sales_return_items')->where('id', $returnItemId)->update([
+                'stock_movement_id' => $movement->id,
+                'updated_at' => now(),
+            ]);
+            $this->restoreCloudSerialUnits($tenant, $serialUnitIds, (int) $warehouse->id, $item['condition'] ?? SalesReturnItem::CONDITION_SELLABLE);
+        }
+
+        if ($status === SalesReturn::STATUS_PROCESSED && $previousStatus !== SalesReturn::STATUS_PROCESSED) {
+            app(AccountsReceivableService::class)->applySalesReturn(SalesReturn::query()->findOrFail($returnId));
+        }
+
+        return 'applied';
+    }
+
+    private function localSerialUnitIds(Tenant $tenant, int $productId, int $warehouseId, array $serialUnits): array
+    {
+        if ($serialUnits === []) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($serialUnits as $serialUnit) {
+            $serialType = $serialUnit['serial_type'] ?? null;
+            $serialNumber = $serialUnit['serial_number'] ?? null;
+            if (! is_string($serialType) || ! is_string($serialNumber) || $serialType === '' || $serialNumber === '') {
+                throw new RuntimeException('La devolucion sincronizada contiene un IMEI o serial invalido.');
+            }
+
+            $unitId = DB::table('product_units')
+                ->where('tenant_id', $tenant->id)
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('serial_type', $serialType)
+                ->where('serial_number', $serialNumber)
+                ->value('id');
+            if (! $unitId) {
+                throw new RuntimeException("No se encontro el IMEI o serial {$serialNumber} para aplicar la devolucion.");
+            }
+
+            $ids[] = (int) $unitId;
+        }
+
+        return $ids;
+    }
+
+    private function restoreCloudSerialUnits(Tenant $tenant, array $unitIds, int $warehouseId, string $condition): void
+    {
+        if ($unitIds === []) {
+            return;
+        }
+
+        DB::table('product_units')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('id', $unitIds)
+            ->update([
+                'warehouse_id' => $warehouseId,
+                'status' => $condition === SalesReturnItem::CONDITION_DAMAGED
+                    ? ProductUnit::STATUS_DAMAGED
+                    : ProductUnit::STATUS_AVAILABLE,
+                'released_stock_movement_id' => null,
+                'updated_at' => now(),
+            ]);
     }
 
     private function receivableValues(array $receivable, mixed $customerId): array

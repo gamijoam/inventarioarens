@@ -57,3 +57,5 @@ POS real a credito, su descuento de inventario, la CxC y el cobro manual posteri
 La recuperacion financiera POS se protege adicionalmente con la prueba automatizada `tests/Feature/Sync/PosOrderStockSyncTest.php`: una venta a credito y su cobro posterior pueden llegar repetidos tras una desconexion sin duplicar salida de stock, cuenta por cobrar ni pago. El transporte conserva el codigo estable del nodo de origen, no el ID interno de otra instalacion.
 
 Los escenarios de IMEI, imagenes y conflictos de stock se mantienen cubiertos en Feature tests y en el laboratorio de carga. Se agregaran como recorridos E2E independientes para no convertir una prueba diagnostica de sincronizacion en una carga pesada sobre la nube.
+
+La regresion de devoluciones serializadas vive en `tests/Feature/Sync/SalesReturnSyncTest.php`. Simula una venta POS con IMEI, recibe dos veces la misma devolucion procesada y verifica que el equipo vuelve a estar disponible, el stock se restaura una sola vez y se conserva un unico movimiento de Kardex. El evento `sales_return.updated` se emite en cada transicion relevante: solicitada, aprobada, rechazada, cancelada o procesada.

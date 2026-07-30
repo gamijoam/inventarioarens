@@ -23,6 +23,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -88,6 +89,19 @@ class SalesReturnApiTest extends TestCase
             ->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'none'])
             ->assertOk()
             ->assertJsonPath('data.status', SalesReturn::STATUS_PROCESSED);
+
+        $this->assertSame(3, DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'sales_return.updated')
+            ->count());
+        $this->assertSame(SalesReturn::STATUS_PROCESSED, data_get(
+            json_decode((string) DB::table('sync_outbox')
+                ->where('tenant_id', $tenant->id)
+                ->where('event_type', 'sales_return.updated')
+                ->latest('id')
+                ->value('payload'), true),
+            'return.status'
+        ));
 
         $this->assertDatabaseHas('stock_balances', [
             'tenant_id' => $tenant->id,
