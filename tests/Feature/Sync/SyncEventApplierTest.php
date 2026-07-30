@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Sync;
 
-use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\AdminPortal\Services\AdminPosSalesService;
+use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -231,6 +231,14 @@ class SyncEventApplierTest extends TestCase
         $branchId = $this->branch($tenant, 'VAL', 'Principal Valencia');
         $warehouseId = $this->warehouse($tenant, $branchId, 'VAL-01', 'Almacen Principal Valencia');
         $productId = $this->product($tenant, 'ADP-BT-VAL', 'Adaptador Bluetooth', '10.0000');
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'quantity_available' => 1,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
         $priceListId = $this->priceList($tenant, 'DETAL');
         DB::table('product_prices')->insert([
             'tenant_id' => $tenant->id,

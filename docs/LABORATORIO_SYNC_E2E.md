@@ -58,6 +58,10 @@ La recuperacion financiera POS se protege adicionalmente con la prueba automatiz
 
 La misma prueba cubre la colision de ultima unidad: si dos nodos desconectados venden la misma unidad, la primera venta aplicada consume el saldo y la segunda queda en `sync_inbox` como `failed`, con un mensaje de conflicto. No se recorta el stock a cero ni se crea una segunda venta parcial. Para IMEI/seriales, el segundo evento tambien falla si el equipo ya no esta disponible. Es una cola de resolucion consciente: el tecnico puede revisar el evento fallido, corregir stock o serial y reintentarlo desde el Centro tecnico.
 
+## Recuperacion tras caida temporal
+
+La regresion `tests/Feature/Sync/SyncWorkerCommandTest.php` simula un ciclo sin nube seguido por otro ciclo saludable. Verifica que el daemon continue ejecutandose, conserve el evento en outbox durante la falla y lo marque como procesado solo despues de recibir la respuesta exitosa. La primera falla se registra en el estado de sincronizacion; la recuperacion posterior deja nuevamente la instalacion en estado `ready`.
+
 Los escenarios de IMEI, imagenes y conflictos de stock se mantienen cubiertos en Feature tests y en el laboratorio de carga. Se agregaran como recorridos E2E independientes para no convertir una prueba diagnostica de sincronizacion en una carga pesada sobre la nube.
 
 La regresion de devoluciones serializadas vive en `tests/Feature/Sync/SalesReturnSyncTest.php`. Simula una venta POS con IMEI, recibe dos veces la misma devolucion procesada y verifica que el equipo vuelve a estar disponible, el stock se restaura una sola vez y se conserva un unico movimiento de Kardex. El evento `sales_return.updated` se emite en cada transicion relevante: solicitada, aprobada, rechazada, cancelada o procesada.

@@ -615,4 +615,76 @@ class SyncWorkerCommandTest extends TestCase
 
         Http::assertSentCount(3);
     }
+
+    public function test_sync_daemon_recovers_after_a_temporary_cloud_failure_without_losing_outbox_events(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Recuperacion Worker',
+            'slug' => 'empresa-recuperacion-worker',
+        ]);
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'target_scope' => 'tenant',
+            'event_type' => 'product.updated',
+            'aggregate_type' => 'product',
+            'aggregate_id' => 77,
+            'payload' => json_encode(['sku' => 'RECOVERY-77']),
+            'occurred_at' => $now,
+            'available_at' => $now,
+            'status' => 'pending',
+            'idempotency_key' => 'recovery-product-77',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $nodeRegistrationAttempts = 0;
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => function () use (&$nodeRegistrationAttempts) {
+                $nodeRegistrationAttempts++;
+
+                return $nodeRegistrationAttempts === 1
+                    ? Http::response(['message' => 'Servicio temporalmente no disponible.'], 503)
+                    : Http::response(['data' => ['code' => 'LOCAL-RECOVERY-01']], 201);
+            },
+            'https://cloud.test/api/sync/events/push' => Http::response([
+                'data' => ['received' => 1, 'duplicated' => 0],
+            ], 202),
+            'https://cloud.test/api/sync/events/pull*' => Http::response(['data' => []], 200),
+        ]);
+
+        $this->artisan('sync:daemon', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-RECOVERY-01',
+            '--name' => 'Local Recovery 01',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--interval' => 5,
+            '--cycles' => 2,
+            '--installation' => 'LOCAL-RECOVERY-PC-01',
+        ])
+            ->expectsOutput('Worker continuo de sincronizacion iniciado.')
+            ->expectsOutput('Fallo de sincronizacion: No se pudo registrar el nodo en la nube. Respuesta 503: {"message":"Servicio temporalmente no disponible."}')
+            ->expectsOutput('Worker continuo detenido por limite de ciclos.')
+            ->assertExitCode(1);
+
+        $this->assertSame(2, $nodeRegistrationAttempts);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'status' => 'processed',
+        ]);
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $tenant->id,
+            'installation_code' => 'LOCAL-RECOVERY-PC-01',
+            'node_code' => 'LOCAL-RECOVERY-01',
+            'status' => 'ready',
+        ]);
+        Http::assertSentCount(4);
+    }
 }
