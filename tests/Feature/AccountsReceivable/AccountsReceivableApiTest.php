@@ -79,6 +79,13 @@ class AccountsReceivableApiTest extends TestCase
             'collected_base_amount' => '80.0000',
             'balance_base_amount' => '120.0000',
         ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'accounts_receivable.payment_registered',
+            'aggregate_type' => 'accounts_receivable',
+            'aggregate_id' => $account->id,
+            'status' => 'pending',
+        ]);
 
         $this
             ->actingAs($user)

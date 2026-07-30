@@ -71,6 +71,10 @@ class SyncEventApplier
         'pos.order.payment_added',
         'pos.order.paid',
         'pos.order.cancelled',
+        'accounts_receivable.payment_registered',
+        'product.image.uploaded',
+        'product.image.updated',
+        'product.image.deleted',
     ];
 
     public function applyPending(Tenant $tenant, int $limit = 50): array
@@ -201,6 +205,7 @@ class SyncEventApplier
                 'inventory_transfer_request.rejected' => $this->applyInventoryTransferRequestRejected($tenant, $payload),
                 'inventory_transfer_request.cancelled' => $this->applyInventoryTransferRequestCancelled($tenant, $payload),
                 'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
+                'accounts_receivable.payment_registered' => $this->applyReceivablePayment($tenant, $payload, $event),
                 default => 'ignored',
             };
         } finally {
@@ -1781,6 +1786,12 @@ class SyncEventApplier
             $payload['customer']['document_number'] ?? $orderPayload['customer_document_number'] ?? null,
         );
 
+        $previousSaleStatus = DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceSaleId)
+            ->value('status');
+
         $saleId = $this->upsertAndGetId(
             'sales',
             [
@@ -1830,13 +1841,21 @@ class SyncEventApplier
             ]
         );
 
-        $this->syncPosSaleItems($tenant, $saleId, $sourceNodeCode, $saleStatus, $payload['items'] ?? []);
+        $this->syncPosSaleItems(
+            $tenant,
+            $saleId,
+            $sourceNodeCode,
+            $saleStatus,
+            $previousSaleStatus !== 'confirmed',
+            $payload['items'] ?? []
+        );
         $this->syncPosPayments($tenant, $orderId, $sourceNodeCode, $payload['payments'] ?? []);
+        $this->syncPosReceivable($tenant, $saleId, $sourceNodeCode, $payload['receivable'] ?? null);
 
         return 'applied';
     }
 
-    private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, string $saleStatus, array $items): void
+    private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, string $saleStatus, bool $applyStock, array $items): void
     {
         if ($items === []) {
             return;
@@ -1897,7 +1916,7 @@ class SyncEventApplier
                 ]
             );
 
-            if ($saleStatus === 'confirmed') {
+            if ($saleStatus === 'confirmed' && $applyStock) {
                 $this->applyCloudStockOut($tenant, $product->id, $warehouse->id, (float) ($item['quantity'] ?? 0));
                 $this->applyCloudSerialSold($tenant, $product->id, $warehouse->id, $item['product_serial_units'] ?? []);
             }
@@ -1909,6 +1928,118 @@ class SyncEventApplier
             ->where('sync_source_node_code', $sourceNodeCode)
             ->whereNotIn('sync_source_id', $sourceIds)
             ->delete();
+    }
+
+    private function syncPosReceivable(Tenant $tenant, int $saleId, string $sourceNodeCode, mixed $receivable): void
+    {
+        if (! is_array($receivable)) {
+            return;
+        }
+
+        $accountId = $this->upsertAndGetId(
+            'accounts_receivables',
+            ['tenant_id' => $tenant->id, 'sale_id' => $saleId],
+            $this->receivableValues(
+                $receivable,
+                DB::table('sales')->where('tenant_id', $tenant->id)->where('id', $saleId)->value('customer_id')
+            )
+        );
+
+        $this->syncReceivablePayments($tenant, $accountId, $sourceNodeCode, $receivable['payments'] ?? []);
+    }
+
+    private function applyReceivablePayment(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceSaleId = (int) ($payload['sale_id'] ?? 0);
+        $receivable = $payload['receivable'] ?? null;
+        $payment = $payload['payment'] ?? null;
+
+        if ($sourceSaleId <= 0 || ! is_array($receivable) || ! is_array($payment)) {
+            return 'ignored';
+        }
+
+        $saleId = DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceSaleId)
+            ->value('id');
+
+        if (! $saleId) {
+            throw new RuntimeException("No se encontro la venta sincronizada {$sourceSaleId} para aplicar el cobro.");
+        }
+
+        $accountId = $this->upsertAndGetId(
+            'accounts_receivables',
+            ['tenant_id' => $tenant->id, 'sale_id' => (int) $saleId],
+            $this->receivableValues(
+                $receivable,
+                DB::table('sales')->where('tenant_id', $tenant->id)->where('id', $saleId)->value('customer_id')
+            )
+        );
+
+        $this->syncReceivablePayments($tenant, $accountId, $sourceNodeCode, [$payment]);
+
+        return 'applied';
+    }
+
+    private function receivableValues(array $receivable, mixed $customerId): array
+    {
+        return [
+            'customer_id' => $customerId ? (int) $customerId : null,
+            'status' => $receivable['status'] ?? 'pending',
+            'document_number' => $receivable['document_number'] ?? null,
+            'currency' => $receivable['currency'] ?? 'USD',
+            'original_base_amount' => $receivable['original_base_amount'] ?? 0,
+            'original_local_amount' => $receivable['original_local_amount'] ?? 0,
+            'returned_base_amount' => $receivable['returned_base_amount'] ?? 0,
+            'returned_local_amount' => $receivable['returned_local_amount'] ?? 0,
+            'collected_base_amount' => $receivable['collected_base_amount'] ?? 0,
+            'collected_local_amount' => $receivable['collected_local_amount'] ?? 0,
+            'adjusted_base_amount' => $receivable['adjusted_base_amount'] ?? 0,
+            'adjusted_local_amount' => $receivable['adjusted_local_amount'] ?? 0,
+            'balance_base_amount' => $receivable['balance_base_amount'] ?? 0,
+            'balance_local_amount' => $receivable['balance_local_amount'] ?? 0,
+            'due_date' => $this->nullableDate($receivable['due_date'] ?? null),
+            'opened_at' => $this->nullableDate($receivable['opened_at'] ?? null),
+            'paid_at' => $this->nullableDate($receivable['paid_at'] ?? null),
+            'updated_at' => now(),
+        ];
+    }
+
+    private function syncReceivablePayments(Tenant $tenant, int $accountId, string $sourceNodeCode, array $payments): void
+    {
+        foreach ($payments as $payment) {
+            $sourceId = (int) ($payment['id'] ?? $payment['payment_id'] ?? 0);
+            if ($sourceId <= 0) {
+                continue;
+            }
+
+            $this->upsertByKeys(
+                'accounts_receivable_payments',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sync_source_node_code' => $sourceNodeCode,
+                    'sync_source_id' => $sourceId,
+                ],
+                [
+                    'accounts_receivable_id' => $accountId,
+                    'payment_currency' => $payment['payment_currency'] ?? 'USD',
+                    'amount' => $payment['amount'] ?? 0,
+                    'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payment['exchange_rate_type_code'] ?? null, $payment['exchange_rate_type_id'] ?? null),
+                    'exchange_rate_type_code' => $payment['exchange_rate_type_code'] ?? null,
+                    'exchange_rate' => $payment['exchange_rate'] ?? null,
+                    'amount_base' => $payment['amount_base'] ?? 0,
+                    'amount_local' => $payment['amount_local'] ?? 0,
+                    'method' => $payment['method'] ?? null,
+                    'reference' => $payment['reference'] ?? null,
+                    'notes' => $payment['notes'] ?? null,
+                    'created_by' => null,
+                    'paid_at' => $this->nullableDate($payment['paid_at'] ?? null) ?? now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
     }
 
     private function applyCloudStockOut(Tenant $tenant, int $productId, int $warehouseId, float $quantity): void

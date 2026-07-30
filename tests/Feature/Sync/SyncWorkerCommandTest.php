@@ -88,6 +88,7 @@ class SyncWorkerCommandTest extends TestCase
             'https://cloud.test/api/sync/events/pull*' => Http::response([
                 'data' => [[
                     'id' => 99,
+                    'origin_node_code' => 'LOCAL-CREDITO-01',
                     'event_uuid' => $cloudEventUuid,
                     'event_type' => 'product_price.updated',
                     'aggregate_type' => 'product_price',
@@ -129,6 +130,10 @@ class SyncWorkerCommandTest extends TestCase
             'event_type' => 'product_price.updated',
             'status' => 'applied',
         ]);
+        $this->assertSame(
+            'LOCAL-CREDITO-01',
+            json_decode((string) DB::table('sync_inbox')->where('event_uuid', $cloudEventUuid)->value('payload'), true)['source_node_code']
+        );
         $this->assertDatabaseHas('product_prices', [
             'tenant_id' => $tenant->id,
             'product_id' => $productId,

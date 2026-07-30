@@ -293,6 +293,9 @@ class SyncWorkerService
         }
 
         $payload = $event['payload'] ?? [];
+        if (is_array($payload) && empty($payload['source_node_code']) && ! empty($event['origin_node_code'])) {
+            $payload['source_node_code'] = (string) $event['origin_node_code'];
+        }
         $now = now();
 
         DB::table('sync_inbox')->insert([

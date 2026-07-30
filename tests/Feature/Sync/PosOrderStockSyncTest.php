@@ -274,4 +274,151 @@ class PosOrderStockSyncTest extends TestCase
             ->where('product_id', $productId)
             ->value('quantity_available'));
     }
+
+    public function test_credit_sale_and_later_collection_sync_once_after_recovery(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa POS Credito', 'slug' => 'empresa-pos-credito-sync']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal Credito', 'code' => 'BR-CRED']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Credito', 'code' => 'WH-CRED']);
+        $productId = Product::query()->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto Credito',
+            'sku' => 'SKU-CRED-SYNC',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $productId,
+            'quantity_available' => 5,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $creditPayload = [
+            'source_node_code' => 'LOCAL-01',
+            'order_id' => 4,
+            'sale_id' => 40,
+            'sale_status' => 'confirmed',
+            'status' => 'paid',
+            'total_base_amount' => '20.0000',
+            'total_local_amount' => '0.0000',
+            'paid_base_amount' => '10.0000',
+            'paid_local_amount' => '0.0000',
+            'items' => [[
+                'id' => 400,
+                'product_sku' => 'SKU-CRED-SYNC',
+                'warehouse_code' => 'WH-CRED',
+                'quantity' => '2.0000',
+                'sale_currency' => 'USD',
+                'unit_price' => '10.0000',
+                'total_amount' => '20.0000',
+                'base_unit_price' => '10.0000',
+                'base_total_amount' => '20.0000',
+                'product_unit_ids' => [],
+                'product_serial_units' => [],
+            ]],
+            'payments' => [],
+            'receivable' => [
+                'status' => 'partial',
+                'document_number' => 'VENTA-40',
+                'currency' => 'USD',
+                'original_base_amount' => '20.0000',
+                'original_local_amount' => '0.0000',
+                'returned_base_amount' => '0.0000',
+                'returned_local_amount' => '0.0000',
+                'collected_base_amount' => '10.0000',
+                'collected_local_amount' => '0.0000',
+                'adjusted_base_amount' => '0.0000',
+                'adjusted_local_amount' => '0.0000',
+                'balance_base_amount' => '10.0000',
+                'balance_local_amount' => '0.0000',
+                'payments' => [[
+                    'id' => 401,
+                    'payment_currency' => 'USD',
+                    'amount' => '10.0000',
+                    'amount_base' => '10.0000',
+                    'amount_local' => '0.0000',
+                    'method' => 'pos_cash',
+                    'reference' => 'POS-PAYMENT-401',
+                ]],
+            ],
+        ];
+
+        $this->insertInboxEvent($tenant, 'pos.order.paid', $creditPayload, 4);
+        $this->insertInboxEvent($tenant, 'pos.order.paid', $creditPayload, 4);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $saleId = (int) DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', 'LOCAL-01')
+            ->where('sync_source_id', 40)
+            ->value('id');
+        $accountId = (int) DB::table('accounts_receivables')->where('tenant_id', $tenant->id)->where('sale_id', $saleId)->value('id');
+
+        $this->assertEquals(3.0, (float) DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $productId)
+            ->value('quantity_available'));
+        $this->assertEquals(1, DB::table('accounts_receivables')->where('tenant_id', $tenant->id)->count());
+        $this->assertEquals(1, DB::table('accounts_receivable_payments')->where('accounts_receivable_id', $accountId)->count());
+        $this->assertEquals(10.0, (float) DB::table('accounts_receivables')->where('id', $accountId)->value('balance_base_amount'));
+
+        $collectionPayload = [
+            'source_node_code' => 'LOCAL-01',
+            'sale_id' => 40,
+            'receivable' => array_merge($creditPayload['receivable'], [
+                'status' => 'paid',
+                'collected_base_amount' => '20.0000',
+                'balance_base_amount' => '0.0000',
+            ]),
+            'payment' => [
+                'id' => 402,
+                'payment_currency' => 'USD',
+                'amount' => '10.0000',
+                'amount_base' => '10.0000',
+                'amount_local' => '0.0000',
+                'method' => 'transfer',
+                'reference' => 'COBRO-402',
+            ],
+        ];
+
+        $this->insertInboxEvent($tenant, 'accounts_receivable.payment_registered', $collectionPayload, 40);
+        $this->insertInboxEvent($tenant, 'accounts_receivable.payment_registered', $collectionPayload, 40);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertEquals(0.0, (float) DB::table('accounts_receivables')->where('id', $accountId)->value('balance_base_amount'));
+        $this->assertEquals(2, DB::table('accounts_receivable_payments')->where('accounts_receivable_id', $accountId)->count());
+        $this->assertEquals(3.0, (float) DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $productId)
+            ->value('quantity_available'));
+    }
+
+    private function insertInboxEvent(Tenant $tenant, string $eventType, array $payload, int $aggregateId): void
+    {
+        $encodedPayload = json_encode($payload);
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => $eventType,
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => $aggregateId,
+            'payload_hash' => hash('sha256', $encodedPayload),
+            'payload' => $encodedPayload,
+            'status' => 'received',
+            'received_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
 }

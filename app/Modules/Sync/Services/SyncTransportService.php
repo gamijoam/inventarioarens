@@ -356,6 +356,13 @@ class SyncTransportService
     private function formatOutboxEvent(array $event): array
     {
         $event['payload'] = $this->decodeJson($event['payload'] ?? null);
+        $event['origin_node_code'] = null;
+        if (! empty($event['origin_node_id'])) {
+            $event['origin_node_code'] = DB::table('sync_nodes')
+                ->where('tenant_id', $event['tenant_id'])
+                ->where('id', $event['origin_node_id'])
+                ->value('code');
+        }
         $event['occurred_at'] = $this->formatDate($event['occurred_at'] ?? null);
         $event['available_at'] = $this->formatDate($event['available_at'] ?? null);
         $event['processed_at'] = $this->formatDate($event['processed_at'] ?? null);

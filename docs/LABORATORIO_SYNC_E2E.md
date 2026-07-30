@@ -1,0 +1,42 @@
+# Laboratorio E2E de sincronizacion
+
+Este laboratorio valida un recorrido real entre dos instalaciones locales aisladas y la nube:
+
+1. cada nodo canjea su propio codigo temporal;
+2. ambos descargan la foto inicial del mismo tenant de laboratorio;
+3. el nodo A crea un cliente y emite un evento en outbox;
+4. el nodo B queda desconectado de forma intencional;
+5. el nodo B vuelve, recibe el evento, lo aplica y lo confirma;
+6. se repite el ciclo para comprobar que el cliente no se duplica.
+
+No usa SSH ni acceso directo a la base cloud. Los tokens solo viven en memoria durante la prueba.
+
+## Preparacion segura
+
+Usa una empresa dedicada a pruebas de sincronizacion. No uses una empresa operativa: la prueba crea dos nodos cloud, dos tokens de sincronizacion y un cliente identificable `E2E-...`.
+
+Desde la organizacion de pruebas, el Owner debe generar **dos codigos de vinculacion**, ambos para la misma empresa y usuario. Cada codigo se consume una sola vez y vence segun el tiempo elegido.
+
+## Ejecutar en Windows
+
+Desde la raiz del repositorio:
+
+```powershell
+.\scripts\sync-e2e-lab.ps1 `
+  -PairingCodeNodeA 'ARNS-...' `
+  -PairingCodeNodeB 'ARNS-...' `
+  -CloudApiUrl 'https://app.miinventariofacil.com/api' `
+  -KeepArtifacts
+```
+
+Las bases temporales de ambos nodos quedan bajo `storage/app/sync-e2e-lab/<marca-de-corrida>/`. Estan ignoradas por Git. Omite `-KeepArtifacts` si solo quieres el resultado y no necesitas inspeccionar los SQLite ni los logs.
+
+La prueba se detiene ante cualquier error: codigo vencido, tenant distinto, snapshot incompleto, evento no aplicado o cliente duplicado.
+
+## Cobertura actual
+
+La prueba E2E ejercita autenticacion de nodos, snapshot inicial, outbox, push, pull, inbox, ACK, recuperacion tras desconexion e idempotencia con un evento de cliente.
+
+La recuperacion financiera POS se protege adicionalmente con la prueba automatizada `tests/Feature/Sync/PosOrderStockSyncTest.php`: una venta a credito y su cobro posterior pueden llegar repetidos tras una desconexion sin duplicar salida de stock, cuenta por cobrar ni pago. El transporte conserva el codigo estable del nodo de origen, no el ID interno de otra instalacion.
+
+Los escenarios de IMEI, imagenes y conflictos de stock se mantienen cubiertos en Feature tests y en el laboratorio de carga. Se agregaran como recorridos E2E independientes para no convertir una prueba diagnostica de sincronizacion en una carga pesada sobre la nube.

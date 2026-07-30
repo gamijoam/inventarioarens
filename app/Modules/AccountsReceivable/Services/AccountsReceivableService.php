@@ -14,11 +14,14 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountsReceivableService
 {
+    public function __construct(private readonly SyncOutboxService $syncOutbox) {}
+
     public function createForSale(Sale $sale): AccountsReceivable
     {
         return DB::transaction(function () use ($sale): AccountsReceivable {
@@ -134,6 +137,8 @@ class AccountsReceivableService
                 );
             }
 
+            $this->recordPaymentSyncEvent($account->refresh(), $payment);
+
             return $payment->refresh()->load('account');
         });
     }
@@ -202,6 +207,50 @@ class AccountsReceivableService
             ->where('is_active', true)
             ->latest('effective_at')
             ->first();
+    }
+
+    private function recordPaymentSyncEvent(AccountsReceivable $account, AccountsReceivablePayment $payment): void
+    {
+        $this->syncOutbox->record(
+            eventType: 'accounts_receivable.payment_registered',
+            aggregateType: 'accounts_receivable',
+            aggregateId: $account->id,
+            payload: [
+                'sale_id' => $account->sale_id,
+                'receivable' => [
+                    'status' => $account->status,
+                    'document_number' => $account->document_number,
+                    'currency' => $account->currency,
+                    'original_base_amount' => (string) $account->original_base_amount,
+                    'original_local_amount' => (string) $account->original_local_amount,
+                    'returned_base_amount' => (string) $account->returned_base_amount,
+                    'returned_local_amount' => (string) $account->returned_local_amount,
+                    'collected_base_amount' => (string) $account->collected_base_amount,
+                    'collected_local_amount' => (string) $account->collected_local_amount,
+                    'adjusted_base_amount' => (string) $account->adjusted_base_amount,
+                    'adjusted_local_amount' => (string) $account->adjusted_local_amount,
+                    'balance_base_amount' => (string) $account->balance_base_amount,
+                    'balance_local_amount' => (string) $account->balance_local_amount,
+                    'due_date' => $account->due_date?->toDateString(),
+                    'opened_at' => $account->opened_at?->toJSON(),
+                    'paid_at' => $account->paid_at?->toJSON(),
+                ],
+                'payment' => [
+                    'id' => $payment->id,
+                    'payment_currency' => $payment->payment_currency,
+                    'amount' => (string) $payment->amount,
+                    'amount_base' => (string) $payment->amount_base,
+                    'amount_local' => (string) $payment->amount_local,
+                    'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                    'exchange_rate' => $payment->exchange_rate === null ? null : (string) $payment->exchange_rate,
+                    'method' => $payment->method,
+                    'reference' => $payment->reference,
+                    'notes' => $payment->notes,
+                    'paid_at' => $payment->paid_at?->toJSON(),
+                ],
+            ],
+            idempotencyKey: "accounts_receivable.payment_registered:{$account->id}:{$payment->id}"
+        );
     }
 
     private function returnedTotalsForSale(Sale $sale): array

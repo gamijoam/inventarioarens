@@ -872,6 +872,7 @@ class PosCheckoutService
             'cashRegisterSession.cashRegister',
             'payments.paymentMethod',
             'sale.customer',
+            'sale.receivable.payments',
             'sale.items.product',
             'sale.items.warehouse',
             'sale.items.priceList',
@@ -881,6 +882,7 @@ class PosCheckoutService
 
         $session = $order->cashRegisterSession;
         $customer = $order->customer ?? $order->sale?->customer;
+        $receivable = $order->sale?->receivable;
 
         $this->syncOutbox->record(
             eventType: $eventType,
@@ -911,6 +913,38 @@ class PosCheckoutService
                     'confirmed_at' => $order->sale?->confirmed_at?->toJSON(),
                     'cancelled_at' => $order->sale?->cancelled_at?->toJSON(),
                 ],
+                'receivable' => $receivable ? [
+                    'id' => $receivable->id,
+                    'status' => $receivable->status,
+                    'document_number' => $receivable->document_number,
+                    'currency' => $receivable->currency,
+                    'original_base_amount' => (string) $receivable->original_base_amount,
+                    'original_local_amount' => (string) $receivable->original_local_amount,
+                    'returned_base_amount' => (string) $receivable->returned_base_amount,
+                    'returned_local_amount' => (string) $receivable->returned_local_amount,
+                    'collected_base_amount' => (string) $receivable->collected_base_amount,
+                    'collected_local_amount' => (string) $receivable->collected_local_amount,
+                    'adjusted_base_amount' => (string) $receivable->adjusted_base_amount,
+                    'adjusted_local_amount' => (string) $receivable->adjusted_local_amount,
+                    'balance_base_amount' => (string) $receivable->balance_base_amount,
+                    'balance_local_amount' => (string) $receivable->balance_local_amount,
+                    'due_date' => $receivable->due_date?->toDateString(),
+                    'opened_at' => $receivable->opened_at?->toJSON(),
+                    'paid_at' => $receivable->paid_at?->toJSON(),
+                    'payments' => $receivable->payments->map(fn ($payment): array => [
+                        'id' => $payment->id,
+                        'payment_currency' => $payment->payment_currency,
+                        'amount' => (string) $payment->amount,
+                        'amount_base' => (string) $payment->amount_base,
+                        'amount_local' => (string) $payment->amount_local,
+                        'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                        'exchange_rate' => $payment->exchange_rate === null ? null : (string) $payment->exchange_rate,
+                        'method' => $payment->method,
+                        'reference' => $payment->reference,
+                        'notes' => $payment->notes,
+                        'paid_at' => $payment->paid_at?->toJSON(),
+                    ])->values()->all(),
+                ] : null,
                 'order' => [
                     'id' => $order->id,
                     'status' => $order->status,
