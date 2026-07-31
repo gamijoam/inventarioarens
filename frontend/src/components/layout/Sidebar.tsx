@@ -34,7 +34,7 @@ import { cn } from '@/lib/cn';
 import { Can } from '@/components/permissions/Can';
 import { useTenantGroups } from '@/features/access/tenantGroupsApi';
 import { PERMISSIONS } from '@/permissions/constants';
-import { APP_NAME, APP_SHORT_NAME } from '@/config/branding';
+import { APP_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useCanAny } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
@@ -268,7 +268,6 @@ export function Sidebar() {
         {!collapsed && (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{APP_NAME}</p>
-            <p className="text-text-muted truncate text-xs">{APP_SHORT_NAME}</p>
           </div>
         )}
       </div>
