@@ -47,22 +47,20 @@ export function ProductAutocomplete({
   const [highlight, setHighlight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(
-    () => products.find((p) => p.id === value) ?? null,
-    [products, value],
-  );
+  const selected = useMemo(() => products.find((p) => p.id === value) ?? null, [products, value]);
 
   const matches = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 8);
-    const q = query.toLowerCase();
+    if (!query.trim()) return products.slice(0, 20);
+    const q = query.toLowerCase().trim();
     return products
       .filter((p) => {
         const sku = (p.sku ?? '').toLowerCase();
         const barcode = (p.barcode ?? '').toLowerCase();
         const name = (p.name ?? '').toLowerCase();
+        if (sku === q || barcode === q) return true;
         return sku.includes(q) || barcode.includes(q) || name.includes(q);
       })
-      .slice(0, 12);
+      .slice(0, 20);
   }, [products, query]);
 
   // Click-outside cierra el dropdown.
@@ -90,22 +88,22 @@ export function ProductAutocomplete({
   return (
     <div ref={containerRef} className="relative">
       {selected ? (
-        <div className="flex items-center gap-2 rounded border border-border-strong bg-surface px-2 py-1.5">
-          <div className="flex-1 min-w-0">
+        <div className="border-border-strong bg-surface flex items-center gap-2 rounded border px-2 py-1.5">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{selected.name}</div>
-            <div className="flex items-center gap-1.5 text-xs text-text-muted">
-              {selected.sku && (
-                <code className="rounded bg-bg px-1 py-0.5">{selected.sku}</code>
-              )}
+            <div className="text-text-muted flex items-center gap-1.5 text-xs">
+              {selected.sku && <code className="bg-bg rounded px-1 py-0.5">{selected.sku}</code>}
               {selected.tracking_type === 'serialized' && (
-                <Badge variant="info" className="text-[10px]">Serializado</Badge>
+                <Badge variant="info" className="text-[10px]">
+                  Serializado
+                </Badge>
               )}
             </div>
           </div>
           <button
             type="button"
             onClick={clear}
-            className="rounded p-1 text-text-muted hover:bg-bg hover:text-danger"
+            className="text-text-muted hover:bg-bg hover:text-danger rounded p-1"
             aria-label="Quitar producto"
           >
             <X className="size-3.5" />
@@ -113,7 +111,7 @@ export function ProductAutocomplete({
         </div>
       ) : (
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+          <Search className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             value={query}
             onChange={(e) => {
@@ -122,6 +120,7 @@ export function ProductAutocomplete({
               setHighlight(0);
             }}
             onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -144,15 +143,15 @@ export function ProductAutocomplete({
       )}
 
       {open && !selected && (
-        <div className="absolute z-50 mt-1 w-full max-h-64 overflow-auto rounded border border-border bg-surface shadow-lg">
+        <div className="border-border bg-surface absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded border shadow-lg">
           {matches.length === 0 ? (
-            <div className="p-3 text-sm text-text-muted">
+            <div className="text-text-muted p-3 text-sm">
               <p>Sin resultados para "{query}".</p>
               {onProductNotFound && (
                 <button
                   type="button"
                   onClick={() => onProductNotFound(query)}
-                  className="mt-1 text-xs text-primary hover:underline"
+                  className="text-primary mt-1 text-xs hover:underline"
                 >
                   Crear nuevo producto con este termino
                 </button>
@@ -168,20 +167,22 @@ export function ProductAutocomplete({
                   onClick={() => pick(p as ProductAutocompleteOption)}
                   onMouseEnter={() => setHighlight(i)}
                   className={cn(
-                    'cursor-pointer border-b border-border px-3 py-2 last:border-b-0',
+                    'border-border cursor-pointer border-b px-3 py-2 last:border-b-0',
                     i === highlight && 'bg-primary/10',
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{p.name}</div>
-                      <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                        {p.sku && <code className="rounded bg-bg px-1 py-0.5">{p.sku}</code>}
+                      <div className="text-text-muted flex items-center gap-1.5 text-xs">
+                        {p.sku && <code className="bg-bg rounded px-1 py-0.5">{p.sku}</code>}
                         {p.barcode && <span>BC: {p.barcode}</span>}
                       </div>
                     </div>
                     {p.tracking_type === 'serialized' && (
-                      <Badge variant="info" className="shrink-0 text-[10px]">Serializado</Badge>
+                      <Badge variant="info" className="shrink-0 text-[10px]">
+                        Serializado
+                      </Badge>
                     )}
                   </div>
                 </li>

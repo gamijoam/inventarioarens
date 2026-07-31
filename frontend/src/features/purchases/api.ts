@@ -14,7 +14,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { getMany, getOne, patchOne, postOne } from '@/api/client';
-import { PurchaseSchema, type Purchase, type StorePurchaseValues, type ReceivePurchaseValues } from './schemas';
+import {
+  PurchaseSchema,
+  type Purchase,
+  type StorePurchaseValues,
+  type ReceivePurchaseValues,
+} from './schemas';
 import { purchaseKeys } from './queries';
 import { productKeys } from '@/features/inventory-center/queries';
 
@@ -42,11 +47,15 @@ export function useProductsForPurchase() {
   return useQuery({
     queryKey: ['purchases', 'products-lookup'] as const,
     queryFn: async () => {
-      const data = await getMany<unknown>('/products?per_page=100');
-      // El backend retorna paginated (data.data, data.meta), aplanamos.
+      // Buscamos hasta 500 productos activos, incluyendo serializados.
+      // El endpoint del backend acepta ?tracking_type=all para devolver
+      // tanto quantity como serialized. El front-end filtra resultados con
+      // coincidencia aproximada en nombre/sku/barcode.
+      const data = await getMany<unknown>('/products?per_page=500&tracking_type=all');
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return z.array(ProductLookupSchema).parse(arr);
     },
+    staleTime: 60_000,
   });
 }
 
@@ -127,7 +136,10 @@ export function useReceivePurchase() {
  * e invalida detail + stockByWarehouse + movements + serials + priceHistory
  * + stocks para cada uno. Tambien invalida el listado global de productos.
  */
-function invalidateAffectedProducts(qc: ReturnType<typeof useQueryClient>, purchase: Purchase): void {
+function invalidateAffectedProducts(
+  qc: ReturnType<typeof useQueryClient>,
+  purchase: Purchase,
+): void {
   const productIds = new Set<number>();
   const items = (purchase as { items?: { product_id?: number }[] }).items;
   if (Array.isArray(items)) {
@@ -152,7 +164,8 @@ function invalidateAffectedProducts(qc: ReturnType<typeof useQueryClient>, purch
 export function useCancelPurchase() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => patchOne<Record<string, never>, Purchase>(`/purchases/${id}/cancel`, {}),
+    mutationFn: async (id: number) =>
+      patchOne<Record<string, never>, Purchase>(`/purchases/${id}/cancel`, {}),
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: purchaseKeys.lists() });
       void qc.invalidateQueries({ queryKey: purchaseKeys.detail(id) });
