@@ -143,7 +143,15 @@ export function ProductAutocomplete({
       )}
 
       {open && !selected && (
-        <div className="border-border bg-surface absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded border shadow-lg">
+        <div
+          className="border-border bg-surface fixed top-0 right-0 left-0 z-[1000] mt-[68px] max-h-64 overflow-auto rounded border shadow-lg"
+          style={{
+            position: 'fixed',
+            left: containerRef.current?.getBoundingClientRect().left ?? 0,
+            width: containerRef.current?.getBoundingClientRect().width ?? 'auto',
+            top: containerRef.current ? containerRef.current.getBoundingClientRect().bottom + 4 : 0,
+          }}
+        >
           {matches.length === 0 ? (
             <div className="text-text-muted p-3 text-sm">
               <p>Sin resultados para "{query}".</p>
