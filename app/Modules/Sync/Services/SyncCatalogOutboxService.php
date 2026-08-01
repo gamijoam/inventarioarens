@@ -17,6 +17,7 @@ use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Suppliers\Models\Supplier;
@@ -45,6 +46,21 @@ class SyncCatalogOutboxService
     public function imageUploaded(ProductImage $image): void
     {
         $this->recordProductImage('product.image.uploaded', $image, includeDeleted: false);
+    }
+
+    public function variantCreated(ProductVariant $variant): void
+    {
+        $this->recordVariant('product_variant.created', $variant);
+    }
+
+    public function variantUpdated(ProductVariant $variant): void
+    {
+        $this->recordVariant('product_variant.updated', $variant);
+    }
+
+    public function variantDeleted(ProductVariant $variant): void
+    {
+        $this->recordVariant('product_variant.deleted', $variant);
     }
 
     public function imageUpdated(ProductImage $image): void
@@ -763,6 +779,28 @@ class SyncCatalogOutboxService
                 'status' => $unit->status,
             ],
             idempotencyKey: $this->eventKey($eventType, 'product_unit', $unit->id, $unit->updated_at),
+        );
+    }
+
+    private function recordVariant(string $eventType, ProductVariant $variant): void
+    {
+        $variant->loadMissing('product');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'product_variant',
+            aggregateId: $variant->id,
+            payload: [
+                'product_sku' => $variant->product?->sku,
+                'color' => $variant->color,
+                'color_hex' => $variant->color_hex,
+                'sku_variant' => $variant->sku_variant,
+                'barcode_variant' => $variant->barcode_variant,
+                'price_override' => $variant->price_override === null ? null : (string) $variant->price_override,
+                'is_active' => (bool) $variant->is_active,
+                'position' => (int) $variant->position,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'product_variant', $variant->id, $variant->updated_at),
         );
     }
 

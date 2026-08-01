@@ -16,7 +16,7 @@ class InventoryCenterMovementService
             $limit = $this->limit($filters);
             $page = $this->pageNumber($filters);
             $query = StockMovement::query()
-                ->with(['product', 'warehouse.branch', 'creator']);
+                ->with(['product', 'variant', 'warehouse.branch', 'creator']);
 
             if ($search = $filters['search'] ?? null) {
                 $normalizedSearch = mb_strtolower($search);
@@ -41,6 +41,15 @@ class InventoryCenterMovementService
                 $query->where('warehouse_id', $warehouseId);
             }
 
+            if (array_key_exists('product_variant_id', $filters) && $filters['product_variant_id'] !== null && $filters['product_variant_id'] !== '') {
+                $variantFilter = $filters['product_variant_id'];
+                if ($variantFilter === 'null' || $variantFilter === null) {
+                    $query->whereNull('product_variant_id');
+                } else {
+                    $query->where('product_variant_id', (int) $variantFilter);
+                }
+            }
+
             if ($dateFrom = $filters['date_from'] ?? null) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             }
@@ -58,6 +67,7 @@ class InventoryCenterMovementService
                     'search' => $filters['search'] ?? null,
                     'type' => $filters['type'] ?? 'all',
                     'warehouse_id' => isset($filters['warehouse_id']) ? (int) $filters['warehouse_id'] : null,
+                    'product_variant_id' => $filters['product_variant_id'] ?? null,
                     'date_from' => $filters['date_from'] ?? null,
                     'date_to' => $filters['date_to'] ?? null,
                     'limit' => $limit,
@@ -93,6 +103,10 @@ class InventoryCenterMovementService
             'product_id' => $movement->product_id,
             'product_name' => $movement->product?->name,
             'product_sku' => $movement->product?->sku,
+            'product_variant_id' => $movement->product_variant_id,
+            'variant_color' => $movement->variant?->color,
+            'variant_color_hex' => $movement->variant?->color_hex,
+            'variant_sku' => $movement->variant?->sku_variant,
             'warehouse_id' => $movement->warehouse_id,
             'warehouse_name' => $movement->warehouse?->name,
             'warehouse_code' => $movement->warehouse?->code,

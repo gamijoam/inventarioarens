@@ -552,6 +552,7 @@ class PosCheckoutService
         return $order->sale->items
             ->map(fn ($item): array => [
                 'price_list_id' => $item->price_list_id,
+                'product_variant_id' => $item->product_variant_id,
             ])
             ->all();
     }
@@ -713,6 +714,7 @@ class PosCheckoutService
                 reason: "Reserva POS #{$order->id}",
                 referenceType: PosOrder::class,
                 referenceId: $order->id,
+                productVariantId: $item->product_variant_id,
             );
 
             $this->reserveProductUnitsForSaleItem($item, $movement);
@@ -736,6 +738,7 @@ class PosCheckoutService
                 reason: "Liberacion reserva POS #{$order->id}",
                 referenceType: PosOrder::class,
                 referenceId: $order->id,
+                productVariantId: $item->product_variant_id,
             );
 
             $this->releaseReservedUnitsForSaleItem($item);

@@ -9,6 +9,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Models\SalesReturnItem;
 use App\Modules\Tenancy\Models\Tenant;
@@ -186,6 +187,8 @@ class SyncEventApplier
                 'branch.updated', 'branch.created' => $this->applyBranch($tenant, $payload),
                 'warehouse.updated', 'warehouse.created' => $this->applyWarehouse($tenant, $payload),
                 'product.updated', 'product.created' => $this->applyProduct($tenant, $payload),
+                'product_variant.created', 'product_variant.updated' => $this->applyProductVariant($tenant, $payload),
+                'product_variant.deleted' => $this->applyProductVariantDeleted($tenant, $payload),
                 'product.image.uploaded', 'product.image.updated' => $this->applyProductImage($tenant, $payload),
                 'product.image.deleted' => $this->applyProductImageDeleted($tenant, $payload),
                 'customer.updated', 'customer.created' => $this->applyCustomer($tenant, $payload),
@@ -1469,6 +1472,55 @@ class SyncEventApplier
         }
 
         return "product_image_deleted:{$uuid}";
+    }
+
+    private function applyProductVariant(Tenant $tenant, array $payload): string
+    {
+        $productSku = $this->requiredString($payload, 'product_sku');
+        $product = $this->productBySku($tenant, $productSku);
+
+        $attributes = [
+            'product_id' => (int) $product->id,
+            'color' => $payload['color'] ?? null,
+            'color_hex' => $payload['color_hex'] ?? null,
+            'sku_variant' => $payload['sku_variant'] ?? null,
+            'barcode_variant' => $payload['barcode_variant'] ?? null,
+            'price_override' => $payload['price_override'] ?? null,
+            'is_active' => (bool) ($payload['is_active'] ?? true),
+            'position' => (int) ($payload['position'] ?? 0),
+        ];
+
+        $match = [
+            'tenant_id' => $tenant->id,
+            'product_id' => (int) $product->id,
+            'color' => $attributes['color'],
+            'sku_variant' => $attributes['sku_variant'],
+        ];
+
+        $this->upsertByKeys('product_variants', $match, $attributes);
+
+        return "product_variant_upserted:{$product->id}:{$attributes['color']}";
+    }
+
+    private function applyProductVariantDeleted(Tenant $tenant, array $payload): string
+    {
+        $productSku = $this->requiredString($payload, 'product_sku');
+        $product = $this->productBySku($tenant, $productSku);
+
+        $variant = ProductVariant::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('product_id', (int) $product->id)
+            ->when(isset($payload['color']), fn ($query) => $query->where('color', $payload['color']))
+            ->when(isset($payload['sku_variant']), fn ($query) => $query->where('sku_variant', $payload['sku_variant']))
+            ->first();
+
+        if ($variant) {
+            $variant->delete();
+
+            return "product_variant_deleted:{$variant->id}";
+        }
+
+        return 'product_variant_deleted:missing';
     }
 
     private function applyProductUnit(Tenant $tenant, array $payload): string

@@ -30,6 +30,12 @@ class StockReportRequest extends FormRequest
                 'integer',
                 Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
+            'product_variant_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('product_variants', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
             'threshold' => ['sometimes', 'numeric', 'gte:0'],
         ];
     }

@@ -6,6 +6,7 @@ use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'sale_id',
     'warehouse_id',
     'product_id',
+    'product_variant_id',
     'price_list_id',
     'price_list_name',
     'quantity',
@@ -81,6 +83,11 @@ class SaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
     public function priceList(): BelongsTo

@@ -3,6 +3,7 @@
 use App\Modules\Products\Controllers\PriceListController;
 use App\Modules\Products\Controllers\ProductController;
 use App\Modules\Products\Controllers\ProductImageController;
+use App\Modules\Products\Controllers\ProductVariantController;
 use Illuminate\Support\Facades\Route;
 
 Route::apiResource('price-lists', PriceListController::class)
@@ -24,5 +25,10 @@ Route::patch('products/{product}/images/{image}', [ProductImageController::class
     ->where('image', '[0-9]+');
 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy'])
     ->where('image', '[0-9]+');
+
+Route::get('products/{product}/variants', [ProductVariantController::class, 'index']);
+Route::post('products/{product}/variants', [ProductVariantController::class, 'store']);
+Route::patch('products/{product}/variants/{variant}', [ProductVariantController::class, 'update']);
+Route::delete('products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy']);
 
 require __DIR__.'/routes_catalog.php';

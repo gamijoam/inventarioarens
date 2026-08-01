@@ -62,6 +62,7 @@ class SaleService
                     'sale_id' => $sale->id,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
                     'price_list_id' => $quote['price_list_id'],
                     'price_list_name' => $quote['price_list_name'],
                     'quantity' => $quantity,
@@ -122,6 +123,7 @@ class SaleService
                         reason: "Venta #{$sale->id}",
                         referenceType: Sale::class,
                         referenceId: $sale->id,
+                        productVariantId: $item->product_variant_id,
                     );
                 } catch (InsufficientStockException) {
                     throw ValidationException::withMessages([

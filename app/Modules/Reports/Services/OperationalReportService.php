@@ -28,6 +28,7 @@ class OperationalReportService
             ['key' => 'payments', 'label' => 'Métodos de pago', 'permission' => 'reports.cash.view', 'available' => $this->canAny($user, ['reports.view', 'reports.cash.view', 'reports.sales.view'])],
             ['key' => 'stock', 'label' => 'Inventario', 'permission' => 'reports.inventory.view', 'available' => $this->canAny($user, ['reports.view', 'reports.inventory.view'])],
             ['key' => 'movements', 'label' => 'Movimientos', 'permission' => 'reports.movements.view', 'available' => $this->canAny($user, ['reports.view', 'reports.movements.view'])],
+            ['key' => 'sales_by_color', 'label' => 'Ventas por color', 'permission' => 'reports.sales.view', 'available' => $this->canAny($user, ['reports.view', 'reports.sales.view'])],
             ['key' => 'finance', 'label' => 'Finanzas', 'permission' => 'finance_reports.view', 'available' => $user->can('finance_reports.view')],
         ];
     }
@@ -128,6 +129,51 @@ class OperationalReportService
         return [
             'period' => $this->period($from, $to),
             'rows' => $query->get()->map(fn (Sale $sale): array => $this->saleRow($sale))->all(),
+        ];
+    }
+
+    public function salesByColor(array $filters): array
+    {
+        $tenantId = app(TenantManager::class)->require()->id;
+        [$from, $to] = $this->dateRange($filters);
+
+        $rows = DB::table('sale_items as si')
+            ->join('sales as s', 's.id', '=', 'si.sale_id')
+            ->leftJoin('product_variants as pv', 'pv.id', '=', 'si.product_variant_id')
+            ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
+            ->where('s.tenant_id', $tenantId)
+            ->where('s.status', Sale::STATUS_CONFIRMED)
+            ->where(function ($query) use ($from, $to): void {
+                $query->whereBetween('s.confirmed_at', [$from, $to])
+                    ->orWhereBetween('s.created_at', [$from, $to]);
+            })
+            ->when($filters['product_id'] ?? null, fn ($query, int $productId) => $query->where('si.product_id', $productId))
+            ->selectRaw('pv.id as variant_id, pv.color as variant_color, pv.color_hex as variant_color_hex, p.id as product_id, p.name as product_name, p.sku as product_sku')
+            ->selectRaw('SUM(si.quantity) as quantity')
+            ->selectRaw('SUM(si.base_total_amount) as base_total')
+            ->selectRaw('SUM(si.total_amount) as total_amount')
+            ->selectRaw('COUNT(DISTINCT s.id) as sales_count')
+            ->groupBy('pv.id', 'pv.color', 'pv.color_hex', 'p.id', 'p.name', 'p.sku')
+            ->orderByDesc('total_amount')
+            ->limit($filters['limit'] ?? 25)
+            ->get();
+
+        return [
+            'period' => $this->period($from, $to),
+            'rows' => $rows
+                ->map(fn ($row): array => [
+                    'variant_id' => $row->variant_id !== null ? (int) $row->variant_id : null,
+                    'variant_color' => $row->variant_color,
+                    'variant_color_hex' => $row->variant_color_hex,
+                    'product_id' => (int) $row->product_id,
+                    'product_name' => $row->product_name,
+                    'product_sku' => $row->product_sku,
+                    'quantity' => (float) $row->quantity,
+                    'base_total' => (float) $row->base_total,
+                    'total_amount' => (float) $row->total_amount,
+                    'sales_count' => (int) $row->sales_count,
+                ])
+                ->all(),
         ];
     }
 

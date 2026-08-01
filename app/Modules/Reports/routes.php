@@ -10,7 +10,9 @@ Route::prefix('reports')->group(function (): void {
     Route::get('sales-detail', [OperationalReportController::class, 'salesDetail']);
     Route::get('cash-sessions', [OperationalReportController::class, 'cashSessions']);
     Route::get('payment-methods', [OperationalReportController::class, 'paymentMethods']);
+    Route::get('sales-by-color', [OperationalReportController::class, 'salesByColor']);
     Route::get('stock', [InventoryReportController::class, 'stock']);
     Route::get('stock/low', [InventoryReportController::class, 'lowStock']);
+    Route::get('stock-by-variant', [InventoryReportController::class, 'stockByVariant']);
     Route::get('movements', [InventoryReportController::class, 'movements']);
 });

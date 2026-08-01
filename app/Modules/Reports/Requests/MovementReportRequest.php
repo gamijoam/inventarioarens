@@ -31,6 +31,11 @@ class MovementReportRequest extends FormRequest
                 'integer',
                 Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
             ],
+            'product_variant_id' => [
+                'sometimes',
+                'nullable',
+                'string',
+            ],
             'type' => ['sometimes', 'string', Rule::in(StockMovement::TYPES)],
             'date_from' => ['sometimes', 'date'],
             'date_to' => ['sometimes', 'date', 'after_or_equal:date_from'],

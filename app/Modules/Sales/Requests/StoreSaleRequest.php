@@ -36,6 +36,11 @@ class StoreSaleRequest extends FormRequest
                 Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.product_variant_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('product_variants', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
             'items.*.product_unit_ids' => ['sometimes', 'array'],
             'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', app(TenantManager::class)->require()->id)],
         ];

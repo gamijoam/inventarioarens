@@ -42,4 +42,11 @@ class OperationalReportController extends Controller
 
         return response()->json(['data' => $reports->paymentMethods($request->filters())]);
     }
+
+    public function salesByColor(OperationalReportRequest $request, OperationalReportService $reports): JsonResponse
+    {
+        abort_unless($request->user()->can('reports.view') || $request->user()->can('reports.sales.view'), Response::HTTP_FORBIDDEN);
+
+        return response()->json(['data' => $reports->salesByColor($request->filters())]);
+    }
 }

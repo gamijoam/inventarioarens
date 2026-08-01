@@ -59,6 +59,21 @@ class Product extends Model
                 $product->track_stock = true;
             }
         });
+
+        static::created(function (Product $product): void {
+            if ($product->variants()->exists()) {
+                return;
+            }
+            $product->variants()->create([
+                'color' => null,
+                'color_hex' => null,
+                'sku_variant' => null,
+                'barcode_variant' => null,
+                'price_override' => null,
+                'is_active' => true,
+                'position' => 0,
+            ]);
+        });
     }
 
     /**
@@ -184,6 +199,11 @@ class Product extends Model
     public function stockBalances(): HasMany
     {
         return $this->hasMany(StockBalance::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('position')->orderBy('id');
     }
 
     public function audits(): HasMany

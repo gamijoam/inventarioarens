@@ -6,6 +6,7 @@ use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Trait que replica automaticamente el catalogo del grupo a sus spinoffs
@@ -58,8 +59,8 @@ trait PropagatesCatalogToSpinoffs
 
             // Si hay transaccion abierta, esperar al commit para no
             // contaminar el savepoint con errores del hook.
-            if (\Illuminate\Support\Facades\DB::transactionLevel() > 0) {
-                \Illuminate\Support\Facades\DB::afterCommit($runner);
+            if (DB::transactionLevel() > 0) {
+                DB::afterCommit($runner);
 
                 return;
             }

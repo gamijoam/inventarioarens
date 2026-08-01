@@ -60,6 +60,7 @@ class OperationalReportRequest extends FormRequest
                 CashRegisterSession::REVIEW_REJECTED,
             ])],
             'payment_method' => ['nullable', 'string', 'max:80'],
+            'product_id' => ['nullable', 'integer'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
@@ -75,6 +76,7 @@ class OperationalReportRequest extends FormRequest
             'cash_register_id' => $this->filled('cash_register_id') ? (int) $this->input('cash_register_id') : null,
             'cashier_id' => $this->filled('cashier_id') ? (int) $this->input('cashier_id') : null,
             'customer_id' => $this->filled('customer_id') ? (int) $this->input('customer_id') : null,
+            'product_id' => $this->filled('product_id') ? (int) $this->input('product_id') : null,
             'status' => $this->input('status', 'all'),
             'review_status' => $this->input('review_status'),
             'payment_method' => $this->input('payment_method'),
