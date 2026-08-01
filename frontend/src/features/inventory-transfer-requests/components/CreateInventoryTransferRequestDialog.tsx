@@ -23,7 +23,10 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useCreateTransferRequest, useSiblingCompanies } from '@/features/inventory-transfer-requests/api';
+import {
+  useCreateTransferRequest,
+  useSiblingCompanies,
+} from '@/features/inventory-transfer-requests/api';
 import { useProductsForTransfer } from '@/features/transfers/api';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
@@ -175,15 +178,15 @@ export function CreateInventoryTransferRequestDialog({
       aria-labelledby="create-req-title"
     >
       <div
-        className="w-full max-w-2xl rounded-lg border border-border bg-surface p-5"
+        className="border-border bg-surface w-full max-w-2xl rounded-lg border p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="create-req-title" className="text-lg font-semibold">
-          Nueva solicitud a otra empresa
+          Iniciar envío a otra empresa
         </h2>
-        <p className="mt-1 text-sm text-text-muted">
-          Pedi stock de tu catalogo a otra empresa del grupo. La empresa destino debera
-          aceptar la solicitud y elegir los IMEIs/seriales especificos que envia.
+        <p className="text-text-muted mt-1 text-sm">
+          Indica qué stock de tu catálogo quieres enviar a otra empresa del grupo. La empresa
+          destino confirmará la solicitud y recibirá la mercancía.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3" data-testid="create-form">
           <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -196,7 +199,7 @@ export function CreateInventoryTransferRequestDialog({
                   id="dest-company"
                   value={destinationSlug}
                   onChange={(e) => setDestinationSlug(e.target.value)}
-                  className="mt-1 w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
                   required
                   disabled={!!destinationEmail}
                   data-testid="dest-company"
@@ -210,17 +213,17 @@ export function CreateInventoryTransferRequestDialog({
                 </select>
               )}
               {siblingOptions.length === 0 && !loadingSiblings && (
-                <p className="mt-1 text-xs text-warning">
+                <p className="text-warning mt-1 text-xs">
                   Tu empresa no pertenece a un grupo con otras empresas. Usa el email de destino.
                 </p>
               )}
               {selectedSibling && (
-                <p className="mt-1 text-xs text-text-muted" data-testid="dest-preview">
+                <p className="text-text-muted mt-1 text-xs" data-testid="dest-preview">
                   Enviar a: <strong>{selectedSibling.name}</strong> (slug: {selectedSibling.slug})
                 </p>
               )}
               {formErrors['destination_tenant_slug'] && (
-                <p className="mt-1 text-xs text-danger">{formErrors['destination_tenant_slug']}</p>
+                <p className="text-danger mt-1 text-xs">{formErrors['destination_tenant_slug']}</p>
               )}
             </div>
             <div>
@@ -246,17 +249,19 @@ export function CreateInventoryTransferRequestDialog({
                   id="from-wh"
                   value={fromWarehouseId}
                   onChange={(e) => setFromWarehouseId(e.target.value)}
-                  className="mt-1 w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
                   required
                 >
                   <option value="">Selecciona...</option>
                   {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>{w.code}</option>
+                    <option key={w.id} value={w.id}>
+                      {w.code}
+                    </option>
                   ))}
                 </select>
               )}
               {formErrors['from_warehouse_id'] && (
-                <p className="mt-1 text-xs text-danger">{formErrors['from_warehouse_id']}</p>
+                <p className="text-danger mt-1 text-xs">{formErrors['from_warehouse_id']}</p>
               )}
             </div>
             <div className="md:col-span-2">
@@ -277,12 +282,12 @@ export function CreateInventoryTransferRequestDialog({
               {items.map((it, idx) => (
                 <div
                   key={idx}
-                  className="rounded border border-border bg-bg/20 p-2"
+                  className="border-border bg-bg/20 rounded border p-2"
                   data-testid={`item-row-${idx}`}
                 >
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_auto]">
                     <div>
-                      <label className="text-[10px] uppercase tracking-wide text-text-muted">
+                      <label className="text-text-muted text-[10px] tracking-wide uppercase">
                         Producto
                       </label>
                       {loadingProd ? (
@@ -291,7 +296,7 @@ export function CreateInventoryTransferRequestDialog({
                         <select
                           value={it.product_id}
                           onChange={(e) => updateItem(idx, { product_id: e.target.value })}
-                          className="w-full rounded border border-border-strong bg-surface px-2 py-1 text-sm"
+                          className="border-border-strong bg-surface w-full rounded border px-2 py-1 text-sm"
                           required
                           data-testid={`item-product-${idx}`}
                         >
@@ -306,7 +311,7 @@ export function CreateInventoryTransferRequestDialog({
                       )}
                     </div>
                     <div>
-                      <label className="text-[10px] uppercase tracking-wide text-text-muted">
+                      <label className="text-text-muted text-[10px] tracking-wide uppercase">
                         Cantidad
                       </label>
                       <input
@@ -315,7 +320,7 @@ export function CreateInventoryTransferRequestDialog({
                         step="0.01"
                         value={it.quantity}
                         onChange={(e) => updateItem(idx, { quantity: e.target.value })}
-                        className="w-full rounded border border-border-strong bg-surface px-2 py-1 text-right text-sm"
+                        className="border-border-strong bg-surface w-full rounded border px-2 py-1 text-right text-sm"
                         required
                         data-testid={`item-qty-${idx}`}
                       />
@@ -329,7 +334,7 @@ export function CreateInventoryTransferRequestDialog({
                           onClick={() => removeItem(idx)}
                           aria-label={`Eliminar linea ${idx + 1}`}
                         >
-                          <Trash2 className="size-4 text-danger" />
+                          <Trash2 className="text-danger size-4" />
                         </Button>
                       )}
                     </div>
@@ -348,7 +353,7 @@ export function CreateInventoryTransferRequestDialog({
               >
                 Agregar linea
               </Button>
-              {formErrors['items'] && <p className="text-xs text-danger">{formErrors['items']}</p>}
+              {formErrors['items'] && <p className="text-danger text-xs">{formErrors['items']}</p>}
             </div>
           </div>
 
@@ -374,7 +379,12 @@ export function CreateInventoryTransferRequestDialog({
           </fieldset>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={submitting} data-testid="submit-create">

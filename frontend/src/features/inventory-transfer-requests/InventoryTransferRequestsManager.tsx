@@ -162,7 +162,7 @@ export function InventoryTransferRequestsManager({
             onClick={onCreate}
             className="ml-auto"
           >
-            Nueva solicitud
+            Iniciar envío
           </Button>
         )}
       </div>
@@ -188,7 +188,7 @@ export function InventoryTransferRequestsManager({
                 ? 'No has enviado solicitudes a otras empresas.'
                 : tab === 'received'
                   ? 'No tienes solicitudes pendientes de empresas hermanas.'
-                : 'No hay solicitudes en esta categoría.'
+                  : 'No hay solicitudes en esta categoría.'
             }
           />
         ) : (
@@ -220,7 +220,8 @@ export function InventoryTransferRequestsManager({
                 {filtered.map((r) => {
                   const isMine = r.origin_tenant_id === currentTenantId;
                   const canRespondToRequest = canRespond && !isMine && r.status === 'requested';
-                  const canCancelRequest = canCancelPermission && isMine && r.status === 'requested';
+                  const canCancelRequest =
+                    canCancelPermission && isMine && r.status === 'requested';
                   return (
                     <tr
                       key={r.id}
@@ -296,7 +297,7 @@ export function InventoryTransferRequestsManager({
                               size="icon-sm"
                               variant="ghost"
                               onClick={() => cancelMine(r)}
-                              aria-label={`Cancelar solicitud ${r.document_number ?? r.id}`}
+                              aria-label={`Cancelar envío ${r.document_number ?? r.id}`}
                               title="Cancelar"
                             >
                               <XCircle className="text-text-muted size-4" />

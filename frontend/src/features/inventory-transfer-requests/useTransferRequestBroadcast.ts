@@ -41,14 +41,17 @@ const EVENT_NAMES = [
   'inventory-transfer-requests.cancelled',
 ] as const;
 
-const TOAST_BY_EVENT: Record<(typeof EVENT_NAMES)[number], {
-  title: (e: TransferRequestEvent) => string;
-  description: (e: TransferRequestEvent) => string;
-  target: (e: TransferRequestEvent) => 'origin' | 'destination';
-}> = {
+const TOAST_BY_EVENT: Record<
+  (typeof EVENT_NAMES)[number],
+  {
+    title: (e: TransferRequestEvent) => string;
+    description: (e: TransferRequestEvent) => string;
+    target: (e: TransferRequestEvent) => 'origin' | 'destination';
+  }
+> = {
   'inventory-transfer-requests.created': {
-    title: () => 'Nueva solicitud de traslado inter-empresa pendiente.',
-    description: (e) => `Solicitud #${e.id} recibida.`,
+    title: () => 'Envío inter-empresa pendiente de confirmar.',
+    description: (e) => `Envío #${e.id} recibido de la empresa origen.`,
     target: (e) => (e.destination_tenant_id !== undefined ? 'destination' : 'origin'),
   },
   'inventory-transfer-requests.accepted': {
@@ -92,18 +95,18 @@ export function useTransferRequestBroadcast(
     const channelName = `tenant.${currentTenantId}`;
     const channel = echo.private(channelName);
 
-    const handleEvent = (eventType: (typeof EVENT_NAMES)[number]) =>
-      (event: TransferRequestEvent) => {
+    const handleEvent =
+      (eventType: (typeof EVENT_NAMES)[number]) => (event: TransferRequestEvent) => {
         // Debug en consola: ayuda al usuario a verificar que los
         // eventos WebSocket realmente llegan al cliente. Si ve esto
         // en consola, Reverb + Echo funcionan. Si no ve nada, es cache
         // del navegador o Reverb no esta corriendo.
         if (typeof window !== 'undefined' && window.console) {
           // eslint-disable-next-line no-console
-          window.console.info(
-            `[ITR] WebSocket event received: ${eventType}`,
-            { event, currentTenantId },
-          );
+          window.console.info(`[ITR] WebSocket event received: ${eventType}`, {
+            event,
+            currentTenantId,
+          });
         }
 
         const cfg = TOAST_BY_EVENT[eventType];
@@ -120,9 +123,10 @@ export function useTransferRequestBroadcast(
         // este filtro defensivo evita toasts duplicados en escenarios
         // multi-tenant).
         const target = cfg.target(event);
-        const isForMe = target === 'destination'
-          ? event.destination_tenant_id === currentTenantId
-          : event.origin_tenant_id === currentTenantId;
+        const isForMe =
+          target === 'destination'
+            ? event.destination_tenant_id === currentTenantId
+            : event.origin_tenant_id === currentTenantId;
         if (!isForMe) return;
 
         toast.info(cfg.title(event), {
