@@ -63,8 +63,8 @@ function InventoryTransferRequestsPage() {
 
   return (
     <PageLayout
-      title="Envíos inter-empresa"
-      description="Inicia el envío de stock de tu empresa a otra empresa del grupo. La empresa destino confirma la solicitud y recibe la mercancía."
+      title="Solicitudes inter-empresa"
+      description="Pedidos de stock entre empresas hermanas del grupo. La empresa destino debe aceptar para que se materialice el movimiento."
     >
       <InventoryTransferRequestsManager
         onCreate={() => setCreating(true)}
@@ -75,9 +75,7 @@ function InventoryTransferRequestsPage() {
       {creating && (
         <CreateInventoryTransferRequestDialog
           open={creating}
-          onOpenChange={(o) => {
-            if (!o) setCreating(false);
-          }}
+          onOpenChange={(o) => { if (!o) setCreating(false); }}
         />
       )}
 
@@ -85,9 +83,7 @@ function InventoryTransferRequestsPage() {
         <AcceptInventoryTransferRequestDialog
           request={accepting}
           open={accepting !== null}
-          onOpenChange={(o) => {
-            if (!o) setAccepting(null);
-          }}
+          onOpenChange={(o) => { if (!o) setAccepting(null); }}
         />
       )}
 
@@ -95,9 +91,7 @@ function InventoryTransferRequestsPage() {
         <RejectInventoryTransferRequestDialog
           request={rejecting}
           open={rejecting !== null}
-          onOpenChange={(o) => {
-            if (!o) setRejecting(null);
-          }}
+          onOpenChange={(o) => { if (!o) setRejecting(null); }}
         />
       )}
     </PageLayout>

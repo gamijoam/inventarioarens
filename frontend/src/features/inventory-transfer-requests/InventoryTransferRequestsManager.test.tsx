@@ -141,10 +141,10 @@ describe('InventoryTransferRequestsManager', () => {
     const user = userEvent.setup();
     render(<InventoryTransferRequestsManager />, { wrapper: makeWrapper() });
 
-    const sentTab = screen.getByRole('tab', { name: /como origen/i });
+    const sentTab = screen.getByRole('tab', { name: /enviadas/i });
     await user.click(sentTab);
 
-    const cancelBtn = screen.getByRole('button', { name: /cancelar envío/i });
+    const cancelBtn = screen.getByRole('button', { name: /cancelar solicitud/i });
     await user.click(cancelBtn);
     expect(cancelMock).toHaveBeenCalledWith(7);
   });
@@ -196,7 +196,7 @@ describe('InventoryTransferRequestsManager', () => {
     });
     const user = userEvent.setup();
     render(<InventoryTransferRequestsManager currentTenantId={1} />, { wrapper: makeWrapper() });
-    await user.click(screen.getByRole('tab', { name: /completados/i }));
+    await user.click(screen.getByRole('tab', { name: /completadas/i }));
     expect(mockUseTransferRequests).toHaveBeenLastCalledWith(undefined, { refetchInterval: false });
   });
 });

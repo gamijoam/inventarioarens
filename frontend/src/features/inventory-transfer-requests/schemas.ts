@@ -58,11 +58,11 @@ export const TRANSFER_REQUEST_TABS = [
 export type TransferRequestTab = (typeof TRANSFER_REQUEST_TABS)[number];
 
 export const TRANSFER_REQUEST_TAB_LABELS: Record<TransferRequestTab, string> = {
-  sent: 'Como origen',
-  received: 'Como destino',
-  pending: 'En tránsito',
-  completed: 'Completados',
-  rejected: 'Rechazados/Cancelados',
+  sent: 'Enviadas',
+  received: 'Recibidas',
+  pending: 'Pendientes',
+  completed: 'Completadas',
+  rejected: 'Rechazadas/Canceladas',
 };
 
 // =====================================================================

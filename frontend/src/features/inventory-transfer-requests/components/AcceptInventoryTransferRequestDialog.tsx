@@ -212,11 +212,11 @@ export function AcceptInventoryTransferRequestDialog({
 
           <div>
             <h2 id="accept-req-title" className="text-lg font-semibold">
-              Confirmar recepción {request.document_number ?? '#' + request.id}
+              Aceptar solicitud {request.document_number ?? '#' + request.id}
             </h2>
             <p className="text-text-muted mt-0.5 text-xs">
-              Mapea cada item a un producto de tu catálogo y, si es serializado, elige los
-              IMEIs/seriales que vas a despachar a la empresa origen.
+              Mapea cada item a un producto de tu catalogo y, si es serializado, elige los
+              IMEIs/seriales que envias.
             </p>
           </div>
           <button
