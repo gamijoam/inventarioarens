@@ -47,11 +47,11 @@ export function useProductsForPurchase() {
   return useQuery({
     queryKey: ['purchases', 'products-lookup'] as const,
     queryFn: async () => {
-      // Traemos hasta 500 productos activos. El backend filtra por
-      // is_active=true cuando no se pasa el param, asi que preservamos
-      // el universo completo (quantity + serialized) para que el front-end
-      // haga las coincidencias por nombre/sku/barcode.
-      const data = await getMany<unknown>('/products?per_page=500');
+      // Buscamos hasta 500 productos activos, incluyendo serializados.
+      // El endpoint del backend acepta ?tracking_type=all para devolver
+      // tanto quantity como serialized. El front-end filtra resultados con
+      // coincidencia aproximada en nombre/sku/barcode.
+      const data = await getMany<unknown>('/products?per_page=500&tracking_type=all');
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return z.array(ProductLookupSchema).parse(arr);
     },
