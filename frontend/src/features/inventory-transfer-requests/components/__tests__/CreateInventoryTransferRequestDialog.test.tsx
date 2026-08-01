@@ -137,7 +137,7 @@ describe('CreateInventoryTransferRequestDialog', () => {
       wrapper: makeWrapper(),
     });
     await user.selectOptions(screen.getByTestId('dest-company'), 'demo-caracas-norte');
-    await user.selectOptions(screen.getByLabelText(/almacen origen/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*receptor/i), '10');
     const qtyInput = screen.getByTestId('item-qty-0') as HTMLInputElement;
     await user.clear(qtyInput);
     await user.type(qtyInput, '5');
@@ -160,6 +160,30 @@ describe('CreateInventoryTransferRequestDialog', () => {
     expect(payload.items?.[0]).toEqual({ product_id: 100, quantity: 5 });
   });
 
+  it('envia shipment_offer cuando la empresa propone la mercancia', async () => {
+    mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
+    const user = userEvent.setup();
+    render(
+      <CreateInventoryTransferRequestDialog
+        flowType="shipment_offer"
+        open
+        onOpenChange={() => undefined}
+      />,
+      { wrapper: makeWrapper() },
+    );
+
+    await user.selectOptions(screen.getByTestId('dest-company'), 'demo-caracas-norte');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
+    await user.selectOptions(screen.getByTestId('item-product-0'), '100');
+    const quantity = screen.getByTestId('item-qty-0') as HTMLInputElement;
+    await user.clear(quantity);
+    await user.type(quantity, '1');
+    await user.click(screen.getByTestId('submit-create'));
+
+    await waitFor(() => expect(mockCreateMutateAsync).toHaveBeenCalledTimes(1));
+    expect((lastMutation as { flow_type?: string }).flow_type).toBe('shipment_offer');
+  });
+
   it('submit con email envia destination_user_email (sin slug)', async () => {
     mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
     const user = userEvent.setup();
@@ -168,7 +192,7 @@ describe('CreateInventoryTransferRequestDialog', () => {
     });
     const emailInput = screen.getByLabelText(/email usuario destino/i);
     await user.type(emailInput, 'admin@otra-empresa.com');
-    await user.selectOptions(screen.getByLabelText(/almacen origen/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*receptor/i), '10');
     const qtyInput = screen.getByTestId('item-qty-0') as HTMLInputElement;
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');

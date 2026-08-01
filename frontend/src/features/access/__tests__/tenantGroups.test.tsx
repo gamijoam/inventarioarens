@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
+import { PermissionContext, type PermissionContextValue } from '@/permissions/PermissionContext';
+import { PERMISSIONS } from '@/permissions/constants';
 
 const mockMutateAsync = vi.fn();
 const mockUseTenantGroups = vi.fn();
@@ -23,6 +25,7 @@ const mockUseGroupSharedCatalog = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
+const mockUseCreateSyncPairingCode = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
 const mockUseGroupUsers = vi.fn((_id?: number | string, _enabled?: boolean) => ({
   data: [
     {
@@ -67,6 +70,7 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
   useCreateTenantGroup: () => mockUseCreateTenantGroup(),
   useCreateSpinoff: (_id: number | string) => mockUseCreateSpinoff(_id),
   useAttachGroupUser: (_id: number | string) => mockUseAttachGroupUser(_id),
+  useCreateSyncPairingCode: () => mockUseCreateSyncPairingCode(),
 }));
 
 vi.mock('sonner', () => ({
@@ -84,8 +88,25 @@ function renderWithProviders(ui: ReactNode) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const permissions: PermissionContextValue = {
+    permissions: new Set(Object.values(PERMISSIONS)),
+    roles: ['Owner'],
+    scopeStatus: 'none',
+    scopes: {
+      branches: [],
+      warehouses: [],
+      customer_groups: [],
+      vendor_of: [],
+      branches_count: 0,
+      warehouses_count: 0,
+      customer_groups_count: 0,
+      vendor_of_count: 0,
+    },
+  };
   return render(
-    <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
+    <PermissionContext.Provider value={permissions}>
+      <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
+    </PermissionContext.Provider>,
   );
 }
 
@@ -94,6 +115,8 @@ describe('GroupsTree', () => {
     mockUseTenantGroups.mockReset();
     mockUseGroupSpinoffs.mockReset();
     mockUseGroupSharedCatalog.mockReset();
+    mockUseCreateSyncPairingCode.mockReset();
+    mockUseCreateSyncPairingCode.mockReturnValue({ mutateAsync: mockMutateAsync, isPending: false });
     mockUseGroupSharedCatalog.mockReturnValue({
       data: { group: { id: 1, name: 'G', slug: 'g' }, spinoffs: [], products: [] },
       isLoading: false,

@@ -75,6 +75,7 @@ export const PERMISSIONS = {
   // Inventory Transfer Requests (inter-empresa)
   INVENTORY_TRANSFER_REQUESTS_VIEW: 'inventory_transfer_requests.view',
   INVENTORY_TRANSFER_REQUESTS_CREATE: 'inventory_transfer_requests.create',
+  INVENTORY_TRANSFER_REQUESTS_OFFER: 'inventory_transfer_requests.offer',
   INVENTORY_TRANSFER_REQUESTS_RESPOND: 'inventory_transfer_requests.respond',
   INVENTORY_TRANSFER_REQUESTS_PREPARE: 'inventory_transfer_requests.prepare',
   INVENTORY_TRANSFER_REQUESTS_DISPATCH: 'inventory_transfer_requests.dispatch',

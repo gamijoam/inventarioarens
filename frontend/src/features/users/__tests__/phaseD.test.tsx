@@ -138,8 +138,8 @@ describe('UserOverridesTab', () => {
       expect(screen.getByText('sales.cancel')).toBeTruthy();
       expect(screen.getByText('inventory.adjust')).toBeTruthy();
     });
-    expect(screen.getAllByText('allow').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('deny').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Permitir').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Denegar').length).toBeGreaterThan(0);
   });
 
   it('muestra estado vacio si no hay overrides', async () => {

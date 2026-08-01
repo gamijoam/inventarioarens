@@ -437,6 +437,72 @@ class InventoryTransferRequestApiTest extends TestCase
         ]);
     }
 
+    public function test_sender_can_offer_a_shipment_and_receiver_controls_its_acceptance_and_receipt(): void
+    {
+        $senderTenant = Tenant::create(['name' => 'Empresa Remitente', 'slug' => 'empresa-remitente']);
+        $receiverTenant = Tenant::create(['name' => 'Empresa Receptora', 'slug' => 'empresa-receptora']);
+        [$senderWarehouse, $senderProduct] = $this->warehouseAndProduct($senderTenant, 'TREQ-OFFER-S', Product::TRACKING_QUANTITY);
+        [$receiverWarehouse, $receiverProduct] = $this->warehouseAndProduct($receiverTenant, 'TREQ-OFFER-R', Product::TRACKING_QUANTITY);
+        $senderUser = $this->userInTenant($senderTenant);
+        $receiverUser = $this->userInTenant($receiverTenant);
+
+        $this->grantRole($senderTenant, $senderUser, 'Remitente Oferta', [
+            'inventory_transfer_requests.offer',
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.prepare',
+            'inventory_transfer_requests.dispatch',
+            'inventory_transfer_requests.deliver',
+        ]);
+        $this->grantRole($receiverTenant, $receiverUser, 'Receptor Oferta', [
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.respond',
+            'inventory_transfer_requests.receive',
+        ]);
+        $this->stock($senderTenant, $senderWarehouse, $senderProduct, $senderUser, 10);
+
+        $created = $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson('/api/inventory-transfer-requests', [
+            'flow_type' => InventoryTransferRequest::FLOW_SHIPMENT_OFFER,
+            'destination_tenant_slug' => $receiverTenant->slug,
+            'from_warehouse_id' => $senderWarehouse->id,
+            'reason' => 'Reposicion propuesta por la empresa remitente',
+            'items' => [['product_id' => $senderProduct->id, 'quantity' => 4]],
+        ])->assertCreated()
+            ->assertJsonPath('data.flow_type', InventoryTransferRequest::FLOW_SHIPMENT_OFFER)
+            ->assertJsonPath('data.sender_tenant_id', $senderTenant->id)
+            ->assertJsonPath('data.receiver_tenant_id', $receiverTenant->id)
+            ->assertJsonPath('data.sender_warehouse_id', $senderWarehouse->id);
+
+        $requestId = $created->json('data.id');
+        $itemId = $created->json('data.items.0.id');
+
+        $this->actingAs($receiverUser)->withHeader('X-Tenant', $receiverTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/accept", [
+            'destination_warehouse_id' => $receiverWarehouse->id,
+            'items' => [['request_item_id' => $itemId, 'destination_product_id' => $receiverProduct->id]],
+        ])->assertOk()
+            ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_ACCEPTED)
+            ->assertJsonPath('data.logistics_mode', true)
+            ->assertJsonPath('data.receiver_warehouse_id', $receiverWarehouse->id);
+
+        $this->useTenant($senderTenant);
+        $this->assertSame(10.0, (float) $this->balance($senderWarehouse, $senderProduct)->quantity_available);
+
+        $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+            'carrier_name' => 'Transporte interno',
+            'items' => [['request_item_id' => $itemId, 'prepared_quantity' => 4]],
+        ])->assertOk();
+        $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/dispatch")->assertOk();
+        $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/deliver")->assertOk();
+
+        $this->actingAs($receiverUser)->withHeader('X-Tenant', $receiverTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/receive", [
+            'items' => [['request_item_id' => $itemId, 'received_quantity' => 4]],
+        ])->assertOk()->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
+
+        $this->useTenant($senderTenant);
+        $this->assertSame(6.0, (float) $this->balance($senderWarehouse, $senderProduct)->quantity_available);
+        $this->useTenant($receiverTenant);
+        $this->assertSame(4.0, (float) $this->balance($receiverWarehouse, $receiverProduct)->quantity_available);
+    }
+
     public function test_request_visibility_and_response_are_limited_to_origin_and_destination(): void
     {
         $originTenant = Tenant::create(['name' => 'Empresa Origen', 'slug' => 'empresa-origen']);

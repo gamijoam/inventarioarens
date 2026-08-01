@@ -11,6 +11,7 @@ use App\Modules\InventoryTransferRequests\Resources\InventoryTransferRequestReso
 use App\Modules\InventoryTransferRequests\Services\InventoryTransferRequestService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Gate;
 
 class InventoryTransferRequestController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', InventoryTransferRequest::class);
 
@@ -29,8 +30,12 @@ class InventoryTransferRequestController extends Controller
                 ->with([
                     'originTenant',
                     'destinationTenant',
+                    'senderTenant',
+                    'receiverTenant',
                     'fromWarehouse',
                     'destinationWarehouse',
+                    'senderWarehouse',
+                    'receiverWarehouse',
                     'items',
                     'items.originProduct',
                     'items.destinationProduct',
@@ -38,9 +43,15 @@ class InventoryTransferRequestController extends Controller
                 ])
                 ->where(function ($query) use ($tenantId): void {
                     $query
-                        ->where('origin_tenant_id', $tenantId)
+                        ->where('sender_tenant_id', $tenantId)
+                        ->orWhere('receiver_tenant_id', $tenantId)
+                        ->orWhere('origin_tenant_id', $tenantId)
                         ->orWhere('destination_tenant_id', $tenantId);
                 })
+                ->when($request->string('status')->value() && $request->string('status')->value() !== 'all', fn ($query) => $query->where('status', $request->string('status')->value()))
+                ->when($request->string('flow_type')->value(), fn ($query) => $query->where('flow_type', $request->string('flow_type')->value()))
+                ->when($request->string('direction')->value() === 'outbound', fn ($query) => $query->where('sender_tenant_id', $tenantId))
+                ->when($request->string('direction')->value() === 'inbound', fn ($query) => $query->where('receiver_tenant_id', $tenantId))
                 ->latest('requested_at')
                 ->paginate(25)
         );
@@ -50,7 +61,10 @@ class InventoryTransferRequestController extends Controller
         StoreInventoryTransferRequestRequest $request,
         InventoryTransferRequestService $service,
     ): JsonResponse {
-        Gate::authorize('create', InventoryTransferRequest::class);
+        Gate::authorize(
+            ($request->input('flow_type') ?? InventoryTransferRequest::FLOW_STOCK_REQUEST) === InventoryTransferRequest::FLOW_SHIPMENT_OFFER ? 'offer' : 'create',
+            InventoryTransferRequest::class,
+        );
 
         return InventoryTransferRequestResource::make(
             $service->create($request->user(), $request->validated())
@@ -65,8 +79,12 @@ class InventoryTransferRequestController extends Controller
             $inventoryTransferRequest->load([
                 'originTenant',
                 'destinationTenant',
+                'senderTenant',
+                'receiverTenant',
                 'fromWarehouse',
                 'destinationWarehouse',
+                'senderWarehouse',
+                'receiverWarehouse',
                 'items.originProduct',
                 'items.destinationProduct',
                 'guide.items',

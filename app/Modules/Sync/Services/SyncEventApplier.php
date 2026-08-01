@@ -914,17 +914,19 @@ class SyncEventApplier
                 ->value('id');
 
             $items = $payload['items'] ?? [];
-            $originTenantId = (int) $payload['origin_tenant_id'];
-            $destinationTenantId = (int) $payload['destination_tenant_id'];
-            $fromWarehouseId = (int) $payload['from_warehouse_id'];
-            $destinationWarehouseId = (int) ($payload['destination_warehouse_id'] ?? 0);
+            $flowType = $payload['flow_type'] ?? 'stock_request';
+            $senderTenantId = (int) ($payload['sender_tenant_id'] ?? $payload['destination_tenant_id']);
+            $receiverTenantId = (int) ($payload['receiver_tenant_id'] ?? $payload['origin_tenant_id']);
+            $senderWarehouseId = (int) ($payload['sender_warehouse_id'] ?? $payload['destination_warehouse_id'] ?? 0);
+            $receiverWarehouseId = (int) ($payload['receiver_warehouse_id'] ?? $payload['from_warehouse_id']);
             foreach ($items as $itemPayload) {
                 $this->applyTransferRequestItemAccepted(
                     $requestId,
-                    $originTenantId,
-                    $destinationTenantId,
-                    $fromWarehouseId,
-                    $destinationWarehouseId,
+                    $senderTenantId,
+                    $receiverTenantId,
+                    $senderWarehouseId,
+                    $receiverWarehouseId,
+                    $flowType,
                     $itemPayload,
                 );
             }
@@ -976,7 +978,14 @@ class SyncEventApplier
             'document_number' => $payload['document_number'] ?? null,
             'origin_tenant_id' => $originTenantId,
             'destination_tenant_id' => (int) ($payload['destination_tenant_id'] ?? 0),
+            'flow_type' => $payload['flow_type'] ?? 'stock_request',
+            'initiated_by_tenant_id' => $payload['initiated_by_tenant_id'] ?? $originTenantId,
+            'sender_tenant_id' => $payload['sender_tenant_id'] ?? ($payload['destination_tenant_id'] ?? null),
+            'receiver_tenant_id' => $payload['receiver_tenant_id'] ?? $originTenantId,
             'from_warehouse_id' => (int) ($payload['from_warehouse_id'] ?? 0),
+            'sender_warehouse_id' => $payload['sender_warehouse_id'] ?? ($payload['destination_warehouse_id'] ?? null),
+            'receiver_warehouse_id' => $payload['receiver_warehouse_id'] ?? ($payload['from_warehouse_id'] ?? null),
+            'logistics_mode' => (bool) ($payload['logistics_mode'] ?? false),
             'reason' => $payload['reason'] ?? null,
             'reference' => $payload['reference'] ?? null,
             'notes' => $payload['notes'] ?? null,
@@ -1035,10 +1044,11 @@ class SyncEventApplier
      */
     private function applyTransferRequestItemAccepted(
         int $requestId,
-        int $originTenantId,
-        int $destinationTenantId,
-        int $fromWarehouseId,
-        int $destinationWarehouseId,
+        int $senderTenantId,
+        int $receiverTenantId,
+        int $senderWarehouseId,
+        int $receiverWarehouseId,
+        string $flowType,
         array $itemPayload,
     ): void {
         $tenantManager = app(TenantManager::class);
@@ -1046,11 +1056,13 @@ class SyncEventApplier
 
         $originProductId = (int) ($itemPayload['origin_product_id'] ?? 0);
         $destinationProductId = (int) ($itemPayload['destination_product_id'] ?? 0);
+        $senderProductId = $flowType === 'shipment_offer' ? $originProductId : $destinationProductId;
+        $receiverProductId = $flowType === 'shipment_offer' ? $destinationProductId : $originProductId;
         $quantity = (float) ($itemPayload['quantity'] ?? 0);
 
-        if ($originTenantId <= 0 || $destinationTenantId <= 0
-            || $originProductId <= 0 || $destinationProductId <= 0
-            || $fromWarehouseId <= 0 || $destinationWarehouseId <= 0
+        if ($senderTenantId <= 0 || $receiverTenantId <= 0
+            || $senderProductId <= 0 || $receiverProductId <= 0
+            || $senderWarehouseId <= 0 || $receiverWarehouseId <= 0
             || $quantity <= 0.0) {
             return;
         }
@@ -1060,23 +1072,23 @@ class SyncEventApplier
             ->value('document_number');
 
         try {
-            $tenantManager->set(Tenant::query()->findOrFail($destinationTenantId));
+            $tenantManager->set(Tenant::query()->findOrFail($senderTenantId));
             $destinationExitDocNumber = $documentNumber ? $documentNumber.'-OUT' : 'TREQ-OUT-'.$requestId;
             $outMovementId = $this->createCloudProductExit(
-                tenantId: $destinationTenantId,
-                productId: $destinationProductId,
-                warehouseId: $destinationWarehouseId,
+                tenantId: $senderTenantId,
+                productId: $senderProductId,
+                warehouseId: $senderWarehouseId,
                 quantity: $quantity,
                 documentNumber: $destinationExitDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
             );
 
-            $tenantManager->set(Tenant::query()->findOrFail($originTenantId));
+            $tenantManager->set(Tenant::query()->findOrFail($receiverTenantId));
             $originEntryDocNumber = $documentNumber ? $documentNumber.'-IN' : 'TREQ-IN-'.$requestId;
             $inMovementId = $this->createCloudProductEntry(
-                tenantId: $originTenantId,
-                productId: $originProductId,
-                warehouseId: $fromWarehouseId,
+                tenantId: $receiverTenantId,
+                productId: $receiverProductId,
+                warehouseId: $receiverWarehouseId,
                 quantity: $quantity,
                 documentNumber: $originEntryDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],

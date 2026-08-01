@@ -127,33 +127,33 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
     );
   }
 
-  // Acciones disponibles segun el rol:
-  //  - canRespond: status=requested + soy el destino.
-  //  - canCancel:  status=requested + soy el origen.
-  // request es no-null aqui porque `isError || !request` retorno arriba.
-  const isDestination = currentTenantId === request!.destination_tenant_id;
-  const isOrigin = currentTenantId === request!.origin_tenant_id;
+  // `destination` conserva la responsabilidad de aprobar o rechazar.
+  // La logistica se resuelve por quien envia y quien recibe fisicamente.
+  const isDestination = currentTenantId === request.destination_tenant_id;
+  const isInitiator = currentTenantId === request.initiated_by_tenant_id;
+  const isSender = currentTenantId === request.sender_tenant_id;
+  const isReceiver = currentTenantId === request.receiver_tenant_id;
   const canRespond = request.status === 'requested' && isDestination;
-  const canCancel = request.status === 'requested' && isOrigin;
+  const canCancel = request.status === 'requested' && isInitiator;
   const canPrepare =
     request.logistics_mode &&
     request.status === 'accepted' &&
-    isDestination &&
+    isSender &&
     canPreparePermission;
   const canDispatch =
     request.logistics_mode &&
     request.guide?.status === 'prepared' &&
-    isDestination &&
+    isSender &&
     canDispatchPermission;
   const canDeliver =
     request.logistics_mode &&
     request.guide?.status === 'dispatched' &&
-    isDestination &&
+    isSender &&
     canDeliverPermission;
   const canReceive =
     request.logistics_mode &&
     request.guide?.status === 'delivered' &&
-    isOrigin &&
+    isReceiver &&
     canReceivePermission;
   const accepting = accept.isPending;
   const cancelling = cancel.isPending;
@@ -171,7 +171,7 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
   return (
     <PageLayout
       title={`Solicitud ${request.document_number ?? '#' + request.id}`}
-      description={`${request.origin_tenant?.slug ?? 'T#' + request.origin_tenant_id} → ${request.destination_tenant?.slug ?? 'T#' + request.destination_tenant_id}`}
+      description={`${request.sender_tenant?.slug ?? 'T#' + request.sender_tenant_id} envia a ${request.receiver_tenant?.slug ?? 'T#' + request.receiver_tenant_id}`}
       breadcrumb={
         <Link
           to="/inventory-transfer-requests"
@@ -329,26 +329,32 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
 }
 
 function GeneralTab({ request }: { request: TransferRequest }) {
+  const isOffer = request.flow_type === 'shipment_offer';
+  const sender = request.sender_tenant ?? request.destination_tenant;
+  const receiver = request.receiver_tenant ?? request.origin_tenant;
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Building2 className="size-4" /> Origen
+            <Building2 className="size-4" /> Empresa que envia
           </CardTitle>
-          <CardDescription>Empresa que envia la solicitud.</CardDescription>
+          <CardDescription>
+            {isOffer ? 'Propone el envio y despacha la guia.' : 'Suministra el stock aprobado.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div>
             <div className="text-text-muted text-xs tracking-wide uppercase">Nombre</div>
             <div className="font-medium">
-              {request.origin_tenant?.name ?? `Tenant #${request.origin_tenant_id}`}
+              {sender?.name ?? `Tenant #${request.sender_tenant_id}`}
             </div>
           </div>
           <div>
             <div className="text-text-muted text-xs tracking-wide uppercase">Slug</div>
             <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
-              {request.origin_tenant?.slug ?? '-'}
+              {sender?.slug ?? '-'}
             </code>
           </div>
         </CardContent>
@@ -357,21 +363,23 @@ function GeneralTab({ request }: { request: TransferRequest }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Building2 className="size-4" /> Destino
+            <Building2 className="size-4" /> Empresa que recibe
           </CardTitle>
-          <CardDescription>Empresa que debe responder.</CardDescription>
+          <CardDescription>
+            {isOffer ? 'Inspecciona, aprueba y recibe la mercancia.' : 'Solicita y recibe el stock.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div>
             <div className="text-text-muted text-xs tracking-wide uppercase">Nombre</div>
             <div className="font-medium">
-              {request.destination_tenant?.name ?? `Tenant #${request.destination_tenant_id}`}
+              {receiver?.name ?? `Tenant #${request.receiver_tenant_id}`}
             </div>
           </div>
           <div>
             <div className="text-text-muted text-xs tracking-wide uppercase">Slug</div>
             <code className="bg-bg rounded px-1.5 py-0.5 text-xs">
-              {request.destination_tenant?.slug ?? '-'}
+              {receiver?.slug ?? '-'}
             </code>
           </div>
         </CardContent>

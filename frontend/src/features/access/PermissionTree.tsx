@@ -54,8 +54,11 @@ export function PermissionTree({
             a.label.toLowerCase().includes(term) ||
             a.verb.toLowerCase().includes(term),
         );
-        if (matchingActions.length === 0) return null;
-        return { ...m, actions: matchingActions } satisfies PermissionModule;
+        if (matchingActions.length === 0 && !m.label.toLowerCase().includes(term)) return null;
+        return {
+          ...m,
+          actions: matchingActions.length > 0 ? matchingActions : m.actions,
+        } satisfies PermissionModule;
       })
       .filter((m): m is PermissionModule => m !== null);
   }, [modules, search]);
@@ -94,7 +97,7 @@ export function PermissionTree({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar permiso o modulo..."
+            placeholder="Buscar permiso o módulo..."
             className="pl-8"
             data-testid="permission-tree-search"
           />

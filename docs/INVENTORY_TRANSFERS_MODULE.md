@@ -82,6 +82,33 @@ Ademas, el modulo soporta:
 
 Ver `docs/AUDIT_2026-07-11/06_TRASLADOS.md` seccion 5.
 
+### Inter-empresa: dos recorridos fisicos
+
+Una solicitud inter-empresa conserva una sola bandeja y una sola guia, pero
+declara explicitamente quien envia y quien recibe. Esto evita interpretar
+`origin` y `destination` como si siempre fueran el sentido fisico del stock.
+
+| Recorrido | Lo inicia | Quien aprueba | Envia / despacha | Recibe | Permiso inicial |
+|---|---|---|---|---|---|
+| `stock_request` | Empresa que necesita stock | Empresa proveedora | Empresa proveedora | Empresa solicitante | `inventory_transfer_requests.create` |
+| `shipment_offer` | Empresa que quiere reponer/enviar | Empresa receptora | Empresa que propone | Empresa receptora | `inventory_transfer_requests.offer` |
+
+Reglas operativas:
+
+- Una **solicitud de stock** puede completarse al aprobar o usar guia logistica
+  si las empresas deciden transportarla.
+- Una **propuesta de envio** siempre crea guia: la receptora inspecciona y
+  aprueba primero; el remitente prepara, despacha y marca entregada; la
+  receptora confirma la recepcion. El stock y Kardex cambian solo al recibir.
+- `sender_tenant_id`, `receiver_tenant_id`, `sender_warehouse_id` y
+  `receiver_warehouse_id` son la fuente de verdad para movimientos fisicos.
+  Los campos `origin_*` y `destination_*` se conservan por compatibilidad y
+  para identificar iniciador y aprobador.
+- Cancelar corresponde solo a quien inicio la operacion mientras siga
+  `requested`; aprobar/rechazar corresponde al tenant `destination`.
+- Preparar, despachar y entregar requieren permisos del lado remitente;
+  recibir requiere el permiso del lado receptor.
+
 ## Frontend (FASE T3+T4)
 
 ### Estructura

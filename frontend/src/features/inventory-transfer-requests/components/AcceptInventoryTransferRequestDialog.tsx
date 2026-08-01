@@ -65,7 +65,7 @@ export function AcceptInventoryTransferRequestDialog({
     if (!open) return;
     setDestinationWarehouseId('');
     setResponseNotes('');
-    setLogisticsMode(false);
+    setLogisticsMode(request.flow_type === 'shipment_offer');
     const initial: Record<number, ItemMapping> = {};
     for (const item of request.items ?? []) {
       initial[item.id] = { destinationProductId: '', serialUnits: [] };
@@ -199,6 +199,7 @@ export function AcceptInventoryTransferRequestDialog({
               type="checkbox"
               checked={logisticsMode}
               onChange={(e) => setLogisticsMode(e.target.checked)}
+              disabled={request.flow_type === 'shipment_offer'}
               className="mt-1"
             />
             <span>
@@ -231,7 +232,9 @@ export function AcceptInventoryTransferRequestDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
-            <Label htmlFor="dest-wh">Almacen destino (en tu empresa)</Label>
+            <Label htmlFor="dest-wh">
+              {request.flow_type === 'shipment_offer' ? 'Tu almacén receptor' : 'Tu almacén de salida'}
+            </Label>
             {loadingWh ? (
               <Skeleton className="h-9 w-full" />
             ) : (

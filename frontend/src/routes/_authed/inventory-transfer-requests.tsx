@@ -32,6 +32,7 @@ export const Route = createFileRoute('/_authed/inventory-transfer-requests')({
 
 function InventoryTransferRequestsPage() {
   const [creating, setCreating] = useState(false);
+  const [offering, setOffering] = useState(false);
   const [accepting, setAccepting] = useState<TransferRequest | null>(null);
   const [rejecting, setRejecting] = useState<TransferRequest | null>(null);
   const location = useLocation();
@@ -63,11 +64,12 @@ function InventoryTransferRequestsPage() {
 
   return (
     <PageLayout
-      title="Solicitudes inter-empresa"
-      description="Pedidos de stock entre empresas hermanas del grupo. La empresa destino debe aceptar para que se materialice el movimiento."
+      title="Traslados interempresa"
+      description="Solicita stock o propone un envío. La empresa receptora siempre inspecciona y aprueba antes de recibir mercancía."
     >
       <InventoryTransferRequestsManager
         onCreate={() => setCreating(true)}
+        onOffer={() => setOffering(true)}
         onAccept={(r) => setAccepting(r)}
         onReject={(r) => setRejecting(r)}
       />
@@ -76,6 +78,14 @@ function InventoryTransferRequestsPage() {
         <CreateInventoryTransferRequestDialog
           open={creating}
           onOpenChange={(o) => { if (!o) setCreating(false); }}
+        />
+      )}
+
+      {offering && (
+        <CreateInventoryTransferRequestDialog
+          open={offering}
+          flowType="shipment_offer"
+          onOpenChange={(o) => { if (!o) setOffering(false); }}
         />
       )}
 

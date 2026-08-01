@@ -68,6 +68,10 @@ function makeRequest(overrides: Partial<{
   id: number;
   origin_tenant_id: number;
   destination_tenant_id: number;
+  initiated_by_tenant_id: number;
+  sender_tenant_id: number;
+  receiver_tenant_id: number;
+  flow_type: 'stock_request' | 'shipment_offer';
   status: 'requested' | 'completed' | 'rejected' | 'cancelled';
   document_number: string;
   reason: string;
@@ -77,6 +81,10 @@ function makeRequest(overrides: Partial<{
     id: 1,
     origin_tenant_id: 1,
     destination_tenant_id: 2,
+    initiated_by_tenant_id: 1,
+    sender_tenant_id: 2,
+    receiver_tenant_id: 1,
+    flow_type: 'stock_request' as const,
     origin_tenant: { id: 1, name: 'Origin', slug: 'origin' },
     destination_tenant: { id: 2, name: 'Dest', slug: 'dest' },
     from_warehouse_id: 10,
@@ -114,8 +122,17 @@ describe('InventoryTransferRequestsManager', () => {
 
   it('renderiza filas para Recibidas y muestra botones Aceptar/Rechazar', () => {
     mockUseTransferRequests.mockReturnValue({
-      // Solicitud originada en OTRA empresa y destinada a mi tenant (id=1).
-      data: [makeRequest({ id: 5, origin_tenant_id: 2, destination_tenant_id: 1, status: 'requested' })],
+      // Oferta originada en OTRA empresa: mi tenant recibe y aprueba.
+      data: [makeRequest({
+        id: 5,
+        origin_tenant_id: 2,
+        destination_tenant_id: 1,
+        initiated_by_tenant_id: 2,
+        sender_tenant_id: 2,
+        receiver_tenant_id: 1,
+        flow_type: 'shipment_offer',
+        status: 'requested',
+      })],
       isLoading: false,
       meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
     });
@@ -134,7 +151,16 @@ describe('InventoryTransferRequestsManager', () => {
   it('muestra boton Cancelar para solicitudes enviadas en estado requested', async () => {
     window.confirm = vi.fn(() => true);
     mockUseTransferRequests.mockReturnValue({
-      data: [makeRequest({ id: 7, origin_tenant_id: 1, status: 'requested' })],
+      data: [makeRequest({
+        id: 7,
+        origin_tenant_id: 1,
+        destination_tenant_id: 2,
+        initiated_by_tenant_id: 1,
+        sender_tenant_id: 1,
+        receiver_tenant_id: 2,
+        flow_type: 'shipment_offer',
+        status: 'requested',
+      })],
       isLoading: false,
       meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
     });

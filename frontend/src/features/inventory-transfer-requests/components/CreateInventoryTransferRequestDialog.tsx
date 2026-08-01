@@ -34,6 +34,7 @@ interface CreateInventoryTransferRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (id: number) => void;
+  flowType?: 'stock_request' | 'shipment_offer';
 }
 
 interface ItemRow {
@@ -47,6 +48,7 @@ export function CreateInventoryTransferRequestDialog({
   open,
   onOpenChange,
   onCreated,
+  flowType = 'stock_request',
 }: CreateInventoryTransferRequestDialogProps) {
   const { data: warehouses = [], isLoading: loadingWh } = useWarehouses();
   const { data: products = [], isLoading: loadingProd } = useProductsForTransfer();
@@ -127,6 +129,7 @@ export function CreateInventoryTransferRequestDialog({
     setFormErrors({});
 
     const payload = {
+      flow_type: flowType,
       destination_tenant_slug: destinationSlug.trim() || undefined,
       destination_user_email: destinationEmail.trim() || undefined,
       from_warehouse_id: Number(fromWarehouseId) || 0,
@@ -155,7 +158,11 @@ export function CreateInventoryTransferRequestDialog({
     setSubmitting(true);
     try {
       const created = await create.mutateAsync(parsed.data as StoreTransferRequestValues);
-      toast.success('Solicitud enviada a la empresa destino.');
+      toast.success(
+        flowType === 'shipment_offer'
+          ? 'Propuesta de envío enviada para aprobación.'
+          : 'Solicitud de stock enviada para aprobación.',
+      );
       onCreated?.(created.id);
       reset();
       onOpenChange(false);
@@ -179,16 +186,17 @@ export function CreateInventoryTransferRequestDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="create-req-title" className="text-lg font-semibold">
-          Nueva solicitud a otra empresa
+          {flowType === 'shipment_offer' ? 'Proponer envío a otra empresa' : 'Solicitar stock a otra empresa'}
         </h2>
         <p className="mt-1 text-sm text-text-muted">
-          Pedi stock de tu catalogo a otra empresa del grupo. La empresa destino debera
-          aceptar la solicitud y elegir los IMEIs/seriales especificos que envia.
+          {flowType === 'shipment_offer'
+            ? 'Selecciona mercancía de tu almacén. La empresa receptora inspeccionará y aprobará el ingreso antes del despacho.'
+            : 'Solicita mercancía a otra empresa del grupo. La empresa proveedora aprobará y seleccionará los IMEIs o seriales que envía.'}
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3" data-testid="create-form">
           <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <Label htmlFor="dest-company">Empresa destino (del grupo)</Label>
+              <Label htmlFor="dest-company">{flowType === 'shipment_offer' ? 'Empresa receptora' : 'Empresa proveedora'} (del grupo)</Label>
               {loadingSiblings ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -216,7 +224,7 @@ export function CreateInventoryTransferRequestDialog({
               )}
               {selectedSibling && (
                 <p className="mt-1 text-xs text-text-muted" data-testid="dest-preview">
-                  Enviar a: <strong>{selectedSibling.name}</strong> (slug: {selectedSibling.slug})
+                  {flowType === 'shipment_offer' ? 'Proponer envío a' : 'Solicitar a'}: <strong>{selectedSibling.name}</strong> (slug: {selectedSibling.slug})
                 </p>
               )}
               {formErrors['destination_tenant_slug'] && (
@@ -238,7 +246,7 @@ export function CreateInventoryTransferRequestDialog({
 
           <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <Label htmlFor="from-wh">Almacen origen</Label>
+              <Label htmlFor="from-wh">{flowType === 'shipment_offer' ? 'Tu almacén de salida' : 'Tu almacén receptor'}</Label>
               {loadingWh ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -272,7 +280,7 @@ export function CreateInventoryTransferRequestDialog({
           </fieldset>
 
           <div>
-            <Label>Items solicitados</Label>
+            <Label>{flowType === 'shipment_offer' ? 'Items que propones enviar' : 'Items solicitados'}</Label>
             <div className="mt-1 space-y-2">
               {items.map((it, idx) => (
                 <div
@@ -378,7 +386,7 @@ export function CreateInventoryTransferRequestDialog({
               Cancelar
             </Button>
             <Button type="submit" loading={submitting} data-testid="submit-create">
-              Enviar solicitud
+              {flowType === 'shipment_offer' ? 'Enviar propuesta' : 'Enviar solicitud'}
             </Button>
           </div>
         </form>

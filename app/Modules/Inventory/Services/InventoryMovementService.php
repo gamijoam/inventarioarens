@@ -149,7 +149,16 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
     ): StockMovement {
-        return $this->decreaseAvailable('adjustment_out', $warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId);
+        return $this->decreaseAvailable(
+            type: 'adjustment_out',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+        );
     }
 
     /**
@@ -168,14 +177,14 @@ class InventoryMovementService
         ?int $referenceId = null,
     ): StockMovement {
         return $this->decreaseAvailable(
-            'transfer_request_out',
-            $warehouse,
-            $product,
-            $quantity,
-            $createdBy,
-            $reason,
-            $referenceType,
-            $referenceId,
+            type: 'transfer_request_out',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
         );
     }
 

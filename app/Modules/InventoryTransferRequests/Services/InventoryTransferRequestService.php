@@ -34,8 +34,9 @@ class InventoryTransferRequestService
     {
         $originTenant = app(TenantManager::class)->require();
         $destinationTenant = $this->resolveDestinationTenant($data, $originTenant);
+        $flowType = $data['flow_type'] ?? InventoryTransferRequest::FLOW_STOCK_REQUEST;
 
-        $request = DB::transaction(function () use ($user, $data, $originTenant, $destinationTenant): InventoryTransferRequest {
+        $request = DB::transaction(function () use ($user, $data, $originTenant, $destinationTenant, $flowType): InventoryTransferRequest {
             $fromWarehouse = Warehouse::query()->findOrFail($data['from_warehouse_id']);
             $this->validateOriginItems($fromWarehouse, $data['items']);
 
@@ -46,6 +47,12 @@ class InventoryTransferRequestService
                 'origin_tenant_id' => $originTenant->id,
                 'destination_tenant_id' => $destinationTenant->id,
                 'from_warehouse_id' => $fromWarehouse->id,
+                'flow_type' => $flowType,
+                'initiated_by_tenant_id' => $originTenant->id,
+                'sender_tenant_id' => $flowType === InventoryTransferRequest::FLOW_SHIPMENT_OFFER ? $originTenant->id : $destinationTenant->id,
+                'receiver_tenant_id' => $flowType === InventoryTransferRequest::FLOW_SHIPMENT_OFFER ? $destinationTenant->id : $originTenant->id,
+                'sender_warehouse_id' => $flowType === InventoryTransferRequest::FLOW_SHIPMENT_OFFER ? $fromWarehouse->id : null,
+                'receiver_warehouse_id' => $flowType === InventoryTransferRequest::FLOW_SHIPMENT_OFFER ? null : $fromWarehouse->id,
                 'status' => InventoryTransferRequest::STATUS_REQUESTED,
                 'reason' => $data['reason'] ?? null,
                 'reference' => $data['reference'] ?? null,
@@ -73,7 +80,7 @@ class InventoryTransferRequestService
                 ]);
             }
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
+            return $this->loadTransferRelations($request);
         });
 
         $this->syncCatalog->inventoryTransferRequestCreated($request);
@@ -103,10 +110,19 @@ class InventoryTransferRequestService
                 ]);
             }
 
-            $logisticsMode = (bool) ($data['logistics_mode'] ?? false);
+            // Una propuesta de envio siempre pasa por guia: la empresa receptora
+            // debe inspeccionar y confirmar antes de que exista movimiento fisico.
+            $logisticsMode = $request->isShipmentOffer() || (bool) ($data['logistics_mode'] ?? false);
 
-            $destinationWarehouse = Warehouse::query()->findOrFail($data['destination_warehouse_id']);
+            $approvalWarehouse = Warehouse::query()->findOrFail($data['destination_warehouse_id']);
             $itemsById = collect($data['items'])->keyBy('request_item_id');
+
+            // El almacen elegido al aprobar completa el lado fisico que faltaba.
+            // Debe estar disponible antes de procesar una aceptacion inmediata.
+            $physicalWarehouses = $request->isShipmentOffer()
+                ? ['receiver_warehouse_id' => $approvalWarehouse->id]
+                : ['sender_warehouse_id' => $approvalWarehouse->id];
+            $request->fill($physicalWarehouses);
 
             if ($itemsById->count() !== $request->items->count()) {
                 throw ValidationException::withMessages([
@@ -130,18 +146,13 @@ class InventoryTransferRequestService
                     continue;
                 }
 
-                $this->processAcceptedItem(
-                    $request,
-                    $item,
-                    $destinationWarehouse,
-                    (int) $acceptedItem['destination_product_id'],
-                    $user,
-                    $acceptedItem['serial_units'] ?? null,
-                );
+                $item->update(['destination_product_id' => $acceptedItem['destination_product_id']]);
+                $this->processAcceptedItem($request, $item, $user, $acceptedItem['serial_units'] ?? null);
             }
 
-            $request->update([
-                'destination_warehouse_id' => $destinationWarehouse->id,
+            $request->update(array_merge($physicalWarehouses, [
+                // Campo legacy: sigue guardando el almacen elegido al aprobar.
+                'destination_warehouse_id' => $approvalWarehouse->id,
                 'status' => $logisticsMode
                     ? InventoryTransferRequest::STATUS_ACCEPTED
                     : InventoryTransferRequest::STATUS_COMPLETED,
@@ -150,7 +161,7 @@ class InventoryTransferRequestService
                 'responded_by' => $user->id,
                 'responded_at' => now(),
                 'completed_at' => $logisticsMode ? null : now(),
-            ]);
+            ]));
 
             if ($logisticsMode) {
                 $guide = InventoryTransferRequestGuide::create([
@@ -166,14 +177,7 @@ class InventoryTransferRequestService
                 }
             }
 
-            return $request->refresh()->load([
-                'originTenant',
-                'destinationTenant',
-                'fromWarehouse',
-                'destinationWarehouse',
-                'items.originProduct',
-                'items.destinationProduct',
-            ]);
+            return $this->loadTransferRelations($request);
         });
 
         if (! $accepted->logistics_mode) {
@@ -183,9 +187,7 @@ class InventoryTransferRequestService
         // Difundir el evento al tenant ORIGEN para notificar al admin que
         // su solicitud fue aceptada. `fromModel()` para no serializar
         // el modelo entero (Reverb se cae si lo intenta).
-        if (! $accepted->logistics_mode) {
-            event(TransferRequestAccepted::fromModel($accepted));
-        }
+        event(TransferRequestAccepted::fromModel($accepted));
 
         return $accepted;
     }
@@ -208,7 +210,7 @@ class InventoryTransferRequestService
                 'responded_at' => now(),
             ]);
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
+            return $this->loadTransferRelations($request);
         });
 
         $this->syncCatalog->inventoryTransferRequestRejected($rejected);
@@ -262,7 +264,7 @@ class InventoryTransferRequestService
                 'carrier_user_id' => $this->resolveCarrierUser($request, $data['carrier_user_id'] ?? null),
             ]);
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'destinationWarehouse', 'items.originProduct', 'items.destinationProduct', 'guide.items']);
+            return $this->loadTransferRelations($request);
         });
     }
 
@@ -299,13 +301,13 @@ class InventoryTransferRequestService
                     throw ValidationException::withMessages(['items' => 'Toda diferencia recibida requiere un motivo.']);
                 }
 
-                $tenantManager = app(TenantManager::class);
-                $currentTenant = $tenantManager->require();
-                $destinationTenant = Tenant::query()->findOrFail($request->destination_tenant_id);
-                $tenantManager->set($destinationTenant);
-                $destinationWarehouse = Warehouse::query()->findOrFail($request->destination_warehouse_id);
-                $tenantManager->set($currentTenant);
-                $this->processAcceptedItem($request, $requestItem, $destinationWarehouse, (int) $requestItem->destination_product_id, $user, $payload['received_serial_units'] ?? null, $quantity);
+                $this->processAcceptedItem(
+                    $request,
+                    $requestItem,
+                    $user,
+                    $payload['received_serial_units'] ?? null,
+                    $quantity,
+                );
                 $guideItem->update([
                     'received_quantity' => $quantity,
                     'received_serial_units' => $payload['received_serial_units'] ?? null,
@@ -316,7 +318,7 @@ class InventoryTransferRequestService
             $guide->update(['status' => InventoryTransferRequestGuide::STATUS_RECEIVED, 'received_by' => $user->id, 'received_at' => now()]);
             $request->update(['status' => InventoryTransferRequest::STATUS_COMPLETED, 'completed_at' => now()]);
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'destinationWarehouse', 'items.originProduct', 'items.destinationProduct', 'guide.items']);
+            return $this->loadTransferRelations($request);
         });
 
         $this->syncCatalog->inventoryTransferRequestAccepted($received);
@@ -340,7 +342,7 @@ class InventoryTransferRequestService
                 "{$action}_at" => now(),
             ]);
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'destinationWarehouse', 'items.originProduct', 'items.destinationProduct', 'guide.items']);
+            return $this->loadTransferRelations($request);
         });
     }
 
@@ -351,7 +353,7 @@ class InventoryTransferRequestService
         }
 
         $user = User::query()->findOrFail($carrierUserId);
-        $tenant = Tenant::query()->findOrFail($request->destination_tenant_id);
+        $tenant = Tenant::query()->findOrFail($request->sender_tenant_id ?? $request->destination_tenant_id);
         if (! $user->belongsToTenant($tenant)) {
             throw ValidationException::withMessages(['carrier_user_id' => 'El transportista no pertenece a la empresa proveedora.']);
         }
@@ -381,7 +383,7 @@ class InventoryTransferRequestService
                 'responded_at' => now(),
             ]);
 
-            return $request->refresh()->load(['originTenant', 'destinationTenant', 'fromWarehouse', 'items.originProduct']);
+            return $this->loadTransferRelations($request);
         });
 
         $this->syncCatalog->inventoryTransferRequestCancelled($cancelled);
@@ -397,25 +399,24 @@ class InventoryTransferRequestService
     private function processAcceptedItem(
         InventoryTransferRequest $request,
         InventoryTransferRequestItem $item,
-        Warehouse $destinationWarehouse,
-        int $destinationProductId,
         User $user,
         ?array $serialUnitsFromPayload = null,
         ?float $quantityOverride = null,
     ): void {
         $tenantManager = app(TenantManager::class);
         $currentTenant = $tenantManager->current();
-        $requesterTenant = Tenant::query()->findOrFail($request->origin_tenant_id);
-        $respondingTenant = Tenant::query()->findOrFail($request->destination_tenant_id);
+        $receiverTenant = Tenant::query()->findOrFail($request->receiver_tenant_id ?? $request->origin_tenant_id);
+        $senderTenant = Tenant::query()->findOrFail($request->sender_tenant_id ?? $request->destination_tenant_id);
 
-        $tenantManager->set($requesterTenant);
-        $requesterProduct = Product::query()->findOrFail($item->origin_product_id);
-        $requesterWarehouse = Warehouse::query()->findOrFail($request->from_warehouse_id);
+        $tenantManager->set($receiverTenant);
+        $receiverProduct = Product::query()->findOrFail($request->receiverProductId($item));
+        $receiverWarehouse = Warehouse::query()->findOrFail($request->receiver_warehouse_id ?? $request->from_warehouse_id);
 
-        $tenantManager->set($respondingTenant);
-        $respondingProduct = Product::query()->findOrFail($destinationProductId);
+        $tenantManager->set($senderTenant);
+        $senderProduct = Product::query()->findOrFail($request->senderProductId($item));
+        $senderWarehouse = Warehouse::query()->findOrFail($request->sender_warehouse_id ?? $request->destination_warehouse_id);
 
-        if ($requesterProduct->requiresSerializedTracking() !== $respondingProduct->requiresSerializedTracking()) {
+        if ($receiverProduct->requiresSerializedTracking() !== $senderProduct->requiresSerializedTracking()) {
             $tenantManager->set($currentTenant);
 
             throw ValidationException::withMessages([
@@ -424,16 +425,16 @@ class InventoryTransferRequestService
         }
 
         try {
-            $tenantManager->set($respondingTenant);
+            $tenantManager->set($senderTenant);
             [$unitIds, $serialUnits] = $this->resolveRespondingUnits(
-                $respondingProduct,
-                $destinationWarehouse,
+                $senderProduct,
+                $senderWarehouse,
                 $quantityOverride ?? (float) $item->quantity,
                 $serialUnitsFromPayload,
             );
             $outMovement = $this->inventory->transferRequestOut(
-                warehouse: $destinationWarehouse,
-                product: $respondingProduct,
+                warehouse: $senderWarehouse,
+                product: $senderProduct,
                 quantity: $quantityOverride ?? (float) $item->quantity,
                 createdBy: $user,
                 reason: "Salida interempresa {$request->document_number}",
@@ -442,17 +443,17 @@ class InventoryTransferRequestService
             );
             $this->removeRespondingUnits($unitIds, $outMovement->id);
 
-            $tenantManager->set($requesterTenant);
+            $tenantManager->set($receiverTenant);
             $inMovement = $this->inventory->transferRequestIn(
-                warehouse: $requesterWarehouse,
-                product: $requesterProduct,
+                warehouse: $receiverWarehouse,
+                product: $receiverProduct,
                 quantity: $quantityOverride ?? (float) $item->quantity,
                 createdBy: $user,
                 reason: "Entrada interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
             );
-            $this->createRequesterUnits($requesterProduct, $requesterWarehouse, $inMovement->id, $serialUnits);
+            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
         } catch (InsufficientStockException $exception) {
             throw ValidationException::withMessages([
                 'items' => 'El almacen de salida no tiene stock suficiente para completar la solicitud.',
@@ -466,7 +467,7 @@ class InventoryTransferRequestService
         }
 
         $item->update([
-            'destination_product_id' => $respondingProduct->id,
+            'destination_product_id' => $request->isShipmentOffer() ? $receiverProduct->id : $senderProduct->id,
             'product_unit_ids' => $unitIds ?: null,
             'serial_units' => $serialUnits,
             'out_stock_movement_id' => $outMovement->id,
@@ -720,6 +721,23 @@ class InventoryTransferRequestService
                 'acquired_stock_movement_id' => $movementId,
             ]);
         }
+    }
+
+    private function loadTransferRelations(InventoryTransferRequest $request): InventoryTransferRequest
+    {
+        return $request->refresh()->load([
+            'originTenant',
+            'destinationTenant',
+            'senderTenant',
+            'receiverTenant',
+            'fromWarehouse',
+            'destinationWarehouse',
+            'senderWarehouse',
+            'receiverWarehouse',
+            'items.originProduct',
+            'items.destinationProduct',
+            'guide.items',
+        ]);
     }
 
     private function nextSequence(Tenant $tenant): int

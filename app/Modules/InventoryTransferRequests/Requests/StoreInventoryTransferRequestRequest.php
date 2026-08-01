@@ -14,6 +14,7 @@ class StoreInventoryTransferRequestRequest extends FormRequest
         $tenantIds = [$tenantId];
 
         return [
+            'flow_type' => ['sometimes', 'string', Rule::in(['stock_request', 'shipment_offer'])],
             'destination_tenant_slug' => ['nullable', 'string', 'max:255', 'required_without:destination_user_email'],
             'destination_user_email' => ['nullable', 'email', 'max:255', 'required_without:destination_tenant_slug'],
             'from_warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', app(TenantManager::class)->require()->id)],

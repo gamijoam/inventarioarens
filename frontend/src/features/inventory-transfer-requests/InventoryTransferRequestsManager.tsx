@@ -64,6 +64,7 @@ function statusVariant(
 
 interface InventoryTransferRequestsManagerProps {
   onCreate?: () => void;
+  onOffer?: () => void;
   onAccept?: (req: TransferRequest) => void;
   onReject?: (req: TransferRequest) => void;
   /**
@@ -76,6 +77,7 @@ interface InventoryTransferRequestsManagerProps {
 
 export function InventoryTransferRequestsManager({
   onCreate,
+  onOffer,
   onAccept,
   onReject,
   currentTenantId: currentTenantIdProp,
@@ -93,6 +95,7 @@ export function InventoryTransferRequestsManager({
   });
   const cancel = useCancelTransferRequest();
   const canCreate = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_CREATE);
+  const canOffer = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_OFFER);
   const canRespond = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_RESPOND);
   const canCancelPermission = useCan(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_CANCEL);
   // Lectura no-reactiva del tenant actual: el componente se re-renderiza
@@ -104,8 +107,10 @@ export function InventoryTransferRequestsManager({
     const q = search.trim().toLowerCase();
     return requests.filter((r) => {
       // Filtrar por tab.
-      const isMine = r.origin_tenant_id === currentTenantId;
-      const isTheirs = r.destination_tenant_id === currentTenantId;
+      const senderTenantId = r.sender_tenant_id ?? r.destination_tenant_id;
+      const receiverTenantId = r.receiver_tenant_id ?? r.origin_tenant_id;
+      const isMine = senderTenantId === currentTenantId;
+      const isTheirs = receiverTenantId === currentTenantId;
       switch (tab) {
         case 'sent':
           if (!isMine) return false;
@@ -162,7 +167,12 @@ export function InventoryTransferRequestsManager({
             onClick={onCreate}
             className="ml-auto"
           >
-            Nueva solicitud
+            Solicitar stock
+          </Button>
+        )}
+        {canOffer && (
+          <Button size="sm" variant="outline" leftIcon={<Truck className="size-4" />} onClick={onOffer}>
+            Proponer envío
           </Button>
         )}
       </div>
@@ -218,9 +228,12 @@ export function InventoryTransferRequestsManager({
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                  const isMine = r.origin_tenant_id === currentTenantId;
-                  const canRespondToRequest = canRespond && !isMine && r.status === 'requested';
-                  const canCancelRequest = canCancelPermission && isMine && r.status === 'requested';
+                  const senderTenantId = r.sender_tenant_id ?? r.destination_tenant_id;
+                  const receiverTenantId = r.receiver_tenant_id ?? r.origin_tenant_id;
+                  const isMine = senderTenantId === currentTenantId;
+                  const isApprovalSide = r.destination_tenant_id === currentTenantId;
+                  const canRespondToRequest = canRespond && isApprovalSide && r.status === 'requested';
+                  const canCancelRequest = canCancelPermission && (r.initiated_by_tenant_id ?? r.origin_tenant_id) === currentTenantId && r.status === 'requested';
                   return (
                     <tr
                       key={r.id}
@@ -243,14 +256,12 @@ export function InventoryTransferRequestsManager({
                       </td>
                       <td className="text-text-muted px-3 py-2">
                         <div className="flex items-center gap-1 text-xs">
-                          <span>{r.origin_tenant?.slug ?? `T#${r.origin_tenant_id}`}</span>
+                          <span>{r.sender_tenant?.slug ?? r.destination_tenant?.slug ?? `T#${senderTenantId}`}</span>
                           <ArrowRight className="size-3" />
-                          <span>
-                            {r.destination_tenant?.slug ?? `T#${r.destination_tenant_id}`}
-                          </span>
+                          <span>{r.receiver_tenant?.slug ?? r.origin_tenant?.slug ?? `T#${receiverTenantId}`}</span>
                         </div>
                         <div className="text-[10px] tracking-wide uppercase">
-                          {isMine ? 'salida' : 'entrada'}
+                          {isMine ? 'envías' : 'recibes'} · {r.flow_type === 'shipment_offer' ? 'propuesta' : 'solicitud'}
                         </div>
                       </td>
                       <td className="text-text-muted px-3 py-2 tabular-nums">

@@ -37,13 +37,19 @@ export function PermissionPicker({ open, onOpenChange, onPick, existingPermissio
 
   const allPermissions = useMemo(() => {
     if (!data) return [];
-    return data.modules.flatMap((m) => m.actions.map((a) => a.permission));
+    return data.modules.flatMap((m) => m.actions.map((a) => ({
+      permission: a.permission,
+      label: a.label,
+      module: m.label,
+    })));
   }, [data]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return allPermissions;
-    return allPermissions.filter((p) => p.toLowerCase().includes(term));
+    return allPermissions.filter((p) =>
+      `${p.permission} ${p.label} ${p.module}`.toLowerCase().includes(term),
+    );
   }, [allPermissions, search]);
 
   return (
@@ -79,7 +85,7 @@ export function PermissionPicker({ open, onOpenChange, onPick, existingPermissio
                 onClick={() => setEffect('allow')}
                 data-testid="permission-picker-effect-allow"
               >
-                Allow
+                Permitir
               </Button>
               <Button
                 size="sm"
@@ -87,7 +93,7 @@ export function PermissionPicker({ open, onOpenChange, onPick, existingPermissio
                 onClick={() => setEffect('deny')}
                 data-testid="permission-picker-effect-deny"
               >
-                Deny
+                Denegar
               </Button>
             </div>
           </div>
@@ -104,23 +110,26 @@ export function PermissionPicker({ open, onOpenChange, onPick, existingPermissio
               ) : (
                 <ul className="divide-y divide-border">
                   {filtered.map((p) => {
-                    const alreadySet = existingPermissions.has(`${p}:allow`) || existingPermissions.has(`${p}:deny`);
+                    const alreadySet = existingPermissions.has(`${p.permission}:allow`) || existingPermissions.has(`${p.permission}:deny`);
                     return (
-                      <li key={p}>
+                      <li key={p.permission}>
                         <button
                           type="button"
-                          onClick={() => onPick(p, effect)}
+                          onClick={() => onPick(p.permission, effect)}
                           disabled={alreadySet}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-bg/60 disabled:opacity-50"
-                          data-testid={`permission-picker-item-${p}`}
+                          data-testid={`permission-picker-item-${p.permission}`}
                         >
                           <Badge
                             variant={effect === 'allow' ? 'success' : 'warning'}
                             className="text-[10px]"
                           >
-                            {effect}
+                            {effect === 'allow' ? 'Permitir' : 'Denegar'}
                           </Badge>
-                          <code className="flex-1 font-mono text-xs">{p}</code>
+                          <span className="flex-1">
+                            <span className="block">{p.label}</span>
+                            <code className="font-mono text-[10px] text-text-muted">{p.permission}</code>
+                          </span>
                           {alreadySet && (
                             <span className="text-xs text-text-muted">ya configurado</span>
                           )}

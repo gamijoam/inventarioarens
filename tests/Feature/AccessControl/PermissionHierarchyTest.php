@@ -5,10 +5,11 @@ namespace Tests\Feature\AccessControl;
 use App\Models\User;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -27,10 +28,10 @@ class PermissionHierarchyTest extends TestCase
 
     private function seedTenantContext(Tenant $tenant): void
     {
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -51,7 +52,7 @@ class PermissionHierarchyTest extends TestCase
             ->assertOk()
             ->json();
 
-        $expected = count(\App\Support\Permissions\BasePermissions::PERMISSIONS);
+        $expected = count(BasePermissions::PERMISSIONS);
         $this->assertSame($expected, $response['data']['total_permissions']);
         $this->assertGreaterThan(20, $response['data']['total_modules']);
         $this->assertCount($response['data']['total_modules'], $response['data']['modules']);
@@ -67,7 +68,16 @@ class PermissionHierarchyTest extends TestCase
         $this->assertSame('high', $cancelAction['danger']);
 
         $viewAction = collect($salesModule['actions'])->firstWhere('verb', 'view');
+        $this->assertSame('Ver ventas', $viewAction['label']);
         $this->assertArrayNotHasKey('danger', $viewAction);
+
+        $productsModule = collect($response['data']['modules'])->firstWhere('module', 'products');
+        $imageUpload = collect($productsModule['actions'])->firstWhere('permission', 'products.image.upload');
+        $this->assertSame('Subir imágenes de productos', $imageUpload['label']);
+
+        $reportsModule = collect($response['data']['modules'])->firstWhere('module', 'reports');
+        $salesReport = collect($reportsModule['actions'])->firstWhere('permission', 'reports.sales.view');
+        $this->assertSame('Ver ventas detalladas', $salesReport['label']);
     }
 
     public function test_catalog_requires_users_view_or_roles_view(): void
@@ -168,7 +178,7 @@ class PermissionHierarchyTest extends TestCase
         $tenantB = Tenant::create(['name' => 'B', 'slug' => 'b', 'status' => 'active']);
 
         // Crear el source directamente en la DB sin pasar por Spatie (que sobreescribe team_id).
-        $source = new Role();
+        $source = new Role;
         $source->forceFill([
             'name' => 'Source',
             'guard_name' => 'web',
@@ -268,6 +278,7 @@ class PermissionHierarchyTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
         return $plainToken;
     }
 }

@@ -24,6 +24,11 @@ class InventoryTransferRequestPolicy
         return $this->hasTenantPermission($user, 'inventory_transfer_requests.create');
     }
 
+    public function offer(User $user): bool
+    {
+        return $this->hasTenantPermission($user, 'inventory_transfer_requests.offer');
+    }
+
     public function accept(User $user, InventoryTransferRequest $request): bool
     {
         $tenant = app(TenantManager::class)->current();
@@ -43,23 +48,23 @@ class InventoryTransferRequestPolicy
         $tenant = app(TenantManager::class)->current();
 
         return $tenant
-            && (int) $request->origin_tenant_id === (int) $tenant->id
+            && (int) ($request->initiated_by_tenant_id ?? $request->origin_tenant_id) === (int) $tenant->id
             && $this->hasTenantPermission($user, 'inventory_transfer_requests.cancel');
     }
 
     public function prepare(User $user, InventoryTransferRequest $request): bool
     {
-        return $this->destinationSide($user, $request, 'inventory_transfer_requests.prepare');
+        return $this->senderSide($user, $request, 'inventory_transfer_requests.prepare');
     }
 
     public function dispatch(User $user, InventoryTransferRequest $request): bool
     {
-        return $this->destinationSide($user, $request, 'inventory_transfer_requests.dispatch');
+        return $this->senderSide($user, $request, 'inventory_transfer_requests.dispatch');
     }
 
     public function deliver(User $user, InventoryTransferRequest $request): bool
     {
-        return $this->destinationSide($user, $request, 'inventory_transfer_requests.deliver');
+        return $this->senderSide($user, $request, 'inventory_transfer_requests.deliver');
     }
 
     public function receive(User $user, InventoryTransferRequest $request): bool
@@ -67,16 +72,16 @@ class InventoryTransferRequestPolicy
         $tenant = app(TenantManager::class)->current();
 
         return $tenant
-            && (int) $request->origin_tenant_id === (int) $tenant->id
+            && (int) ($request->receiver_tenant_id ?? $request->origin_tenant_id) === (int) $tenant->id
             && $this->hasTenantPermission($user, 'inventory_transfer_requests.receive');
     }
 
-    private function destinationSide(User $user, InventoryTransferRequest $request, string $permission): bool
+    private function senderSide(User $user, InventoryTransferRequest $request, string $permission): bool
     {
         $tenant = app(TenantManager::class)->current();
 
         return $tenant
-            && (int) $request->destination_tenant_id === (int) $tenant->id
+            && (int) ($request->sender_tenant_id ?? $request->destination_tenant_id) === (int) $tenant->id
             && $this->hasTenantPermission($user, $permission);
     }
 

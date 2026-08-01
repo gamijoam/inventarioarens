@@ -1,5 +1,5 @@
 /**
- * UserOverridesTab: gestion de overrides por usuario (allow/deny).
+ * UserOverridesTab: gestión de excepciones de permisos por usuario.
  *
  * Backend: PATCH /api/tenants/{tenant}/users/{user}/overrides
  *   Body: { items: [{ permission, effect: 'allow'|'deny' }] }
@@ -92,8 +92,8 @@ export function UserOverridesTab({ userId }: UserOverridesTabProps) {
         <div>
           <CardTitle>Overrides por usuario</CardTitle>
           <CardDescription>
-            Permisos extra (allow) o quitados (deny) sobre los del rol. Reemplazan
-            el calculo base solo para este usuario.
+            Permisos adicionales o bloqueados sobre los del rol. Reemplazan el
+            cálculo base únicamente para este usuario.
           </CardDescription>
         </div>
         <div className="flex gap-2">
@@ -130,7 +130,7 @@ export function UserOverridesTab({ userId }: UserOverridesTabProps) {
                         variant={d.effect === 'allow' ? 'success' : 'warning'}
                         className="text-[10px]"
                       >
-                        {d.effect === 'allow' ? 'allow' : 'deny'}
+                        {d.effect === 'allow' ? 'Permitir' : 'Denegar'}
                       </Badge>
                       <code className="flex-1 font-mono text-xs">{d.permission}</code>
                       {!isServer && <Badge variant="info" className="text-[10px]">nuevo</Badge>}

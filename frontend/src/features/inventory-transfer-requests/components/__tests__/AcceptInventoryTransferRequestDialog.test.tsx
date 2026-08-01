@@ -83,16 +83,16 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     mockUseProductsForTransfer.mockReturnValue({ data: [] });
   });
 
-  it('muestra el dialog con el campo almacen destino requerido', () => {
+  it('muestra el dialog con el campo almacen de salida requerido', () => {
     const request = makeRequest([]);
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    expect(screen.getByLabelText(/almacen destino/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/almac.n.*salida/i)).toBeInTheDocument();
     expect(screen.getByText(/Notas de respuesta/i)).toBeInTheDocument();
   });
 
-  it('bloquea submit si no se selecciona almacen destino', async () => {
+  it('bloquea submit si no se selecciona almacen de salida', async () => {
     const request = makeRequest([
       {
         id: 100,
@@ -131,7 +131,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-100'), '77');
     // No debe aparecer el IMEI scanner porque el item destino es quantity.
     expect(screen.queryByTestId('accept-imeis-100')).not.toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-200'), '77');
     // IMEI scanner aparece con data-testid del item.
     expect(await screen.findByTestId('accept-imeis-200')).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-300'), '88');
     await waitFor(() => {
       expect(screen.getByTestId('accept-imeis-300')).toBeInTheDocument();
@@ -203,7 +203,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-400'), '99');
     // NO seleccionar IMEIs y hacer submit.
     await user.click(screen.getByTestId('submit-accept'));
@@ -228,7 +228,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
     });
-    await user.selectOptions(screen.getByLabelText(/almacen destino/i), '10');
+    await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
     await user.selectOptions(screen.getByTestId('accept-product-500'), '111');
     await screen.findByTestId('accept-imeis-500');
     await user.click(screen.getByTestId('accept-imei-500-item-2001'));

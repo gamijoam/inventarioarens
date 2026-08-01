@@ -16,9 +16,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'document_number',
     'origin_tenant_id',
     'destination_tenant_id',
+    'initiated_by_tenant_id',
+    'sender_tenant_id',
+    'receiver_tenant_id',
     'from_warehouse_id',
     'destination_warehouse_id',
+    'sender_warehouse_id',
+    'receiver_warehouse_id',
     'status',
+    'flow_type',
     'logistics_mode',
     'reason',
     'reference',
@@ -32,6 +38,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class InventoryTransferRequest extends Model
 {
+    public const FLOW_STOCK_REQUEST = 'stock_request';
+
+    public const FLOW_SHIPMENT_OFFER = 'shipment_offer';
+
     public const STATUS_REQUESTED = 'requested';
 
     public const STATUS_REJECTED = 'rejected';
@@ -80,6 +90,41 @@ class InventoryTransferRequest extends Model
     public function destinationWarehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class, 'destination_warehouse_id');
+    }
+
+    public function senderTenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'sender_tenant_id');
+    }
+
+    public function receiverTenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'receiver_tenant_id');
+    }
+
+    public function senderWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'sender_warehouse_id');
+    }
+
+    public function receiverWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'receiver_warehouse_id');
+    }
+
+    public function isShipmentOffer(): bool
+    {
+        return $this->flow_type === self::FLOW_SHIPMENT_OFFER;
+    }
+
+    public function senderProductId(InventoryTransferRequestItem $item): ?int
+    {
+        return $this->isShipmentOffer() ? $item->origin_product_id : $item->destination_product_id;
+    }
+
+    public function receiverProductId(InventoryTransferRequestItem $item): ?int
+    {
+        return $this->isShipmentOffer() ? $item->destination_product_id : $item->origin_product_id;
     }
 
     public function requester(): BelongsTo
