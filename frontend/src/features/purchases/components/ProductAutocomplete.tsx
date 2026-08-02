@@ -231,7 +231,7 @@ export function ProductAutocomplete({
         createPortal(
           <div
             ref={dropdownRef}
-            className="border-border bg-surface fixed z-[100] overflow-hidden rounded-lg border shadow-xl"
+            className="border-border bg-surface fixed z-[100] flex flex-col overflow-hidden rounded-lg border shadow-xl"
             style={{
               top: dropdownPosition.top,
               left: dropdownPosition.left,
@@ -240,7 +240,7 @@ export function ProductAutocomplete({
               maxHeight: dropdownPosition.maxHeight,
             }}
           >
-            <div className="border-border bg-bg/60 flex items-center justify-between gap-3 border-b px-3 py-2">
+            <div className="border-border bg-bg/60 flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
                 <PackageSearch className="text-primary size-4 shrink-0" />
                 <span className="text-text-secondary truncate text-xs font-semibold tracking-wide uppercase">
@@ -250,7 +250,10 @@ export function ProductAutocomplete({
               {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
             </div>
 
-            <div className="max-h-[calc(100%-41px)] overflow-y-auto overscroll-contain">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+              style={{ height: 'calc(100% - 41px)' }}
+            >
               {isFetching && matches.length === 0 ? (
                 <div className="text-text-muted flex items-center gap-2 p-4 text-sm">
                   <LoaderCircle className="text-primary size-4 animate-spin" />
@@ -283,20 +286,25 @@ export function ProductAutocomplete({
                   )}
                 </div>
               ) : (
-                <ul role="listbox">
+                <ul role="listbox" className="py-1">
                   {matches.map((p, i) => (
                     <li
                       key={p.id}
-                      role="option"
-                      aria-selected={i === highlight}
-                      onClick={() => pick(p as ProductAutocompleteOption)}
+                      className="border-border last:border-b-0"
                       onMouseEnter={() => setHighlight(i)}
-                      className={cn(
-                        'border-border cursor-pointer border-b px-3 py-2.5 last:border-b-0',
-                        i === highlight && 'bg-primary/10',
-                      )}
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={i === highlight}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => pick(p as ProductAutocompleteOption)}
+                        className={cn(
+                          'border-border flex w-full cursor-pointer items-center justify-between gap-3 border-b px-3 py-2.5 text-left',
+                          'hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none',
+                          i === highlight && 'bg-primary/10',
+                        )}
+                      >
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold">{p.name}</div>
                           <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
@@ -313,7 +321,7 @@ export function ProductAutocomplete({
                         >
                           {p.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
                         </Badge>
-                      </div>
+                      </button>
                     </li>
                   ))}
                 </ul>
