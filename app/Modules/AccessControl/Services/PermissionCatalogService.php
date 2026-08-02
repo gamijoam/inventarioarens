@@ -26,6 +26,7 @@ class PermissionCatalogService
         'move' => 'Mover',
         'checkout' => 'Procesar venta',
         'prepare' => 'Preparar',
+        'offer' => 'Proponer envío',
         'dispatch' => 'Despachar',
         'receive' => 'Recibir',
         'resolve' => 'Resolver',
@@ -209,6 +210,10 @@ class PermissionCatalogService
 
         if ($permission === 'pos.checkout') {
             return 'Cobrar en POS';
+        }
+
+        if ($permission === 'inventory_transfer_requests.offer') {
+            return 'Proponer envío';
         }
 
         return $verbLabel.' '.$subject;

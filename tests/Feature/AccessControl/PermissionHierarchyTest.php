@@ -78,6 +78,12 @@ class PermissionHierarchyTest extends TestCase
         $reportsModule = collect($response['data']['modules'])->firstWhere('module', 'reports');
         $salesReport = collect($reportsModule['actions'])->firstWhere('permission', 'reports.sales.view');
         $this->assertSame('Ver ventas detalladas', $salesReport['label']);
+
+        $transferModule = collect($response['data']['modules'])
+            ->firstWhere('module', 'inventory_transfer_requests');
+        $offerAction = collect($transferModule['actions'])
+            ->firstWhere('permission', 'inventory_transfer_requests.offer');
+        $this->assertSame('Proponer envío', $offerAction['label']);
     }
 
     public function test_catalog_requires_users_view_or_roles_view(): void
