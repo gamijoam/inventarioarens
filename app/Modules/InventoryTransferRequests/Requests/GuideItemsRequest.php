@@ -10,7 +10,8 @@ class GuideItemsRequest extends FormRequest
     {
         $prefix = $this->routeIs('inventory-transfer-requests.guide.receive') ? 'received' : 'prepared';
 
-        return [
+        return array_merge([
+            'transport_mode' => ['nullable', 'string', 'in:simple,controlled'],
             'carrier_name' => ['nullable', 'string', 'max:150'],
             'carrier_document_number' => ['nullable', 'string', 'max:50'],
             'carrier_phone' => ['nullable', 'string', 'max:50'],
@@ -24,6 +25,8 @@ class GuideItemsRequest extends FormRequest
             "items.*.{$prefix}_serial_units.*.serial_type" => ['required_with:items.*.'.$prefix.'_serial_units', 'string', 'in:imei,serial'],
             "items.*.{$prefix}_serial_units.*.serial_number" => ['required_with:items.*.'.$prefix.'_serial_units', 'string', 'max:100'],
             'items.*.difference_reason' => ['nullable', 'string', 'max:255'],
-        ];
+        ], $this->routeIs('inventory-transfer-requests.guide.prepare') ? [
+            'carrier_name' => ['required_if:transport_mode,controlled', 'nullable', 'string', 'max:150'],
+        ] : []);
     }
 }

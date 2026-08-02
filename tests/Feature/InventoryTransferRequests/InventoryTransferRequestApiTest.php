@@ -171,6 +171,7 @@ class InventoryTransferRequestApiTest extends TestCase
         $this->assertDatabaseMissing('stock_movements', ['reference_type' => InventoryTransferRequest::class, 'reference_id' => $requestId]);
 
         $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+            'transport_mode' => 'controlled',
             'carrier_name' => 'Juan Transportista',
             'carrier_document_number' => 'V-12345678',
             'vehicle_plate' => 'ABC123',
@@ -179,6 +180,7 @@ class InventoryTransferRequestApiTest extends TestCase
         ])->assertOk();
         $this->assertDatabaseHas('inventory_transfer_request_guides', [
             'inventory_transfer_request_id' => $requestId,
+            'transport_mode' => 'controlled',
             'carrier_name' => 'Juan Transportista',
             'vehicle_plate' => 'ABC123',
         ]);
@@ -192,6 +194,84 @@ class InventoryTransferRequestApiTest extends TestCase
         $this->assertSame(4.0, (float) $this->balance($originWarehouse, $originProduct)->quantity_available);
         $this->useTenant($destinationTenant);
         $this->assertSame(6.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
+    }
+
+    public function test_simple_guide_can_be_prepared_without_transport_details(): void
+    {
+        $originTenant = Tenant::create(['name' => 'Empresa Simple Origen', 'slug' => 'empresa-simple-origen']);
+        $destinationTenant = Tenant::create(['name' => 'Empresa Simple Destino', 'slug' => 'empresa-simple-destino']);
+        [$originWarehouse, $originProduct] = $this->warehouseAndProduct($originTenant, 'TREQ-SIMPLE-O', Product::TRACKING_QUANTITY);
+        [$destinationWarehouse, $destinationProduct] = $this->warehouseAndProduct($destinationTenant, 'TREQ-SIMPLE-D', Product::TRACKING_QUANTITY);
+        $originUser = $this->userInTenant($originTenant);
+        $destinationUser = $this->userInTenant($destinationTenant);
+        $this->grantRole($originTenant, $originUser, 'Simple Origin', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
+        $this->grantRole($destinationTenant, $destinationUser, 'Simple Destination', [
+            'inventory_transfer_requests.respond',
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.prepare',
+        ]);
+
+        $created = $this->actingAs($originUser)->withHeader('X-Tenant', $originTenant->slug)->postJson('/api/inventory-transfer-requests', [
+            'destination_tenant_slug' => $destinationTenant->slug,
+            'from_warehouse_id' => $originWarehouse->id,
+            'items' => [['product_id' => $originProduct->id, 'quantity' => 2]],
+        ])->assertCreated();
+        $requestId = $created->json('data.id');
+        $itemId = $created->json('data.items.0.id');
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/accept", [
+            'logistics_mode' => true,
+            'destination_warehouse_id' => $destinationWarehouse->id,
+            'items' => [['request_item_id' => $itemId, 'destination_product_id' => $destinationProduct->id]],
+        ])->assertOk();
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+            'transport_mode' => 'simple',
+            'items' => [['request_item_id' => $itemId, 'prepared_quantity' => 2]],
+        ])->assertOk()
+            ->assertJsonPath('data.guide.transport_mode', 'simple');
+
+        $this->assertDatabaseHas('inventory_transfer_request_guides', [
+            'inventory_transfer_request_id' => $requestId,
+            'transport_mode' => 'simple',
+            'carrier_name' => null,
+        ]);
+    }
+
+    public function test_controlled_guide_requires_transport_name(): void
+    {
+        $originTenant = Tenant::create(['name' => 'Empresa Control Origen', 'slug' => 'empresa-control-origen']);
+        $destinationTenant = Tenant::create(['name' => 'Empresa Control Destino', 'slug' => 'empresa-control-destino']);
+        [$originWarehouse, $originProduct] = $this->warehouseAndProduct($originTenant, 'TREQ-CONTROL-O', Product::TRACKING_QUANTITY);
+        [$destinationWarehouse, $destinationProduct] = $this->warehouseAndProduct($destinationTenant, 'TREQ-CONTROL-D', Product::TRACKING_QUANTITY);
+        $originUser = $this->userInTenant($originTenant);
+        $destinationUser = $this->userInTenant($destinationTenant);
+        $this->grantRole($originTenant, $originUser, 'Control Origin', ['inventory_transfer_requests.create', 'inventory_transfer_requests.view']);
+        $this->grantRole($destinationTenant, $destinationUser, 'Control Destination', [
+            'inventory_transfer_requests.respond',
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.prepare',
+        ]);
+
+        $created = $this->actingAs($originUser)->withHeader('X-Tenant', $originTenant->slug)->postJson('/api/inventory-transfer-requests', [
+            'destination_tenant_slug' => $destinationTenant->slug,
+            'from_warehouse_id' => $originWarehouse->id,
+            'items' => [['product_id' => $originProduct->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $requestId = $created->json('data.id');
+        $itemId = $created->json('data.items.0.id');
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/accept", [
+            'logistics_mode' => true,
+            'destination_warehouse_id' => $destinationWarehouse->id,
+            'items' => [['request_item_id' => $itemId, 'destination_product_id' => $destinationProduct->id]],
+        ])->assertOk();
+
+        $this->actingAs($destinationUser)->withHeader('X-Tenant', $destinationTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+            'transport_mode' => 'controlled',
+            'items' => [['request_item_id' => $itemId, 'prepared_quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('carrier_name');
     }
 
     public function test_destination_can_choose_imeis_when_origin_did_not_provide_them(): void

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'transport_mode',
     'inventory_transfer_request_id',
     'status',
     'carrier_name',
@@ -30,6 +31,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class InventoryTransferRequestGuide extends Model
 {
+    public const TRANSPORT_SIMPLE = 'simple';
+
+    public const TRANSPORT_CONTROLLED = 'controlled';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PREPARED = 'prepared';

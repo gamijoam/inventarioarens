@@ -254,6 +254,7 @@ class InventoryTransferRequestService
 
             $guide->update([
                 'status' => InventoryTransferRequestGuide::STATUS_PREPARED,
+                'transport_mode' => $data['transport_mode'] ?? InventoryTransferRequestGuide::TRANSPORT_SIMPLE,
                 'prepared_by' => $user->id,
                 'prepared_at' => now(),
                 'carrier_name' => $data['carrier_name'] ?? null,

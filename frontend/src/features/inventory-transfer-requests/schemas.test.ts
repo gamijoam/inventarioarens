@@ -183,6 +183,7 @@ describe('TransferRequestSchema (response)', () => {
         id: 7,
         inventory_transfer_request_id: 1,
         status: 'prepared',
+        transport_mode: 'controlled',
         items: [
           {
             id: 8,
@@ -196,7 +197,28 @@ describe('TransferRequestSchema (response)', () => {
       items: [],
     });
     expect(parsed.logistics_mode).toBe(true);
+    expect(parsed.guide?.transport_mode).toBe('controlled');
     expect(parsed.guide?.items?.[0]?.prepared_quantity).toBe(3);
+  });
+
+  it('usa envio simple por defecto en guias antiguas', () => {
+    const parsed = TransferRequestSchema.parse({
+      id: 2,
+      origin_tenant_id: 1,
+      destination_tenant_id: 2,
+      from_warehouse_id: 10,
+      status: 'prepared',
+      logistics_mode: true,
+      guide: {
+        id: 8,
+        inventory_transfer_request_id: 2,
+        status: 'prepared',
+        items: [],
+      },
+      items: [],
+    });
+
+    expect(parsed.guide?.transport_mode).toBe('simple');
   });
 
   it('parsea respuesta con items y tenant embebido', () => {

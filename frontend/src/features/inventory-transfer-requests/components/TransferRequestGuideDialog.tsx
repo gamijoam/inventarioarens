@@ -34,6 +34,8 @@ export function TransferRequestGuideDialog({
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [serials, setSerials] = useState<Record<number, string>>({});
+  const [transportMode, setTransportMode] = useState<'simple' | 'controlled'>('simple');
+  const [showTransportDetails, setShowTransportDetails] = useState(false);
   const [carrier, setCarrier] = useState({
     userId: '',
     name: '',
@@ -58,6 +60,8 @@ export function TransferRequestGuideDialog({
     setQuantities(next);
     setReasons({});
     setSerials({});
+    setTransportMode(request.guide?.transport_mode ?? 'simple');
+    setShowTransportDetails(Boolean(request.guide?.carrier_name));
     setCarrier({
       userId: request.guide?.carrier_user_id ? String(request.guide.carrier_user_id) : '',
       name: request.guide?.carrier_name ?? '',
@@ -121,6 +125,7 @@ export function TransferRequestGuideDialog({
         items,
         ...(isPrepare
           ? {
+              transport_mode: transportMode,
               carrier_name: carrier.name.trim() || undefined,
               carrier_document_number: carrier.document.trim() || undefined,
               carrier_phone: carrier.phone.trim() || undefined,
@@ -152,80 +157,137 @@ export function TransferRequestGuideDialog({
         </p>
         <form onSubmit={submit} className="mt-5 space-y-4">
           {isPrepare && (
-            <div className="border-border bg-bg/30 grid grid-cols-1 gap-3 rounded border p-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="carrier-user">Usuario transportista</Label>
-                <select
-                  id="carrier-user"
-                  value={carrier.userId}
-                  onChange={(e) => setCarrier({ ...carrier, userId: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                  required={carrierUsers.length > 0}
+            <div className="border-border bg-bg/30 rounded border p-3">
+              <div className="mb-3">
+                <div className="text-sm font-medium">Modalidad de envío</div>
+                <p className="text-text-muted mt-1 text-xs">
+                  El envío simple conserva la verificación de mercancía y deja los datos del
+                  transportista como opcionales.
+                </p>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransportMode('simple');
+                      setShowTransportDetails(false);
+                    }}
+                    className={`rounded border px-3 py-2 text-left text-sm ${transportMode === 'simple' ? 'border-primary bg-primary/10' : 'border-border-strong bg-surface'}`}
+                  >
+                    <span className="block font-medium">Envío simple</span>
+                    <span className="text-text-muted mt-1 block text-xs">
+                      Verifica cantidades, seriales y recepción.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransportMode('controlled');
+                      setShowTransportDetails(true);
+                    }}
+                    className={`rounded border px-3 py-2 text-left text-sm ${transportMode === 'controlled' ? 'border-primary bg-primary/10' : 'border-border-strong bg-surface'}`}
+                  >
+                    <span className="block font-medium">Envío controlado</span>
+                    <span className="text-text-muted mt-1 block text-xs">
+                      Registra transportista, vehículo y empresa.
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {transportMode === 'simple' && !showTransportDetails && (
+                <button
+                  type="button"
+                  className="text-primary text-sm font-medium"
+                  onClick={() => setShowTransportDetails(true)}
                 >
-                  <option value="">
-                    {carrierUsers.length > 0
-                      ? 'Selecciona un usuario con rol Transportista...'
-                      : 'No hay usuarios con rol Transportista'}
-                  </option>
-                  {carrierUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
-                {carrierUsers.length === 0 && (
-                  <p className="text-warning mt-1 text-xs">
-                    Puedes registrar el nombre manualmente o asignar el rol Transportista desde
-                    Acceso &gt; Usuarios.
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="carrier-name">Transportista</Label>
-                <input
-                  id="carrier-name"
-                  value={carrier.name}
-                  onChange={(e) => setCarrier({ ...carrier, name: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="carrier-company">Empresa transportista</Label>
-                <input
-                  id="carrier-company"
-                  value={carrier.company}
-                  onChange={(e) => setCarrier({ ...carrier, company: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="carrier-document">Documento</Label>
-                <input
-                  id="carrier-document"
-                  value={carrier.document}
-                  onChange={(e) => setCarrier({ ...carrier, document: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="carrier-phone">Teléfono</Label>
-                <input
-                  id="carrier-phone"
-                  value={carrier.phone}
-                  onChange={(e) => setCarrier({ ...carrier, phone: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="carrier-plate">Placa</Label>
-                <input
-                  id="carrier-plate"
-                  value={carrier.plate}
-                  onChange={(e) => setCarrier({ ...carrier, plate: e.target.value })}
-                  className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                />
-              </div>
+                  Agregar datos logísticos opcionales
+                </button>
+              )}
+              {(transportMode === 'controlled' || showTransportDetails) && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="carrier-user">Usuario transportista</Label>
+                    <select
+                      id="carrier-user"
+                      value={carrier.userId}
+                      onChange={(e) => setCarrier({ ...carrier, userId: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                      required={transportMode === 'controlled' && carrierUsers.length > 0}
+                    >
+                      <option value="">
+                        {carrierUsers.length > 0
+                          ? 'Selecciona un usuario con rol Transportista...'
+                          : 'No hay usuarios con rol Transportista'}
+                      </option>
+                      {carrierUsers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                    {carrierUsers.length === 0 && (
+                      <p className="text-warning mt-1 text-xs">
+                        Puedes registrar el nombre manualmente o asignar el rol Transportista desde
+                        Acceso &gt; Usuarios.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="carrier-name">Transportista</Label>
+                    <input
+                      id="carrier-name"
+                      value={carrier.name}
+                      onChange={(e) => setCarrier({ ...carrier, name: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                      required={transportMode === 'controlled'}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="carrier-company">Empresa transportista</Label>
+                    <input
+                      id="carrier-company"
+                      value={carrier.company}
+                      onChange={(e) => setCarrier({ ...carrier, company: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="carrier-document">Documento</Label>
+                    <input
+                      id="carrier-document"
+                      value={carrier.document}
+                      onChange={(e) => setCarrier({ ...carrier, document: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="carrier-phone">Teléfono</Label>
+                    <input
+                      id="carrier-phone"
+                      value={carrier.phone}
+                      onChange={(e) => setCarrier({ ...carrier, phone: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="carrier-plate">Placa</Label>
+                    <input
+                      id="carrier-plate"
+                      value={carrier.plate}
+                      onChange={(e) => setCarrier({ ...carrier, plate: e.target.value })}
+                      className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+              {transportMode === 'simple' && showTransportDetails && (
+                <button
+                  type="button"
+                  className="text-primary mt-3 text-sm font-medium"
+                  onClick={() => setShowTransportDetails(false)}
+                >
+                  Ocultar datos logísticos opcionales
+                </button>
+              )}
             </div>
           )}
           {(request.items ?? []).map((item) => {

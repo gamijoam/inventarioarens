@@ -193,6 +193,7 @@ function useGuideMutation(action: 'prepare' | 'dispatch' | 'deliver' | 'receive'
       vehicle_plate?: string;
       carrier_company?: string;
       carrier_user_id?: number;
+      transport_mode?: 'simple' | 'controlled';
     }
   >({
     mutationFn: async ({ id, ...payload }) =>

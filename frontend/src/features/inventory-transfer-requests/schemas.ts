@@ -131,6 +131,7 @@ export const TransferRequestGuideSchema = z.object({
   id: z.number().int().positive(),
   inventory_transfer_request_id: z.number().int().positive(),
   status: z.enum(['draft', 'prepared', 'dispatched', 'delivered', 'received']),
+  transport_mode: z.enum(['simple', 'controlled']).default('simple'),
   carrier_name: z.string().nullable().optional(),
   carrier_document_number: z.string().nullable().optional(),
   carrier_phone: z.string().nullable().optional(),
