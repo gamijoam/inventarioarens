@@ -481,7 +481,9 @@ class InventoryTransferRequestApiTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.status', InventoryTransferRequest::STATUS_ACCEPTED)
             ->assertJsonPath('data.logistics_mode', true)
-            ->assertJsonPath('data.receiver_warehouse_id', $receiverWarehouse->id);
+            ->assertJsonPath('data.receiver_warehouse_id', $receiverWarehouse->id)
+            ->assertJsonPath('data.items.0.origin_product.name', $senderProduct->name)
+            ->assertJsonPath('data.items.0.destination_product.name', $receiverProduct->name);
 
         $this->useTenant($senderTenant);
         $this->assertSame(10.0, (float) $this->balance($senderWarehouse, $senderProduct)->quantity_available);

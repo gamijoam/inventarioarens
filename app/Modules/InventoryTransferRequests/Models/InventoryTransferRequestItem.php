@@ -36,12 +36,15 @@ class InventoryTransferRequestItem extends Model
 
     public function originProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'origin_product_id');
+        // Transfer requests explicitly reference catalog items from another
+        // tenant. The normal Product tenant scope would hide that relation
+        // when the other company opens the request.
+        return $this->belongsTo(Product::class, 'origin_product_id')->withoutGlobalScopes();
     }
 
     public function destinationProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'destination_product_id');
+        return $this->belongsTo(Product::class, 'destination_product_id')->withoutGlobalScopes();
     }
 
     public function outStockMovement(): BelongsTo

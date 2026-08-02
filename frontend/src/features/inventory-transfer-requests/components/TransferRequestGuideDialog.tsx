@@ -126,7 +126,7 @@ export function TransferRequestGuideDialog({
               carrier_phone: carrier.phone.trim() || undefined,
               vehicle_plate: carrier.plate.trim() || undefined,
               carrier_company: carrier.company.trim() || undefined,
-              carrier_user_id: Number(carrier.userId),
+              ...(carrier.userId ? { carrier_user_id: Number(carrier.userId) } : {}),
             }
           : {}),
       });
@@ -160,15 +160,25 @@ export function TransferRequestGuideDialog({
                   value={carrier.userId}
                   onChange={(e) => setCarrier({ ...carrier, userId: e.target.value })}
                   className="border-border-strong bg-surface mt-1 w-full rounded border px-3 py-2 text-sm"
-                  required
+                  required={carrierUsers.length > 0}
                 >
-                  <option value="">Selecciona un usuario con rol Transportista...</option>
+                  <option value="">
+                    {carrierUsers.length > 0
+                      ? 'Selecciona un usuario con rol Transportista...'
+                      : 'No hay usuarios con rol Transportista'}
+                  </option>
                   {carrierUsers.map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.name} ({user.email})
                     </option>
                   ))}
                 </select>
+                {carrierUsers.length === 0 && (
+                  <p className="text-warning mt-1 text-xs">
+                    Puedes registrar el nombre manualmente o asignar el rol Transportista desde
+                    Acceso &gt; Usuarios.
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="carrier-name">Transportista</Label>

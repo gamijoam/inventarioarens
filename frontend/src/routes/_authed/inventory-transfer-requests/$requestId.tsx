@@ -130,7 +130,8 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
   // `destination` conserva la responsabilidad de aprobar o rechazar.
   // La logistica se resuelve por quien envia y quien recibe fisicamente.
   const isDestination = currentTenantId === request.destination_tenant_id;
-  const isInitiator = currentTenantId === request.initiated_by_tenant_id;
+  const isInitiator =
+    currentTenantId === (request.initiated_by_tenant_id ?? request.origin_tenant_id);
   const isSender = currentTenantId === request.sender_tenant_id;
   const isReceiver = currentTenantId === request.receiver_tenant_id;
   const canRespond = request.status === 'requested' && isDestination;
@@ -138,8 +139,15 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
   const canPrepare =
     request.logistics_mode &&
     request.status === 'accepted' &&
+    request.guide?.status === 'draft' &&
     isSender &&
     canPreparePermission;
+  const prepareNeedsPermission =
+    request.logistics_mode &&
+    request.status === 'accepted' &&
+    request.guide?.status === 'draft' &&
+    isSender &&
+    !canPreparePermission;
   const canDispatch =
     request.logistics_mode &&
     request.guide?.status === 'prepared' &&
@@ -229,6 +237,17 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
               Preparar guía
             </Button>
           )}
+          {prepareNeedsPermission && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              title="Tu usuario no tiene el permiso para preparar guias en esta empresa."
+              data-testid="detail-prepare-guide-disabled"
+            >
+              Preparar guia (sin permiso)
+            </Button>
+          )}
           {canDispatch && (
             <Button
               size="sm"
@@ -269,6 +288,19 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
                     : 'La empresa que envía debe preparar y despachar la guía antes de que pueda recibirse.'}
               </p>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {prepareNeedsPermission && (
+        <Card className="border-warning/30 bg-warning/10 mb-4">
+          <CardContent className="p-4 text-sm">
+            <div className="font-medium">Tu usuario no puede preparar esta guia</div>
+            <p className="text-text-muted mt-1">
+              Esta accion requiere el permiso inventory_transfer_requests.prepare dentro de la
+              empresa que envia. Cambia al usuario administrador de esa empresa o asigna el
+              permiso desde Acceso &gt; Roles y permisos.
+            </p>
           </CardContent>
         </Card>
       )}

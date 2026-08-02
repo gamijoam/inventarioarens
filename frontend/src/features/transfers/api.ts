@@ -305,7 +305,9 @@ export function useProductsForTransfer() {
   return useQuery({
     queryKey: [...productKeys.lists(), 'for-transfer'] as const,
     queryFn: async () => {
-      const data = await getMany<unknown>('/products?per_page=100');
+      // ProductController uses `limit`; `per_page` silently kept the default
+      // page of 25 products and valid match candidates could be omitted.
+      const data = await getMany<unknown>('/products?limit=100&tracking_type=all');
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return (await import('zod')).z.array(ProductSchema).parse(arr);
     },
