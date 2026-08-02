@@ -83,6 +83,34 @@ class AccessControlApiTest extends TestCase
             ->assertJsonFragment(['module' => 'roles']);
     }
 
+    public function test_existing_owner_and_administrator_roles_receive_intercompany_logistics_permissions(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            Role::create(['name' => $roleName, 'guard_name' => 'web', 'tenant_id' => $tenant->id]);
+        }
+
+        $migration = require base_path(
+            'database/migrations/2026_08_01_130000_sync_intercompany_logistics_permissions.php',
+        );
+        $migration->up();
+
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('tenant_id', $tenant->id)
+                ->firstOrFail();
+
+            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.prepare'));
+            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.dispatch'));
+            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.deliver'));
+        }
+    }
+
     public function test_group_tenant_loads_all_base_roles_when_roles_are_requested(): void
     {
         $tenant = Tenant::create(['name' => 'Grupo A', 'slug' => 'grupo-a', 'is_group' => true]);
