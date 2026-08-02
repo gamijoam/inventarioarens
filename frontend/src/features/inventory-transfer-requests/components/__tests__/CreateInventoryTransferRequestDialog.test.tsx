@@ -24,7 +24,7 @@ let lastMutation: unknown = null;
 
 const mockUseSiblingCompanies = vi.fn();
 const mockUseWarehouses = vi.fn();
-const mockUseProductsForTransfer = vi.fn();
+const mockUseTransferRequestProducts = vi.fn();
 
 vi.mock('@/features/inventory-transfer-requests/api', () => ({
   useCreateTransferRequest: () => ({
@@ -34,16 +34,14 @@ vi.mock('@/features/inventory-transfer-requests/api', () => ({
       return { id: 999 };
     },
   }),
-  useSiblingCompanies: (...args: unknown[]) => mockUseSiblingCompanies(...args),
+  useSiblingCompanies: (...args: unknown[]): unknown => mockUseSiblingCompanies(...args) as unknown,
+  useTransferRequestProducts: (...args: unknown[]): unknown =>
+    mockUseTransferRequestProducts(...args) as unknown,
 }));
 
 vi.mock('@/features/inventory-center/api', () => ({
-  useWarehouses: () => mockUseWarehouses(),
+  useWarehouses: (): unknown => mockUseWarehouses() as unknown,
   useAvailableProductUnits: () => ({ data: [], isLoading: false, isError: false }),
-}));
-
-vi.mock('@/features/transfers/api', () => ({
-  useProductsForTransfer: () => mockUseProductsForTransfer(),
 }));
 
 vi.mock('@/stores/session', () => ({
@@ -80,10 +78,12 @@ describe('CreateInventoryTransferRequestDialog', () => {
     lastMutation = null;
     mockUseSiblingCompanies.mockReset();
     mockUseWarehouses.mockReset();
-    mockUseProductsForTransfer.mockReset();
+    mockUseTransferRequestProducts.mockReset();
     mockUseWarehouses.mockReturnValue({ data: [{ id: 10, code: 'W1' }] });
-    mockUseProductsForTransfer.mockReturnValue({
+    mockUseTransferRequestProducts.mockReturnValue({
       data: [{ id: 100, name: 'Producto A', sku: 'PA', tracking_type: 'quantity' }],
+      isFetching: false,
+      isError: false,
     });
   });
 
@@ -93,7 +93,7 @@ describe('CreateInventoryTransferRequestDialog', () => {
       wrapper: makeWrapper(),
     });
     expect(screen.getByTestId('dest-company')).toBeInTheDocument();
-    const select = screen.getByTestId('dest-company') as HTMLSelectElement;
+    const select = screen.getByTestId<HTMLSelectElement>('dest-company');
     expect(select.options).toHaveLength(1 + SIBLINGS.length);
     expect(select.options[1]?.text).toContain('Demo Caracas Norte');
     expect(select.options[2]?.text).toContain('Demo Valencia Centro');
@@ -121,8 +121,10 @@ describe('CreateInventoryTransferRequestDialog', () => {
 
   it('NO muestra ImeiScanner (los IMEIs se eligen al aceptar, no al crear)', () => {
     mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
-    mockUseProductsForTransfer.mockReturnValue({
+    mockUseTransferRequestProducts.mockReturnValue({
       data: [{ id: 100, name: 'iPhone 15', sku: 'IP15-001', tracking_type: 'serialized' }],
+      isFetching: false,
+      isError: false,
     });
     render(<CreateInventoryTransferRequestDialog open onOpenChange={() => undefined} />, {
       wrapper: makeWrapper(),
@@ -138,10 +140,11 @@ describe('CreateInventoryTransferRequestDialog', () => {
     });
     await user.selectOptions(screen.getByTestId('dest-company'), 'demo-caracas-norte');
     await user.selectOptions(screen.getByLabelText(/almac.n.*receptor/i), '10');
-    const qtyInput = screen.getByTestId('item-qty-0') as HTMLInputElement;
+    const qtyInput = screen.getByTestId('item-qty-0');
     await user.clear(qtyInput);
     await user.type(qtyInput, '5');
-    await user.selectOptions(screen.getByTestId('item-product-0'), '100');
+    await user.click(screen.getByTestId('item-product-0'));
+    await user.click(screen.getByRole('option', { name: /Producto A/i }));
 
     await user.click(screen.getByTestId('submit-create'));
 
@@ -174,8 +177,9 @@ describe('CreateInventoryTransferRequestDialog', () => {
 
     await user.selectOptions(screen.getByTestId('dest-company'), 'demo-caracas-norte');
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('item-product-0'), '100');
-    const quantity = screen.getByTestId('item-qty-0') as HTMLInputElement;
+    await user.click(screen.getByTestId('item-product-0'));
+    await user.click(screen.getByRole('option', { name: /Producto A/i }));
+    const quantity = screen.getByTestId('item-qty-0');
     await user.clear(quantity);
     await user.type(quantity, '1');
     await user.click(screen.getByTestId('submit-create'));
@@ -193,10 +197,11 @@ describe('CreateInventoryTransferRequestDialog', () => {
     const emailInput = screen.getByLabelText(/email usuario destino/i);
     await user.type(emailInput, 'admin@otra-empresa.com');
     await user.selectOptions(screen.getByLabelText(/almac.n.*receptor/i), '10');
-    const qtyInput = screen.getByTestId('item-qty-0') as HTMLInputElement;
+    const qtyInput = screen.getByTestId('item-qty-0');
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
-    await user.selectOptions(screen.getByTestId('item-product-0'), '100');
+    await user.click(screen.getByTestId('item-product-0'));
+    await user.click(screen.getByRole('option', { name: /Producto A/i }));
 
     await user.click(screen.getByTestId('submit-create'));
 
@@ -209,5 +214,21 @@ describe('CreateInventoryTransferRequestDialog', () => {
     };
     expect(payload.destination_user_email).toBe('admin@otra-empresa.com');
     expect(payload.destination_tenant_slug).toBeUndefined();
+  });
+
+  it('busca productos de forma remota por nombre, SKU o codigo', async () => {
+    mockUseSiblingCompanies.mockReturnValue({ data: SIBLINGS, isLoading: false });
+    const user = userEvent.setup();
+    render(<CreateInventoryTransferRequestDialog open onOpenChange={() => undefined} />, {
+      wrapper: makeWrapper(),
+    });
+
+    const input = screen.getByTestId('item-product-0');
+    await user.type(input, 'IPHONE 20');
+
+    await waitFor(() => {
+      expect(mockUseTransferRequestProducts).toHaveBeenCalledWith('IPHONE 20');
+    });
+    expect(screen.getByTestId('item-product-results-0')).toBeInTheDocument();
   });
 });

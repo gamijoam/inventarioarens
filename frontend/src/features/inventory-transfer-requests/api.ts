@@ -10,11 +10,12 @@
  *
  * El backend aplica visibilidad por tenant (origen o destino).
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { deleteOne, getMany, getOne, postOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
+import { ProductSchema, type Product } from '@/features/inventory-center/schemas';
 import {
   TransferRequestSchema,
   type AcceptTransferRequestValues,
@@ -38,7 +39,27 @@ export const transferRequestKeys = {
   // las claves que empiezan con `unread-count`) para refrescar el badge
   // del tenant actual sin importar el id especifico.
   unreadCounts: () => [...transferRequestKeys.all, 'unread-count'] as const,
+  productSearches: () => [...transferRequestKeys.all, 'product-search'] as const,
+  productSearch: (search: string) => [...transferRequestKeys.productSearches(), search] as const,
 };
+
+export function useTransferRequestProducts(search = '') {
+  const normalizedSearch = search.trim();
+
+  return useQuery<Product[]>({
+    queryKey: transferRequestKeys.productSearch(normalizedSearch),
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      if (normalizedSearch) params.set('search', normalizedSearch);
+
+      const raw = await getMany<unknown>(`/products?${params.toString()}`);
+      const products = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] }).data ?? []);
+
+      return z.array(ProductSchema).parse(products);
+    },
+    staleTime: 60_000,
+  });
+}
 
 function toQueryString(filters: Partial<TransferRequestListFilters>): string {
   const params = new URLSearchParams();
@@ -302,11 +323,11 @@ export function useUnreadTransferRequestsCount(options: UseUnreadCountOptions = 
       // pendientes en un solo request.
       const raw = (await getMany<unknown>(
         `/inventory-transfer-requests?status=requested&per_page=200`,
-      )) as { data?: Array<{ requested_at?: string }> } | Array<unknown>;
+      )) as { data?: { requested_at?: string }[] } | unknown[];
 
-      let items: Array<{ requested_at?: string }> = [];
+      let items: { requested_at?: string }[] = [];
       if (Array.isArray(raw)) {
-        items = raw as Array<{ requested_at?: string }>;
+        items = raw as { requested_at?: string }[];
       } else if (raw && typeof raw === 'object' && Array.isArray(raw.data)) {
         items = raw.data;
       }
@@ -368,7 +389,7 @@ export function markTransferRequestsAsSeen(tenantId: number): void {
  * queryKey del badge incluye el tenant id, invalidar la "familia"
  * `unreadCounts` es mas robusto que adivinar ids especificos.
  */
-export function invalidateUnreadCounts(qc: import('@tanstack/react-query').QueryClient): void {
+export function invalidateUnreadCounts(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
 }
 

@@ -13,13 +13,13 @@ const mockUseQuery = vi.fn();
 const mockGetMany = vi.fn();
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useQuery: (...args: unknown[]): unknown => mockUseQuery(...args) as unknown,
   useMutation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn(), refetchQueries: vi.fn() }),
 }));
 
 vi.mock('@/api/client', () => ({
-  getMany: (...args: unknown[]) => mockGetMany(...args),
+  getMany: (...args: unknown[]): unknown => mockGetMany(...args) as unknown,
   getOne: vi.fn(),
   postOne: vi.fn(),
   putOne: vi.fn(),
@@ -31,10 +31,34 @@ vi.mock('@/features/inventory-center/queries', () => ({
 }));
 
 import {
+  useTransferRequestProducts,
   useTransferRequests,
   useUnreadTransferRequestsCount,
   useSiblingCompanies,
 } from './api';
+
+describe('useTransferRequestProducts', () => {
+  beforeEach(() => {
+    mockUseQuery.mockReset();
+    mockGetMany.mockReset();
+    mockGetMany.mockResolvedValue({ data: [] });
+  });
+
+  it('consulta el catalogo remoto por nombre, SKU o codigo e incluye serializados', async () => {
+    let captured: (() => Promise<unknown>) | undefined;
+    mockUseQuery.mockImplementation((options: unknown) => {
+      captured = (options as { queryFn: () => Promise<unknown> }).queryFn;
+      return { data: [] };
+    });
+
+    useTransferRequestProducts('IPHONE 20');
+    await captured?.();
+
+    expect(mockGetMany).toHaveBeenCalledWith(
+      '/products?limit=100&tracking_type=all&search=IPHONE+20',
+    );
+  });
+});
 
 describe('useTransferRequests', () => {
   beforeEach(() => {
@@ -44,20 +68,23 @@ describe('useTransferRequests', () => {
 
   it('propaga refetchInterval al useQuery cuando se pasa option', () => {
     useTransferRequests({ status: 'requested' }, { refetchInterval: 5000 });
-    const options = mockUseQuery.mock.calls[0]?.[0] as { refetchInterval?: number | false } | undefined;
+    const options = mockUseQuery.mock.calls[0]?.[0] as
+      { refetchInterval?: number | false } | undefined;
     expect(options).toBeDefined();
     expect(options?.refetchInterval).toBe(5000);
   });
 
   it('desactiva el polling cuando refetchInterval=false', () => {
     useTransferRequests({ status: 'completed' }, { refetchInterval: false });
-    const options = mockUseQuery.mock.calls[0]?.[0] as { refetchInterval?: number | false } | undefined;
+    const options = mockUseQuery.mock.calls[0]?.[0] as
+      { refetchInterval?: number | false } | undefined;
     expect(options?.refetchInterval).toBe(false);
   });
 
   it('default sin options.refetchInterval es false (no polling)', () => {
     useTransferRequests({});
-    const options = mockUseQuery.mock.calls[0]?.[0] as { refetchInterval?: number | false } | undefined;
+    const options = mockUseQuery.mock.calls[0]?.[0] as
+      { refetchInterval?: number | false } | undefined;
     expect(options?.refetchInterval).toBe(false);
   });
 });
@@ -138,7 +165,9 @@ describe('useUnreadTransferRequestsCount', () => {
     useUnreadTransferRequestsCount({ currentTenantId: 99 });
     expect(captured).toBeDefined();
     void (captured as (...args: unknown[]) => unknown)();
-    expect(mockGetMany).toHaveBeenCalledWith('/inventory-transfer-requests?status=requested&per_page=200');
+    expect(mockGetMany).toHaveBeenCalledWith(
+      '/inventory-transfer-requests?status=requested&per_page=200',
+    );
   });
 
   it('solo se activa cuando currentTenantId es positivo (no requests anonimas)', () => {
@@ -211,7 +240,7 @@ describe('useSiblingCompanies', () => {
     const result = await (captured as (...args: unknown[]) => unknown)();
 
     // Mi tenant (id=2) NO debe aparecer en la lista.
-    const siblings = result as Array<{ id: number }>;
+    const siblings = result as { id: number }[];
     expect(siblings).toHaveLength(2);
     expect(siblings.find((c) => c.id === 2)).toBeUndefined();
     // El endpoint se llamo con el parent_id del spinoff.
