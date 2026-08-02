@@ -7,7 +7,7 @@
  * usara el mismo Patron de dialog.
  */
 import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { FileText, PackagePlus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -208,148 +208,161 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nueva compra</DialogTitle>
-          <DialogDescription>
-            Crea un borrador. Al recibir la mercancia se generara el stock, el WAC del producto y la
-            cuenta por pagar (CxP) automaticamente.
-          </DialogDescription>
+      <DialogContent className="flex h-[min(92vh,900px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-border shrink-0 border-b px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-md">
+              <PackagePlus className="size-5" />
+            </div>
+            <div>
+              <DialogTitle>Nueva compra</DialogTitle>
+              <DialogDescription className="mt-1">
+                Registra los datos del proveedor y los productos que ingresaran al inventario.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ===== HEADER ===== */}
-          <fieldset className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Proveedor</Label>
-                <SupplierAutocomplete
-                  value={supplierId}
-                  onChange={(id, sup) => {
-                    setSupplierId(id);
-                    setSupplier(sup ?? null);
-                  }}
-                />
-                <p className="text-text-muted text-xs">
-                  Opcional. Si no hay proveedor especifico, la CxP no se generara.
-                </p>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+            <fieldset className="space-y-4">
+              <div className="flex items-center gap-2">
+                <FileText className="text-primary size-4" />
+                <legend className="text-sm font-semibold">Datos de la compra</legend>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="doc-number">Numero de documento</Label>
-                <Input
-                  id="doc-number"
-                  value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
-                  placeholder="Auto si se deja vacio"
-                  maxLength={100}
-                />
-                <p className="text-text-muted text-xs">
-                  Numero de factura del proveedor (opcional).
-                </p>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Proveedor</Label>
+                  <SupplierAutocomplete
+                    value={supplierId}
+                    onChange={(id, sup) => {
+                      setSupplierId(id);
+                      setSupplier(sup ?? null);
+                    }}
+                  />
+                  <p className="text-text-muted text-xs">
+                    Opcional. Sin proveedor no se generara una cuenta por pagar.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="doc-number">Numero de documento</Label>
+                  <Input
+                    id="doc-number"
+                    value={documentNumber}
+                    onChange={(e) => setDocumentNumber(e.target.value)}
+                    placeholder="Auto si se deja vacio"
+                    maxLength={100}
+                  />
+                  <p className="text-text-muted text-xs">
+                    Numero de factura del proveedor (opcional).
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="issued-at">Fecha de emision</Label>
-                <Input
-                  id="issued-at"
-                  type="date"
-                  value={issuedAt}
-                  onChange={(e) => setIssuedAt(e.target.value)}
-                />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="issued-at">Fecha de emision</Label>
+                  <Input
+                    id="issued-at"
+                    type="date"
+                    value={issuedAt}
+                    onChange={(e) => setIssuedAt(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="due-date">Fecha de vencimiento</Label>
+                  <Input
+                    id="due-date"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Moneda</Label>
+                  <Select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value as 'USD' | 'VES')}
+                  >
+                    <option value="USD">USD (Dolar)</option>
+                    <option value="VES">VES (Bolivar)</option>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="due-date">Fecha de vencimiento</Label>
-                <Input
-                  id="due-date"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+
+              {currency === 'VES' && (
+                <div className="space-y-1.5 md:max-w-md">
+                  <Label>Tipo de tasa de cambio</Label>
+                  <Select
+                    value={rateTypeId ? String(rateTypeId) : ''}
+                    onChange={(e) => setRateTypeId(e.target.value ? Number(e.target.value) : null)}
+                    className={cn(fieldErrors.exchange_rate_type_id && 'border-danger')}
+                  >
+                    <option value="">Seleccionar tipo de tasa...</option>
+                    {rateTypes.map((rt) => (
+                      <option key={rt.id} value={String(rt.id)}>
+                        {rt.code} - {rt.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {fieldErrors.exchange_rate_type_id && (
+                    <p className="text-danger text-xs">{fieldErrors.exchange_rate_type_id}</p>
+                  )}
+                  {activeRate && (
+                    <p className="text-text-muted text-xs">Tasa actual: {activeRate}</p>
+                  )}
+                </div>
+              )}
+            </fieldset>
+
+            <fieldset className="space-y-3">
+              <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+                <div>
+                  <legend className="text-sm font-semibold">Productos ({items.length})</legend>
+                  <p className="text-text-muted mt-0.5 text-xs">
+                    Busca, selecciona el almacen y registra cantidad y costo.
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={addItem}>
+                  <Plus className="size-3.5" /> Agregar producto
+                </Button>
               </div>
-              <div className="space-y-1.5">
-                <Label>Moneda</Label>
-                <Select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value as 'USD' | 'VES')}
-                >
-                  <option value="USD">USD (Dolar)</option>
-                  <option value="VES">VES (Bolivar)</option>
-                </Select>
+
+              {fieldErrors.items && <p className="text-danger text-xs">{fieldErrors.items}</p>}
+
+              <div className="space-y-3">
+                {items.map((item, index) => (
+                  <PurchaseItemRow
+                    key={index}
+                    index={index}
+                    value={{
+                      ...item,
+                      error:
+                        fieldErrors[`items.${index}.serial_units`] ??
+                        fieldErrors[`items.${index}.quantity`],
+                    }}
+                    onChange={(next) => updateItem(index, next)}
+                    onRemove={() => removeItem(index)}
+                    canRemove={items.length > 1}
+                  />
+                ))}
               </div>
-            </div>
+            </fieldset>
+          </div>
 
-            {currency === 'VES' && (
-              <div className="space-y-1.5">
-                <Label>Tipo de tasa de cambio</Label>
-                <Select
-                  value={rateTypeId ? String(rateTypeId) : ''}
-                  onChange={(e) => setRateTypeId(e.target.value ? Number(e.target.value) : null)}
-                  className={cn(fieldErrors.exchange_rate_type_id && 'border-danger')}
-                >
-                  <option value="">Seleccionar tipo de tasa...</option>
-                  {rateTypes.map((rt) => (
-                    <option key={rt.id} value={String(rt.id)}>
-                      {rt.code} - {rt.name}
-                    </option>
-                  ))}
-                </Select>
-                {fieldErrors.exchange_rate_type_id && (
-                  <p className="text-danger text-xs">{fieldErrors.exchange_rate_type_id}</p>
-                )}
-                {activeRate && <p className="text-text-muted text-xs">Rate actual: {activeRate}</p>}
-              </div>
-            )}
-          </fieldset>
-
-          {/* ===== ITEMS ===== */}
-          <fieldset className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
-                Items ({items.length})
-              </h3>
-              <Button type="button" size="sm" variant="outline" onClick={addItem}>
-                <Plus className="size-3.5" /> Agregar linea
-              </Button>
-            </div>
-
-            {fieldErrors.items && <p className="text-danger text-xs">{fieldErrors.items}</p>}
-
-            {/* Lista de cards: cada item es un bloque apilado, sin scroll horizontal. */}
-            <div className="space-y-2">
-              {items.map((item, i) => (
-                <PurchaseItemRow
-                  key={i}
-                  index={i}
-                  value={{
-                    ...item,
-                    error:
-                      fieldErrors[`items.${i}.serial_units`] ?? fieldErrors[`items.${i}.quantity`],
-                  }}
-                  onChange={(next) => updateItem(i, next)}
-                  onRemove={() => removeItem(i)}
-                  canRemove={items.length > 1}
-                />
-              ))}
-            </div>
-
-            {/* Total general */}
-            <div className="border-border mt-3 flex items-center justify-end gap-3 border-t-2 pt-3">
-              <span className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
-                Total {currency}:
-              </span>
-              <span className="text-xl font-bold tabular-nums">
+          <DialogFooter className="border-border bg-surface shrink-0 border-t px-6 py-4 sm:justify-between">
+            <div className="mr-auto">
+              <p className="text-text-muted text-xs font-semibold uppercase">Total de la compra</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {currency}{' '}
                 {totals.base.toLocaleString('es-VE', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
-              </span>
+              </p>
             </div>
-          </fieldset>
-
-          <DialogFooter>
             <Button
               type="button"
               variant="outline"

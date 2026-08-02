@@ -1,18 +1,8 @@
-/**
- * ProductAutocomplete: input con typeahead single-select para buscar
- * productos por SKU o nombre. Pensado para formularios donde el user
- * conoce el SKU (escaner o lo escribe) o navega por nombre.
- *
- * No usa el Combobox multi-select existente porque necesitamos single
- * select + lookup de campos adicionales del producto (tracking_type,
- * unit_of_measure) cuando se selecciona.
- */
-import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { LoaderCircle, PackageSearch, Search, X } from 'lucide-react';
 
-import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
 import { useProductsForPurchase } from '@/features/purchases/api';
 import { cn } from '@/lib/cn';
 
@@ -31,7 +21,6 @@ interface ProductAutocompleteProps {
   selectedProduct?: ProductAutocompleteOption | null;
   onChange: (productId: number | null, product?: ProductAutocompleteOption) => void;
   placeholder?: string;
-  /** Cuando el user no encuentra el producto en la lista */
   onProductNotFound?: (query: string) => void;
   invalid?: boolean;
 }
@@ -44,120 +33,47 @@ export function ProductAutocomplete({
   onProductNotFound,
   invalid,
 }: ProductAutocompleteProps) {
+  const resultsId = useId();
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: products = [], isError, isFetching } = useProductsForPurchase(searchTerm);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [pickedProduct, setPickedProduct] = useState<ProductAutocompleteOption | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    maxHeight: number;
-    placement: 'above' | 'below';
-  } | null>(null);
+  const { data: products = [], isError, isFetching } = useProductsForPurchase(searchTerm);
 
   const selected = useMemo(() => {
     if (value == null) return null;
     if (selectedProduct?.id === value) return selectedProduct;
     if (pickedProduct?.id === value) return pickedProduct;
-    return products.find((p) => p.id === value) ?? null;
+    return products.find((product) => product.id === value) ?? null;
   }, [pickedProduct, products, selectedProduct, value]);
 
   const matches = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 20);
-    const q = query.toLowerCase().trim();
+    if (!query.trim()) return products.slice(0, 30);
+
+    const normalizedQuery = query.toLowerCase().trim();
     return products
-      .filter((p) => {
-        const sku = (p.sku ?? '').toLowerCase();
-        const barcode = (p.barcode ?? '').toLowerCase();
-        const name = (p.name ?? '').toLowerCase();
-        if (sku === q || barcode === q) return true;
-        return sku.includes(q) || barcode.includes(q) || name.includes(q);
+      .filter((product) => {
+        const sku = (product.sku ?? '').toLowerCase();
+        const barcode = (product.barcode ?? '').toLowerCase();
+        const name = product.name.toLowerCase();
+        return (
+          sku.includes(normalizedQuery) ||
+          barcode.includes(normalizedQuery) ||
+          name.includes(normalizedQuery)
+        );
       })
-      .slice(0, 20);
+      .slice(0, 50);
   }, [products, query]);
 
-  // Esperamos brevemente antes de consultar para no hacer una peticion por
-  // cada tecla y mantenemos el catalogo inicial mientras se escribe.
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(query.trim()), 180);
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const updateDropdownPosition = useCallback(() => {
-    const anchor = containerRef.current;
-    if (!anchor) return;
-
-    const rect = anchor.getBoundingClientRect();
-    const gutter = 8;
-    const gap = 4;
-    const preferredHeight = 256;
-    const minimumHeight = 120;
-    const dialog = anchor.closest('[role="dialog"]');
-    const dialogRect = dialog?.getBoundingClientRect();
-    const topBoundary = Math.max(gutter, dialogRect?.top ?? gutter);
-    const bottomBoundary = Math.min(
-      window.innerHeight - gutter,
-      dialogRect?.bottom ?? window.innerHeight - gutter,
-    );
-    const availableBelow = Math.max(0, bottomBoundary - rect.bottom - gap);
-    const availableAbove = Math.max(0, rect.top - topBoundary - gap);
-    const placement =
-      availableBelow < preferredHeight && availableAbove > availableBelow ? 'above' : 'below';
-    const availableSpace = placement === 'above' ? availableAbove : availableBelow;
-    const maxHeight = Math.max(
-      minimumHeight,
-      Math.min(preferredHeight, Math.max(minimumHeight, availableSpace - gap)),
-    );
-    const width = Math.min(rect.width, window.innerWidth - gutter * 2);
-    const left = Math.min(rect.left, window.innerWidth - width - gutter);
-
-    setDropdownPosition({
-      top:
-        placement === 'above'
-          ? Math.max(topBoundary, rect.top - maxHeight - gap)
-          : rect.bottom + gap,
-      left: Math.max(gutter, left),
-      width,
-      maxHeight,
-      placement,
-    });
-  }, []);
-
-  // El dropdown vive en body para no quedar recortado por el scroll del
-  // modal. Recalculamos al desplazar el modal o cambiar el viewport.
-  useLayoutEffect(() => {
-    if (!open || selected) return;
-
-    updateDropdownPosition();
-    const handleViewportChange = () => updateDropdownPosition();
-    window.addEventListener('resize', handleViewportChange);
-    document.addEventListener('scroll', handleViewportChange, true);
-
-    return () => {
-      window.removeEventListener('resize', handleViewportChange);
-      document.removeEventListener('scroll', handleViewportChange, true);
-    };
-  }, [open, selected, updateDropdownPosition]);
-
-  // Click-outside cierra el dropdown.
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const target = e.target as Node;
-      if (containerRef.current?.contains(target) || dropdownRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
-
-  function pick(p: ProductAutocompleteOption) {
-    setPickedProduct(p);
-    onChange(p.id, p);
+  function pick(product: ProductAutocompleteOption) {
+    setPickedProduct(product);
+    onChange(product.id, product);
     setQuery('');
     setOpen(false);
   }
@@ -166,170 +82,165 @@ export function ProductAutocomplete({
     setPickedProduct(null);
     onChange(null);
     setQuery('');
+    setSearchTerm('');
+    setOpen(false);
+  }
+
+  if (selected) {
+    return (
+      <div className="border-primary/25 bg-primary/5 flex min-h-14 items-center gap-3 rounded-md border px-3 py-2">
+        <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
+          <PackageSearch className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{selected.name}</div>
+          <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+            {selected.sku && <code className="bg-surface rounded px-1 py-0.5">{selected.sku}</code>}
+            {selected.barcode && <span>Codigo: {selected.barcode}</span>}
+            <Badge
+              variant={selected.tracking_type === 'serialized' ? 'info' : 'default'}
+              className="text-[10px]"
+            >
+              {selected.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+            </Badge>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={clear}
+          className="text-text-muted hover:bg-surface hover:text-danger rounded p-2 transition-colors"
+          aria-label={`Quitar ${selected.name}`}
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div ref={containerRef} className="relative">
-      {selected ? (
-        <div className="border-border-strong bg-surface flex items-center gap-2 rounded border px-2 py-1.5">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{selected.name}</div>
-            <div className="text-text-muted flex items-center gap-1.5 text-xs">
-              {selected.sku && <code className="bg-bg rounded px-1 py-0.5">{selected.sku}</code>}
-              {selected.tracking_type === 'serialized' && (
-                <Badge variant="info" className="text-[10px]">
-                  Serializado
-                </Badge>
-              )}
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      <div className="relative">
+        <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <Input
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+            setHighlight(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setHighlight((current) => Math.min(current + 1, matches.length - 1));
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setHighlight((current) => Math.max(current - 1, 0));
+            } else if (event.key === 'Enter' && matches[highlight]) {
+              event.preventDefault();
+              pick(matches[highlight] as ProductAutocompleteOption);
+            } else if (event.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+          placeholder={placeholder}
+          className={cn('h-11 pl-10', invalid && 'border-danger')}
+          autoComplete="off"
+          aria-expanded={open}
+          aria-controls={resultsId}
+        />
+      </div>
+
+      {open && (
+        <div
+          id={resultsId}
+          data-testid="purchase-product-results"
+          className="border-border bg-surface mt-2 overflow-hidden rounded-md border shadow-sm"
+        >
+          <div className="border-border bg-bg/60 flex items-center justify-between gap-3 border-b px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <PackageSearch className="text-primary size-4 shrink-0" />
+              <span className="text-text-secondary truncate text-xs font-semibold uppercase">
+                {query.trim() ? `Resultados para "${query.trim()}"` : 'Productos recientes'}
+              </span>
             </div>
+            {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
           </div>
-          <button
-            type="button"
-            onClick={clear}
-            className="text-text-muted hover:bg-bg hover:text-danger rounded p-1"
-            aria-label="Quitar producto"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="relative">
-          <Search className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-              setHighlight(0);
-            }}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setHighlight((h) => Math.min(h + 1, matches.length - 1));
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setHighlight((h) => Math.max(h - 1, 0));
-              } else if (e.key === 'Enter' && matches[highlight]) {
-                e.preventDefault();
-                pick(matches[highlight] as ProductAutocompleteOption);
-              } else if (e.key === 'Escape') {
-                setOpen(false);
-              }
-            }}
-            placeholder={placeholder}
-            className={cn('pl-9', invalid && 'border-danger')}
-            autoComplete="off"
-          />
-        </div>
-      )}
 
-      {open &&
-        !selected &&
-        dropdownPosition &&
-        createPortal(
-          <div
-            ref={dropdownRef}
-            className="border-border bg-surface fixed z-[100] flex flex-col overflow-hidden rounded-lg border shadow-xl"
-            style={{
-              top: dropdownPosition.top,
-              left: dropdownPosition.left,
-              width: dropdownPosition.width,
-              height: dropdownPosition.maxHeight,
-              maxHeight: dropdownPosition.maxHeight,
-            }}
-          >
-            <div className="border-border bg-bg/60 flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <PackageSearch className="text-primary size-4 shrink-0" />
-                <span className="text-text-secondary truncate text-xs font-semibold tracking-wide uppercase">
-                  {query.trim() ? 'Resultados del catalogo' : 'Productos disponibles'}
-                </span>
+          <div className="max-h-60 overflow-y-auto overscroll-contain" tabIndex={-1}>
+            {isFetching && matches.length === 0 ? (
+              <div className="text-text-muted flex items-center gap-2 p-4 text-sm">
+                <LoaderCircle className="text-primary size-4 animate-spin" />
+                Buscando productos...
               </div>
-              {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
-            </div>
-
-            <div
-              className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-              style={{ height: 'calc(100% - 41px)' }}
-            >
-              {isFetching && matches.length === 0 ? (
-                <div className="text-text-muted flex items-center gap-2 p-4 text-sm">
-                  <LoaderCircle className="text-primary size-4 animate-spin" />
-                  Buscando en los productos de esta empresa...
-                </div>
-              ) : isError ? (
-                <div className="text-text-muted p-4 text-sm">
-                  <p className="text-danger font-medium">No se pudo consultar el catalogo.</p>
-                  <p className="mt-1 text-xs">
-                    Verifica la conexion y vuelve a escribir la busqueda.
-                  </p>
-                </div>
-              ) : matches.length === 0 ? (
-                <div className="text-text-muted p-4 text-sm">
-                  <p>
-                    No encontramos <strong className="text-text-primary">"{query}"</strong> en los
-                    productos activos de esta empresa.
-                  </p>
-                  <p className="mt-1 text-xs">
-                    Verifica el nombre, SKU o codigo y confirma que el producto este sincronizado.
-                  </p>
-                  {onProductNotFound && (
+            ) : isError ? (
+              <div className="p-4 text-sm">
+                <p className="text-danger font-medium">No se pudo consultar el catalogo.</p>
+                <p className="text-text-muted mt-1 text-xs">
+                  Verifica la conexion e intenta de nuevo.
+                </p>
+              </div>
+            ) : matches.length === 0 ? (
+              <div className="p-4 text-sm">
+                <p className="text-text-primary font-medium">No encontramos ese producto.</p>
+                <p className="text-text-muted mt-1 text-xs">
+                  Busca por nombre, SKU o codigo de barras. El producto debe estar activo en esta
+                  empresa.
+                </p>
+                {onProductNotFound && (
+                  <button
+                    type="button"
+                    onClick={() => onProductNotFound(query)}
+                    className="text-primary mt-2 text-xs font-semibold hover:underline"
+                  >
+                    Crear producto con este nombre
+                  </button>
+                )}
+              </div>
+            ) : (
+              <ul role="listbox" className="divide-border divide-y">
+                {matches.map((product, index) => (
+                  <li key={product.id}>
                     <button
                       type="button"
-                      onClick={() => onProductNotFound(query)}
-                      className="text-primary mt-2 text-xs font-medium hover:underline"
+                      role="option"
+                      aria-selected={index === highlight}
+                      onClick={() => pick(product as ProductAutocompleteOption)}
+                      onMouseEnter={() => setHighlight(index)}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors',
+                        'hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none',
+                        index === highlight && 'bg-primary/10',
+                      )}
                     >
-                      Crear nuevo producto con este termino
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <ul role="listbox" className="py-1">
-                  {matches.map((p, i) => (
-                    <li
-                      key={p.id}
-                      className="border-border last:border-b-0"
-                      onMouseEnter={() => setHighlight(i)}
-                    >
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={i === highlight}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => pick(p as ProductAutocompleteOption)}
-                        className={cn(
-                          'border-border flex w-full cursor-pointer items-center justify-between gap-3 border-b px-3 py-2.5 text-left',
-                          'hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none',
-                          i === highlight && 'bg-primary/10',
-                        )}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold">{p.name}</div>
-                          <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-                            {p.sku && (
-                              <code className="bg-bg rounded px-1 py-0.5">SKU: {p.sku}</code>
-                            )}
-                            {p.barcode && <span>Codigo: {p.barcode}</span>}
-                            {p.base_price != null && <span>Base: {p.base_price}</span>}
-                          </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">{product.name}</div>
+                        <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+                          {product.sku && <code>SKU: {product.sku}</code>}
+                          {product.barcode && <span>Codigo: {product.barcode}</span>}
+                          {product.base_price != null && <span>Base: {product.base_price}</span>}
                         </div>
-                        <Badge
-                          variant={p.tracking_type === 'serialized' ? 'info' : 'default'}
-                          className="shrink-0 text-[10px]"
-                        >
-                          {p.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
-                        </Badge>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+                      </div>
+                      <Badge
+                        variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
+                        className="shrink-0 text-[10px]"
+                      >
+                        {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+                      </Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

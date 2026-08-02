@@ -1,26 +1,16 @@
-/**
- * PurchaseItemRow: card editable de un item en PurchaseFormDialog.
- * Cambiamos de <tr> a <div> para evitar scroll horizontal: con 7 columnas
- * (almacen, producto, qty, cost, subtotal, IMEIs, delete) la tabla se
- * desbordaba en pantallas < 1100px. Cada card ocupa todo el ancho
- * y apila los campos internamente con grid responsive.
- *
- * Layout:
- *   [Almacen | Producto (info)                          | (delete)]
- *   [Cantidad | Costo unit. | Subtotal                    ]
- *   [ImeiListInput (solo si product es serializado)        ]
- */
 import { useMemo } from 'react';
-import { Trash2, Package } from 'lucide-react';
+import { Boxes, Package, Trash2 } from 'lucide-react';
 
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Button } from '@/components/ui/Button';
 import { useWarehouses } from '@/features/inventory-center/api';
+import { cn } from '@/lib/cn';
+
 import type { ImeiInput } from './ImeiListInput';
 import { ImeiListInput } from './ImeiListInput';
 import { ProductAutocomplete, type ProductAutocompleteOption } from './ProductAutocomplete';
-import { cn } from '@/lib/cn';
 
 export interface PurchaseItemRowValue {
   warehouse_id: number | null;
@@ -57,163 +47,161 @@ export function PurchaseItemRow({
   const isSerialized = value.product_info?.tracking_type === 'serialized';
 
   return (
-    <div
-      className="border-border bg-bg/30 rounded-md border p-3"
+    <section
+      className="border-border bg-surface overflow-visible rounded-md border"
       data-testid={`purchase-item-${index}`}
     >
-      {/* Row 1: Cantidad + Costo + Subtotal (cantidad SIEMPRE editable) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[120px_140px_1fr]">
-        <div className="space-y-1">
-          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
-            Cantidad
-          </label>
-          <Input
-            type="number"
-            min={isSerialized ? 1 : 0.0001}
-            step={isSerialized ? 1 : 0.0001}
-            value={value.quantity ?? ''}
-            onChange={(e) => onChange({ ...value, quantity: Number(e.target.value) })}
-            disabled={disabled}
-            placeholder="0"
-            className="text-right tabular-nums"
-            data-testid={`purchase-item-quantity-`}
-          />
-          {isSerialized && (
-            <p className="text-text-muted text-[10px]">Serializado: solo enteros (1 por IMEI).</p>
-          )}
+      <header className="border-border bg-bg/50 flex min-h-14 items-center gap-3 border-b px-4 py-2.5">
+        <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-bold">
+          {index + 1}
         </div>
-
-        <div className="space-y-1">
-          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
-            Costo unit.
-          </label>
-          <Input
-            type="number"
-            min={0.0001}
-            step={0.0001}
-            value={value.unit_cost ?? ''}
-            onChange={(e) => onChange({ ...value, unit_cost: Number(e.target.value) })}
-            disabled={disabled}
-            placeholder="0.00"
-            className="text-right tabular-nums"
-          />
+        <div className="min-w-0 flex-1">
+          <p className="text-text-muted text-xs font-semibold uppercase">Producto de la compra</p>
+          <p className="truncate text-sm font-semibold">
+            {value.product_info?.name ?? 'Pendiente por seleccionar'}
+          </p>
         </div>
+        {value.product_info?.tracking_type === 'serialized' && (
+          <Badge variant="info" className="shrink-0">
+            IMEI / serial
+          </Badge>
+        )}
+        {canRemove && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            onClick={onRemove}
+            disabled={disabled}
+            aria-label={`Eliminar linea ${index + 1}`}
+          >
+            <Trash2 className="text-danger size-4" />
+          </Button>
+        )}
+      </header>
 
-        <div className="space-y-1">
-          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
-            Subtotal
-          </label>
-          <div className="bg-bg/50 flex h-9 items-center justify-end rounded border border-transparent px-3 text-sm font-semibold tabular-nums">
-            {subtotal > 0
-              ? subtotal.toLocaleString('es-VE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
+      <div className="space-y-4 p-4">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-text-secondary text-xs font-semibold uppercase">Producto</label>
+            <ProductAutocomplete
+              value={value.product_id}
+              selectedProduct={value.product_info}
+              invalid={!value.product_id}
+              onChange={(id, product) =>
+                onChange({
+                  ...value,
+                  product_id: id,
+                  product_info: product ?? null,
+                  serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
                 })
-              : '-'}
-          </div>
-        </div>
-      </div>
-
-      {/* Row 2: Producto + Almacén + delete */}
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto]">
-        <div className="min-w-0 space-y-1">
-          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
-            Producto
-          </label>
-          <ProductAutocomplete
-            value={value.product_id}
-            selectedProduct={value.product_info}
-            onChange={(id, product) =>
-              onChange({
-                ...value,
-                product_id: id,
-                product_info: product ?? null,
-                serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
-              })
-            }
-          />
-          {value.product_info && (
-            <div className="text-text-muted flex items-center gap-2 text-xs">
-              <Package className="size-3 shrink-0" />
-              <span>{value.product_info.unit_of_measure ?? 'unit'}</span>
-              {value.product_info.base_price != null && (
-                <>
-                  <span className="text-text-muted/50">|</span>
+              }
+            />
+            {value.product_info && (
+              <div className="text-text-muted flex flex-wrap items-center gap-2 pt-1 text-xs">
+                <Package className="size-3.5" />
+                <span>Unidad: {value.product_info.unit_of_measure ?? 'unidad'}</span>
+                {value.product_info.base_price != null && (
                   <span>
-                    Base:{' '}
+                    Precio base:{' '}
                     {Number(value.product_info.base_price).toLocaleString('es-VE', {
                       minimumFractionDigits: 2,
                     })}
                   </span>
-                </>
-              )}
-              {value.product_info.tracking_type === 'serialized' && (
-                <>
-                  <span className="text-text-muted/50">|</span>
-                  <span className="text-warning font-semibold">Serializado (IMEI)</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        <div className="space-y-1">
-          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
-            Almacen <span className="text-danger">*</span>
-          </label>
-          <Select
-            value={value.warehouse_id ? String(value.warehouse_id) : ''}
-            onChange={(e) =>
-              onChange({ ...value, warehouse_id: e.target.value ? Number(e.target.value) : null })
-            }
-            disabled={disabled}
-            className={cn(!value.warehouse_id && 'border-warning')}
-          >
-            <option value="">
-              {warehouses.length === 0
-                ? 'Sin almacenes (crea uno en /inventory/admin)'
-                : 'Almacen...'}
-            </option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={String(w.id)}>
-                {w.code}
-              </option>
-            ))}
-          </Select>
-          {!value.warehouse_id && <p className="text-warning text-[10px]">Requerido.</p>}
-        </div>
-
-        <div className="flex items-start sm:items-end sm:pb-1">
-          {canRemove ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              onClick={onRemove}
+          <div className="space-y-1.5">
+            <label className="text-text-secondary flex items-center gap-1.5 text-xs font-semibold uppercase">
+              <Boxes className="size-3.5" /> Almacen <span className="text-danger">*</span>
+            </label>
+            <Select
+              value={value.warehouse_id ? String(value.warehouse_id) : ''}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  warehouse_id: event.target.value ? Number(event.target.value) : null,
+                })
+              }
               disabled={disabled}
-              aria-label="Eliminar linea"
+              className={cn('h-11', !value.warehouse_id && 'border-warning')}
             >
-              <Trash2 className="text-danger size-4" />
-            </Button>
-          ) : (
-            <span className="text-text-muted text-xs">Linea 1</span>
-          )}
+              <option value="">
+                {warehouses.length === 0 ? 'No hay almacenes disponibles' : 'Seleccionar almacen'}
+              </option>
+              {warehouses.map((warehouse) => (
+                <option key={warehouse.id} value={String(warehouse.id)}>
+                  {warehouse.code}
+                </option>
+              ))}
+            </Select>
+            {!value.warehouse_id && (
+              <p className="text-warning text-xs">Selecciona donde ingresara la mercancia.</p>
+            )}
+          </div>
         </div>
+
+        <div className="border-border grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-[160px_180px_minmax(180px,1fr)]">
+          <div className="space-y-1.5">
+            <label className="text-text-secondary text-xs font-semibold uppercase">Cantidad</label>
+            <Input
+              type="number"
+              min={isSerialized ? 1 : 0.0001}
+              step={isSerialized ? 1 : 0.0001}
+              value={value.quantity ?? ''}
+              onChange={(event) => onChange({ ...value, quantity: Number(event.target.value) })}
+              disabled={disabled}
+              placeholder="0"
+              className="text-right tabular-nums"
+              data-testid={`purchase-item-quantity-${index}`}
+            />
+            {isSerialized && (
+              <p className="text-text-muted text-xs">Una unidad por cada IMEI o serial.</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-text-secondary text-xs font-semibold uppercase">
+              Costo unitario
+            </label>
+            <Input
+              type="number"
+              min={0.0001}
+              step={0.0001}
+              value={value.unit_cost ?? ''}
+              onChange={(event) => onChange({ ...value, unit_cost: Number(event.target.value) })}
+              disabled={disabled}
+              placeholder="0.00"
+              className="text-right tabular-nums"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-text-secondary text-xs font-semibold uppercase">Subtotal</label>
+            <div className="bg-bg flex h-10 items-center justify-end rounded-md px-3 text-base font-bold tabular-nums">
+              {subtotal.toLocaleString('es-VE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          </div>
+        </div>
+
+        {isSerialized && value.product_id && (
+          <div className="border-info/30 bg-info/5 rounded-md border p-3">
+            <ImeiListInput
+              value={value.serial_units}
+              onChange={(serial_units) => onChange({ ...value, serial_units })}
+              expectedQuantity={value.quantity || 1}
+              disabled={disabled}
+            />
+          </div>
+        )}
+
+        {value.error && <p className="text-danger text-xs font-medium">{value.error}</p>}
       </div>
-
-      {/* Row 3: IMEIs (solo si producto es serializado) */}
-      {isSerialized && value.product_id && (
-        <div className="border-border-strong/50 bg-bg/50 mt-3 space-y-1.5 rounded border p-2">
-          <ImeiListInput
-            value={value.serial_units}
-            onChange={(serial_units) => onChange({ ...value, serial_units })}
-            expectedQuantity={value.quantity || 1}
-            disabled={disabled}
-          />
-        </div>
-      )}
-
-      {value.error && <p className="text-danger mt-2 text-xs">{value.error}</p>}
-    </div>
+    </section>
   );
 }

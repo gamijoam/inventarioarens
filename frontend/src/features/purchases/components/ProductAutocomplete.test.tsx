@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -40,5 +41,57 @@ describe('ProductAutocomplete', () => {
       20,
       expect.objectContaining({ name: 'IPHONE 20', tracking_type: 'serialized' }),
     );
+  });
+
+  it('conserva visualmente el producto seleccionado en el formulario', async () => {
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<number | null>(null);
+      const [product, setProduct] = useState<{
+        id: number;
+        name: string;
+        sku: string | null;
+        barcode: string | null;
+        tracking_type?: string;
+      } | null>(null);
+
+      return (
+        <ProductAutocomplete
+          value={value}
+          selectedProduct={product}
+          onChange={(nextValue, nextProduct) => {
+            setValue(nextValue);
+            setProduct(nextProduct ?? null);
+          }}
+        />
+      );
+    }
+
+    render(<ControlledAutocomplete />);
+    fireEvent.focus(screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'));
+    fireEvent.click(await screen.findByRole('option', { name: /IPHONE 20/i }));
+
+    expect(screen.getByText('IPHONE 20')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Quitar IPHONE 20' })).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('mantiene los resultados dentro de un area desplazable', () => {
+    mockUseProductsForPurchase.mockReturnValue({
+      data: Array.from({ length: 40 }, (_, index) => ({
+        id: index + 1,
+        name: `PRODUCTO ${index + 1}`,
+        sku: `SKU-${index + 1}`,
+        barcode: null,
+        tracking_type: 'quantity',
+      })),
+    });
+
+    render(<ProductAutocomplete value={null} onChange={vi.fn()} />);
+    fireEvent.focus(screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'));
+
+    const results = screen.getByTestId('purchase-product-results');
+    expect(results.querySelector('.overflow-y-auto')).toBeInTheDocument();
   });
 });
