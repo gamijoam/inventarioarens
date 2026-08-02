@@ -13,7 +13,7 @@
  */
 import { useState } from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, Building2, CheckCircle2, XCircle, PackageX } from 'lucide-react';
+import { ArrowLeft, Building2, CheckCircle2, XCircle, PackageX, Info } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -255,6 +255,24 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
         </div>
       }
     >
+      {request.logistics_mode && request.guide?.status === 'draft' && (
+        <Card className="border-primary/20 bg-primary/5 mb-4">
+          <CardContent className="flex items-start gap-3 p-4 text-sm">
+            <Info className="text-primary mt-0.5 size-4 shrink-0" />
+            <div>
+              <div className="font-medium">Guía en borrador</div>
+              <p className="text-text-muted mt-1">
+                {isSender
+                  ? 'Prepara la guía con las cantidades, IMEIs/seriales y transportista. Después podrás despacharla y marcarla como entregada.'
+                  : isReceiver
+                    ? 'La solicitud fue aceptada. La empresa que envía debe preparar y despachar la guía. Cuando llegue como entregada podrás registrar la recepción.'
+                    : 'La empresa que envía debe preparar y despachar la guía antes de que pueda recibirse.'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>

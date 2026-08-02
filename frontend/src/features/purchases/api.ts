@@ -51,7 +51,7 @@ export function useProductsForPurchase() {
       // El endpoint del backend acepta ?tracking_type=all para devolver
       // tanto quantity como serialized. El front-end filtra resultados con
       // coincidencia aproximada en nombre/sku/barcode.
-      const data = await getMany<unknown>('/products?per_page=500&tracking_type=all');
+      const data = await getMany<unknown>('/products?limit=100&tracking_type=all');
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return z.array(ProductLookupSchema).parse(arr);
     },

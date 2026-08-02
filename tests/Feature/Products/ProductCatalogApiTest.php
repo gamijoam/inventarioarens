@@ -174,6 +174,37 @@ class ProductCatalogApiTest extends TestCase
         $this->assertCount(1, $response->json('data'));
     }
 
+    public function test_tracking_type_all_returns_quantity_and_serialized_products(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto por cantidad',
+            'sku' => 'QTY-001',
+            'tracking_type' => 'quantity',
+        ]);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto serializado',
+            'sku' => 'SER-001',
+            'tracking_type' => 'serialized',
+        ]);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?tracking_type=all&limit=100');
+
+        $response->assertOk();
+        $this->assertEqualsCanonicalizing(
+            ['Producto por cantidad', 'Producto serializado'],
+            collect($response->json('data'))->pluck('name')->all(),
+        );
+    }
+
     public function test_search_prioritizes_exact_barcode_matches(): void
     {
         $tenant = $this->tenant();

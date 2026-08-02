@@ -113,7 +113,7 @@ class ProductController extends Controller
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', $request->integer('tag_id')));
         }
 
-        if ($request->filled('tracking_type')) {
+        if ($request->filled('tracking_type') && $request->string('tracking_type')->toString() !== 'all') {
             $query->where('tracking_type', $request->string('tracking_type'));
         }
 
