@@ -28,9 +28,9 @@ import { productKeys } from '@/features/inventory-center/queries';
 // =====================================================================
 
 /**
- * Lista de productos activos para el autocomplete de PurchaseFormDialog.
- * Trae hasta 100 (suficiente para un dropdown interactivo). Si se
- * necesitan mas, pasar a un Combobox con paginacion server-side.
+ * Productos activos para el autocomplete de PurchaseFormDialog.
+ * La primera carga muestra una pagina corta y las busquedas se resuelven en
+ * el backend para no ocultar productos que no caben en esa primera pagina.
  */
 const ProductLookupSchema = z.object({
   id: z.number().int().positive(),
@@ -43,15 +43,18 @@ const ProductLookupSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
-export function useProductsForPurchase() {
+export function useProductsForPurchase(search = '') {
+  const normalizedSearch = search.trim();
+
   return useQuery({
-    queryKey: ['purchases', 'products-lookup'] as const,
+    queryKey: ['purchases', 'products-lookup', normalizedSearch] as const,
     queryFn: async () => {
-      // Buscamos hasta 500 productos activos, incluyendo serializados.
-      // El endpoint del backend acepta ?tracking_type=all para devolver
-      // tanto quantity como serialized. El front-end filtra resultados con
-      // coincidencia aproximada en nombre/sku/barcode.
-      const data = await getMany<unknown>('/products?limit=100&tracking_type=all');
+      const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      if (normalizedSearch) params.set('search', normalizedSearch);
+
+      // El endpoint busca por nombre, SKU y codigo de barras, incluyendo
+      // productos serializados cuando tracking_type=all.
+      const data = await getMany<unknown>(`/products?${params.toString()}`);
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return z.array(ProductLookupSchema).parse(arr);
     },

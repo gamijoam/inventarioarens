@@ -122,6 +122,7 @@ export function PurchaseItemRow({
           </label>
           <ProductAutocomplete
             value={value.product_id}
+            selectedProduct={value.product_info}
             onChange={(id, product) =>
               onChange({
                 ...value,

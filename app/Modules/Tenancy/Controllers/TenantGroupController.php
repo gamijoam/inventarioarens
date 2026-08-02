@@ -15,6 +15,7 @@ use App\Modules\Tenancy\Services\CrossTenantUserService;
 use App\Modules\Tenancy\Services\TenantPromotionService;
 use App\Modules\Tenancy\Services\TenantRegistrationService;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -96,7 +97,25 @@ class TenantGroupController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
         abort_unless($group->isGroup(), 404, 'Tenant is not a group root.');
-        abort_unless($user->belongsToTenant($group), 403, 'User is not a member of this group.');
+
+        // Un administrador de una empresa hija puede consultar las empresas
+        // hermanas para iniciar una transferencia interempresa. No necesita
+        // una membresia duplicada en el tenant grupo, pero si debe estar
+        // autenticado en una hija directa de ese grupo.
+        $currentTenant = app(TenantManager::class)->current();
+        if (! $currentTenant && $request->header('X-Tenant')) {
+            $currentTenant = Tenant::query()
+                ->where('slug', $request->header('X-Tenant'))
+                ->orWhere('domain', $request->header('X-Tenant'))
+                ->first();
+        }
+        $isMemberOfGroup = $user->belongsToTenant($group);
+        $isMemberOfGroupSpinoff = $currentTenant
+            && $currentTenant->isSpinoff()
+            && (int) $currentTenant->parent_id === (int) $group->id
+            && $user->belongsToTenant($currentTenant);
+
+        abort_unless($isMemberOfGroup || $isMemberOfGroupSpinoff, 403, 'User is not a member of this group.');
 
         $spinoffs = Tenant::query()
             ->spinoffs()

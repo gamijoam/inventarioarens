@@ -189,6 +189,35 @@ class TenantGroupApiTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_spinoffs_endpoint_allows_active_member_of_a_group_spinoff(): void
+    {
+        [$user, $token] = $this->makeUserWithToken();
+
+        $group = Tenant::create(['name' => 'G', 'slug' => 'g', 'is_group' => true]);
+        $currentSpinoff = Tenant::create([
+            'name' => 'Sucursal Actual',
+            'slug' => 'sucursal-actual',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+        $sibling = Tenant::create([
+            'name' => 'Sucursal Hermana',
+            'slug' => 'sucursal-hermana',
+            'is_group' => false,
+            'parent_id' => $group->id,
+        ]);
+        $user->tenants()->attach($currentSpinoff, ['status' => 'active']);
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->withHeader('X-Tenant', $currentSpinoff->slug)
+            ->getJson('/api/tenant-groups/'.$group->id.'/spinoffs');
+
+        $response->assertOk()->assertJsonCount(2, 'data');
+        $slugs = collect($response->json('data'))->pluck('slug')->all();
+        $this->assertContains($currentSpinoff->slug, $slugs);
+        $this->assertContains($sibling->slug, $slugs);
+    }
+
     public function test_create_spinoff_for_group_works(): void
     {
         [$user, $token, $group] = $this->makeGroupWithOwner('Mi Holding', 'mi-holding');
