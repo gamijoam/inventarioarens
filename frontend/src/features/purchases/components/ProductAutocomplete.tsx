@@ -9,7 +9,7 @@
  */
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { LoaderCircle, PackageSearch, Search, X } from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -46,7 +46,7 @@ export function ProductAutocomplete({
 }: ProductAutocompleteProps) {
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: products = [] } = useProductsForPurchase(searchTerm);
+  const { data: products = [], isError, isFetching } = useProductsForPurchase(searchTerm);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [pickedProduct, setPickedProduct] = useState<ProductAutocompleteOption | null>(null);
@@ -97,20 +97,32 @@ export function ProductAutocomplete({
     const gap = 4;
     const preferredHeight = 256;
     const minimumHeight = 120;
-    const availableBelow = Math.max(0, window.innerHeight - rect.bottom - gutter);
-    const availableAbove = Math.max(0, rect.top - gutter);
+    const dialog = anchor.closest('[role="dialog"]');
+    const dialogRect = dialog?.getBoundingClientRect();
+    const topBoundary = Math.max(gutter, dialogRect?.top ?? gutter);
+    const bottomBoundary = Math.min(
+      window.innerHeight - gutter,
+      dialogRect?.bottom ?? window.innerHeight - gutter,
+    );
+    const availableBelow = Math.max(0, bottomBoundary - rect.bottom - gap);
+    const availableAbove = Math.max(0, rect.top - topBoundary - gap);
     const placement =
-      availableBelow < minimumHeight && availableAbove > availableBelow ? 'above' : 'below';
+      availableBelow < preferredHeight && availableAbove > availableBelow ? 'above' : 'below';
     const availableSpace = placement === 'above' ? availableAbove : availableBelow;
     const maxHeight = Math.max(
       minimumHeight,
       Math.min(preferredHeight, Math.max(minimumHeight, availableSpace - gap)),
     );
+    const width = Math.min(rect.width, window.innerWidth - gutter * 2);
+    const left = Math.min(rect.left, window.innerWidth - width - gutter);
 
     setDropdownPosition({
-      top: placement === 'above' ? Math.max(gutter, rect.top - maxHeight - gap) : rect.bottom + gap,
-      left: rect.left,
-      width: rect.width,
+      top:
+        placement === 'above'
+          ? Math.max(topBoundary, rect.top - maxHeight - gap)
+          : rect.bottom + gap,
+      left: Math.max(gutter, left),
+      width,
       maxHeight,
       placement,
     });
@@ -219,59 +231,94 @@ export function ProductAutocomplete({
         createPortal(
           <div
             ref={dropdownRef}
-            className="border-border bg-surface fixed z-[100] overflow-auto rounded border shadow-xl"
+            className="border-border bg-surface fixed z-[100] overflow-hidden rounded-lg border shadow-xl"
             style={{
               top: dropdownPosition.top,
               left: dropdownPosition.left,
               width: dropdownPosition.width,
+              height: dropdownPosition.maxHeight,
               maxHeight: dropdownPosition.maxHeight,
             }}
           >
-            {matches.length === 0 ? (
-              <div className="text-text-muted p-3 text-sm">
-                <p>Sin resultados para "{query}".</p>
-                {onProductNotFound && (
-                  <button
-                    type="button"
-                    onClick={() => onProductNotFound(query)}
-                    className="text-primary mt-1 text-xs hover:underline"
-                  >
-                    Crear nuevo producto con este termino
-                  </button>
-                )}
+            <div className="border-border bg-bg/60 flex items-center justify-between gap-3 border-b px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <PackageSearch className="text-primary size-4 shrink-0" />
+                <span className="text-text-secondary truncate text-xs font-semibold tracking-wide uppercase">
+                  {query.trim() ? 'Resultados del catalogo' : 'Productos disponibles'}
+                </span>
               </div>
-            ) : (
-              <ul role="listbox">
-                {matches.map((p, i) => (
-                  <li
-                    key={p.id}
-                    role="option"
-                    aria-selected={i === highlight}
-                    onClick={() => pick(p as ProductAutocompleteOption)}
-                    onMouseEnter={() => setHighlight(i)}
-                    className={cn(
-                      'border-border cursor-pointer border-b px-3 py-2 last:border-b-0',
-                      i === highlight && 'bg-primary/10',
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{p.name}</div>
-                        <div className="text-text-muted flex items-center gap-1.5 text-xs">
-                          {p.sku && <code className="bg-bg rounded px-1 py-0.5">{p.sku}</code>}
-                          {p.barcode && <span>BC: {p.barcode}</span>}
-                        </div>
-                      </div>
-                      {p.tracking_type === 'serialized' && (
-                        <Badge variant="info" className="shrink-0 text-[10px]">
-                          Serializado
-                        </Badge>
+              {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
+            </div>
+
+            <div className="max-h-[calc(100%-41px)] overflow-y-auto overscroll-contain">
+              {isFetching && matches.length === 0 ? (
+                <div className="text-text-muted flex items-center gap-2 p-4 text-sm">
+                  <LoaderCircle className="text-primary size-4 animate-spin" />
+                  Buscando en los productos de esta empresa...
+                </div>
+              ) : isError ? (
+                <div className="text-text-muted p-4 text-sm">
+                  <p className="text-danger font-medium">No se pudo consultar el catalogo.</p>
+                  <p className="mt-1 text-xs">
+                    Verifica la conexion y vuelve a escribir la busqueda.
+                  </p>
+                </div>
+              ) : matches.length === 0 ? (
+                <div className="text-text-muted p-4 text-sm">
+                  <p>
+                    No encontramos <strong className="text-text-primary">"{query}"</strong> en los
+                    productos activos de esta empresa.
+                  </p>
+                  <p className="mt-1 text-xs">
+                    Verifica el nombre, SKU o codigo y confirma que el producto este sincronizado.
+                  </p>
+                  {onProductNotFound && (
+                    <button
+                      type="button"
+                      onClick={() => onProductNotFound(query)}
+                      className="text-primary mt-2 text-xs font-medium hover:underline"
+                    >
+                      Crear nuevo producto con este termino
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <ul role="listbox">
+                  {matches.map((p, i) => (
+                    <li
+                      key={p.id}
+                      role="option"
+                      aria-selected={i === highlight}
+                      onClick={() => pick(p as ProductAutocompleteOption)}
+                      onMouseEnter={() => setHighlight(i)}
+                      className={cn(
+                        'border-border cursor-pointer border-b px-3 py-2.5 last:border-b-0',
+                        i === highlight && 'bg-primary/10',
                       )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold">{p.name}</div>
+                          <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+                            {p.sku && (
+                              <code className="bg-bg rounded px-1 py-0.5">SKU: {p.sku}</code>
+                            )}
+                            {p.barcode && <span>Codigo: {p.barcode}</span>}
+                            {p.base_price != null && <span>Base: {p.base_price}</span>}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={p.tracking_type === 'serialized' ? 'info' : 'default'}
+                          className="shrink-0 text-[10px]"
+                        >
+                          {p.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+                        </Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>,
           document.body,
         )}
