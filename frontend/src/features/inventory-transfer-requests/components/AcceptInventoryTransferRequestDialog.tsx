@@ -15,7 +15,7 @@
  *   - amarillo: Similar (nombre).
  *   - gris: sin match.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,12 +24,12 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAcceptTransferRequest } from '@/features/inventory-transfer-requests/api';
-import { useProductsForTransfer } from '@/features/transfers/api';
 import { ImeiScanner } from '@/features/transfers/components/ImeiScanner';
 import { useWarehouses } from '@/features/inventory-center/api';
 import type { Product } from '@/features/inventory-center/schemas';
-import { compareMatches, scoreMatch, type MatchType } from '../scoreMatch';
+import { scoreMatch, type MatchType } from '../scoreMatch';
 import type { TransferRequest } from '../schemas';
+import { TransferRequestProductSearch } from './TransferRequestProductSearch';
 
 interface AcceptInventoryTransferRequestDialogProps {
   request: TransferRequest;
@@ -40,6 +40,7 @@ interface AcceptInventoryTransferRequestDialogProps {
 
 interface ItemMapping {
   destinationProductId: string;
+  destinationProduct: Product | null;
   /** IMEIs/seriales del stock del destino que se envian. */
   serialUnits: string[];
 }
@@ -51,7 +52,6 @@ export function AcceptInventoryTransferRequestDialog({
   onAccepted,
 }: AcceptInventoryTransferRequestDialogProps) {
   const { data: warehouses = [], isLoading: loadingWh } = useWarehouses();
-  const { data: products = [], isLoading: loadingProd } = useProductsForTransfer();
   const accept = useAcceptTransferRequest();
 
   const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
@@ -68,37 +68,43 @@ export function AcceptInventoryTransferRequestDialog({
     setLogisticsMode(request.flow_type === 'shipment_offer');
     const initial: Record<number, ItemMapping> = {};
     for (const item of request.items ?? []) {
-      initial[item.id] = { destinationProductId: '', serialUnits: [] };
+      initial[item.id] = {
+        destinationProductId: '',
+        destinationProduct: null,
+        serialUnits: [],
+      };
     }
     setMapping(initial);
   }, [open, request]);
 
-  const productOptions = useMemo(
-    () =>
-      products.map((p: Product) => ({
-        id: String(p.id),
-        label: `${p.name}${p.sku ? ` (${p.sku})` : ''}`,
-        tracking: p.tracking_type,
-      })),
-    [products],
-  );
-
   if (!open) return null;
 
   function getItemMapping(itemId: number): ItemMapping {
-    return mapping[itemId] ?? { destinationProductId: '', serialUnits: [] };
+    return (
+      mapping[itemId] ?? {
+        destinationProductId: '',
+        destinationProduct: null,
+        serialUnits: [],
+      }
+    );
   }
 
   function setItemMapping(itemId: number, patch: Partial<ItemMapping>) {
     setMapping((m) => ({
       ...m,
-      [itemId]: { ...(m[itemId] ?? { destinationProductId: '', serialUnits: [] }), ...patch },
+      [itemId]: {
+        ...(m[itemId] ?? {
+          destinationProductId: '',
+          destinationProduct: null,
+          serialUnits: [],
+        }),
+        ...patch,
+      },
     }));
   }
 
-  function getItemTracking(productId: string): 'quantity' | 'serialized' | undefined {
-    const p = products.find((x) => String(x.id) === productId);
-    return p?.tracking_type;
+  function getItemTracking(itemId: number): 'quantity' | 'serialized' | undefined {
+    return getItemMapping(itemId).destinationProduct?.tracking_type;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -123,7 +129,7 @@ export function AcceptInventoryTransferRequestDialog({
         toast.error('Falta mapear un producto destino.');
         return;
       }
-      const tracking = getItemTracking(m.destinationProductId);
+      const tracking = getItemTracking(it.id);
       if (tracking === 'serialized') {
         const qty = Number(it.quantity);
         const filled = m.serialUnits.filter((s) => s.trim().length > 0).length;
@@ -139,11 +145,11 @@ export function AcceptInventoryTransferRequestDialog({
 
     const itemsPayload = request.items.map((it) => {
       const m = getItemMapping(it.id);
-      const tracking = getItemTracking(m.destinationProductId);
+      const tracking = getItemTracking(it.id);
       const item: {
         request_item_id: number;
         destination_product_id: number;
-        serial_units?: Array<{ serial_type: 'imei' | 'serial'; serial_number: string }>;
+        serial_units?: { serial_type: 'imei' | 'serial'; serial_number: string }[];
       } = {
         request_item_id: it.id,
         destination_product_id: Number(m.destinationProductId),
@@ -233,7 +239,9 @@ export function AcceptInventoryTransferRequestDialog({
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
             <Label htmlFor="dest-wh">
-              {request.flow_type === 'shipment_offer' ? 'Tu almacén receptor' : 'Tu almacén de salida'}
+              {request.flow_type === 'shipment_offer'
+                ? 'Tu almacén receptor'
+                : 'Tu almacén de salida'}
             </Label>
             {loadingWh ? (
               <Skeleton className="h-9 w-full" />
@@ -263,12 +271,11 @@ export function AcceptInventoryTransferRequestDialog({
                 item={it}
                 mapping={getItemMapping(it.id)}
                 onChange={(patch) => setItemMapping(it.id, patch)}
-                products={products}
-                productOptions={productOptions}
-                loadingProd={loadingProd}
-                destinationWarehouseId={Number(destinationWarehouseId) || null}
+                destinationWarehouseId={
+                  destinationWarehouseId ? Number(destinationWarehouseId) : null
+                }
                 error={
-                  formErrors[`items.${it.id}.destination_product_id`] ||
+                  formErrors[`items.${it.id}.destination_product_id`] ??
                   formErrors[`items.${it.id}.serial_units`]
                 }
               />
@@ -311,60 +318,33 @@ interface ItemCardProps {
   item: NonNullable<TransferRequest['items']>[number];
   mapping: ItemMapping;
   onChange: (patch: Partial<ItemMapping>) => void;
-  products: Product[];
-  productOptions: Array<{ id: string; label: string; tracking?: 'quantity' | 'serialized' }>;
-  loadingProd: boolean;
   destinationWarehouseId: number | null;
   error?: string;
 }
 
-function ItemCard({
-  item,
-  mapping,
-  onChange,
-  products,
-  productOptions,
-  loadingProd,
-  destinationWarehouseId,
-  error,
-}: ItemCardProps) {
+function ItemCard({ item, mapping, onChange, destinationWarehouseId, error }: ItemCardProps) {
   const origin = item.origin_product;
   const originName = origin?.name ?? `Producto #${item.origin_product_id}`;
   const originTracking = origin?.tracking_type;
   const qtyNum = Number(item.quantity ?? 0);
-  const compatibleProducts = productOptions.filter(
-    (p) => !originTracking || p.tracking === originTracking,
-  );
-  const destinationProduct = products.find((x) => String(x.id) === mapping.destinationProductId);
+  const destinationProduct = mapping.destinationProduct;
   const destinationTracking = destinationProduct?.tracking_type;
 
   const originLite = origin
     ? { name: originName, sku: origin.sku ?? null, barcode: origin.barcode ?? null }
     : null;
 
-  const scored = compatibleProducts
-    .map((p) => {
-      const product = products.find((x) => String(x.id) === p.id);
-      return {
-        ...p,
-        match: scoreMatch(originLite, {
-          name: p.label.split(' (')[0] ?? p.label,
-          sku: extractSkuFromLabel(p.label),
-          barcode: product?.barcode ?? null,
-        }),
-      };
-    })
-    .sort((a, b) => compareMatches(a.match, b.match));
-
-  const best = scored[0];
-  const matchVariant = matchVariantFor(best?.match.matchType);
-  const matchLabel = matchLabelFor(best?.match.matchType, best?.match.score ?? 0);
+  const selectedMatch = destinationProduct
+    ? scoreMatch(originLite, destinationProduct)
+    : { score: 0, matchType: 'none' as const };
+  const matchVariant = matchVariantFor(selectedMatch.matchType);
+  const matchLabel = matchLabelFor(selectedMatch.matchType, selectedMatch.score);
 
   const isSerialized = destinationTracking === 'serialized';
 
   return (
     <div
-      className={`rounded-lg border-2 p-4 ${matchCardBorderClass(best?.match.matchType)}`}
+      className={`rounded-lg border-2 p-4 ${matchCardBorderClass(selectedMatch.matchType)}`}
       data-testid={`accept-card-${item.id}`}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -426,33 +406,23 @@ function ItemCard({
           <div className="text-text-muted mb-1 flex items-center gap-1 text-xs tracking-wide uppercase">
             Producto destino
           </div>
-          {loadingProd ? (
-            <Skeleton className="h-9 w-full" />
-          ) : (
-            <select
-              value={mapping.destinationProductId}
-              onChange={(e) => onChange({ destinationProductId: e.target.value })}
-              className="border-border-strong bg-surface w-full rounded border px-3 py-2 text-sm"
-              required
-              data-testid={`accept-product-${item.id}`}
-            >
-              <option value="">Selecciona producto destino...</option>
-              {scored.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {optionLabel(p.label, p.match.matchType)}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {best && (
-            <div
-              className="text-text-muted mt-1 text-[11px]"
-              data-testid={`accept-hint-${item.id}`}
-            >
-              Sugerencia: <strong>{best.label.replace(/^\[[^\]]+\]\s*/, '')}</strong>
-            </div>
-          )}
+          <TransferRequestProductSearch
+            index={item.id}
+            value={mapping.destinationProductId}
+            selectedProduct={destinationProduct}
+            onChange={(productId, product) =>
+              onChange({
+                destinationProductId: productId,
+                destinationProduct: product,
+                serialUnits: [],
+              })
+            }
+            initialQuery={origin?.sku ?? origin?.barcode ?? originName}
+            trackingType={originTracking}
+            matchSource={originLite}
+            autoSelectExact
+            invalid={Boolean(error)}
+          />
 
           {isSerialized && mapping.destinationProductId && destinationWarehouseId && (
             <div className="mt-2" data-testid={`accept-imeis-${item.id}`}>
@@ -483,11 +453,6 @@ function ItemCard({
       {error && <p className="text-danger mt-2 text-xs">{error}</p>}
     </div>
   );
-}
-
-function extractSkuFromLabel(label: string): string {
-  const m = /\(([^)]+)\)\s*$/.exec(label);
-  return m?.[1]?.trim() ?? '';
 }
 
 function matchVariantFor(matchType: MatchType | undefined): 'success' | 'warning' | 'default' {
@@ -524,19 +489,5 @@ function matchLabelFor(matchType: MatchType | undefined, score: number): string 
       return `Similar por nombre (score ${score})`;
     default:
       return 'Sin match automatico';
-  }
-}
-
-function optionLabel(baseLabel: string, matchType: MatchType): string {
-  switch (matchType) {
-    case 'sku':
-      return `[SKU] ${baseLabel}`;
-    case 'barcode':
-      return `[Barcode] ${baseLabel}`;
-    case 'name':
-      return `[Similar] ${baseLabel}`;
-    case 'none':
-    default:
-      return baseLabel;
   }
 }

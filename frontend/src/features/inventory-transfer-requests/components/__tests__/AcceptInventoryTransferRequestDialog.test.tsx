@@ -29,23 +29,42 @@ vi.mock('@/features/inventory-transfer-requests/api', () => ({
       return { id: 999 };
     },
   }),
+  useTransferRequestProducts: (...args: unknown[]): unknown =>
+    mockUseProductsForTransfer(...args) as unknown,
 }));
 
 vi.mock('@/features/inventory-center/api', () => ({
-  useWarehouses: () => mockUseWarehouses(),
+  useWarehouses: (): unknown => mockUseWarehouses() as unknown,
   useAvailableProductUnits: () => ({
     data: [
-      { id: 2001, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-001', status: 'available' },
-      { id: 2002, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-002', status: 'available' },
-      { id: 2003, product_id: 77, warehouse_id: 10, serial_type: 'imei', serial_number: 'IMEI-LOCAL-003', status: 'available' },
+      {
+        id: 2001,
+        product_id: 77,
+        warehouse_id: 10,
+        serial_type: 'imei',
+        serial_number: 'IMEI-LOCAL-001',
+        status: 'available',
+      },
+      {
+        id: 2002,
+        product_id: 77,
+        warehouse_id: 10,
+        serial_type: 'imei',
+        serial_number: 'IMEI-LOCAL-002',
+        status: 'available',
+      },
+      {
+        id: 2003,
+        product_id: 77,
+        warehouse_id: 10,
+        serial_type: 'imei',
+        serial_number: 'IMEI-LOCAL-003',
+        status: 'available',
+      },
     ],
     isLoading: false,
     isError: false,
   }),
-}));
-
-vi.mock('@/features/transfers/api', () => ({
-  useProductsForTransfer: () => mockUseProductsForTransfer(),
 }));
 
 vi.mock('sonner', () => ({
@@ -74,20 +93,44 @@ function makeRequest(items: NonNullable<TransferRequest['items']>): TransferRequ
   } as TransferRequest;
 }
 
+async function selectDestinationProduct(
+  user: ReturnType<typeof userEvent.setup>,
+  itemId: number,
+  productName: string,
+) {
+  const input = screen.getByTestId(`item-product-${itemId}`);
+  await user.click(input);
+  await user.clear(input);
+  await user.type(input, productName);
+  await user.click(await screen.findByRole('option', { name: new RegExp(productName, 'i') }));
+}
+
 describe('AcceptInventoryTransferRequestDialog', () => {
   beforeEach(() => {
     mockAcceptMutateAsync.mockReset();
     mockUseWarehouses.mockReset();
     mockUseProductsForTransfer.mockReset();
-    mockUseWarehouses.mockReturnValue({ data: [{ id: 10, code: 'W1' }, { id: 11, code: 'W2' }] });
+    mockUseWarehouses.mockReturnValue({
+      data: [
+        { id: 10, code: 'W1' },
+        { id: 11, code: 'W2' },
+      ],
+    });
     mockUseProductsForTransfer.mockReturnValue({ data: [] });
   });
 
   it('muestra el dialog con el campo almacen de salida requerido', () => {
     const request = makeRequest([]);
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     expect(screen.getByLabelText(/almac.n.*salida/i)).toBeInTheDocument();
     expect(screen.getByText(/Notas de respuesta/i)).toBeInTheDocument();
   });
@@ -97,7 +140,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 100,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'Test', sku: 'T-001', barcode: null, tracking_type: 'quantity' },
+        origin_product: {
+          id: 50,
+          name: 'Test',
+          sku: 'T-001',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
         quantity: 1,
       },
     ]);
@@ -105,10 +154,17 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 77, name: 'Destino 1', sku: 'D-001', tracking_type: 'quantity' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
-    await user.selectOptions(screen.getByTestId('accept-product-100'), '77');
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
+    await selectDestinationProduct(user, 100, 'Destino 1');
     await user.click(screen.getByTestId('submit-accept'));
     await waitFor(() => {
       expect(mockAcceptMutateAsync).not.toHaveBeenCalled();
@@ -120,7 +176,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 100,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'Coca-Cola', sku: 'CC-1500', barcode: null, tracking_type: 'quantity' },
+        origin_product: {
+          id: 50,
+          name: 'Coca-Cola',
+          sku: 'CC-1500',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
         quantity: 5,
       },
     ]);
@@ -128,11 +190,18 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 77, name: 'Coca-Cola Local', sku: 'CC-LOCAL', tracking_type: 'quantity' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('accept-product-100'), '77');
+    await selectDestinationProduct(user, 100, 'Coca-Cola Local');
     // No debe aparecer el IMEI scanner porque el item destino es quantity.
     expect(screen.queryByTestId('accept-imeis-100')).not.toBeInTheDocument();
   });
@@ -142,7 +211,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 200,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'iPhone 15', sku: 'IP15-001', barcode: null, tracking_type: 'serialized' },
+        origin_product: {
+          id: 50,
+          name: 'iPhone 15',
+          sku: 'IP15-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
         quantity: 2,
       },
     ]);
@@ -150,11 +225,18 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 77, name: 'iPhone 15', sku: 'IP15-LOCAL', tracking_type: 'serialized' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('accept-product-200'), '77');
+    await screen.findByLabelText(/Quitar iPhone 15/i);
     // IMEI scanner aparece con data-testid del item.
     expect(await screen.findByTestId('accept-imeis-200')).toBeInTheDocument();
   });
@@ -164,7 +246,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 300,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'Celular Pro', sku: 'CP-001', barcode: null, tracking_type: 'serialized' },
+        origin_product: {
+          id: 50,
+          name: 'Celular Pro',
+          sku: 'CP-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
         quantity: 2,
       },
     ]);
@@ -172,11 +260,18 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 88, name: 'Celular Pro', sku: 'CP-LOCAL', tracking_type: 'serialized' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('accept-product-300'), '88');
+    await screen.findByLabelText(/Quitar Celular Pro/i);
     await waitFor(() => {
       expect(screen.getByTestId('accept-imeis-300')).toBeInTheDocument();
     });
@@ -192,7 +287,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 400,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'Celular', sku: 'C-001', barcode: null, tracking_type: 'serialized' },
+        origin_product: {
+          id: 50,
+          name: 'Celular',
+          sku: 'C-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
         quantity: 2,
       },
     ]);
@@ -200,11 +301,18 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 99, name: 'Celular Local', sku: 'C-LOCAL', tracking_type: 'serialized' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('accept-product-400'), '99');
+    await selectDestinationProduct(user, 400, 'Celular Local');
     // NO seleccionar IMEIs y hacer submit.
     await user.click(screen.getByTestId('submit-accept'));
     await waitFor(() => {
@@ -217,7 +325,13 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       {
         id: 500,
         origin_product_id: 50,
-        origin_product: { id: 50, name: 'Celular', sku: 'C-001', barcode: null, tracking_type: 'serialized' },
+        origin_product: {
+          id: 50,
+          name: 'Celular',
+          sku: 'C-001',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
         quantity: 2,
       },
     ]);
@@ -225,11 +339,18 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       data: [{ id: 111, name: 'Celular Local', sku: 'C-LOCAL', tracking_type: 'serialized' }],
     });
     const user = userEvent.setup();
-    render(<AcceptInventoryTransferRequestDialog request={request} open onOpenChange={() => undefined} />, {
-      wrapper: makeWrapper(),
-    });
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      {
+        wrapper: makeWrapper(),
+      },
+    );
     await user.selectOptions(screen.getByLabelText(/almac.n.*salida/i), '10');
-    await user.selectOptions(screen.getByTestId('accept-product-500'), '111');
+    await selectDestinationProduct(user, 500, 'Celular Local');
     await screen.findByTestId('accept-imeis-500');
     await user.click(screen.getByTestId('accept-imei-500-item-2001'));
     await user.click(screen.getByTestId('accept-imei-500-item-2002'));
@@ -241,11 +362,11 @@ describe('AcceptInventoryTransferRequestDialog', () => {
     const call = mockAcceptMutateAsync.mock.calls[0]?.[0] as {
       values: {
         destination_warehouse_id: number;
-        items: Array<{
+        items: {
           request_item_id: number;
           destination_product_id: number;
-          serial_units?: Array<{ serial_type: string; serial_number: string }>;
-        }>;
+          serial_units?: { serial_type: string; serial_number: string }[];
+        }[];
       };
     };
     expect(call).toBeDefined();
@@ -256,5 +377,48 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       { serial_type: 'imei', serial_number: 'IMEI-LOCAL-001' },
       { serial_type: 'imei', serial_number: 'IMEI-LOCAL-002' },
     ]);
+  });
+
+  it('consulta por SKU y selecciona automaticamente el producto equivalente del receptor', async () => {
+    const request = makeRequest([
+      {
+        id: 600,
+        origin_product_id: 14601,
+        origin_product: {
+          id: 14601,
+          name: 'IPHONE 20',
+          sku: 'IPHONE-20',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+        quantity: 1,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        {
+          id: 14599,
+          name: 'IPHONE 20',
+          sku: 'IPHONE-20',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+      ],
+      isFetching: false,
+      isError: false,
+    });
+
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      { wrapper: makeWrapper() },
+    );
+
+    expect(await screen.findByLabelText(/Quitar IPHONE 20/i)).toBeInTheDocument();
+    expect(mockUseProductsForTransfer).toHaveBeenCalledWith('IPHONE-20');
+    expect(screen.getByTestId('accept-card-badge-600')).toHaveTextContent(/Match SKU/i);
   });
 });

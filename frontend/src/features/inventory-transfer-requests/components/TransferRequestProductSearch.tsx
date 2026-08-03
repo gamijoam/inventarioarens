@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { useTransferRequestProducts } from '@/features/inventory-transfer-requests/api';
 import type { Product } from '@/features/inventory-center/schemas';
 import { cn } from '@/lib/cn';
+import { compareMatches, scoreMatch, type ProductLiteForMatch } from '../scoreMatch';
 
 interface TransferRequestProductSearchProps {
   index: number;
@@ -13,6 +14,10 @@ interface TransferRequestProductSearchProps {
   selectedProduct: Product | null;
   onChange: (productId: string, product: Product | null) => void;
   invalid?: boolean;
+  initialQuery?: string;
+  trackingType?: Product['tracking_type'];
+  matchSource?: ProductLiteForMatch | null;
+  autoSelectExact?: boolean;
 }
 
 export function TransferRequestProductSearch({
@@ -21,37 +26,93 @@ export function TransferRequestProductSearch({
   selectedProduct,
   onChange,
   invalid,
+  initialQuery = '',
+  trackingType,
+  matchSource,
+  autoSelectExact = false,
 }: TransferRequestProductSearchProps) {
   const resultsId = useId();
-  const [query, setQuery] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [searchTerm, setSearchTerm] = useState(initialQuery.trim());
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [usedNameFallback, setUsedNameFallback] = useState(false);
   const { data: products = [], isError, isFetching } = useTransferRequestProducts(searchTerm);
 
   const matches = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 20);
+    const compatibleProducts = products.filter(
+      (product) => !trackingType || product.tracking_type === trackingType,
+    );
+
+    if (!query.trim()) return compatibleProducts.slice(0, 20);
 
     const normalizedQuery = query.toLowerCase().trim();
-    return products
-      .filter((product) => {
-        const name = product.name.toLowerCase();
-        const sku = (product.sku ?? '').toLowerCase();
-        const barcode = (product.barcode ?? '').toLowerCase();
+    const filtered = compatibleProducts.filter((product) => {
+      const name = product.name.toLowerCase();
+      const sku = (product.sku ?? '').toLowerCase();
+      const barcode = (product.barcode ?? '').toLowerCase();
 
-        return (
-          name.includes(normalizedQuery) ||
-          sku.includes(normalizedQuery) ||
-          barcode.includes(normalizedQuery)
-        );
-      })
+      return (
+        name.includes(normalizedQuery) ||
+        sku.includes(normalizedQuery) ||
+        barcode.includes(normalizedQuery)
+      );
+    });
+
+    if (!matchSource) return filtered.slice(0, 50);
+
+    return filtered
+      .map((product) => ({
+        product,
+        match: scoreMatch(matchSource, product),
+      }))
+      .sort((a, b) => compareMatches(a.match, b.match))
+      .map(({ product }) => product)
       .slice(0, 50);
-  }, [products, query]);
+  }, [matchSource, products, query, trackingType]);
+
+  const exactMatch = useMemo(() => {
+    if (!matchSource) return null;
+
+    return (
+      matches.find((product) => {
+        const match = scoreMatch(matchSource, product);
+        if (match.matchType === 'sku' || match.matchType === 'barcode') return true;
+
+        return product.name.trim().toLowerCase() === matchSource.name.trim().toLowerCase();
+      }) ?? null
+    );
+  }, [matchSource, matches]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(query.trim()), 180);
     return () => window.clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    if (!autoSelectExact || value || !exactMatch) return;
+    onChange(String(exactMatch.id), exactMatch);
+    setQuery('');
+    setOpen(false);
+  }, [autoSelectExact, exactMatch, onChange, value]);
+
+  useEffect(() => {
+    if (
+      !autoSelectExact ||
+      value ||
+      isFetching ||
+      usedNameFallback ||
+      matches.length > 0 ||
+      !matchSource?.name ||
+      query.trim().toLowerCase() === matchSource.name.trim().toLowerCase()
+    ) {
+      return;
+    }
+
+    setUsedNameFallback(true);
+    setQuery(matchSource.name);
+    setSearchTerm(matchSource.name.trim());
+  }, [autoSelectExact, isFetching, matchSource, matches.length, query, usedNameFallback, value]);
 
   function selectProduct(product: Product) {
     onChange(String(product.id), product);
@@ -64,6 +125,7 @@ export function TransferRequestProductSearch({
     setQuery('');
     setSearchTerm('');
     setOpen(false);
+    setUsedNameFallback(false);
   }
 
   if (value && selectedProduct) {
