@@ -11,12 +11,20 @@ import {
   PriceListSchema,
   type PriceList,
   ProductSchema,
+  type Product,
   WarehouseSchema,
 } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
 
 export type PosPaymentMethod =
-  'cash' | 'card' | 'mobile_payment' | 'transfer' | 'zelle' | 'external_financing' | 'customer_credit' | 'other';
+  | 'cash'
+  | 'card'
+  | 'mobile_payment'
+  | 'transfer'
+  | 'zelle'
+  | 'external_financing'
+  | 'customer_credit'
+  | 'other';
 
 const nullableNumber = z
   .union([z.number(), z.string()])
@@ -119,12 +127,16 @@ export const CashRegisterSessionSchema = z
           .passthrough(),
       )
       .optional(),
-    counts: z.array(z.object({
-      currency: z.enum(['USD', 'VES']),
-      denomination: nullableNumber,
-      quantity: z.number().int(),
-      total_amount: nullableNumber,
-    })).optional(),
+    counts: z
+      .array(
+        z.object({
+          currency: z.enum(['USD', 'VES']),
+          denomination: nullableNumber,
+          quantity: z.number().int(),
+          total_amount: nullableNumber,
+        }),
+      )
+      .optional(),
   })
   .passthrough();
 export type CashRegisterSession = z.infer<typeof CashRegisterSessionSchema>;
@@ -140,36 +152,42 @@ export const CashRegisterSessionDetailSchema = CashRegisterSessionSchema.extend(
     payable_payments_base_amount: z.number(),
     manual_movement_count: z.number(),
   }),
-  payment_breakdown: z.array(z.object({
-    name: z.string(),
-    method: z.string(),
-    currency: z.string(),
-    payments_count: z.number(),
-    amount_base: z.number(),
-    amount_local: z.number(),
-  })),
-  orders: z.array(z.object({
-    id: z.number().int(),
-    status: z.string(),
-    cashier_name: z.string().nullable().optional(),
-    customer_name: z.string().nullable().optional(),
-    total_base_amount: nullableNumber,
-    total_local_amount: nullableNumber,
-    paid_base_amount: nullableNumber,
-    paid_local_amount: nullableNumber,
-    opened_at: z.string().nullable().optional(),
-    paid_at: z.string().nullable().optional(),
-    payments: z.array(z.object({
-      id: z.number().int(),
+  payment_breakdown: z.array(
+    z.object({
       name: z.string(),
       method: z.string(),
       currency: z.string(),
-      amount: nullableNumber,
-      amount_base: nullableNumber,
-      amount_local: nullableNumber,
-      reference: z.string().nullable().optional(),
-    })),
-  })),
+      payments_count: z.number(),
+      amount_base: z.number(),
+      amount_local: z.number(),
+    }),
+  ),
+  orders: z.array(
+    z.object({
+      id: z.number().int(),
+      status: z.string(),
+      cashier_name: z.string().nullable().optional(),
+      customer_name: z.string().nullable().optional(),
+      total_base_amount: nullableNumber,
+      total_local_amount: nullableNumber,
+      paid_base_amount: nullableNumber,
+      paid_local_amount: nullableNumber,
+      opened_at: z.string().nullable().optional(),
+      paid_at: z.string().nullable().optional(),
+      payments: z.array(
+        z.object({
+          id: z.number().int(),
+          name: z.string(),
+          method: z.string(),
+          currency: z.string(),
+          amount: nullableNumber,
+          amount_base: nullableNumber,
+          amount_local: nullableNumber,
+          reference: z.string().nullable().optional(),
+        }),
+      ),
+    }),
+  ),
 });
 export type CashRegisterSessionDetail = z.infer<typeof CashRegisterSessionDetailSchema>;
 
@@ -374,7 +392,8 @@ export const posKeys = {
   cashSessions: (filters?: string) =>
     [...posKeys.all, 'cash-sessions', filters ?? 'me-open'] as const,
   cashRegisters: () => [...posKeys.all, 'cash-registers'] as const,
-  cashSessionDetail: (sessionId: number | null) => [...posKeys.all, 'cash-session-detail', sessionId] as const,
+  cashSessionDetail: (sessionId: number | null) =>
+    [...posKeys.all, 'cash-session-detail', sessionId] as const,
   paymentMethods: () => [...posKeys.all, 'payment-methods'] as const,
   priceLists: () => [...posKeys.all, 'price-lists'] as const,
   productQuote: (productId: number, priceListId?: number | null) =>
@@ -728,7 +747,10 @@ export function useCashSessionsList(
 export function useCashSessionDetail(sessionId: number | null) {
   return useQuery({
     queryKey: posKeys.cashSessionDetail(sessionId),
-    queryFn: async () => CashRegisterSessionDetailSchema.parse(await getOne<unknown>(`/cash-register/sessions/${sessionId}/detail`)),
+    queryFn: async () =>
+      CashRegisterSessionDetailSchema.parse(
+        await getOne<unknown>(`/cash-register/sessions/${sessionId}/detail`),
+      ),
     enabled: Number.isInteger(sessionId) && Number(sessionId) > 0,
   });
 }
@@ -737,8 +759,19 @@ export function useReviewCashSession() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ sessionId, status, review_notes }: { sessionId: number; status: 'approved' | 'rejected'; review_notes?: string }) =>
-      postOne<{ status: string; review_notes?: string }>(`/cash-register/sessions/${sessionId}/review`, { status, review_notes }),
+    mutationFn: async ({
+      sessionId,
+      status,
+      review_notes,
+    }: {
+      sessionId: number;
+      status: 'approved' | 'rejected';
+      review_notes?: string;
+    }) =>
+      postOne<{ status: string; review_notes?: string }>(
+        `/cash-register/sessions/${sessionId}/review`,
+        { status, review_notes },
+      ),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: ['reports', 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashSessionDetail(variables.sessionId) });
@@ -801,7 +834,10 @@ type PosPriceListLike = {
   payment_methods?: PriceList['payment_methods'];
 };
 
-export function mergePosPriceLists<T extends PosPriceListLike>(configured: T[], fallback: T[]): T[] {
+export function mergePosPriceLists<T extends PosPriceListLike>(
+  configured: T[],
+  fallback: T[],
+): T[] {
   if (configured.length === 0) return fallback;
 
   const fallbackById = new Map(fallback.map((list) => [list.id, list] as const));
@@ -811,13 +847,10 @@ export function mergePosPriceLists<T extends PosPriceListLike>(configured: T[], 
     return {
       ...fallbackList,
       ...list,
-      payment_method_ids:
-        list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
+      payment_method_ids: list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
       payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
       payment_exchange_rate_type_id:
-        list.payment_exchange_rate_type_id ??
-        fallbackList?.payment_exchange_rate_type_id ??
-        null,
+        list.payment_exchange_rate_type_id ?? fallbackList?.payment_exchange_rate_type_id ?? null,
       payment_exchange_rate_type:
         list.payment_exchange_rate_type ?? fallbackList?.payment_exchange_rate_type,
     };
@@ -918,7 +951,9 @@ export function mergePosExchangeRates(
 ): BootstrapExchangeRate[] {
   if (configured.length === 0) return fallback;
 
-  const fallbackByType = new Map(fallback.map((rate) => [rate.exchange_rate_type_id, rate] as const));
+  const fallbackByType = new Map(
+    fallback.map((rate) => [rate.exchange_rate_type_id, rate] as const),
+  );
 
   return configured.map((rate) => ({
     ...fallbackByType.get(rate.exchange_rate_type_id),
@@ -979,12 +1014,14 @@ export function useCurrentExchangeRatesForPos(options: { enabled?: boolean } = {
 export function useAvailableProductSerialsForPos(
   productId: number | null,
   warehouseId?: number | null,
+  search = '',
 ) {
   return useQuery({
-    queryKey: posKeys.productSerials(productId ?? 0, warehouseId),
+    queryKey: [...posKeys.productSerials(productId ?? 0, warehouseId), search.trim()] as const,
     queryFn: async () => {
       const params = new URLSearchParams({ status: 'available', limit: '100' });
       if (warehouseId) params.set('warehouse_id', String(warehouseId));
+      if (search.trim()) params.set('search', search.trim());
       const response = await getOne<unknown>(
         `/inventory-center/products/${productId}/serials?${params.toString()}`,
       );
@@ -999,6 +1036,28 @@ export function useAvailableProductSerialsForPos(
     },
     enabled: Number.isFinite(productId) && Number(productId) > 0,
   });
+}
+
+export async function lookupProductSerialRequest(params: {
+  warehouseId: number;
+  serial: string;
+  serialType: 'imei' | 'serial';
+}): Promise<ProductSerial & { product_id: number }> {
+  const response = await getOne<{ data: ProductSerial & { product_id: number } }>(
+    `/inventory-center/products/units/lookup?${new URLSearchParams({
+      warehouse_id: String(params.warehouseId),
+      serial: params.serial,
+      serial_type: params.serialType,
+    }).toString()}`,
+  );
+
+  return ProductSerialSchema.extend({ product_id: z.number().int().positive() }).parse(
+    response.data,
+  );
+}
+
+export async function getProductForPos(productId: number): Promise<Product> {
+  return ProductSchema.parse(await getOne<unknown>(`/products/${productId}`));
 }
 
 /**

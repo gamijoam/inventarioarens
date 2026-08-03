@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
 import { Link } from '@tanstack/react-router';
 import {
@@ -64,6 +64,8 @@ import {
   useCashSessions,
   useCurrentExchangeRatesForPos,
   useExchangeRateTypesForPos,
+  getProductForPos,
+  lookupProductSerialRequest,
   usePriceListsForPos,
   useOpenCashSession,
   useOpenPosOrders,
@@ -259,6 +261,8 @@ export function PosTerminal() {
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
+  const [serialSearch, setSerialSearch] = useState('');
+  const deferredSerialSearch = useDeferredValue(serialSearch);
 
   const bootstrapRefs = useBootstrapRefsForPos();
   const bootstrap = usePosBootstrap();
@@ -419,7 +423,11 @@ export function PosTerminal() {
     useAvailableProductSerialsForPos(
       serialLine?.product_id ?? null,
       serialLine?.warehouse_id ?? null,
+      deferredSerialSearch,
     );
+  useEffect(() => {
+    setSerialSearch('');
+  }, [panel, serialLineId]);
   const products = productPage?.data ?? [];
   const quickSearchResults = useMemo(() => products.slice(0, 4), [products]);
   const [quickSearchIndex, setQuickSearchIndex] = useState(0);
@@ -1375,6 +1383,8 @@ export function PosTerminal() {
               line={serialLine}
               serials={availableSerials}
               loading={loadingSerials}
+              search={serialSearch}
+              onSearch={setSerialSearch}
               onToggle={(serial) => toggleSerial(serialLine.id, serial)}
             />
           )}
@@ -1456,7 +1466,7 @@ export function PosTerminal() {
     }
   }
 
-  async function addProduct(product: Product): Promise<boolean> {
+  async function addProduct(product: Product, scannedSerial?: ProductSerial): Promise<boolean> {
     const available = Number(product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
       toast.error('Producto sin stock disponible.');
@@ -1470,6 +1480,22 @@ export function PosTerminal() {
     if (selectedPriceList && !quote) return false;
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
+    const existingLine = cart.find(
+      (line) => line.product_id === product.id && line.warehouse_id === selectedWarehouse.id,
+    );
+    if (scannedSerial && existingLine) {
+      if (existingLine.selected_serials?.some((serial) => serial.id === scannedSerial.id)) {
+        toast.error('Ese IMEI/serial ya esta agregado al ticket.');
+        return false;
+      }
+      if (
+        clampQuantity(existingLine.quantity + 1, existingLine.available_stock) <=
+        existingLine.quantity
+      ) {
+        toast.error('No hay mas unidades disponibles de este producto.');
+        return false;
+      }
+    }
     let newLineId: string | null = null;
     setCart((current) => {
       const existing = current.find(
@@ -1479,7 +1505,20 @@ export function PosTerminal() {
         newLineId = existing.id;
         return current.map((line) =>
           line.id === existing.id
-            ? { ...line, quantity: clampQuantity(line.quantity + 1, line.available_stock) }
+            ? {
+                ...line,
+                quantity: clampQuantity(line.quantity + 1, line.available_stock),
+                selected_serials: scannedSerial
+                  ? [
+                      ...(line.selected_serials ?? []),
+                      {
+                        id: scannedSerial.id,
+                        serial_type: scannedSerial.serial_type,
+                        serial_number: scannedSerial.serial_number,
+                      },
+                    ]
+                  : line.selected_serials,
+              }
             : line,
         );
       }
@@ -1512,12 +1551,20 @@ export function PosTerminal() {
           // es un servicio o concepto facturable, el listado lo trae en
           // false y el POS no exige stock ni genera movimiento (QW10).
           track_stock: product.track_stock !== false,
-          selected_serials: [],
+          selected_serials: scannedSerial
+            ? [
+                {
+                  id: scannedSerial.id,
+                  serial_type: scannedSerial.serial_type,
+                  serial_number: scannedSerial.serial_number,
+                },
+              ]
+            : [],
         },
       ];
     });
     setQuery('');
-    if (shouldSelectSerials) {
+    if (shouldSelectSerials && !scannedSerial) {
       window.setTimeout(() => {
         if (newLineId) setSerialLineId(newLineId);
         setPanel('serials');
@@ -1598,12 +1645,56 @@ export function PosTerminal() {
       await addProduct(exact);
       return;
     }
+    if (/^[A-Za-z0-9-]{6,}$/.test(term) && /\d/.test(term)) {
+      const scanned = await addScannedSerial(term);
+      if (scanned) return;
+    }
     if (products[0]) {
       setProductSearch(term);
       setPanel('product-search');
       return;
     }
     toast.error('No se encontro un producto con ese codigo.');
+  }
+
+  async function addScannedSerial(serial: string): Promise<boolean> {
+    if (!selectedWarehouse) {
+      toast.error('Selecciona un almacen antes de escanear un IMEI.');
+      return true;
+    }
+
+    let found: (ProductSerial & { product_id: number }) | null = null;
+    for (const serialType of ['imei', 'serial'] as const) {
+      try {
+        found = await lookupProductSerialRequest({
+          warehouseId: selectedWarehouse.id,
+          serial,
+          serialType,
+        });
+        break;
+      } catch {
+        // Un scanner puede enviar IMEI o serial; probamos ambos formatos.
+      }
+    }
+
+    if (!found) return false;
+    if (found.status !== 'available') {
+      toast.error(`El IMEI/serial no esta disponible: ${found.status}.`);
+      return true;
+    }
+
+    try {
+      const product = await getProductForPos(found.product_id);
+      if (product.tracking_type !== 'serialized') {
+        toast.error('La unidad escaneada no pertenece a un producto serializado.');
+        return true;
+      }
+      await addProduct(product, found);
+      return true;
+    } catch {
+      toast.error('No se pudo cargar el producto del IMEI escaneado.');
+      return true;
+    }
   }
 
   function addQuickPayment(paymentMethodId: number): void {
@@ -2391,11 +2482,15 @@ function SerialSelectionPanel({
   line,
   serials,
   loading,
+  search,
+  onSearch,
   onToggle,
 }: {
   line: PosCartLine;
   serials: ProductSerial[];
   loading: boolean;
+  search: string;
+  onSearch: (value: string) => void;
   onToggle: (serial: ProductSerial) => void;
 }) {
   const selectedIds = new Set((line.selected_serials ?? []).map((serial) => serial.id));
@@ -2413,13 +2508,31 @@ function SerialSelectionPanel({
         </Badge>
       </div>
 
+      <div className="relative">
+        <Search
+          className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+          aria-hidden="true"
+        />
+        <Input
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Buscar IMEI o serial..."
+          className="h-10 pl-9 font-mono"
+          autoFocus
+          data-testid="pos-serial-search"
+        />
+        <p className="text-text-muted mt-1 px-1 text-xs">
+          Escribe una parte del IMEI o escanéalo para encontrarlo rápidamente.
+        </p>
+      </div>
+
       {loading ? (
         <div className="border-border text-text-muted flex items-center gap-2 rounded border p-3 text-sm">
           <Loader2 className="size-4 animate-spin" /> Buscando IMEIs disponibles...
         </div>
       ) : serials.length === 0 ? (
         <div className="border-warning bg-warning/10 text-warning rounded border p-3 text-sm">
-          No hay IMEIs disponibles para este producto en el almacen seleccionado.
+          No hay IMEIs disponibles que coincidan con la búsqueda.
         </div>
       ) : (
         <div className="divide-border border-border bg-surface max-h-[70vh] divide-y overflow-auto rounded-2xl border shadow-sm">

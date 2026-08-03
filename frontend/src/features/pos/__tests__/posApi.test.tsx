@@ -23,6 +23,7 @@ import {
   mergePosExchangeRateTypes,
   mergePosExchangeRates,
   mergePosPriceLists,
+  lookupProductSerialRequest,
   resolvePosPaymentRate,
   resolvePosOpenSession,
   useAvailableProductSerialsForPos,
@@ -410,6 +411,44 @@ describe('pos api', () => {
       '/inventory-center/products/5/serials?status=available&limit=100&warehouse_id=4',
     );
     expect(result.current.data?.[0]?.serial_number).toBe('860001000000001');
+  });
+
+  it('envia la busqueda server-side para no cargar todos los IMEIs', async () => {
+    mockGetOne.mockResolvedValue({ data: [] });
+
+    const { result } = renderHook(() => useAvailableProductSerialsForPos(5, 4, '860001'), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockGetOne).toHaveBeenCalledWith(
+      '/inventory-center/products/5/serials?status=available&limit=100&warehouse_id=4&search=860001',
+    );
+  });
+
+  it('resuelve un IMEI exacto con el warehouse seleccionado', async () => {
+    mockGetOne.mockResolvedValue({
+      data: {
+        id: 10,
+        product_id: 5,
+        warehouse_id: 4,
+        serial_type: 'imei',
+        serial_number: '860001000000001',
+        status: 'available',
+      },
+    });
+
+    await expect(
+      lookupProductSerialRequest({
+        warehouseId: 4,
+        serial: '860001000000001',
+        serialType: 'imei',
+      }),
+    ).resolves.toMatchObject({ product_id: 5, status: 'available' });
+    expect(mockGetOne).toHaveBeenCalledWith(
+      '/inventory-center/products/units/lookup?warehouse_id=4&serial=860001000000001&serial_type=imei',
+    );
   });
 
   it('crea caja fisica en el endpoint de cash register', async () => {
