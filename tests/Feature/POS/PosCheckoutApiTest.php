@@ -112,6 +112,40 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_checkout_rejects_discount_without_special_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Descuentos', 'slug' => 'empresa-descuentos']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-DISCOUNT', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'discount_type' => 'percent',
+                    'discount_value' => 10,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 450,
+                ]],
+            ])
+            ->assertForbidden();
+    }
+
     public function test_pos_checkout_applies_customer_credit_and_collects_remaining_difference(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Crédito', 'slug' => 'empresa-credito']);
@@ -311,7 +345,7 @@ class PosCheckoutApiTest extends TestCase
             'quantity_available' => 5,
         ]);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view', 'pos.discount']);
         $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
 
         $this

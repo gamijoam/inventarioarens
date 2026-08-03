@@ -63,7 +63,9 @@ describe('pos api', () => {
   });
 
   it('formatea la tasa del encabezado sin ocultar cuando no existe una activa', () => {
-    expect(formatPosRateLabel({ code: 'BCV', rate: 3000 })).toContain('BCV @');
+    expect(formatPosRateLabel({ code: 'BCV', name: 'Banco Central', rate: 3000 })).toContain(
+      'Banco Central (BCV) @',
+    );
     expect(formatPosRateLabel(null)).toBe('Sin tasa activa');
   });
 
@@ -156,6 +158,7 @@ describe('pos api', () => {
     expect(rate).toEqual({
       exchange_rate_type_id: 2,
       code: 'DIVISA-RECIBIDA',
+      name: 'DIVISA-RECIBIDA',
       rate: 850,
     });
     expect(10 * (rate?.rate ?? 0)).toBe(8500);

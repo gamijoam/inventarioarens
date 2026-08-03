@@ -24,6 +24,11 @@ class PosOrderPolicy
         return $this->hasTenantPermission($user, 'pos.checkout');
     }
 
+    public function discount(User $user): bool
+    {
+        return $this->hasTenantPermission($user, 'pos.discount');
+    }
+
     public function addPayment(User $user, PosOrder $order): bool
     {
         return $this->ownsResource($order)

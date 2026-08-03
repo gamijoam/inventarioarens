@@ -81,7 +81,7 @@ INVENTARIOARENS/
 │   ├── Modules/                          ← 35 módulos con MVC propio cada uno.
 │   ├── Providers/                        ← AppServiceProvider.
 │   └── Support/
-│       ├── Permissions/BasePermissions.php          ← Catálogo de 101 permisos + 6 roles.
+│       ├── Permissions/BasePermissions.php          ← Catálogo de 102 permisos + 6 roles.
 │       ├── Performance/PerformanceProbe.php          ← Métricas PERF OK/LENTO BACKEND.
 │       └── Tenancy/                                   ← TenantManager, TenantScope, BelongsToTenant trait.
 ├── bootstrap/
@@ -285,7 +285,7 @@ ModuleName/
 - Constantes en MAYÚSCULAS con `_` (e.g. `STATUS_ACTIVE`, `TRACKING_SERIALIZED`).
 - Llaves foráneas compuestas con `tenant_id` cuando la tabla padre es tenant-scoped.
 
-### 8.4 Permisos (101 totales)
+### 8.4 Permisos (102 totales)
 - Catálogo maestro: `App\Support\Permissions\BasePermissions::PERMISSIONS`.
 - 6 roles predefinidos: `Owner`, `Administrador` (todos los perms), `Gerente` (78 perms; casi todos
   excepto `users.create/update/delete`, `roles.*`, `settings.manage`, `ai.configure`),

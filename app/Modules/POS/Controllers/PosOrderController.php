@@ -78,6 +78,14 @@ class PosOrderController extends Controller
     {
         Gate::authorize('checkout', PosOrder::class);
 
+        $hasDiscount = collect($request->validated('items', []))->contains(
+            fn (array $item): bool => filled($item['discount_type'] ?? null)
+                && (float) ($item['discount_value'] ?? 0) > 0,
+        );
+        if ($hasDiscount) {
+            Gate::authorize('discount', PosOrder::class);
+        }
+
         $order = $checkout->checkout(
             cashier: $request->user(),
             cashRegisterSession: CashRegisterSession::query()->findOrFail($request->validated('cash_register_session_id')),

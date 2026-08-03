@@ -72,7 +72,9 @@ export function CashRegisterSetup() {
   const registerOptions = useMemo(() => registers.filter((register) => (register.status ?? 'active') === 'active'), [registers]);
   const activeSession = mySessions.find((session) => session.status === 'open' && Boolean(session.cash_register_id)) ?? null;
   const activeRate = bestActiveRate(rates, rateTypes);
-  const rateLabel = activeRate ? `${activeRate.code} @ ${formatLocalNumber(activeRate.rate)}` : null;
+  const rateLabel = activeRate
+    ? `${activeRate.name} (${activeRate.code}) @ ${formatLocalNumber(activeRate.rate)}`
+    : null;
   const overviewStats = [
     {
       label: 'Tu turno',
@@ -821,8 +823,8 @@ function formatLocalNumber(value: number): string {
 
 function bestActiveRate(
   rates: Array<{ exchange_rate_type_id: number; exchange_rate_type_code?: string | null; rate: number; base_currency?: string; quote_currency?: string }>,
-  rateTypes: Array<{ id: number; code?: string; is_default?: boolean; is_active?: boolean }>,
-): { exchange_rate_type_id: number; code: string; rate: number } | null {
+  rateTypes: Array<{ id: number; code?: string; name?: string; is_default?: boolean; is_active?: boolean }>,
+): { exchange_rate_type_id: number; code: string; name: string; rate: number } | null {
   const validRates = rates.filter((rate) => {
     const base = rate.base_currency ?? 'USD';
     const quote = rate.quote_currency ?? 'VES';
@@ -836,6 +838,7 @@ function bestActiveRate(
   return {
     exchange_rate_type_id: selected.exchange_rate_type_id,
     code: selected.exchange_rate_type_code ?? type?.code ?? 'Tasa',
+    name: type?.name ?? selected.exchange_rate_type_code ?? type?.code ?? 'Tasa',
     rate: Number(selected.rate),
   };
 }

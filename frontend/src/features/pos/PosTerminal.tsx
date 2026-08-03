@@ -173,14 +173,20 @@ export function shouldTriggerPosCheckoutShortcut(
   return shouldTriggerPosCheckoutOnEnter(input);
 }
 
-export function formatPosRateLabel(rate: { code: string; rate: number } | null): string {
-  return rate ? `${rate.code} @ ${formatLocalNumber(rate.rate)}` : 'Sin tasa activa';
+export function formatPosRateLabel(
+  rate: { code: string; name?: string; rate: number } | null,
+): string {
+  if (!rate) return 'Sin tasa activa';
+  const typeLabel =
+    rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
+  return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
 }
 
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
+  const canDiscount = permissions.has(PERMISSIONS.POS_DISCOUNT);
   const canCollectReceivables = permissions.has(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const canCancel = permissions.has(PERMISSIONS.POS_CANCEL);
   const canOpenCash = permissions.has(PERMISSIONS.CASH_REGISTER_OPEN);
@@ -1022,6 +1028,7 @@ export function PosTerminal() {
                   <CartLineRow
                     key={line.id}
                     line={line}
+                    canDiscount={canDiscount}
                     onChange={(patch) => updateLine(line.id, patch)}
                     onSerials={() => {
                       setSerialLineId(line.id);
@@ -1134,7 +1141,7 @@ export function PosTerminal() {
               <AmountRow label="Restante USD" value={paymentTotals.remaining} />
               {activeRate && (
                 <AmountRow
-                  label={`Restante en bolivares · ${activeRate.code}`}
+                  label={`Restante en bolivares · ${activeRate.name}`}
                   value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', activeRate.rate)}
                   currency="VES"
                 />
@@ -1144,7 +1151,7 @@ export function PosTerminal() {
                 <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
                 {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
                   <p className="text-success mt-1 text-sm font-semibold">
-                    Bs {roundMoney(paymentTotals.change_amount ?? 0).toFixed(2)}
+                    Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
                     {paymentTotals.change_rate
                       ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
                       : ''}
@@ -1960,9 +1967,9 @@ export function PosTerminal() {
         product_id: line.product_id,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         quantity: line.quantity,
-        discount_type: line.discount_type ?? null,
-        discount_value: line.discount_value ?? null,
-        discount_reason: line.discount_reason ?? null,
+        discount_type: canDiscount ? (line.discount_type ?? null) : null,
+        discount_value: canDiscount ? (line.discount_value ?? null) : null,
+        discount_reason: canDiscount ? (line.discount_reason ?? null) : null,
         product_unit_ids:
           line.tracking_type === 'serialized'
             ? (line.selected_serials ?? []).map((serial) => serial.id)
@@ -2063,11 +2070,13 @@ export function PosTerminal() {
 
 function CartLineRow({
   line,
+  canDiscount,
   onChange,
   onSerials,
   onRemove,
 }: {
   line: PosCartLine;
+  canDiscount: boolean;
   onChange: (patch: Partial<PosCartLine>) => void;
   onSerials: () => void;
   onRemove: () => void;
@@ -2092,12 +2101,12 @@ function CartLineRow({
           />
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-base font-semibold">{line.name}</p>
+              <p className="truncate text-lg font-semibold">{line.name}</p>
               <Badge variant={stockIssue ? 'warning' : 'success'} className="shrink-0 text-[10px]">
                 Stock {line.available_stock}
               </Badge>
             </div>
-            <div className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <div className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
               <span>{money(line.unit_price)} c/u</span>
               {line.price_list_name && (
@@ -2132,7 +2141,12 @@ function CartLineRow({
           </p>
         )}
       </div>
-      <div className="grid gap-2 sm:grid-cols-[124px_1fr]">
+      <div
+        className={cn(
+          'grid gap-2',
+          canDiscount ? 'sm:grid-cols-[124px_1fr]' : 'sm:grid-cols-[124px]',
+        )}
+      >
         <div className="flex items-center gap-1">
           <Button
             size="icon-sm"
@@ -2156,24 +2170,26 @@ function CartLineRow({
             <Plus className="size-3" />
           </Button>
         </div>
-        <div className="grid grid-cols-[minmax(100px,1fr)_92px] gap-2">
-          <Select
-            value={line.discount_type ?? ''}
-            onChange={(event) =>
-              onChange({ discount_type: (event.target.value || null) as DiscountType | null })
-            }
-          >
-            <option value="">Sin descuento</option>
-            <option value="percent">Porcentaje</option>
-            <option value="fixed">Monto</option>
-          </Select>
-          <Input
-            type="number"
-            min="0"
-            value={line.discount_value ?? ''}
-            onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
-          />
-        </div>
+        {canDiscount && (
+          <div className="grid grid-cols-[minmax(100px,1fr)_92px] gap-2">
+            <Select
+              value={line.discount_type ?? ''}
+              onChange={(event) =>
+                onChange({ discount_type: (event.target.value || null) as DiscountType | null })
+              }
+            >
+              <option value="">Sin descuento</option>
+              <option value="percent">Porcentaje</option>
+              <option value="fixed">Monto</option>
+            </Select>
+            <Input
+              type="number"
+              min="0"
+              value={line.discount_value ?? ''}
+              onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
+            />
+          </div>
+        )}
         {line.tracking_type === 'serialized' && (
           <Button
             className="sm:col-span-2"
@@ -2181,7 +2197,7 @@ function CartLineRow({
             size="sm"
             onClick={onSerials}
           >
-            Seleccionar IMEI/serial
+            {serialCount > 0 ? 'Cambiar IMEI/serial' : 'Seleccionar IMEI/serial'}
           </Button>
         )}
       </div>
@@ -2241,7 +2257,7 @@ function PaymentChip({
           </div>
           <p className="text-text-muted mt-1 text-xs">
             {payment.currency === 'VES' && rateType
-              ? `${rateType.code}${payment.exchange_rate ? ` @ ${payment.exchange_rate}` : ''}`
+              ? `${rateType.name}${payment.exchange_rate ? ` @ ${formatLocalNumber(payment.exchange_rate)}` : ''}`
               : methodLabel(payment.method)}
           </p>
         </div>
@@ -2588,7 +2604,7 @@ function QuickPaymentPanel({
   }[];
   cartTotal: number;
   payments: PosPaymentLine[];
-  rate: { exchange_rate_type_id: number; code: string; rate: number } | null;
+  rate: { exchange_rate_type_id: number; code: string; name: string; rate: number } | null;
   priceListName: string;
   issue: string | null;
   onSelect: (methodId: number) => void;
@@ -2606,11 +2622,9 @@ function QuickPaymentPanel({
             <div className="text-right">
               <p className="text-sm text-white/70">Equivalente VES</p>
               <p className="text-2xl font-bold">
-                Bs {paymentAmountForCurrency(remaining, 'VES', rate.rate).toFixed(2)}
+                Bs {formatLocalNumber(paymentAmountForCurrency(remaining, 'VES', rate.rate))}
               </p>
-              <p className="text-xs text-white/60">
-                {rate.code} @ {rate.rate}
-              </p>
+              <p className="text-xs text-white/60">{formatPosRateLabel(rate)}</p>
             </div>
           ) : (
             <div className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-sm">
@@ -3348,7 +3362,7 @@ function ReceiptPanel({
                 <span className="text-text-muted truncate">
                   {item.customer_name ?? 'Consumidor Final'}
                 </span>
-                <span className="font-semibold">${(item.total_base_amount ?? 0).toFixed(2)}</span>
+                <span className="font-semibold">{money(item.total_base_amount ?? 0)}</span>
               </button>
             ))}
         </div>
@@ -3554,7 +3568,7 @@ function AmountRow({
     <div className={cn('flex items-center justify-between', muted && 'text-text-muted')}>
       <span>{label}</span>
       <span className="font-medium">
-        {currency === 'VES' ? `Bs ${roundMoney(value).toFixed(2)}` : money(value)}
+        {currency === 'VES' ? `Bs ${formatLocalNumber(value)}` : money(value)}
       </span>
     </div>
   );
@@ -3673,15 +3687,15 @@ function previewQuickPayment(
   method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
   total: number,
   payments: PosPaymentLine[],
-  rate: { exchange_rate_type_id: number; code: string; rate: number } | null,
+  rate: { exchange_rate_type_id: number; code: string; name: string; rate: number } | null,
 ): { amountLabel: string; detail: string } {
   const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
   const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
   const amount = paymentAmountForCurrency(remaining, currency, rate?.rate ?? null);
-  const amountLabel = currency === 'VES' ? `Bs ${amount.toFixed(2)}` : money(amount);
+  const amountLabel = currency === 'VES' ? `Bs ${formatLocalNumber(amount)}` : money(amount);
   const detail =
     currency === 'VES'
-      ? `${rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${rate.rate}` : ' sin valor activo'}`
+      ? `${rate?.name ?? rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${formatLocalNumber(rate.rate)}` : ' sin valor activo'}`
       : methodLabel(method.method);
 
   return { amountLabel, detail };
@@ -3732,7 +3746,12 @@ export function resolvePaymentMethods(
 }
 
 function money(value: number): string {
-  return `$${roundMoney(Number(value || 0)).toFixed(2)}`;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(roundMoney(Number(value || 0)));
 }
 
 function formatLocalNumber(value: number): string {

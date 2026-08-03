@@ -1,5 +1,5 @@
 /**
- * Constantes de los 101 permisos del backend.
+ * Constantes de los 102 permisos del backend.
  * Usar SIEMPRE estas constantes (no strings literales) para tener
  * autocompletado en el IDE y evitar typos.
  *
@@ -44,6 +44,7 @@ export const PERMISSIONS = {
   POS_VIEW: 'pos.view',
   POS_CHECKOUT: 'pos.checkout',
   POS_CANCEL: 'pos.cancel',
+  POS_DISCOUNT: 'pos.discount',
 
   // Printing
   PRINTING_VIEW: 'printing.view',

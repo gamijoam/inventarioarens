@@ -869,6 +869,7 @@ type PosRateLike = {
 type PosRateTypeLike = {
   id: number;
   code: string;
+  name?: string;
   is_default?: boolean;
   is_active?: boolean;
 };
@@ -877,7 +878,7 @@ export function resolvePosPaymentRate(
   rates: PosRateLike[],
   rateTypes: PosRateTypeLike[],
   paymentExchangeRateTypeId?: number | null,
-): { exchange_rate_type_id: number; code: string; rate: number } | null {
+): { exchange_rate_type_id: number; code: string; name: string; rate: number } | null {
   const validRates = rates.filter(
     (rate) =>
       Number(rate.rate) > 0 &&
@@ -897,6 +898,7 @@ export function resolvePosPaymentRate(
     return {
       exchange_rate_type_id: configuredType.id,
       code: configuredType.code,
+      name: configuredType.name ?? configuredType.code,
       rate: Number(configuredRate.rate),
     };
   }
@@ -919,6 +921,8 @@ export function resolvePosPaymentRate(
   return {
     exchange_rate_type_id: selectedRate.exchange_rate_type_id,
     code: selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
+    name:
+      selectedType?.name ?? selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
     rate: Number(selectedRate.rate),
   };
 }
