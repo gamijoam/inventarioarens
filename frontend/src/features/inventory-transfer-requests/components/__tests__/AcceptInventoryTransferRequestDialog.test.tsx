@@ -3,11 +3,10 @@
  *
  * Cubre:
  *   - Layout visual de cada item (origen -> flecha -> destino) con cards.
- *   - IMEI scanner aparece en la zona destino SOLO cuando el item destino
- *     es serializado (es la empresa destino quien decide QUE IMEIs envia).
- *   - IMEI scanner se muestra si hay destination_product_id Y warehouse_id.
- *   - Submit envia serial_units en el payload para items serializados.
- *   - Bloquea submit si el item serializado no tiene la cantidad de IMEIs.
+ *   - En solicitudes de stock, quien suministra selecciona los IMEIs de salida.
+ *   - En propuestas de envio, el receptor solo mapea su catalogo; el remitente
+ *     selecciona los IMEIs al preparar la guia.
+ *   - El submit valida seriales solo cuando corresponde a la empresa que envia.
  *   - Dropdown de producto destino se ordena por scoreMatch.
  *   - Badge visual segun tipo de match (SKU/Barcode verde, Similar amarillo).
  */
@@ -93,6 +92,15 @@ function makeRequest(items: NonNullable<TransferRequest['items']>): TransferRequ
   } as TransferRequest;
 }
 
+function makeShipmentOffer(items: NonNullable<TransferRequest['items']>): TransferRequest {
+  return {
+    ...makeRequest(items),
+    flow_type: 'shipment_offer',
+    sender_tenant_id: 2,
+    receiver_tenant_id: 1,
+  } as TransferRequest;
+}
+
 async function selectDestinationProduct(
   user: ReturnType<typeof userEvent.setup>,
   itemId: number,
@@ -132,7 +140,7 @@ describe('AcceptInventoryTransferRequestDialog', () => {
       },
     );
     expect(screen.getByLabelText(/almac.n.*salida/i)).toBeInTheDocument();
-    expect(screen.getByText(/Notas de respuesta/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Notas para la empresa solicitante/i)).toBeInTheDocument();
   });
 
   it('bloquea submit si no se selecciona almacen de salida', async () => {
@@ -419,6 +427,64 @@ describe('AcceptInventoryTransferRequestDialog', () => {
 
     expect(await screen.findByLabelText(/Quitar IPHONE 20/i)).toBeInTheDocument();
     expect(mockUseProductsForTransfer).toHaveBeenCalledWith('IPHONE-20');
-    expect(screen.getByTestId('accept-card-badge-600')).toHaveTextContent(/Match SKU/i);
+    expect(screen.getByTestId('accept-card-badge-600')).toHaveTextContent(/Coincidencia por SKU/i);
+  });
+
+  it('separa una propuesta de envio y no pide IMEIs al receptor', async () => {
+    const request = makeShipmentOffer([
+      {
+        id: 700,
+        origin_product_id: 14601,
+        origin_product: {
+          id: 14601,
+          name: 'IPHONE 20',
+          sku: 'IPHONE-20',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+        quantity: 1,
+      },
+    ]);
+    mockUseProductsForTransfer.mockReturnValue({
+      data: [
+        {
+          id: 14599,
+          name: 'IPHONE 20',
+          sku: 'IPHONE-20',
+          barcode: null,
+          tracking_type: 'serialized',
+        },
+      ],
+      isFetching: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+
+    render(
+      <AcceptInventoryTransferRequestDialog
+        request={request}
+        open
+        onOpenChange={() => undefined}
+      />,
+      { wrapper: makeWrapper() },
+    );
+
+    expect(screen.getByText(/Revisar propuesta de env.o/i)).toBeInTheDocument();
+    expect(screen.getByText('Te ofrecen')).toBeInTheDocument();
+    expect(screen.queryByTestId('accept-imeis-700')).not.toBeInTheDocument();
+    expect(screen.getByText(/empresa remitente seleccionar.*IMEIs/i)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/almac.n de recepci.n/i), '10');
+    await user.click(screen.getByTestId('submit-accept'));
+
+    await waitFor(() => expect(mockAcceptMutateAsync).toHaveBeenCalledTimes(1));
+    const call = mockAcceptMutateAsync.mock.calls[0]?.[0] as {
+      values: {
+        logistics_mode: boolean;
+        items: { serial_units?: unknown[] }[];
+      };
+    };
+    expect(call.values.logistics_mode).toBe(true);
+    expect(call.values.items[0]?.serial_units).toBeUndefined();
   });
 });

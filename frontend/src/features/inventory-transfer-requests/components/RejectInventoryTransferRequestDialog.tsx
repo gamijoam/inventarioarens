@@ -1,7 +1,4 @@
-/**
- * RejectInventoryTransferRequestDialog: dialog para que la empresa destino
- * rechaze una solicitud. Solo pide notas opcionales.
- */
+/** Rechazo contextual de una solicitud de stock o propuesta de envio. */
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -34,6 +31,9 @@ export function RejectInventoryTransferRequestDialog({
 
   if (!open) return null;
 
+  const isShipmentOffer = request.flow_type === 'shipment_offer';
+  const operationLabel = isShipmentOffer ? 'propuesta de envío' : 'solicitud de stock';
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -42,11 +42,11 @@ export function RejectInventoryTransferRequestDialog({
         id: request.id,
         values: { response_notes: notes.trim() ? notes.trim() : null },
       });
-      toast.success('Solicitud rechazada.');
+      toast.success(isShipmentOffer ? 'Propuesta rechazada.' : 'Solicitud rechazada.');
       onRejected?.(rejected.id);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al rechazar la solicitud.');
+      toast.error(err instanceof Error ? err.message : `No se pudo rechazar la ${operationLabel}.`);
     } finally {
       setSubmitting(false);
     }
@@ -65,10 +65,11 @@ export function RejectInventoryTransferRequestDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="reject-req-title" className="text-lg font-semibold">
-          Rechazar solicitud {request.document_number ?? '#' + request.id}
+          Rechazar {operationLabel} {request.document_number ?? '#' + request.id}
         </h2>
         <p className="mt-1 text-sm text-text-muted">
-          La solicitud quedara en estado <code>rejected</code>. Indica opcionalmente el motivo.
+          Esta acción cierra la {operationLabel} sin mover inventario. Puedes indicar el motivo para
+          que la otra empresa conozca la decisión.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>

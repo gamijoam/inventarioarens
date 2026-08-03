@@ -233,9 +233,9 @@ export const AcceptTransferRequestItemSchema = z.object({
   request_item_id: positiveNumber,
   destination_product_id: positiveNumber,
   /**
-   * IMEIs/seriales especificos del stock destino que se envian al aceptar.
-   * Solo requerido si el destination_product es serializado (validacion del
-   * backend, no del schema).
+   * Solo se usa en solicitudes de stock sin guia logistica. En propuestas de
+   * envio y solicitudes con guia, los seriales los selecciona la empresa
+   * remitente durante la preparacion.
    */
   serial_units: z
     .array(

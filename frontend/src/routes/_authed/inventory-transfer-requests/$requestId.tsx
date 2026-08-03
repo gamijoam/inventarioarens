@@ -165,6 +165,8 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
     canReceivePermission;
   const accepting = accept.isPending;
   const cancelling = cancel.isPending;
+  const isShipmentOffer = request.flow_type === 'shipment_offer';
+  const operationName = isShipmentOffer ? 'Propuesta de envío' : 'Solicitud de stock';
 
   function doCancel() {
     if (!confirm(`Cancelar la solicitud ${request!.document_number ?? '#' + request!.id}?`)) return;
@@ -178,14 +180,14 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
 
   return (
     <PageLayout
-      title={`Solicitud ${request.document_number ?? '#' + request.id}`}
-      description={`${request.sender_tenant?.slug ?? 'T#' + request.sender_tenant_id} envia a ${request.receiver_tenant?.slug ?? 'T#' + request.receiver_tenant_id}`}
+      title={`${operationName} ${request.document_number ?? '#' + request.id}`}
+      description={`${request.sender_tenant?.slug ?? 'T#' + request.sender_tenant_id} envía a ${request.receiver_tenant?.slug ?? 'T#' + request.receiver_tenant_id}`}
       breadcrumb={
         <Link
           to="/inventory-transfer-requests"
           className="text-text-muted hover:text-primary inline-flex items-center gap-1 text-xs"
         >
-          <ArrowLeft className="size-3" /> Solicitudes inter-empresa
+          <ArrowLeft className="size-3" /> Traslados interempresa
         </Link>
       }
       actions={
@@ -207,7 +209,7 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
                 loading={accepting}
                 data-testid="detail-accept-btn"
               >
-                Aceptar
+                {isShipmentOffer ? 'Aceptar propuesta' : 'Atender solicitud'}
               </Button>
               <Button
                 size="sm"
@@ -282,10 +284,10 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
               <div className="font-medium">Guía en borrador</div>
               <p className="text-text-muted mt-1">
                 {isSender
-                  ? 'Prepara la guía con las cantidades, IMEIs/seriales y transportista. Después podrás despacharla y marcarla como entregada.'
+                  ? 'Prepara el envío con las cantidades e IMEIs/seriales que realmente saldrán. Después podrás despacharlo y marcarlo como entregado.'
                   : isReceiver
-                    ? 'La solicitud fue aceptada. La empresa que envía debe preparar y despachar la guía. Cuando llegue como entregada podrás registrar la recepción.'
-                    : 'La empresa que envía debe preparar y despachar la guía antes de que pueda recibirse.'}
+                    ? 'Aceptaste la operación. La empresa remitente debe preparar y despachar la guía. Cuando llegue podrás verificar la mercancía y registrar la recepción.'
+                    : 'La empresa remitente debe preparar y despachar la guía antes de que pueda recibirse.'}
               </p>
             </div>
           </CardContent>
@@ -295,10 +297,10 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
       {prepareNeedsPermission && (
         <Card className="border-warning/30 bg-warning/10 mb-4">
           <CardContent className="p-4 text-sm">
-            <div className="font-medium">Tu usuario no puede preparar esta guia</div>
+            <div className="font-medium">Tu usuario no puede preparar esta guía</div>
             <p className="text-text-muted mt-1">
-              Esta accion requiere el permiso inventory_transfer_requests.prepare dentro de la
-              empresa que envia. Cambia al usuario administrador de esa empresa o asigna el
+              Esta acción requiere el permiso inventory_transfer_requests.prepare dentro de la
+              empresa que envía. Cambia al usuario administrador de esa empresa o asigna el
               permiso desde Acceso &gt; Roles y permisos.
             </p>
           </CardContent>
@@ -308,8 +310,8 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="items">Items ({request.items?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="items">Productos ({request.items?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="timeline">Cronología</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
@@ -323,10 +325,10 @@ export function TransferRequestDetailInner({ id }: { id: number }) {
         <TabsContent value="timeline" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Cronologia de la solicitud</CardTitle>
+              <CardTitle>Cronología del traslado</CardTitle>
               <CardDescription>
-                Eventos registrados en orden cronologico: solicitud, aceptacion, rechazo o
-                cancelacion.
+                Eventos registrados en orden cronológico desde la propuesta o solicitud hasta la
+                recepción.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -437,7 +439,7 @@ function GeneralTab({ request }: { request: TransferRequest }) {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle>Detalles de la solicitud</CardTitle>
+          <CardTitle>{isOffer ? 'Detalles de la propuesta' : 'Detalles de la solicitud'}</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <div>
@@ -454,7 +456,7 @@ function GeneralTab({ request }: { request: TransferRequest }) {
           </div>
           <div>
             <div className="text-text-muted text-xs tracking-wide uppercase">
-              Notas del solicitante
+              {isOffer ? 'Notas de la empresa remitente' : 'Notas de la empresa solicitante'}
             </div>
             <div>{request.notes ?? <span className="text-text-muted italic">sin notas</span>}</div>
           </div>
@@ -464,12 +466,14 @@ function GeneralTab({ request }: { request: TransferRequest }) {
             </div>
             <div>
               {request.response_notes ?? (
-                <span className="text-text-muted italic">aun sin responder</span>
+                <span className="text-text-muted italic">aún sin responder</span>
               )}
             </div>
           </div>
           <div>
-            <div className="text-text-muted text-xs tracking-wide uppercase">Solicitada</div>
+            <div className="text-text-muted text-xs tracking-wide uppercase">
+              {isOffer ? 'Propuesta' : 'Solicitada'}
+            </div>
             <div>
               {request.requested_at ? new Date(request.requested_at).toLocaleString() : '-'}
             </div>
@@ -512,7 +516,7 @@ interface ItemRow {
 function ItemsTab({ request }: { request: TransferRequest }) {
   const items: ItemRow[] = (request.items ?? []) as ItemRow[];
   if (items.length === 0) {
-    return <EmptyState title="Sin items" description="Esta solicitud no tiene items asociados." />;
+    return <EmptyState title="Sin productos" description="Este traslado no tiene productos asociados." />;
   }
   return (
     <div className="space-y-4">
@@ -541,7 +545,7 @@ function ItemsTab({ request }: { request: TransferRequest }) {
               {destination ? (
                 <div className="border-border bg-bg/30 rounded border p-3">
                   <div className="text-text-muted text-xs tracking-wide uppercase">
-                    Producto destino mapeado
+                    Producto equivalente en la empresa receptora
                   </div>
                   <div className="mt-1 font-medium">{destination.name}</div>
                   {destination.sku && (
@@ -552,21 +556,21 @@ function ItemsTab({ request }: { request: TransferRequest }) {
                 </div>
               ) : (
                 <div className="border-border bg-bg/30 text-text-muted rounded border border-dashed p-3">
-                  Producto destino <strong>no mapeado todavia</strong>. El destino debe aceptar y
-                  elegir el producto correspondiente.
+                  Producto receptor <strong>no mapeado todavía</strong>. La empresa receptora debe
+                  seleccionar el producto equivalente antes de aceptar.
                 </div>
               )}
 
               {tracking === 'serialized' && (
                 <div data-testid={`detail-item-imeis-${it.id}`}>
                   <div className="text-text-muted text-xs tracking-wide uppercase">
-                    IMEIs / seriales que llegaran a tu stock ({serialNumbers.length} /{' '}
+                    IMEIs / seriales registrados en el envío ({serialNumbers.length} /{' '}
                     {Number(it.quantity).toLocaleString()})
                   </div>
                   {serialNumbers.length === 0 ? (
                     <p className="border-warning/30 bg-warning/10 text-warning mt-1 rounded border p-2 text-xs">
-                      La solicitud no incluye IMEIs/seriales. Si aceptas sin ellos, las unidades
-                      quedaran sin identificar en tu stock.
+                      Los IMEIs/seriales aún no han sido preparados por la empresa remitente. Se
+                      registrarán antes del despacho y la receptora deberá verificarlos al recibir.
                     </p>
                   ) : (
                     <ul className="mt-1 flex flex-wrap gap-1.5">

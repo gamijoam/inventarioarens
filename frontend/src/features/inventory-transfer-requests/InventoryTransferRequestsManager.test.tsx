@@ -145,7 +145,7 @@ describe('InventoryTransferRequestsManager', () => {
     );
     expect(screen.getByText('TREQ-1-000001')).toBeInTheDocument();
     expect(screen.getByTestId('accept-5')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /rechazar solicitud/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /rechazar propuesta/i })).toBeInTheDocument();
   });
 
   it('muestra boton Cancelar para solicitudes enviadas en estado requested', async () => {

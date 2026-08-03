@@ -99,15 +99,30 @@ class AccessControlApiTest extends TestCase
 
         setPermissionsTeamId($tenant->id);
 
+        $expectedPermissions = [
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.create',
+            'inventory_transfer_requests.offer',
+            'inventory_transfer_requests.respond',
+            'inventory_transfer_requests.prepare',
+            'inventory_transfer_requests.dispatch',
+            'inventory_transfer_requests.deliver',
+            'inventory_transfer_requests.receive',
+            'inventory_transfer_requests.cancel',
+        ];
+
         foreach (['Owner', 'Administrador'] as $roleName) {
             $role = Role::query()
                 ->where('name', $roleName)
                 ->where('tenant_id', $tenant->id)
                 ->firstOrFail();
 
-            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.prepare'));
-            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.dispatch'));
-            $this->assertTrue($role->hasPermissionTo('inventory_transfer_requests.deliver'));
+            foreach ($expectedPermissions as $permission) {
+                $this->assertTrue(
+                    $role->hasPermissionTo($permission),
+                    "El rol {$roleName} debe recibir {$permission} por defecto.",
+                );
+            }
         }
     }
 

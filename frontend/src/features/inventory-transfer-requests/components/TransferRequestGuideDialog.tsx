@@ -75,6 +75,7 @@ export function TransferRequestGuideDialog({
   if (!open) return null;
 
   const isPrepare = mode === 'prepare';
+  const isShipmentOffer = request.flow_type === 'shipment_offer';
   const mutation = isPrepare ? prepare : receive;
 
   async function submit(e: React.FormEvent) {
@@ -82,7 +83,13 @@ export function TransferRequestGuideDialog({
     const items: GuideItemQuantity[] = [];
     for (const item of request.items ?? []) {
       const quantity = quantities[item.id] ?? 0;
-      if (quantity < Number(item.quantity) && !reasons[item.id]?.trim()) {
+      const guideItem = request.guide?.items?.find(
+        (candidate) => candidate.inventory_transfer_request_item_id === item.id,
+      );
+      const expectedQuantity = isPrepare
+        ? Number(item.quantity)
+        : Number(guideItem?.prepared_quantity ?? item.quantity);
+      if (quantity < expectedQuantity && !reasons[item.id]?.trim()) {
         toast.error(
           `Indica el motivo de la diferencia para ${item.origin_product?.name ?? `item #${item.id}`}.`,
         );
@@ -93,6 +100,12 @@ export function TransferRequestGuideDialog({
           ?.split(',')
           .map((value) => value.trim())
           .filter(Boolean) ?? [];
+      if (new Set(serialValues).size !== serialValues.length) {
+        toast.error(
+          `No puedes repetir un IMEI o serial para ${item.origin_product?.name ?? `item #${item.id}`}.`,
+        );
+        return;
+      }
       if (item.origin_product?.tracking_type === 'serialized' && serialValues.length !== quantity) {
         toast.error(
           `Indica ${quantity} IMEI(s)/serial(es) para ${item.origin_product?.name ?? `item #${item.id}`}.`,
@@ -149,11 +162,15 @@ export function TransferRequestGuideDialog({
       aria-modal="true"
     >
       <div className="bg-surface border-border max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border p-5">
-        <h2 className="text-lg font-semibold">{isPrepare ? 'Preparar guía' : 'Recibir guía'}</h2>
+        <h2 className="text-lg font-semibold">
+          {isPrepare ? 'Preparar envío' : 'Verificar y recibir mercancía'}
+        </h2>
         <p className="text-text-muted mt-1 text-sm">
           {isPrepare
-            ? 'Confirma las cantidades que salen y registra diferencias.'
-            : 'Confirma lo recibido. El stock se aplicará al cerrar la recepción.'}
+            ? isShipmentOffer
+              ? 'Confirma la mercancía que ofreciste y selecciona los IMEIs o seriales que saldrán.'
+              : 'Confirma la mercancía solicitada que enviarás y registra cualquier diferencia.'
+            : 'Compara lo recibido con la guía despachada. El stock ingresará al confirmar la recepción.'}
         </p>
         <form onSubmit={submit} className="mt-5 space-y-4">
           {isPrepare && (
@@ -291,8 +308,18 @@ export function TransferRequestGuideDialog({
             </div>
           )}
           {(request.items ?? []).map((item) => {
-            const requested = Number(item.quantity);
+            const guideItem = request.guide?.items?.find(
+              (candidate) => candidate.inventory_transfer_request_item_id === item.id,
+            );
+            const expected = isPrepare
+              ? Number(item.quantity)
+              : Number(guideItem?.prepared_quantity ?? item.quantity);
             const quantity = quantities[item.id] ?? 0;
+            const expectedLabel = isPrepare
+              ? isShipmentOffer
+                ? 'Ofrecido'
+                : 'Solicitado'
+              : 'Despachado';
             return (
               <div key={item.id} className="border-border rounded border p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -300,7 +327,9 @@ export function TransferRequestGuideDialog({
                     <div className="font-medium">
                       {item.origin_product?.name ?? `Producto #${item.origin_product_id}`}
                     </div>
-                    <div className="text-text-muted text-xs">Solicitado: {requested}</div>
+                    <div className="text-text-muted text-xs">
+                      {expectedLabel}: {expected}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Label htmlFor={`guide-qty-${item.id}`} className="text-xs">
@@ -310,7 +339,7 @@ export function TransferRequestGuideDialog({
                       id={`guide-qty-${item.id}`}
                       type="number"
                       min={0}
-                      max={requested}
+                      max={expected}
                       step="0.0001"
                       value={quantity}
                       onChange={(event) =>
@@ -323,7 +352,7 @@ export function TransferRequestGuideDialog({
                     />
                   </div>
                 </div>
-                {quantity < requested && (
+                {quantity < expected && (
                   <input
                     value={reasons[item.id] ?? ''}
                     onChange={(event) =>
@@ -341,9 +370,20 @@ export function TransferRequestGuideDialog({
                     onChange={(event) =>
                       setSerials((current) => ({ ...current, [item.id]: event.target.value }))
                     }
-                    placeholder="IMEIs/seriales separados por coma"
+                    placeholder={
+                      isPrepare
+                        ? 'IMEIs/seriales que saldrán, separados por coma'
+                        : 'Escanea o escribe los IMEIs/seriales recibidos, separados por coma'
+                    }
                     className="border-border-strong bg-surface mt-3 w-full rounded border px-3 py-2 text-sm"
                   />
+                )}
+                {item.origin_product?.tracking_type === 'serialized' && (
+                  <p className="text-text-muted mt-1 text-xs">
+                    {isPrepare
+                      ? 'Estos seriales quedarán registrados en la guía y saldrán del almacén al despachar.'
+                      : 'Debes verificar exactamente los seriales despachados por la empresa remitente.'}
+                  </p>
                 )}
               </div>
             );

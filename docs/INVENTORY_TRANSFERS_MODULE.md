@@ -99,7 +99,14 @@ Reglas operativas:
   si las empresas deciden transportarla.
 - Una **propuesta de envio** siempre crea guia: la receptora inspecciona y
   aprueba primero; el remitente prepara, despacha y marca entregada; la
-  receptora confirma la recepcion. El stock y Kardex cambian solo al recibir.
+  receptora confirma la recepcion. El stock sale del remitente y genera Kardex
+  al despachar; entra al receptor y genera su Kardex al confirmar la recepcion.
+- En `stock_request`, la empresa que aprueba es tambien quien suministra: mapea
+  su producto de salida y selecciona sus IMEIs al preparar la guia.
+- En `shipment_offer`, la empresa que aprueba es la receptora: solo relaciona
+  el producto con su catalogo y selecciona el almacen de entrada. Nunca elige
+  IMEIs de salida; esa responsabilidad pertenece al remitente durante la
+  preparacion. En la recepcion verifica exactamente los seriales despachados.
 - `sender_tenant_id`, `receiver_tenant_id`, `sender_warehouse_id` y
   `receiver_warehouse_id` son la fuente de verdad para movimientos fisicos.
   Los campos `origin_*` y `destination_*` se conservan por compatibilidad y
@@ -108,6 +115,10 @@ Reglas operativas:
   `requested`; aprobar/rechazar corresponde al tenant `destination`.
 - Preparar, despachar y entregar requieren permisos del lado remitente;
   recibir requiere el permiso del lado receptor.
+- `Owner` y `Administrador` reciben por defecto los nueve permisos del modulo:
+  `view`, `create`, `offer`, `respond`, `prepare`, `dispatch`, `deliver`,
+  `receive` y `cancel`. Todos siguen siendo desactivables desde el arbol de
+  permisos para roles personalizados.
 
 ## Frontend (FASE T3+T4)
 

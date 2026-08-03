@@ -261,7 +261,8 @@ export function InventoryTransferRequestsManager({
                           <span>{r.receiver_tenant?.slug ?? r.origin_tenant?.slug ?? `T#${receiverTenantId}`}</span>
                         </div>
                         <div className="text-[10px] tracking-wide uppercase">
-                          {isMine ? 'envías' : 'recibes'} · {r.flow_type === 'shipment_offer' ? 'propuesta' : 'solicitud'}
+                          {isMine ? 'envías' : 'recibes'} ·{' '}
+                          {r.flow_type === 'shipment_offer' ? 'propuesta de envío' : 'solicitud de stock'}
                         </div>
                       </td>
                       <td className="text-text-muted px-3 py-2 tabular-nums">
@@ -284,8 +285,8 @@ export function InventoryTransferRequestsManager({
                               size="icon-sm"
                               variant="ghost"
                               onClick={() => onAccept(r)}
-                              aria-label={`Aceptar solicitud ${r.document_number ?? r.id}`}
-                              title="Aceptar"
+                              aria-label={`${r.flow_type === 'shipment_offer' ? 'Aceptar propuesta' : 'Atender solicitud'} ${r.document_number ?? r.id}`}
+                              title={r.flow_type === 'shipment_offer' ? 'Aceptar propuesta' : 'Atender solicitud'}
                               data-testid={`accept-${r.id}`}
                             >
                               <CheckCircle2 className="text-success size-4" />
@@ -296,7 +297,7 @@ export function InventoryTransferRequestsManager({
                               size="icon-sm"
                               variant="ghost"
                               onClick={() => onReject(r)}
-                              aria-label={`Rechazar solicitud ${r.document_number ?? r.id}`}
+                              aria-label={`Rechazar ${r.flow_type === 'shipment_offer' ? 'propuesta' : 'solicitud'} ${r.document_number ?? r.id}`}
                               title="Rechazar"
                             >
                               <XCircle className="text-danger size-4" />

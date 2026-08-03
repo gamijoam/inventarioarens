@@ -6088,3 +6088,17 @@ Regla:
 - La app de escritorio ahora permite recibir completo o registrar diferencias justificadas por linea.
 - Se documento el avance en docs/IMPLEMENTACION_TRASLADOS_FASE_6_ESCRITORIO_RECEPCION_2026-07-09.md, docs/API.md y docs/MODULES.md.
 - Pruebas objetivo: InventoryTransferApiTest y compilacion WPF.
+## 2026-08-03 - Separacion semantica y fisica de traslados interempresa
+
+- Se separaron los formularios de `stock_request` y `shipment_offer` para que
+  cada empresa vea su responsabilidad real: solicitar/suministrar o
+  proponer/recibir.
+- En propuestas de envio, el receptor solo mapea su catalogo y almacen de
+  entrada; el remitente elige IMEIs al preparar. El receptor verifica los
+  mismos seriales al recibir.
+- El despacho descuenta stock y retira seriales en la empresa remitente. La
+  recepcion crea el stock y los seriales disponibles en la empresa receptora.
+- Se validan cantidades, tipo de control, stock, duplicados y pertenencia de
+  seriales a la guia.
+- Se verifico que Owner y Administrador conserven todos los permisos
+  `inventory_transfer_requests.*` por defecto mediante migracion y pruebas.

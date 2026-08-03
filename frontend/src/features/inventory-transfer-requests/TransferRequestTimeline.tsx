@@ -1,9 +1,4 @@
-/**
- * TransferRequestTimeline: cronologia de eventos de una solicitud
- * inter-empresa (created / accepted / rejected / cancelled).
- * Lee los timestamps y responded_by del modelo TransferRequest y los
- * renderiza como lista vertical con iconos y badges.
- */
+/** Cronologia comun para solicitudes de stock y propuestas de envio. */
 import { CheckCircle2, FileText, PackageX, Truck, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -97,7 +92,7 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
       <EmptyState
         icon={<FileText className="size-6" />}
         title="Sin eventos"
-        description="Esta solicitud no tiene eventos registrados todavia."
+        description="Este traslado no tiene eventos registrados todavía."
       />
     );
   }
@@ -109,6 +104,10 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
     >
       {events.map((event, idx) => {
         const meta = STAGE_META[event.stage]!;
+        const label =
+          event.stage === 'requested' && request.flow_type === 'shipment_offer'
+            ? 'Propuesta enviada'
+            : meta.label;
         const Icon = meta.icon;
         const key = `${event.stage}-${event.at ?? idx}`;
         return (
@@ -120,7 +119,7 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
               <Icon className="size-3.5" />
             </span>
             <div className="flex flex-wrap items-baseline gap-2">
-              <Badge variant={meta.variant}>{meta.label}</Badge>
+              <Badge variant={meta.variant}>{label}</Badge>
               <time className="text-text-muted text-xs" dateTime={event.at ?? undefined}>
                 {formatDateTime(event.at)}
               </time>

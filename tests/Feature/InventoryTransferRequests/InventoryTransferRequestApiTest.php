@@ -210,6 +210,7 @@ class InventoryTransferRequestApiTest extends TestCase
             'inventory_transfer_requests.view',
             'inventory_transfer_requests.prepare',
         ]);
+        $this->stock($destinationTenant, $destinationWarehouse, $destinationProduct, $destinationUser, 2);
 
         $created = $this->actingAs($originUser)->withHeader('X-Tenant', $originTenant->slug)->postJson('/api/inventory-transfer-requests', [
             'destination_tenant_slug' => $destinationTenant->slug,
@@ -573,6 +574,16 @@ class InventoryTransferRequestApiTest extends TestCase
             'items' => [['request_item_id' => $itemId, 'prepared_quantity' => 4]],
         ])->assertOk();
         $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/dispatch")->assertOk();
+
+        $this->useTenant($senderTenant);
+        $this->assertSame(6.0, (float) $this->balance($senderWarehouse, $senderProduct)->quantity_available);
+        $this->useTenant($receiverTenant);
+        $this->assertDatabaseMissing('stock_balances', [
+            'tenant_id' => $receiverTenant->id,
+            'warehouse_id' => $receiverWarehouse->id,
+            'product_id' => $receiverProduct->id,
+        ]);
+
         $this->actingAs($senderUser)->withHeader('X-Tenant', $senderTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/deliver")->assertOk();
 
         $this->actingAs($receiverUser)->withHeader('X-Tenant', $receiverTenant->slug)->postJson("/api/inventory-transfer-requests/{$requestId}/guide/receive", [
@@ -583,6 +594,103 @@ class InventoryTransferRequestApiTest extends TestCase
         $this->assertSame(6.0, (float) $this->balance($senderWarehouse, $senderProduct)->quantity_available);
         $this->useTenant($receiverTenant);
         $this->assertSame(4.0, (float) $this->balance($receiverWarehouse, $receiverProduct)->quantity_available);
+    }
+
+    public function test_shipment_offer_defers_imei_selection_to_sender_and_receiver_verifies_it(): void
+    {
+        $senderTenant = Tenant::create(['name' => 'Remitente Serial', 'slug' => 'remitente-serial']);
+        $receiverTenant = Tenant::create(['name' => 'Receptor Serial', 'slug' => 'receptor-serial']);
+        [$senderWarehouse, $senderProduct] = $this->warehouseAndProduct($senderTenant, 'OFFER-IMEI-S', Product::TRACKING_SERIALIZED);
+        [$receiverWarehouse, $receiverProduct] = $this->warehouseAndProduct($receiverTenant, 'OFFER-IMEI-R', Product::TRACKING_SERIALIZED);
+        $senderUser = $this->userInTenant($senderTenant);
+        $receiverUser = $this->userInTenant($receiverTenant);
+        $this->grantRole($senderTenant, $senderUser, 'Remitente Serial', [
+            'inventory_transfer_requests.offer',
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.prepare',
+            'inventory_transfer_requests.dispatch',
+            'inventory_transfer_requests.deliver',
+        ]);
+        $this->grantRole($receiverTenant, $receiverUser, 'Receptor Serial', [
+            'inventory_transfer_requests.view',
+            'inventory_transfer_requests.respond',
+            'inventory_transfer_requests.receive',
+        ]);
+        $movement = $this->stock($senderTenant, $senderWarehouse, $senderProduct, $senderUser, 1);
+        $unit = $this->units($senderTenant, $senderWarehouse, $senderProduct, $movement->id, 'OFFER-IMEI-', 1)[0];
+
+        $created = $this->actingAs($senderUser)
+            ->withHeader('X-Tenant', $senderTenant->slug)
+            ->postJson('/api/inventory-transfer-requests', [
+                'flow_type' => InventoryTransferRequest::FLOW_SHIPMENT_OFFER,
+                'destination_tenant_slug' => $receiverTenant->slug,
+                'from_warehouse_id' => $senderWarehouse->id,
+                'items' => [['product_id' => $senderProduct->id, 'quantity' => 1]],
+            ])->assertCreated();
+        $requestId = $created->json('data.id');
+        $itemId = $created->json('data.items.0.id');
+
+        $this->actingAs($receiverUser)
+            ->withHeader('X-Tenant', $receiverTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$requestId}/accept", [
+                'destination_warehouse_id' => $receiverWarehouse->id,
+                'items' => [[
+                    'request_item_id' => $itemId,
+                    'destination_product_id' => $receiverProduct->id,
+                ]],
+            ])->assertOk();
+
+        $this->actingAs($senderUser)
+            ->withHeader('X-Tenant', $senderTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$requestId}/guide/prepare", [
+                'transport_mode' => 'simple',
+                'items' => [[
+                    'request_item_id' => $itemId,
+                    'prepared_quantity' => 1,
+                    'prepared_serial_units' => [[
+                        'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+                        'serial_number' => $unit->serial_number,
+                    ]],
+                ]],
+            ])->assertOk();
+
+        $this->actingAs($senderUser)
+            ->withHeader('X-Tenant', $senderTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$requestId}/guide/dispatch")
+            ->assertOk();
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $senderTenant->id,
+            'id' => $unit->id,
+            'status' => ProductUnit::STATUS_REMOVED,
+            'warehouse_id' => null,
+        ]);
+
+        $this->actingAs($senderUser)
+            ->withHeader('X-Tenant', $senderTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$requestId}/guide/deliver")
+            ->assertOk();
+
+        $this->actingAs($receiverUser)
+            ->withHeader('X-Tenant', $receiverTenant->slug)
+            ->postJson("/api/inventory-transfer-requests/{$requestId}/guide/receive", [
+                'items' => [[
+                    'request_item_id' => $itemId,
+                    'received_quantity' => 1,
+                    'received_serial_units' => [[
+                        'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+                        'serial_number' => $unit->serial_number,
+                    ]],
+                ]],
+            ])->assertOk()->assertJsonPath('data.status', InventoryTransferRequest::STATUS_COMPLETED);
+
+        $this->assertDatabaseHas('product_units', [
+            'tenant_id' => $receiverTenant->id,
+            'product_id' => $receiverProduct->id,
+            'warehouse_id' => $receiverWarehouse->id,
+            'serial_number' => $unit->serial_number,
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
     }
 
     public function test_request_visibility_and_response_are_limited_to_origin_and_destination(): void

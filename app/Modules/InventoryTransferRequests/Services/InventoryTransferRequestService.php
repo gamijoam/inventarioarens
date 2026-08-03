@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransferRequests\Events\TransferRequestAccepted;
 use App\Modules\InventoryTransferRequests\Events\TransferRequestCancelled;
@@ -139,8 +140,21 @@ class InventoryTransferRequestService
                     ]);
                 }
 
+                $originProduct = Product::withoutGlobalScopes()->findOrFail($item->origin_product_id);
+                $selectedProduct = Product::query()->findOrFail($acceptedItem['destination_product_id']);
+                if ($originProduct->requiresSerializedTracking() !== $selectedProduct->requiresSerializedTracking()) {
+                    throw ValidationException::withMessages([
+                        'items' => 'El producto relacionado debe tener el mismo tipo de control: cantidad o serializado.',
+                    ]);
+                }
+
+                if ($logisticsMode && filled($acceptedItem['serial_units'] ?? null)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Los IMEIs o seriales se seleccionan en la empresa remitente al preparar la guía.',
+                    ]);
+                }
+
                 if ($logisticsMode) {
-                    $acceptedItem = $itemsById->get($item->id);
                     $item->update(['destination_product_id' => $acceptedItem['destination_product_id']]);
 
                     continue;
@@ -241,9 +255,19 @@ class InventoryTransferRequestService
             foreach ($request->items as $requestItem) {
                 $payload = $items->get($requestItem->id);
                 $quantity = (float) $payload['prepared_quantity'];
+                if ($quantity > (float) $requestItem->quantity) {
+                    throw ValidationException::withMessages(['items' => 'La cantidad preparada no puede superar la cantidad acordada.']);
+                }
                 if ($quantity < (float) $requestItem->quantity && blank($payload['difference_reason'] ?? null)) {
                     throw ValidationException::withMessages(['items' => 'Toda diferencia preparada requiere un motivo.']);
                 }
+
+                $this->validatePreparedItem(
+                    $request,
+                    $requestItem,
+                    $quantity,
+                    $payload['prepared_serial_units'] ?? null,
+                );
 
                 $guide->items()->where('inventory_transfer_request_item_id', $requestItem->id)->update([
                     'prepared_quantity' => $quantity,
@@ -271,7 +295,31 @@ class InventoryTransferRequestService
 
     public function dispatch(InventoryTransferRequest $request, User $user): InventoryTransferRequest
     {
-        return $this->transitionGuide($request, $user, InventoryTransferRequestGuide::STATUS_PREPARED, InventoryTransferRequestGuide::STATUS_DISPATCHED, 'dispatched');
+        return DB::transaction(function () use ($request, $user): InventoryTransferRequest {
+            $request = InventoryTransferRequest::query()
+                ->whereKey($request->id)
+                ->lockForUpdate()
+                ->with(['items', 'guide.items'])
+                ->firstOrFail();
+            $guide = $request->guide;
+
+            if (! $request->logistics_mode || ! $guide || $guide->status !== InventoryTransferRequestGuide::STATUS_PREPARED) {
+                throw ValidationException::withMessages(['status' => 'La guía debe estar preparada antes de despacharse.']);
+            }
+
+            foreach ($request->items as $requestItem) {
+                $guideItem = $guide->items->firstWhere('inventory_transfer_request_item_id', $requestItem->id);
+                $this->dispatchPreparedItem($request, $requestItem, $guideItem, $user);
+            }
+
+            $guide->update([
+                'status' => InventoryTransferRequestGuide::STATUS_DISPATCHED,
+                'dispatched_by' => $user->id,
+                'dispatched_at' => now(),
+            ]);
+
+            return $this->loadTransferRelations($request);
+        });
     }
 
     public function deliver(InventoryTransferRequest $request, User $user): InventoryTransferRequest
@@ -298,16 +346,20 @@ class InventoryTransferRequestService
                 $guideItem = $guide->items->firstWhere('inventory_transfer_request_item_id', $requestItem->id);
                 $quantity = (float) $payload['received_quantity'];
                 $preparedQuantity = (float) $guideItem->prepared_quantity;
+                if ($quantity > $preparedQuantity) {
+                    throw ValidationException::withMessages(['items' => 'La cantidad recibida no puede superar la cantidad despachada.']);
+                }
                 if ($quantity < $preparedQuantity && blank($payload['difference_reason'] ?? null)) {
                     throw ValidationException::withMessages(['items' => 'Toda diferencia recibida requiere un motivo.']);
                 }
 
-                $this->processAcceptedItem(
+                $this->receiveDispatchedItem(
                     $request,
                     $requestItem,
                     $user,
-                    $payload['received_serial_units'] ?? null,
+                    $guideItem,
                     $quantity,
+                    $payload['received_serial_units'] ?? null,
                 );
                 $guideItem->update([
                     'received_quantity' => $quantity,
@@ -395,6 +447,195 @@ class InventoryTransferRequestService
         event(TransferRequestCancelled::fromModel($cancelled));
 
         return $cancelled;
+    }
+
+    private function validatePreparedItem(
+        InventoryTransferRequest $request,
+        InventoryTransferRequestItem $item,
+        float $quantity,
+        ?array $serialUnits,
+    ): void {
+        if ($quantity <= 0) {
+            if (filled($serialUnits)) {
+                throw ValidationException::withMessages(['items' => 'Una línea con cantidad cero no puede incluir IMEIs o seriales.']);
+            }
+
+            return;
+        }
+
+        $tenantManager = app(TenantManager::class);
+        $currentTenant = $tenantManager->current();
+        $senderTenant = Tenant::query()->findOrFail($request->sender_tenant_id ?? $request->destination_tenant_id);
+
+        try {
+            $tenantManager->set($senderTenant);
+            $senderProduct = Product::query()->findOrFail($request->senderProductId($item));
+            $senderWarehouse = Warehouse::query()->findOrFail($request->sender_warehouse_id ?? $request->destination_warehouse_id);
+
+            if ($senderProduct->requiresSerializedTracking()) {
+                if ($quantity !== floor($quantity)) {
+                    throw ValidationException::withMessages(['items' => 'Los productos serializados requieren una cantidad entera.']);
+                }
+
+                $this->resolveRespondingUnits($senderProduct, $senderWarehouse, $quantity, $serialUnits);
+
+                return;
+            }
+
+            if (filled($serialUnits)) {
+                throw ValidationException::withMessages(['items' => 'Un producto controlado por cantidad no admite IMEIs o seriales.']);
+            }
+
+            $available = (float) (StockBalance::query()
+                ->where('warehouse_id', $senderWarehouse->id)
+                ->where('product_id', $senderProduct->id)
+                ->value('quantity_available') ?? 0);
+            if ($available < $quantity) {
+                throw ValidationException::withMessages(['items' => 'El almacén de salida no tiene stock suficiente para preparar esta guía.']);
+            }
+        } finally {
+            $tenantManager->set($currentTenant);
+        }
+    }
+
+    private function dispatchPreparedItem(
+        InventoryTransferRequest $request,
+        InventoryTransferRequestItem $item,
+        InventoryTransferRequestGuideItem $guideItem,
+        User $user,
+    ): void {
+        if ($item->out_stock_movement_id) {
+            return;
+        }
+
+        $quantity = (float) $guideItem->prepared_quantity;
+        if ($quantity <= 0) {
+            $item->update(['product_unit_ids' => null, 'serial_units' => []]);
+
+            return;
+        }
+
+        $tenantManager = app(TenantManager::class);
+        $currentTenant = $tenantManager->current();
+        $senderTenant = Tenant::query()->findOrFail($request->sender_tenant_id ?? $request->destination_tenant_id);
+
+        try {
+            $tenantManager->set($senderTenant);
+            $senderProduct = Product::query()->findOrFail($request->senderProductId($item));
+            $senderWarehouse = Warehouse::query()->findOrFail($request->sender_warehouse_id ?? $request->destination_warehouse_id);
+            [$unitIds, $serialUnits] = $this->resolveRespondingUnits(
+                $senderProduct,
+                $senderWarehouse,
+                $quantity,
+                $guideItem->prepared_serial_units,
+            );
+            $outMovement = $this->inventory->transferRequestOut(
+                warehouse: $senderWarehouse,
+                product: $senderProduct,
+                quantity: $quantity,
+                createdBy: $user,
+                reason: "Despacho interempresa {$request->document_number}",
+                referenceType: InventoryTransferRequest::class,
+                referenceId: $request->id,
+            );
+            $this->removeRespondingUnits($unitIds, $outMovement->id);
+        } catch (InsufficientStockException) {
+            throw ValidationException::withMessages(['items' => 'El almacén de salida ya no tiene stock suficiente para despachar la guía.']);
+        } catch (InvalidStockQuantityException $exception) {
+            throw ValidationException::withMessages(['items' => $exception->getMessage()]);
+        } finally {
+            $tenantManager->set($currentTenant);
+        }
+
+        $item->update([
+            'product_unit_ids' => $unitIds ?: null,
+            'serial_units' => $serialUnits,
+            'out_stock_movement_id' => $outMovement->id,
+        ]);
+    }
+
+    private function receiveDispatchedItem(
+        InventoryTransferRequest $request,
+        InventoryTransferRequestItem $item,
+        User $user,
+        InventoryTransferRequestGuideItem $guideItem,
+        float $quantity,
+        ?array $receivedSerialUnits,
+    ): void {
+        if (! $item->out_stock_movement_id) {
+            $this->dispatchPreparedItem($request, $item, $guideItem, $user);
+            $item->refresh();
+        }
+
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $tenantManager = app(TenantManager::class);
+        $currentTenant = $tenantManager->current();
+        $receiverTenant = Tenant::query()->findOrFail($request->receiver_tenant_id ?? $request->origin_tenant_id);
+
+        try {
+            $tenantManager->set($receiverTenant);
+            $receiverProduct = Product::query()->findOrFail($request->receiverProductId($item));
+            $receiverWarehouse = Warehouse::query()->findOrFail($request->receiver_warehouse_id ?? $request->from_warehouse_id);
+            $serialUnits = [];
+
+            if ($receiverProduct->requiresSerializedTracking()) {
+                if ($quantity !== floor($quantity)) {
+                    throw ValidationException::withMessages(['items' => 'Los productos serializados requieren una cantidad entera.']);
+                }
+
+                $serialUnits = $this->normalizeSerialUnits($receivedSerialUnits);
+                if (count($serialUnits) !== (int) $quantity) {
+                    throw ValidationException::withMessages(['items' => "Debes verificar {$quantity} IMEI(s) o serial(es) recibidos."]);
+                }
+                $uniqueSerials = collect($serialUnits)
+                    ->map(fn (array $unit): string => $unit['serial_type'].'|'.$unit['serial_number'])
+                    ->unique();
+                if ($uniqueSerials->count() !== count($serialUnits)) {
+                    throw ValidationException::withMessages(['items' => 'No se puede verificar el mismo IMEI o serial más de una vez.']);
+                }
+
+                $dispatchedKeys = collect($this->normalizeSerialUnits($item->serial_units))
+                    ->mapWithKeys(fn (array $unit): array => [$unit['serial_type'].'|'.$unit['serial_number'] => true]);
+                foreach ($serialUnits as $serialUnit) {
+                    $key = $serialUnit['serial_type'].'|'.$serialUnit['serial_number'];
+                    if (! $dispatchedKeys->has($key)) {
+                        throw ValidationException::withMessages([
+                            'items' => "El IMEI o serial {$serialUnit['serial_number']} no pertenece a esta guía.",
+                        ]);
+                    }
+                }
+            } elseif (filled($receivedSerialUnits)) {
+                throw ValidationException::withMessages(['items' => 'Un producto controlado por cantidad no admite IMEIs o seriales.']);
+            }
+
+            $inMovement = $this->inventory->transferRequestIn(
+                warehouse: $receiverWarehouse,
+                product: $receiverProduct,
+                quantity: $quantity,
+                createdBy: $user,
+                reason: "Recepción interempresa {$request->document_number}",
+                referenceType: InventoryTransferRequest::class,
+                referenceId: $request->id,
+            );
+            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
+        } finally {
+            $tenantManager->set($currentTenant);
+        }
+
+        $item->update(['in_stock_movement_id' => $inMovement->id]);
+    }
+
+    private function normalizeSerialUnits(?array $serialUnits): array
+    {
+        return collect($serialUnits ?? [])->map(fn (array $unit): array => [
+            'serial_type' => (string) ($unit['serial_type'] ?? ''),
+            'serial_number' => trim((string) ($unit['serial_number'] ?? '')),
+        ])->filter(fn (array $unit): bool => $unit['serial_type'] !== '' && $unit['serial_number'] !== '')
+            ->values()
+            ->all();
     }
 
     private function processAcceptedItem(
@@ -570,11 +811,9 @@ class InventoryTransferRequestService
                         "items.{$index}.quantity" => 'Los productos serializados requieren cantidad entera.',
                     ]);
                 }
-                // Ya NO exigimos IMEIs al crear. Los IMEIs/seriales especificos
-                // los elegira la empresa DESTINO al aceptar (ella es quien tiene
-                // el stock y decide que unidades envia). Si el solicitante
-                // incluyo product_unit_ids o serial_units, los validamos; si no,
-                // no bloqueamos.
+                // La creación sólo declara producto y cantidad. En una solicitud
+                // inmediata el proveedor elige seriales al aceptar; con guía, la
+                // empresa remitente los selecciona durante la preparación.
             } elseif ($unitIds !== [] || $serialNumbers !== []) {
                 throw ValidationException::withMessages([
                     "items.{$index}.serial_units" => 'Solo los productos serializados pueden enviar unidades especificas.',
