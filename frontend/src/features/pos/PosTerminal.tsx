@@ -171,6 +171,10 @@ export function shouldTriggerPosCheckoutShortcut(
   return shouldTriggerPosCheckoutOnEnter(input);
 }
 
+export function formatPosRateLabel(rate: { code: string; rate: number } | null): string {
+  return rate ? `${rate.code} @ ${formatLocalNumber(rate.rate)}` : 'Sin tasa activa';
+}
+
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -718,8 +722,8 @@ export function PosTerminal() {
 
   return (
     <div className="text-text-primary h-screen overflow-hidden bg-[#f4f6fb]">
-      <header className="border-border/80 bg-surface/95 grid grid-cols-1 gap-3 border-b px-4 py-3 shadow-sm backdrop-blur 2xl:grid-cols-[340px_minmax(720px,1fr)_auto]">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
+        <div className="order-1 flex min-w-[300px] flex-1 items-center gap-3">
           <div className="from-primary text-primary-foreground shadow-primary/20 flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br to-[#2f238f] shadow-md">
             <Receipt className="size-5" />
           </div>
@@ -738,7 +742,7 @@ export function PosTerminal() {
                   Tasa de cobro
                 </p>
                 <p className="text-success text-base font-bold sm:text-lg">
-                  {activeRate.code} @ {formatLocalNumber(activeRate.rate)}
+                  {formatPosRateLabel(activeRate)}
                 </p>
                 {selectedPriceList && (
                   <p className="text-success/70 max-w-36 truncate text-[10px]">
@@ -749,7 +753,7 @@ export function PosTerminal() {
             </div>
           )}
         </div>
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
+        <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
           <div className="space-y-1">
             <label className="text-text-muted block text-[10px] font-semibold uppercase">
               Buscar / escanear
@@ -896,7 +900,7 @@ export function PosTerminal() {
             </Select>
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-2 2xl:justify-end">
+        <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
           <Button
             size="sm"
             onClick={() => {
@@ -954,7 +958,7 @@ export function PosTerminal() {
         </div>
       </header>
 
-      <main className="grid h-[calc(100vh-73px)] grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
+      <main className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
         <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
           <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
             <div>

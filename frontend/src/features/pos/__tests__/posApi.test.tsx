@@ -40,6 +40,7 @@ import {
   usePosProductsDebounced,
 } from '../api';
 import {
+  formatPosRateLabel,
   shouldHandlePosGlobalShortcut,
   shouldTriggerPosCheckoutOnEnter,
   shouldTriggerPosCheckoutShortcut,
@@ -60,6 +61,11 @@ describe('pos api', () => {
     mockApiGet.mockReset();
   });
 
+  it('formatea la tasa del encabezado sin ocultar cuando no existe una activa', () => {
+    expect(formatPosRateLabel({ code: 'BCV', rate: 3000 })).toContain('BCV @');
+    expect(formatPosRateLabel(null)).toBe('Sin tasa activa');
+  });
+
   it('parsea el bootstrap usando api.get (response.data) y NO getOne (response.data.data)', async () => {
     // El backend devuelve el payload SIN envolver en { data: ... }, por eso
     // usamos api.get directamente y devolvemos response.data (no response.data.data).
@@ -68,7 +74,15 @@ describe('pos api', () => {
     mockApiGet.mockResolvedValue({
       data: {
         warehouses: [
-          { id: 1, branch_id: 1, code: 'CCN-01', name: 'Almacen Caracas Norte', status: 'active', branch_name: 'Principal Caracas Norte', branch_code: 'CCN' },
+          {
+            id: 1,
+            branch_id: 1,
+            code: 'CCN-01',
+            name: 'Almacen Caracas Norte',
+            status: 'active',
+            branch_name: 'Principal Caracas Norte',
+            branch_code: 'CCN',
+          },
         ],
         branches: [],
         cash_registers: [],
@@ -100,8 +114,24 @@ describe('pos api', () => {
       [{ id: 2, code: 'BCV', name: 'BCV', is_default: false }],
     );
     const mergedRates = mergePosExchangeRates(
-      [{ id: 10, exchange_rate_type_id: 2, base_currency: 'USD', quote_currency: 'VES', rate: 36.5 }],
-      [{ id: 10, exchange_rate_type_id: 2, base_currency: 'USD', quote_currency: 'VES', rate: 35.1 }],
+      [
+        {
+          id: 10,
+          exchange_rate_type_id: 2,
+          base_currency: 'USD',
+          quote_currency: 'VES',
+          rate: 36.5,
+        },
+      ],
+      [
+        {
+          id: 10,
+          exchange_rate_type_id: 2,
+          base_currency: 'USD',
+          quote_currency: 'VES',
+          rate: 35.1,
+        },
+      ],
     );
 
     expect(mergedLists[0]?.payment_method_ids).toEqual([7, 9]);
@@ -177,10 +207,18 @@ describe('pos api', () => {
 
   it('solo confirma cobro con Enter en el contexto correcto', () => {
     expect(
-      shouldTriggerPosCheckoutOnEnter({ panel: null, isEditableField: false, isSearchInput: false }),
+      shouldTriggerPosCheckoutOnEnter({
+        panel: null,
+        isEditableField: false,
+        isSearchInput: false,
+      }),
     ).toBe(true);
     expect(
-      shouldTriggerPosCheckoutOnEnter({ panel: 'pay', isEditableField: false, isSearchInput: false }),
+      shouldTriggerPosCheckoutOnEnter({
+        panel: 'pay',
+        isEditableField: false,
+        isSearchInput: false,
+      }),
     ).toBe(true);
     expect(
       shouldTriggerPosCheckoutOnEnter({
@@ -199,16 +237,32 @@ describe('pos api', () => {
 
   it('permite confirmar cobro con Enter o F10 fuera de campos editables', () => {
     expect(
-      shouldTriggerPosCheckoutShortcut('Enter', { panel: null, isEditableField: false, isSearchInput: false }),
+      shouldTriggerPosCheckoutShortcut('Enter', {
+        panel: null,
+        isEditableField: false,
+        isSearchInput: false,
+      }),
     ).toBe(true);
     expect(
-      shouldTriggerPosCheckoutShortcut('F10', { panel: 'pay', isEditableField: false, isSearchInput: false }),
+      shouldTriggerPosCheckoutShortcut('F10', {
+        panel: 'pay',
+        isEditableField: false,
+        isSearchInput: false,
+      }),
     ).toBe(true);
     expect(
-      shouldTriggerPosCheckoutShortcut('F10', { panel: 'product-search', isEditableField: false, isSearchInput: false }),
+      shouldTriggerPosCheckoutShortcut('F10', {
+        panel: 'product-search',
+        isEditableField: false,
+        isSearchInput: false,
+      }),
     ).toBe(false);
     expect(
-      shouldTriggerPosCheckoutShortcut('Enter', { panel: null, isEditableField: true, isSearchInput: false }),
+      shouldTriggerPosCheckoutShortcut('Enter', {
+        panel: null,
+        isEditableField: true,
+        isSearchInput: false,
+      }),
     ).toBe(false);
   });
 
@@ -216,13 +270,25 @@ describe('pos api', () => {
     mockApiGet.mockResolvedValue({
       data: {
         warehouses: [
-          { id: 10, branch_id: 1, code: 'VLN-01', name: 'Almacen Valencia Norte', status: 'active', branch_name: null, branch_code: null },
+          {
+            id: 10,
+            branch_id: 1,
+            code: 'VLN-01',
+            name: 'Almacen Valencia Norte',
+            status: 'active',
+            branch_name: null,
+            branch_code: null,
+          },
         ],
-        branches: [
-          { id: 20, code: 'VLN', name: 'Valencia Norte' },
-        ],
+        branches: [{ id: 20, code: 'VLN', name: 'Valencia Norte' }],
         cash_registers: [
-          { id: 30, branch_id: 20, code: 'CAJ-VLN', name: 'Caja Valencia Norte', branch_name: null },
+          {
+            id: 30,
+            branch_id: 20,
+            code: 'CAJ-VLN',
+            name: 'Caja Valencia Norte',
+            branch_name: null,
+          },
         ],
         payment_methods: [],
         price_lists: [],
@@ -298,15 +364,17 @@ describe('pos api', () => {
 
   it('lee solo sesiones abiertas del cajero actual para POS', async () => {
     mockGetPaginated.mockResolvedValue({
-      data: [{
-        id: 3,
-        branch_id: 1,
-        cash_register_id: 5,
-        cashier_id: 9,
-        status: 'open',
-        opening_base_amount: '0.0000',
-        expected_base_amount: '0.0000',
-      }],
+      data: [
+        {
+          id: 3,
+          branch_id: 1,
+          cash_register_id: 5,
+          cashier_id: 9,
+          status: 'open',
+          opening_base_amount: '0.0000',
+          expected_base_amount: '0.0000',
+        },
+      ],
       meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
     });
 
@@ -314,13 +382,23 @@ describe('pos api', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockGetPaginated).toHaveBeenCalledWith('/cash-register/sessions?status=open&cashier_id=me&per_page=25');
+    expect(mockGetPaginated).toHaveBeenCalledWith(
+      '/cash-register/sessions?status=open&cashier_id=me&per_page=25',
+    );
     expect(result.current.data?.[0]?.cash_register_id).toBe(5);
   });
 
   it('lee IMEIs disponibles por producto y almacen para POS', async () => {
     mockGetOne.mockResolvedValue({
-      data: [{ id: 10, serial_type: 'imei', serial_number: '860001000000001', status: 'available', warehouse_id: 4 }],
+      data: [
+        {
+          id: 10,
+          serial_type: 'imei',
+          serial_number: '860001000000001',
+          status: 'available',
+          warehouse_id: 4,
+        },
+      ],
       pagination: { page: 1, total: 1 },
     });
 
@@ -328,7 +406,9 @@ describe('pos api', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockGetOne).toHaveBeenCalledWith('/inventory-center/products/5/serials?status=available&limit=100&warehouse_id=4');
+    expect(mockGetOne).toHaveBeenCalledWith(
+      '/inventory-center/products/5/serials?status=available&limit=100&warehouse_id=4',
+    );
     expect(result.current.data?.[0]?.serial_number).toBe('860001000000001');
   });
 
@@ -421,7 +501,12 @@ describe('pos api', () => {
   });
 
   it('crea metodo de pago operativo para POS', async () => {
-    mockPostOne.mockResolvedValue({ id: 7, name: 'Pago movil', code: 'PM', method: 'mobile_payment' });
+    mockPostOne.mockResolvedValue({
+      id: 7,
+      name: 'Pago movil',
+      code: 'PM',
+      method: 'mobile_payment',
+    });
 
     const { result } = renderHook(() => useCreatePaymentMethod(), { wrapper });
     result.current.mutate({
@@ -448,7 +533,12 @@ describe('pos api', () => {
   });
 
   it('crea cliente rapido desde POS usando el modulo de clientes', async () => {
-    mockPostOne.mockResolvedValue({ id: 9, name: 'Cliente POS', document_type: 'V', document_number: '123' });
+    mockPostOne.mockResolvedValue({
+      id: 9,
+      name: 'Cliente POS',
+      document_type: 'V',
+      document_number: '123',
+    });
 
     const { result } = renderHook(() => useCreateCustomerForPos(), { wrapper });
     result.current.mutate({
