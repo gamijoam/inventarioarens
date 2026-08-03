@@ -687,6 +687,16 @@ export const PriceListSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
   markup_percentage: z.number().nullable().optional(),
+  payment_exchange_rate_type_id: z.number().int().positive().nullable().optional(),
+  payment_exchange_rate_type: z
+    .object({
+      id: z.number().int().positive(),
+      code: z.string(),
+      name: z.string(),
+      is_active: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
   is_default: z.boolean().optional(),
   is_active: z.boolean(),
   sort_order: z.number().int().optional(),
@@ -874,6 +884,7 @@ export const StorePriceListSchema = z
       .optional()
       .transform((s) => (s?.trim() ? s.trim() : null)),
     markup_percentage: z.number().min(0).max(999.99).nullable().optional(),
+    payment_exchange_rate_type_id: z.coerce.number().int().positive().nullable().optional(),
     is_default: z.boolean().optional(),
     is_active: z.boolean().default(true),
     sort_order: z.coerce.number().int().min(0).default(0),
@@ -885,6 +896,7 @@ export const StorePriceListSchema = z
     is_active: data.is_active ?? true,
     sort_order: data.sort_order ?? 0,
     payment_method_ids: data.payment_method_ids ?? [],
+    payment_exchange_rate_type_id: data.payment_exchange_rate_type_id ?? null,
   }));
 export type StorePriceListValues = z.output<typeof StorePriceListSchema>;
 

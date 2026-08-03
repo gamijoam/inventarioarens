@@ -215,12 +215,21 @@ class ProductApiTest extends TestCase
                 'is_default' => true,
                 'sort_order' => 1,
                 'markup_percentage' => 45,
+                'payment_exchange_rate_type_id' => $bcv->id,
             ])
             ->assertCreated()
             ->assertJsonPath('data.code', 'MAYOR')
             ->assertJsonPath('data.is_default', true)
             ->assertJsonPath('data.markup_percentage', 45)
+            ->assertJsonPath('data.payment_exchange_rate_type_id', $bcv->id)
+            ->assertJsonPath('data.payment_exchange_rate_type.code', 'BCV')
             ->json('data.id');
+
+        $this->assertDatabaseHas('price_lists', [
+            'tenant_id' => $tenant->id,
+            'id' => $priceListId,
+            'payment_exchange_rate_type_id' => $bcv->id,
+        ]);
 
         $this
             ->actingAs($user)
@@ -357,6 +366,27 @@ class ProductApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['prices.0.price_list_id']);
+    }
+
+    public function test_price_list_cannot_use_payment_rate_type_from_another_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $foreignRateType = $this->rateTypeFor($tenantB, 'DIVISA', 'Divisa recibida');
+        $user = $this->userInTenant($tenantA);
+
+        $this->grantRole($tenantA, $user, 'Catalog Manager', ['products.update']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->postJson('/api/price-lists', [
+                'name' => 'Precio al mayor',
+                'code' => 'MAYOR',
+                'payment_exchange_rate_type_id' => $foreignRateType->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment_exchange_rate_type_id']);
     }
 
     public function test_product_price_endpoint_uses_assigned_active_rate_type(): void
@@ -651,7 +681,7 @@ class ProductApiTest extends TestCase
         ]);
 
         $this->assertSame(
-            2,
+            3,
             DB::table('sync_outbox')
                 ->where('tenant_id', $tenant->id)
                 ->where('event_type', 'product.updated')

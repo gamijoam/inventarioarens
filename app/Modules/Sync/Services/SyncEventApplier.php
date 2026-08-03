@@ -1587,6 +1587,11 @@ class SyncEventApplier
                 'is_default' => $isDefault,
                 'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
                 'sort_order' => (int) ($payload['sort_order'] ?? 0),
+                'payment_exchange_rate_type_id' => $this->exchangeRateTypeId(
+                    $tenant,
+                    $payload['payment_exchange_rate_type_code'] ?? null,
+                    null,
+                ),
                 'updated_at' => $now,
             ]
         );

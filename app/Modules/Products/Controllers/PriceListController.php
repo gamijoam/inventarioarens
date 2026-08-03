@@ -26,7 +26,7 @@ class PriceListController extends Controller
 
         return PriceListResource::collection(
             PriceList::query()
-                ->with('paymentMethods')
+                ->with(['paymentMethods', 'paymentExchangeRateType'])
                 ->when($request->boolean('active_only'), fn ($query) => $query->where('is_active', true))
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -57,9 +57,9 @@ class PriceListController extends Controller
 
             return $priceList;
         });
-        $syncCatalog->priceListCreated($priceList->refresh()->load('paymentMethods'));
+        $syncCatalog->priceListCreated($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
 
-        return PriceListResource::make($priceList->load('paymentMethods'))
+        return PriceListResource::make($priceList->load(['paymentMethods', 'paymentExchangeRateType']))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
@@ -87,9 +87,9 @@ class PriceListController extends Controller
                 $priceList->paymentMethods()->sync($this->syncPayload($paymentMethodIds));
             }
         });
-        $syncCatalog->priceListUpdated($priceList->refresh()->load('paymentMethods'));
+        $syncCatalog->priceListUpdated($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
 
-        return PriceListResource::make($priceList->refresh()->load('paymentMethods'));
+        return PriceListResource::make($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
     }
 
     public function destroy(Request $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): Response

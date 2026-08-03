@@ -2,6 +2,7 @@
 
 namespace App\Modules\Products\Models;
 
+use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Concerns\PropagatesCatalogToSpinoffs;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
@@ -9,6 +10,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -17,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'code',
     'description',
     'markup_percentage',
+    'payment_exchange_rate_type_id',
     'is_default',
     'is_active',
     'sort_order',
@@ -53,6 +56,11 @@ class PriceList extends Model
     public function productPrices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);
+    }
+
+    public function paymentExchangeRateType(): BelongsTo
+    {
+        return $this->belongsTo(ExchangeRateType::class, 'payment_exchange_rate_type_id');
     }
 
     public function paymentMethods(): BelongsToMany

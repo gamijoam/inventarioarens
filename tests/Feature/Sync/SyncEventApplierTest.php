@@ -189,7 +189,9 @@ class SyncEventApplierTest extends TestCase
             ['branch.created', 'branch', ['code' => 'VAL', 'name' => 'Principal Valencia', 'status' => 'active']],
             ['warehouse.created', 'warehouse', ['code' => 'VAL-01', 'name' => 'Almacen Valencia', 'branch_code' => 'VAL', 'status' => 'active']],
             ['exchange_rate_type.created', 'exchange_rate_type', ['code' => 'BCV', 'name' => 'BCV', 'is_default' => true, 'is_active' => true]],
+            ['exchange_rate_type.created', 'exchange_rate_type', ['code' => 'DIVISA', 'name' => 'Divisa recibida', 'is_default' => false, 'is_active' => true]],
             ['exchange_rate.created', 'exchange_rate', ['exchange_rate_type_code' => 'BCV', 'base_currency' => 'USD', 'quote_currency' => 'VES', 'rate' => '500.000000', 'effective_at' => $now->toISOString(), 'is_active' => true]],
+            ['price_list.created', 'price_list', ['code' => 'MAYOR', 'name' => 'Mayor', 'payment_exchange_rate_type_code' => 'DIVISA', 'is_default' => false, 'is_active' => true]],
             ['product.created', 'product', ['sku' => 'SAM-A06', 'name' => 'Samsung A06', 'tracking_type' => 'serialized', 'base_price' => '100.0000', 'sale_currency' => 'USD', 'sale_exchange_rate_type_code' => 'BCV', 'is_active' => true]],
             ['stock_movement.created', 'stock_movement', ['source_id' => 90, 'sku' => 'SAM-A06', 'warehouse_code' => 'VAL-01', 'type' => 'purchase', 'quantity' => '1.0000', 'reason' => 'Snapshot inicial']],
             ['product_unit.created', 'product_unit', ['sku' => 'SAM-A06', 'warehouse_code' => 'VAL-01', 'serial_type' => 'imei', 'serial_number' => '860001000001', 'status' => 'available']],
@@ -214,9 +216,17 @@ class SyncEventApplierTest extends TestCase
 
         $summary = app(SyncEventApplier::class)->applyPending($tenant, 20);
 
-        $this->assertSame(8, $summary['applied']);
+        $this->assertSame(10, $summary['applied']);
         $this->assertDatabaseHas('branches', ['tenant_id' => $tenant->id, 'code' => 'VAL']);
         $this->assertDatabaseHas('warehouses', ['tenant_id' => $tenant->id, 'code' => 'VAL-01']);
+        $this->assertDatabaseHas('price_lists', [
+            'tenant_id' => $tenant->id,
+            'code' => 'MAYOR',
+            'payment_exchange_rate_type_id' => DB::table('exchange_rate_types')
+                ->where('tenant_id', $tenant->id)
+                ->where('code', 'DIVISA')
+                ->value('id'),
+        ]);
         $this->assertDatabaseHas('products', ['tenant_id' => $tenant->id, 'sku' => 'SAM-A06', 'base_price' => '100.0000']);
         $this->assertDatabaseHas('stock_movements', ['tenant_id' => $tenant->id, 'reference_type' => 'sync_snapshot', 'reference_id' => 90]);
         $this->assertDatabaseHas('product_units', ['tenant_id' => $tenant->id, 'serial_number' => '860001000001', 'status' => 'available']);

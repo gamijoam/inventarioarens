@@ -795,6 +795,8 @@ type PosPriceListLike = {
   name: string;
   is_default?: boolean | null;
   is_active?: boolean;
+  payment_exchange_rate_type_id?: number | null;
+  payment_exchange_rate_type?: PriceList['payment_exchange_rate_type'];
   payment_method_ids?: number[];
   payment_methods?: PriceList['payment_methods'];
 };
@@ -812,8 +814,80 @@ export function mergePosPriceLists<T extends PosPriceListLike>(configured: T[], 
       payment_method_ids:
         list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
       payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
+      payment_exchange_rate_type_id:
+        list.payment_exchange_rate_type_id ??
+        fallbackList?.payment_exchange_rate_type_id ??
+        null,
+      payment_exchange_rate_type:
+        list.payment_exchange_rate_type ?? fallbackList?.payment_exchange_rate_type,
     };
   });
+}
+
+type PosRateLike = {
+  exchange_rate_type_id: number;
+  exchange_rate_type_code?: string | null;
+  rate: number;
+  base_currency?: string;
+  quote_currency?: string;
+  effective_at?: string | null;
+};
+
+type PosRateTypeLike = {
+  id: number;
+  code: string;
+  is_default?: boolean;
+  is_active?: boolean;
+};
+
+export function resolvePosPaymentRate(
+  rates: PosRateLike[],
+  rateTypes: PosRateTypeLike[],
+  paymentExchangeRateTypeId?: number | null,
+): { exchange_rate_type_id: number; code: string; rate: number } | null {
+  const validRates = rates.filter(
+    (rate) =>
+      Number(rate.rate) > 0 &&
+      (!rate.base_currency || rate.base_currency === 'USD') &&
+      (!rate.quote_currency || rate.quote_currency === 'VES'),
+  );
+
+  if (paymentExchangeRateTypeId) {
+    const configuredType = rateTypes.find(
+      (type) => type.id === paymentExchangeRateTypeId && type.is_active !== false,
+    );
+    const configuredRate = validRates.find(
+      (rate) => rate.exchange_rate_type_id === paymentExchangeRateTypeId,
+    );
+    if (!configuredType || !configuredRate) return null;
+
+    return {
+      exchange_rate_type_id: configuredType.id,
+      code: configuredType.code,
+      rate: Number(configuredRate.rate),
+    };
+  }
+
+  const defaultType = rateTypes.find(
+    (type) => type.is_default === true && type.is_active !== false,
+  );
+  const selectedRate =
+    (defaultType
+      ? validRates.find((rate) => rate.exchange_rate_type_id === defaultType.id)
+      : null) ??
+    [...validRates].sort((a, b) => {
+      const dateA = a.effective_at ? new Date(a.effective_at).getTime() : 0;
+      const dateB = b.effective_at ? new Date(b.effective_at).getTime() : 0;
+      return dateB - dateA;
+    })[0];
+  if (!selectedRate) return null;
+
+  const selectedType = rateTypes.find((type) => type.id === selectedRate.exchange_rate_type_id);
+  return {
+    exchange_rate_type_id: selectedRate.exchange_rate_type_id,
+    code: selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
+    rate: Number(selectedRate.rate),
+  };
 }
 
 type PosExchangeRateTypeLike = {

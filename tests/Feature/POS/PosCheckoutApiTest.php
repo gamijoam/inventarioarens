@@ -471,6 +471,150 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonPath('data.payments.1.payment_method_id', $mobile->id);
     }
 
+    public function test_pos_checkout_uses_price_list_rate_for_mixed_usd_and_ves_payments(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 750);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+
+        $receivedCurrency = ExchangeRateType::create([
+            'code' => 'DIVISA-RECIBIDA',
+            'name' => 'Divisa recibida',
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+        ExchangeRate::create([
+            'exchange_rate_type_id' => $receivedCurrency->id,
+            'rate' => 850,
+            'effective_at' => '2026-08-03 10:00:00',
+            'is_active' => true,
+        ]);
+
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Mayor', 'MAYOR', 50);
+        $priceList->update(['payment_exchange_rate_type_id' => $receivedCurrency->id]);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-MAYOR',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $mobile = PaymentMethod::create([
+            'name' => 'Pago movil',
+            'code' => 'PM-MAYOR',
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency_mode' => PaymentMethod::CURRENCY_VES,
+            'requires_reference' => true,
+        ]);
+        $priceList->paymentMethods()->sync([
+            $cash->id => ['tenant_id' => $tenant->id],
+            $mobile->id => ['tenant_id' => $tenant->id],
+        ]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [
+                    [
+                        'payment_method_id' => $cash->id,
+                        'method' => PosPayment::METHOD_CASH,
+                        'currency' => Product::CURRENCY_USD,
+                        'amount' => 40,
+                        'exchange_rate_type_id' => $receivedCurrency->id,
+                    ],
+                    [
+                        'payment_method_id' => $mobile->id,
+                        'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+                        'currency' => Product::CURRENCY_VES,
+                        'amount' => 8500,
+                        'exchange_rate_type_id' => $receivedCurrency->id,
+                        'reference' => 'PM-850-001',
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.total_base_amount', '50.0000')
+            ->assertJsonPath('data.paid_base_amount', '50.0000')
+            ->assertJsonPath('data.payments.0.exchange_rate_type_code', 'DIVISA-RECIBIDA')
+            ->assertJsonPath('data.payments.0.exchange_rate', '850.000000')
+            ->assertJsonPath('data.payments.1.amount_base', '10.0000')
+            ->assertJsonPath('data.payments.1.amount_local', '8500.0000')
+            ->assertJsonPath('data.payments.1.exchange_rate_type_code', 'DIVISA-RECIBIDA');
+    }
+
+    public function test_pos_checkout_rejects_rate_different_from_price_list_configuration(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product, $bcv] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 750);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $receivedCurrency = ExchangeRateType::create([
+            'code' => 'DIVISA-RECIBIDA',
+            'name' => 'Divisa recibida',
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+        ExchangeRate::create([
+            'exchange_rate_type_id' => $receivedCurrency->id,
+            'rate' => 850,
+            'effective_at' => now(),
+            'is_active' => true,
+        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Mayor', 'MAYOR', 50);
+        $priceList->update(['payment_exchange_rate_type_id' => $receivedCurrency->id]);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-MAYOR',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $priceList->paymentMethods()->sync([$cash->id => ['tenant_id' => $tenant->id]]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $cash->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 50,
+                    'exchange_rate_type_id' => $bcv->id,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments']);
+    }
+
     public function test_pos_checkout_closes_usd_sale_with_ves_payment_using_non_default_rate(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

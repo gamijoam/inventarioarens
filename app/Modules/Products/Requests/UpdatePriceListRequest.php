@@ -31,6 +31,11 @@ class UpdatePriceListRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'payment_method_ids' => ['sometimes', 'array'],
+            'payment_exchange_rate_type_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+            ],
             'payment_method_ids.*' => [
                 'integer',
                 Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),

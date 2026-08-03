@@ -82,6 +82,7 @@ class PosBootstrapApiTest extends TestCase
             'effective_at' => now(),
             'is_active' => true,
         ]);
+        $listDefault->update(['payment_exchange_rate_type_id' => $rateType->id]);
 
         $paymentMethod = PaymentMethod::create([
             'code' => 'CASH-POS',
@@ -109,6 +110,7 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonCount(2, 'price_lists')
             ->assertJsonPath('price_lists.0.is_default', true)
             ->assertJsonPath('price_lists.0.payment_method_ids.0', $paymentMethod->id)
+            ->assertJsonPath('price_lists.0.payment_exchange_rate_type_id', $rateType->id)
             ->assertJsonCount(1, 'exchange_rate_types')
             ->assertJsonCount(1, 'exchange_rates')
             ->assertJsonPath('exchange_rates.0.rate', 36.5)

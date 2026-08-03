@@ -31,8 +31,13 @@ import {
   useCreatePriceList,
   useUpdatePriceList,
   useDeletePriceList,
+  useExchangeRateTypes,
 } from '@/features/inventory-center/api';
-import { StorePriceListSchema, type PriceList } from '@/features/inventory-center/schemas';
+import {
+  StorePriceListSchema,
+  type ExchangeRateType,
+  type PriceList,
+} from '@/features/inventory-center/schemas';
 import { usePaymentMethods, type PaymentMethod } from '@/features/pos/api';
 
 type FormValues = z.input<typeof StorePriceListSchema>;
@@ -40,6 +45,7 @@ type FormValues = z.input<typeof StorePriceListSchema>;
 export function PriceListsManager() {
   const { data: priceLists = [], isLoading } = usePriceLists(false);
   const { data: paymentMethods = [] } = usePaymentMethods();
+  const { data: exchangeRateTypes = [] } = useExchangeRateTypes();
   const create = useCreatePriceList();
   const update = useUpdatePriceList();
   const remove = useDeletePriceList();
@@ -83,6 +89,9 @@ export function PriceListsManager() {
                   Metodos POS
                 </th>
                 <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Tasa cobro VES
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Predet.
                 </th>
                 <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
@@ -106,6 +115,15 @@ export function PriceListsManager() {
                   <td className="px-3 py-2 tabular-nums">{l.sort_order ?? 0}</td>
                   <td className="px-3 py-2">
                     <PaymentMethodBadges priceList={l} paymentMethods={paymentMethods} />
+                  </td>
+                  <td className="px-3 py-2">
+                    {l.payment_exchange_rate_type ? (
+                      <Badge variant={l.payment_exchange_rate_type.is_active === false ? 'warning' : 'info'}>
+                        {l.payment_exchange_rate_type.name}
+                      </Badge>
+                    ) : (
+                      <span className="text-text-muted text-xs">Predeterminada</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     {l.is_default ? (
@@ -150,6 +168,7 @@ export function PriceListsManager() {
         <FormDialog
           priceList={editing}
           paymentMethods={paymentMethods}
+          exchangeRateTypes={exchangeRateTypes}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -202,12 +221,14 @@ export function PriceListsManager() {
 function FormDialog({
   priceList,
   paymentMethods,
+  exchangeRateTypes,
   onClose,
   onSubmit,
   loading,
 }: {
   priceList: PriceList | null;
   paymentMethods: PaymentMethod[];
+  exchangeRateTypes: ExchangeRateType[];
   onClose: () => void;
   onSubmit: (values: FormValues) => Promise<void>;
   loading: boolean;
@@ -219,6 +240,7 @@ function FormDialog({
       code: priceList?.code ?? '',
       description: priceList?.description ?? '',
       markup_percentage: priceList?.markup_percentage ?? null,
+      payment_exchange_rate_type_id: priceList?.payment_exchange_rate_type_id ?? null,
       is_default: priceList?.is_default ?? false,
       is_active: priceList?.is_active ?? true,
       sort_order: priceList?.sort_order ?? 0,
@@ -274,6 +296,25 @@ function FormDialog({
               })}
               placeholder="Ej. 45"
             />
+          </Field>
+          <Field
+            label="Tasa para cobros en bolivares"
+            hint="Convierte el saldo pendiente del ticket cuando el cliente combina divisas y bolivares. El cajero no tendra que elegirla."
+            error={form.formState.errors.payment_exchange_rate_type_id?.message}
+          >
+            <select
+              className="border-border bg-surface h-10 w-full rounded border px-3 text-sm"
+              {...form.register('payment_exchange_rate_type_id', {
+                setValueAs: (value) => (value === '' ? null : Number(value)),
+              })}
+            >
+              <option value="">Usar tasa predeterminada de la empresa</option>
+              {exchangeRateTypes.map((rateType) => (
+                <option key={rateType.id} value={rateType.id} disabled={!rateType.is_active}>
+                  {rateType.name} ({rateType.code}){rateType.is_active ? '' : ' - Inactiva'}
+                </option>
+              ))}
+            </select>
           </Field>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

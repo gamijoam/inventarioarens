@@ -59,6 +59,7 @@ import {
   mergePosExchangeRates,
   mergePosExchangeRateTypes,
   mergePosPriceLists,
+  resolvePosPaymentRate,
   resolvePosOpenSession,
   useCashSessions,
   useCurrentExchangeRatesForPos,
@@ -331,10 +332,6 @@ export function PosTerminal() {
     () => mergePosExchangeRates(bootstrap.data?.exchange_rates ?? [], fallbackCurrentRates),
     [bootstrap.data?.exchange_rates, fallbackCurrentRates],
   );
-  const activeRate = useMemo(
-    () => bestActiveRate(currentRates, exchangeRateTypes),
-    [currentRates, exchangeRateTypes],
-  );
   const { data: printerStations = [] } = usePrinterStations({
     enabled: canPrint || canDigital || canReprint,
   });
@@ -346,11 +343,25 @@ export function PosTerminal() {
     () => priceLists.find((list) => list.id === selectedPriceListId) ?? null,
     [priceLists, selectedPriceListId],
   );
+  const activeRate = useMemo(
+    () =>
+      resolvePosPaymentRate(
+        currentRates,
+        exchangeRateTypes,
+        selectedPriceList?.payment_exchange_rate_type_id,
+      ),
+    [currentRates, exchangeRateTypes, selectedPriceList?.payment_exchange_rate_type_id],
+  );
   const allowedPaymentMethods = useMemo(
     () => filterPaymentMethodsForPriceList(activePaymentMethods, selectedPriceList),
     [activePaymentMethods, selectedPriceList],
   );
-  const priceListPaymentIssue = getPriceListPaymentIssue(selectedPriceList, allowedPaymentMethods);
+  const priceListMethodIssue = getPriceListPaymentIssue(selectedPriceList, allowedPaymentMethods);
+  const priceListRateIssue =
+    selectedPriceList?.payment_exchange_rate_type_id && !activeRate
+      ? `La tasa configurada para ${selectedPriceList.name} no tiene un valor USD/VES activo.`
+      : null;
+  const priceListPaymentIssue = priceListMethodIssue ?? priceListRateIssue;
   const checkout = useCheckout();
   const completeExchange = useCompleteSalesReturnExchange();
   const addPayments = useAddPosPayments();
@@ -1310,8 +1321,7 @@ export function PosTerminal() {
               methods={allowedPaymentMethods}
               cartTotal={cartTotals.total}
               payments={payments}
-              currentRates={currentRates}
-              rateTypes={exchangeRateTypes}
+              rate={activeRate}
               priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
               issue={priceListPaymentIssue}
               onSelect={(methodId) => {
@@ -2426,8 +2436,7 @@ function QuickPaymentPanel({
   methods,
   cartTotal,
   payments,
-  currentRates,
-  rateTypes,
+  rate,
   priceListName,
   issue,
   onSelect,
@@ -2442,21 +2451,12 @@ function QuickPaymentPanel({
   }[];
   cartTotal: number;
   payments: PosPaymentLine[];
-  currentRates: {
-    exchange_rate_type_id: number;
-    exchange_rate_type_code?: string | null;
-    rate: number;
-    base_currency?: string;
-    quote_currency?: string;
-  }[];
-  rateTypes: { id: number; is_default?: boolean; is_active?: boolean; code: string }[];
+  rate: { exchange_rate_type_id: number; code: string; rate: number } | null;
   priceListName: string;
   issue: string | null;
   onSelect: (methodId: number) => void;
 }) {
   const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
-  const rate = bestActiveRate(currentRates, rateTypes);
-
   return (
     <div className="space-y-4">
       <div className="border-border rounded-2xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-5 text-white shadow-md">
@@ -2496,13 +2496,7 @@ function QuickPaymentPanel({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {methods.map((method) => {
-            const preview = previewQuickPayment(
-              method,
-              cartTotal,
-              payments,
-              currentRates,
-              rateTypes,
-            );
+            const preview = previewQuickPayment(method, cartTotal, payments, rate);
             return (
               <button
                 key={method.id}
@@ -3542,17 +3536,9 @@ function previewQuickPayment(
   method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
   total: number,
   payments: PosPaymentLine[],
-  rates: {
-    exchange_rate_type_id: number;
-    exchange_rate_type_code?: string | null;
-    rate: number;
-    base_currency?: string;
-    quote_currency?: string;
-  }[],
-  rateTypes: { id: number; is_default?: boolean; is_active?: boolean; code: string }[],
+  rate: { exchange_rate_type_id: number; code: string; rate: number } | null,
 ): { amountLabel: string; detail: string } {
   const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
-  const rate = bestActiveRate(rates, rateTypes);
   const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
   const amount = paymentAmountForCurrency(remaining, currency, rate?.rate ?? null);
   const amountLabel = currency === 'VES' ? `Bs ${amount.toFixed(2)}` : money(amount);
@@ -3562,61 +3548,6 @@ function previewQuickPayment(
       : methodLabel(method.method);
 
   return { amountLabel, detail };
-}
-
-function bestActiveRate(
-  rates: {
-    exchange_rate_type_id: number;
-    exchange_rate_type_code?: string | null | undefined;
-    rate: number;
-    base_currency?: string | undefined;
-    quote_currency?: string | undefined;
-    effective_at?: string | null | undefined;
-  }[],
-  rateTypes: { id: number; code?: string; is_default?: boolean; is_active?: boolean }[],
-): { exchange_rate_type_id: number; code: string; rate: number } | null {
-  const validRates = rates.filter(
-    (rate) =>
-      Number(rate.rate) > 0 &&
-      (!rate.base_currency || rate.base_currency === 'USD') &&
-      (!rate.quote_currency || rate.quote_currency === 'VES'),
-  );
-  if (validRates.length === 0) return null;
-
-  // 1. Preferir siempre el tipo de tasa marcado como is_default=true
-  //    (si esta activo). Esto evita que el POS use una tasa vieja o una
-  //    que el admin acaba de activar por error.
-  const defaultType = rateTypes.find(
-    (rateType) => rateType.is_default === true && rateType.is_active !== false,
-  );
-  if (defaultType) {
-    const rate = validRates.find((r) => r.exchange_rate_type_id === defaultType.id);
-    if (rate) {
-      const type = rateTypes.find((t) => t.id === defaultType.id);
-      return {
-        exchange_rate_type_id: defaultType.id,
-        code: rate.exchange_rate_type_code ?? type?.code ?? 'Tasa',
-        rate: Number(rate.rate),
-      };
-    }
-  }
-
-  // 2. Si no hay default, usar la tasa con effective_at mas reciente
-  //    (la ultima que el admin registro).
-  const sortedByDate = [...validRates].sort((a, b) => {
-    const dateA = a.effective_at ? new Date(a.effective_at).getTime() : 0;
-    const dateB = b.effective_at ? new Date(b.effective_at).getTime() : 0;
-    return dateB - dateA;
-  });
-  const selected = sortedByDate[0];
-  if (!selected) return null;
-  const type = rateTypes.find((rateType) => rateType.id === selected.exchange_rate_type_id);
-
-  return {
-    exchange_rate_type_id: selected.exchange_rate_type_id,
-    code: selected.exchange_rate_type_code ?? type?.code ?? 'Tasa',
-    rate: Number(selected.rate),
-  };
 }
 
 function paymentAmountForCurrency(

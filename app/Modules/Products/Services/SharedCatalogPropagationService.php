@@ -643,14 +643,22 @@ class SharedCatalogPropagationService
 
     public function ensurePriceListCopyFor(PriceList $master, Tenant $spinoff): PriceList
     {
+        $master->loadMissing('paymentExchangeRateType');
+        $localPaymentRateTypeId = $master->paymentExchangeRateType
+            ? $this->ensureExchangeRateTypeCopyFor($master->paymentExchangeRateType, $spinoff)->id
+            : null;
+
         $copy = $this->upsertCopy($master, $spinoff, [
             'name' => null,
             'code' => null,
             'description' => null,
             'markup_percentage' => null,
+            'payment_exchange_rate_type_id' => null,
             'is_default' => null,
             'is_active' => null,
             'sort_order' => null,
+        ], [
+            'payment_exchange_rate_type_id' => $localPaymentRateTypeId,
         ]);
 
         return $copy;

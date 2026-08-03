@@ -28,6 +28,7 @@ use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -69,9 +70,11 @@ class PosCheckoutService
 
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                $priceLists = $this->priceListsForItems($items);
+                $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS validar metodos de pago',
-                    fn (): array => $this->validatePaymentMethods($items, $payments, $customerId),
+                    fn (): array => $this->validatePaymentMethods($priceLists, $payments, $customerId),
                     200,
                     ['items' => count($items), 'payments' => count($payments)]
                 );
@@ -101,7 +104,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS resolver pago',
-                        fn (): array => $this->resolvePayment($payment),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
                         150,
                         ['payment_index' => $index, 'currency' => strtoupper($payment['currency'])]
                     );
@@ -230,9 +233,11 @@ class PosCheckoutService
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
 
+                $priceLists = $this->priceListsForItems($this->itemsForExistingOrder($order));
+                $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS pendiente validar metodos de pago',
-                    fn (): array => $this->validatePaymentMethods($this->itemsForExistingOrder($order), $payments, $order->customer_id),
+                    fn (): array => $this->validatePaymentMethods($priceLists, $payments, $order->customer_id),
                     200,
                     ['order_id' => $order->id, 'payments' => count($payments)]
                 );
@@ -240,7 +245,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS pendiente resolver pago',
-                        fn (): array => $this->resolvePayment($payment),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
                         150,
                         ['order_id' => $order->id, 'payment_index' => $index]
                     );
@@ -429,9 +434,8 @@ class PosCheckoutService
         }
     }
 
-    private function validatePaymentMethods(array $items, array $payments, ?int $customerId = null): array
+    private function validatePaymentMethods(Collection $priceLists, array $payments, ?int $customerId = null): array
     {
-        $priceLists = $this->priceListsForItems($items);
         $priceListsWithoutMethods = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isEmpty());
         if ($priceListsWithoutMethods->isNotEmpty()) {
             $priceList = $priceListsWithoutMethods->first();
@@ -499,7 +503,20 @@ class PosCheckoutService
         return $resolved;
     }
 
-    private function priceListsForItems(array $items)
+    private function paymentRateTypeIdFor(Collection $priceLists): ?int
+    {
+        if ($priceLists->count() > 1) {
+            throw ValidationException::withMessages([
+                'items' => 'Todos los productos del ticket deben usar la misma lista de precio.',
+            ]);
+        }
+
+        $rateTypeId = $priceLists->first()?->payment_exchange_rate_type_id;
+
+        return $rateTypeId ? (int) $rateTypeId : null;
+    }
+
+    private function priceListsForItems(array $items): Collection
     {
         $tenantId = app(TenantManager::class)->current()?->id;
         $defaultPriceList = null;
@@ -592,10 +609,18 @@ class PosCheckoutService
             ->first();
     }
 
-    private function resolvePayment(array $payment): array
+    private function resolvePayment(array $payment, ?int $configuredRateTypeId = null): array
     {
         $currency = strtoupper($payment['currency']);
         $amount = (float) $payment['amount'];
+
+        if ($configuredRateTypeId
+            && isset($payment['exchange_rate_type_id'])
+            && (int) $payment['exchange_rate_type_id'] !== $configuredRateTypeId) {
+            throw ValidationException::withMessages([
+                'payments' => 'La tasa del pago no coincide con la tasa configurada para la lista de precio.',
+            ]);
+        }
 
         if ($payment['method'] === PosPayment::METHOD_CUSTOMER_CREDIT) {
             if ($currency !== Product::CURRENCY_USD) {
@@ -604,7 +629,7 @@ class PosCheckoutService
                 ]);
             }
 
-            $rateType = $this->rateTypeFor(null);
+            $rateType = $this->rateTypeFor($configuredRateTypeId);
             $rate = $this->activeRateFor($rateType);
 
             if (! $rate) {
@@ -629,14 +654,16 @@ class PosCheckoutService
         if ($currency === Product::CURRENCY_VES
             || $currency === Product::CURRENCY_USD
             || isset($payment['exchange_rate_type_id'])) {
-            $rateType = $this->rateTypeFor($payment['exchange_rate_type_id'] ?? null);
+            $rateType = $this->rateTypeFor($configuredRateTypeId ?? ($payment['exchange_rate_type_id'] ?? null));
             $rate = $this->activeRateFor($rateType);
         }
 
         if (! $rate) {
-            $message = $currency === Product::CURRENCY_VES
-                ? 'El pago en bolivares requiere una tasa activa.'
-                : 'El pago requiere una tasa activa para calcular el equivalente en bolivares.';
+            $message = $configuredRateTypeId
+                ? "La tasa configurada para la lista de precio ({$rateType->code}) no tiene un valor USD/VES activo."
+                : ($currency === Product::CURRENCY_VES
+                    ? 'El pago en bolivares requiere una tasa activa.'
+                    : 'El pago requiere una tasa activa para calcular el equivalente en bolivares.');
             throw ValidationException::withMessages([
                 'payments' => $message,
             ]);

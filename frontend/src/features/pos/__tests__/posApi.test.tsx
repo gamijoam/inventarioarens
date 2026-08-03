@@ -23,6 +23,7 @@ import {
   mergePosExchangeRateTypes,
   mergePosExchangeRates,
   mergePosPriceLists,
+  resolvePosPaymentRate,
   resolvePosOpenSession,
   useAvailableProductSerialsForPos,
   useBootstrapRefsForPos,
@@ -106,6 +107,40 @@ describe('pos api', () => {
     expect(mergedLists[0]?.payment_method_ids).toEqual([7, 9]);
     expect(mergedTypes[0]?.is_default).toBe(true);
     expect(mergedRates[0]?.rate).toBe(36.5);
+  });
+
+  it('usa la tasa asociada a la lista para calcular pagos mixtos', () => {
+    const rate = resolvePosPaymentRate(
+      [
+        { exchange_rate_type_id: 1, rate: 750, base_currency: 'USD', quote_currency: 'VES' },
+        { exchange_rate_type_id: 2, rate: 850, base_currency: 'USD', quote_currency: 'VES' },
+      ],
+      [
+        { id: 1, code: 'BCV', is_default: true, is_active: true },
+        { id: 2, code: 'DIVISA-RECIBIDA', is_default: false, is_active: true },
+      ],
+      2,
+    );
+
+    expect(rate).toEqual({
+      exchange_rate_type_id: 2,
+      code: 'DIVISA-RECIBIDA',
+      rate: 850,
+    });
+    expect(10 * (rate?.rate ?? 0)).toBe(8500);
+  });
+
+  it('no cae a BCV si la tasa configurada para la lista no esta activa', () => {
+    const rate = resolvePosPaymentRate(
+      [{ exchange_rate_type_id: 1, rate: 750, base_currency: 'USD', quote_currency: 'VES' }],
+      [
+        { id: 1, code: 'BCV', is_default: true, is_active: true },
+        { id: 2, code: 'DIVISA-RECIBIDA', is_default: false, is_active: true },
+      ],
+      2,
+    );
+
+    expect(rate).toBeNull();
   });
 
   it('resuelve la sesion abierta desde bootstrap o fallback del cajero', () => {

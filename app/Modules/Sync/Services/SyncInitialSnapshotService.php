@@ -185,6 +185,12 @@ class SyncInitialSnapshotService
             ->orderBy('id')
             ->chunkById(200, function ($lists) use ($tenant, $targetNodeId, $installationCode, &$count): void {
                 foreach ($lists as $list) {
+                    $paymentRateTypeCode = $list->payment_exchange_rate_type_id
+                        ? DB::table('exchange_rate_types')
+                            ->where('tenant_id', $tenant->id)
+                            ->where('id', $list->payment_exchange_rate_type_id)
+                            ->value('code')
+                        : null;
                     $methodCodes = DB::table('price_list_payment_method')
                         ->join('payment_methods', function ($join): void {
                             $join->on('payment_methods.id', '=', 'price_list_payment_method.payment_method_id')
@@ -203,6 +209,7 @@ class SyncInitialSnapshotService
                         'is_default' => (bool) $list->is_default,
                         'is_active' => (bool) $list->is_active,
                         'sort_order' => (int) $list->sort_order,
+                        'payment_exchange_rate_type_code' => $paymentRateTypeCode,
                         'payment_method_codes' => $methodCodes,
                     ]);
                     $count++;

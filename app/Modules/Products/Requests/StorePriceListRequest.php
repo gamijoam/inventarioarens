@@ -26,6 +26,11 @@ class StorePriceListRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'payment_method_ids' => ['sometimes', 'array'],
+            'payment_exchange_rate_type_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
+            ],
             'payment_method_ids.*' => [
                 'integer',
                 Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),
@@ -45,6 +50,7 @@ class StorePriceListRequest extends FormRequest
             'code.required' => 'El codigo de la lista de precio es obligatorio.',
             'code.unique' => 'Ya existe una lista de precio con este codigo en la empresa actual.',
             'payment_method_ids.*.exists' => 'Uno o mas metodos de pago seleccionados no existen en la empresa actual.',
+            'payment_exchange_rate_type_id.exists' => 'El tipo de tasa seleccionado no existe en la empresa actual.',
         ];
     }
 }

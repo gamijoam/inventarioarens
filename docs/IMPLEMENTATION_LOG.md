@@ -6102,3 +6102,14 @@ Regla:
   seriales a la guia.
 - Se verifico que Owner y Administrador conserven todos los permisos
   `inventory_transfer_requests.*` por defecto mediante migracion y pruebas.
+
+## 2026-08-03 - Tasa de cobro por lista de precio en POS
+
+- Las listas de precio pueden asociar un tipo de tasa USD/VES para el cobro.
+- El POS usa esa tasa automaticamente en pagos USD, VES y mixtos, y conserva
+  el snapshot en cada pago.
+- Si la tasa configurada no tiene valor activo, el cobro queda bloqueado sin
+  hacer fallback silencioso a BCV.
+- La configuracion se propaga y sincroniza por codigo de tasa para evitar
+  mezclar identificadores entre empresas o instalaciones.
+- Guia operativa: `docs/POS_TASA_DE_COBRO_POR_LISTA_2026-08-03.md`.

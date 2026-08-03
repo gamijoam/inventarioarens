@@ -82,12 +82,13 @@ class PosBootstrapController extends Controller
                 ->with(['paymentMethods:id,name,code,method,currency_mode,is_active,sort_order'])
                 ->orderByDesc('is_default')
                 ->orderBy('name')
-                ->get(['id', 'code', 'name', 'is_default', 'is_active'])
+                ->get(['id', 'code', 'name', 'is_default', 'is_active', 'payment_exchange_rate_type_id'])
                 ->map(fn (PriceList $list) => [
                     'id' => $list->id,
                     'code' => $list->code,
                     'name' => $list->name,
                     'is_default' => (bool) $list->is_default,
+                    'payment_exchange_rate_type_id' => $list->payment_exchange_rate_type_id,
                     'payment_method_ids' => $list->paymentMethods->pluck('id')->values(),
                 ])
                 ->all(),

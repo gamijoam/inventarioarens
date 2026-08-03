@@ -59,6 +59,7 @@ class FullCatalogPropagationTest extends TestCase
         $priceList->paymentMethods()->attach($paymentMethod->id, ['tenant_id' => $group->id]);
 
         $rateType = ExchangeRateType::create(['code' => 'BCV', 'name' => 'Banco Central', 'is_default' => true, 'is_active' => true]);
+        $priceList->update(['payment_exchange_rate_type_id' => $rateType->id]);
         ExchangeRate::create([
             'exchange_rate_type_id' => $rateType->id,
             'base_currency' => ExchangeRate::BASE_USD,
@@ -124,9 +125,14 @@ class FullCatalogPropagationTest extends TestCase
         $spinoffBrandId = Brand::withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('slug', 'samsung')->value('id');
         $spinoffPaymentMethodId = PaymentMethod::withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('code', 'CASH')->value('id');
         $spinoffPriceListId = PriceList::withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('code', 'MAYOR')->value('id');
+        $spinoffRateTypeId = ExchangeRateType::withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('code', 'BCV')->value('id');
         $spinoffChildId = $spinoffChild->id;
 
         $this->assertSame($spinoffBrandId, $spinoffProduct->brand_id);
+        $this->assertSame(
+            $spinoffRateTypeId,
+            PriceList::withoutGlobalScopes()->where('id', $spinoffPriceListId)->value('payment_exchange_rate_type_id'),
+        );
         $this->assertSame('BCV', ExchangeRateType::withoutGlobalScopes()
             ->where('tenant_id', $spinoff->id)
             ->where('code', 'BCV')
