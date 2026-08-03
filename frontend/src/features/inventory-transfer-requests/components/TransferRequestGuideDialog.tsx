@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
+import { ImeiScanner } from '@/features/transfers/components/ImeiScanner';
 import { useUsers } from '@/features/users/api';
 import { usePrepareTransferRequest, useReceiveTransferRequest } from '../api';
 import type { GuideItemQuantity, TransferRequest } from '../schemas';
@@ -320,6 +321,17 @@ export function TransferRequestGuideDialog({
                 ? 'Ofrecido'
                 : 'Solicitado'
               : 'Despachado';
+            const senderProductId = isShipmentOffer
+              ? item.origin_product_id
+              : item.destination_product_id;
+            const senderWarehouseId = isShipmentOffer
+              ? request.from_warehouse_id
+              : request.destination_warehouse_id;
+            const selectedSerials =
+              serials[item.id]
+                ?.split(',')
+                .map((value) => value.trim())
+                .filter(Boolean) ?? [];
             return (
               <div key={item.id} className="border-border rounded border p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -364,24 +376,34 @@ export function TransferRequestGuideDialog({
                     className="border-border-strong bg-surface mt-3 w-full rounded border px-3 py-2 text-sm"
                   />
                 )}
-                {item.origin_product?.tracking_type === 'serialized' && (
+                {item.origin_product?.tracking_type === 'serialized' && isPrepare && (
+                  <div className="mt-3">
+                    <ImeiScanner
+                      productId={senderProductId ?? null}
+                      warehouseId={senderWarehouseId ?? null}
+                      selected={selectedSerials}
+                      onChange={(values) =>
+                        setSerials((current) => ({ ...current, [item.id]: values.join(',') }))
+                      }
+                      max={Math.max(0, Math.trunc(quantity))}
+                      dataTestIdPrefix={`guide-imei-${item.id}`}
+                    />
+                  </div>
+                )}
+                {item.origin_product?.tracking_type === 'serialized' && !isPrepare && (
                   <input
                     value={serials[item.id] ?? ''}
                     onChange={(event) =>
                       setSerials((current) => ({ ...current, [item.id]: event.target.value }))
                     }
-                    placeholder={
-                      isPrepare
-                        ? 'IMEIs/seriales que saldrán, separados por coma'
-                        : 'Escanea o escribe los IMEIs/seriales recibidos, separados por coma'
-                    }
+                    placeholder="Escanea o escribe los IMEIs/seriales recibidos, separados por coma"
                     className="border-border-strong bg-surface mt-3 w-full rounded border px-3 py-2 text-sm"
                   />
                 )}
                 {item.origin_product?.tracking_type === 'serialized' && (
                   <p className="text-text-muted mt-1 text-xs">
                     {isPrepare
-                      ? 'Estos seriales quedarán registrados en la guía y saldrán del almacén al despachar.'
+                      ? 'Selecciona unidades disponibles del almacén emisor. Quedarán registradas en la guía y saldrán al despachar.'
                       : 'Debes verificar exactamente los seriales despachados por la empresa remitente.'}
                   </p>
                 )}

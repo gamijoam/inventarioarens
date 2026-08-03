@@ -18,6 +18,23 @@ vi.mock('@/features/users/api', () => ({
   useUsers: () => ({ data: { data: [] } }),
 }));
 
+vi.mock('@/features/inventory-center/api', () => ({
+  useAvailableProductUnits: () => ({
+    data: [
+      {
+        id: 901,
+        product_id: 50,
+        warehouse_id: 10,
+        serial_type: 'imei',
+        serial_number: '51531351681331',
+        status: 'available',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -95,7 +112,12 @@ describe('TransferRequestGuideDialog', () => {
     expect(screen.getByText(/mercancía que ofreciste/i)).toBeInTheDocument();
     expect(screen.getByText(/Ofrecido: 1/i)).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText(/IMEIs\/seriales que saldrán/i), '51531351681331');
+    expect(screen.getByText('51531351681331')).toBeInTheDocument();
+    expect(screen.getByText(/0 \/ 1 IMEIs seleccionados/i)).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('guide-imei-401-item-901'));
+
+    expect(screen.getByText(/1 \/ 1 IMEIs seleccionados/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Confirmar preparación/i }));
 
     await waitFor(() =>
