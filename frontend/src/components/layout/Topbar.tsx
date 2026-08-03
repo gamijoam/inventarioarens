@@ -36,6 +36,7 @@ import {
   type CurrentExchangeRate,
 } from '@/features/pos/api';
 import type { Product, PriceList } from '@/features/inventory-center/schemas';
+import { IntercompanyNotificationBell } from '@/features/inventory-transfer-notifications/IntercompanyNotificationBell';
 
 const EMPTY_PRICE_LISTS: PriceList[] = [];
 
@@ -51,6 +52,7 @@ export function Topbar() {
   const canViewProducts = grantedPermissions.has(PERMISSIONS.PRODUCTS_VIEW);
   const canViewCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_VIEW);
   const canManageCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_MANAGE);
+  const canViewIntercompany = grantedPermissions.has(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -104,6 +106,7 @@ export function Topbar() {
             onManage={() => void navigate({ to: '/inventory/currency' })}
           />
         )}
+        {canViewIntercompany && <IntercompanyNotificationBell />}
         <Button
           variant="ghost"
           size="icon-sm"

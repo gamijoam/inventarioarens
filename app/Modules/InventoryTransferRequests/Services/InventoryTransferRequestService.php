@@ -8,10 +8,6 @@ use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
-use App\Modules\InventoryTransferRequests\Events\TransferRequestAccepted;
-use App\Modules\InventoryTransferRequests\Events\TransferRequestCancelled;
-use App\Modules\InventoryTransferRequests\Events\TransferRequestCreated;
-use App\Modules\InventoryTransferRequests\Events\TransferRequestRejected;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestGuide;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestGuideItem;
@@ -29,6 +25,7 @@ class InventoryTransferRequestService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly SyncCatalogOutboxService $syncCatalog,
+        private readonly IntercompanyNotificationService $notifications,
     ) {}
 
     public function create(User $user, array $data): InventoryTransferRequest
@@ -86,12 +83,7 @@ class InventoryTransferRequestService
 
         $this->syncCatalog->inventoryTransferRequestCreated($request);
 
-        // Difundir el evento al tenant destino. Esto activa
-        // el push in-app en el frontend del destinatario (< 1s).
-        // Usamos `fromModel()` para no serializar el modelo entero: el
-        // evento es primitivo para evitar que Reverb se caiga al
-        // serializar relaciones eager-loaded.
-        event(TransferRequestCreated::fromModel($request));
+        $this->notifications->record($request, IntercompanyNotificationService::CREATED, $user);
 
         return $request;
     }
@@ -198,10 +190,7 @@ class InventoryTransferRequestService
             $this->syncCatalog->inventoryTransferRequestAccepted($accepted);
         }
 
-        // Difundir el evento al tenant ORIGEN para notificar al admin que
-        // su solicitud fue aceptada. `fromModel()` para no serializar
-        // el modelo entero (Reverb se cae si lo intenta).
-        event(TransferRequestAccepted::fromModel($accepted));
+        $this->notifications->record($accepted, IntercompanyNotificationService::ACCEPTED, $user);
 
         return $accepted;
     }
@@ -229,17 +218,14 @@ class InventoryTransferRequestService
 
         $this->syncCatalog->inventoryTransferRequestRejected($rejected);
 
-        // Difundir el evento al tenant ORIGEN para notificar al admin que
-        // su solicitud fue rechazada (y el motivo si lo hay). `fromModel()`
-        // para no serializar el modelo entero.
-        event(TransferRequestRejected::fromModel($rejected));
+        $this->notifications->record($rejected, IntercompanyNotificationService::REJECTED, $user);
 
         return $rejected;
     }
 
     public function prepare(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
     {
-        return DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
+        $prepared = DB::transaction(function () use ($request, $user, $data): InventoryTransferRequest {
             $request = InventoryTransferRequest::query()->whereKey($request->id)->lockForUpdate()->with(['items', 'guide.items'])->firstOrFail();
             $guide = $request->guide;
 
@@ -291,11 +277,15 @@ class InventoryTransferRequestService
 
             return $this->loadTransferRelations($request);
         });
+
+        $this->notifications->record($prepared, IntercompanyNotificationService::PREPARED, $user);
+
+        return $prepared;
     }
 
     public function dispatch(InventoryTransferRequest $request, User $user): InventoryTransferRequest
     {
-        return DB::transaction(function () use ($request, $user): InventoryTransferRequest {
+        $dispatched = DB::transaction(function () use ($request, $user): InventoryTransferRequest {
             $request = InventoryTransferRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -320,11 +310,18 @@ class InventoryTransferRequestService
 
             return $this->loadTransferRelations($request);
         });
+
+        $this->notifications->record($dispatched, IntercompanyNotificationService::DISPATCHED, $user);
+
+        return $dispatched;
     }
 
     public function deliver(InventoryTransferRequest $request, User $user): InventoryTransferRequest
     {
-        return $this->transitionGuide($request, $user, InventoryTransferRequestGuide::STATUS_DISPATCHED, InventoryTransferRequestGuide::STATUS_DELIVERED, 'delivered');
+        $delivered = $this->transitionGuide($request, $user, InventoryTransferRequestGuide::STATUS_DISPATCHED, InventoryTransferRequestGuide::STATUS_DELIVERED, 'delivered');
+        $this->notifications->record($delivered, IntercompanyNotificationService::DELIVERED, $user);
+
+        return $delivered;
     }
 
     public function receive(InventoryTransferRequest $request, User $user, array $data): InventoryTransferRequest
@@ -375,7 +372,7 @@ class InventoryTransferRequestService
         });
 
         $this->syncCatalog->inventoryTransferRequestAccepted($received);
-        event(TransferRequestAccepted::fromModel($received));
+        $this->notifications->record($received, IntercompanyNotificationService::RECEIVED, $user);
 
         return $received;
     }
@@ -441,10 +438,7 @@ class InventoryTransferRequestService
 
         $this->syncCatalog->inventoryTransferRequestCancelled($cancelled);
 
-        // Difundir el evento al tenant DESTINO para notificar al admin
-        // que la solicitud fue retirada. `fromModel()` para no
-        // serializar el modelo entero.
-        event(TransferRequestCancelled::fromModel($cancelled));
+        $this->notifications->record($cancelled, IntercompanyNotificationService::CANCELLED, $user);
 
         return $cancelled;
     }

@@ -23,12 +23,8 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
   useTenantGroups: () => mockUseTenantGroups(),
 }));
 
-vi.mock('@/features/inventory-transfer-requests/api', () => ({
-  useUnreadTransferRequestsCount: () => mockUseUnreadTransferRequestsCount(),
-}));
-
-vi.mock('@/features/inventory-transfer-requests/useTransferRequestBroadcast', () => ({
-  useTransferRequestBroadcast: () => undefined,
+vi.mock('@/features/inventory-transfer-notifications/api', () => ({
+  useUnreadIntercompanyNotificationsCount: () => mockUseUnreadTransferRequestsCount(),
 }));
 
 vi.mock('@/stores/session', () => ({

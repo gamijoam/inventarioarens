@@ -228,6 +228,25 @@ Nodos de codigo frecuentes:
 - `SyncApiTest`
 - `InventoryTransferApiTest`
 
+## Notificaciones Interempresa Persistentes
+
+Las notificaciones de solicitudes y propuestas interempresa se almacenan en
+`intercompany_notifications`; las lecturas por usuario viven en
+`intercompany_notification_reads`. `IntercompanyNotificationService` determina
+la empresa destinataria y persiste los cambios de estado. El evento
+`IntercompanyNotificationCreated` sobre `tenant.{tenantId}` acelera la UI, pero
+el polling frontend cada 15 segundos es la garantia de entrega.
+
+Nodos principales:
+
+- `IntercompanyNotificationService`
+- `IntercompanyNotificationController`
+- `IntercompanyNotificationCreated`
+- `IntercompanyNotificationBell`
+- `useIntercompanyNotificationBroadcast`
+- `intercompany_notifications`
+- `intercompany_notification_reads`
+
 ## Consultas Recomendadas Para Graphify
 
 Usar estas preguntas como entrada rapida:

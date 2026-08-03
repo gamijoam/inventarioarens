@@ -6134,3 +6134,16 @@ Regla:
   de cobro de la lista seleccionada.
 - El encabezado, el resumen, los pagos y el vuelto muestran el codigo real de
   la tasa y dejan de presentar BCV cuando corresponde otra configuracion.
+
+## 2026-08-03 - Notificaciones interempresa persistentes
+
+- Se reemplazo el contador transitorio basado en WebSocket y `localStorage` por
+  una bandeja persistente por tenant y estado leido por usuario.
+- Crear, aceptar, rechazar, cancelar, preparar, despachar, entregar y recibir
+  generan notificaciones dirigidas a la empresa responsable de la siguiente
+  accion.
+- El frontend combina tiempo real con polling cada 15 segundos, por lo que una
+  interrupcion de Reverb no hace perder avisos.
+- Se agrego una campana en el encabezado, acceso directo a la solicitud y
+  acciones para marcar una o todas las notificaciones como leidas.
+- Auditoria: `docs/AUDITORIA_NOTIFICACIONES_INTEREMPRESA_2026-08-03.md`.
