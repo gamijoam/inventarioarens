@@ -289,13 +289,10 @@ export function PosTerminal() {
     [bootstrapRefs.refs],
   );
   const { data: fallbackSessions = [] } = useCashSessions();
-  const sessions = useMemo(
-    () => {
-      const session = resolvePosOpenSession(bootstrap.data?.open_session ?? null, fallbackSessions);
-      return session ? [session] : [];
-    },
-    [bootstrap.data?.open_session, fallbackSessions],
-  );
+  const sessions = useMemo(() => {
+    const session = resolvePosOpenSession(bootstrap.data?.open_session ?? null, fallbackSessions);
+    return session ? [session] : [];
+  }, [bootstrap.data?.open_session, fallbackSessions]);
   const { data: pendingOrders = [] } = useOpenPosOrders();
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: customerCredit } = useCustomerCredit(selectedCustomer?.id ?? null);
@@ -427,25 +424,6 @@ export function PosTerminal() {
   }, [query, quickSearchResults.length]);
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
 
-  // Tasa representativa del carrito: si todos los items cotizados usan la
-  // misma tasa (ej. PARALELO anclada al producto), usamos ESA para mostrar
-  // el equivalente VES en la sidebar Y para los pagos. Si hay tasas
-  // mixtas, caemos a la tasa global del bootstrap.
-  const cartRate = useMemo(() => {
-    const ratesFromCart = cart
-      .map((line) => Number(line.exchange_rate ?? 0))
-      .filter((rate) => rate > 0);
-    if (ratesFromCart.length === 0) return null;
-    const first = ratesFromCart[0];
-    const allSame = ratesFromCart.every((rate) => rate === first);
-    if (!allSame) return null;
-    return {
-      code: (cart[0]?.exchange_rate_type_code as string | null) ?? null,
-      rate: first,
-      exchange_rate_type_id:
-        (cart[0]?.exchange_rate_type_id as number | null) ?? null,
-    };
-  }, [cart]);
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
@@ -516,21 +494,33 @@ export function PosTerminal() {
     setSelectedCustomer(exchangeDraft.customer);
     setCustomerName(exchangeDraft.customer.name);
     usePosCartStore.setState({
-      payments: [{
-        id: `exchange-credit-${Date.now()}`,
-        method: 'customer_credit',
-        currency: 'USD',
-        amount: exchangeDraft.creditAmount,
-        payment_method_id: null,
-        exchange_rate_type_id: null,
-        exchange_rate: null,
-        status: 'captured',
-      }],
+      payments: [
+        {
+          id: `exchange-credit-${Date.now()}`,
+          method: 'customer_credit',
+          currency: 'USD',
+          amount: exchangeDraft.creditAmount,
+          payment_method_id: null,
+          exchange_rate_type_id: null,
+          exchange_rate: null,
+          status: 'captured',
+        },
+      ],
     });
     setExchangeReturnId(exchangeDraft.salesReturnId);
     setExchangeDraft(null);
     toast.info('Canje cargado en el POS. Revisa el faltante y confirma el cobro.');
-  }, [cart.length, exchangeDraft, setExchangeDraft, setSelectedCustomer, setCustomerName, setWarehouseId, setSelectedPriceListId, setQuery, setExchangeReturnId]);
+  }, [
+    cart.length,
+    exchangeDraft,
+    setExchangeDraft,
+    setSelectedCustomer,
+    setCustomerName,
+    setWarehouseId,
+    setSelectedPriceListId,
+    setQuery,
+    setExchangeReturnId,
+  ]);
 
   useEffect(() => {
     if (!exchangeReturnId || cart.length === 0) return;
@@ -547,12 +537,18 @@ export function PosTerminal() {
       const lines = state.lines.map((line) => {
         if (line.id !== exchangeLine.id) return line;
         if (
-          line.available_stock === availableStock
-          && line.track_stock === trackStock
-          && line.tracking_type === trackingType
-        ) return line;
+          line.available_stock === availableStock &&
+          line.track_stock === trackStock &&
+          line.tracking_type === trackingType
+        )
+          return line;
 
-        return { ...line, available_stock: availableStock, track_stock: trackStock, tracking_type: trackingType };
+        return {
+          ...line,
+          available_stock: availableStock,
+          track_stock: trackStock,
+          tracking_type: trackingType,
+        };
       });
 
       return lines === state.lines || lines.every((line, index) => line === state.lines[index])
@@ -583,7 +579,13 @@ export function PosTerminal() {
       const inForm = isInForm(target);
       const isSearchInput = target?.dataset.posSearchInput === 'true';
 
-      if (shouldTriggerPosCheckoutShortcut(event.key, { panel, isEditableField: inEditableField, isSearchInput })) {
+      if (
+        shouldTriggerPosCheckoutShortcut(event.key, {
+          panel,
+          isEditableField: inEditableField,
+          isSearchInput,
+        })
+      ) {
         event.preventDefault();
         void confirmPaidSale();
         return;
@@ -721,27 +723,32 @@ export function PosTerminal() {
           <div className="from-primary text-primary-foreground shadow-primary/20 flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br to-[#2f238f] shadow-md">
             <Receipt className="size-5" />
           </div>
-           <div>
-             <h1 className="text-lg leading-tight font-semibold">POS</h1>
-             <p className="text-text-muted text-xs">
-               {activeSession?.cash_register?.name ?? 'Caja abierta'} -{' '}
-               {selectedWarehouse?.name ?? 'Sin almacen'}
-             </p>
-           </div>
-           {activeRate && (
-             <div className="border-success/30 bg-success/10 ml-auto flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2">
-               <TrendingUp className="text-success size-5" aria-hidden="true" />
-               <div className="leading-tight">
-                 <p className="text-success/75 text-[10px] font-semibold tracking-wide uppercase">
-                   Tasa activa
-                 </p>
-                 <p className="text-success text-base font-bold sm:text-lg">
-                   {activeRate.code} {formatLocalNumber(activeRate.rate)}
-                 </p>
-               </div>
-             </div>
-           )}
-         </div>
+          <div>
+            <h1 className="text-lg leading-tight font-semibold">POS</h1>
+            <p className="text-text-muted text-xs">
+              {activeSession?.cash_register?.name ?? 'Caja abierta'} -{' '}
+              {selectedWarehouse?.name ?? 'Sin almacen'}
+            </p>
+          </div>
+          {activeRate && (
+            <div className="border-success/30 bg-success/10 ml-auto flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2">
+              <TrendingUp className="text-success size-5" aria-hidden="true" />
+              <div className="leading-tight">
+                <p className="text-success/75 text-[10px] font-semibold tracking-wide uppercase">
+                  Tasa de cobro
+                </p>
+                <p className="text-success text-base font-bold sm:text-lg">
+                  {activeRate.code} @ {formatLocalNumber(activeRate.rate)}
+                </p>
+                {selectedPriceList && (
+                  <p className="text-success/70 max-w-36 truncate text-[10px]">
+                    Lista {selectedPriceList.name}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
           <div className="space-y-1">
             <label className="text-text-muted block text-[10px] font-semibold uppercase">
@@ -810,7 +817,7 @@ export function PosTerminal() {
                         type="button"
                         className={cn(
                           'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                          index === quickSearchIndex && 'bg-primary/5 ring-1 ring-primary/20',
+                          index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
                         )}
                         onClick={() => {
                           void addProduct(product).then((added) => {
@@ -959,7 +966,9 @@ export function PosTerminal() {
                 {selectedCustomer ? 'Cliente asignado' : customerName}
               </p>
               {exchangeReturnId && (
-                <p className="mt-1 text-xs text-primary">Confirma el pago aquí para completar la devolución.</p>
+                <p className="text-primary mt-1 text-xs">
+                  Confirma el pago aquí para completar la devolución.
+                </p>
               )}
             </div>
             <div className="flex gap-2">
@@ -1057,7 +1066,7 @@ export function PosTerminal() {
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <AmountRow label="Pagado" value={paymentTotals.paid} />
               {payments.length > 0 && (
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-border/70 bg-bg/30 p-2 pr-1">
+                <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border p-2 pr-1">
                   {payments.map((payment) => (
                     <PaymentChip
                       key={payment.id}
@@ -1073,15 +1082,25 @@ export function PosTerminal() {
                   ))}
                 </div>
               )}
-              {!exchangeReturnId && selectedCustomer && Number(customerCredit?.available_base_amount ?? 0) > 0 && paymentTotals.remaining > 0 && !payments.some((payment) => payment.method === 'customer_credit') && (
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => applyCustomerCredit()}
-                >
-                  Aplicar saldo a favor: {money(Math.min(Number(customerCredit?.available_base_amount ?? 0), paymentTotals.remaining))}
-                </Button>
-              )}
+              {!exchangeReturnId &&
+                selectedCustomer &&
+                Number(customerCredit?.available_base_amount ?? 0) > 0 &&
+                paymentTotals.remaining > 0 &&
+                !payments.some((payment) => payment.method === 'customer_credit') && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => applyCustomerCredit()}
+                  >
+                    Aplicar saldo a favor:{' '}
+                    {money(
+                      Math.min(
+                        Number(customerCredit?.available_base_amount ?? 0),
+                        paymentTotals.remaining,
+                      ),
+                    )}
+                  </Button>
+                )}
               {payments.length === 0 && (
                 <button
                   type="button"
@@ -1095,24 +1114,22 @@ export function PosTerminal() {
             </div>
             <div className="border-border bg-bg/50 mt-4 space-y-2 rounded border p-3">
               <AmountRow label="Restante USD" value={paymentTotals.remaining} />
-              {(() => {
-                const tasaParaSidebar = cartRate ?? (activeRate ? { code: activeRate.code, rate: activeRate.rate } : null);
-                if (!tasaParaSidebar) return null;
-                return (
-                  <AmountRow
-                    label={`Restante VES (${tasaParaSidebar.code ?? '?'})`}
-                    value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', tasaParaSidebar.rate)}
-                    currency="VES"
-                  />
-                );
-              })()}
+              {activeRate && (
+                <AmountRow
+                  label={`Restante en bolivares · ${activeRate.code}`}
+                  value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', activeRate.rate)}
+                  currency="VES"
+                />
+              )}
               <div className="bg-success/10 mt-2 rounded p-3">
                 <p className="text-text-muted text-xs">Vuelto</p>
                 <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
                 {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
                   <p className="text-success mt-1 text-sm font-semibold">
                     Bs {roundMoney(paymentTotals.change_amount ?? 0).toFixed(2)}
-                    {paymentTotals.change_rate ? ` @ ${paymentTotals.change_rate}` : ''}
+                    {paymentTotals.change_rate
+                      ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
+                      : ''}
                   </p>
                 )}
               </div>
@@ -1592,10 +1609,7 @@ export function PosTerminal() {
       : null;
     const currencyMode = configured?.currency_mode ?? 'USD';
     const currency = currencyMode === 'VES' ? 'VES' : 'USD';
-    // Prioridad: tasa del carrito (anclada al producto) > tasa default.
-    // Esto respeta la tasa del producto cuando todos los items comparten
-    // la misma. Si las tasas son mixtas, cae a activeRate.
-    const rate = cartRate ?? activeRate;
+    const rate = activeRate;
     setPayments((current) => [
       ...current,
       {
@@ -2630,7 +2644,7 @@ function ProductSearchPanel({
               onMouseEnter={() => setSelectedIndex(index)}
               className={cn(
                 'group border-border bg-surface hover:border-primary/60 focus-visible:ring-primary overflow-hidden rounded-2xl border text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2',
-                index === safeIndex && 'border-primary bg-primary/5 ring-1 ring-primary/20',
+                index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
               )}
             >
               <ProductImageView
@@ -3519,8 +3533,8 @@ function getPaymentSetupIssue(
   for (const [index, payment] of payments.entries()) {
     const line = index + 1;
     const configured = methods.find((method) => method.id === payment.payment_method_id);
-     if (payment.method === 'customer_credit') continue;
-     if (!payment.payment_method_id)
+    if (payment.method === 'customer_credit') continue;
+    if (!payment.payment_method_id)
       return `Selecciona un metodo configurado en la linea de pago ${line}.`;
     if (!payment.exchange_rate_type_id) return `Selecciona la tasa para la linea de pago ${line}.`;
     if (!payment.exchange_rate) return `No hay tasa activa para la linea de pago ${line}.`;

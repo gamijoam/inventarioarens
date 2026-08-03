@@ -6125,3 +6125,12 @@ Regla:
   configuracion anterior y eliminando el timeout observado en el frontend.
 - La propagacion completa de precios se conserva para los flujos explicitos de
   catalogo que realmente la necesitan.
+
+## 2026-08-03 - Identidad visual de la tasa de cobro POS
+
+- El POS separa la tasa historica usada para cotizar un producto de la tasa
+  operativa configurada en la lista de precio para cobrar en bolivares.
+- Los pagos VES, el saldo equivalente y el vuelto usan exclusivamente la tasa
+  de cobro de la lista seleccionada.
+- El encabezado, el resumen, los pagos y el vuelto muestran el codigo real de
+  la tasa y dejan de presentar BCV cuando corresponde otra configuracion.

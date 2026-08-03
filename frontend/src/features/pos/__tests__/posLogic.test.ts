@@ -39,26 +39,63 @@ describe('POS cart logic', () => {
   });
 
   it('calcula pagos mixtos y vuelto de efectivo', () => {
-    const totals = calculatePaymentTotals([
-      { id: 'cash', method: 'cash', currency: 'USD', amount: 35, received_amount: 100, status: 'captured' },
-      { id: 'card', method: 'card', currency: 'USD', amount: 16, status: 'captured' },
-    ], 51);
+    const totals = calculatePaymentTotals(
+      [
+        {
+          id: 'cash',
+          method: 'cash',
+          currency: 'USD',
+          amount: 35,
+          received_amount: 100,
+          status: 'captured',
+        },
+        { id: 'card', method: 'card', currency: 'USD', amount: 16, status: 'captured' },
+      ],
+      51,
+    );
 
-    expect(totals).toMatchObject({ paid: 51, remaining: 0, change: 65, change_currency: 'USD', change_amount: 65 });
+    expect(totals).toMatchObject({
+      paid: 51,
+      remaining: 0,
+      change: 65,
+      change_currency: 'USD',
+      change_amount: 65,
+    });
   });
 
   it('convierte pagos VES a base USD usando la tasa activa de la linea', () => {
-    const totals = calculatePaymentTotals([
-      { id: 'ves', method: 'mobile_payment', currency: 'VES', amount: 540, exchange_rate: 60, status: 'captured' },
-    ], 10);
+    const totals = calculatePaymentTotals(
+      [
+        {
+          id: 'ves',
+          method: 'mobile_payment',
+          currency: 'VES',
+          amount: 540,
+          exchange_rate: 60,
+          status: 'captured',
+        },
+      ],
+      10,
+    );
 
     expect(totals).toMatchObject({ paid: 9, remaining: 1, change: 0 });
   });
 
   it('calcula vuelto en USD y VES cuando un pago VES excede el total', () => {
-    const totals = calculatePaymentTotals([
-      { id: 'ves', method: 'mobile_payment', currency: 'VES', amount: 18000, exchange_rate: 800, status: 'captured' },
-    ], 12.5);
+    const totals = calculatePaymentTotals(
+      [
+        {
+          id: 'ves',
+          method: 'mobile_payment',
+          currency: 'VES',
+          amount: 18000,
+          exchange_rate: 800,
+          exchange_rate_type_id: 2,
+          status: 'captured',
+        },
+      ],
+      12.5,
+    );
 
     expect(totals).toMatchObject({
       paid: 22.5,
@@ -67,6 +104,7 @@ describe('POS cart logic', () => {
       change_currency: 'VES',
       change_amount: 8000,
       change_rate: 800,
+      change_rate_type_id: 2,
     });
   });
 
@@ -76,10 +114,26 @@ describe('POS cart logic', () => {
   });
 
   it('bloquea productos serializados sin un IMEI por unidad', () => {
-    expect(missingSerialIssue([{ ...baseLine, tracking_type: 'serialized', quantity: 2, selected_serials: [{ id: 1, serial_number: 'IMEI-1' }] }]))
-      .toContain('requiere 2 IMEI');
-    expect(missingSerialIssue([{ ...baseLine, tracking_type: 'serialized', quantity: 1, selected_serials: [{ id: 1, serial_number: 'IMEI-1' }] }]))
-      .toBeNull();
+    expect(
+      missingSerialIssue([
+        {
+          ...baseLine,
+          tracking_type: 'serialized',
+          quantity: 2,
+          selected_serials: [{ id: 1, serial_number: 'IMEI-1' }],
+        },
+      ]),
+    ).toContain('requiere 2 IMEI');
+    expect(
+      missingSerialIssue([
+        {
+          ...baseLine,
+          tracking_type: 'serialized',
+          quantity: 1,
+          selected_serials: [{ id: 1, serial_number: 'IMEI-1' }],
+        },
+      ]),
+    ).toBeNull();
   });
 
   it('detecta productos sin precio para la lista seleccionada', () => {

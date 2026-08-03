@@ -23,8 +23,8 @@ export interface PosCartLine {
   /**
    * Tasa de cambio asociada a esta linea. Viene del `quote` que retorna
    * `GET /products/{id}/price` y refleja la tasa anclada al producto
-   * (ej. PARALELO), no la tasa default del bootstrap. El POS la usa
-   * para mostrar el equivalente VES correcto en la sidebar.
+   * (ej. PARALELO). Es un snapshot del precio y no define la tasa usada
+   * para cobrar pagos en bolivares.
    */
   exchange_rate?: number | null;
   exchange_rate_type_id?: number | null;
@@ -42,11 +42,11 @@ export interface PosCartLine {
    * stock y se descuenta del warehouse al confirmar la venta.
    */
   track_stock?: boolean;
-  selected_serials?: Array<{
+  selected_serials?: {
     id: number;
     serial_type?: string | null;
     serial_number: string;
-  }>;
+  }[];
 }
 
 export interface PosPaymentLine {
@@ -75,6 +75,7 @@ export interface PaymentTotals {
   change_currency?: CurrencyCode | null;
   change_amount?: number;
   change_rate?: number | null;
+  change_rate_type_id?: number | null;
 }
 
 export function clampQuantity(quantity: number, available: number): number {
@@ -88,12 +89,15 @@ export function lineSubtotal(line: Pick<PosCartLine, 'quantity' | 'unit_price'>)
   return roundMoney(line.quantity * line.unit_price);
 }
 
-export function lineDiscount(line: Pick<PosCartLine, 'quantity' | 'unit_price' | 'discount_type' | 'discount_value'>): number {
+export function lineDiscount(
+  line: Pick<PosCartLine, 'quantity' | 'unit_price' | 'discount_type' | 'discount_value'>,
+): number {
   const subtotal = lineSubtotal(line);
   const value = Math.max(0, Number(line.discount_value ?? 0));
 
   if (!line.discount_type || value <= 0) return 0;
-  if (line.discount_type === 'percent') return roundMoney(Math.min(subtotal, subtotal * (value / 100)));
+  if (line.discount_type === 'percent')
+    return roundMoney(Math.min(subtotal, subtotal * (value / 100)));
 
   return roundMoney(Math.min(subtotal, value));
 }
@@ -114,24 +118,33 @@ export function calculateCartTotals(lines: PosCartLine[]): CartTotals {
 }
 
 export function calculatePaymentTotals(payments: PosPaymentLine[], total: number): PaymentTotals {
-  const capturedPayments = payments.filter((payment) => (payment.status ?? 'captured') === 'captured');
-  const paid = roundMoney(capturedPayments.reduce((sum, payment) => sum + paymentBaseAmount(payment), 0));
+  const capturedPayments = payments.filter(
+    (payment) => (payment.status ?? 'captured') === 'captured',
+  );
+  const paid = roundMoney(
+    capturedPayments.reduce((sum, payment) => sum + paymentBaseAmount(payment), 0),
+  );
   const cashReceived = payments
     .filter((payment) => payment.method === 'cash')
-    .reduce((sum, payment) => sum + Math.max(0, Number(payment.received_amount ?? payment.amount ?? 0)), 0);
+    .reduce(
+      (sum, payment) => sum + Math.max(0, Number(payment.received_amount ?? payment.amount ?? 0)),
+      0,
+    );
   const cashAmount = payments
     .filter((payment) => payment.method === 'cash')
     .reduce((sum, payment) => sum + Math.max(0, Number(payment.amount || 0)), 0);
   const overpaidBase = roundMoney(Math.max(0, paid - total));
   const cashChange = roundMoney(Math.max(0, cashReceived - cashAmount));
   const changeBase = Math.max(cashChange, overpaidBase);
-  const changePayment = cashChange >= overpaidBase && cashChange > 0
-    ? lastCapturedPayment(capturedPayments.filter((payment) => payment.method === 'cash'))
-    : lastCapturedPayment(capturedPayments);
+  const changePayment =
+    cashChange >= overpaidBase && cashChange > 0
+      ? lastCapturedPayment(capturedPayments.filter((payment) => payment.method === 'cash'))
+      : lastCapturedPayment(capturedPayments);
   const changeCurrency = changePayment?.currency ?? null;
-  const changeAmount = changeCurrency === 'VES'
-    ? roundMoney(changeBase * Number(changePayment?.exchange_rate || 0))
-    : changeBase;
+  const changeAmount =
+    changeCurrency === 'VES'
+      ? roundMoney(changeBase * Number(changePayment?.exchange_rate ?? 0))
+      : changeBase;
 
   return {
     paid,
@@ -140,13 +153,14 @@ export function calculatePaymentTotals(payments: PosPaymentLine[], total: number
     change_currency: changeCurrency,
     change_amount: roundMoney(changeAmount),
     change_rate: changePayment?.exchange_rate ?? null,
+    change_rate_type_id: changePayment?.exchange_rate_type_id ?? null,
   };
 }
 
 export function paymentBaseAmount(payment: PosPaymentLine): number {
-  const amount = Math.max(0, Number(payment.amount || 0));
+  const amount = Math.max(0, Number(payment.amount ?? 0));
   if (payment.currency === 'VES') {
-    const rate = Number(payment.exchange_rate || 0);
+    const rate = Number(payment.exchange_rate ?? 0);
     return rate > 0 ? roundMoney(amount / rate) : 0;
   }
 
@@ -154,16 +168,14 @@ export function paymentBaseAmount(payment: PosPaymentLine): number {
 }
 
 function lastCapturedPayment(payments: PosPaymentLine[]): PosPaymentLine | null {
-  return payments.length > 0 ? payments[payments.length - 1] ?? null : null;
+  return payments.length > 0 ? (payments[payments.length - 1] ?? null) : null;
 }
 
 export function hasStockIssue(lines: PosCartLine[]): boolean {
   // Productos con track_stock=false (servicios, suscripciones, conceptos
   // facturables) no requieren stock disponible y no generan movimiento
   // de inventario al confirmar la venta. Ver docs/SPRINT2_UX.md (QW10).
-  return lines.some(
-    (line) => line.track_stock !== false && line.quantity > line.available_stock,
-  );
+  return lines.some((line) => line.track_stock !== false && line.quantity > line.available_stock);
 }
 
 export function hasPriceIssue(lines: PosCartLine[]): boolean {
@@ -175,7 +187,11 @@ export function firstPriceIssue(lines: PosCartLine[]): string | null {
 }
 
 export function missingSerialIssue(lines: PosCartLine[]): string | null {
-  const line = lines.find((item) => item.tracking_type === 'serialized' && (item.selected_serials?.length ?? 0) !== Number(item.quantity));
+  const line = lines.find(
+    (item) =>
+      item.tracking_type === 'serialized' &&
+      (item.selected_serials?.length ?? 0) !== Number(item.quantity),
+  );
   if (!line) return null;
 
   return `${line.name} requiere ${Number(line.quantity)} IMEI/serial seleccionado.`;
