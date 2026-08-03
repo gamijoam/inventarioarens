@@ -958,7 +958,7 @@ export function PosTerminal() {
         </div>
       </header>
 
-      <main className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
+      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
         <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
           <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
             <div>
@@ -997,7 +997,7 @@ export function PosTerminal() {
               setCustomerName('Consumidor Final');
             }}
           />
-          <div className="min-h-0 flex-1 overflow-auto bg-[#f8fafc] p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-3">
             {cart.length === 0 ? (
               <div className="border-border bg-surface text-text-muted flex h-full items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm">
                 <div>
@@ -1070,7 +1070,13 @@ export function PosTerminal() {
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <AmountRow label="Pagado" value={paymentTotals.paid} />
               {payments.length > 0 && (
-                <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border p-2 pr-1">
+                <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
+                  <span>Pagos aplicados</span>
+                  <span>{payments.length}</span>
+                </div>
+              )}
+              {payments.length > 0 && (
+                <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
                   {payments.map((payment) => (
                     <PaymentChip
                       key={payment.id}
@@ -1116,7 +1122,7 @@ export function PosTerminal() {
                 </button>
               )}
             </div>
-            <div className="border-border bg-bg/50 mt-4 space-y-2 rounded border p-3">
+            <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
               <AmountRow label="Restante USD" value={paymentTotals.remaining} />
               {activeRate && (
                 <AmountRow
@@ -1140,7 +1146,7 @@ export function PosTerminal() {
             </div>
           </div>
 
-          <div className="border-border space-y-2 border-t p-3">
+          <div className="border-border shrink-0 space-y-2 border-t p-3">
             {checkoutBlockReason && (
               <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
                 {checkoutBlockReason}
