@@ -150,6 +150,62 @@ class FullCatalogPropagationTest extends TestCase
         ]);
     }
 
+    public function test_new_active_exchange_rate_deactivates_previous_spinoff_copy(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff();
+        $this->useTenant($group);
+
+        $rateType = ExchangeRateType::create([
+            'code' => 'BCV',
+            'name' => 'Banco Central',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $oldRate = ExchangeRate::create([
+            'exchange_rate_type_id' => $rateType->id,
+            'base_currency' => ExchangeRate::BASE_USD,
+            'quote_currency' => ExchangeRate::QUOTE_VES,
+            'rate' => 100,
+            'effective_at' => now()->subDay(),
+            'is_active' => true,
+        ]);
+
+        $service = app(SharedCatalogPropagationService::class);
+        $service->propagateAllToSpinoff($group, $spinoff);
+
+        $oldRate->update(['is_active' => false]);
+        $newRate = ExchangeRate::create([
+            'exchange_rate_type_id' => $rateType->id,
+            'base_currency' => ExchangeRate::BASE_USD,
+            'quote_currency' => ExchangeRate::QUOTE_VES,
+            'rate' => 120,
+            'effective_at' => now(),
+            'is_active' => true,
+        ]);
+
+        $spinoffTypeId = ExchangeRateType::withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('code', 'BCV')
+            ->value('id');
+        $service->ensureExchangeRateCopyFor($newRate, $spinoff, $spinoffTypeId);
+
+        $this->assertDatabaseHas('exchange_rates', [
+            'tenant_id' => $spinoff->id,
+            'rate' => '100.000000',
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('exchange_rates', [
+            'tenant_id' => $spinoff->id,
+            'rate' => '120.000000',
+            'is_active' => true,
+        ]);
+        $this->assertSame(1, ExchangeRate::withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('exchange_rate_type_id', $spinoffTypeId)
+            ->where('is_active', true)
+            ->count());
+    }
+
     public function test_propagating_all_is_idempotent(): void
     {
         [$group, $spinoff] = $this->createGroupWithSpinoff();

@@ -606,6 +606,21 @@ class SharedCatalogPropagationService
             'is_active' => $master->is_active,
         ];
 
+        if ($master->is_active) {
+            ExchangeRate::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $spinoff->id)
+                ->where('exchange_rate_type_id', $newRateTypeId)
+                ->where('base_currency', $master->base_currency)
+                ->where('quote_currency', $master->quote_currency)
+                ->when($existing, fn ($query) => $query->whereKeyNot($existing->id))
+                ->where('is_active', true)
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+        }
+
         if ($existing) {
             $payload['updated_at'] = now();
             DB::table('exchange_rates')

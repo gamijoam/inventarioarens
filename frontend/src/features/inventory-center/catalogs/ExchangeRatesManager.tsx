@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, TrendingUp, TrendingDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, ChevronUp, ChevronDown, LockKeyhole } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/Label';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import { formatMoney } from '@/lib/money';
+import { useSessionStore } from '@/stores/session';
 import {
   useExchangeRateTypes,
   useExchangeRates,
@@ -49,7 +50,6 @@ import {
 import {
   StoreExchangeRateSchema,
   EXCHANGE_RATE_CURRENCIES,
-  type ExchangeRateType,
 } from '@/features/inventory-center/schemas';
 
 const formSchema = z.object({
@@ -57,13 +57,19 @@ const formSchema = z.object({
   base_currency: z.string().default('USD'),
   quote_currency: z.string().default('VES'),
   rate: z.coerce.number().positive('La tasa debe ser mayor a 0.'),
-  effective_at: z
-    .string()
-    .min(1, 'La fecha efectiva es obligatoria.'),
+  effective_at: z.string().min(1, 'La fecha efectiva es obligatoria.'),
   source: z.string().optional(),
   is_active: z.boolean().default(true),
 });
 type FormValues = z.infer<typeof formSchema>;
+
+export function getExchangeRateStatusLabel(isActive: boolean, isInherited: boolean): string {
+  if (isActive) {
+    return isInherited ? 'Activa heredada' : 'Activa';
+  }
+
+  return isInherited ? 'Histórica heredada' : 'Inactiva';
+}
 
 export interface ExchangeRatesManagerProps {
   /** ID de tipo de tasa preseleccionado (ej: desde el form de producto). */
@@ -72,7 +78,9 @@ export interface ExchangeRatesManagerProps {
 
 export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProps = {}) {
   const { data: types = [] } = useExchangeRateTypes();
-  const canManage = true; // Gate visual via <Can>. Sin useCan.
+  const tenant = useSessionStore((state) => state.tenant);
+  const isInherited = Boolean(tenant?.parent_id);
+  const canManage = !isInherited;
 
   const [typeFilter, setTypeFilter] = useState<string>(initialTypeId ? String(initialTypeId) : '');
   const [fromDate, setFromDate] = useState<string>('');
@@ -80,7 +88,11 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showForm, setShowForm] = useState(false);
 
-  const { data: rates = [], isLoading, isError } = useExchangeRates({
+  const {
+    data: rates = [],
+    isLoading,
+    isError,
+  } = useExchangeRates({
     rate_type_id: typeFilter ? Number(typeFilter) : undefined,
     from: fromDate || undefined,
     to: toDate || undefined,
@@ -93,7 +105,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      exchange_rate_type_id: initialTypeId ?? (types[0]?.id ?? 0),
+      exchange_rate_type_id: initialTypeId ?? types[0]?.id ?? 0,
       base_currency: 'USD',
       quote_currency: 'VES',
       rate: 0,
@@ -109,7 +121,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
       exchange_rate_type_id: (() => {
         const n = Number(typeFilter);
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        return Number.isFinite(n) && n > 0 ? n : (initialTypeId || types[0]?.id || 0);
+        return Number.isFinite(n) && n > 0 ? n : initialTypeId || types[0]?.id || 0;
       })(),
       base_currency: 'USD',
       quote_currency: 'VES',
@@ -157,7 +169,9 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
 
   const sortedRates = (rates as unknown as ExchangeRateRow[])
     .map((r) => ({ rate: r, sortKey: r.effective_at ?? '' }))
-    .sort((a, b) => (sortDir === 'desc' ? b.sortKey.localeCompare(a.sortKey) : a.sortKey.localeCompare(b.sortKey)))
+    .sort((a, b) =>
+      sortDir === 'desc' ? b.sortKey.localeCompare(a.sortKey) : a.sortKey.localeCompare(b.sortKey),
+    )
     .map((x) => x.rate);
 
   if (isLoading) return <Skeleton className="h-48" />;
@@ -167,11 +181,24 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
 
   return (
     <div className="space-y-3">
+      {isInherited && (
+        <div className="border-info/30 bg-info/5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm">
+          <LockKeyhole className="text-info mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="text-text font-semibold">Tasas heredadas del grupo padre</p>
+            <p className="text-text-muted mt-0.5">
+              Esta empresa usa el catálogo de tasas compartido. Solo el Owner del grupo puede crear,
+              activar o desactivar tasas.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Filtros */}
-      <div className="rounded-lg border border-border bg-surface p-3">
+      <div className="border-border bg-surface rounded-lg border p-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
-            <Label htmlFor="filter-type" className="text-xs text-text-muted">
+            <Label htmlFor="filter-type" className="text-text-muted text-xs">
               Tipo
             </Label>
             <Select
@@ -188,7 +215,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
             </Select>
           </div>
           <div>
-            <Label htmlFor="filter-from" className="text-xs text-text-muted">
+            <Label htmlFor="filter-from" className="text-text-muted text-xs">
               Desde
             </Label>
             <Input
@@ -199,7 +226,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
             />
           </div>
           <div>
-            <Label htmlFor="filter-to" className="text-xs text-text-muted">
+            <Label htmlFor="filter-to" className="text-text-muted text-xs">
               Hasta
             </Label>
             <Input
@@ -231,16 +258,18 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-muted">
+        <p className="text-text-muted text-sm">
           {rates.length} tasa{rates.length === 1 ? '' : 's'} encontrada
           {rates.length === 1 ? '' : 's'}.
         </p>
-        <Can I={PERMISSIONS.CURRENCY_MANAGE}>
-          <Button onClick={openForm} data-testid="new-exchange-rate">
-            <Plus className="size-3.5" aria-hidden="true" />
-            Nueva tasa
-          </Button>
-        </Can>
+        {canManage && (
+          <Can I={PERMISSIONS.CURRENCY_MANAGE}>
+            <Button onClick={openForm} data-testid="new-exchange-rate">
+              <Plus className="size-3.5" aria-hidden="true" />
+              Nueva tasa
+            </Button>
+          </Can>
+        )}
       </div>
 
       {rates.length === 0 ? (
@@ -250,51 +279,58 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
           icon={<TrendingUp className="size-8" aria-hidden="true" />}
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface p-2">
-          <table className="w-full table-dense">
-            <thead className="border-b border-border bg-bg/60 text-left">
+        <div className="border-border bg-surface rounded-lg border p-2">
+          <table className="table-dense w-full">
+            <thead className="border-border bg-bg/60 border-b text-left">
               <tr>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Fecha efectiva
                 </th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Tipo
                 </th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Conversion
                 </th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
                   Tasa
                 </th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Estado
                 </th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
                   Acciones
                 </th>
               </tr>
             </thead>
             <tbody>
               {sortedRates.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-b-0">
+                <tr key={r.id} className="border-border border-b last:border-b-0">
                   <td className="px-3 py-2 text-sm">{r.effective_at}</td>
-                  <td className="px-3 py-2 text-sm font-mono">
-                    {r.type?.code ?? '-'}
+                  <td className="px-3 py-2 font-mono text-sm">
+                    <span>{r.exchange_rate_type_code ?? '-'}</span>
+                    {r.exchange_rate_type_name && (
+                      <span className="text-text-muted ml-2 font-sans">
+                        {r.exchange_rate_type_name}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-sm">
                     {r.base_currency} &rarr; {r.quote_currency}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">
+                  <td className="px-3 py-2 text-right font-medium tabular-nums">
                     {formatMoney(r.rate, { showCurrency: true })}
                   </td>
                   <td className="px-3 py-2">
                     {r.is_active ? (
                       <Badge variant="success" className="text-xs">
-                        <TrendingUp className="size-3" aria-hidden="true" /> Activa
+                        <TrendingUp className="size-3" aria-hidden="true" />
+                        {getExchangeRateStatusLabel(true, isInherited)}
                       </Badge>
                     ) : (
                       <Badge variant="info" className="text-xs">
-                        <TrendingDown className="size-3" aria-hidden="true" /> Inactiva
+                        <TrendingDown className="size-3" aria-hidden="true" />
+                        {getExchangeRateStatusLabel(false, isInherited)}
                       </Badge>
                     )}
                   </td>
@@ -338,8 +374,8 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
           <DialogHeader>
             <DialogTitle>Nueva tasa de cambio</DialogTitle>
             <DialogDescription>
-              Crea una nueva tasa para un tipo y fecha. Si la marcas como
-              activa, las anteriores del mismo tipo+conversion se desactivan.
+              Crea una nueva tasa para un tipo y fecha. Si la marcas como activa, las anteriores del
+              mismo tipo+conversion se desactivan.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
@@ -364,7 +400,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
                 ))}
               </Select>
               {form.formState.errors.exchange_rate_type_id && (
-                <p className="text-xs text-danger">
+                <p className="text-danger text-xs">
                   {form.formState.errors.exchange_rate_type_id.message}
                 </p>
               )}
@@ -402,8 +438,9 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
             <div className="space-y-1.5">
               <Label htmlFor="rate">
                 Tasa <span className="text-danger">*</span>{' '}
-                <span className="text-xs font-normal text-text-muted">
-                  (cuantos {form.watch('quote_currency') || 'VES'} por 1 {form.watch('base_currency') || 'USD'})
+                <span className="text-text-muted text-xs font-normal">
+                  (cuantos {form.watch('quote_currency') || 'VES'} por 1{' '}
+                  {form.watch('base_currency') || 'USD'})
                 </span>
               </Label>
               <Input
@@ -415,7 +452,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
                 aria-invalid={Boolean(form.formState.errors.rate)}
               />
               {form.formState.errors.rate && (
-                <p className="text-xs text-danger">{form.formState.errors.rate.message}</p>
+                <p className="text-danger text-xs">{form.formState.errors.rate.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -429,9 +466,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
                 aria-invalid={Boolean(form.formState.errors.effective_at)}
               />
               {form.formState.errors.effective_at && (
-                <p className="text-xs text-danger">
-                  {form.formState.errors.effective_at.message}
-                </p>
+                <p className="text-danger text-xs">{form.formState.errors.effective_at.message}</p>
               )}
             </div>
             <DialogFooter>
@@ -463,8 +498,7 @@ interface ExchangeRateRow {
   rate: string | number;
   effective_at: string | null;
   is_active: boolean;
-  type?: Pick<ExchangeRateType, 'id' | 'code' | 'name'> | null;
+  exchange_rate_type_code?: string | null;
+  exchange_rate_type_name?: string | null;
   source?: string | null;
 }
-
-
