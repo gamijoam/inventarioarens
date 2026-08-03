@@ -664,6 +664,14 @@ class SharedCatalogPropagationService
         return $copy;
     }
 
+    public function propagatePriceListConfiguration(PriceList $master): void
+    {
+        foreach ($this->spinoffsFor((int) $master->tenant_id) as $spinoff) {
+            $copy = $this->ensurePriceListCopyFor($master, $spinoff);
+            $this->syncPriceListPaymentMethods($master, $copy, $spinoff);
+        }
+    }
+
     /**
      * Clona la lista de precios + replica sus asociaciones a metodos de
      * pago usando los IDs locales del spinoff.

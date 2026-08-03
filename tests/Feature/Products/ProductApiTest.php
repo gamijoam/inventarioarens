@@ -7,6 +7,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
@@ -387,6 +388,72 @@ class ProductApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment_exchange_rate_type_id']);
+    }
+
+    public function test_updating_group_price_list_propagates_only_its_payment_configuration(): void
+    {
+        $group = Tenant::create([
+            'name' => 'Grupo A',
+            'slug' => 'grupo-a',
+            'is_group' => true,
+        ]);
+        $spinoff = Tenant::create([
+            'name' => 'Sucursal A',
+            'slug' => 'sucursal-a',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]);
+
+        $groupRate = $this->rateTypeFor($group, 'DIVISA', 'Divisa recibida');
+        $spinoffRate = $this->rateTypeFor($spinoff, 'DIVISA', 'Divisa recibida');
+
+        $this->useTenant($group);
+        $groupMethod = PaymentMethod::create([
+            'code' => 'USD-CASH',
+            'name' => 'Efectivo USD',
+            'method' => 'cash',
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $priceList = PriceList::create([
+            'name' => 'Precio al mayor',
+            'code' => 'MAYOR',
+            'is_active' => true,
+        ]);
+
+        $this->useTenant($spinoff);
+        $spinoffMethod = PaymentMethod::create([
+            'code' => 'USD-CASH',
+            'name' => 'Efectivo USD',
+            'method' => 'cash',
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+
+        $user = $this->userInTenant($group);
+        $this->grantRole($group, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $group->slug)
+            ->patchJson("/api/price-lists/{$priceList->id}", [
+                'payment_exchange_rate_type_id' => $groupRate->id,
+                'payment_method_ids' => [$groupMethod->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.payment_exchange_rate_type.code', 'DIVISA');
+
+        $spinoffList = PriceList::withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('code', 'MAYOR')
+            ->firstOrFail();
+
+        $this->assertSame($spinoffRate->id, $spinoffList->payment_exchange_rate_type_id);
+        $this->assertDatabaseHas('price_list_payment_method', [
+            'tenant_id' => $spinoff->id,
+            'price_list_id' => $spinoffList->id,
+            'payment_method_id' => $spinoffMethod->id,
+        ]);
     }
 
     public function test_product_price_endpoint_uses_assigned_active_rate_type(): void

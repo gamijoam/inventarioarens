@@ -6,6 +6,7 @@ use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Requests\StorePriceListRequest;
 use App\Modules\Products\Requests\UpdatePriceListRequest;
 use App\Modules\Products\Resources\PriceListResource;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use App\Support\Tenancy\TenantManager;
@@ -34,8 +35,11 @@ class PriceListController extends Controller
         );
     }
 
-    public function store(StorePriceListRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
-    {
+    public function store(
+        StorePriceListRequest $request,
+        SyncCatalogOutboxService $syncCatalog,
+        SharedCatalogPropagationService $catalogPropagation,
+    ): JsonResponse {
         if (! $this->canWriteSharedCatalog($request->user())) {
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
@@ -57,6 +61,7 @@ class PriceListController extends Controller
 
             return $priceList;
         });
+        $catalogPropagation->propagatePriceListConfiguration($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
         $syncCatalog->priceListCreated($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
 
         return PriceListResource::make($priceList->load(['paymentMethods', 'paymentExchangeRateType']))
@@ -64,8 +69,12 @@ class PriceListController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function update(UpdatePriceListRequest $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): PriceListResource
-    {
+    public function update(
+        UpdatePriceListRequest $request,
+        PriceList $priceList,
+        SyncCatalogOutboxService $syncCatalog,
+        SharedCatalogPropagationService $catalogPropagation,
+    ): PriceListResource {
         if (! $this->canWriteSharedCatalog($request->user())) {
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
@@ -87,6 +96,7 @@ class PriceListController extends Controller
                 $priceList->paymentMethods()->sync($this->syncPayload($paymentMethodIds));
             }
         });
+        $catalogPropagation->propagatePriceListConfiguration($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
         $syncCatalog->priceListUpdated($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
 
         return PriceListResource::make($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));

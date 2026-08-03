@@ -47,9 +47,7 @@ class PriceList extends Model
 
         $svc = app(SharedCatalogPropagationService::class);
         foreach ($spinoffs as $spinoff) {
-            $copy = $svc->ensurePriceListCopyFor($model, $spinoff);
-            $svc->syncPriceListPaymentMethods($model, $copy, $spinoff);
-            $svc->syncPriceListProductPrices($model, $copy, $spinoff);
+            $svc->ensurePriceListCopyFor($model, $spinoff);
         }
     }
 

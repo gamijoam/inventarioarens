@@ -118,7 +118,11 @@ export function PriceListsManager() {
                   </td>
                   <td className="px-3 py-2">
                     {l.payment_exchange_rate_type ? (
-                      <Badge variant={l.payment_exchange_rate_type.is_active === false ? 'warning' : 'info'}>
+                      <Badge
+                        variant={
+                          l.payment_exchange_rate_type.is_active === false ? 'warning' : 'info'
+                        }
+                      >
                         {l.payment_exchange_rate_type.name}
                       </Badge>
                     ) : (
@@ -250,132 +254,142 @@ function FormDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-h-[92vh] max-w-3xl overflow-hidden p-0">
+        <DialogHeader className="border-border border-b px-5 py-4 pr-12">
           <DialogTitle>{priceList ? 'Editar lista' : 'Nueva lista'}</DialogTitle>
           <DialogDescription>
             Las listas permiten segmentar precios (detal, mayor, empleados).
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((values) => void onSubmit(values))} className="space-y-3">
-          <Field label="Nombre" required error={form.formState.errors.name?.message}>
-            <Input {...form.register('name')} placeholder="Detal" />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="Codigo"
-              required
-              hint="Mayusculas"
-              error={form.formState.errors.code?.message}
-            >
-              <Input {...form.register('code')} placeholder="RETAIL" />
-            </Field>
-            <Field label="Orden" error={form.formState.errors.sort_order?.message}>
-              <Input
-                type="number"
-                min={0}
-                {...form.register('sort_order', { valueAsNumber: true })}
-              />
-            </Field>
+        <form
+          onSubmit={form.handleSubmit((values) => void onSubmit(values))}
+          className="flex min-h-0 flex-col"
+        >
+          <div className="grid min-h-0 gap-0 overflow-y-auto md:grid-cols-2">
+            <section className="space-y-3 px-5 py-4">
+              <h3 className="text-sm font-semibold">Datos de la lista</h3>
+              <Field label="Nombre" required error={form.formState.errors.name?.message}>
+                <Input {...form.register('name')} placeholder="Detal" />
+              </Field>
+              <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+                <Field label="Codigo" required error={form.formState.errors.code?.message}>
+                  <Input {...form.register('code')} placeholder="RETAIL" />
+                </Field>
+                <Field label="Orden" error={form.formState.errors.sort_order?.message}>
+                  <Input
+                    type="number"
+                    min={0}
+                    {...form.register('sort_order', { valueAsNumber: true })}
+                  />
+                </Field>
+              </div>
+              <Field label="Descripcion" error={form.formState.errors.description?.message}>
+                <Textarea {...form.register('description')} rows={2} placeholder="Opcional." />
+              </Field>
+              <Field
+                label="Incremento sobre precio base (%)"
+                hint="Ejemplo: 45% convierte $100 en $145. Vacio permite precios manuales."
+                error={form.formState.errors.markup_percentage?.message}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  max={999.99}
+                  step="0.01"
+                  {...form.register('markup_percentage', {
+                    setValueAs: (value) => (value === '' ? null : Number(value)),
+                  })}
+                  placeholder="Ej. 45"
+                />
+              </Field>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="pl-default"
+                    checked={Boolean(form.watch('is_default'))}
+                    onCheckedChange={(v) => form.setValue('is_default', v)}
+                  />
+                  <Label htmlFor="pl-default">Predeterminada</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="pl-active"
+                    checked={Boolean(form.watch('is_active'))}
+                    onCheckedChange={(v) => form.setValue('is_active', v)}
+                  />
+                  <Label htmlFor="pl-active">Activa</Label>
+                </div>
+              </div>
+            </section>
+
+            <section className="border-border space-y-3 border-t px-5 py-4 md:border-t-0 md:border-l">
+              <h3 className="text-sm font-semibold">Reglas de cobro en POS</h3>
+              <Field
+                label="Tasa para pagos en bolivares"
+                hint="Se aplica automaticamente al saldo que quede en USD."
+                error={form.formState.errors.payment_exchange_rate_type_id?.message}
+              >
+                <select
+                  className="border-border bg-surface h-10 w-full rounded border px-3 text-sm"
+                  {...form.register('payment_exchange_rate_type_id', {
+                    setValueAs: (value) => (value === '' ? null : Number(value)),
+                  })}
+                >
+                  <option value="">Tasa predeterminada de la empresa</option>
+                  {exchangeRateTypes.map((rateType) => (
+                    <option key={rateType.id} value={rateType.id} disabled={!rateType.is_active}>
+                      {rateType.name} ({rateType.code}){rateType.is_active ? '' : ' - Inactiva'}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Metodos permitidos"
+                hint="El POS mostrara unicamente los metodos seleccionados."
+              >
+                <div className="border-border bg-bg/40 max-h-64 space-y-1 overflow-auto rounded border p-2">
+                  {paymentMethods.length === 0 ? (
+                    <p className="text-text-muted p-2 text-xs">
+                      No hay metodos de pago configurados.
+                    </p>
+                  ) : (
+                    paymentMethods.map((method) => {
+                      const selected =
+                        form.watch('payment_method_ids')?.includes(method.id) ?? false;
+                      return (
+                        <label
+                          key={method.id}
+                          className="hover:bg-surface flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 text-sm"
+                        >
+                          <span>
+                            <span className="font-medium">{method.name}</span>
+                            <span className="text-text-muted ml-2 text-xs">
+                              {paymentMethodSummary(method)}
+                            </span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={(event) => {
+                              const current = form.getValues('payment_method_ids') ?? [];
+                              form.setValue(
+                                'payment_method_ids',
+                                event.target.checked
+                                  ? [...new Set([...current, method.id])]
+                                  : current.filter((id) => id !== method.id),
+                                { shouldDirty: true },
+                              );
+                            }}
+                          />
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </Field>
+            </section>
           </div>
-          <Field label="Descripcion" error={form.formState.errors.description?.message}>
-            <Textarea {...form.register('description')} rows={2} placeholder="Opcional." />
-          </Field>
-          <Field
-            label="Incremento automatico sobre precio base (%)"
-            hint="Ejemplo: 45% convierte un precio base de $100 en $145. Dejalo vacio para trabajar solo con precios manuales."
-            error={form.formState.errors.markup_percentage?.message}
-          >
-            <Input
-              type="number"
-              min={0}
-              max={999.99}
-              step="0.01"
-              {...form.register('markup_percentage', {
-                setValueAs: (value) => (value === '' ? null : Number(value)),
-              })}
-              placeholder="Ej. 45"
-            />
-          </Field>
-          <Field
-            label="Tasa para cobros en bolivares"
-            hint="Convierte el saldo pendiente del ticket cuando el cliente combina divisas y bolivares. El cajero no tendra que elegirla."
-            error={form.formState.errors.payment_exchange_rate_type_id?.message}
-          >
-            <select
-              className="border-border bg-surface h-10 w-full rounded border px-3 text-sm"
-              {...form.register('payment_exchange_rate_type_id', {
-                setValueAs: (value) => (value === '' ? null : Number(value)),
-              })}
-            >
-              <option value="">Usar tasa predeterminada de la empresa</option>
-              {exchangeRateTypes.map((rateType) => (
-                <option key={rateType.id} value={rateType.id} disabled={!rateType.is_active}>
-                  {rateType.name} ({rateType.code}){rateType.is_active ? '' : ' - Inactiva'}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="pl-default"
-                checked={Boolean(form.watch('is_default'))}
-                onCheckedChange={(v) => form.setValue('is_default', v)}
-              />
-              <Label htmlFor="pl-default">Predeterminada</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="pl-active"
-                checked={Boolean(form.watch('is_active'))}
-                onCheckedChange={(v) => form.setValue('is_active', v)}
-              />
-              <Label htmlFor="pl-active">Activa</Label>
-            </div>
-          </div>
-          <Field
-            label="Metodos permitidos en POS"
-            hint="Si no seleccionas metodos, esta lista no podra cobrarse en POS."
-          >
-            <div className="border-border bg-bg/40 max-h-52 space-y-2 overflow-auto rounded border p-2">
-              {paymentMethods.length === 0 ? (
-                <p className="text-text-muted p-2 text-xs">No hay metodos de pago configurados.</p>
-              ) : (
-                paymentMethods.map((method) => {
-                  const selected = form.watch('payment_method_ids')?.includes(method.id) ?? false;
-                  return (
-                    <label
-                      key={method.id}
-                      className="hover:bg-surface flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-2 text-sm"
-                    >
-                      <span>
-                        <span className="font-medium">{method.name}</span>
-                        <span className="text-text-muted ml-2 text-xs">
-                          {paymentMethodSummary(method)}
-                        </span>
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(event) => {
-                          const current = form.getValues('payment_method_ids') ?? [];
-                          form.setValue(
-                            'payment_method_ids',
-                            event.target.checked
-                              ? [...new Set([...current, method.id])]
-                              : current.filter((id) => id !== method.id),
-                            { shouldDirty: true },
-                          );
-                        }}
-                      />
-                    </label>
-                  );
-                })
-              )}
-            </div>
-          </Field>
-          <DialogFooter>
+          <DialogFooter className="border-border border-t px-5 py-3">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>

@@ -6113,3 +6113,15 @@ Regla:
 - La configuracion se propaga y sincroniza por codigo de tasa para evitar
   mezclar identificadores entre empresas o instalaciones.
 - Guia operativa: `docs/POS_TASA_DE_COBRO_POR_LISTA_2026-08-03.md`.
+
+## 2026-08-03 - Guardado rapido y formulario compacto de listas de precio
+
+- El formulario de listas se reorganizo en dos columnas compactas para que
+  formato, tasa y metodos de pago sean utilizables a 100% de zoom.
+- Guardar una lista ya no recalcula sincronicamente todos los precios de cada
+  empresa hija. Solo propaga la configuracion de la lista, la tasa equivalente
+  y sus metodos de pago.
+- La propagacion se ejecuta despues de guardar los metodos, evitando enviar una
+  configuracion anterior y eliminando el timeout observado en el frontend.
+- La propagacion completa de precios se conserva para los flujos explicitos de
+  catalogo que realmente la necesitan.
