@@ -182,6 +182,8 @@ export function formatPosRateLabel(
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
 }
 
+export const POS_LAYOUT_CLASS_NAME = 'flex h-screen flex-col overflow-hidden';
+
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -735,7 +737,7 @@ export function PosTerminal() {
   }
 
   return (
-    <div className="text-text-primary h-screen overflow-hidden bg-[#f4f6fb]">
+    <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
       <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
         <div className="order-1 flex min-w-[300px] flex-1 items-center gap-3">
           <div className="from-primary text-primary-foreground shadow-primary/20 flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br to-[#2f238f] shadow-md">
