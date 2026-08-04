@@ -751,20 +751,18 @@ export function PosTerminal() {
             </p>
           </div>
           {activeRate && (
-            <div className="border-success/30 bg-success/10 ml-auto flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2">
-              <TrendingUp className="text-success size-5" aria-hidden="true" />
+            <div className="border-success/30 bg-success/10 ml-auto flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-1.5">
+              <TrendingUp className="text-success size-4" aria-hidden="true" />
               <div className="leading-tight">
-                <p className="text-success/75 text-[10px] font-semibold tracking-wide uppercase">
-                  Tasa de cobro
+                <p className="text-success/75 text-[9px] font-semibold tracking-wide uppercase">
+                  Tasa
                 </p>
-                <p className="text-success text-base font-bold sm:text-lg">
-                  {formatPosRateLabel(activeRate)}
+                <p className="text-success max-w-40 truncate text-sm font-bold">
+                  {activeRate.name}
                 </p>
-                {selectedPriceList && (
-                  <p className="text-success/70 max-w-36 truncate text-[10px]">
-                    Lista {selectedPriceList.name}
-                  </p>
-                )}
+                <p className="text-success/70 text-[10px]">
+                  @ {formatLocalNumber(activeRate.rate)}
+                </p>
               </div>
             </div>
           )}
