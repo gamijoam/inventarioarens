@@ -118,6 +118,6 @@ describe('<CashRegisterCommandCenter>', () => {
 
     expect(screen.getByText('Resumen del turno #7')).toBeInTheDocument();
     expect(screen.getByText('Efectivo USD · 1')).toBeInTheDocument();
-    expect(screen.getByText('pos_payment · cash')).toBeInTheDocument();
+    expect(screen.getByText('Pago POS · Efectivo')).toBeInTheDocument();
   });
 });

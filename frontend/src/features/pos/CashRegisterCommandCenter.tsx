@@ -18,6 +18,7 @@ import {
   type ReportFilters,
 } from '@/features/reports/api';
 import { useCashSessionDetail, useReviewCashSession, type CashRegisterSessionDetail } from './api';
+import { cashMovementMethodLabel, cashMovementTypeLabel } from '@/features/reports/movementLabels';
 
 type CommandCenterProps = {
   branches: Array<{ id: number; name: string; code: string }>;
@@ -436,7 +437,7 @@ function SessionBreakdown({
               .map((movement) => (
                 <div key={movement.id} className="flex justify-between gap-3">
                   <span className="text-text-muted">
-                    {movement.type} · {movement.method ?? 'sin método'}
+                    {cashMovementTypeLabel(movement.type)} · {cashMovementMethodLabel(movement.method)}
                   </span>
                   <strong>{formatMoney(movement.amount_base)}</strong>
                 </div>

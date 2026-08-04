@@ -47,6 +47,7 @@ import {
   type SalesDetail,
   type StockReportRow,
 } from './api';
+import { cashMovementLabel } from './movementLabels';
 
 const MODULES = [
   { key: 'daily', label: 'Dia operativo', icon: CalendarDays },
@@ -67,6 +68,8 @@ const MOVEMENT_TYPES = [
   { value: 'adjustment_out', label: 'Ajuste salida' },
   { value: 'transfer_in', label: 'Traslado entrada' },
   { value: 'transfer_out', label: 'Traslado salida' },
+  { value: 'transfer_request_in', label: 'Entrada interempresa' },
+  { value: 'transfer_request_out', label: 'Salida interempresa' },
   { value: 'damaged', label: 'Danado' },
 ];
 
@@ -837,7 +840,7 @@ function BreakdownTable({ rows }: { rows: CashSessions['movement_breakdown'] }) 
         rows={rows.map((row) => ({
           method: row.method,
           currency: row.currency,
-          name: `${movementLabel(row.type)} - ${methodLabel(row.method)}`,
+           name: cashMovementLabel(row.type, row.method),
           requires_reference: false,
           payments_count: row.movements_count,
           amount_base: row.amount_base,
@@ -1058,5 +1061,4 @@ function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {
     { indicador: 'Devoluciones procesadas', valor: '', cantidad: data.returns.processed_count },
   ];
 }
-
 
