@@ -267,6 +267,7 @@ export const CashSessionsSchema = z.object({
           currency: z.string(),
           amount_base: z.number(),
           amount_local: z.number(),
+          notes: z.string().nullable().optional(),
           reference: z.string().nullable().optional(),
           created_at: z.string().nullable().optional(),
         }),

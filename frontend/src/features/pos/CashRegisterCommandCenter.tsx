@@ -437,7 +437,7 @@ function SessionBreakdown({
               .map((movement) => (
                 <div key={movement.id} className="flex justify-between gap-3">
                   <span className="text-text-muted">
-                    {cashMovementTypeLabel(movement.type)} · {cashMovementMethodLabel(movement.method)}
+                    {cashMovementTypeLabel(movement.type)} · {movement.notes ?? cashMovementMethodLabel(movement.method)}
                   </span>
                   <strong>{formatMoney(movement.amount_base)}</strong>
                 </div>
