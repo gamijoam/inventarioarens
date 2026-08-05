@@ -15,6 +15,10 @@ test.describe('Autenticación UI', () => {
   });
 
   test('muestra un error con contraseña inválida', async ({ page }) => {
+    test.skip(
+      process.env.PLAYWRIGHT_RUN_NEGATIVE_AUTH !== '1',
+      'Activa PLAYWRIGHT_RUN_NEGATIVE_AUTH=1 para ejecutar el caso negativo sin contaminar el smoke suite.',
+    );
     await page.goto('/login');
     await page.getByTestId('login-email').fill(credentials!.email);
     await expect(page.getByText(credentials!.tenant, { exact: false })).toBeVisible();

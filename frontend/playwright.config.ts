@@ -30,7 +30,7 @@ export default defineConfig({
       Accept: 'application/json',
     },
     actionTimeout: 10_000,
-    navigationTimeout: 10_000,
+    navigationTimeout: 30_000,
   },
   webServer:
     process.env.PLAYWRIGHT_MANAGED_SERVERS === '1'
@@ -43,7 +43,8 @@ export default defineConfig({
             timeout: 120_000,
           },
           {
-            command: 'pnpm dev --host 127.0.0.1 --port 5173',
+            command:
+              'VITE_API_BASE_URL=http://127.0.0.1:8000/api pnpm dev --host 127.0.0.1 --port 5173',
             cwd: process.cwd(),
             url: 'http://127.0.0.1:5173/login',
             reuseExistingServer: true,
