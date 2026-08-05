@@ -904,6 +904,7 @@ export function PosTerminal() {
                 )
               }
               disabled={repricing}
+              data-testid="pos-price-list"
             >
               <option value="base">{BASE_PRICE_LIST_LABEL}</option>
               {priceLists.map((list) => (
@@ -2274,6 +2275,7 @@ function PaymentChip({
           disabled={locked}
           onChange={(event) => onChange({ amount: Number(event.target.value) })}
           placeholder="Monto"
+          data-testid={`pos-payment-amount-${payment.id}`}
         />
         <Button size="icon-sm" variant="ghost" disabled={locked} onClick={onRemove}>
           <X className="size-4" />
@@ -2305,6 +2307,7 @@ function PaymentChip({
                 selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'
               }
               onChange={(event) => onChange({ reference: event.target.value })}
+              data-testid={`pos-payment-reference-${payment.id}`}
             />
           )}
         </div>
@@ -2658,6 +2661,7 @@ function QuickPaymentPanel({
                 key={method.id}
                 type="button"
                 onClick={() => onSelect(method.id)}
+                data-testid={`pos-add-payment-${method.id}`}
                 className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-2">

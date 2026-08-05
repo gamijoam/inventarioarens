@@ -17,7 +17,29 @@ export function getDemoCredentials(): DemoCredentials | null {
 export async function loginAsDemo(page: Page, credentials: DemoCredentials): Promise<void> {
   await page.goto('/login');
   await page.getByTestId('login-email').fill(credentials.email);
-  await expect(page.getByText(credentials.tenant, { exact: false })).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const picker = page.getByTestId('login-tenant');
+        if ((await picker.count()) > 0 && (await picker.isVisible())) return 'picker';
+
+        const matches = page.getByText(credentials.tenant, { exact: false });
+        for (let index = 0; index < (await matches.count()); index += 1) {
+          if (await matches.nth(index).isVisible()) return 'single';
+        }
+
+        return 'pending';
+      },
+      { timeout: 10_000 },
+    )
+    .not.toBe('pending');
+  const tenantPicker = page.getByTestId('login-tenant');
+  if (await tenantPicker.count()) {
+    await expect(tenantPicker).toBeVisible();
+    await tenantPicker.selectOption(credentials.tenant);
+  } else {
+    await expect(page.getByText(credentials.tenant, { exact: false })).toBeVisible();
+  }
   await page.getByTestId('login-password').fill(credentials.password);
   await page.getByTestId('login-submit').click();
   await expect(page).toHaveURL(/\/dashboard$/);

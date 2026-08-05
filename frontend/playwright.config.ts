@@ -36,7 +36,7 @@ export default defineConfig({
     process.env.PLAYWRIGHT_MANAGED_SERVERS === '1'
       ? [
           {
-            command: 'php artisan serve --host=127.0.0.1 --port=8000',
+            command: 'CACHE_STORE=array php artisan serve --host=127.0.0.1 --port=8000',
             cwd: path.resolve(process.cwd(), '..'),
             url: 'http://127.0.0.1:8000/up',
             reuseExistingServer: true,
