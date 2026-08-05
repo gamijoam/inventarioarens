@@ -502,7 +502,7 @@ describe('pos api', () => {
     });
   });
 
-  it('cierra caja e invalida el bootstrap del POS', async () => {
+  it('cierra caja y actualiza las consultas operativas de caja', async () => {
     mockPatchOne.mockResolvedValue({
       id: 8,
       branch_id: 1,
@@ -539,7 +539,8 @@ describe('pos api', () => {
       counted_base_amount: 30,
       counted_local_amount: 5000,
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pos', 'bootstrap'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pos', 'cash-sessions'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pos', 'cash-registers'] });
   });
 
   it('crea metodo de pago operativo para POS', async () => {

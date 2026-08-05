@@ -33,7 +33,6 @@ import {
   type StoreTransferValues,
   type AssignDriverValues,
   type CheckChecklistItemValues,
-  type TimelineEvent,
   type Transfer,
   type TransferDriver,
   type TransferListFilters,
@@ -76,10 +75,12 @@ export function useTransfers(filters: Partial<TransferListFilters> = {}) {
     queryKey: transferKeys.list(filters as Record<string, unknown>),
     queryFn: async (): Promise<{ data: Transfer[]; meta: TransferListMeta }> => {
       const raw = (await getMany<unknown>(`/inventory-transfers${toQueryString(filters)}`)) as
-        | Transfer[]
-        | { data: Transfer[]; meta?: Partial<TransferListMeta>; links?: unknown };
+        Transfer[] | { data: Transfer[]; meta?: Partial<TransferListMeta>; links?: unknown };
       if (Array.isArray(raw)) {
-        return { data: raw, meta: { current_page: 1, last_page: 1, per_page: raw.length, total: raw.length } };
+        return {
+          data: raw,
+          meta: { current_page: 1, last_page: 1, per_page: raw.length, total: raw.length },
+        };
       }
       const arr = raw.data ?? [];
       const meta: TransferListMeta = {
@@ -125,7 +126,7 @@ export function useTransferTimeline(id: number) {
         console.warn('useTransferTimeline: shape invalido', parsed.error.flatten());
         return [];
       }
-      return parsed.data as TimelineEvent[];
+      return parsed.data;
     },
     enabled: Number.isFinite(id) && id > 0,
   });
@@ -158,9 +159,18 @@ export function usePrepareTransfer() {
 
 export function useDispatchTransfer() {
   const qc = useQueryClient();
-  return useMutation<Transfer, Error, { id: number; values: { dispatched_at?: string | null; notes?: string | null } }>({
-    mutationFn: async ({ id, values }: { id: number; values: { dispatched_at?: string | null; notes?: string | null } }) =>
-      postOne(`/inventory-transfers/${id}/dispatch`, values),
+  return useMutation<
+    Transfer,
+    Error,
+    { id: number; values: { dispatched_at?: string | null; notes?: string | null } }
+  >({
+    mutationFn: async ({
+      id,
+      values,
+    }: {
+      id: number;
+      values: { dispatched_at?: string | null; notes?: string | null };
+    }) => postOne(`/inventory-transfers/${id}/dispatch`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -199,9 +209,18 @@ export function useCancelTransfer() {
 
 export function useResolveTransferDifferences() {
   const qc = useQueryClient();
-  return useMutation<Transfer, Error, { id: number; values: { items: unknown[]; notes?: string | null } }>({
-    mutationFn: async ({ id, values }: { id: number; values: { items: unknown[]; notes?: string | null } }) =>
-      postOne(`/inventory-transfers/${id}/resolve-differences`, values),
+  return useMutation<
+    Transfer,
+    Error,
+    { id: number; values: { items: unknown[]; notes?: string | null } }
+  >({
+    mutationFn: async ({
+      id,
+      values,
+    }: {
+      id: number;
+      values: { items: unknown[]; notes?: string | null };
+    }) => postOne(`/inventory-transfers/${id}/resolve-differences`, values),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -292,22 +311,22 @@ export function useTransferDriver(transferId: number) {
 
 export { useWarehouses } from '@/features/inventory-center/api';
 
-import {
-  ProductSchema,
-} from '@/features/inventory-center/schemas';
+import { ProductSchema } from '@/features/inventory-center/schemas';
 
 /**
  * Lista de productos activos (max 100) para usar en el dialog de
  * crear traslado (autocomplete de productos). Re-exporta el schema
  * Product del modulo de inventory-center.
  */
-export function useProductsForTransfer() {
+export function useProductsForTransfer(search = '') {
   return useQuery({
-    queryKey: [...productKeys.lists(), 'for-transfer'] as const,
+    queryKey: [...productKeys.lists(), 'for-transfer', search] as const,
     queryFn: async () => {
-      // ProductController uses `limit`; `per_page` silently kept the default
-      // page of 25 products and valid match candidates could be omitted.
-      const data = await getMany<unknown>('/products?limit=100&tracking_type=all');
+      // Search server-side so large catalogs do not hide valid products after
+      // the first page, especially serialized products imported from the VPS.
+      const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      if (search.trim()) params.set('search', search.trim());
+      const data = await getMany<unknown>(`/products?${params.toString()}`);
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return (await import('zod')).z.array(ProductSchema).parse(arr);
     },

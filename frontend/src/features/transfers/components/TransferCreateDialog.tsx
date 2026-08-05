@@ -25,11 +25,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { SingleSelectCombobox } from '@/components/ui/SingleSelectCombobox';
-import {
-  useCreateTransfer,
-  useProductsForTransfer,
-  useWarehouses,
-} from '@/features/transfers/api';
+import { useCreateTransfer, useProductsForTransfer, useWarehouses } from '@/features/transfers/api';
 import type {
   StoreTransferItem,
   StoreTransferValues,
@@ -64,7 +60,8 @@ function emptyRow(): ItemRow {
 
 export function TransferCreateDialog({ open, onOpenChange, onCreated }: TransferCreateDialogProps) {
   const { data: warehouses = [] } = useWarehouses();
-  const { data: products = [] } = useProductsForTransfer();
+  const [productSearch, setProductSearch] = useState('');
+  const { data: products = [] } = useProductsForTransfer(productSearch);
   const create = useCreateTransfer();
 
   const [fromWarehouseId, setFromWarehouseId] = useState<number | null>(null);
@@ -85,16 +82,18 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       setReason('');
       setReference('');
       setDocumentNumber('');
+      setProductSearch('');
       setItems([emptyRow()]);
       setFieldErrors({});
     }
   }, [open]);
 
   const warehouseOptions = useMemo(
-    () => warehouses.map((w: { id: number; code: string; name?: string }) => ({
-      value: w.id,
-      label: `${w.code} — ${w.name ?? ''}`,
-    })),
+    () =>
+      warehouses.map((w: { id: number; code: string; name?: string }) => ({
+        value: w.id,
+        label: `${w.code} — ${w.name ?? ''}`,
+      })),
     [warehouses],
   );
 
@@ -121,12 +120,23 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
 
   function pickProduct(idx: number, productId: number | null) {
     if (productId == null || productId === 0) {
-      setRow(idx, { product_id: null, product_name: '', product_sku: '', tracking_type: 'quantity', serial_units: [] });
+      setRow(idx, {
+        product_id: null,
+        product_name: '',
+        product_sku: '',
+        tracking_type: 'quantity',
+        serial_units: [],
+      });
       return;
     }
     const p = products.find((x) => x.id === productId);
     if (!p) {
-      setRow(idx, { product_id: productId, product_name: '', product_sku: '', tracking_type: 'quantity' });
+      setRow(idx, {
+        product_id: productId,
+        product_name: '',
+        product_sku: '',
+        tracking_type: 'quantity',
+      });
       return;
     }
     const currentRow = items[idx];
@@ -139,6 +149,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       tracking_type: p.tracking_type ?? 'quantity',
       serial_units: wasSerialized ? existingSerialUnits : [],
     });
+    setProductSearch(p.name);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -151,14 +162,17 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     if (fromWarehouseId && toWarehouseId && fromWarehouseId === toWarehouseId) {
       errs.to_warehouse_id = 'El almacen de destino debe ser distinto del origen.';
     }
-    if (items.some((r) => !r.product_id)) errs['items.product_id'] = 'Todos los items deben tener producto.';
-    if (items.some((r) => r.quantity <= 0)) errs['items.quantity'] = 'La cantidad debe ser mayor a 0.';
+    if (items.some((r) => !r.product_id))
+      errs['items.product_id'] = 'Todos los items deben tener producto.';
+    if (items.some((r) => r.quantity <= 0))
+      errs['items.quantity'] = 'La cantidad debe ser mayor a 0.';
     items.forEach((r, i) => {
       if (r.tracking_type === 'serialized') {
         const filled = r.serial_units.filter((s) => s.serial_number.trim()).length;
         const expected = Math.floor(r.quantity);
         if (filled !== expected) {
-          errs[`items.${i}.serial_units`] = `Debe ingresar un IMEI/serial por cada unidad (${filled}/${expected}).`;
+          errs[`items.${i}.serial_units`] =
+            `Debe ingresar un IMEI/serial por cada unidad (${filled}/${expected}).`;
         }
       }
     });
@@ -173,9 +187,10 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       const apiItems: StoreTransferItem[] = items.map((r) => ({
         product_id: r.product_id ?? 0,
         quantity: r.quantity,
-        product_unit_ids: r.tracking_type === 'serialized'
-          ? r.serial_units.filter((s) => s.serial_number.trim()).map(() => -1 * Math.floor(Math.random() * 1e9))
-          : undefined,
+        serial_units:
+          r.tracking_type === 'serialized'
+            ? r.serial_units.filter((s) => s.serial_number.trim())
+            : undefined,
       }));
 
       const values: StoreTransferValues = {
@@ -204,18 +219,21 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => onOpenChange(false)}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={() => onOpenChange(false)}
+    >
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-surface"
+        className="border-border bg-surface max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg border"
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-5 py-3">
+        <div className="border-border bg-surface sticky top-0 z-10 flex items-center justify-between border-b px-5 py-3">
           <h2 className="text-lg font-semibold">Nuevo traslado</h2>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="rounded p-1 text-text-muted hover:bg-bg hover:text-text-primary"
+            className="text-text-muted hover:bg-bg hover:text-text-primary rounded p-1"
             aria-label="Cerrar"
           >
             <X className="size-4" />
@@ -232,17 +250,21 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                 </Label>
                 <select
                   id="from-warehouse"
-                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  className="border-border-strong bg-surface w-full rounded border px-3 py-2 text-sm"
                   value={fromWarehouseId ?? ''}
-                  onChange={(e) => setFromWarehouseId(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) =>
+                    setFromWarehouseId(e.target.value ? Number(e.target.value) : null)
+                  }
                 >
                   <option value="">Seleccionar almacen origen...</option>
                   {warehouseOptions.map((w) => (
-                    <option key={w.value} value={w.value}>{w.label}</option>
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
                   ))}
                 </select>
                 {fieldErrors.from_warehouse_id && (
-                  <p className="text-xs text-danger">{fieldErrors.from_warehouse_id}</p>
+                  <p className="text-danger text-xs">{fieldErrors.from_warehouse_id}</p>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -251,17 +273,19 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                 </Label>
                 <select
                   id="to-warehouse"
-                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  className="border-border-strong bg-surface w-full rounded border px-3 py-2 text-sm"
                   value={toWarehouseId ?? ''}
                   onChange={(e) => setToWarehouseId(e.target.value ? Number(e.target.value) : null)}
                 >
                   <option value="">Seleccionar almacen destino...</option>
                   {warehouseOptions.map((w) => (
-                    <option key={w.value} value={w.value}>{w.label}</option>
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
                   ))}
                 </select>
                 {fieldErrors.to_warehouse_id && (
-                  <p className="text-xs text-danger">{fieldErrors.to_warehouse_id}</p>
+                  <p className="text-danger text-xs">{fieldErrors.to_warehouse_id}</p>
                 )}
               </div>
             </div>
@@ -280,7 +304,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                 <Label htmlFor="validation-mode">Modo de validacion</Label>
                 <select
                   id="validation-mode"
-                  className="w-full rounded border border-border-strong bg-surface px-3 py-2 text-sm"
+                  className="border-border-strong bg-surface w-full rounded border px-3 py-2 text-sm"
                   value={validationMode}
                   onChange={(e) => setValidationMode(e.target.value as TransferValidationMode)}
                 >
@@ -316,7 +340,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
           {/* Items */}
           <fieldset className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+              <h3 className="text-text-secondary text-sm font-semibold tracking-wide uppercase">
                 Items ({items.length})
               </h3>
               <Button
@@ -330,35 +354,42 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
             </div>
 
             {fieldErrors['items.product_id'] && (
-              <p className="text-xs text-danger">{fieldErrors['items.product_id']}</p>
+              <p className="text-danger text-xs">{fieldErrors['items.product_id']}</p>
             )}
             {fieldErrors['items.quantity'] && (
-              <p className="text-xs text-danger">{fieldErrors['items.quantity']}</p>
+              <p className="text-danger text-xs">{fieldErrors['items.quantity']}</p>
             )}
 
             <div className="space-y-2">
               {items.map((row, idx) => {
-                const product = row.product_id ? products.find((p) => p.id === row.product_id) : null;
+                const product = row.product_id
+                  ? products.find((p) => p.id === row.product_id)
+                  : null;
                 const isSerialized = product?.tracking_type === 'serialized';
                 return (
-                  <div key={idx} className="rounded-md border border-border bg-bg/30 p-3">
+                  <div key={idx} className="border-border bg-bg/30 rounded-md border p-3">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_auto]">
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Producto</label>
+                        <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
+                          Producto
+                        </label>
                         <SingleSelectCombobox
                           options={productOptions}
                           value={row.product_id}
                           onChange={(next) => pickProduct(idx, next == null ? null : Number(next))}
+                          onQueryChange={setProductSearch}
                           placeholder="Buscar producto por nombre, SKU o barcode..."
                           emptyMessage="No hay productos activos que coincidan"
                           aria-label={`Buscar producto de la linea ${idx + 1}`}
                         />
                         {row.product_sku && (
-                          <div className="text-[10px] text-text-muted">SKU: {row.product_sku}</div>
+                          <div className="text-text-muted text-[10px]">SKU: {row.product_sku}</div>
                         )}
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Cantidad</label>
+                        <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
+                          Cantidad
+                        </label>
                         <Input
                           type="number"
                           min={isSerialized ? 1 : 0.0001}
@@ -378,7 +409,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                             onClick={() => removeRow(idx)}
                             aria-label={`Eliminar linea ${idx + 1}`}
                           >
-                            <Trash2 className="size-4 text-danger" />
+                            <Trash2 className="text-danger size-4" />
                           </Button>
                         )}
                       </div>
@@ -386,26 +417,35 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
 
                     {isSerialized && row.quantity > 0 && (
                       <div className="mt-3 space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                          IMEIs / seriales ({row.serial_units.filter((s) => s.serial_number.trim()).length} / {Math.floor(row.quantity)})
+                        <div className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
+                          IMEIs / seriales (
+                          {row.serial_units.filter((s) => s.serial_number.trim()).length} /{' '}
+                          {Math.floor(row.quantity)})
                         </div>
                         <ImeiScanner
                           productId={row.product_id}
                           warehouseId={fromWarehouseId}
-                          selected={row.serial_units.map((s) => s.serial_number).filter((s) => s.trim() !== '')}
+                          selected={row.serial_units
+                            .map((s) => s.serial_number)
+                            .filter((s) => s.trim() !== '')}
                           onChange={(sel) => {
                             const expected = Math.floor(row.quantity);
                             const type = row.serial_units[0]?.serial_type ?? 'imei';
-                            const next = sel.slice(0, expected).map((sn) => ({ serial_type: type, serial_number: sn }));
+                            const next = sel
+                              .slice(0, expected)
+                              .map((sn) => ({ serial_type: type, serial_number: sn }));
                             const padded = [...next];
-                            while (padded.length < expected) padded.push({ serial_type: type, serial_number: '' });
+                            while (padded.length < expected)
+                              padded.push({ serial_type: type, serial_number: '' });
                             setRow(idx, { serial_units: padded });
                           }}
                           max={Math.floor(row.quantity)}
                           dataTestIdPrefix={`create-row-${idx}-imei`}
                         />
                         {fieldErrors[`items.${idx}.serial_units`] && (
-                          <p className="text-xs text-danger">{fieldErrors[`items.${idx}.serial_units`]}</p>
+                          <p className="text-danger text-xs">
+                            {fieldErrors[`items.${idx}.serial_units`]}
+                          </p>
                         )}
                       </div>
                     )}
@@ -416,8 +456,13 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
           </fieldset>
 
           {/* Footer */}
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <div className="border-border flex justify-end gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={submitting}>

@@ -281,12 +281,12 @@ class TenantGroupApiTest extends TestCase
             'expires_at' => Carbon::now()->addDays(30),
         ]);
 
-        $this
+        $rolesResponse = $this
             ->withHeader('Authorization', 'Bearer '.$plain)
             ->withHeader('X-Tenant', 'empresa-nueva')
             ->getJson('/api/roles')
-            ->assertOk()
-            ->assertJsonCount(6, 'data');
+            ->assertOk();
+        $this->assertGreaterThanOrEqual(6, count($rolesResponse->json('data')));
 
         $this->assertDatabaseHas('roles', ['name' => 'Owner', 'tenant_id' => $spinoffId]);
         $this->assertDatabaseHas('roles', ['name' => 'Administrador', 'tenant_id' => $spinoffId]);

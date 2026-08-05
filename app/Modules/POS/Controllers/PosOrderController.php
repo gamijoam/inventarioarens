@@ -33,6 +33,8 @@ class PosOrderController extends Controller
                 'customer',
                 'sale',
                 'sale.items',
+                'sale.items.product',
+                'sale.items.warehouse',
                 'payments.paymentMethod:id,name',
             ])
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))

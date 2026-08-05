@@ -45,6 +45,7 @@ class SharedCatalogEndpointTest extends TestCase
 
         $this->assertSame($group->id, $master->tenant_id);
 
+        $this->useTenant($spinoff);
         $copy = Product::query()->withoutGlobalScopes()->create([
             'tenant_id' => $spinoff->id,
             'name' => 'iPhone 15',

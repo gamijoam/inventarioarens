@@ -23,6 +23,7 @@ interface SingleSelectComboboxProps {
   emptyMessage?: string;
   disabled?: boolean;
   invalid?: boolean;
+  onQueryChange?: (query: string) => void;
   'aria-label'?: string;
   className?: string;
 }
@@ -35,6 +36,7 @@ export function SingleSelectCombobox({
   emptyMessage = 'Sin resultados',
   disabled = false,
   invalid = false,
+  onQueryChange,
   className,
   ...aria
 }: SingleSelectComboboxProps) {
@@ -43,10 +45,7 @@ export function SingleSelectCombobox({
   const [highlight, setHighlight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(
-    () => options.find((o) => o.value === value) ?? null,
-    [options, value],
-  );
+  const selected = useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -80,6 +79,7 @@ export function SingleSelectCombobox({
   function clear() {
     onChange(null);
     setQuery('');
+    onQueryChange?.('');
     setHighlight(0);
     setOpen(true);
   }
@@ -89,15 +89,15 @@ export function SingleSelectCombobox({
       {selected ? (
         <div
           className={cn(
-            'flex items-center gap-2 rounded border border-border-strong bg-surface px-2 py-1.5',
+            'border-border-strong bg-surface flex items-center gap-2 rounded border px-2 py-1.5',
             invalid && 'border-danger',
             disabled && 'opacity-50',
           )}
         >
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{selected.label}</div>
-            {(selected.hint || selected.badge) && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-text-muted">
+            {(selected.hint ?? selected.badge) && (
+              <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
                 {selected.hint && <span className="truncate">{selected.hint}</span>}
                 {selected.badge && (
                   <Badge variant="info" className="text-[10px]">
@@ -110,7 +110,7 @@ export function SingleSelectCombobox({
           <button
             type="button"
             onClick={clear}
-            className="rounded p-1 text-text-muted hover:bg-bg hover:text-danger"
+            className="text-text-muted hover:bg-bg hover:text-danger rounded p-1"
             aria-label="Quitar selección"
             disabled={disabled}
           >
@@ -119,11 +119,12 @@ export function SingleSelectCombobox({
         </div>
       ) : (
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+          <Search className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
+              onQueryChange?.(e.target.value);
               setOpen(true);
               setHighlight(0);
             }}
@@ -137,7 +138,7 @@ export function SingleSelectCombobox({
                 setHighlight((h) => Math.max(h - 1, 0));
               } else if (e.key === 'Enter' && filtered[highlight]) {
                 e.preventDefault();
-                pick(filtered[highlight]!);
+                pick(filtered[highlight]);
               } else if (e.key === 'Escape') {
                 setOpen(false);
               }
@@ -152,9 +153,9 @@ export function SingleSelectCombobox({
       )}
 
       {open && !selected && (
-        <div className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded border border-border bg-surface shadow-lg">
+        <div className="border-border bg-surface absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded border shadow-lg">
           {filtered.length === 0 ? (
-            <div className="p-3 text-sm text-text-muted">{emptyMessage}</div>
+            <div className="text-text-muted p-3 text-sm">{emptyMessage}</div>
           ) : (
             <ul role="listbox">
               {filtered.map((option, index) => (
@@ -165,14 +166,16 @@ export function SingleSelectCombobox({
                   onClick={() => pick(option)}
                   onMouseEnter={() => setHighlight(index)}
                   className={cn(
-                    'cursor-pointer border-b border-border px-3 py-2 last:border-b-0',
+                    'border-border cursor-pointer border-b px-3 py-2 last:border-b-0',
                     index === highlight && 'bg-primary/10',
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{option.label}</div>
-                      {option.hint && <div className="truncate text-xs text-text-muted">{option.hint}</div>}
+                      {option.hint && (
+                        <div className="text-text-muted truncate text-xs">{option.hint}</div>
+                      )}
                     </div>
                     {option.badge && (
                       <Badge variant="info" className="shrink-0 text-[10px]">

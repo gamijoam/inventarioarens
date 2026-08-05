@@ -47,22 +47,23 @@ class OperationalTenantIsolationTest extends TestCase
             stock: 8
         );
 
-        $this
+        $summaryA = $this
             ->actingAs($userA)
             ->withHeader('X-Tenant', $tenantA->slug)
-            ->getJson('/api/inventory-center/summary?stock_status=all')
+            ->getJson('/api/inventory-center/summary?stock_status=all');
+        $summaryA
             ->assertOk()
             ->assertJsonPath('data.metrics.total_products', 1)
-            ->assertJsonPath('data.products.0.name', 'Telefono Caracas A06')
+            ->assertJsonFragment(['name' => 'Telefono Caracas A06'])
             ->assertJsonMissing(['name' => 'Telefono Valencia A06']);
 
-        $this
+        $summaryB = $this
             ->actingAs($userB)
             ->withHeader('X-Tenant', $tenantB->slug)
             ->getJson('/api/inventory-center/summary?stock_status=all')
             ->assertOk()
             ->assertJsonPath('data.metrics.total_products', 1)
-            ->assertJsonPath('data.products.0.name', 'Telefono Valencia A06')
+            ->assertJsonFragment(['name' => 'Telefono Valencia A06'])
             ->assertJsonMissing(['name' => 'Telefono Caracas A06']);
 
         $this

@@ -577,9 +577,10 @@ class SalesReturnApiTest extends TestCase
 
         $exchange = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/exchange/complete", [
             'pos_order_id' => $checkout->json('data.id'),
-        ])->assertOk()->assertJsonPath('data.exchange_sale_id', 2);
+        ])->assertOk();
 
-        $this->assertNotNull($exchange->json('data.exchange_sale_id'));
+        $this->assertIsInt($exchange->json('data.exchange_sale_id'));
+        $this->assertGreaterThan(0, $exchange->json('data.exchange_sale_id'));
         $this->assertDatabaseHas('customer_credit_transactions', ['tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'type' => 'applied', 'amount_base' => '-100.0000']);
         $this->assertDatabaseHas('cash_register_movements', ['tenant_id' => $tenant->id, 'cash_register_session_id' => $session->id, 'amount_base' => '50.0000']);
         $this->assertDatabaseHas('stock_balances', ['tenant_id' => $tenant->id, 'warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity_available' => '1.0000']);

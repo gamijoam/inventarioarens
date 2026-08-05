@@ -201,14 +201,41 @@ como analogia). Permiso `PURCHASES_VIEW` o `INVENTORY_TRANSFERS_VIEW`.
   0 items (FASE T1), PDF generator (FASE T2).
 - **Backend**: 5 tests OK en `tests/Feature/InventoryTransferRequests/`.
 - **Frontend**: 171/171 tests OK total (incluye los modulos previos).
+- **Playwright UI**: `frontend/e2e/transfers.ui.spec.ts` cubre la creación de un traslado
+  interno directo con selección visual de IMEI.
+- **Playwright API interempresa**: `frontend/e2e/intercompany.api.spec.ts` cubre los dos
+  sentidos del flujo: solicitud directa del receptor y propuesta logística del proveedor,
+  procesando 10 productos por flujo: 5 por cantidad y 5 serializados con IMEIs reales,
+  incluyendo stock antes/después y estados de la guía.
+- **Playwright UI interempresa**: `frontend/e2e/intercompany.ui.spec.ts` repite esos dos
+  sentidos con dos contextos de navegador, ejecutando las acciones desde la interfaz y
+  seleccionando los 10 productos desde los dialogs.
+
+Para ejecutar el spec interempresa contra un snapshot local, configurar para cada empresa:
+
+```bash
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_EMAIL
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_PASSWORD
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_TENANT
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_WAREHOUSE_ID
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_PRODUCT_ID
+PLAYWRIGHT_INTERCOMPANY_REQUESTER_PRODUCT_IDS
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_EMAIL
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_PASSWORD
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_TENANT
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_WAREHOUSE_ID
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_PRODUCT_ID
+PLAYWRIGHT_INTERCOMPANY_SUPPLIER_PRODUCT_IDS
+```
+
+`*_PRODUCT_IDS` acepta una lista CSV de 10 IDs en el mismo orden en ambas empresas. Los primeros
+5 deben ser de seguimiento por cantidad y los últimos 5 serializados. Ambos usuarios deben tener
+los permisos de solicitudes interempresa e inventario necesarios.
 
 ## Pendientes (roadmap)
 
 - `TransferCreateDialog` (FASE 4+ del modulo Inventory): crear traslado
   desde la UI de Inventory, con typeahead de productos y almacenes.
-- **InventoryTransferRequest UI** (cross-tenant): el modulo backend
-  existe pero no tiene UI en el frontend. Se entregaria como modulo
-  aparte con su propio flujo (solicitar / aceptar / rechazar).
 - **Validacion de IMEIs via scanner** (camara del telefono).
 - **Notificaciones push** cuando el transportista firma o el destino
   acepta una solicitud.

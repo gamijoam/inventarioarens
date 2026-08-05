@@ -110,10 +110,26 @@ export const TransferItemSchema = z.object({
   warehouse_id: z.number().int().positive().nullable().optional(),
   warehouse: TransferWarehouseSchema.nullable().optional(),
   quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
-  requested_quantity: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  prepared_quantity: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  received_quantity: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  difference_quantity: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
+  requested_quantity: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  prepared_quantity: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  received_quantity: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  difference_quantity: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
   serial_units: z.array(SerialUnitSchema).nullable().optional(),
   prepared_product_unit_ids: z.array(z.number().int()).nullable().optional(),
   received_product_unit_ids: z.array(z.number().int()).nullable().optional(),
@@ -143,10 +159,26 @@ export const TransferSchema = z.object({
   reason: z.string().nullable().optional(),
   reference: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
-  total_base_amount: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  total_local_amount: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  received_base_amount: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
-  received_local_amount: z.union([z.number(), z.string()]).nullable().optional().transform((v) => v == null ? null : Number(v)),
+  total_base_amount: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  total_local_amount: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  received_base_amount: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
+  received_local_amount: z
+    .union([z.number(), z.string()])
+    .nullable()
+    .optional()
+    .transform((v) => (v == null ? null : Number(v))),
   resolution_status: z.string().optional(),
   resolution_notes: z.string().nullable().optional(),
   driver: TransferDriverSchema.nullable().optional(),
@@ -234,7 +266,11 @@ export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
 // =====================================================================
 
 const trimmedRequired = (max: number) =>
-  z.string().max(max).transform((s) => s.trim()).refine((s) => s.length > 0, 'Requerido.');
+  z
+    .string()
+    .max(max)
+    .transform((s) => s.trim())
+    .refine((s) => s.length > 0, 'Requerido.');
 
 const isoDate = z
   .string()
@@ -248,6 +284,14 @@ export const StoreTransferItemSchema = z.object({
   product_id: positiveNumber,
   quantity: positiveNumber,
   product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
+  serial_units: z
+    .array(
+      z.object({
+        serial_type: z.enum(['imei', 'serial']),
+        serial_number: z.string().trim().min(1),
+      }),
+    )
+    .optional(),
 });
 export type StoreTransferItem = z.input<typeof StoreTransferItemSchema>;
 

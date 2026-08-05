@@ -30,4 +30,12 @@ describe('useProductsForTransfer', () => {
 
     expect(getMany).toHaveBeenCalledWith('/products?limit=100&tracking_type=all');
   });
+
+  it('filtra el catalogo en el servidor cuando se busca un producto', async () => {
+    const { result } = renderHook(() => useProductsForTransfer('IPHONE 20'), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getMany).toHaveBeenCalledWith('/products?limit=100&tracking_type=all&search=IPHONE+20');
+  });
 });
