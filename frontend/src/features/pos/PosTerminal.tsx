@@ -1287,7 +1287,7 @@ export function PosTerminal() {
               selected={selectedPending}
               canCancel={canCancel}
               onSelect={setSelectedPending}
-              onPaySelected={() => selectedPending && payPendingOrder(selectedPending)}
+              onPaySelected={() => selectedPending && void recoverPendingOrder(selectedPending)}
               onCancel={(order) => cancelOrder.mutate(order.id)}
             />
           )}
@@ -1795,6 +1795,14 @@ export function PosTerminal() {
   }
 
   async function confirmPaidSale(): Promise<void> {
+    if (selectedPending) {
+      if (payments.length === 0) {
+        setPanel('pay');
+        return;
+      }
+      await payPendingOrder(selectedPending);
+      return;
+    }
     if (checkoutBlockReason) {
       toast.error(checkoutBlockReason);
       if (payments.length === 0 && cart.length > 0 && canCheckout) setPanel('pay');
@@ -1953,9 +1961,90 @@ export function PosTerminal() {
     });
     setLastReceipt(paid);
     void createAndDispatchPrintJobs(paid, false);
-    setSelectedPending(null);
-    setPayments([]);
+    clearTicket();
     setPanel('receipt');
+  }
+
+  async function recoverPendingOrder(order: PosOrder): Promise<void> {
+    type PendingSaleItem = {
+      id: number;
+      product_id: number;
+      warehouse_id: number;
+      quantity: number;
+      sale_currency?: CurrencyCode;
+      unit_price: number;
+      base_unit_price?: number;
+      price_list_id?: number | null;
+      price_list_name?: string | null;
+      discount_type?: DiscountType | null;
+      discount_value?: number;
+      discount_reason?: string | null;
+      exchange_rate_type_id?: number | null;
+      exchange_rate_type_code?: string | null;
+      exchange_rate?: number | null;
+      product_unit_ids?: number[];
+      serial_units?: { id: number; serial_type?: string | null; serial_number: string }[];
+    };
+
+    const items = ((order.sale as { items?: PendingSaleItem[] } | undefined)?.items ?? []).filter(
+      (item) => item.product_id && item.warehouse_id,
+    );
+    if (items.length === 0) {
+      toast.error('El ticket pendiente no tiene líneas recuperables.');
+      return;
+    }
+
+    try {
+      const lines = await Promise.all(
+        items.map(async (item) => {
+          const product = await getProductForPos(item.product_id);
+          const selectedSerials = (item.serial_units ?? []).map((serial) => ({
+            id: serial.id,
+            serial_type: serial.serial_type,
+            serial_number: serial.serial_number,
+          }));
+
+          return {
+            id: `pending-${item.id}`,
+            product_id: item.product_id,
+            name: product.name,
+            sku: product.sku,
+            barcode: product.barcode,
+            warehouse_id: item.warehouse_id,
+            quantity: Number(item.quantity),
+            available_stock: Math.max(Number(product.available_stock ?? 0), Number(item.quantity)),
+            unit_price: Number(item.unit_price),
+            base_unit_price: Number(item.base_unit_price ?? item.unit_price),
+            currency: item.sale_currency ?? product.sale_currency ?? 'USD',
+            base_currency: product.sale_currency ?? 'USD',
+            discount_type: item.discount_type ?? null,
+            discount_value: Number(item.discount_value ?? 0),
+            discount_reason: item.discount_reason ?? null,
+            price_list_id: item.price_list_id ?? null,
+            price_source: item.price_list_id ? 'price_list' : 'base',
+            price_list_name:
+              item.price_list_name ?? (item.price_list_id ? null : BASE_PRICE_LIST_LABEL),
+            exchange_rate_type_id: item.exchange_rate_type_id ?? null,
+            exchange_rate_type_code: item.exchange_rate_type_code ?? null,
+            exchange_rate: item.exchange_rate ?? null,
+            tracking_type: product.tracking_type,
+            track_stock: product.track_stock !== false,
+            image_url: product.image_url,
+            selected_serials: selectedSerials,
+          } satisfies PosCartLine;
+        }),
+      );
+
+      setCart(lines);
+      setPayments([]);
+      setSelectedPriceListId(items[0]?.price_list_id ?? null);
+      setWarehouseId(items[0]?.warehouse_id ?? warehouseId);
+      setCustomerName(order.customer_name ?? 'Consumidor Final');
+      setPanel(null);
+      toast.success(`Ticket #${order.id} recuperado.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo recuperar el ticket.');
+    }
   }
 
   function buildCheckoutPayload(
