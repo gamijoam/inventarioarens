@@ -98,7 +98,31 @@ frontend/
 | `pnpm test` | Vitest (unit + integration) |
 | `pnpm test:watch` | Vitest en watch mode |
 | `pnpm e2e` | Playwright (E2E) |
+| `pnpm e2e:api` | Playwright API E2E sin navegador |
+| `pnpm e2e:ui` | Playwright UI E2E con Chromium |
 | `pnpm e2e:install` | Instala chromium para Playwright |
+
+### Playwright E2E
+
+Los tests API requieren Laravel activo en `http://127.0.0.1:8000`. Los tests UI requieren
+además Vite en `http://127.0.0.1:5173` y una sesión demo configurada mediante:
+
+```bash
+export PLAYWRIGHT_E2E_EMAIL=gerente.valencia@demo.test
+export PLAYWRIGHT_E2E_PASSWORD=gabo1234
+export PLAYWRIGHT_E2E_TENANT=demo-valencia-centro
+pnpm e2e:install
+pnpm e2e:api
+pnpm e2e:ui
+```
+
+Para que Playwright levante Laravel y Vite automáticamente en local:
+
+```bash
+PLAYWRIGHT_MANAGED_SERVERS=1 pnpm e2e:ui
+```
+
+Nunca ejecutar los tests E2E contra producción: los escenarios API crean operaciones de prueba.
 
 ---
 

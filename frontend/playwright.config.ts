@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import path from 'node:path';
 
 /**
  * Playwright config para E2E del POS.
@@ -31,15 +32,35 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 10_000,
   },
+  webServer:
+    process.env.PLAYWRIGHT_MANAGED_SERVERS === '1'
+      ? [
+          {
+            command: 'php artisan serve --host=127.0.0.1 --port=8000',
+            cwd: path.resolve(process.cwd(), '..'),
+            url: 'http://127.0.0.1:8000/up',
+            reuseExistingServer: true,
+            timeout: 120_000,
+          },
+          {
+            command: 'pnpm dev --host 127.0.0.1 --port 5173',
+            cwd: process.cwd(),
+            url: 'http://127.0.0.1:5173/login',
+            reuseExistingServer: true,
+            timeout: 120_000,
+          },
+        ]
+      : undefined,
   projects: [
     {
       name: 'api',
       // Sin browser: usa `request` para tests HTTP puros.
+      testMatch: '**/*.api.spec.ts',
       use: {},
     },
     {
       name: 'ui',
-      testIgnore: '**/*.api.spec.ts',
+      testMatch: '**/*.ui.spec.ts',
       use: {
         baseURL: process.env.PLAYWRIGHT_FRONTEND_URL ?? 'http://127.0.0.1:5173',
         browserName: 'chromium',
