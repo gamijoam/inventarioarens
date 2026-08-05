@@ -451,6 +451,30 @@ php vendor/bin/phpunit --filter "cross_tenant|other_tenant|detail_audit|standard
 `bin/pre-push.php` corre toda la suite antes de cada push. NO hacer push si falla (emergencia:
 `git push --no-verify`, solo con justificación).
 
+### 9.3.1 Protocolo TDD y calidad (OBLIGATORIO)
+
+Toda funcionalidad nueva, especialmente cambios de arquitectura o del frontend POS, debe seguir
+este orden estricto:
+
+1. **Tests primero**: escribir tests unitarios y de integración que definan los requisitos y el
+   comportamiento esperado antes de crear o modificar la implementación.
+2. **Validar el contrato**: revisar que los tests representan los requisitos del usuario, los
+   permisos, los casos de error y el aislamiento multi-tenant. No implementar código todavía.
+3. **Implementar**: crear o modificar el código para hacer pasar los tests. Si un test falla por una
+   regresión propia, se corrige el código, no se debilita ni se elimina el test.
+4. **Mutation testing**: ejecutar pruebas de mutaciones sobre el código y los tests afectados para
+   comprobar que los tests detectan cambios incorrectos. Si hay mutantes sobrevivientes relevantes,
+   agregar o fortalecer tests antes de continuar.
+5. **Análisis estático y Clean Code**: ejecutar las herramientas disponibles (Pint, PHPStan/Psalm,
+   ESLint, TypeScript, Prettier u otras adoptadas por el módulo), corregir hallazgos en el código y
+   revisar nombres, responsabilidades, duplicación, complejidad y acoplamiento.
+6. **Suite final**: ejecutar los tests unitarios, integración, feature y E2E afectados, además de la
+   suite completa cuando el cambio tenga impacto transversal. Documentar resultados verdes, fallos
+   preexistentes y riesgos residuales antes de declarar la tarea terminada.
+
+No se debe comenzar la implementación de una funcionalidad nueva sin tener primero sus tests
+unitarios y de integración revisados y aprobados como contrato de comportamiento.
+
 ### 9.4 Disciplina de tests (OBLIGATORIA)
 
 **Regla innegociable**: la suite de pruebas **SIEMPRE se debe ejecutar** después de crear nuevas
