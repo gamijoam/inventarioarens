@@ -25,6 +25,7 @@
 /public/storage
 **/__pycache__/
 /storage/*.key
+/storage/app/*.dump
 /storage/pail
 /storage/app/sync-e2e-lab/
 /vendor
