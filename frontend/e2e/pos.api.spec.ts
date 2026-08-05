@@ -21,9 +21,9 @@ import { test, expect, request, type APIRequestContext } from '@playwright/test'
  *   cd frontend && pnpm e2e -- --project=api
  */
 
-const DEMO_EMAIL = 'gerente.valencia@demo.test';
-const DEMO_PASSWORD = 'gabo1234';
-const DEMO_TENANT = 'demo-valencia-centro';
+const DEMO_EMAIL = process.env.PLAYWRIGHT_E2E_EMAIL ?? 'gerente.valencia@demo.test';
+const DEMO_PASSWORD = process.env.PLAYWRIGHT_E2E_PASSWORD ?? 'gabo1234';
+const DEMO_TENANT = process.env.PLAYWRIGHT_E2E_TENANT ?? 'demo-valencia-centro';
 const IDEM_PREFIX = 'e2e-pos-';
 
 // Variables a nivel de modulo para que se compartan entre tests
@@ -98,13 +98,12 @@ test.describe('POS E2E flow (API)', () => {
     expect(body.data.length).toBeLessThanOrEqual(25);
     expect(body.meta).toHaveProperty('total');
     expect(body.meta).toHaveProperty('current_page');
-    // El eager load categories.parent garantiza que NO se hace 1 query
-    // por categoria padre (N+1 fix).
+    // El recurso expone la ruta completa de categoria despues del eager load
+    // categories.parent, sin hacer una query por categoria padre.
     const withCategories = body.data.find((p: any) => p.categories.length > 0);
     if (withCategories) {
       for (const c of withCategories.categories) {
-        // Si tiene parent cargado, la propiedad existe aunque sea null.
-        expect('parent' in c).toBe(true);
+        expect(c).toHaveProperty('full_path');
       }
     }
     // Guardamos el primer producto con stock disponible. Si los tests E2E
