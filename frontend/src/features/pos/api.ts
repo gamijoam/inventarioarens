@@ -65,6 +65,7 @@ export type CashRegister = z.infer<typeof CashRegisterSchema>;
 export const CashRegisterSessionSchema = z
   .object({
     id: z.number().int(),
+    tenant_id: z.number().int().optional(),
     branch_id: z.number().int(),
     cash_register_id: z.number().int().nullable().optional(),
     cashier_id: z.number().int().nullable().optional(),
@@ -294,11 +295,12 @@ export interface CheckoutPayload {
   customer_name?: string | null;
   credit?: boolean;
   credit_due_date?: string | null;
-  items: Array<{
-    warehouse_id: number;
-    product_id: number;
-    price_list_id?: number | null;
-    quantity: number;
+    items: Array<{
+      warehouse_id: number;
+      product_id: number;
+      price_list_id?: number | null;
+      price_source?: 'base' | 'price_list';
+      quantity: number;
     discount_type?: 'percent' | 'fixed' | null;
     discount_value?: number | null;
     discount_reason?: string | null;
@@ -1048,7 +1050,7 @@ export async function lookupProductSerialRequest(params: {
   serialType: 'imei' | 'serial';
 }): Promise<ProductSerial & { product_id: number }> {
   const response = await getOne<{ data: ProductSerial & { product_id: number } }>(
-    `/inventory-center/products/units/lookup?${new URLSearchParams({
+      `/inventory-centers/products/units/lookup?${new URLSearchParams({
       warehouse_id: String(params.warehouseId),
       serial: params.serial,
       serial_type: params.serialType,

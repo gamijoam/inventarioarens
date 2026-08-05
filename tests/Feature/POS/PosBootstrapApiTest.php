@@ -91,6 +91,7 @@ class PosBootstrapApiTest extends TestCase
             'currency_mode' => PaymentMethod::CURRENCY_FLEXIBLE,
             'is_active' => true,
             'sort_order' => 1,
+            'requires_reference' => true,
         ]);
         $listDefault->paymentMethods()->sync([
             $paymentMethod->id => ['tenant_id' => $tenant->id],
@@ -115,7 +116,10 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonCount(1, 'exchange_rates')
             ->assertJsonPath('exchange_rates.0.rate', 36.5)
             ->assertJsonCount(1, 'payment_methods')
+            ->assertJsonPath('payment_methods.0.sort_order', 1)
+            ->assertJsonPath('payment_methods.0.requires_reference', true)
             ->assertJsonPath('open_session.status', CashRegisterSession::STATUS_OPEN)
+            ->assertJsonPath('open_session.tenant_id', $tenant->id)
             ->assertJsonPath('open_session.cashier_id', $cashier->id);
     }
 

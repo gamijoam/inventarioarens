@@ -450,7 +450,7 @@ describe('pos api', () => {
       }),
     ).resolves.toMatchObject({ product_id: 5, status: 'available' });
     expect(mockGetOne).toHaveBeenCalledWith(
-      '/inventory-center/products/units/lookup?warehouse_id=4&serial=860001000000001&serial_type=imei',
+      '/inventory-centers/products/units/lookup?warehouse_id=4&serial=860001000000001&serial_type=imei',
     );
   });
 

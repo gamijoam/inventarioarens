@@ -1432,6 +1432,7 @@ export function PosTerminal() {
             unit_price: Number(line.base_unit_price ?? line.unit_price),
             currency: line.base_currency ?? line.currency,
             price_list_id: null,
+            price_source: 'base',
             price_list_name: BASE_PRICE_LIST_LABEL,
             price_issue: null,
           })),
@@ -1453,6 +1454,7 @@ export function PosTerminal() {
               unit_price: found.quote.base_price_usd,
               currency: found.quote.sale_currency,
               price_list_id: nextList.id,
+              price_source: 'price_list',
               price_list_name: found.quote.price_list_name ?? nextList.name,
               price_issue: null,
             };
@@ -1549,6 +1551,7 @@ export function PosTerminal() {
           exchange_rate_type_id: quote?.exchange_rate_type_id ?? null,
           exchange_rate_type_code: quote?.exchange_rate_type_code ?? null,
           price_list_id: selectedPriceList?.id ?? null,
+          price_source: selectedPriceList ? 'price_list' : 'base',
           price_list_name:
             quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
           price_issue: null,
@@ -1966,6 +1969,8 @@ export function PosTerminal() {
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
+        price_source:
+          line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
         quantity: line.quantity,
         discount_type: canDiscount ? (line.discount_type ?? null) : null,
         discount_value: canDiscount ? (line.discount_value ?? null) : null,

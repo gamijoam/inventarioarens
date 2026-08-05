@@ -505,6 +505,45 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonPath('data.payments.1.payment_method_id', $mobile->id);
     }
 
+    public function test_pos_checkout_price_source_base_bypasses_default_price_list_restrictions(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Precio Base', 'slug' => 'empresa-precio-base']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-BASE', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $defaultList = $this->priceListWithPrice($tenant, $product, 'Lista Default', 'DEFAULT-BASE', 10);
+        $defaultList->update(['is_default' => true]);
+
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_source' => 'base',
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.total_base_amount', '100.0000')
+            ->assertJsonPath('data.sale.items.0.price_list_id', null)
+            ->assertJsonPath('data.sale.items.0.base_unit_price', 100);
+    }
+
     public function test_pos_checkout_uses_price_list_rate_for_mixed_usd_and_ves_payments(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

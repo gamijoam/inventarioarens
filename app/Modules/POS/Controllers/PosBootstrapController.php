@@ -68,13 +68,15 @@ class PosBootstrapController extends Controller
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('id')
-                ->get(['id', 'code', 'name', 'method', 'currency_mode', 'is_active'])
+                ->get(['id', 'code', 'name', 'method', 'currency_mode', 'is_active', 'requires_reference', 'sort_order'])
                 ->map(fn (PaymentMethod $method) => [
                     'id' => $method->id,
                     'code' => $method->code,
                     'name' => $method->name,
                     'method' => $method->method,
                     'currency_mode' => $method->currency_mode,
+                    'requires_reference' => (bool) $method->requires_reference,
+                    'sort_order' => $method->sort_order,
                 ])
                 ->all(),
             'price_lists' => PriceList::query()

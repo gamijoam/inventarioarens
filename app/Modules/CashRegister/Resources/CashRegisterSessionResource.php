@@ -11,6 +11,7 @@ class CashRegisterSessionResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'tenant_id' => $this->tenant_id,
             'branch_id' => $this->branch_id,
             'cash_register_id' => $this->cash_register_id,
             'cashier_id' => $this->cashier_id,

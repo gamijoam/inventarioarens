@@ -18,6 +18,7 @@ export interface PosCartLine {
   discount_value?: number | null;
   discount_reason?: string | null;
   price_list_id?: number | null;
+  price_source?: 'base' | 'price_list';
   price_list_name?: string | null;
   price_issue?: string | null;
   /**
