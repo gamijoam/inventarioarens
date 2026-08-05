@@ -61,7 +61,9 @@ import {
   mergePosPriceLists,
   resolvePosPaymentRate,
   resolvePosOpenSession,
+  useBranchesForPos,
   useCashSessions,
+  useCashRegisters,
   useCurrentExchangeRatesForPos,
   useExchangeRateTypesForPos,
   getProductForPos,
@@ -262,6 +264,8 @@ export function PosTerminal() {
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
+  const [cashSessionClosed, setCashSessionClosed] = useState(false);
+  const [cashSessionOpening, setCashSessionOpening] = useState(false);
   const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
   const [openingLocalAmount, setOpeningLocalAmount] = useState('0');
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
@@ -282,6 +286,8 @@ export function PosTerminal() {
   // Sprint POS 5 fix: antes si bootstrap fallaba, warehouses quedaba vacio.
   const bootstrapHasWarehouses = (bootstrapRefs.refs?.warehouses?.length ?? 0) > 0;
   const { data: standaloneWarehouses } = useWarehousesForPos();
+  const { data: standaloneBranches = [] } = useBranchesForPos();
+  const { data: standaloneCashRegisters = [] } = useCashRegisters();
   const standaloneWarehousesList = useMemo(
     () => standaloneWarehouses ?? [],
     [standaloneWarehouses],
@@ -299,16 +305,24 @@ export function PosTerminal() {
         branch_id: number | null;
       }[];
     }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
-  const branches = useMemo(() => bootstrapRefs.refs?.branches ?? [], [bootstrapRefs.refs]);
+  const branches = useMemo(
+    () => (bootstrapRefs.refs?.branches?.length ? bootstrapRefs.refs.branches : standaloneBranches),
+    [bootstrapRefs.refs, standaloneBranches],
+  );
   const cashRegisters = useMemo(
-    () => bootstrapRefs.refs?.cash_registers ?? [],
-    [bootstrapRefs.refs],
+    () =>
+      bootstrapRefs.refs?.cash_registers?.length
+        ? bootstrapRefs.refs.cash_registers
+        : standaloneCashRegisters,
+    [bootstrapRefs.refs, standaloneCashRegisters],
   );
   const { data: fallbackSessions = [] } = useCashSessions();
   const sessions = useMemo(() => {
+    if (bootstrap.data && bootstrap.data.open_session === null) return [];
+
     const session = resolvePosOpenSession(bootstrap.data?.open_session ?? null, fallbackSessions);
     return session ? [session] : [];
-  }, [bootstrap.data?.open_session, fallbackSessions]);
+  }, [bootstrap.data, fallbackSessions]);
   const { data: pendingOrders = [] } = useOpenPosOrders();
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: customerCredit } = useCustomerCredit(selectedCustomer?.id ?? null);
@@ -395,6 +409,10 @@ export function PosTerminal() {
     () => sessions.find((session) => session.status === 'open') ?? null,
     [sessions],
   );
+
+  useEffect(() => {
+    if (activeSession) setCashSessionOpening(false);
+  }, [activeSession]);
 
   // Persistencia del carrito: hidrata desde sessionStorage al montar y
   // sincroniza cambios al store de vuelta. Solo persiste cuando hay
@@ -690,7 +708,14 @@ export function PosTerminal() {
     );
   }
 
-  if (!activeSession && !bootstrap.isLoading && !bootstrap.isError && bootstrapReady) {
+  if (
+    cashSessionClosed ||
+    (!activeSession &&
+      !cashSessionOpening &&
+      !bootstrap.isLoading &&
+      !bootstrap.isError &&
+      bootstrapReady)
+  ) {
     return (
       <OpenCashScreen
         canOpenCash={canOpenCash}
@@ -713,6 +738,8 @@ export function PosTerminal() {
           if (Number(openingLocalAmount || 0) > 0 && !openingRate) {
             return toast.error('Configura una tasa activa USD/VES antes de abrir con fondo VES.');
           }
+          setCashSessionOpening(true);
+          setCashSessionClosed(false);
           openCash.mutate(
             {
               branch_id: Number(openingBranchId),
@@ -725,9 +752,12 @@ export function PosTerminal() {
             },
             {
               onError: (error) => {
+                setCashSessionOpening(false);
+                setCashSessionClosed(true);
                 void bootstrap.refetch();
                 toast.error(errorMessage(error));
               },
+              onSettled: () => setCashSessionClosed(false),
             },
           );
         }}
@@ -1316,14 +1346,23 @@ export function PosTerminal() {
               }}
               onCloseSession={() => {
                 if (!Number(closingAmount)) return toast.error('Ingresa el efectivo contado.');
-                closeCash.mutate({
-                  sessionId: activeSession.id,
-                  payload: {
-                    counted_currency: 'USD',
-                    counted_amount: Number(closingAmount),
-                    closing_notes: 'Cierre desde POS',
+                setCashSessionClosed(true);
+                closeCash.mutate(
+                  {
+                    sessionId: activeSession.id,
+                    payload: {
+                      counted_currency: 'USD',
+                      counted_amount: Number(closingAmount),
+                      closing_notes: 'Cierre desde POS',
+                    },
                   },
-                });
+                  {
+                    onError: (error) => {
+                      setCashSessionClosed(false);
+                      toast.error(errorMessage(error));
+                    },
+                  },
+                );
               }}
             />
           )}
@@ -2481,6 +2520,7 @@ function OpenCashScreen(props: {
                     onChange={(event) =>
                       props.onBranchChange(event.target.value ? Number(event.target.value) : '')
                     }
+                    data-testid="pos-cash-open-branch"
                   >
                     <option value="">Sucursal...</option>
                     {props.branches.map((branch) => (
@@ -2496,6 +2536,7 @@ function OpenCashScreen(props: {
                     onChange={(event) =>
                       props.onRegisterChange(event.target.value ? Number(event.target.value) : '')
                     }
+                    data-testid="pos-cash-open-register"
                   >
                     <option value="">Caja fisica...</option>
                     {props.cashRegisters.map((register) => (
@@ -2514,6 +2555,7 @@ function OpenCashScreen(props: {
                     value={props.baseAmount}
                     onChange={(event) => props.onBaseAmountChange(event.target.value)}
                     placeholder="0.00"
+                    data-testid="pos-cash-open-base"
                   />
                 </LabeledControl>
                 <LabeledControl label="Fondo VES">
@@ -2523,6 +2565,7 @@ function OpenCashScreen(props: {
                     value={props.localAmount}
                     onChange={(event) => props.onLocalAmountChange(event.target.value)}
                     placeholder="0.00"
+                    data-testid="pos-cash-open-local"
                   />
                 </LabeledControl>
               </div>
@@ -2534,6 +2577,7 @@ function OpenCashScreen(props: {
               <Button
                 className="h-12 w-full text-base"
                 onClick={props.onOpen}
+                data-testid="pos-cash-open-submit"
                 disabled={
                   props.busy ||
                   !props.branchId ||
@@ -3289,6 +3333,7 @@ function CashPanel(props: {
                   props.onMovementChange({ ...props.movement, amount: event.target.value })
                 }
                 placeholder="Monto USD"
+                data-testid="pos-cash-movement-amount"
               />
             </LabeledControl>
             <LabeledControl label="Motivo">
@@ -3298,9 +3343,14 @@ function CashPanel(props: {
                   props.onMovementChange({ ...props.movement, notes: event.target.value })
                 }
                 placeholder="Motivo"
+                data-testid="pos-cash-movement-notes"
               />
             </LabeledControl>
-            <Button className="h-11 w-full" onClick={props.onAddMovement}>
+            <Button
+              className="h-11 w-full"
+              onClick={props.onAddMovement}
+              data-testid="pos-cash-movement-submit"
+            >
               Registrar movimiento
             </Button>
           </div>
@@ -3320,9 +3370,15 @@ function CashPanel(props: {
                 value={props.closingAmount}
                 onChange={(event) => props.onClosingAmount(event.target.value)}
                 placeholder="Efectivo contado USD"
+                data-testid="pos-cash-closing-amount"
               />
             </LabeledControl>
-            <Button className="h-11 w-full" variant="outline" onClick={props.onCloseSession}>
+            <Button
+              className="h-11 w-full"
+              variant="outline"
+              onClick={props.onCloseSession}
+              data-testid="pos-cash-close-submit"
+            >
               Cerrar turno
             </Button>
           </div>

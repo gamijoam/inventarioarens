@@ -295,12 +295,12 @@ export interface CheckoutPayload {
   customer_name?: string | null;
   credit?: boolean;
   credit_due_date?: string | null;
-    items: Array<{
-      warehouse_id: number;
-      product_id: number;
-      price_list_id?: number | null;
-      price_source?: 'base' | 'price_list';
-      quantity: number;
+  items: Array<{
+    warehouse_id: number;
+    product_id: number;
+    price_list_id?: number | null;
+    price_source?: 'base' | 'price_list';
+    quantity: number;
     discount_type?: 'percent' | 'fixed' | null;
     discount_value?: number | null;
     discount_reason?: string | null;
@@ -1050,7 +1050,7 @@ export async function lookupProductSerialRequest(params: {
   serialType: 'imei' | 'serial';
 }): Promise<ProductSerial & { product_id: number }> {
   const response = await getOne<{ data: ProductSerial & { product_id: number } }>(
-      `/inventory-centers/products/units/lookup?${new URLSearchParams({
+    `/inventory-centers/products/units/lookup?${new URLSearchParams({
       warehouse_id: String(params.warehouseId),
       serial: params.serial,
       serial_type: params.serialType,
@@ -1218,7 +1218,10 @@ export function useOpenCashSession() {
   return useMutation({
     mutationFn: async (payload: OpenCashSessionPayload) =>
       postOne<OpenCashSessionPayload, CashRegisterSession>('/cash-register/sessions', payload),
-    onSuccess: () => {
+    onSuccess: (session) => {
+      qc.setQueryData<PosBootstrap | undefined>(posKeys.bootstrap(), (current) =>
+        current ? { ...current, open_session: session } : current,
+      );
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
@@ -1263,6 +1266,7 @@ export function useAddCashMovement() {
         payload,
       ),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
@@ -1284,7 +1288,10 @@ export function useCloseCashSession() {
         payload,
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
+      qc.setQueryData<PosBootstrap | undefined>(posKeys.bootstrap(), (current) =>
+        current ? { ...current, open_session: null } : current,
+      );
+      qc.setQueryData(posKeys.cashSessions(), []);
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
     },
