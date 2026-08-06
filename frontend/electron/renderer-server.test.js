@@ -10,7 +10,7 @@ const { contentTypeFor, safeFilePath, startRendererServer } = rendererServer;
 describe('Electron renderer server', () => {
   it('resolves files inside the renderer root without allowing traversal', () => {
     expect(safeFilePath('/bundle/dist/admin', '/assets/app.js')).toBe(
-      '/bundle/dist/admin/assets/app.js',
+      path.resolve('/bundle/dist/admin/assets/app.js'),
     );
     expect(safeFilePath('/bundle/dist/admin', '/../package.json')).toBeNull();
   });

@@ -98,6 +98,31 @@ async function prepare() {
         fs.mkdirSync(targetRoot, { recursive: true });
         if (process.platform === "win32") {
             fs.cpSync(extractRoot, targetRoot, { recursive: true });
+
+            // Create php.ini from php.ini-production
+            const phpIniPath = path.join(targetRoot, "php.ini");
+            const phpIniProduction = path.join(targetRoot, "php.ini-production");
+            if (fs.existsSync(phpIniProduction)) {
+                let iniContent = fs.readFileSync(phpIniProduction, "utf8");
+
+                // Configure extension_dir to ext
+                iniContent = iniContent.replace(/;?\s*extension_dir\s*=\s*"ext"/g, 'extension_dir = "ext"');
+
+                // Enable extensions
+                const extensions = ["curl", "fileinfo", "gd", "intl", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "zip"];
+                for (const ext of extensions) {
+                    iniContent = iniContent.replace(new RegExp(`;\\s*extension\\s*=\\s*${ext}`, "g"), `extension = ${ext}`);
+                }
+
+                fs.writeFileSync(phpIniPath, iniContent, "utf8");
+            }
+
+            // Copy cacert.pem
+            const cacertSrc = path.join(repoRoot, "installer", "windows", "cacert.pem");
+            const cacertDst = path.join(targetRoot, "cacert.pem");
+            if (fs.existsSync(cacertSrc)) {
+                fs.copyFileSync(cacertSrc, cacertDst);
+            }
         } else {
             fs.copyFileSync(extractedPhp, targetPath);
             fs.chmodSync(targetPath, 0o755);

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import backendStage from '../../scripts/stage-electron-backend.cjs';
@@ -28,7 +29,7 @@ describe('Electron backend staging', () => {
         platform: 'win32',
         phpRuntime: '/toolchains/php',
       }),
-    ).toBe('/toolchains/php');
+    ).toBe(path.resolve('/toolchains/php'));
   });
 
   it('pins the Linux portable PHP artifact used by both clients', () => {
