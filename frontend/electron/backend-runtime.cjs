@@ -99,7 +99,7 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     .filter(Boolean)
     .join(',');
 
-  return {
+  const env = {
     APP_ENV: 'local',
     APP_DEBUG: 'false',
     APP_KEY: config.appKey,
@@ -126,6 +126,15 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     SYNC_CLOUD_URL: config.syncCloudUrl ?? '',
     SYNC_CLOUD_TOKEN: config.syncToken ?? '',
   };
+
+  if (process.platform === 'win32') {
+    const phpDir = path.dirname(config.phpBinary);
+    const certPath = path.join(phpDir, 'cacert.pem');
+    env.SSL_CERT_FILE = certPath;
+    env.CURL_CA_BUNDLE = certPath;
+  }
+
+  return env;
 }
 
 function syncArguments(config) {
@@ -247,8 +256,26 @@ function runtimeSupervisorLockPath(config) {
   return path.join(config.dataRoot, '.runtime-supervisor.lock');
 }
 
+function runtimeSupervisorLockIsStale(config) {
+  try {
+    const pid = Number.parseInt(
+      fs.readFileSync(runtimeSupervisorLockPath(config), 'utf8').trim(),
+      10,
+    );
+    if (!pid) return true;
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return error.code === 'ESRCH' || error.code === 'ENOENT' || error.code === 'EINVAL';
+  }
+}
+
 function tryAcquireRuntimeSupervisorLock(config) {
   fs.mkdirSync(config.dataRoot, { recursive: true });
+
+  if (fs.existsSync(runtimeSupervisorLockPath(config)) && runtimeSupervisorLockIsStale(config)) {
+    releaseRuntimeSupervisorLock(config);
+  }
 
   try {
     fs.writeFileSync(runtimeSupervisorLockPath(config), `${process.pid}\n`, {
@@ -567,11 +594,15 @@ module.exports = {
   listLiveRuntimeLeases,
   removeRuntimeLease,
   releaseRuntimeStartupLock,
+  releaseRuntimeSupervisorLock,
   resolveRuntimeConfig,
   runtimeLeaseDirectory,
+  runtimeSupervisorLockIsStale,
+  runtimeSupervisorLockPath,
   runtimeSupervisorPidPath,
   spawnRuntimeSupervisor,
   runtimeStartupLockPath,
   syncArguments,
   tryAcquireRuntimeStartupLock,
+  tryAcquireRuntimeSupervisorLock,
 };

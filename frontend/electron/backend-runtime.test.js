@@ -9,14 +9,18 @@ const {
   buildLaravelEnvironment,
   createRuntimeLease,
   releaseRuntimeStartupLock,
+  releaseRuntimeSupervisorLock,
   removeRuntimeLease,
   resolveRuntimeConfig,
   runtimeStartupLockPath,
   runtimeLeaseDirectory,
+  runtimeSupervisorLockPath,
+  runtimeSupervisorLockIsStale,
   runtimeSupervisorPidPath,
   listLiveRuntimeLeases,
   syncArguments,
   tryAcquireRuntimeStartupLock,
+  tryAcquireRuntimeSupervisorLock,
 } = backendRuntime;
 
 describe('Local Laravel runtime configuration', () => {
@@ -29,10 +33,12 @@ describe('Local Laravel runtime configuration', () => {
       platform: 'win32',
     });
 
-    expect(config.backendRoot).toBe('/resources/backend');
-    expect(config.phpBinary).toBe('/resources/runtime/php/php.exe');
-    expect(config.databasePath).toBe('/shared/InventarioArens/inventario.sqlite');
-    expect(config.storagePath).toBe('/shared/InventarioArens/storage');
+    expect(config.backendRoot.replace(/\\/g, '/')).toBe('/resources/backend');
+    expect(config.phpBinary.replace(/\\/g, '/')).toBe('/resources/runtime/php/php.exe');
+    expect(config.databasePath.replace(/\\/g, '/')).toBe(
+      '/shared/InventarioArens/inventario.sqlite',
+    );
+    expect(config.storagePath.replace(/\\/g, '/')).toBe('/shared/InventarioArens/storage');
   });
 
   it('builds SQLite and CSRF environment values for the renderer origin', () => {
@@ -48,8 +54,12 @@ describe('Local Laravel runtime configuration', () => {
     const environment = buildLaravelEnvironment(config, 'http://127.0.0.1:5173');
 
     expect(environment.DB_CONNECTION).toBe('sqlite');
-    expect(environment.DB_DATABASE).toBe('/shared/InventarioArens/inventario.sqlite');
-    expect(environment.LARAVEL_STORAGE_PATH).toBe('/shared/InventarioArens/storage');
+    expect(environment.DB_DATABASE.replace(/\\/g, '/')).toBe(
+      '/shared/InventarioArens/inventario.sqlite',
+    );
+    expect(environment.LARAVEL_STORAGE_PATH.replace(/\\/g, '/')).toBe(
+      '/shared/InventarioArens/storage',
+    );
     expect(environment.APP_ALLOWED_ORIGINS_FOR_CSRF).toContain('http://127.0.0.1:5173');
     expect(environment.APP_ALLOWED_ORIGINS_FOR_CSRF).toContain('http://127.0.0.1:8788');
     expect(environment.APP_ALLOWED_ORIGINS_FOR_CSRF).toContain('http://127.0.0.1:8789');
@@ -110,6 +120,37 @@ describe('Local Laravel runtime configuration', () => {
 
     removeRuntimeLease(leasePath);
     expect(listLiveRuntimeLeases(config)).toHaveLength(0);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('acquires the supervisor lock when no lock exists', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-supervisor-lock-'));
+    const config = { dataRoot };
+
+    expect(tryAcquireRuntimeSupervisorLock(config)).toBe(true);
+    releaseRuntimeSupervisorLock(config);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('releases a stale supervisor lock and lets a new supervisor take over', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-supervisor-stale-'));
+    const config = { dataRoot };
+
+    fs.writeFileSync(runtimeSupervisorLockPath(config), '999999\n');
+    expect(runtimeSupervisorLockIsStale(config)).toBe(true);
+
+    expect(tryAcquireRuntimeSupervisorLock(config)).toBe(true);
+    releaseRuntimeSupervisorLock(config);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('does not steal the supervisor lock from a still-alive supervisor', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-supervisor-alive-'));
+    const config = { dataRoot };
+
+    fs.writeFileSync(runtimeSupervisorLockPath(config), `${process.pid}\n`);
+    expect(runtimeSupervisorLockIsStale(config)).toBe(false);
+    expect(tryAcquireRuntimeSupervisorLock(config)).toBe(false);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 });
