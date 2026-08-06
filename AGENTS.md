@@ -970,3 +970,50 @@ Pendiente para Fase 1 (orden de las tareas):
 ## Traslados v2 � Fase 3 (planificada, modulo inter-empresa)
 
 Frontend completo de inventory-transfer-requests (la bandeja con tabs Enviadas/Recibidas/Pendientes/Completadas/Rechazadas, dialogs de crear/aceptar/rechazar). Backend ya esta completo desde antes.
+
+## Fix deteccion del appMode en Electron (2026-08-06)
+
+Bug critico: el NSIS instalaba ambos clientes (`Sistema-de-Inventario-Administrativo.exe` y `POS.exe`) en la misma carpeta `%LOCALAPPDATA%\Programs\inventarioarens-frontend\`, asi que compartian el mismo `resources/app.asar`. Al abrir el Administrativo, Electron cargaba el `app.asar` del POS y la ventana decia "POS". El campo `inventarioAppMode` del `frontend/package.json` (un custom field) **no es sobrescrito por `extraMetadata` en electron-builder**, asi que ambos builds embebian el mismo `package.json` con `mode: pos` aunque el yml admin dijera `mode: admin`.
+
+Cambios:
+
+- `frontend/electron/app-mode.cjs` (nuevo): `detectAppMode({ execPath, env })` deriva el modo del `path.basename(process.execPath)`. Match por substring case-insensitive: `pos` -> 'pos', `administrativo` -> 'admin'. La env var `INVENTARIO_APP_MODE` gana sobre el exe name (util para `electron:dev:*`).
+- `frontend/electron/app-mode.test.js` (nuevo): 9 tests cubren env var vs basename, linux paths, case-insensitive, fallback admin.
+- `frontend/electron/main.cjs`: usa `detectAppMode()` en vez de leer `package.json` del asar.
+- `frontend/electron/app-config.cjs` + `app-config.test.js`: `pos.productName` ahora es `Sistema de Inventario (POS)` (antes `'POS'` que era generico y colisionaba con busquedas de `tasklist /FI "IMAGENAME eq POS*"`).
+- `frontend/electron-builder.pos.yml`: agrega `executableName: Sistema-de-Inventario-POS`, `productName: Sistema de Inventario (POS)`, `shortcutName` y `uninstallDisplayName` especi­ficos. Remueve `extraMetadata.inventarioAppMode` (ya no se usa).
+- `frontend/electron-builder.admin.yml`: solo remueve `extraMetadata.inventarioAppMode` por consistencia.
+- `frontend/build/nsis/separate-install-dir.nsh` (nuevo): hook `customInstall` que fuerza `$INSTDIR = $LOCALAPPDATA\Programs\${PRODUCT_FILENAME}`. Asi Administrativo y POS se instalan en carpetas separadas y no se pisan los `resources/app.asar`.
+- Ambos `electron-builder.*.yml` referencian el `.nsh` via `nsis.include: build/nsis/separate-install-dir.nsh`.
+
+**Reglas operativas para los builds Electron (sustituye el item 13.2 de `docs/WINDOWS_ELECTRON_VALIDATION.md`)**:
+
+- Cada cliente tiene un `executableName` y `productName` unico. NO hardcodear nombres genericos (ej: `'POS'`) porque colisionan con binarios del sistema (PostgreSQL `postgres.exe`, impresoras de tickets, etc.).
+- El modo del cliente se detecta del nombre del `.exe` (substring `pos` o `administrativo`), no del `package.json` del asar (que es compartido entre builds y `extraMetadata` no sobrescribe custom fields).
+- Cada build NSIS debe instalar en su propia carpeta (`build/nsis/separate-install-dir.nsh`). NO usar `appId` similares que apunten al mismo `name` de `package.json` (`inventarioarens-frontend` se reusaba y causaba que ambos .exe aterrizaran en la misma carpeta).
+
+**Al desinstalar/reinstalar manualmente los clientes (workaround temporal mientras se regeneran los builds)**:
+
+```powershell
+# 1. Cerrar todos los .exe y matar php.exe supervisor
+Get-Process -Name "php","php-cgi","POS","Sistema-de-Inventario-Administrativo" -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# 2. Borrar el lock del supervisor
+Remove-Item "$env:APPDATA\InventarioArens\.runtime-supervisor.lock","$env:APPDATA\InventarioArens\.runtime-supervisor.pid" -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:APPDATA\InventarioArens\runtime-leases\*.lease" -Force -ErrorAction SilentlyContinue
+
+# 3. Desinstalar versiones previas
+$root = "$env:LOCALAPPDATA\Programs"
+if (Test-Path "$root\inventarioarens-frontend") { & "$root\inventarioarens-frontend\Uninstall Sistema de Inventario (Administrativo).exe" }
+if (Test-Path "$root\inventarioarens-frontend") { & "$root\inventarioarens-frontend\Uninstall POS.exe" }
+# (los .exe del nuevo install tendran nombres segun su productName)
+
+# 4. Reconstruir con los ymls actualizados
+cd frontend
+pnpm run electron:build:admin   # en este orden primero admin
+pnpm run electron:build:pos
+
+# 5. Instalar en este orden
+& "frontend\release\admin\Sistema-de-Inventario-Administrativo-0.1.0.exe"
+& "frontend\release\pos\Sistema-de-Inventario-POS-0.1.0.exe"
+```
