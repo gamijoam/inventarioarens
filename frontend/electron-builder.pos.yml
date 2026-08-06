@@ -1,21 +1,25 @@
 appId: com.inventarioarens.pos
-productName: POS
+productName: Sistema de Inventario (POS)
+executableName: Sistema-de-Inventario-POS
+artifactName: Sistema-de-Inventario-POS-${version}.${ext}
 asar: true
 directories:
   output: release/pos
 files:
   - electron/**/*
+  - dist/admin/**/*
   - dist/pos/**/*
   - package.json
-extraMetadata:
-  inventarioAppMode: pos
 win:
   target:
     - nsis
 nsis:
   oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: Sistema de Inventario (POS)
+  uninstallDisplayName: Sistema de Inventario (POS)
+  include: build/nsis/separate-install-dir.nsh
 linux:
   target:
     - AppImage

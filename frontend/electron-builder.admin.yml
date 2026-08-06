@@ -8,16 +8,18 @@ directories:
 files:
   - electron/**/*
   - dist/admin/**/*
+  - dist/pos/**/*
   - package.json
-extraMetadata:
-  inventarioAppMode: admin
 win:
   target:
     - nsis
 nsis:
   oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: Sistema de Inventario (Administrativo)
+  uninstallDisplayName: Sistema de Inventario (Administrativo)
+  include: build/nsis/separate-install-dir.nsh
 linux:
   target:
     - AppImage

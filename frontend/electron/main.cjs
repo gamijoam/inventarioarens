@@ -2,12 +2,8 @@ const path = require('node:path');
 
 const { app, BrowserWindow } = require('electron');
 
-const {
-  getAppConfig,
-  normalizeAppMode,
-  rendererDirectory,
-  userDataDirectory,
-} = require('./app-config.cjs');
+const { getAppConfig, rendererDirectory, userDataDirectory } = require('./app-config.cjs');
+const { detectAppMode } = require('./app-mode.cjs');
 const {
   createLocalRuntime,
   createRuntimeSupervisor,
@@ -15,10 +11,7 @@ const {
 } = require('./backend-runtime.cjs');
 const { startRendererServer } = require('./renderer-server.cjs');
 
-const appMode = normalizeAppMode(
-  process.env.INVENTARIO_APP_MODE ??
-    require(path.join(__dirname, '..', 'package.json')).inventarioAppMode,
-);
+const appMode = detectAppMode();
 const appConfig = getAppConfig(appMode);
 const isRuntimeSupervisor = process.argv.includes('--inventario-runtime-supervisor');
 let rendererServer = null;

@@ -9,7 +9,7 @@ const APP_CONFIGS = Object.freeze({
   }),
   pos: Object.freeze({
     mode: 'pos',
-    productName: 'POS',
+    productName: 'Sistema de Inventario (POS)',
     appId: 'com.inventarioarens.pos',
     rendererPort: 8789,
   }),
