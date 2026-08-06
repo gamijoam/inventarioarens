@@ -1,0 +1,29 @@
+appId: com.inventarioarens.admin
+productName: Sistema de Inventario (Administrativo)
+executableName: Sistema-de-Inventario-Administrativo
+artifactName: Sistema-de-Inventario-Administrativo-${version}.${ext}
+asar: true
+directories:
+  output: release/admin
+files:
+  - electron/**/*
+  - dist/admin/**/*
+  - package.json
+extraMetadata:
+  inventarioAppMode: admin
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - AppImage
+  category: Office
+extraResources:
+  - from: .electron-backend-stage-admin/backend
+    to: backend
+  - from: .electron-backend-stage-admin/runtime/php
+    to: runtime/php

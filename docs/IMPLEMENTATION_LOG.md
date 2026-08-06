@@ -1,5 +1,37 @@
 # Registro de implementación
 
+## 2026-08-05 - Base de clientes Electron Administrativo y POS
+
+- Se separaron los bundles Vite en `dist/admin` y `dist/pos`, con modos `.env.admin` y `.env.pos`.
+- El bundle POS restringe rutas administrativas y conserva la navegación operacional POS.
+- Se agregó la base Electron compartida en `frontend/electron/`, con nombres exactos de producto,
+  servidor HTTP local seguro para el renderer y aislamiento `contextIsolation`/`sandbox`.
+- Se agregaron configuraciones independientes de `electron-builder` para Linux AppImage y Windows NSIS.
+- El proceso Electron ahora prepara SQLite, ejecuta `local:install-sqlite`, inicia `php artisan serve`
+  en `127.0.0.1:8787` y levanta `sync:daemon` cuando existe configuración de tenant/token.
+- El staging incluye Laravel, `vendor/` y PHP portable; el runtime usa un directorio writable compartido
+  para SQLite, storage, logs y claves.
+- El login comparte el contrato de autenticacion, pero cambia copy, tema y CTA segun `admin` o `pos`.
+- Los bundles de producción Electron ya no activan la sesión fake `Dev (auth bypass)` por defecto;
+  exigen login real y conservan el bypass únicamente para desarrollo u override explícito.
+- Se corrigió el guard de rutas: una cookie `httpOnly` no se inspecciona con `document.cookie`;
+  después del login se usa la sesión real hidratada y se rechaza solo la sesión sintética de desarrollo.
+- Se fijó el contraste de los inputs para que el texto de correo y contraseña sea visible en la skin POS.
+- Se separó el `userData` de Electron por cliente (`InventarioArens-Administrativo` y
+  `InventarioArens-POS`) y se agregaron app IDs distintos para evitar colisiones del single-instance lock.
+- El arranque del runtime usa un lock de startup compartido: si Administrativo y POS comienzan a la vez,
+  solo uno ejecuta `local:install-sqlite` y el otro espera/reutiliza la API local, evitando migraciones SQLite
+  concurrentes.
+- Se asignaron puertos renderer estables (`8788` Administrativo y `8789` POS) y ambos se agregan a la
+  allowlist CSRF de la API local compartida; así los cobros F10 del POS no dependen de qué cliente inició Laravel.
+- El runtime Linux se prepara desde StaticPHP PHP 8.4.24 `bulk`, fijado por SHA-256 y validado con PDO SQLite;
+  ambos clientes usan exactamente el mismo binario portable.
+- Verificación: `pnpm test` 523/523, `tsc --noEmit` verde, builds Vite/AppImage `admin` y `pos` verdes,
+  smoke individual de ambos AppImage Linux verde y smoke concurrente con SQLite compartido verde.
+- Se agrego `docs/WINDOWS_ELECTRON_VALIDATION.md` con requisitos, construccion NSIS, ejecucion, pruebas
+  funcionales, diagnostico, sync cloud, criterios de aprobacion y formato de reporte para validacion Windows.
+- Pendiente: validar el runtime PHP/NSIS en Windows CI y reemplazar las advertencias no bloqueantes de Vite/electron-builder.
+
 ## 2026-07-22 - Decision tecnica: catalogo compartido con operacion local
 
 ### Contexto

@@ -1,0 +1,27 @@
+appId: com.inventarioarens.pos
+productName: POS
+asar: true
+directories:
+  output: release/pos
+files:
+  - electron/**/*
+  - dist/pos/**/*
+  - package.json
+extraMetadata:
+  inventarioAppMode: pos
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - AppImage
+  category: Office
+extraResources:
+  - from: .electron-backend-stage-pos/backend
+    to: backend
+  - from: .electron-backend-stage-pos/runtime/php
+    to: runtime/php

@@ -2,9 +2,10 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 
 import { AuthedLayout } from '@/components/layout/AuthedLayout';
+import { APP_MODE, isRouteAllowedForAppMode } from '@/config/branding';
 import { useSessionStore } from '@/stores/session';
 import { PermissionProvider, buildPermissionValue } from '@/permissions/PermissionContext';
-import { applyDevSession, isAuthDisabled } from '@/auth/devBypass';
+import { applyDevSession, isAuthDisabled, isSyntheticDevSession } from '@/auth/devBypass';
 
 /**
  * Layout autenticado.
@@ -24,25 +25,26 @@ import { applyDevSession, isAuthDisabled } from '@/auth/devBypass';
  * Ver docs/AUTH_COOKIE_API.md seccion "Routing (sync detection de sesion)".
  */
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
+    if (!isRouteAllowedForAppMode(APP_MODE, location.pathname)) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/pos' });
+    }
+
     if (isAuthDisabled()) {
       // No hacemos nada: dejamos pasar.
       return;
     }
 
-    // Fast path: si no hay cookie httpOnly -> ni siquiera intentar renderizar.
-    // hasAuthCookie() lee document.cookie sync.
-    if (typeof document !== 'undefined') {
-      const hasCookie = document.cookie
-        .split('; ')
-        .some((c) => c.startsWith('auth_token='));
-      if (!hasCookie) {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw redirect({ to: '/login' });
-      }
+    const { user, tenant } = useSessionStore.getState();
+    // httpOnly no es visible desde document.cookie. La API valida el token
+    // en cada request; aqui usamos la sesion hidratada para evitar un loop
+    // de redirect inmediatamente despues del login.
+    if (!user || !tenant || isSyntheticDevSession(user)) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/login' });
     }
 
-    const { user, tenant } = useSessionStore.getState();
     if (user?.is_platform_admin && !tenant) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ to: '/master' });
@@ -74,13 +76,7 @@ function AuthedLayoutComponent() {
   // Lo computamos desde el state actual (que ya se actualiza via setSession
   // cuando llega la respuesta de login o el effect de bypass).
   const permissionValue = useMemo(
-    () =>
-      buildPermissionValue(
-        Array.from(permissions),
-        roles,
-        scopeStatus,
-        scopes,
-      ),
+    () => buildPermissionValue(Array.from(permissions), roles, scopeStatus, scopes),
     [permissions, roles, scopeStatus, scopes],
   );
 
@@ -90,16 +86,16 @@ function AuthedLayoutComponent() {
   // el useEffect del bypass aplica la sesion fake.
   if (!isHydrated && isAuthDisabled()) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <div className="text-sm text-text-muted">Inicializando sesion...</div>
+      <div className="bg-bg flex min-h-screen items-center justify-center">
+        <div className="text-text-muted text-sm">Inicializando sesion...</div>
       </div>
     );
   }
 
   if (!user || !tenant) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <div className="text-sm text-text-muted">Cargando sesion...</div>
+      <div className="bg-bg flex min-h-screen items-center justify-center">
+        <div className="text-text-muted text-sm">Cargando sesion...</div>
       </div>
     );
   }

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { useSessionStore } from '@/stores/session';
-import { applyDevSession, isAuthDisabled } from './devBypass';
+import {
+  applyDevSession,
+  isAuthDisabled,
+  isSyntheticDevSession,
+  shouldDisableAuth,
+} from './devBypass';
 
 const emptyScopes = {
   branches: [],
@@ -91,5 +96,28 @@ describe('devBypass (Plan C: cookie httpOnly no manipulable)', () => {
 
   it('isAuthDisabled retorna true por defecto (bypass activo)', () => {
     expect(isAuthDisabled()).toBe(true);
+  });
+
+  it('desactiva el bypass en builds de producción salvo override explícito', () => {
+    expect(
+      shouldDisableAuth({
+        envDisabled: false,
+        isProduction: true,
+        enforceAuth: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDisableAuth({
+        envDisabled: true,
+        isProduction: true,
+        enforceAuth: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('identifica la sesión sintética que no puede usarse contra Laravel', () => {
+    expect(isSyntheticDevSession({ email: 'dev@local' })).toBe(true);
+    expect(isSyntheticDevSession({ email: 'admin@local.test' })).toBe(false);
+    expect(isSyntheticDevSession(null)).toBe(false);
   });
 });

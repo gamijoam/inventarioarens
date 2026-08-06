@@ -27,19 +27,43 @@ import { PERMISSIONS } from '@/permissions/constants';
 
 const ENV_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
+export function shouldDisableAuth({
+  envDisabled,
+  isProduction,
+  enforceAuth,
+}: {
+  envDisabled: boolean;
+  isProduction: boolean;
+  enforceAuth: boolean;
+}): boolean {
+  if (envDisabled) return true;
+  if (isProduction) return false;
+  return !enforceAuth;
+}
+
+export function isSyntheticDevSession(user: { email?: string } | null): boolean {
+  return user?.email === 'dev@local';
+}
+
 /**
  * true = el bypass esta activo y no se deberia gatear la UI con login.
  * false = flujo real: se exige cookie httpOnly + sesion hidratada.
  */
 export function isAuthDisabled(): boolean {
-  if (ENV_DISABLED) return true;
   if (typeof window === 'undefined') return true;
+
+  let enforceAuth = false;
   try {
-    if (window.localStorage.getItem('dev_enforce_auth') === '1') return false;
-    return true;
+    enforceAuth = window.localStorage.getItem('dev_enforce_auth') === '1';
   } catch {
-    return true;
+    enforceAuth = false;
   }
+
+  return shouldDisableAuth({
+    envDisabled: ENV_DISABLED,
+    isProduction: import.meta.env.PROD,
+    enforceAuth,
+  });
 }
 
 const ALL_PERMISSIONS = new Set<string>(Object.values(PERMISSIONS));

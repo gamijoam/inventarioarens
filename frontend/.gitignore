@@ -1,6 +1,8 @@
 node_modules
 dist
 dist-ssr
+release
+.electron-backend-stage*
 .vite
 *.local
 .env.local

@@ -12,9 +12,9 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 
-$storagePath = null;
+$storagePath = getenv('LARAVEL_STORAGE_PATH') ?: null;
 $environmentFile = dirname(__DIR__).'/.env';
-if (is_readable($environmentFile)) {
+if ($storagePath === null && is_readable($environmentFile)) {
     $environment = (string) file_get_contents($environmentFile);
     if (preg_match('/^\s*LARAVEL_STORAGE_PATH\s*=\s*(.+?)\s*$/m', $environment, $matches) === 1) {
         $storagePath = trim($matches[1], " \t\n\r\0\x0B\"'");

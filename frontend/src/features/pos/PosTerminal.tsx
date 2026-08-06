@@ -2,9 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
 import { Link } from '@tanstack/react-router';
 import {
-  Banknote,
   CreditCard,
-  History,
   Loader2,
   Minus,
   PauseCircle,
@@ -13,7 +11,6 @@ import {
   Receipt,
   RotateCcw,
   Search,
-  TrendingUp,
   Trash2,
   UserRound,
   Wallet,
@@ -33,8 +30,10 @@ import {
   SheetTitle,
 } from '@/components/ui/Sheet';
 import { Textarea } from '@/components/ui/Textarea';
+import { PosShell, type PosShellAction, type PosShellContext } from '@/components/layout/PosShell';
 import { PERMISSIONS } from '@/permissions/constants';
 import { usePermissionContext } from '@/permissions/PermissionContext';
+import { useSessionStore } from '@/stores/session';
 import { cn } from '@/lib/cn';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
@@ -175,6 +174,65 @@ export function shouldTriggerPosCheckoutShortcut(
   return shouldTriggerPosCheckoutOnEnter(input);
 }
 
+export interface PosShellContextInput {
+  tenantName: string;
+  branchName: string | null;
+  warehouseName: string | null;
+  cashRegisterName: string | null;
+  rateLabel: string | null;
+  bootstrapLoading: boolean;
+  hasActiveSession: boolean;
+  isOnline: boolean;
+}
+
+export function buildPosShellContext(input: PosShellContextInput): PosShellContext {
+  return {
+    tenantName: input.tenantName,
+    branchName: input.branchName,
+    warehouseName: input.warehouseName,
+    cashRegisterName: input.cashRegisterName,
+    rateLabel: input.rateLabel,
+    sessionStatus: input.bootstrapLoading ? 'loading' : input.hasActiveSession ? 'open' : 'closed',
+    syncStatus: input.isOnline ? 'online' : 'offline',
+  };
+}
+
+export interface PosShellActionCallbacks {
+  onOpenCash: () => void;
+  onOpenPending: () => void;
+  onOpenReceipt: () => void;
+  onOpenClose: () => void;
+}
+
+export function buildPosShellActions(callbacks: PosShellActionCallbacks): PosShellAction[] {
+  return [
+    {
+      id: 'cash',
+      label: 'Caja',
+      permission: PERMISSIONS.CASH_REGISTER_VIEW,
+      onClick: callbacks.onOpenCash,
+    },
+    {
+      id: 'pending',
+      label: 'Pendientes',
+      permission: PERMISSIONS.POS_VIEW,
+      onClick: callbacks.onOpenPending,
+    },
+    {
+      id: 'receipt',
+      label: 'Recibo',
+      permission: PERMISSIONS.POS_VIEW,
+      onClick: callbacks.onOpenReceipt,
+    },
+    {
+      id: 'close',
+      label: 'Cerrar turno',
+      permission: PERMISSIONS.CASH_REGISTER_CLOSE,
+      onClick: callbacks.onOpenClose,
+    },
+  ];
+}
+
 export function formatPosRateLabel(
   rate: { code: string; name?: string; rate: number } | null,
 ): string {
@@ -184,10 +242,11 @@ export function formatPosRateLabel(
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
 }
 
-export const POS_LAYOUT_CLASS_NAME = 'flex h-screen flex-col overflow-hidden';
+export const POS_LAYOUT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col overflow-hidden';
 
 export function PosTerminal() {
   const { permissions } = usePermissionContext();
+  const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
   const canDiscount = permissions.has(PERMISSIONS.POS_DISCOUNT);
@@ -205,6 +264,7 @@ export function PosTerminal() {
 
   const searchRef = useRef<HTMLInputElement | null>(null);
   const holdSaleRef = useRef<(() => Promise<void>) | null>(null);
+  const confirmPaidSaleRef = useRef<(() => Promise<void>) | null>(null);
   // Estado POS (Zustand) ============================================
   // Carrito, pagos, panel, query y seleccion de almacen/lista se
   // almacenan en un store global con selectores atomicos para que
@@ -274,7 +334,22 @@ export function PosTerminal() {
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
   const [serialSearch, setSerialSearch] = useState('');
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  );
   const deferredSerialSearch = useDeferredValue(serialSearch);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const bootstrapRefs = useBootstrapRefsForPos();
   const bootstrap = usePosBootstrap();
@@ -444,6 +519,22 @@ export function PosTerminal() {
   );
   const selectedWarehouse =
     warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
+  const shellContext = buildPosShellContext({
+    tenantName,
+    branchName: activeSession?.branch?.name ?? null,
+    warehouseName: selectedWarehouse?.name ?? null,
+    cashRegisterName: activeSession?.cash_register?.name ?? null,
+    rateLabel: activeRate ? formatPosRateLabel(activeRate) : null,
+    bootstrapLoading: bootstrap.isLoading,
+    hasActiveSession: Boolean(activeSession),
+    isOnline,
+  });
+  const shellActions = buildPosShellActions({
+    onOpenCash: () => setPanel('cash'),
+    onOpenPending: () => setPanel('hold'),
+    onOpenReceipt: () => setPanel('receipt'),
+    onOpenClose: () => setPanel('cash'),
+  });
   const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
   const { data: availableSerials = [], isLoading: loadingSerials } =
     useAvailableProductSerialsForPos(
@@ -454,7 +545,7 @@ export function PosTerminal() {
   useEffect(() => {
     setSerialSearch('');
   }, [panel, serialLineId]);
-  const products = productPage?.data ?? [];
+  const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
   const quickSearchResults = useMemo(() => products.slice(0, 4), [products]);
   const [quickSearchIndex, setQuickSearchIndex] = useState(0);
   useEffect(() => {
@@ -484,6 +575,7 @@ export function PosTerminal() {
   });
   const openingRate = activeRate;
   holdSaleRef.current = holdSale;
+  confirmPaidSaleRef.current = confirmPaidSale;
 
   useEffect(() => {
     // Sprint POS 5 fix: validar que warehouses[0]?.id sea un numero positivo
@@ -625,7 +717,7 @@ export function PosTerminal() {
         })
       ) {
         event.preventDefault();
-        void confirmPaidSale();
+        void confirmPaidSaleRef.current?.();
         return;
       }
 
@@ -691,20 +783,21 @@ export function PosTerminal() {
     priceListPaymentIssue,
     setPanel,
     setProductSearch,
-    confirmPaidSale,
   ]);
 
   if (!canView) {
     return (
-      <div className="bg-bg flex min-h-[70vh] items-center justify-center">
-        <div className="border-border bg-surface max-w-md rounded border p-6 text-center shadow-sm">
-          <Wallet className="text-text-muted mx-auto mb-3 size-8" />
-          <h1 className="text-lg font-semibold">POS no disponible</h1>
-          <p className="text-text-muted mt-2 text-sm">
-            Necesitas el permiso pos.view para usar la caja de venta.
-          </p>
+      <PosShell context={shellContext} actions={shellActions}>
+        <div className="bg-bg flex min-h-[70vh] items-center justify-center">
+          <div className="border-border bg-surface max-w-md rounded border p-6 text-center shadow-sm">
+            <Wallet className="text-text-muted mx-auto mb-3 size-8" />
+            <h1 className="text-lg font-semibold">POS no disponible</h1>
+            <p className="text-text-muted mt-2 text-sm">
+              Necesitas el permiso pos.view para usar la caja de venta.
+            </p>
+          </div>
         </div>
-      </div>
+      </PosShell>
     );
   }
 
@@ -717,727 +810,699 @@ export function PosTerminal() {
       bootstrapReady)
   ) {
     return (
-      <OpenCashScreen
-        canOpenCash={canOpenCash}
-        branches={branches}
-        cashRegisters={activeCashRegisters}
-        branchId={openingBranchId}
-        registerId={openingRegisterId}
-        baseAmount={openingBaseAmount}
-        localAmount={openingLocalAmount}
-        rateLabel={
-          openingRate ? `${openingRate.code} @ ${formatLocalNumber(openingRate.rate)}` : null
-        }
-        onBranchChange={setOpeningBranchId}
-        onRegisterChange={setOpeningRegisterId}
-        onBaseAmountChange={setOpeningBaseAmount}
-        onLocalAmountChange={setOpeningLocalAmount}
-        onOpen={() => {
-          if (!openingBranchId) return toast.error('Selecciona una sucursal.');
-          if (!openingRegisterId) return toast.error('Selecciona una caja fisica activa.');
-          if (Number(openingLocalAmount || 0) > 0 && !openingRate) {
-            return toast.error('Configura una tasa activa USD/VES antes de abrir con fondo VES.');
+      <PosShell context={shellContext} actions={shellActions}>
+        <OpenCashScreen
+          canOpenCash={canOpenCash}
+          branches={branches}
+          cashRegisters={activeCashRegisters}
+          branchId={openingBranchId}
+          registerId={openingRegisterId}
+          baseAmount={openingBaseAmount}
+          localAmount={openingLocalAmount}
+          rateLabel={
+            openingRate ? `${openingRate.code} @ ${formatLocalNumber(openingRate.rate)}` : null
           }
-          setCashSessionOpening(true);
-          setCashSessionClosed(false);
-          openCash.mutate(
-            {
-              branch_id: Number(openingBranchId),
-              cash_register_id: Number(openingRegisterId),
-              opening_base_amount: Number(openingBaseAmount || 0),
-              opening_local_amount: Number(openingLocalAmount || 0),
-              exchange_rate_type_id:
-                Number(openingLocalAmount || 0) > 0 ? openingRate?.exchange_rate_type_id : null,
-              notes: 'Apertura desde POS',
-            },
-            {
-              onError: (error) => {
-                setCashSessionOpening(false);
-                setCashSessionClosed(true);
-                void bootstrap.refetch();
-                toast.error(errorMessage(error));
+          onBranchChange={setOpeningBranchId}
+          onRegisterChange={setOpeningRegisterId}
+          onBaseAmountChange={setOpeningBaseAmount}
+          onLocalAmountChange={setOpeningLocalAmount}
+          onOpen={() => {
+            if (!openingBranchId) return toast.error('Selecciona una sucursal.');
+            if (!openingRegisterId) return toast.error('Selecciona una caja fisica activa.');
+            if (Number(openingLocalAmount || 0) > 0 && !openingRate) {
+              return toast.error('Configura una tasa activa USD/VES antes de abrir con fondo VES.');
+            }
+            setCashSessionOpening(true);
+            setCashSessionClosed(false);
+            openCash.mutate(
+              {
+                branch_id: Number(openingBranchId),
+                cash_register_id: Number(openingRegisterId),
+                opening_base_amount: Number(openingBaseAmount || 0),
+                opening_local_amount: Number(openingLocalAmount || 0),
+                exchange_rate_type_id:
+                  Number(openingLocalAmount || 0) > 0 ? openingRate?.exchange_rate_type_id : null,
+                notes: 'Apertura desde POS',
               },
-              onSettled: () => setCashSessionClosed(false),
-            },
-          );
-        }}
-        busy={openCash.isPending}
-      />
+              {
+                onError: (error) => {
+                  setCashSessionOpening(false);
+                  setCashSessionClosed(true);
+                  void bootstrap.refetch();
+                  toast.error(errorMessage(error));
+                },
+                onSettled: () => setCashSessionClosed(false),
+              },
+            );
+          }}
+          busy={openCash.isPending}
+        />
+      </PosShell>
     );
   }
 
   return (
-    <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-      <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
-        <div className="order-1 flex min-w-[300px] flex-1 items-center gap-3">
-          <div className="from-primary text-primary-foreground shadow-primary/20 flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br to-[#2f238f] shadow-md">
-            <Receipt className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-lg leading-tight font-semibold">POS</h1>
-            <p className="text-text-muted text-xs">
-              {activeSession?.cash_register?.name ?? 'Caja abierta'} -{' '}
-              {selectedWarehouse?.name ?? 'Sin almacen'}
-            </p>
-          </div>
-          {activeRate && (
-            <div className="border-success/30 bg-success/10 ml-auto flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-1.5">
-              <TrendingUp className="text-success size-4" aria-hidden="true" />
-              <div className="leading-tight">
-                <p className="text-success/75 text-[9px] font-semibold tracking-wide uppercase">
-                  Tasa
-                </p>
-                <p className="text-success max-w-40 truncate text-sm font-bold">
-                  {activeRate.name}
-                </p>
-                <p className="text-success/70 text-[10px]">
-                  @ {formatLocalNumber(activeRate.rate)}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
-          <div className="space-y-1">
-            <label className="text-text-muted block text-[10px] font-semibold uppercase">
-              Buscar / escanear
-            </label>
-            <div className="relative">
-              <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                ref={searchRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
-                    event.preventDefault();
-                    setQuickSearchIndex((current) => (current + 1) % quickSearchResults.length);
-                    return;
-                  }
-                  if (event.key === 'ArrowUp' && quickSearchResults.length > 0) {
-                    event.preventDefault();
-                    setQuickSearchIndex(
-                      (current) =>
-                        (current - 1 + quickSearchResults.length) % quickSearchResults.length,
-                    );
-                    return;
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    const selectedProduct =
-                      quickSearchResults[quickSearchIndex] ?? quickSearchResults[0];
-                    if (selectedProduct) {
-                      void addProduct(selectedProduct).then((added) => {
-                        if (added) {
-                          setQuery('');
-                          setQuickSearchIndex(0);
-                        }
-                      });
+    <PosShell context={shellContext} actions={shellActions}>
+      <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
+        <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
+          <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
+            <div className="space-y-1">
+              <label className="text-text-muted block text-[10px] font-semibold uppercase">
+                Buscar / escanear
+              </label>
+              <div className="relative">
+                <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
+                      event.preventDefault();
+                      setQuickSearchIndex((current) => (current + 1) % quickSearchResults.length);
                       return;
                     }
-                    void handleProductSearchEnter();
-                  }
-                }}
-                className="h-10 pl-9 text-base"
-                placeholder="Escanea codigo, SKU o escribe producto"
-                data-pos-search-input="true"
-                data-testid="pos-search"
-              />
-              {!panel && query.trim().length >= 2 && quickSearchResults.length > 0 && (
-                <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
-                  <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
-                    <span>Resultados rapidos</span>
-                    <button
-                      type="button"
-                      className="text-primary font-semibold hover:underline"
-                      onClick={() => {
-                        setProductSearch(query);
-                        setPanel('product-search');
-                      }}
-                    >
-                      Ver todos
-                    </button>
-                  </div>
-                  <div className="max-h-96 overflow-auto p-2">
-                    {quickSearchResults.map((product, index) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        className={cn(
-                          'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                          index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
-                        )}
-                        onClick={() => {
-                          void addProduct(product).then((added) => {
-                            if (added) {
-                              setQuery('');
-                              setQuickSearchIndex(0);
-                            }
-                          });
-                        }}
-                        onMouseEnter={() => setQuickSearchIndex(index)}
-                      >
-                        <ProductImageView
-                          image={primaryProductImage(product)}
-                          src={productImageSrc(product) ?? undefined}
-                          alt={product.name}
-                          variant="thumb"
-                          className="border-border bg-bg size-12 shrink-0 rounded-lg border"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{product.name}</p>
-                          <p className="text-text-muted truncate text-xs">
-                            {product.sku ?? product.barcode ?? 'Sin codigo'}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'}
-                          className="text-[10px]"
-                        >
-                          {Number(product.available_stock ?? 0) > 0
-                            ? `Stock ${Number(product.available_stock)}`
-                            : 'Sin stock'}
-                        </Badge>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-text-muted block text-[10px] font-semibold uppercase">
-              Almacen
-            </label>
-            <Select
-              value={warehouseId ?? ''}
-              onChange={(event) =>
-                setWarehouseId(event.target.value ? Number(event.target.value) : null)
-              }
-            >
-              {warehouses.map((warehouse) => (
-                <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.code} - {warehouse.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-text-muted block text-[10px] font-semibold uppercase">
-              Lista de precio
-            </label>
-            <Select
-              value={selectedPriceListId ?? 'base'}
-              onChange={(event) =>
-                void changePriceList(
-                  event.target.value === 'base' ? null : Number(event.target.value),
-                )
-              }
-              disabled={repricing}
-              data-testid="pos-price-list"
-            >
-              <option value="base">{BASE_PRICE_LIST_LABEL}</option>
-              {priceLists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.code} - {list.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </div>
-        <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-              void confirmPaidSale();
-            }}
-            disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-            className="shadow-sm"
-          >
-            {checkout.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <CreditCard className="size-4" />
-            )}
-            Cobrar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setProductSearch(query);
-              setPanel('product-search');
-            }}
-          >
-            <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-              setPanel('pay');
-            }}
-            disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-          >
-            <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
-            <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={cart.length === 0 || !canCheckout || checkout.isPending}
-            onClick={() => void holdSale()}
-          >
-            <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setPanel('hold')}>
-            <History className="size-4" /> <ShortcutText label="F7" text="Pendientes" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setPanel('cash')}>
-            <Banknote className="size-4" /> Caja
-          </Button>
-        </div>
-      </header>
-
-      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
-        <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-          <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold">Ticket actual</h2>
-                {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
-              </div>
-              <p className="text-text-muted text-xs">
-                {selectedCustomer ? 'Cliente asignado' : customerName}
-              </p>
-              {exchangeReturnId && (
-                <p className="text-primary mt-1 text-xs">
-                  Confirma el pago aquí para completar la devolución.
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
-                <UserRound className="size-4" /> Cliente
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => clearTicket()}>
-                <RotateCcw className="size-4" /> Nuevo
-              </Button>
-            </div>
-          </div>
-          <CustomerAssignmentBanner
-            customer={selectedCustomer}
-            customerName={customerName}
-            onChange={() => setPanel('customer')}
-            onClear={() => {
-              if (exchangeReturnId) {
-                toast.error('El cliente de un canje no puede cambiarse.');
-                return;
-              }
-              setSelectedCustomer(null);
-              setCustomerName('Consumidor Final');
-            }}
-          />
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-3">
-            {cart.length === 0 ? (
-              <div className="border-border bg-surface text-text-muted flex h-full items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm">
-                <div>
-                  <Search className="text-primary/50 mx-auto mb-3 size-8" />
-                  <p className="text-text-secondary font-semibold">Ticket listo para vender</p>
-                  <p className="mt-1">
-                    Agrega productos con el buscador o escanea un codigo de barras.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {cart.map((line) => (
-                  <CartLineRow
-                    key={line.id}
-                    line={line}
-                    canDiscount={canDiscount}
-                    onChange={(patch) => updateLine(line.id, patch)}
-                    onSerials={() => {
-                      setSerialLineId(line.id);
-                      setPanel('serials');
-                    }}
-                    onRemove={() =>
-                      setCart((current) => current.filter((item) => item.id !== line.id))
+                    if (event.key === 'ArrowUp' && quickSearchResults.length > 0) {
+                      event.preventDefault();
+                      setQuickSearchIndex(
+                        (current) =>
+                          (current - 1 + quickSearchResults.length) % quickSearchResults.length,
+                      );
+                      return;
                     }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-          <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                <p className="mt-1 text-4xl font-bold tracking-normal">{money(cartTotals.total)}</p>
-              </div>
-              <div className="min-w-28 space-y-1 text-right text-xs text-white/70">
-                <AmountRow label="Subtotal" value={cartTotals.subtotal} />
-                {cartTotals.discount > 0 && (
-                  <AmountRow label="Desc." value={cartTotals.discount} muted />
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
-            {activePaymentMethods.length === 0 ? (
-              <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
-                Configura metodos de pago para cobrar rapido.
-                <Button asChild className="mt-3 w-full" variant="outline">
-                  <Link to="/payment-methods">Configurar metodos</Link>
-                </Button>
-              </div>
-            ) : null}
-            {priceListNotice ? (
-              <p className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
-                {priceListNotice}
-              </p>
-            ) : null}
-            {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
-              <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
-                {priceListPaymentIssue}
-                <Button asChild className="mt-3 w-full" variant="outline">
-                  <Link to="/inventory/admin">Configurar lista</Link>
-                </Button>
-              </div>
-            ) : null}
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <AmountRow label="Pagado" value={paymentTotals.paid} />
-              {payments.length > 0 && (
-                <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
-                  <span>Pagos aplicados</span>
-                  <span>{payments.length}</span>
-                </div>
-              )}
-              {payments.length > 0 && (
-                <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
-                  {payments.map((payment) => (
-                    <PaymentChip
-                      key={payment.id}
-                      payment={payment}
-                      methods={configuredPaymentMethods}
-                      rateTypes={exchangeRateTypes}
-                      onChange={(patch) => updatePayment(payment.id, patch)}
-                      locked={Boolean(exchangeReturnId && payment.method === 'customer_credit')}
-                      onRemove={() =>
-                        setPayments((current) => current.filter((item) => item.id !== payment.id))
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      const selectedProduct =
+                        quickSearchResults[quickSearchIndex] ?? quickSearchResults[0];
+                      if (selectedProduct) {
+                        void addProduct(selectedProduct).then((added) => {
+                          if (added) {
+                            setQuery('');
+                            setQuickSearchIndex(0);
+                          }
+                        });
+                        return;
                       }
-                    />
-                  ))}
-                </div>
-              )}
-              {!exchangeReturnId &&
-                selectedCustomer &&
-                Number(customerCredit?.available_base_amount ?? 0) > 0 &&
-                paymentTotals.remaining > 0 &&
-                !payments.some((payment) => payment.method === 'customer_credit') && (
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={() => applyCustomerCredit()}
-                  >
-                    Aplicar saldo a favor:{' '}
-                    {money(
-                      Math.min(
-                        Number(customerCredit?.available_base_amount ?? 0),
-                        paymentTotals.remaining,
-                      ),
-                    )}
-                  </Button>
-                )}
-              {payments.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => setPanel('pay')}
-                  disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                  className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Agregar pago con F2
-                </button>
-              )}
-            </div>
-            <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
-              <AmountRow label="Restante USD" value={paymentTotals.remaining} />
-              {activeRate && (
-                <AmountRow
-                  label={`Restante en bolivares · ${activeRate.name}`}
-                  value={paymentAmountForCurrency(paymentTotals.remaining, 'VES', activeRate.rate)}
-                  currency="VES"
+                      void handleProductSearchEnter();
+                    }
+                  }}
+                  className="h-10 pl-9 text-base"
+                  placeholder="Escanea codigo, SKU o escribe producto"
+                  data-pos-search-input="true"
+                  data-testid="pos-search"
                 />
-              )}
-              <div className="bg-success/10 mt-2 rounded p-3">
-                <p className="text-text-muted text-xs">Vuelto</p>
-                <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
-                {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
-                  <p className="text-success mt-1 text-sm font-semibold">
-                    Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
-                    {paymentTotals.change_rate
-                      ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
-                      : ''}
-                  </p>
+                {!panel && query.trim().length >= 2 && quickSearchResults.length > 0 && (
+                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
+                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
+                      <span>Resultados rapidos</span>
+                      <button
+                        type="button"
+                        className="text-primary font-semibold hover:underline"
+                        onClick={() => {
+                          setProductSearch(query);
+                          setPanel('product-search');
+                        }}
+                      >
+                        Ver todos
+                      </button>
+                    </div>
+                    <div className="max-h-96 overflow-auto p-2">
+                      {quickSearchResults.map((product, index) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className={cn(
+                            'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                            index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
+                          )}
+                          onClick={() => {
+                            void addProduct(product).then((added) => {
+                              if (added) {
+                                setQuery('');
+                                setQuickSearchIndex(0);
+                              }
+                            });
+                          }}
+                          onMouseEnter={() => setQuickSearchIndex(index)}
+                        >
+                          <ProductImageView
+                            image={primaryProductImage(product)}
+                            src={productImageSrc(product) ?? undefined}
+                            alt={product.name}
+                            variant="thumb"
+                            className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{product.name}</p>
+                            <p className="text-text-muted truncate text-xs">
+                              {product.sku ?? product.barcode ?? 'Sin codigo'}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'
+                            }
+                            className="text-[10px]"
+                          >
+                            {Number(product.available_stock ?? 0) > 0
+                              ? `Stock ${Number(product.available_stock)}`
+                              : 'Sin stock'}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
+            <div className="space-y-1">
+              <label className="text-text-muted block text-[10px] font-semibold uppercase">
+                Almacen
+              </label>
+              <Select
+                value={warehouseId ?? ''}
+                onChange={(event) =>
+                  setWarehouseId(event.target.value ? Number(event.target.value) : null)
+                }
+              >
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.code} - {warehouse.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-text-muted block text-[10px] font-semibold uppercase">
+                Lista de precio
+              </label>
+              <Select
+                value={selectedPriceListId ?? 'base'}
+                onChange={(event) =>
+                  void changePriceList(
+                    event.target.value === 'base' ? null : Number(event.target.value),
+                  )
+                }
+                disabled={repricing}
+                data-testid="pos-price-list"
+              >
+                <option value="base">{BASE_PRICE_LIST_LABEL}</option>
+                {priceLists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.code} - {list.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
-
-          <div className="border-border shrink-0 space-y-2 border-t p-3">
-            {checkoutBlockReason && (
-              <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
-                {checkoutBlockReason}
-              </p>
-            )}
+          <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
             <Button
-              className="h-12 w-full text-base"
+              size="sm"
+              onClick={() => {
+                if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                void confirmPaidSale();
+              }}
               disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-              onClick={() => void confirmPaidSale()}
+              className="shadow-sm"
             >
               {checkout.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                <CreditCard className="size-5" />
+                <CreditCard className="size-4" />
               )}
-              <ShortcutText label="F10" text="Cobrar" />
+              Cobrar
             </Button>
             <Button
-              className="h-10 w-full"
-              variant="secondary"
-              disabled={
-                !canCheckout ||
-                !canCollectReceivables ||
-                cart.length === 0 ||
-                hasStockIssue(cart) ||
-                hasPriceIssue(cart) ||
-                Boolean(priceListPaymentIssue) ||
-                checkout.isPending
-              }
-              onClick={() => setPanel('credit')}
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setProductSearch(query);
+                setPanel('product-search');
+              }}
             >
-              <Wallet className="size-4" />
-              Enviar a CxC
+              <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                setPanel('pay');
+              }}
+              disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+            >
+              <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+              <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cart.length === 0 || !canCheckout || checkout.isPending}
+              onClick={() => void holdSale()}
+            >
+              <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
             </Button>
           </div>
-        </aside>
-      </main>
+        </header>
 
-      {panel && (
-        <PanelShell
-          title={panelTitle(panel)}
-          onClose={() => setPanel(null)}
-          wide={panel === 'pay' || panel === 'customer'}
-          actions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setProductSearch(query);
-                  setPanel('product-search');
-                }}
-              >
-                <Search className="size-4" /> F3 Buscar
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                  setPanel('pay');
-                }}
-                disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-              >
-                <CreditCard className="size-4" /> F2 Pago
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
-                <UserRound className="size-4" /> F4 Cliente
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void holdSale()}
-                disabled={cart.length === 0 || !canCheckout || checkout.isPending}
-              >
-                <PauseCircle className="size-4" /> F6 Espera
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setPanel('hold')}>
-                <History className="size-4" /> F7 Pendientes
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setPanel('receipt')}>
-                <Receipt className="size-4" /> F9 Recibo
-              </Button>
-            </>
-          }
-        >
-          {panel === 'customer' && (
-            <CustomerPanel
-              search={customerSearch}
-              customers={customerResults}
+        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
+          <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
+            <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold">Ticket actual</h2>
+                  {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
+                </div>
+                <p className="text-text-muted text-xs">
+                  {selectedCustomer ? 'Cliente asignado' : customerName}
+                </p>
+                {exchangeReturnId && (
+                  <p className="text-primary mt-1 text-xs">
+                    Confirma el pago aquí para completar la devolución.
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+                  <UserRound className="size-4" /> Cliente
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => clearTicket()}>
+                  <RotateCcw className="size-4" /> Nuevo
+                </Button>
+              </div>
+            </div>
+            <CustomerAssignmentBanner
+              customer={selectedCustomer}
               customerName={customerName}
-              form={quickCustomer}
-              canCreate={canCreateCustomer}
-              creating={createCustomer.isPending}
-              onSearch={setCustomerSearch}
-              onGeneric={() => {
+              onChange={() => setPanel('customer')}
+              onClear={() => {
                 if (exchangeReturnId) {
                   toast.error('El cliente de un canje no puede cambiarse.');
                   return;
                 }
                 setSelectedCustomer(null);
                 setCustomerName('Consumidor Final');
-                setPanel(null);
               }}
-              onName={setCustomerName}
-              onFormChange={(patch) => setQuickCustomer((current) => ({ ...current, ...patch }))}
-              onCreate={() => void createQuickCustomer()}
-              onSelect={(customer) => {
-                if (exchangeReturnId && customer.id !== selectedCustomer?.id) {
-                  toast.error('El cliente de un canje no puede cambiarse.');
-                  return;
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-3">
+              {cart.length === 0 ? (
+                <div className="border-border bg-surface text-text-muted flex h-full items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm">
+                  <div>
+                    <Search className="text-primary/50 mx-auto mb-3 size-8" />
+                    <p className="text-text-secondary font-semibold">Ticket listo para vender</p>
+                    <p className="mt-1">
+                      Agrega productos con el buscador o escanea un codigo de barras.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {cart.map((line) => (
+                    <CartLineRow
+                      key={line.id}
+                      line={line}
+                      canDiscount={canDiscount}
+                      onChange={(patch) => updateLine(line.id, patch)}
+                      onSerials={() => {
+                        setSerialLineId(line.id);
+                        setPanel('serials');
+                      }}
+                      onRemove={() =>
+                        setCart((current) => current.filter((item) => item.id !== line.id))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
+            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
+                  <p className="mt-1 text-4xl font-bold tracking-normal">
+                    {money(cartTotals.total)}
+                  </p>
+                </div>
+                <div className="min-w-28 space-y-1 text-right text-xs text-white/70">
+                  <AmountRow label="Subtotal" value={cartTotals.subtotal} />
+                  {cartTotals.discount > 0 && (
+                    <AmountRow label="Desc." value={cartTotals.discount} muted />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+              {activePaymentMethods.length === 0 ? (
+                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                  Configura metodos de pago para cobrar rapido.
+                  <Button asChild className="mt-3 w-full" variant="outline">
+                    <Link to="/payment-methods">Configurar metodos</Link>
+                  </Button>
+                </div>
+              ) : null}
+              {priceListNotice ? (
+                <p className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                  {priceListNotice}
+                </p>
+              ) : null}
+              {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
+                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                  {priceListPaymentIssue}
+                  <Button asChild className="mt-3 w-full" variant="outline">
+                    <Link to="/inventory/admin">Configurar lista</Link>
+                  </Button>
+                </div>
+              ) : null}
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <AmountRow label="Pagado" value={paymentTotals.paid} />
+                {payments.length > 0 && (
+                  <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
+                    <span>Pagos aplicados</span>
+                    <span>{payments.length}</span>
+                  </div>
+                )}
+                {payments.length > 0 && (
+                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
+                    {payments.map((payment) => (
+                      <PaymentChip
+                        key={payment.id}
+                        payment={payment}
+                        methods={configuredPaymentMethods}
+                        rateTypes={exchangeRateTypes}
+                        onChange={(patch) => updatePayment(payment.id, patch)}
+                        locked={Boolean(exchangeReturnId && payment.method === 'customer_credit')}
+                        onRemove={() =>
+                          setPayments((current) => current.filter((item) => item.id !== payment.id))
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                {!exchangeReturnId &&
+                  selectedCustomer &&
+                  Number(customerCredit?.available_base_amount ?? 0) > 0 &&
+                  paymentTotals.remaining > 0 &&
+                  !payments.some((payment) => payment.method === 'customer_credit') && (
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => applyCustomerCredit()}
+                    >
+                      Aplicar saldo a favor:{' '}
+                      {money(
+                        Math.min(
+                          Number(customerCredit?.available_base_amount ?? 0),
+                          paymentTotals.remaining,
+                        ),
+                      )}
+                    </Button>
+                  )}
+                {payments.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPanel('pay')}
+                    disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Agregar pago con F2
+                  </button>
+                )}
+              </div>
+              <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
+                <AmountRow label="Restante USD" value={paymentTotals.remaining} />
+                {activeRate && (
+                  <AmountRow
+                    label={`Restante en bolivares · ${activeRate.name}`}
+                    value={paymentAmountForCurrency(
+                      paymentTotals.remaining,
+                      'VES',
+                      activeRate.rate,
+                    )}
+                    currency="VES"
+                  />
+                )}
+                <div className="bg-success/10 mt-2 rounded p-3">
+                  <p className="text-text-muted text-xs">Vuelto</p>
+                  <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
+                  {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
+                    <p className="text-success mt-1 text-sm font-semibold">
+                      Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
+                      {paymentTotals.change_rate
+                        ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-border shrink-0 space-y-2 border-t p-3">
+              {checkoutBlockReason && (
+                <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
+                  {checkoutBlockReason}
+                </p>
+              )}
+              <Button
+                className="h-12 w-full text-base"
+                disabled={Boolean(checkoutBlockReason) || checkout.isPending}
+                onClick={() => void confirmPaidSale()}
+              >
+                {checkout.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CreditCard className="size-5" />
+                )}
+                <ShortcutText label="F10" text="Cobrar" />
+              </Button>
+              <Button
+                className="h-10 w-full"
+                variant="secondary"
+                disabled={
+                  !canCheckout ||
+                  !canCollectReceivables ||
+                  cart.length === 0 ||
+                  hasStockIssue(cart) ||
+                  hasPriceIssue(cart) ||
+                  Boolean(priceListPaymentIssue) ||
+                  checkout.isPending
                 }
-                setSelectedCustomer(customer);
-                setCustomerName(customer.name);
-                setPanel(null);
-              }}
-            />
-          )}
-          {panel === 'hold' && (
-            <HoldPanel
-              orders={pendingOrders}
-              selected={selectedPending}
-              canCancel={canCancel}
-              onSelect={setSelectedPending}
-              onPaySelected={() => selectedPending && void recoverPendingOrder(selectedPending)}
-              onCancel={(order) => cancelOrder.mutate(order.id)}
-            />
-          )}
-          {panel === 'cash' && activeSession && (
-            <CashPanel
-              session={activeSession}
-              canMove={canMoveCash}
-              canClose={canCloseCash}
-              movement={cashMovement}
-              closingAmount={closingAmount}
-              onMovementChange={setCashMovement}
-              onClosingAmount={setClosingAmount}
-              onAddMovement={() => {
-                if (!Number(cashMovement.amount)) return toast.error('Ingresa un monto.');
-                addCashMovement.mutate({
-                  sessionId: activeSession.id,
-                  payload: {
-                    type: cashMovement.type as 'inflow' | 'outflow' | 'adjustment',
-                    method: 'cash',
-                    currency: 'USD',
-                    amount: Number(cashMovement.amount),
-                    notes: cashMovement.notes,
-                  },
-                });
-                setCashMovement({ type: 'outflow', amount: '', notes: '' });
-              }}
-              onCloseSession={() => {
-                if (!Number(closingAmount)) return toast.error('Ingresa el efectivo contado.');
-                setCashSessionClosed(true);
-                closeCash.mutate(
-                  {
+                onClick={() => setPanel('credit')}
+              >
+                <Wallet className="size-4" />
+                Enviar a CxC
+              </Button>
+            </div>
+          </aside>
+        </main>
+
+        {panel && (
+          <PanelShell
+            title={panelTitle(panel)}
+            onClose={() => setPanel(null)}
+            wide={panel === 'pay' || panel === 'customer'}
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setProductSearch(query);
+                    setPanel('product-search');
+                  }}
+                >
+                  <Search className="size-4" /> F3 Buscar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                    setPanel('pay');
+                  }}
+                  disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                >
+                  <CreditCard className="size-4" /> F2 Pago
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+                  <UserRound className="size-4" /> F4 Cliente
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void holdSale()}
+                  disabled={cart.length === 0 || !canCheckout || checkout.isPending}
+                >
+                  <PauseCircle className="size-4" /> F6 Espera
+                </Button>
+              </>
+            }
+          >
+            {panel === 'customer' && (
+              <CustomerPanel
+                search={customerSearch}
+                customers={customerResults}
+                customerName={customerName}
+                form={quickCustomer}
+                canCreate={canCreateCustomer}
+                creating={createCustomer.isPending}
+                onSearch={setCustomerSearch}
+                onGeneric={() => {
+                  if (exchangeReturnId) {
+                    toast.error('El cliente de un canje no puede cambiarse.');
+                    return;
+                  }
+                  setSelectedCustomer(null);
+                  setCustomerName('Consumidor Final');
+                  setPanel(null);
+                }}
+                onName={setCustomerName}
+                onFormChange={(patch) => setQuickCustomer((current) => ({ ...current, ...patch }))}
+                onCreate={() => void createQuickCustomer()}
+                onSelect={(customer) => {
+                  if (exchangeReturnId && customer.id !== selectedCustomer?.id) {
+                    toast.error('El cliente de un canje no puede cambiarse.');
+                    return;
+                  }
+                  setSelectedCustomer(customer);
+                  setCustomerName(customer.name);
+                  setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'hold' && (
+              <HoldPanel
+                orders={pendingOrders}
+                selected={selectedPending}
+                canCancel={canCancel}
+                onSelect={setSelectedPending}
+                onPaySelected={() => selectedPending && void recoverPendingOrder(selectedPending)}
+                onCancel={(order) => cancelOrder.mutate(order.id)}
+              />
+            )}
+            {panel === 'cash' && activeSession && (
+              <CashPanel
+                session={activeSession}
+                canMove={canMoveCash}
+                canClose={canCloseCash}
+                movement={cashMovement}
+                closingAmount={closingAmount}
+                onMovementChange={setCashMovement}
+                onClosingAmount={setClosingAmount}
+                onAddMovement={() => {
+                  if (!Number(cashMovement.amount)) return toast.error('Ingresa un monto.');
+                  addCashMovement.mutate({
                     sessionId: activeSession.id,
                     payload: {
-                      counted_currency: 'USD',
-                      counted_amount: Number(closingAmount),
-                      closing_notes: 'Cierre desde POS',
+                      type: cashMovement.type as 'inflow' | 'outflow' | 'adjustment',
+                      method: 'cash',
+                      currency: 'USD',
+                      amount: Number(cashMovement.amount),
+                      notes: cashMovement.notes,
                     },
-                  },
-                  {
-                    onError: (error) => {
-                      setCashSessionClosed(false);
-                      toast.error(errorMessage(error));
+                  });
+                  setCashMovement({ type: 'outflow', amount: '', notes: '' });
+                }}
+                onCloseSession={() => {
+                  if (!Number(closingAmount)) return toast.error('Ingresa el efectivo contado.');
+                  setCashSessionClosed(true);
+                  closeCash.mutate(
+                    {
+                      sessionId: activeSession.id,
+                      payload: {
+                        counted_currency: 'USD',
+                        counted_amount: Number(closingAmount),
+                        closing_notes: 'Cierre desde POS',
+                      },
                     },
-                  },
-                );
-              }}
-            />
-          )}
-          {panel === 'receipt' && (
-            <ReceiptPanel
-              order={lastReceipt}
-              jobs={lastPrintJobs}
-              history={recentPaidOrders}
-              onSelectHistory={(order) => setLastReceipt(order)}
-              canPrint={canPrint}
-              canReprint={canReprint}
-              canDigital={canDigital}
-              busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
-              onPrint={(copy, output) =>
-                lastReceipt && createAndDispatchPrintJobs(lastReceipt, copy, output)
-              }
-              onOpenPdf={(job) => void openTicketPdf(job)}
-            />
-          )}
-          {panel === 'product-search' && (
-            <ProductSearchPanel
-              search={productSearch}
-              products={products}
-              warehouses={warehouses}
-              warehouseId={warehouseId}
-              priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
-              loading={loadingProducts}
-              onSearch={setProductSearch}
-              onWarehouseChange={setWarehouseId}
-              onSelect={async (product) => {
-                const added = await addProduct(product);
-                if (added) setPanel(null);
-              }}
-            />
-          )}
-          {panel === 'pay' && (
-            <QuickPaymentPanel
-              methods={allowedPaymentMethods}
-              cartTotal={cartTotals.total}
-              payments={payments}
-              rate={activeRate}
-              priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
-              issue={priceListPaymentIssue}
-              onSelect={(methodId) => {
-                addQuickPayment(methodId);
-                setPanel(null);
-              }}
-            />
-          )}
-          {panel === 'credit' && (
-            <CreditPanel
-              customer={selectedCustomer}
-              total={cartTotals.total}
-              paid={paymentTotals.paid}
-              dueDate={creditDueDate}
-              canCredit={canCheckout && canCollectReceivables}
-              busy={checkout.isPending}
-              onDueDate={setCreditDueDate}
-              onCustomer={() => setPanel('customer')}
-              onConfirm={() => void confirmCreditSale()}
-            />
-          )}
-          {panel === 'serials' && serialLine && (
-            <SerialSelectionPanel
-              line={serialLine}
-              serials={availableSerials}
-              loading={loadingSerials}
-              search={serialSearch}
-              onSearch={setSerialSearch}
-              onToggle={(serial) => toggleSerial(serialLine.id, serial)}
-            />
-          )}
-        </PanelShell>
-      )}
-    </div>
+                    {
+                      onError: (error) => {
+                        setCashSessionClosed(false);
+                        toast.error(errorMessage(error));
+                      },
+                    },
+                  );
+                }}
+              />
+            )}
+            {panel === 'receipt' && (
+              <ReceiptPanel
+                order={lastReceipt}
+                jobs={lastPrintJobs}
+                history={recentPaidOrders}
+                onSelectHistory={(order) => setLastReceipt(order)}
+                canPrint={canPrint}
+                canReprint={canReprint}
+                canDigital={canDigital}
+                busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
+                onPrint={(copy, output) =>
+                  lastReceipt && createAndDispatchPrintJobs(lastReceipt, copy, output)
+                }
+                onOpenPdf={(job) => void openTicketPdf(job)}
+              />
+            )}
+            {panel === 'product-search' && (
+              <ProductSearchPanel
+                search={productSearch}
+                products={products}
+                warehouses={warehouses}
+                warehouseId={warehouseId}
+                priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
+                loading={loadingProducts}
+                onSearch={setProductSearch}
+                onWarehouseChange={setWarehouseId}
+                onSelect={async (product) => {
+                  const added = await addProduct(product);
+                  if (added) setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'pay' && (
+              <QuickPaymentPanel
+                methods={allowedPaymentMethods}
+                cartTotal={cartTotals.total}
+                payments={payments}
+                rate={activeRate}
+                priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
+                issue={priceListPaymentIssue}
+                onSelect={(methodId) => {
+                  addQuickPayment(methodId);
+                  setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'credit' && (
+              <CreditPanel
+                customer={selectedCustomer}
+                total={cartTotals.total}
+                paid={paymentTotals.paid}
+                dueDate={creditDueDate}
+                canCredit={canCheckout && canCollectReceivables}
+                busy={checkout.isPending}
+                onDueDate={setCreditDueDate}
+                onCustomer={() => setPanel('customer')}
+                onConfirm={() => void confirmCreditSale()}
+              />
+            )}
+            {panel === 'serials' && serialLine && (
+              <SerialSelectionPanel
+                line={serialLine}
+                serials={availableSerials}
+                loading={loadingSerials}
+                search={serialSearch}
+                onSearch={setSerialSearch}
+                onToggle={(serial) => toggleSerial(serialLine.id, serial)}
+              />
+            )}
+          </PanelShell>
+        )}
+      </div>
+    </PosShell>
   );
 
   async function quoteProduct(product: Pick<Product, 'id' | 'name'>, priceList: PriceList) {
@@ -2005,7 +2070,7 @@ export function PosTerminal() {
   }
 
   async function recoverPendingOrder(order: PosOrder): Promise<void> {
-    type PendingSaleItem = {
+    interface PendingSaleItem {
       id: number;
       product_id: number;
       warehouse_id: number;
@@ -2023,7 +2088,7 @@ export function PosTerminal() {
       exchange_rate?: number | null;
       product_unit_ids?: number[];
       serial_units?: { id: number; serial_type?: string | null; serial_number: string }[];
-    };
+    }
 
     const items = ((order.sale as { items?: PendingSaleItem[] } | undefined)?.items ?? []).filter(
       (item) => item.product_id && item.warehouse_id,

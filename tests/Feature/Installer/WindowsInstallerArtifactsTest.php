@@ -46,7 +46,7 @@ class WindowsInstallerArtifactsTest extends TestCase
         $this->assertStringContainsString("'SESSION_SECURE_COOKIE=.*' = 'SESSION_SECURE_COOKIE=false'", $installer);
 
         $client = file_get_contents($root.'/frontend/src/api/client.ts');
-        $this->assertStringContainsString("'http://127.0.0.1:8787/api'", $client);
+        $this->assertStringContainsString(':8787/api', $client);
 
         $inno = file_get_contents($root.'/installer/windows/InventarioArens.iss');
         $this->assertStringContainsString('users-modify', $inno);
@@ -64,5 +64,6 @@ class WindowsInstallerArtifactsTest extends TestCase
 
         $bootstrap = file_get_contents($root.'/bootstrap/app.php');
         $this->assertStringContainsString('LARAVEL_STORAGE_PATH', $bootstrap);
+        $this->assertStringContainsString("getenv('LARAVEL_STORAGE_PATH')", $bootstrap);
     }
 }

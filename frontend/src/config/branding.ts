@@ -2,7 +2,7 @@
  * ============================================================================
  * BRANDING DEL FRONTEND
  * ----------------------------------------------------------------------------
- * UN solo lugar donde se configura el nombre del sistema y la metadata
+ * Un solo lugar donde se configura el nombre del sistema y la metadata
  * visible al usuario. Cambiar APP_NAME aqui actualiza:
  *   - El <title> de la pestana del navegador.
  *   - El branding del panel izquierdo en la pantalla de login.
@@ -14,11 +14,53 @@
  * ============================================================================
  */
 
-export const APP_NAME = 'Sistema de Inventario';
-export const APP_SHORT_NAME = 'INVENTARIOARENS';
-export const APP_TAGLINE = 'Sistema de Inventario multi-tenant';
-export const APP_DESCRIPTION =
-  'Punto de venta, gestión de productos, traslados, cuentas por cobrar/pagar y sincronización local ↔ nube.';
+export type AppMode = 'admin' | 'pos';
+
+export interface AppDefinition {
+  mode: AppMode;
+  name: string;
+  shortName: string;
+  tagline: string;
+  description: string;
+}
+
+export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
+  admin: {
+    mode: 'admin',
+    name: 'Sistema de Inventario (Administrativo)',
+    shortName: 'Sistema de Inventario',
+    tagline: 'Administración multi-tenant',
+    description:
+      'Productos, inventario, compras, ventas, caja, permisos, reportes y sincronización local ↔ nube.',
+  },
+  pos: {
+    mode: 'pos',
+    name: 'POS',
+    shortName: 'POS',
+    tagline: 'Punto de venta',
+    description: 'Ventas, pagos, caja, recibos y operación local con sincronización segura.',
+  },
+};
+
+export function resolveAppMode(value: string | undefined): AppMode {
+  return value?.trim().toLowerCase() === 'pos' ? 'pos' : 'admin';
+}
+
+export function getAppDefinition(mode: AppMode): AppDefinition {
+  return APP_DEFINITIONS[mode];
+}
+
+export function isRouteAllowedForAppMode(mode: AppMode, pathname: string): boolean {
+  if (mode === 'admin') return true;
+  return pathname === '/pos' || pathname.startsWith('/pos/');
+}
+
+export const APP_MODE = resolveAppMode(import.meta.env.VITE_APP_MODE as string | undefined);
+export const APP_DEFINITION = getAppDefinition(APP_MODE);
+export const APP_NAME = APP_DEFINITION.name;
+export const APP_SHORT_NAME = APP_DEFINITION.shortName;
+export const APP_TAGLINE = APP_DEFINITION.tagline;
+export const APP_DESCRIPTION = APP_DEFINITION.description;
 
 export const APP_FEATURES = [
   'Venta en mostrador con pagos mixtos USD/VES',

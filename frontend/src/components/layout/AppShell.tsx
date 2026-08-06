@@ -16,22 +16,16 @@ export function AppShell({ children }: AppShellProps) {
   const isFullBleed = pathname === '/pos';
 
   if (isFullBleed) {
-    return (
-      <div className="min-h-screen bg-bg">
-        {children}
-      </div>
-    );
+    return <>{children}</>;
   }
 
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="bg-bg flex min-h-screen">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-auto">
-          <div className={isFullBleed ? 'w-full' : 'mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8'}>
-            {children}
-          </div>
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
     </div>

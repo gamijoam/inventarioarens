@@ -18,7 +18,8 @@ import { type ReactNode, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 
 import { Spinner } from '@/components/ui/Spinner';
-import { hasAuthCookie, useSessionStore } from '@/stores/session';
+import { useSessionStore } from '@/stores/session';
+import { isSyntheticDevSession } from '@/auth/devBypass';
 
 interface RequireAuthProps {
   children: ReactNode;
@@ -42,20 +43,20 @@ export function RequireAuth({ children }: RequireAuthProps) {
   // Esto cubre el caso edge donde el user manipularia el localStorage
   // para inyectar datos sin cookie real.
   useEffect(() => {
-    if (!hasAuthCookie() && !user) {
+    if (!user || !tenant || isSyntheticDevSession(user)) {
       void router.navigate({ to: '/login' });
     } else if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
       // Sesion expirada segun el store. Limpiar y mandar a /login.
       useSessionStore.getState().clearSession();
       void router.navigate({ to: '/login' });
     }
-  }, [router, user, expiresAt]);
+  }, [router, user, tenant, expiresAt]);
 
   const isReady = Boolean(user && tenant && permissions.size > 0);
 
   if (!isReady) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
+      <div className="bg-bg flex min-h-screen items-center justify-center">
         <Spinner size="lg" label="Cargando sesión..." />
       </div>
     );

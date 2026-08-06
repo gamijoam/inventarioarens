@@ -11,17 +11,19 @@
 escrito en **Laravel 13 / PHP 8.3-8.4 / PostgreSQL**. Es un **backend API REST puro** que se consume
 desde un cliente HTTP.
 
-**Estado del frontend (2026-07-13)**: se eliminaron por completo los frontends anteriores
-(portal web Blade/JS vanilla + WPF escritorio). El nuevo cliente frontend se está diseñando y
-construirá como **aplicación web moderna SPA** (Vite + React 18 + TS) que vive en `frontend/` dentro
-de este repo y consume el backend vía `/api/*`. Diseño completo en `docs/FRONTEND_*.md`.
+**Estado del frontend (2026-08-05)**: se eliminaron por completo los frontends anteriores
+(portal web Blade/JS vanilla + WPF escritorio). La nueva SPA (Vite + React 18 + TS) vive en
+`frontend/`, consume el backend vía `/api/*` y se empaqueta como dos clientes Electron:
+`Sistema de Inventario (Administrativo)` y `POS`. Ambos comparten backend, autenticación,
+permisos, SQLite/local service y sincronización; el bundle POS queda restringido a sus rutas.
+Diseño completo en `docs/FRONTEND_*.md`.
 
 | Capa | Stack |
 |---|---|
 | Backend | Laravel 13 + PHP 8.3+ + PostgreSQL 16 (prod) / 17 (docker dev) / 15 (CI) |
 | Auth | `Authorization: Bearer <token>` + `X-Tenant: <slug>` |
 | Multi-tenant | Single-DB con `tenant_id` + global scope |
-| Frontend | Vite + React 18 + TS + TanStack Query/Router + Tailwind 4 + Radix UI + Zustand (en `frontend/`, en construcción — Fase 0 pendiente) |
+| Frontend | Vite + React 18 + TS + TanStack Query/Router + Tailwind 4 + Radix UI + Zustand + Electron (en `frontend/`) |
 
 **Contexto de mercado (Venezuelano)**: moneda base **USD**, operativa **VES**, con tipos de tasa
 (`BCV`, `PARALELO`, tienda) y snapshot de rate en cada movimiento monetario.
@@ -93,7 +95,7 @@ INVENTARIOARENS/
 │   ├── seeders/{DatabaseSeeder,RolesAndPermissionsSeeder,DemoDataSeeder,MultiCompanyLoginDemoSeeder}.php
 │   └── factories/UserFactory.php
 ├── docs/                                  ← ~45 .md de diseño, implementación, auditoría e historia.
-├── frontend/                             ← NUEVO (Fase 0 pendiente). SPA React + TS + TanStack + Tailwind.
+├── frontend/                             ← SPA React + TS + TanStack + Tailwind + dos clientes Electron.
 ├── routes/
 │   ├── api.php                            ← Thin aggregator; carga routes.php de cada módulo bajo 'api.auth'+'tenant'.
 │   └── console.php
@@ -250,7 +252,8 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 | PostgreSQL | 16 (prod + local) / 17-alpine (docker dev) / 15 (CI) |
 | Composer scripts | `composer setup`, `composer dev`, `composer test` |
 
-**Ya NO hay**: Vite, Tailwind, Playwright, npm/pnpm, MaterialDesignThemes, WPF.
+**Ya NO hay**: portal Blade/JS vanilla, MaterialDesignThemes ni WPF. El frontend actual usa Vite,
+React, pnpm, Playwright y Electron; el backend continúa siendo API REST puro.
 
 ---
 
@@ -684,6 +687,18 @@ php artisan route:clear
 php artisan config:cache
 ```
 
+```bash
+# Frontend / Electron (desde frontend/)
+pnpm install
+pnpm test
+pnpm run dev:admin
+pnpm run dev:pos
+pnpm run electron:build:admin   # Linux AppImage; Windows NSIS en CI Windows
+pnpm run electron:build:pos
+pnpm run electron:smoke:linux:admin
+pnpm run electron:smoke:linux:pos
+```
+
 ### Demo users (login dev)
 
 Todos los usuarios demo usan el **mismo password** para evitar confusion:
@@ -761,7 +776,7 @@ Si pasa algo que afecte decisiones futuras (nueva convención, nuevo VPS, nueva 
 6. Contexto del VPS/proyecto → actualizar §1, §2 y `.harness/docs/INVENTARIOARENS_PROJECT_FACTS.md`.
 7. Si se introduce un nuevo frontend → crear nueva sección §X con su stack, estructura y reglas,
    y actualizar §3.
-8. **Frontend en construcci [FASE 0, 1 y 2A COMPLETADAS al 2026-07-14]ón desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
+8. **Frontend SPA + Electron desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
    ☐ → 🔄 → ✅ al avanzar, y `docs/IMPLEMENTATION_LOG.md` con cada entrega.
 
 ---
