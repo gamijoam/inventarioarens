@@ -7,3 +7,6 @@ routes.php
 routes.scanned.php
 schedule-*
 services.json
+local-dev*.sqlite
+local-dev*.sqlite-wal
+local-dev*.sqlite-shm

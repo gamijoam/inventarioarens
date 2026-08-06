@@ -28,6 +28,9 @@
 /storage/app/*.dump
 /storage/pail
 /storage/app/sync-e2e-lab/
+/storage/framework/local-dev*.sqlite
+/storage/framework/local-dev*.sqlite-wal
+/storage/framework/local-dev*.sqlite-shm
 /vendor
 **/bin/
 **/obj/
