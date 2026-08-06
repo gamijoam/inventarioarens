@@ -12,6 +12,8 @@ const ELECTRON_RENDERER_ORIGINS = [
   'http://localhost:8788',
   'http://localhost:8789',
 ];
+const RUNTIME_SUPERVISOR_FLAG = '--inventario-runtime-supervisor';
+const RUNTIME_LEASE_TTL_MS = 10000;
 
 function resolveRuntimeConfig(options = {}) {
   const appRoot = options.appRoot ?? path.resolve(__dirname, '..');
@@ -34,6 +36,7 @@ function resolveRuntimeConfig(options = {}) {
   const apiPort = Number(options.apiPort ?? process.env.INVENTARIO_API_PORT ?? API_PORT);
 
   return {
+    appRoot,
     apiHost,
     apiPort,
     apiUrl: `http://${apiHost}:${apiPort}`,
@@ -48,6 +51,7 @@ function resolveRuntimeConfig(options = {}) {
     nodeCode: options.nodeCode ?? process.env.INVENTARIO_SYNC_NODE ?? 'LOCAL-01',
     nodeName: options.nodeName ?? process.env.INVENTARIO_SYNC_NODE_NAME ?? 'Electron Local',
     phpBinary,
+    resourcesPath,
     storagePath: path.join(dataRoot, 'storage'),
     syncCloudUrl: options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL,
     syncTenant: options.syncTenant ?? process.env.INVENTARIO_SYNC_TENANT,
@@ -158,7 +162,7 @@ function requestHealth(url, timeout = 750) {
   });
 }
 
-function waitForHealth(url, attempts = 30) {
+function waitForHealth(url, attempts = 120) {
   return new Promise(async (resolve, reject) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       if (await requestHealth(url)) {
@@ -171,6 +175,119 @@ function waitForHealth(url, attempts = 30) {
 
     reject(new Error(`La API local no respondio en ${url}/up`));
   });
+}
+
+function runtimeLeaseDirectory(config) {
+  return path.join(config.dataRoot, 'runtime-leases');
+}
+
+function runtimeLeasePath(config, clientId, pid = process.pid) {
+  const safeClientId = String(clientId || 'electron-client').replace(/[^a-z0-9_-]/gi, '-');
+  return path.join(runtimeLeaseDirectory(config), `${safeClientId}-${pid}.lease`);
+}
+
+function createRuntimeLease(config, clientId) {
+  const leasePath = runtimeLeasePath(config, clientId);
+  fs.mkdirSync(runtimeLeaseDirectory(config), { recursive: true });
+  fs.writeFileSync(
+    leasePath,
+    JSON.stringify({ clientId, pid: process.pid, startedAt: new Date().toISOString() }),
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  return leasePath;
+}
+
+function removeRuntimeLease(leasePath) {
+  try {
+    fs.unlinkSync(leasePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+function touchRuntimeLease(leasePath) {
+  try {
+    const now = new Date();
+    fs.utimesSync(leasePath, now, now);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+function listLiveRuntimeLeases(config) {
+  const directory = runtimeLeaseDirectory(config);
+  if (!fs.existsSync(directory)) return [];
+
+  const liveLeases = [];
+  for (const fileName of fs.readdirSync(directory)) {
+    if (!fileName.endsWith('.lease')) continue;
+
+    const leasePath = path.join(directory, fileName);
+    try {
+      const lease = JSON.parse(fs.readFileSync(leasePath, 'utf8'));
+      const isFresh = Date.now() - fs.statSync(leasePath).mtimeMs < RUNTIME_LEASE_TTL_MS;
+      if (isFresh && Number.isInteger(lease.pid)) {
+        liveLeases.push({ ...lease, path: leasePath });
+      } else {
+        removeRuntimeLease(leasePath);
+      }
+    } catch {
+      removeRuntimeLease(leasePath);
+    }
+  }
+
+  return liveLeases;
+}
+
+function runtimeSupervisorPidPath(config) {
+  return path.join(config.dataRoot, '.runtime-supervisor.pid');
+}
+
+function runtimeSupervisorLockPath(config) {
+  return path.join(config.dataRoot, '.runtime-supervisor.lock');
+}
+
+function tryAcquireRuntimeSupervisorLock(config) {
+  fs.mkdirSync(config.dataRoot, { recursive: true });
+
+  try {
+    fs.writeFileSync(runtimeSupervisorLockPath(config), `${process.pid}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    });
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') return false;
+    throw error;
+  }
+}
+
+function releaseRuntimeSupervisorLock(config) {
+  try {
+    fs.unlinkSync(runtimeSupervisorLockPath(config));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+function writeRuntimeSupervisorPid(config) {
+  fs.writeFileSync(runtimeSupervisorPidPath(config), `${process.pid}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
+}
+
+function removeRuntimeSupervisorPid(config) {
+  try {
+    const pid = Number.parseInt(
+      fs.readFileSync(runtimeSupervisorPidPath(config), 'utf8').trim(),
+      10,
+    );
+    if (pid === process.pid) fs.unlinkSync(runtimeSupervisorPidPath(config));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
 }
 
 function runtimeStartupLockPath(config) {
@@ -226,9 +343,9 @@ async function acquireRuntimeStartupLock(config) {
   throw new Error('La API local no inicio porque otro proceso retuvo el lock de arranque');
 }
 
-function runCommand(config, args, environment) {
+function runCommand(config, args, environment, spawnProcess = spawn) {
   return new Promise((resolve, reject) => {
-    const child = spawn(config.phpBinary, args, {
+    const child = spawnProcess(config.phpBinary, args, {
       cwd: config.backendRoot,
       env: { ...process.env, ...environment },
       windowsHide: true,
@@ -278,103 +395,182 @@ function ensureStorageDirectories(storagePath) {
   }
 }
 
-function createLocalRuntime(options = {}) {
+function waitForRuntimeLeases(config, idleGraceMs = 5000, pollMs = 500) {
+  return new Promise(async (resolve) => {
+    let emptySince = null;
+
+    while (true) {
+      const leases = listLiveRuntimeLeases(config);
+      if (leases.length > 0) {
+        emptySince = null;
+      } else {
+        emptySince ??= Date.now();
+        if (Date.now() - emptySince >= idleGraceMs) {
+          resolve();
+          return;
+        }
+      }
+
+      await new Promise((done) => setTimeout(done, pollMs));
+    }
+  });
+}
+
+function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
   let apiProcess = null;
   let syncProcess = null;
-  let ownsApi = false;
-  let ownsSync = false;
+
+  async function stopOwnedProcesses() {
+    if (syncProcess && !syncProcess.killed) syncProcess.kill();
+    if (apiProcess && !apiProcess.killed) apiProcess.kill();
+    syncProcess = null;
+    apiProcess = null;
+  }
+
+  return {
+    config,
+    async run() {
+      if (!tryAcquireRuntimeSupervisorLock(config)) return false;
+
+      writeRuntimeSupervisorPid(config);
+      let ownsApi = false;
+
+      try {
+        if (!(await requestHealth(config.apiUrl))) {
+          if (!fs.existsSync(path.join(config.backendRoot, 'artisan'))) {
+            throw new Error(`No se encontro Laravel en ${config.backendRoot}`);
+          }
+
+          fs.mkdirSync(config.storagePath, { recursive: true });
+          ensureStorageDirectories(config.storagePath);
+          fs.mkdirSync(config.logDirectory, { recursive: true });
+          const appKey = ensureAppKey(config);
+          const bootstrapToken = ensureBootstrapToken(config);
+          const environment = buildLaravelEnvironment({ ...config, appKey, bootstrapToken }, null);
+
+          await runCommand(
+            config,
+            ['artisan', 'local:install-sqlite', `--database=${config.databasePath}`],
+            environment,
+            spawnProcess,
+          );
+
+          apiProcess = spawnProcess(
+            config.phpBinary,
+            ['artisan', 'serve', '--host', config.apiHost, '--port', String(config.apiPort)],
+            {
+              cwd: config.backendRoot,
+              env: { ...process.env, ...environment },
+              windowsHide: true,
+              stdio: ['ignore', 'pipe', 'pipe'],
+            },
+          );
+          ownsApi = true;
+          attachLogStream(apiProcess, path.join(config.logDirectory, 'api.log'));
+
+          await waitForHealth(config.apiUrl);
+
+          const workerArgs = syncArguments(config);
+          if (workerArgs) {
+            syncProcess = spawnProcess(config.phpBinary, workerArgs, {
+              cwd: config.backendRoot,
+              env: { ...process.env, ...environment },
+              windowsHide: true,
+              stdio: ['ignore', 'pipe', 'pipe'],
+            });
+            attachLogStream(syncProcess, path.join(config.logDirectory, 'sync.log'));
+          }
+        }
+
+        await waitForRuntimeLeases(config);
+        return ownsApi;
+      } finally {
+        await stopOwnedProcesses();
+        removeRuntimeSupervisorPid(config);
+        releaseRuntimeSupervisorLock(config);
+      }
+    },
+  };
+}
+
+function spawnRuntimeSupervisor(config, options = {}) {
+  const executable = options.supervisorExecutable ?? process.execPath;
+  const appPath = options.supervisorAppPath ?? config.appRoot;
+  const args = options.isPackaged ? [RUNTIME_SUPERVISOR_FLAG] : [appPath, RUNTIME_SUPERVISOR_FLAG];
+  const environment = {
+    ...process.env,
+    INVENTARIO_RUNTIME_SUPERVISOR: '1',
+    INVENTARIO_DATA_ROOT: config.dataRoot,
+    INVENTARIO_API_HOST: config.apiHost,
+    INVENTARIO_API_PORT: String(config.apiPort),
+    INVENTARIO_BACKEND_ROOT: config.backendRoot,
+    INVENTARIO_PHP_BIN: config.phpBinary,
+    INVENTARIO_SYNC_CLOUD_URL: config.syncCloudUrl ?? '',
+    INVENTARIO_SYNC_TENANT: config.syncTenant ?? '',
+    INVENTARIO_SYNC_TOKEN: config.syncToken ?? '',
+  };
+  delete environment.INVENTARIO_ELECTRON_SMOKE;
+
+  const child = (options.spawnProcess ?? spawn)(executable, args, {
+    cwd: config.resourcesPath,
+    detached: true,
+    env: environment,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.unref?.();
+  return child;
+}
+
+function createLocalRuntime(options = {}) {
+  const config = options.config ?? resolveRuntimeConfig(options);
+  const clientId = options.clientId ?? config.clientId ?? 'electron-client';
+  let leasePath = null;
+  let leaseHeartbeat = null;
 
   return {
     config,
     async start(rendererOrigin) {
-      if (await requestHealth(config.apiUrl)) {
-        return { external: true, apiUrl: config.apiUrl };
-      }
-
-      const ownsStartupLock = await acquireRuntimeStartupLock(config);
+      leasePath ??= createRuntimeLease(config, clientId);
+      leaseHeartbeat ??= setInterval(() => touchRuntimeLease(leasePath), 2000).unref();
 
       try {
-        if (await requestHealth(config.apiUrl)) {
-          return { external: true, apiUrl: config.apiUrl };
+        if (!(await requestHealth(config.apiUrl))) {
+          spawnRuntimeSupervisor(config, options);
         }
-
-        if (!fs.existsSync(path.join(config.backendRoot, 'artisan'))) {
-          throw new Error(`No se encontro Laravel en ${config.backendRoot}`);
-        }
-
-        fs.mkdirSync(config.storagePath, { recursive: true });
-        ensureStorageDirectories(config.storagePath);
-        fs.mkdirSync(config.logDirectory, { recursive: true });
-        const appKey = ensureAppKey(config);
-        const bootstrapToken = ensureBootstrapToken(config);
-        const environment = buildLaravelEnvironment(
-          { ...config, appKey, bootstrapToken },
-          rendererOrigin,
-        );
-
-        await runCommand(
-          config,
-          ['artisan', 'local:install-sqlite', `--database=${config.databasePath}`],
-          environment,
-        );
-
-        apiProcess = spawnProcess(
-          config.phpBinary,
-          ['artisan', 'serve', '--host', config.apiHost, '--port', String(config.apiPort)],
-          {
-            cwd: config.backendRoot,
-            env: { ...process.env, ...environment },
-            windowsHide: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        );
-        ownsApi = true;
-        attachLogStream(apiProcess, path.join(config.logDirectory, 'api.log'));
-
-        try {
-          await waitForHealth(config.apiUrl);
-        } catch (error) {
-          apiProcess.kill();
-          apiProcess = null;
-          ownsApi = false;
-          throw error;
-        }
-
-        const workerArgs = syncArguments(config);
-        if (workerArgs) {
-          syncProcess = spawnProcess(config.phpBinary, workerArgs, {
-            cwd: config.backendRoot,
-            env: { ...process.env, ...environment },
-            windowsHide: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
-          });
-          ownsSync = true;
-          attachLogStream(syncProcess, path.join(config.logDirectory, 'sync.log'));
-        }
-
-        return { external: false, apiUrl: config.apiUrl, syncStarted: Boolean(workerArgs) };
-      } finally {
-        if (ownsStartupLock) releaseRuntimeStartupLock(config);
+        await waitForHealth(config.apiUrl);
+        return { external: true, apiUrl: config.apiUrl };
+      } catch (error) {
+        if (leaseHeartbeat) clearInterval(leaseHeartbeat);
+        leaseHeartbeat = null;
+        removeRuntimeLease(leasePath);
+        leasePath = null;
+        throw error;
       }
     },
     async stop() {
-      if (ownsSync && syncProcess && !syncProcess.killed) syncProcess.kill();
-      if (ownsApi && apiProcess && !apiProcess.killed) apiProcess.kill();
-      syncProcess = null;
-      apiProcess = null;
-      ownsSync = false;
-      ownsApi = false;
+      if (leaseHeartbeat) clearInterval(leaseHeartbeat);
+      leaseHeartbeat = null;
+      if (leasePath) removeRuntimeLease(leasePath);
+      leasePath = null;
     },
   };
 }
 
 module.exports = {
   buildLaravelEnvironment,
+  createRuntimeLease,
   createLocalRuntime,
+  createRuntimeSupervisor,
+  listLiveRuntimeLeases,
+  removeRuntimeLease,
   releaseRuntimeStartupLock,
   resolveRuntimeConfig,
+  runtimeLeaseDirectory,
+  runtimeSupervisorPidPath,
+  spawnRuntimeSupervisor,
   runtimeStartupLockPath,
   syncArguments,
   tryAcquireRuntimeStartupLock,

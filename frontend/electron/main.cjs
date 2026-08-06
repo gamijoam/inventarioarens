@@ -8,7 +8,11 @@ const {
   rendererDirectory,
   userDataDirectory,
 } = require('./app-config.cjs');
-const { createLocalRuntime, resolveRuntimeConfig } = require('./backend-runtime.cjs');
+const {
+  createLocalRuntime,
+  createRuntimeSupervisor,
+  resolveRuntimeConfig,
+} = require('./backend-runtime.cjs');
 const { startRendererServer } = require('./renderer-server.cjs');
 
 const appMode = normalizeAppMode(
@@ -16,12 +20,17 @@ const appMode = normalizeAppMode(
     require(path.join(__dirname, '..', 'package.json')).inventarioAppMode,
 );
 const appConfig = getAppConfig(appMode);
+const isRuntimeSupervisor = process.argv.includes('--inventario-runtime-supervisor');
 let rendererServer = null;
 let localRuntime = null;
 let isStopping = false;
 
 function rendererRoot() {
   return rendererDirectory(app.getAppPath(), appMode);
+}
+
+function localDataRoot() {
+  return process.env.INVENTARIO_DATA_ROOT ?? path.join(app.getPath('appData'), 'InventarioArens');
 }
 
 async function prepareServices() {
@@ -35,17 +44,34 @@ async function prepareServices() {
     url = rendererServer.url;
   }
 
-  localRuntime ??= createLocalRuntime(
-    resolveRuntimeConfig({
+  localRuntime ??= createLocalRuntime({
+    config: resolveRuntimeConfig({
       appRoot: app.getAppPath(),
       resourcesPath: process.resourcesPath,
       isPackaged: app.isPackaged,
-      dataRoot: path.join(app.getPath('appData'), 'InventarioArens'),
+      dataRoot: localDataRoot(),
     }),
-  );
+    clientId: appMode,
+    isPackaged: app.isPackaged,
+    supervisorAppPath: app.getAppPath(),
+    supervisorExecutable: process.execPath,
+  });
   await localRuntime.start(new URL(url).origin);
 
   return url;
+}
+
+async function runRuntimeSupervisor() {
+  const supervisor = createRuntimeSupervisor({
+    config: resolveRuntimeConfig({
+      appRoot: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      isPackaged: app.isPackaged,
+      dataRoot: localDataRoot(),
+    }),
+  });
+
+  await supervisor.run();
 }
 
 async function stopServices() {
@@ -73,45 +99,57 @@ async function createWindow() {
   return window;
 }
 
-app.setName(appConfig.productName);
-app.setPath('userData', userDataDirectory(app.getPath('appData'), appMode));
-
-const hasLock = app.requestSingleInstanceLock();
-
-if (!hasLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    const [window] = BrowserWindow.getAllWindows();
-
-    if (window) {
-      if (window.isMinimized()) window.restore();
-      window.focus();
-    }
-  });
-
+if (isRuntimeSupervisor) {
   app.whenReady().then(async () => {
     try {
-      if (process.env.INVENTARIO_ELECTRON_SMOKE === '1') {
-        await prepareServices();
-        await stopServices();
-        app.exit(0);
-        return;
-      }
-
-      await createWindow();
-
-      app.on('activate', async () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          await createWindow();
-        }
-      });
+      await runRuntimeSupervisor();
+      app.exit(0);
     } catch (error) {
-      console.error('No se pudo iniciar el runtime local:', error);
-      await stopServices();
+      console.error('No se pudo iniciar el supervisor local:', error);
       app.exit(1);
     }
   });
+} else {
+  app.setName(appConfig.productName);
+  app.setPath('userData', userDataDirectory(app.getPath('appData'), appMode));
+
+  const hasLock = app.requestSingleInstanceLock();
+
+  if (!hasLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => {
+      const [window] = BrowserWindow.getAllWindows();
+
+      if (window) {
+        if (window.isMinimized()) window.restore();
+        window.focus();
+      }
+    });
+
+    app.whenReady().then(async () => {
+      try {
+        if (process.env.INVENTARIO_ELECTRON_SMOKE === '1') {
+          await prepareServices();
+          await stopServices();
+          app.exit(0);
+          return;
+        }
+
+        await createWindow();
+
+        app.on('activate', async () => {
+          if (BrowserWindow.getAllWindows().length === 0) {
+            await createWindow();
+          }
+        });
+      } catch (error) {
+        console.error('No se pudo iniciar el runtime local:', error);
+        await stopServices();
+        app.exit(1);
+      }
+    });
+  }
 }
 
 app.on('before-quit', (event) => {

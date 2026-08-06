@@ -669,6 +669,11 @@ existente, confirmar primero con el usuario (afecta a otros productos).
   - `frontend/README.md` — setup y comandos.
 - Debe consumir los endpoints documentados en `docs/API.md` y respetar
   `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` + `docs/INSTRUCCIONES_FRONTEND_*.md`.
+- Para continuar la validacion de los clientes Electron en Windows, la fuente de verdad operativa es
+  `docs/WINDOWS_ELECTRON_VALIDATION.md`, especialmente su seccion `Handoff para IA en Windows`.
+  El supervisor compartido vive en `frontend/electron/backend-runtime.cjs`; el arranque de cliente y
+  modo supervisor viven en `frontend/electron/main.cjs`. No validar NSIS tocando el VPS ni duplicando
+  `php artisan serve` por ventana.
 
 ---
 

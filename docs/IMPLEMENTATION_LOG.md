@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-08-06 - Supervisor compartido del runtime Electron
+
+- Administrativo y POS ya no son propietarios directos del proceso Laravel. Cada cliente lanza un
+  supervisor Electron desacoplado que mantiene `php artisan serve` y el `sync:daemon` opcional.
+- Cada cliente registra un lease con heartbeat en `runtime-leases/`; el supervisor conserva Laravel
+  activo mientras exista al menos un lease fresco y lo apaga después de aproximadamente cinco segundos
+  sin clientes.
+- Los leases expiran por TTL para limpiar cierres abruptos. El supervisor usa lock y PID compartidos para
+  evitar dos procesos Laravel sobre la misma SQLite.
+- El runtime empaquetado resuelve correctamente el `cwd` desde `process.resourcesPath` y permite
+  `INVENTARIO_DATA_ROOT` para pruebas controladas sin alterar el directorio de datos del usuario.
+- Verificación: `pnpm test` 524/524, `tsc --noEmit` verde, ESLint/Prettier verdes en los archivos del
+  runtime, builds AppImage Administrativo/POS verdes, smoke individual de ambos verde y prueba de
+  convivencia verde: dos leases, cierre de Administrativo conserva API para POS, cierre de POS apaga
+  Laravel tras el período idle.
+- `pnpm run lint` y `pnpm run format:check` globales siguen reportando problemas preexistentes en el
+  frontend fuera de este cambio. Pendiente: validar NSIS y el ciclo de vida en Windows real o CI.
+
 ## 2026-08-05 - Base de clientes Electron Administrativo y POS
 
 - Se separaron los bundles Vite en `dist/admin` y `dist/pos`, con modos `.env.admin` y `.env.pos`.

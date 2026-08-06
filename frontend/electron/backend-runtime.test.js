@@ -7,9 +7,14 @@ import backendRuntime from './backend-runtime.cjs';
 
 const {
   buildLaravelEnvironment,
+  createRuntimeLease,
   releaseRuntimeStartupLock,
+  removeRuntimeLease,
   resolveRuntimeConfig,
   runtimeStartupLockPath,
+  runtimeLeaseDirectory,
+  runtimeSupervisorPidPath,
+  listLiveRuntimeLeases,
   syncArguments,
   tryAcquireRuntimeStartupLock,
 } = backendRuntime;
@@ -84,6 +89,27 @@ describe('Local Laravel runtime configuration', () => {
 
     expect(tryAcquireRuntimeStartupLock(config)).toBe(true);
     releaseRuntimeStartupLock(config);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('keeps live client leases and removes stale leases', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-runtime-leases-'));
+    const config = { dataRoot };
+    const leasePath = createRuntimeLease(config, 'admin');
+
+    expect(runtimeLeaseDirectory(config)).toBe(path.join(dataRoot, 'runtime-leases'));
+    expect(runtimeSupervisorPidPath(config)).toBe(path.join(dataRoot, '.runtime-supervisor.pid'));
+    expect(listLiveRuntimeLeases(config)).toHaveLength(1);
+
+    const staleLeasePath = path.join(runtimeLeaseDirectory(config), 'stale-999999.lease');
+    fs.writeFileSync(staleLeasePath, '{"pid":999999}');
+    const staleTime = new Date(Date.now() - 20000);
+    fs.utimesSync(staleLeasePath, staleTime, staleTime);
+    expect(listLiveRuntimeLeases(config)).toHaveLength(1);
+    expect(fs.existsSync(staleLeasePath)).toBe(false);
+
+    removeRuntimeLease(leasePath);
+    expect(listLiveRuntimeLeases(config)).toHaveLength(0);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 });

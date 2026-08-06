@@ -28,6 +28,12 @@ La PC del usuario no necesita instalar PHP, Composer, PostgreSQL, Redis, Node.js
 
 Cada cliente Electron ejecuta su propio renderer y ambos comparten el backend local y la base SQLite de la computadora.
 
+El backend compartido no pertenece a ninguna ventana: el primer cliente lanza un supervisor Electron
+desacoplado y registra su lease en `runtime-leases/`. Administrativo y POS mantienen un heartbeat mientras
+estan abiertos; el supervisor conserva Laravel y el worker de sync activos mientras exista un lease fresco.
+Los leases vencen tras un cierre abrupto y, cuando no queda ninguno durante el período idle, el supervisor
+detiene Laravel. Esto permite cerrar Administrativo sin interrumpir una venta activa en POS.
+
 ```text
 Administrativo renderer  -> http://127.0.0.1:8788
 POS renderer             -> http://127.0.0.1:8789
@@ -54,6 +60,8 @@ Datos persistentes compartidos:
 %APPDATA%\InventarioArens\storage\
 %APPDATA%\InventarioArens\logs\api.log
 %APPDATA%\InventarioArens\logs\sync.log
+%APPDATA%\InventarioArens\runtime-leases\
+%APPDATA%\InventarioArens\.runtime-supervisor.pid
 ```
 
 Los datos de configuracion de Electron estan aislados por cliente:
@@ -393,7 +401,66 @@ Estas reglas son instrucciones para los agentes y colaboradores que lean `AGENTS
 
 La validacion Windows de Electron no esta cubierta automaticamente por el job PHP de GitHub Actions. Debe ejecutarse en Windows o agregarse un job Windows que construya NSIS y ejecute las pruebas correspondientes.
 
-## 13. Reporte final de la IA validadora
+## 13. Handoff para IA en Windows
+
+Esta seccion es la guia operativa para una IA que continue el trabajo desde Windows. No debe asumir que
+la validacion Linux equivale a validacion Windows: los AppImage ya fueron validados, pero los instaladores
+NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
+
+### 13.1 Orden obligatorio
+
+1. Leer este documento completo y `AGENTS.md` antes de modificar codigo.
+2. Ejecutar `pnpm test` y `pnpm exec tsc --noEmit` desde `frontend/`.
+3. Construir `pnpm run electron:build:admin` y `pnpm run electron:build:pos`.
+4. Instalar ambos `.exe` en una PC Windows 10/11 x64.
+5. Ejecutar la checklist de las secciones 6 y 7, incluyendo arranque simultaneo, cierre individual,
+   persistencia, reinicio y actualizacion sobre una instalacion existente.
+6. Capturar logs, hashes, version de Windows y resultado usando el formato de la seccion 14.
+
+### 13.2 Archivos que se pueden modificar
+
+- `frontend/electron/backend-runtime.cjs`: supervisor compartido, leases, heartbeat, locks, Laravel y sync.
+- `frontend/electron/main.cjs`: arranque del cliente, modo supervisor, rutas de datos y cierre de Electron.
+- `frontend/electron/app-config.cjs`: nombres, IDs, puertos y directorios `userData` por cliente.
+- `frontend/electron/backend-runtime.test.js`: tests unitarios del runtime compartido.
+- `frontend/electron-builder.admin.yml` y `frontend/electron-builder.pos.yml`: empaquetado NSIS/AppImage.
+- `scripts/prepare-portable-php.cjs`: descarga, checksum y staging de PHP portable por plataforma.
+- `scripts/stage-electron-backend.cjs`: staging de Laravel, `vendor/` y recursos del backend.
+- `scripts/smoke-linux-appimage.cjs`: smoke Linux; no reemplaza la prueba Windows.
+- `docs/WINDOWS_ELECTRON_VALIDATION.md`: contrato de validacion y reporte.
+
+### 13.3 Archivos y sistemas que no se deben tocar durante esta validacion
+
+- No cambiar `app/`, migraciones o rutas Laravel para resolver un problema exclusivo de empaquetado Windows
+  sin reproducir primero el fallo contra la API local.
+- No borrar `%APPDATA%\InventarioArens\inventario.sqlite`; hacer backup antes de cualquier diagnostico.
+- No modificar `.harness/`, `.codex/`, `.githooks/` ni workflows CI sin autorizacion explicita.
+- No desplegar al VPS ni tocar Docker, Traefik o PostgreSQL para validar los instaladores locales.
+- Si se requiere probar sync, usar un tenant y token de prueba de INVENTARIOARENS; no reutilizar credenciales
+  de otra empresa ni credenciales del producto MiInventarioFacil.
+
+### 13.4 Contrato del supervisor
+
+- La API local es `127.0.0.1:8787`; Admin usa renderer `8788` y POS usa renderer `8789`.
+- Los dos clientes comparten `%APPDATA%\InventarioArens\` para SQLite, storage, logs y leases.
+- Cada cliente crea un archivo `.lease` bajo `runtime-leases\` y lo actualiza cada dos segundos.
+- El supervisor espera aproximadamente cinco segundos despues del ultimo lease antes de apagar Laravel.
+- `.runtime-supervisor.lock` evita dos supervisores; `.runtime-supervisor.pid` sirve para diagnostico.
+- Un cierre abrupto puede dejar un lease temporal; el TTL de diez segundos permite recuperacion automatica.
+- El supervisor es un proceso Electron desacoplado. No implementar un segundo `php artisan serve` desde
+  cada ventana ni eliminar el lease mientras el cliente siga abierto.
+
+### 13.5 Pendientes fuera del alcance inmediato
+
+- Validacion real de NSIS en Windows o un job Windows de CI.
+- Instalacion y operacion del worker de sync como tarea programada/servicio Windows.
+- Modo tecnico Windows para configurar tenant, token, logs y diagnostico.
+- Actualizador automatico de instaladores.
+
+Estos pendientes deben implementarse despues de confirmar que el runtime base, SQLite compartida y el
+ciclo de vida Admin/POS funcionan en Windows.
+
+## 14. Reporte final de la IA validadora
 
 La IA debe terminar con este formato:
 
