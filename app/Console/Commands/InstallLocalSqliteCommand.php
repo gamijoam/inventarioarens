@@ -2,9 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Permissions\BasePermissions;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 class InstallLocalSqliteCommand extends Command
 {
@@ -45,10 +48,7 @@ class InstallLocalSqliteCommand extends Command
 
         try {
             $this->call('migrate', ['--database' => 'sqlite', '--force' => true]);
-
-            if ($this->option('seed')) {
-                $this->call('db:seed', ['--database' => 'sqlite', '--force' => true]);
-            }
+            $this->ensureBasePermissions();
         } finally {
             DB::purge('sqlite');
             config([
@@ -61,6 +61,28 @@ class InstallLocalSqliteCommand extends Command
         $this->line('This command does not modify .env. Set DB_CONNECTION=sqlite for application requests.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Inserts every permission declared in BasePermissions::PERMISSIONS if it
+     * does not exist yet. Idempotent (uses findOrCreate) so it is safe to
+     * invoke on every supervisor startup and after each app upgrade that
+     * adds new permissions to the catalogue.
+     *
+     * Without this call, the local supervisor PHP runtime ships an empty
+     * `permissions` table (migrations only seed schema, not data) and the
+     * sidebar / route guards silently hide every feature that requires a
+     * permission added after the database was first created.
+     */
+    private function ensureBasePermissions(): void
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach (BasePermissions::PERMISSIONS as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     private function resolveDatabasePath(string $database): string
