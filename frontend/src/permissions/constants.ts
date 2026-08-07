@@ -45,6 +45,15 @@ export const PERMISSIONS = {
   POS_CHECKOUT: 'pos.checkout',
   POS_CANCEL: 'pos.cancel',
   POS_DISCOUNT: 'pos.discount',
+  POS_PROMOTIONS_VIEW: 'pos.promotions.view',
+  POS_PROMOTIONS_APPLY: 'pos.promotions.apply',
+  POS_PROMOTIONS_CODE: 'pos.promotions.code',
+
+  // Promotions
+  PROMOTIONS_VIEW: 'promotions.view',
+  PROMOTIONS_CREATE: 'promotions.create',
+  PROMOTIONS_UPDATE: 'promotions.update',
+  PROMOTIONS_DELETE: 'promotions.delete',
 
   // Printing
   PRINTING_VIEW: 'printing.view',

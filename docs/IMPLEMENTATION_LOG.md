@@ -1,5 +1,31 @@
 # Registro de implementación
 
+## 2026-08-06 - Primera slice TDD de promociones POS
+
+- Se agregó el módulo tenant-scoped `Promotions` con CRUD Administrativo, permisos propios y componentes
+  de combo con productos, cantidades y precio total configurable en USD, incluso si el precio es mayor al
+  total normal.
+- POS consulta promociones vigentes, resuelve prioridad sin acumulación, permite aplicar por identificador
+  o código y conserva el snapshot de la promoción en cada `sale_item`.
+- El precio del combo se distribuye proporcionalmente entre sus líneas, con ajuste firmado para representar
+  tanto descuentos como precios promocionales superiores al precio normal.
+- Se agregaron eventos de sync, aplicación por SKU y snapshot inicial de promociones para nodos nuevos.
+- Frontend: CRUD Administrativo en `/promotions`, botón/panel `Promociones` en POS, selección persistida del
+  combo y envío de `promotion_id`/`promotion_code` al checkout.
+- Se implementó `percent_discount` para productos elegibles, con porcentaje entre 0 y 100, snapshot del
+  porcentaje en `sale_items`, distribución correcta de montos base/locales y sincronización del catálogo.
+- Se implementó `fixed_discount` como monto USD total distribuido proporcionalmente entre productos
+  elegibles, con tope al total elegible para impedir ventas negativas y snapshot sincronizado.
+- Se implementó `fixed_item_price` como precio USD por unidad para cada producto elegible, con snapshot
+  de precio y montos base/locales sincronizados.
+- Se implementó `free_item` con precio cero para los productos elegibles, manteniendo el movimiento de
+  stock y el snapshot de la promoción.
+- Se implementó `buy_x_get_y` con roles `trigger`/`reward`, cálculo de múltiples conjuntos, recompensas
+  parcialmente gratuitas y sync de los roles de componentes.
+- Tests nuevos: CRUD, permisos, cross-tenant, prioridad, checkout, pendientes, outbox, snapshot sync,
+  contrato Zod/API, selección POS, panel y manager Administrativo.
+- Pendiente: límites/condiciones avanzadas, alternativas de combo y pruebas E2E visuales.
+
 ## 2026-08-06 - Supervisor compartido del runtime Electron
 
 - Administrativo y POS ya no son propietarios directos del proceso Laravel. Cada cliente lanza un

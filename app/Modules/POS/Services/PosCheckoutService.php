@@ -21,6 +21,7 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Services\ProductPriceService;
+use App\Modules\Promotions\Services\PromotionService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
@@ -42,6 +43,7 @@ class PosCheckoutService
         private readonly SyncOutboxService $syncOutbox,
         private readonly TenantReferenceCache $referenceCache,
         private readonly CustomerCreditService $customerCredits,
+        private readonly PromotionService $promotions,
     ) {}
 
     public function checkout(
@@ -53,9 +55,11 @@ class PosCheckoutService
         ?string $customerName = null,
         bool $credit = false,
         ?string $creditDueDate = null,
+        ?int $promotionId = null,
+        ?string $promotionCode = null,
     ): PosOrder {
-        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate): PosOrder {
-            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate): PosOrder {
+        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode): PosOrder {
+            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode): PosOrder {
                 if ($credit && ! $customerId) {
                     throw ValidationException::withMessages([
                         'customer_id' => 'La venta a credito requiere un cliente registrado.',
@@ -70,6 +74,7 @@ class PosCheckoutService
 
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
                 $priceLists = $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -1030,6 +1035,15 @@ class PosCheckoutService
                     'discount_base_amount' => (string) ($item->discount_base_amount ?? 0),
                     'discount_local_amount' => (string) ($item->discount_local_amount ?? 0),
                     'discount_reason' => $item->discount_reason,
+                    'promotion_id' => $item->promotion_id,
+                    'promotion_code' => $item->promotion_code,
+                    'promotion_name' => $item->promotion_name,
+                    'promotion_benefit_type' => $item->promotion_benefit_type,
+                    'promotion_price_usd' => $item->promotion_price_usd === null ? null : (string) $item->promotion_price_usd,
+                    'promotion_discount_percent' => $item->promotion_discount_percent === null ? null : (string) $item->promotion_discount_percent,
+                    'promotion_discount_amount_usd' => $item->promotion_discount_amount_usd === null ? null : (string) $item->promotion_discount_amount_usd,
+                    'promotion_adjustment_base_amount' => (string) ($item->promotion_adjustment_base_amount ?? 0),
+                    'promotion_adjustment_local_amount' => (string) ($item->promotion_adjustment_local_amount ?? 0),
                     'warranty_policy_name' => $item->warranty_policy_name,
                     'warranty_duration_days' => $item->warranty_duration_days,
                     'warranty_coverage_type' => $item->warranty_coverage_type,

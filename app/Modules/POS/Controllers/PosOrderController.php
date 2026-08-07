@@ -80,6 +80,13 @@ class PosOrderController extends Controller
     {
         Gate::authorize('checkout', PosOrder::class);
 
+        if ($request->filled('promotion_id')) {
+            abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
+        }
+        if ($request->filled('promotion_code')) {
+            abort_unless($request->user()?->can('pos.promotions.code'), Response::HTTP_FORBIDDEN);
+        }
+
         $hasDiscount = collect($request->validated('items', []))->contains(
             fn (array $item): bool => filled($item['discount_type'] ?? null)
                 && (float) ($item['discount_value'] ?? 0) > 0,
@@ -96,7 +103,9 @@ class PosOrderController extends Controller
             customerId: $request->validated('customer_id'),
             customerName: $request->validated('customer_name'),
             credit: (bool) $request->validated('credit', false),
-            creditDueDate: $request->validated('credit_due_date')
+            creditDueDate: $request->validated('credit_due_date'),
+            promotionId: $request->validated('promotion_id'),
+            promotionCode: $request->validated('promotion_code'),
         );
 
         $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);

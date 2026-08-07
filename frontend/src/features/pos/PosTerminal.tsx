@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   CreditCard,
   Loader2,
@@ -11,6 +11,7 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  Tag,
   Trash2,
   UserRound,
   Wallet,
@@ -34,9 +35,13 @@ import { PosShell, type PosShellAction, type PosShellContext } from '@/component
 import { PERMISSIONS } from '@/permissions/constants';
 import { usePermissionContext } from '@/permissions/PermissionContext';
 import { useSessionStore } from '@/stores/session';
+import { useAuth } from '@/auth/useAuth';
 import { cn } from '@/lib/cn';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
+import { useAvailablePosPromotions } from '@/features/promotions/api';
+import type { Promotion } from '@/features/promotions/schemas';
+import { PromotionsPanel } from './PromotionsPanel';
 import {
   type CashRegisterSession,
   type CheckoutPayload,
@@ -83,6 +88,7 @@ import {
   calculateCartTotals,
   calculatePaymentTotals,
   clampQuantity,
+  expandPromotionItems,
   hasStockIssue,
   firstPriceIssue,
   hasPriceIssue,
@@ -245,11 +251,15 @@ export function formatPosRateLabel(
 export const POS_LAYOUT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col overflow-hidden';
 
 export function PosTerminal() {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const [exitingPos, setExitingPos] = useState(false);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
   const canDiscount = permissions.has(PERMISSIONS.POS_DISCOUNT);
+  const canViewPromotions = permissions.has(PERMISSIONS.POS_PROMOTIONS_VIEW);
   const canCollectReceivables = permissions.has(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const canCancel = permissions.has(PERMISSIONS.POS_CANCEL);
   const canOpenCash = permissions.has(PERMISSIONS.CASH_REGISTER_OPEN);
@@ -279,6 +289,7 @@ export function PosTerminal() {
   const warehouseId = usePosCartStore((s) => s.warehouseId);
   const selectedPriceListId = usePosCartStore((s) => s.selectedPriceListId);
   const selectedCustomer = usePosCartStore((s) => s.selectedCustomer);
+  const selectedPromotion = usePosCartStore((s) => s.selectedPromotion);
   const exchangeDraft = usePosCartStore((s) => s.exchangeDraft);
   const exchangeReturnId = usePosCartStore((s) => s.exchangeReturnId);
   const customerName = usePosCartStore((s) => s.customerName);
@@ -290,6 +301,8 @@ export function PosTerminal() {
   const setWarehouseId = usePosCartStore((s) => s.setWarehouseId);
   const setSelectedPriceListId = usePosCartStore((s) => s.setSelectedPriceListId);
   const setSelectedCustomer = usePosCartStore((s) => s.setSelectedCustomer);
+  const setSelectedPromotion = usePosCartStore((s) => s.setSelectedPromotion);
+  const clearSelectedPromotion = usePosCartStore((s) => s.clearSelectedPromotion);
   const setExchangeDraft = usePosCartStore((s) => s.setExchangeDraft);
   const setExchangeReturnId = usePosCartStore((s) => s.setExchangeReturnId);
   const setCustomerName = usePosCartStore((s) => s.setCustomerName);
@@ -338,6 +351,16 @@ export function PosTerminal() {
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
   const deferredSerialSearch = useDeferredValue(serialSearch);
+
+  async function exitPos(): Promise<void> {
+    setExitingPos(true);
+    try {
+      await signOut();
+      await navigate({ to: '/login' });
+    } finally {
+      setExitingPos(false);
+    }
+  }
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -519,6 +542,19 @@ export function PosTerminal() {
   );
   const selectedWarehouse =
     warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
+  const cartProductIds = useMemo(() => cart.map((line) => line.product_id), [cart]);
+  const availablePromotions = useAvailablePosPromotions({
+    warehouseId: selectedWarehouse?.id ?? null,
+    productIds: cartProductIds,
+  });
+  useEffect(() => {
+    const selectedComponentsPresent = selectedPromotion?.items.every((item) =>
+      cartProductIds.includes(item.product_id),
+    );
+    if (selectedPromotion && (!selectedComponentsPresent || cartProductIds.length === 0)) {
+      clearSelectedPromotion();
+    }
+  }, [cartProductIds, clearSelectedPromotion, selectedPromotion]);
   const shellContext = buildPosShellContext({
     tenantName,
     branchName: activeSession?.branch?.name ?? null,
@@ -787,7 +823,12 @@ export function PosTerminal() {
 
   if (!canView) {
     return (
-      <PosShell context={shellContext} actions={shellActions}>
+      <PosShell
+        context={shellContext}
+        actions={shellActions}
+        onExit={exitPos}
+        exitDisabled={exitingPos}
+      >
         <div className="bg-bg flex min-h-[70vh] items-center justify-center">
           <div className="border-border bg-surface max-w-md rounded border p-6 text-center shadow-sm">
             <Wallet className="text-text-muted mx-auto mb-3 size-8" />
@@ -810,7 +851,12 @@ export function PosTerminal() {
       bootstrapReady)
   ) {
     return (
-      <PosShell context={shellContext} actions={shellActions}>
+      <PosShell
+        context={shellContext}
+        actions={shellActions}
+        onExit={exitPos}
+        exitDisabled={exitingPos}
+      >
         <OpenCashScreen
           canOpenCash={canOpenCash}
           branches={branches}
@@ -862,7 +908,12 @@ export function PosTerminal() {
   }
 
   return (
-    <PosShell context={shellContext} actions={shellActions}>
+    <PosShell
+      context={shellContext}
+      actions={shellActions}
+      onExit={exitPos}
+      exitDisabled={exitingPos}
+    >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
         <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
           <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
@@ -1053,6 +1104,16 @@ export function PosTerminal() {
             >
               <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
             </Button>
+            {canViewPromotions && (
+              <Button
+                variant={selectedPromotion ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => setPanel('promotions')}
+                disabled={!selectedWarehouse}
+              >
+                <Tag className="size-4" /> Promociones
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
               <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
             </Button>
@@ -1305,7 +1366,7 @@ export function PosTerminal() {
           <PanelShell
             title={panelTitle(panel)}
             onClose={() => setPanel(null)}
-            wide={panel === 'pay' || panel === 'customer'}
+            wide={panel === 'pay' || panel === 'customer' || panel === 'promotions'}
             actions={
               <>
                 <Button
@@ -1372,6 +1433,19 @@ export function PosTerminal() {
                   setSelectedCustomer(customer);
                   setCustomerName(customer.name);
                   setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'promotions' && (
+              <PromotionsPanel
+                promotions={availablePromotions.data ?? []}
+                selectedId={selectedPromotion?.id ?? null}
+                isLoading={availablePromotions.isLoading}
+                error={
+                  availablePromotions.isError ? 'No se pudieron cargar las promociones.' : null
+                }
+                onSelect={(promotion: Promotion, sets: number) => {
+                  void loadPromotion(promotion, sets);
                 }}
               />
             )}
@@ -1580,7 +1654,11 @@ export function PosTerminal() {
     }
   }
 
-  async function addProduct(product: Product, scannedSerial?: ProductSerial): Promise<boolean> {
+  async function addProduct(
+    product: Product,
+    scannedSerial?: ProductSerial,
+    requestedQuantity = 1,
+  ): Promise<boolean> {
     const available = Number(product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
       toast.error('Producto sin stock disponible.');
@@ -1594,9 +1672,15 @@ export function PosTerminal() {
     if (selectedPriceList && !quote) return false;
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
+    const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
     const existingLine = cart.find(
       (line) => line.product_id === product.id && line.warehouse_id === selectedWarehouse.id,
     );
+    const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
+    if (existingLine && existingLine.quantity + quantity > maximumQuantity) {
+      toast.error(`No hay stock suficiente de ${product.name} para cargar la promoción.`);
+      return false;
+    }
     if (scannedSerial && existingLine) {
       if (existingLine.selected_serials?.some((serial) => serial.id === scannedSerial.id)) {
         toast.error('Ese IMEI/serial ya esta agregado al ticket.');
@@ -1621,7 +1705,7 @@ export function PosTerminal() {
           line.id === existing.id
             ? {
                 ...line,
-                quantity: clampQuantity(line.quantity + 1, line.available_stock),
+                quantity: Math.min(line.quantity + quantity, maximumQuantity),
                 selected_serials: scannedSerial
                   ? [
                       ...(line.selected_serials ?? []),
@@ -1646,7 +1730,7 @@ export function PosTerminal() {
           sku: product.sku,
           barcode: product.barcode,
           warehouse_id: selectedWarehouse.id,
-          quantity: 1,
+          quantity,
           available_stock: available,
           unit_price: quote?.base_price_usd ?? Number(product.base_price ?? 0),
           base_unit_price: Number(product.base_price ?? 0),
@@ -1686,6 +1770,65 @@ export function PosTerminal() {
       }, 0);
     }
     return true;
+  }
+
+  async function loadPromotion(promotion: Promotion, sets: number): Promise<void> {
+    if (!selectedWarehouse) {
+      toast.error('Selecciona un almacen antes de cargar una promoción.');
+      return;
+    }
+
+    const items = expandPromotionItems(promotion.items, sets);
+    if (items.length === 0) {
+      toast.error('La promoción no tiene componentes cargables.');
+      return;
+    }
+
+    try {
+      const products = await Promise.all(
+        items.map((item) => getProductForPos(item.product_id, selectedWarehouse.id)),
+      );
+      const loadedItems = items
+        .map((item, index) => ({ item, product: products[index] }))
+        .filter(
+          (entry): entry is { item: (typeof items)[number]; product: Product } =>
+            entry.product !== undefined,
+        );
+      if (loadedItems.length !== items.length) {
+        toast.error('No se pudieron cargar todos los productos de la promoción.');
+        return;
+      }
+
+      const shortage = loadedItems.find(
+        ({ item, product }) =>
+          product.track_stock !== false &&
+          item.quantity +
+            (cart.find(
+              (line) =>
+                line.product_id === item.product_id && line.warehouse_id === selectedWarehouse.id,
+            )?.quantity ?? 0) >
+            Number(product.available_stock ?? 0),
+      );
+
+      if (shortage) {
+        toast.error(`Stock insuficiente para ${shortage.product.name}.`);
+        return;
+      }
+
+      const previousCart = cart;
+      for (const { item, product } of loadedItems) {
+        if (!(await addProduct(product, undefined, item.quantity))) {
+          setCart(previousCart);
+          return;
+        }
+      }
+
+      setSelectedPromotion(promotion);
+      setPanel(null);
+      toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
+    } catch {
+      toast.error('No se pudieron cargar todos los productos de la promoción.');
+    }
   }
 
   function updateLine(id: string, patch: Partial<PosCartLine>): void {
@@ -2159,6 +2302,8 @@ export function PosTerminal() {
       cash_register_session_id: sessionId,
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer ? selectedCustomer.name : customerName,
+      promotion_id: selectedPromotion?.id ?? null,
+      promotion_code: selectedPromotion?.code ?? null,
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
@@ -3816,6 +3961,8 @@ function panelTitle(panel: Panel): string {
       return 'Ultimo recibo';
     case 'product-search':
       return 'Buscar producto';
+    case 'promotions':
+      return 'Promociones';
     case 'credit':
       return 'Enviar a cuentas por cobrar';
     case 'serials':

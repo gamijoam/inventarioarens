@@ -706,15 +706,16 @@ pnpm run electron:smoke:linux:pos
 
 ### Demo users (login dev)
 
-Todos los usuarios demo usan el **mismo password** para evitar confusion:
+El `DemoDataSeeder` actual crea estos usuarios para las empresas demo:
 
 | Email | Tenant | Password |
 |---|---|---|
-| `gabo@gabo.com` | `mi-empresa` | `gabo1234` |
-| `grupoprueba@grupoprueba.com` | `grupo-prueba` | `gabo1234` |
+| `gerente.caracas@demo.test` | `demo-caracas` | `password` |
+| `cajero.caracas@demo.test` | `demo-caracas` | `password` |
+| `gerente.valencia@demo.test` | `demo-valencia` | `password` |
+| `cajero.valencia@demo.test` | `demo-valencia` | `password` |
 
-Para resetear a otro valor: `php artisan dev:reset-demo-passwords --password=miclave1234`
-(o `php scripts/reset-demo-passwords.php miclave1234`).
+Para cargar estos datos: `php artisan db:seed --class=DemoDataSeeder --force`.
 
 # Tests
 php vendor/bin/phpunit

@@ -3,6 +3,8 @@
 namespace Tests\Feature\Products;
 
 use App\Models\User;
+use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\Product;
@@ -10,6 +12,7 @@ use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
@@ -172,6 +175,44 @@ class ProductCatalogApiTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(1, $response->json('data'));
+    }
+
+    public function test_product_detail_can_return_stock_for_a_specific_warehouse(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+        $branch = Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Principal',
+            'code' => 'MAIN',
+            'is_active' => true,
+        ]);
+        $warehouse = Warehouse::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branch->id,
+            'name' => 'Principal',
+            'code' => 'MAIN',
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto POS',
+            'sku' => 'POS-001',
+            'tracking_type' => 'quantity',
+        ]);
+        StockBalance::create([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 7,
+        ]);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}?warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonPath('data.available_stock', 7);
     }
 
     public function test_tracking_type_all_returns_quantity_and_serialized_products(): void

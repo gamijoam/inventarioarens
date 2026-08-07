@@ -25,6 +25,7 @@ import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
+import { Route as AuthedPromotionsRouteImport } from './routes/_authed/promotions'
 import { Route as AuthedPrintingRouteImport } from './routes/_authed/printing'
 import { Route as AuthedPosRouteImport } from './routes/_authed/pos'
 import { Route as AuthedPaymentMethodsRouteImport } from './routes/_authed/payment-methods'
@@ -126,6 +127,11 @@ const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
 const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
   id: '/purchases',
   path: '/purchases',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPromotionsRoute = AuthedPromotionsRouteImport.update({
+  id: '/promotions',
+  path: '/promotions',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPrintingRoute = AuthedPrintingRouteImport.update({
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
   '/printing': typeof AuthedPrintingRoute
+  '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/payment-methods': typeof AuthedPaymentMethodsRoute
   '/pos': typeof AuthedPosRoute
   '/printing': typeof AuthedPrintingRoute
+  '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
   '/_authed/pos': typeof AuthedPosRoute
   '/_authed/printing': typeof AuthedPrintingRoute
+  '/_authed/promotions': typeof AuthedPromotionsRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/reports': typeof AuthedReportsRoute
@@ -388,6 +397,7 @@ export interface FileRouteTypes {
     | '/payment-methods'
     | '/pos'
     | '/printing'
+    | '/promotions'
     | '/purchases'
     | '/receivables'
     | '/reports'
@@ -428,6 +438,7 @@ export interface FileRouteTypes {
     | '/payment-methods'
     | '/pos'
     | '/printing'
+    | '/promotions'
     | '/purchases'
     | '/receivables'
     | '/reports'
@@ -469,6 +480,7 @@ export interface FileRouteTypes {
     | '/_authed/payment-methods'
     | '/_authed/pos'
     | '/_authed/printing'
+    | '/_authed/promotions'
     | '/_authed/purchases'
     | '/_authed/receivables'
     | '/_authed/reports'
@@ -617,6 +629,13 @@ declare module '@tanstack/react-router' {
       path: '/purchases'
       fullPath: '/purchases'
       preLoaderRoute: typeof AuthedPurchasesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/promotions': {
+      id: '/_authed/promotions'
+      path: '/promotions'
+      fullPath: '/promotions'
+      preLoaderRoute: typeof AuthedPromotionsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/printing': {
@@ -842,6 +861,7 @@ interface AuthedRouteChildren {
   AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
   AuthedPosRoute: typeof AuthedPosRoute
   AuthedPrintingRoute: typeof AuthedPrintingRoute
+  AuthedPromotionsRoute: typeof AuthedPromotionsRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
@@ -874,6 +894,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
   AuthedPosRoute: AuthedPosRoute,
   AuthedPrintingRoute: AuthedPrintingRoute,
+  AuthedPromotionsRoute: AuthedPromotionsRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedReportsRoute: AuthedReportsRoute,

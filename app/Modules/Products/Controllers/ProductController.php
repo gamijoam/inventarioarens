@@ -188,21 +188,29 @@ class ProductController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function show(Product $product): ProductResource
+    public function show(Request $request, Product $product): ProductResource
     {
         Gate::authorize('view', $product);
 
-        return ProductResource::make(
-            $product
-                ->load([
-                    'saleExchangeRateType',
-                    'warrantyPolicy',
-                    'brand',
-                    'categories.parent',
-                    'tags',
-                ])
-                ->loadCount('units')
-        );
+        $product->load([
+            'saleExchangeRateType',
+            'warrantyPolicy',
+            'brand',
+            'categories.parent',
+            'tags',
+        ])->loadCount('units');
+
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = $request->integer('warehouse_id');
+            $product->loadSum(
+                ['stockBalances as available_stock' => fn ($query) => $query->where('warehouse_id', $warehouseId)],
+                'quantity_available',
+            );
+        } else {
+            $product->loadSum(['stockBalances as available_stock' => fn ($query) => $query], 'quantity_available');
+        }
+
+        return ProductResource::make($product);
     }
 
     public function price(Product $product, ProductPriceService $priceService): ProductPriceResource

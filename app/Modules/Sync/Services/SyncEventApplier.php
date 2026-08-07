@@ -10,6 +10,7 @@ use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Products\Models\ProductVariant;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Models\SalesReturnItem;
 use App\Modules\Tenancy\Models\Tenant;
@@ -38,6 +39,9 @@ class SyncEventApplier
         'product_unit.created',
         'price_list.updated',
         'price_list.created',
+        'promotion.updated',
+        'promotion.created',
+        'promotion.deleted',
         'product_price.updated',
         'product_price.created',
         'price.updated',
@@ -195,6 +199,7 @@ class SyncEventApplier
                 'stock_movement.updated', 'stock_movement.created' => $this->applyStockMovement($tenant, $payload),
                 'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
                 'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
+                'promotion.updated', 'promotion.created', 'promotion.deleted' => $this->applyPromotion($tenant, $payload),
                 'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
                 'warranty_policy.updated', 'warranty_policy.created' => $this->applyWarrantyPolicy($tenant, $payload),
                 'supplier.updated', 'supplier.created' => $this->applySupplier($tenant, $payload),
@@ -1602,6 +1607,59 @@ class SyncEventApplier
         return 'applied';
     }
 
+    private function applyPromotion(Tenant $tenant, array $payload): string
+    {
+        $code = isset($payload['code']) && trim((string) $payload['code']) !== ''
+            ? mb_strtoupper(trim((string) $payload['code']))
+            : null;
+        $promotion = $code
+            ? Promotion::query()->where('code', $code)->first()
+            : (isset($payload['id']) ? Promotion::query()->find((int) $payload['id']) : null);
+
+        if (($payload['_deleted'] ?? false) === true) {
+            $promotion?->update(['is_active' => false]);
+
+            return 'applied';
+        }
+
+        $items = $payload['items'] ?? [];
+        if (! is_array($items) || $items === []) {
+            throw new RuntimeException('La promocion sincronizada no tiene componentes.');
+        }
+
+        if (! $promotion) {
+            $promotion = new Promotion;
+        }
+
+        $promotion->fill([
+            'name' => $this->requiredString($payload, 'name'),
+            'code' => $code,
+            'benefit_type' => $this->requiredString($payload, 'benefit_type'),
+            'price_currency' => strtoupper((string) ($payload['price_currency'] ?? 'USD')),
+            'price_usd' => $payload['price_usd'] ?? null,
+            'discount_percent' => $payload['discount_percent'] ?? null,
+            'discount_amount_usd' => $payload['discount_amount_usd'] ?? null,
+            'priority' => (int) ($payload['priority'] ?? 0),
+            'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+            'starts_at' => $payload['starts_at'] ?? null,
+            'ends_at' => $payload['ends_at'] ?? null,
+        ]);
+        $promotion->save();
+        $promotion->items()->delete();
+
+        foreach ($items as $item) {
+            $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
+            $promotion->items()->create([
+                'product_id' => $product->id,
+                'quantity' => $item['quantity'] ?? 1,
+                'item_role' => $item['item_role'] ?? 'eligible',
+                'sort_order' => (int) ($item['sort_order'] ?? 0),
+            ]);
+        }
+
+        return 'applied';
+    }
+
     private function applyProductPrice(Tenant $tenant, array $payload): string
     {
         $product = $this->productBySku($tenant, $this->requiredString($payload, 'sku'));
@@ -1982,6 +2040,15 @@ class SyncEventApplier
                     'discount_base_amount' => $item['discount_base_amount'] ?? 0,
                     'discount_local_amount' => $item['discount_local_amount'] ?? 0,
                     'discount_reason' => $item['discount_reason'] ?? null,
+                    'promotion_id' => $item['promotion_id'] ?? null,
+                    'promotion_code' => $item['promotion_code'] ?? null,
+                    'promotion_name' => $item['promotion_name'] ?? null,
+                    'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
+                    'promotion_price_usd' => $item['promotion_price_usd'] ?? null,
+                    'promotion_discount_percent' => $item['promotion_discount_percent'] ?? null,
+                    'promotion_discount_amount_usd' => $item['promotion_discount_amount_usd'] ?? null,
+                    'promotion_adjustment_base_amount' => $item['promotion_adjustment_base_amount'] ?? 0,
+                    'promotion_adjustment_local_amount' => $item['promotion_adjustment_local_amount'] ?? 0,
                     'warranty_policy_id' => null,
                     'warranty_policy_name' => $item['warranty_policy_name'] ?? null,
                     'warranty_duration_days' => $item['warranty_duration_days'] ?? null,

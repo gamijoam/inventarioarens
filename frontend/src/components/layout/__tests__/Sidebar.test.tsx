@@ -76,6 +76,7 @@ describe('<Sidebar>', () => {
     expect(labels).toEqual([
       'Dashboard',
       'POS',
+      'Promociones',
       'Ventas',
       'Devoluciones',
       'Clientes',

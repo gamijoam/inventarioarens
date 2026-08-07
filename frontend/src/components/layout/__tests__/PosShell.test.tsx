@@ -55,13 +55,13 @@ describe('<PosShell>', () => {
     expect(screen.queryByRole('banner', { name: 'POS' })).not.toBeInTheDocument();
   });
 
-  it('ofrece una salida explícita al backoffice sin incluir navegación administrativa', () => {
-    render(<PosShell>Contenido POS</PosShell>);
+  it('ofrece una salida explícita sin incluir navegación administrativa', () => {
+    const onExit = vi.fn();
+    render(<PosShell onExit={onExit}>Contenido POS</PosShell>);
 
-    expect(screen.getByRole('link', { name: 'Salir del POS' })).toHaveAttribute(
-      'href',
-      '/dashboard',
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Salir del POS' }));
+
+    expect(onExit).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByRole('navigation', { name: 'Navegación principal' }),
     ).not.toBeInTheDocument();

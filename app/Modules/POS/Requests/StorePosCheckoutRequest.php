@@ -20,6 +20,12 @@ class StorePosCheckoutRequest extends FormRequest
             'customer_name' => ['nullable', 'string', 'max:255'],
             'credit' => ['sometimes', 'boolean'],
             'credit_due_date' => ['nullable', 'date'],
+            'promotion_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('promotions', 'id')->where('tenant_id', $tenantId),
+            ],
+            'promotion_code' => ['nullable', 'string', 'max:80'],
             'cash_register_session_id' => [
                 'required',
                 'integer',

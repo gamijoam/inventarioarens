@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 import { usePermissionContext } from '@/permissions/PermissionContext';
@@ -29,6 +28,8 @@ interface PosShellProps {
   children: ReactNode;
   context?: PosShellContext;
   actions?: readonly PosShellAction[];
+  onExit?: () => void | Promise<void>;
+  exitDisabled?: boolean;
 }
 
 function hasRequiredPermission(
@@ -52,7 +53,13 @@ function syncStatusLabel(status: PosSyncStatus): string {
   return 'Sincronizando';
 }
 
-export function PosShell({ children, context, actions = [] }: PosShellProps) {
+export function PosShell({
+  children,
+  context,
+  actions = [],
+  onExit,
+  exitDisabled = false,
+}: PosShellProps) {
   const { permissions } = usePermissionContext();
   const visibleActions = actions.filter((action) =>
     hasRequiredPermission(permissions, action.permission),
@@ -61,12 +68,14 @@ export function PosShell({ children, context, actions = [] }: PosShellProps) {
 
   return (
     <div data-testid="pos-shell" data-shell="pos" className="bg-bg relative min-h-screen w-full">
-      <Link
-        to="/dashboard"
+      <button
+        type="button"
+        onClick={() => void onExit?.()}
+        disabled={exitDisabled}
         className="bg-surface text-text-secondary hover:text-text-primary absolute top-3 right-3 z-50 rounded-md border px-3 py-2 text-xs font-medium shadow-sm transition-colors"
       >
         Salir del POS
-      </Link>
+      </button>
       {showHeader && (
         <header
           aria-label="POS"

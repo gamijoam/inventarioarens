@@ -61,6 +61,12 @@ interface UsersSearch {
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
+  {
+    to: '/promotions',
+    label: 'Promociones',
+    icon: Tag,
+    permission: PERMISSIONS.PROMOTIONS_VIEW,
+  },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
   {
     to: '/sales-returns',

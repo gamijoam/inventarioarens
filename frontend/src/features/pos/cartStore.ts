@@ -24,6 +24,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import type { Customer } from './api';
 import type { PosCartLine, PosPaymentLine } from './posLogic';
 import type { CurrencyCode, DiscountType } from './posLogic';
+import type { Promotion } from '@/features/promotions/schemas';
 
 export type Panel =
   | 'pay'
@@ -32,6 +33,7 @@ export type Panel =
   | 'cash'
   | 'receipt'
   | 'product-search'
+  | 'promotions'
   | 'credit'
   | 'serials'
   | null;
@@ -82,6 +84,7 @@ export const usePosCartStore = create<{
   selectedCustomer: Customer | null;
   customerName: string;
   customerSearch: string;
+  selectedPromotion: Promotion | null;
 
   // ===== Carrito =====
   lines: PosCartLine[];
@@ -104,6 +107,8 @@ export const usePosCartStore = create<{
   setSelectedCustomer: (customer: Customer | null) => void;
   setCustomerName: (name: string) => void;
   setCustomerSearch: (search: string) => void;
+  setSelectedPromotion: (promotion: Promotion | null) => void;
+  clearSelectedPromotion: () => void;
 
   // ===== Acciones de carrito =====
   addLine: (input: AddLineInput) => string | null;
@@ -135,9 +140,10 @@ export const usePosCartStore = create<{
     // ===== Seleccion =====
     warehouseId: null,
     selectedPriceListId: null,
-    selectedCustomer: null,
-    customerName: 'Consumidor Final',
-    customerSearch: '',
+  selectedCustomer: null,
+  customerName: 'Consumidor Final',
+  customerSearch: '',
+  selectedPromotion: null,
 
     // ===== Carrito =====
     lines: [],
@@ -160,6 +166,8 @@ export const usePosCartStore = create<{
     setSelectedCustomer: (selectedCustomer) => set({ selectedCustomer }),
     setCustomerName: (customerName) => set({ customerName }),
     setCustomerSearch: (customerSearch) => set({ customerSearch }),
+    setSelectedPromotion: (selectedPromotion) => set({ selectedPromotion }),
+    clearSelectedPromotion: () => set({ selectedPromotion: null }),
 
     // ===== Acciones de carrito =====
     addLine: (input) => {
@@ -257,6 +265,7 @@ export const usePosCartStore = create<{
         payments: [],
         selectedCustomer: null,
         customerName: 'Consumidor Final',
+        selectedPromotion: null,
         exchangeDraft: null,
         exchangeReturnId: null,
       }),
@@ -307,6 +316,7 @@ interface PersistedCart {
   selectedPriceListId: number | null;
   selectedCustomer: Customer | null;
   customerName: string;
+  selectedPromotion?: Promotion | null;
   exchangeDraft?: PosExchangeDraft | null;
   exchangeReturnId?: number | null;
 }
@@ -397,8 +407,9 @@ export function usePosCartPersistence(
         payments: persisted.payments ?? [],
         warehouseId: persisted.warehouseId ?? null,
         selectedPriceListId: persisted.selectedPriceListId ?? null,
-        selectedCustomer: persisted.selectedCustomer ?? null,
-        customerName: persisted.customerName ?? 'Consumidor Final',
+         selectedCustomer: persisted.selectedCustomer ?? null,
+         customerName: persisted.customerName ?? 'Consumidor Final',
+         selectedPromotion: persisted.selectedPromotion ?? currentState.selectedPromotion ?? null,
         exchangeDraft: persisted.exchangeDraft ?? currentState.exchangeDraft ?? null,
         exchangeReturnId: persisted.exchangeReturnId ?? currentState.exchangeReturnId ?? null,
       });
@@ -409,8 +420,9 @@ export function usePosCartPersistence(
         payments: [],
         warehouseId: null,
         selectedPriceListId: null,
-        selectedCustomer: null,
-        customerName: 'Consumidor Final',
+         selectedCustomer: null,
+         customerName: 'Consumidor Final',
+         selectedPromotion: null,
         exchangeDraft: currentState.exchangeDraft ?? null,
         exchangeReturnId: currentState.exchangeReturnId ?? null,
       });
@@ -426,8 +438,9 @@ export function usePosCartPersistence(
         payments: state.payments,
         warehouseId: state.warehouseId,
         selectedPriceListId: state.selectedPriceListId,
-        selectedCustomer: state.selectedCustomer,
-        customerName: state.customerName,
+         selectedCustomer: state.selectedCustomer,
+         customerName: state.customerName,
+         selectedPromotion: state.selectedPromotion,
         exchangeDraft: state.exchangeDraft,
         exchangeReturnId: state.exchangeReturnId,
       }),

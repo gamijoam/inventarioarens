@@ -19,6 +19,7 @@ use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Warranties\Models\WarrantyPolicy;
@@ -161,6 +162,21 @@ class SyncCatalogOutboxService
     public function warrantyPolicyUpdated(WarrantyPolicy $policy): void
     {
         $this->recordWarrantyPolicy('warranty_policy.updated', $policy);
+    }
+
+    public function promotionCreated(Promotion $promotion): void
+    {
+        $this->recordPromotion('promotion.created', $promotion);
+    }
+
+    public function promotionUpdated(Promotion $promotion): void
+    {
+        $this->recordPromotion('promotion.updated', $promotion);
+    }
+
+    public function promotionDeleted(Promotion $promotion): void
+    {
+        $this->recordPromotion('promotion.deleted', $promotion);
     }
 
     public function supplierCreated(Supplier $supplier): void
@@ -659,6 +675,39 @@ class SyncCatalogOutboxService
                 'is_active' => (bool) $policy->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'warranty_policy', $policy->id, $policy->updated_at),
+        );
+    }
+
+    private function recordPromotion(string $eventType, Promotion $promotion): void
+    {
+        $promotion->loadMissing('items.product');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'promotion',
+            aggregateId: $promotion->id,
+            payload: [
+                'id' => $promotion->id,
+                'name' => $promotion->name,
+                'code' => $promotion->code,
+                'benefit_type' => $promotion->benefit_type,
+                'price_currency' => $promotion->price_currency,
+                'price_usd' => $promotion->price_usd === null ? null : (string) $promotion->price_usd,
+                'discount_percent' => $promotion->discount_percent === null ? null : (string) $promotion->discount_percent,
+                'discount_amount_usd' => $promotion->discount_amount_usd === null ? null : (string) $promotion->discount_amount_usd,
+                'priority' => (int) $promotion->priority,
+                'is_active' => $eventType !== 'promotion.deleted' && (bool) $promotion->is_active,
+                'starts_at' => $promotion->starts_at?->toISOString(),
+                'ends_at' => $promotion->ends_at?->toISOString(),
+                '_deleted' => $eventType === 'promotion.deleted',
+                'items' => $promotion->items->map(fn ($item): array => [
+                    'product_sku' => $item->product?->sku,
+                    'quantity' => (string) $item->quantity,
+                    'item_role' => $item->item_role,
+                    'sort_order' => (int) $item->sort_order,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'promotion', $promotion->id, $promotion->updated_at),
         );
     }
 

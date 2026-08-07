@@ -49,14 +49,27 @@ class SaleService
                     $item['price_source'] ?? null,
                 );
                 $baseUnitPrice = (float) $quote['base_price_usd'];
-                $baseTotal = round($baseUnitPrice * $quantity, 4);
-                $unitPrice = (float) $quote['sale_price'];
-                $totalAmount = round($unitPrice * $quantity, 4);
-                $localTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
-                $discount = $this->resolveLineDiscount($item, $quote, $totalAmount, $baseTotal, $localTotal);
-                $netTotalAmount = round($totalAmount - $discount['amount'], 4);
-                $netBaseTotal = round($baseTotal - $discount['base_amount'], 4);
-                $netLocalTotal = round($localTotal - $discount['local_amount'], 4);
+                $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
+                $normalUnitPrice = (float) $quote['sale_price'];
+                $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
+                $normalLocalTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
+                $promotionApplied = array_key_exists('promotion_base_total_amount', $item);
+                $baseTotal = $promotionApplied ? (float) $item['promotion_base_total_amount'] : $normalBaseTotal;
+                $totalAmount = $promotionApplied ? (float) $item['promotion_total_amount'] : $normalTotalAmount;
+                $localTotal = $promotionApplied ? (float) $item['promotion_local_total_amount'] : $normalLocalTotal;
+                $discount = $promotionApplied
+                    ? [
+                        'type' => null,
+                        'value' => 0,
+                        'amount' => 0,
+                        'base_amount' => 0,
+                        'local_amount' => 0,
+                        'reason' => null,
+                    ]
+                    : $this->resolveLineDiscount($item, $quote, $totalAmount, $baseTotal, $localTotal);
+                $netTotalAmount = $promotionApplied ? $totalAmount : round($totalAmount - $discount['amount'], 4);
+                $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
+                $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
 
                 SaleItem::create([
                     'sale_id' => $sale->id,
@@ -68,7 +81,7 @@ class SaleService
                     'quantity' => $quantity,
                     'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
                     'sale_currency' => $quote['sale_currency'],
-                    'unit_price' => $unitPrice,
+                    'unit_price' => round($netTotalAmount / $quantity, 4),
                     'total_amount' => $netTotalAmount,
                     'base_unit_price' => $baseUnitPrice,
                     'base_total_amount' => $netBaseTotal,
@@ -78,6 +91,15 @@ class SaleService
                     'discount_base_amount' => $discount['base_amount'],
                     'discount_local_amount' => $discount['local_amount'],
                     'discount_reason' => $discount['reason'],
+                    'promotion_id' => $item['promotion_id'] ?? null,
+                    'promotion_code' => $item['promotion_code'] ?? null,
+                    'promotion_name' => $item['promotion_name'] ?? null,
+                    'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
+                    'promotion_price_usd' => $item['promotion_price_usd'] ?? null,
+                    'promotion_discount_percent' => $item['promotion_discount_percent'] ?? null,
+                    'promotion_discount_amount_usd' => $item['promotion_discount_amount_usd'] ?? null,
+                    'promotion_adjustment_base_amount' => $item['promotion_adjustment_base_amount'] ?? 0,
+                    'promotion_adjustment_local_amount' => $item['promotion_adjustment_local_amount'] ?? 0,
                     'exchange_rate_type_id' => $quote['exchange_rate_type_id'],
                     'exchange_rate_type_code' => $quote['exchange_rate_type_code'],
                     'exchange_rate' => $quote['exchange_rate'],

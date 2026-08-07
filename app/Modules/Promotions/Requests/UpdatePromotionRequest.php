@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Modules\Promotions\Requests;
+
+use App\Modules\Promotions\Models\Promotion;
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdatePromotionRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        $tenantId = app(TenantManager::class)->require()->id;
+        $promotionId = $this->route('promotion')?->id;
+        $benefitType = $this->input('benefit_type') ?? $this->route('promotion')?->benefit_type;
+
+        return [
+            'name' => ['sometimes', 'string', 'max:255'],
+            'code' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:80',
+                'regex:/^[A-Z0-9_-]+$/',
+                Rule::unique('promotions', 'code')->where('tenant_id', $tenantId)->ignore($promotionId),
+            ],
+            'benefit_type' => ['sometimes', 'string', Rule::in([
+                Promotion::BENEFIT_PERCENT_DISCOUNT,
+                Promotion::BENEFIT_FIXED_DISCOUNT,
+                Promotion::BENEFIT_FIXED_ITEM_PRICE,
+                Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
+                Promotion::BENEFIT_FREE_ITEM,
+                Promotion::BENEFIT_BUY_X_GET_Y,
+            ])],
+            'price_currency' => ['sometimes', 'string', 'size:3', Rule::in(['USD'])],
+            'price_usd' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
+            'discount_percent' => [
+                Rule::requiredIf($this->input('benefit_type') === Promotion::BENEFIT_PERCENT_DISCOUNT),
+                'nullable',
+                'numeric',
+                'gt:0',
+                'lte:100',
+            ],
+            'discount_amount_usd' => [
+                Rule::requiredIf($this->input('benefit_type') === Promotion::BENEFIT_FIXED_DISCOUNT),
+                'nullable',
+                'numeric',
+                'gt:0',
+            ],
+            'priority' => ['sometimes', 'integer', 'min:0'],
+            'is_active' => ['sometimes', 'boolean'],
+            'starts_at' => ['sometimes', 'nullable', 'date'],
+            'ends_at' => ['sometimes', 'nullable', 'date', 'after_or_equal:starts_at'],
+            'items' => ['sometimes', 'array', 'min:1', Rule::when($benefitType === Promotion::BENEFIT_FIXED_BUNDLE_PRICE, ['min:2'])],
+            'items.*.product_id' => [
+                'required',
+                'integer',
+                Rule::exists('products', 'id')->where('tenant_id', $tenantId),
+            ],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.item_role' => ['nullable', 'string', Rule::in(['eligible', 'trigger', 'reward'])],
+        ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            if (! $this->has('items') || ($this->input('benefit_type') ?? $this->route('promotion')?->benefit_type) !== Promotion::BENEFIT_BUY_X_GET_Y) {
+                return;
+            }
+
+            $roles = collect($this->input('items', []))->pluck('item_role');
+            if (! $roles->contains('trigger') || ! $roles->contains('reward')) {
+                $validator->errors()->add('items', 'La promocion debe tener componentes trigger y reward.');
+            }
+        });
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('code')) {
+            $this->merge(['code' => mb_strtoupper(trim((string) $this->input('code')))]);
+        }
+    }
+}

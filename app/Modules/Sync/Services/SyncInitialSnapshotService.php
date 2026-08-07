@@ -29,6 +29,7 @@ class SyncInitialSnapshotService
             'price_list.created' => $this->queuePriceLists($tenant, $targetNodeId, $installationCode),
             'product.created' => $this->queueProducts($tenant, $targetNodeId, $installationCode),
             'product_price.created' => $this->queueProductPrices($tenant, $targetNodeId, $installationCode),
+            'promotion.created' => $this->queuePromotions($tenant, $targetNodeId, $installationCode),
             'customer.created' => $this->queueCustomers($tenant, $targetNodeId, $installationCode),
             'stock_movement.created' => $this->queueStockMovements($tenant, $targetNodeId, $installationCode),
             'product_unit.created' => $this->queueProductUnits($tenant, $targetNodeId, $installationCode),
@@ -390,6 +391,60 @@ class SyncInitialSnapshotService
                     $count++;
                 }
             }, 'products.id', 'id');
+
+        return $count;
+    }
+
+    private function queuePromotions(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+
+        DB::table('promotions')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('id')
+            ->chunkById(200, function ($promotions) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                foreach ($promotions as $promotion) {
+                    $items = DB::table('promotion_items')
+                        ->join('products', function ($join): void {
+                            $join->on('products.id', '=', 'promotion_items.product_id')
+                                ->on('products.tenant_id', '=', 'promotion_items.tenant_id');
+                        })
+                        ->where('promotion_items.tenant_id', $tenant->id)
+                        ->where('promotion_items.promotion_id', $promotion->id)
+                        ->orderBy('promotion_items.sort_order')
+                        ->get([
+                            'products.sku as product_sku',
+                            'promotion_items.quantity',
+                            'promotion_items.item_role',
+                            'promotion_items.sort_order',
+                        ])
+                        ->map(fn ($item): array => [
+                            'product_sku' => $item->product_sku,
+                            'quantity' => (string) $item->quantity,
+                            'item_role' => $item->item_role,
+                            'sort_order' => (int) $item->sort_order,
+                        ])
+                        ->values()
+                        ->all();
+
+                    $this->record($tenant, $targetNodeId, $installationCode, 'promotion.created', 'promotion', (int) $promotion->id, [
+                        'id' => (int) $promotion->id,
+                        'name' => $promotion->name,
+                        'code' => $promotion->code,
+                        'benefit_type' => $promotion->benefit_type,
+                        'price_currency' => $promotion->price_currency,
+                        'price_usd' => $promotion->price_usd === null ? null : (string) $promotion->price_usd,
+                        'discount_percent' => $promotion->discount_percent === null ? null : (string) $promotion->discount_percent,
+                        'discount_amount_usd' => $promotion->discount_amount_usd === null ? null : (string) $promotion->discount_amount_usd,
+                        'priority' => (int) $promotion->priority,
+                        'is_active' => (bool) $promotion->is_active,
+                        'starts_at' => $promotion->starts_at,
+                        'ends_at' => $promotion->ends_at,
+                        'items' => $items,
+                    ]);
+                    $count++;
+                }
+            });
 
         return $count;
     }

@@ -293,6 +293,8 @@ export interface CheckoutPayload {
   cash_register_session_id: number;
   customer_id?: number | null;
   customer_name?: string | null;
+  promotion_id?: number | null;
+  promotion_code?: string | null;
   credit?: boolean;
   credit_due_date?: string | null;
   items: Array<{
@@ -1062,8 +1064,13 @@ export async function lookupProductSerialRequest(params: {
   );
 }
 
-export async function getProductForPos(productId: number): Promise<Product> {
-  return ProductSchema.parse(await getOne<unknown>(`/products/${productId}`));
+export async function getProductForPos(
+  productId: number,
+  warehouseId?: number | null,
+): Promise<Product> {
+  const query = warehouseId ? `?warehouse_id=${encodeURIComponent(String(warehouseId))}` : '';
+
+  return ProductSchema.parse(await getOne<unknown>(`/products/${productId}${query}`));
 }
 
 /**

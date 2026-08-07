@@ -50,6 +50,11 @@ export interface PosCartLine {
   }[];
 }
 
+export interface PromotionCartItem {
+  product_id: number;
+  quantity: number;
+}
+
 export interface PosPaymentLine {
   id: string;
   method: string;
@@ -84,6 +89,22 @@ export function clampQuantity(quantity: number, available: number): number {
   const positive = Math.max(1, parsed);
 
   return Math.min(positive, Math.max(0, available));
+}
+
+export function expandPromotionItems(
+  items: { product_id: number; quantity: number }[],
+  sets: number,
+): PromotionCartItem[] {
+  const multiplier = Math.max(1, Math.floor(Number(sets) || 1));
+  const quantities = new Map<number, number>();
+
+  for (const item of items) {
+    const quantity = Number(item.quantity);
+    if (quantity <= 0) continue;
+    quantities.set(item.product_id, (quantities.get(item.product_id) ?? 0) + quantity * multiplier);
+  }
+
+  return [...quantities].map(([product_id, quantity]) => ({ product_id, quantity }));
 }
 
 export function lineSubtotal(line: Pick<PosCartLine, 'quantity' | 'unit_price'>): number {
