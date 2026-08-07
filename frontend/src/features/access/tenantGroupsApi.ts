@@ -401,7 +401,7 @@ export function useCreateSyncGroupPairingCode() {
   return useMutation({
     mutationFn: (payload: SyncGroupPairingCodePayload) =>
       postOne<SyncGroupPairingCodePayload, SyncGroupPairingCode>(
-        '/sync/pairing-codes/group',
+        '/sync/group-pairing-codes',
         payload,
       ),
   });

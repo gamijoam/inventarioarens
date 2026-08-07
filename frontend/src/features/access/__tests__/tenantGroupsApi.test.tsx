@@ -91,7 +91,7 @@ describe('tenantGroupsApi', () => {
     });
 
     expect(response.tenants).toHaveLength(1);
-    expect(mockPostOne).toHaveBeenCalledWith('/sync/pairing-codes/group', {
+    expect(mockPostOne).toHaveBeenCalledWith('/sync/group-pairing-codes', {
       user_email: 'owner@danubio.test',
       node_name: 'POS-01',
       expires_in_minutes: 15,
