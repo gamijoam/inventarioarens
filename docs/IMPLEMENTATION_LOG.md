@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-08-07 - Vinculación grupal y mapeos de sincronización
+
+- Se agregó `POST /api/sync/group-pairing-codes`, que genera un código de un solo uso para todo el
+  grupo y emite un token independiente para cada tenant incluido.
+- Soporte Técnico prepara automáticamente el grupo completo en Windows, registra cada tenant local y
+  conserva sus tokens separados en la configuración de sync.
+- Se agregaron `sync_tenant_mappings` y `sync_entity_mappings` para resolver IDs cloud/local de tenants,
+  sucursales, almacenes y productos antes de aplicar eventos y FKs cross-tenant.
+- El frontend permite seleccionar `Una empresa` o `Grupo completo` al vincular una computadora.
+- La guía de validación Windows documenta el flujo, la verificación segura sin mostrar tokens y la prueba
+  funcional multiempresa: `docs/WINDOWS_ELECTRON_VALIDATION.md` §6.7.1.
+- Verificación: backend afectado `104` tests correctos y `1` omitido; frontend `563/563`; build Technician
+  correcto; smoke remoto del servicio grupal `oscar-cell` devolvió 5 tenants y 5 tokens independientes.
+- Pendiente: construir/instalar los NSIS en Windows real y validar la descarga inicial completa en una PC
+  limpia.
+
 ## 2026-08-06 - Primera slice TDD de promociones POS
 
 - Se agregó el módulo tenant-scoped `Promotions` con CRUD Administrativo, permisos propios y componentes

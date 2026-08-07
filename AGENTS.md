@@ -204,14 +204,24 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
   - Clientes — upsert por documento/teléfono/UUID.
 - **Token de sync** vs **token de usuario**:
   - Token de usuario: `POST /api/auth/login`, expiración 30 días.
-  - Token de sync: `POST /api/sync/tokens` (requiere manager auth), típicamente 365 días, vive en
-    `storage/app/sync-worker/sync-config.json` **por empresa**.
+- Token de sync: `POST /api/sync/tokens` (requiere manager auth), típicamente 365 días, vive en
+  `storage/app/sync-worker/sync-config.json` **por empresa**.
+- **Vinculación grupal**: `POST /api/sync/group-pairing-codes` crea un código de un solo uso para
+  un grupo completo. Al redimirlo se emite un token independiente para el grupo y cada empresa
+  hija; nunca se usa un token global multi-tenant.
+- **Mapeos local/cloud**: `sync_tenant_mappings` conserva la relación de tenants y
+  `sync_entity_mappings` conserva la relación de sucursales, almacenes y productos. El applier debe
+  resolver estas relaciones antes de insertar FKs o movimientos cross-tenant; los IDs locales no
+  se consideran iguales a los IDs cloud.
 - **ACK solo después de aplicar**: eventos fallidos permanecen en `sync_inbox` para retry.
 - **Foto inicial**: cuando un nodo local nuevo se registra con su catálogo vacío, la nube genera
   automáticamente un snapshot inicial (`product.created`, `price_list.created`, etc.) marcado `sync_snapshot`.
 
 **Worker en Windows**: Scheduled Task `SistemaInventarioSync-{tenant-slug}` cada 5 min, ejecuta
 `scripts/run-sync-hidden.vbs` → `scripts/sync-worker.cmd start {tenant}`. Sobrevive reinicios.
+
+El procedimiento Windows para vincular un grupo completo, verificar sus cinco tenants y diagnosticar
+tokens/mapeos sin exponer secretos está en `docs/WINDOWS_ELECTRON_VALIDATION.md` §6.7.1.
 
 **Comandos Artisan**: `sync:run`, `sync:daemon`, `sync:apply-inbox`, `sync:issue-token`,
 `sync:prepare-local`, `sync:reset-readiness`.
