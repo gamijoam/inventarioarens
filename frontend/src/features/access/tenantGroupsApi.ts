@@ -61,6 +61,20 @@ export interface SyncPairingCode {
   node_name: string;
 }
 
+export interface SyncGroupPairingCodePayload {
+  user_email: string;
+  node_name: string;
+  expires_in_minutes?: number;
+}
+
+export interface SyncGroupPairingCode {
+  code: string;
+  expires_at: string;
+  group: { id: number; name: string; slug: string };
+  tenants: { id: number; name: string; slug: string }[];
+  node_name: string;
+}
+
 /** Shape del usuario devuelto por el endpoint de grupo. */
 export const GroupUserSchema = z.object({
   id: z.number().int().positive(),
@@ -105,11 +119,13 @@ export const GroupSharedCatalogSchema = z.object({
     name: z.string(),
     slug: z.string(),
   }),
-  spinoffs: z.array(z.object({
-    id: z.number().int().positive(),
-    name: z.string(),
-    slug: z.string(),
-  })),
+  spinoffs: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      name: z.string(),
+      slug: z.string(),
+    }),
+  ),
   products: z.array(SharedCatalogEntrySchema),
 });
 export type GroupSharedCatalog = z.infer<typeof GroupSharedCatalogSchema>;
@@ -367,9 +383,7 @@ export function usePromoteTenant() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tenantIdOrSlug: number | string) =>
-      postOne<never, { data: TenantGroup }>(
-        `/tenants/${tenantIdOrSlug}/promote-to-group`,
-      ),
+      postOne<never, { data: TenantGroup }>(`/tenants/${tenantIdOrSlug}/promote-to-group`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: groupsKey });
     },
@@ -380,6 +394,16 @@ export function useCreateSyncPairingCode() {
   return useMutation({
     mutationFn: (payload: SyncPairingCodePayload) =>
       postOne<SyncPairingCodePayload, SyncPairingCode>('/sync/pairing-codes', payload),
+  });
+}
+
+export function useCreateSyncGroupPairingCode() {
+  return useMutation({
+    mutationFn: (payload: SyncGroupPairingCodePayload) =>
+      postOne<SyncGroupPairingCodePayload, SyncGroupPairingCode>(
+        '/sync/pairing-codes/group',
+        payload,
+      ),
   });
 }
 

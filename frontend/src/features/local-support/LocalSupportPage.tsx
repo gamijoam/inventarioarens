@@ -154,8 +154,11 @@ function ConnectCompanyCard() {
         local_user_name: name.trim() || undefined,
         local_password: password,
       });
+      const names =
+        result.tenants?.map((item) => item.tenant.name) ??
+        (result.tenant ? [result.tenant.name] : []);
       toast.success(
-        `${result.tenant.name} fue vinculada. La descarga inicial continuara en segundo plano.`,
+        `${names.join(', ')} fue vinculada${names.length > 1 ? 's' : ''}. La descarga inicial continuara en segundo plano.`,
       );
       setCode('');
       setPassword('');

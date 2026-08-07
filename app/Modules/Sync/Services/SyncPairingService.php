@@ -58,6 +58,50 @@ class SyncPairingService
         ];
     }
 
+    public function createGroup(Tenant $currentTenant, User $actor, array $data): array
+    {
+        $group = $currentTenant->isGroup()
+            ? $currentTenant
+            : Tenant::query()->find($currentTenant->parent_id);
+
+        abort_unless($group && $actor->isOwnerOf($group), 403, 'Solo el Owner puede crear codigos de vinculacion.');
+
+        $email = Str::lower(trim((string) $data['user_email']));
+        $user = User::query()->where('email', $email)->first();
+        abort_unless($user, 422, 'El usuario autorizado no existe.');
+
+        $tenants = collect([$group])
+            ->merge($group->children()->where('is_group', false)->orderBy('id')->get())
+            ->values();
+
+        foreach ($tenants as $tenant) {
+            if (! $user->belongsToTenant($tenant)) {
+                throw ValidationException::withMessages([
+                    'user_email' => 'El usuario autorizado debe pertenecer a todas las empresas del grupo.',
+                ]);
+            }
+        }
+
+        $plainCode = 'ARNS-'.Str::upper(Str::random(35));
+        $pairing = SyncPairingCode::create([
+            'target_tenant_id' => $group->id,
+            'created_by_user_id' => $actor->id,
+            'target_user_id' => $user->id,
+            'is_group_bundle' => true,
+            'code_hash' => hash('sha256', $plainCode),
+            'node_name' => $data['node_name'],
+            'expires_at' => now()->addMinutes((int) ($data['expires_in_minutes'] ?? 15)),
+        ]);
+
+        return [
+            'code' => $plainCode,
+            'expires_at' => $pairing->expires_at->toISOString(),
+            'group' => $this->tenantSummary($group),
+            'tenants' => $tenants->map(fn (Tenant $tenant): array => $this->tenantSummary($tenant))->all(),
+            'node_name' => $pairing->node_name,
+        ];
+    }
+
     public function redeem(array $data, string $ipAddress, ?string $userAgent): array
     {
         return DB::transaction(function () use ($data, $ipAddress, $userAgent): array {
@@ -75,21 +119,60 @@ class SyncPairingService
                 ]);
             }
 
-            $token = $this->tokens->issue(
-                tenant: $pairing->targetTenant,
-                user: $pairing->targetUser,
-                name: $data['node_name'] ?? $pairing->node_name,
-                days: 365,
-                ipAddress: $ipAddress,
-                userAgent: $userAgent,
-            );
+            if ($pairing->is_group_bundle) {
+                $group = $pairing->targetTenant;
+                $tenants = collect([$group])
+                    ->merge($group->children()->where('is_group', false)->orderBy('id')->get())
+                    ->values();
+                $tokens = $tenants->map(fn (Tenant $tenant): array => [
+                    'tenant' => $this->tenantSummary($tenant),
+                    'token' => $this->tokens->issue(
+                        tenant: $tenant,
+                        user: $pairing->targetUser,
+                        name: $data['node_name'] ?? $pairing->node_name,
+                        days: 365,
+                        ipAddress: $ipAddress,
+                        userAgent: $userAgent,
+                    ),
+                ])->all();
+            } else {
+                $token = $this->tokens->issue(
+                    tenant: $pairing->targetTenant,
+                    user: $pairing->targetUser,
+                    name: $data['node_name'] ?? $pairing->node_name,
+                    days: 365,
+                    ipAddress: $ipAddress,
+                    userAgent: $userAgent,
+                );
+            }
 
             $pairing->forceFill([
                 'redeemed_at' => now(),
                 'redeemed_node_code' => $data['node_code'],
             ])->save();
 
-            return $token;
+            if ($pairing->is_group_bundle) {
+                return [
+                    'group' => $this->tenantSummary($pairing->targetTenant),
+                    'tenants' => $tokens,
+                ];
+            }
+
+            return [
+                'tenant' => $this->tenantSummary($pairing->targetTenant),
+                'token' => $token,
+            ];
         });
+    }
+
+    private function tenantSummary(Tenant $tenant): array
+    {
+        return [
+            'id' => $tenant->id,
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+            'parent_id' => $tenant->parent_id,
+            'is_group' => $tenant->isGroup(),
+        ];
     }
 }

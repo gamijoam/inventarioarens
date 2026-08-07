@@ -4,6 +4,7 @@ namespace App\Modules\Sync\Controllers;
 
 use App\Modules\Sync\Requests\AcknowledgeSyncEventRequest;
 use App\Modules\Sync\Requests\CreateSyncPairingCodeRequest;
+use App\Modules\Sync\Requests\CreateSyncGroupPairingCodeRequest;
 use App\Modules\Sync\Requests\IssueSyncTokenRequest;
 use App\Modules\Sync\Requests\PullSyncEventsRequest;
 use App\Modules\Sync\Requests\PushSyncEventsRequest;
@@ -123,6 +124,17 @@ class SyncController extends Controller
     {
         return response()->json([
             'data' => $this->pairing->create(
+                $this->tenancy->require(),
+                $request->user(),
+                $request->validated(),
+            ),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function createGroupPairingCode(CreateSyncGroupPairingCodeRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->pairing->createGroup(
                 $this->tenancy->require(),
                 $request->user(),
                 $request->validated(),

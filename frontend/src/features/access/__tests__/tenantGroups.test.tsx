@@ -23,9 +23,22 @@ const mockUseTenantGroups = vi.fn();
 const mockUseGroupSpinoffs = vi.fn();
 const mockUseGroupSharedCatalog = vi.fn();
 const mockUseCreateTenantGroup = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
-const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
-const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({ mutateAsync: mockMutateAsync, isPending: false }));
-const mockUseCreateSyncPairingCode = vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false }));
+const mockUseCreateSpinoff = vi.fn((_id: number | string) => ({
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+}));
+const mockUseAttachGroupUser = vi.fn((_id: number | string) => ({
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+}));
+const mockUseCreateSyncPairingCode = vi.fn(() => ({
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+}));
+const mockUseCreateSyncGroupPairingCode = vi.fn(() => ({
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+}));
 const mockUseGroupUsers = vi.fn((_id?: number | string, _enabled?: boolean) => ({
   data: [
     {
@@ -62,7 +75,13 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
     },
   useGroupSharedCatalog: (_id: number | string, enabled?: boolean) =>
     mockUseGroupSharedCatalog(_id, enabled) as unknown as {
-      data: { group: { id: number; name: string; slug: string }; spinoffs: unknown[]; products: unknown[] } | undefined;
+      data:
+        | {
+            group: { id: number; name: string; slug: string };
+            spinoffs: unknown[];
+            products: unknown[];
+          }
+        | undefined;
       isLoading: boolean;
       isError: boolean;
       error: Error | null;
@@ -71,6 +90,7 @@ vi.mock('@/features/access/tenantGroupsApi', () => ({
   useCreateSpinoff: (_id: number | string) => mockUseCreateSpinoff(_id),
   useAttachGroupUser: (_id: number | string) => mockUseAttachGroupUser(_id),
   useCreateSyncPairingCode: () => mockUseCreateSyncPairingCode(),
+  useCreateSyncGroupPairingCode: () => mockUseCreateSyncGroupPairingCode(),
 }));
 
 vi.mock('sonner', () => ({
@@ -116,7 +136,10 @@ describe('GroupsTree', () => {
     mockUseGroupSpinoffs.mockReset();
     mockUseGroupSharedCatalog.mockReset();
     mockUseCreateSyncPairingCode.mockReset();
-    mockUseCreateSyncPairingCode.mockReturnValue({ mutateAsync: mockMutateAsync, isPending: false });
+    mockUseCreateSyncPairingCode.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: false,
+    });
     mockUseGroupSharedCatalog.mockReturnValue({
       data: { group: { id: 1, name: 'G', slug: 'g' }, spinoffs: [], products: [] },
       isLoading: false,
@@ -314,9 +337,7 @@ describe('CreateGroupDialog', () => {
 
   it('muestra errores cuando se submit sin campos requeridos', async () => {
     mockMutateAsync.mockResolvedValue({ data: {} });
-    renderWithProviders(
-      <CreateGroupDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />,
-    );
+    renderWithProviders(<CreateGroupDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
 
     await userEvent.click(screen.getByTestId('create-group-submit'));
 
@@ -353,7 +374,11 @@ describe('CreateGroupDialog', () => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
     });
 
-    const payload = mockMutateAsync.mock.calls[0]?.[0] as { group: { name: string }; admin: { email: string }; tenant: { name: string } };
+    const payload = mockMutateAsync.mock.calls[0]?.[0] as {
+      group: { name: string };
+      admin: { email: string };
+      tenant: { name: string };
+    };
     expect(payload.group.name).toBe('Mi Holding');
     expect(payload.tenant.name).toBe('Mi Empresa');
     expect(payload.admin.email).toBe('owner@test.com');
@@ -365,9 +390,7 @@ describe('CreateGroupDialog', () => {
 
   it('muestra toast de error si la mutacion falla', async () => {
     mockMutateAsync.mockRejectedValue(new Error('Slug duplicado'));
-    renderWithProviders(
-      <CreateGroupDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />,
-    );
+    renderWithProviders(<CreateGroupDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
 
     await userEvent.type(screen.getByTestId('create-group-name'), 'X');
     await userEvent.type(screen.getByTestId('create-group-slug'), 'x');
@@ -440,12 +463,7 @@ describe('CreateSpinoffDialog', () => {
     };
 
     renderWithProviders(
-      <CreateSpinoffDialog
-        open
-        onOpenChange={vi.fn()}
-        group={group}
-        onCreated={onCreated}
-      />,
+      <CreateSpinoffDialog open onOpenChange={vi.fn()} group={group} onCreated={onCreated} />,
     );
 
     await userEvent.type(screen.getByTestId('create-spinoff-name'), 'Sucursal Caracas');
@@ -459,8 +477,6 @@ describe('CreateSpinoffDialog', () => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
     });
     expect(mockUseCreateSpinoff).toHaveBeenCalledWith(1);
-    expect(onCreated).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'caracas' }),
-    );
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ slug: 'caracas' }));
   });
 });

@@ -124,4 +124,48 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertDatabaseHas('tenants', ['slug' => 'empresa-local']);
         Http::assertSent(fn ($request) => $request->url() === 'https://cloud.test/api/sync/pairing-codes/redeem');
     }
+
+    public function test_connect_prepares_every_tenant_returned_by_a_group_bundle(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
+        Http::fake([
+            'https://cloud.test/api/sync/pairing-codes/redeem' => Http::response([
+                'data' => [
+                    'group' => ['id' => 2, 'name' => 'Grupo', 'slug' => 'grupo', 'parent_id' => null, 'is_group' => true],
+                    'tenants' => [
+                        [
+                            'tenant' => ['id' => 2, 'name' => 'Grupo', 'slug' => 'grupo', 'parent_id' => null, 'is_group' => true],
+                            'token' => 'group-token',
+                        ],
+                        [
+                            'tenant' => ['id' => 3, 'name' => 'Hija', 'slug' => 'hija', 'parent_id' => 2, 'is_group' => false],
+                            'token' => 'child-token',
+                        ],
+                    ],
+                ],
+            ], 201),
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('B', 40),
+                'node_name' => 'Equipo Grupo',
+                'node_code' => 'GROUP-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@grupo.test',
+                'local_password' => 'password123',
+            ])
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.tenants');
+
+        $settings = json_decode(
+            (string) File::get(storage_path('app/sync-worker/sync-config.json')),
+            true,
+        );
+
+        $this->assertSame('group-token', $settings['tenants']['grupo']['token']);
+        $this->assertSame('child-token', $settings['tenants']['hija']['token']);
+        $this->assertSame(2, $settings['tenants']['hija']['remote_parent_id']);
+    }
 }

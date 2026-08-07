@@ -67,9 +67,11 @@ export interface ConnectLocalTenantPayload {
 }
 
 export interface ConnectLocalTenantResult {
-  tenant: { name: string; slug: string };
+  tenant?: { name: string; slug: string };
+  group?: { name: string; slug: string } | null;
+  tenants?: { tenant: { name: string; slug: string } }[];
   download: { status: 'started'; message: string };
-  worker: { output: string; status: LocalWorkerStatus };
+  worker?: { output: string; status: LocalWorkerStatus };
 }
 
 const localSupportKey = ['local-support'] as const;

@@ -302,6 +302,64 @@ La sincronizacion es opcional para una prueba puramente local. Si se valida sync
 
 No reutilizar un token de sync de otra empresa. El aislamiento de tokens por tenant es intencional.
 
+### 6.7.1 Vinculacion de un grupo completo en Windows
+
+Este flujo instala todas las empresas de un grupo en una misma computadora Windows. El backend
+emite un token independiente para cada tenant; el codigo grupal no crea un token global y no debe
+copiarse manualmente al archivo de configuracion.
+
+#### Requisitos
+
+- El backend cloud ya tiene desplegadas las migraciones de pairing grupal y mapeos de entidades.
+- El usuario que genera el codigo es `Owner` del grupo.
+- El usuario autorizado pertenece a todas las empresas del grupo.
+- Soporte Tecnico esta instalado en la computadora Windows destino.
+
+#### Pasos
+
+1. Iniciar sesion en Administrativo contra la nube con el Owner del grupo.
+2. Abrir `Acceso` o la administracion de grupos y seleccionar el grupo correcto.
+3. Abrir `Vincular una computadora`.
+4. En `Alcance`, seleccionar `Grupo completo`.
+5. Seleccionar el usuario autorizado, nombre del equipo y vigencia del codigo.
+6. Generar el codigo y copiarlo de forma segura. Es de un solo uso y expira.
+7. Abrir `Soporte Tecnico` en Windows.
+8. Pegar el codigo, indicar nombre/codigo del equipo, email local y contrasena local.
+9. Presionar `Vincular y descargar grupo`.
+10. Confirmar que la consola muestra una tarjeta para cada empresa del grupo.
+11. Confirmar que cada tarjeta tiene su propio estado de worker y sincronizacion.
+
+La descarga inicial continua en segundo plano. No cerrar Soporte Tecnico durante la primera
+preparacion si se esta comprobando el resultado visual; el supervisor local y los workers quedan
+administrados por la instalacion compartida.
+
+#### Verificacion segura
+
+No mostrar ni copiar los tokens. Para verificar solamente los slugs configurados, sin imprimir
+secretos, ejecutar en PowerShell:
+
+```powershell
+$configPath = Join-Path $env:APPDATA "InventarioArens\storage\app\sync-worker\sync-config.json"
+$config = Get-Content $configPath -Raw | ConvertFrom-Json
+$config.tenants.PSObject.Properties | Select-Object -ExpandProperty Name
+```
+
+El resultado debe contener el slug del grupo y el de cada empresa hija. Luego verificar en Soporte
+Tecnico que todas las empresas muestran actividad o una descarga inicial pendiente, sin `last_error`.
+
+#### Prueba funcional del grupo
+
+1. En una empresa, crear o modificar un producto de prueba desde Administrativo.
+2. Ejecutar `Sync now` para esa empresa y esperar el estado `applied` o equivalente.
+3. Repetir la comprobacion en las otras empresas sin cambiar sus tenants manualmente.
+4. Confirmar que los eventos de cada empresa llegan solo a su tenant correspondiente.
+5. Confirmar que el catalogo y los almacenes se crean aunque los IDs locales sean distintos de los IDs cloud.
+6. Confirmar que no aparecen errores de foreign key, `tenant_id`, producto o almacén remoto.
+7. Cerrar y volver a abrir Soporte Tecnico; la configuracion debe conservar las cinco empresas.
+
+Si una empresa falla, revisar su tarjeta y `sync.log`; no regenerar todos los codigos ni sustituir
+tokens entre empresas. Corregir la empresa afectada y volver a ejecutar su sincronizacion pendiente.
+
 ## 7. Prueba de actualizacion y reinicio
 
 1. Crear un producto de prueba y registrar una venta.
@@ -337,7 +395,7 @@ Errores frecuentes:
 | `No se encontro PHP portable`        | runtime PHP no fue preparado                                      | Ejecutar nuevamente el build con Internet y checksum valido           |
 | API no responde en 8787              | PHP/Laravel local no inicio                                       | Revisar `api.log`, permisos de `%APPDATA%` y proceso `php.exe`        |
 | `CSRF: Origin not in allowlist`      | Se esta usando un build viejo o API iniciada por un proceso viejo | Cerrar ambos clientes y abrir los dos instaladores nuevos             |
-| Actualizacion no aparece             | La version publicada no es mayor o falta metadata del canal      | Revisar version, `latest.yml`/canal y GitHub Release                  |
+| Actualizacion no aparece             | La version publicada no es mayor o falta metadata del canal       | Revisar version, `latest.yml`/canal y GitHub Release                  |
 | Cliente remoto no conecta            | LAN apagado, firewall o host cerrado                              | Revisar Modo LAN, puertos privados y que el host siga abierto         |
 | SQLite en `0 bytes`                  | instalacion inicial incompleta                                    | No borrar datos; conservar logs y reparar/reinstalar con backup       |
 | POS no ve cambios administrativos    | cache de query o sync pendiente                                   | Recargar cliente, verificar API local y estado de sync                |
@@ -441,9 +499,9 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 2. Ejecutar `pnpm test` y `pnpm exec tsc --noEmit` desde `frontend/`.
 3. Construir `pnpm run electron:build:admin`, `pnpm run electron:build:pos` y `pnpm run electron:build:technician`.
 4. Instalar los tres `.exe` en una PC Windows 10/11 x64.
-5. Ejecutar la checklist de las secciones 6 y 7, incluyendo arranque simultaneo, cierre individual,
-   persistencia, reinicio y actualizacion sobre una instalacion existente.
-6. Capturar logs, hashes, version de Windows y resultado usando el formato de la seccion 14.
+5. Ejecutar la checklist de las secciones 6 y 7, incluyendo arranque simultaneo, cierre individual, persistencia, reinicio y actualizacion sobre una instalacion existente.
+6. Si se valida sync grupal, ejecutar tambien la seccion 6.7.1 y capturar los slugs configurados, nunca los tokens.
+7. Capturar logs, hashes, version de Windows y resultado usando el formato de la seccion 14.
 
 ### 13.2 Archivos que se pueden modificar
 
@@ -488,6 +546,8 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 - `electron-updater` ya esta implementado por los canales `admin`, `pos` y `technician`.
 - La version `0.2.0` es el primer bootstrap del actualizador y debe instalarse manualmente.
 - El modo LAN es opcional, requiere reinicio de los clientes y firewall privado.
+- La vinculacion grupal ya esta implementada: genera tokens independientes y prepara cada tenant
+  mediante el cliente Tecnico. La validacion real de una instalacion Windows limpia sigue pendiente.
 - Todavia falta una publicacion real en GitHub Releases y la firma digital de los instaladores.
 - Todavia falta convertir el runtime LAN en un servicio persistente independiente de las ventanas Electron.
 

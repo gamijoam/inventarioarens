@@ -180,6 +180,7 @@ class SyncEventApplier
     {
         $this->assertPayloadIntegrity($event);
         $payload = $this->decodePayload($event['payload'] ?? []);
+        $payload['_sync_aggregate_id'] = isset($event['aggregate_id']) ? (int) $event['aggregate_id'] : null;
 
         $tenantManager = app(TenantManager::class);
         $previousTenant = $tenantManager->current();
@@ -258,6 +259,14 @@ class SyncEventApplier
             ]
         );
 
+        $remoteId = (int) ($payload['_sync_aggregate_id'] ?? 0);
+        if ($remoteId > 0) {
+            $this->rememberEntityMapping($tenant, 'branch', $remoteId, (int) DB::table('branches')
+                ->where('tenant_id', $tenant->id)
+                ->where('code', $code)
+                ->value('id'), $code);
+        }
+
         return 'applied';
     }
 
@@ -276,6 +285,14 @@ class SyncEventApplier
                 'updated_at' => now(),
             ]
         );
+
+        $remoteId = (int) ($payload['_sync_aggregate_id'] ?? 0);
+        if ($remoteId > 0) {
+            $this->rememberEntityMapping($tenant, 'warehouse', $remoteId, (int) DB::table('warehouses')
+                ->where('tenant_id', $tenant->id)
+                ->where('code', $code)
+                ->value('id'), $code);
+        }
 
         return 'applied';
     }
@@ -327,6 +344,11 @@ class SyncEventApplier
         $after = (array) DB::table('products')->where('tenant_id', $tenant->id)->where('id', $productId)->first();
         $this->syncProductCatalogRelations($tenant, $productId, $payload);
         $this->recordProductAudit($productId, $before, $after);
+
+        $remoteId = (int) ($payload['_sync_aggregate_id'] ?? 0);
+        if ($remoteId > 0) {
+            $this->rememberEntityMapping($tenant, 'product', $remoteId, $productId, $sku);
+        }
 
         return 'applied';
     }
@@ -891,7 +913,7 @@ class SyncEventApplier
      */
     private function applyInventoryTransferRequestAccepted(Tenant $tenant, array $payload): string
     {
-        $originTenantId = (int) $payload['origin_tenant_id'];
+        $originTenantId = $this->localTenantIdForRemote((int) $payload['origin_tenant_id']);
         $sequence = (int) $payload['sequence'];
 
         $existing = DB::table('inventory_transfer_requests')
@@ -903,10 +925,9 @@ class SyncEventApplier
             return 'applied';
         }
 
-        return DB::transaction(function () use ($payload): string {
+        return DB::transaction(function () use ($payload, $originTenantId): string {
             $this->upsertTransferRequest($payload, [
                 'status' => 'completed',
-                'destination_warehouse_id' => $payload['destination_warehouse_id'] ?? null,
                 'response_notes' => $payload['response_notes'] ?? null,
                 'responded_by' => $payload['responded_by'] ?? null,
                 'responded_at' => isset($payload['responded_at']) ? Carbon::parse($payload['responded_at']) : now(),
@@ -914,17 +935,39 @@ class SyncEventApplier
             ]);
 
             $requestId = (int) DB::table('inventory_transfer_requests')
-                ->where('origin_tenant_id', (int) $payload['origin_tenant_id'])
+                ->where('origin_tenant_id', $originTenantId)
                 ->where('sequence', (int) $payload['sequence'])
                 ->value('id');
 
             $items = $payload['items'] ?? [];
             $flowType = $payload['flow_type'] ?? 'stock_request';
-            $senderTenantId = (int) ($payload['sender_tenant_id'] ?? $payload['destination_tenant_id']);
-            $receiverTenantId = (int) ($payload['receiver_tenant_id'] ?? $payload['origin_tenant_id']);
-            $senderWarehouseId = (int) ($payload['sender_warehouse_id'] ?? $payload['destination_warehouse_id'] ?? 0);
-            $receiverWarehouseId = (int) ($payload['receiver_warehouse_id'] ?? $payload['from_warehouse_id']);
+            $senderRemoteTenantId = (int) ($payload['sender_tenant_id'] ?? $payload['destination_tenant_id']);
+            $receiverRemoteTenantId = (int) ($payload['receiver_tenant_id'] ?? $payload['origin_tenant_id']);
+            $senderTenantId = $this->localTenantIdForRemote($senderRemoteTenantId);
+            $receiverTenantId = $this->localTenantIdForRemote($receiverRemoteTenantId);
+            $senderWarehouseId = $this->localEntityId(
+                'warehouse',
+                $senderRemoteTenantId,
+                (int) ($payload['sender_warehouse_id'] ?? $payload['destination_warehouse_id'] ?? 0),
+            );
+            $receiverWarehouseId = $this->localEntityId(
+                'warehouse',
+                $receiverRemoteTenantId,
+                (int) ($payload['receiver_warehouse_id'] ?? $payload['from_warehouse_id']),
+            );
             foreach ($items as $itemPayload) {
+                $itemPayload['origin_product_id'] = $this->localEntityId(
+                    'product',
+                    (int) $payload['origin_tenant_id'],
+                    (int) ($itemPayload['origin_product_id'] ?? 0),
+                );
+                $itemPayload['destination_product_id'] = isset($itemPayload['destination_product_id'])
+                    ? $this->localEntityId(
+                        'product',
+                        (int) ($payload['destination_tenant_id'] ?? 0),
+                        (int) $itemPayload['destination_product_id'],
+                    )
+                    : null;
                 $this->applyTransferRequestItemAccepted(
                     $requestId,
                     $senderTenantId,
@@ -971,7 +1014,7 @@ class SyncEventApplier
      */
     private function upsertTransferRequest(array $payload, array $overrides): string
     {
-        $originTenantId = (int) $payload['origin_tenant_id'];
+        $originTenantId = $this->localTenantIdForRemote((int) $payload['origin_tenant_id']);
         $sequence = (int) $payload['sequence'];
 
         if ($originTenantId <= 0 || $sequence <= 0) {
@@ -982,14 +1025,15 @@ class SyncEventApplier
         $base = [
             'document_number' => $payload['document_number'] ?? null,
             'origin_tenant_id' => $originTenantId,
-            'destination_tenant_id' => (int) ($payload['destination_tenant_id'] ?? 0),
+            'destination_tenant_id' => $this->localTenantIdForRemote((int) ($payload['destination_tenant_id'] ?? 0)),
             'flow_type' => $payload['flow_type'] ?? 'stock_request',
-            'initiated_by_tenant_id' => $payload['initiated_by_tenant_id'] ?? $originTenantId,
-            'sender_tenant_id' => $payload['sender_tenant_id'] ?? ($payload['destination_tenant_id'] ?? null),
-            'receiver_tenant_id' => $payload['receiver_tenant_id'] ?? $originTenantId,
-            'from_warehouse_id' => (int) ($payload['from_warehouse_id'] ?? 0),
-            'sender_warehouse_id' => $payload['sender_warehouse_id'] ?? ($payload['destination_warehouse_id'] ?? null),
-            'receiver_warehouse_id' => $payload['receiver_warehouse_id'] ?? ($payload['from_warehouse_id'] ?? null),
+            'initiated_by_tenant_id' => $this->localTenantIdForRemote((int) ($payload['initiated_by_tenant_id'] ?? $payload['origin_tenant_id'])),
+            'sender_tenant_id' => $this->localTenantIdForRemote((int) ($payload['sender_tenant_id'] ?? ($payload['destination_tenant_id'] ?? 0))),
+            'receiver_tenant_id' => $this->localTenantIdForRemote((int) ($payload['receiver_tenant_id'] ?? $payload['origin_tenant_id'])),
+            'from_warehouse_id' => $this->localEntityId('warehouse', (int) $payload['origin_tenant_id'], (int) ($payload['from_warehouse_id'] ?? 0)),
+            'destination_warehouse_id' => $this->localEntityId('warehouse', (int) ($payload['destination_tenant_id'] ?? 0), (int) ($payload['destination_warehouse_id'] ?? 0)),
+            'sender_warehouse_id' => $this->localEntityId('warehouse', (int) ($payload['sender_tenant_id'] ?? ($payload['destination_tenant_id'] ?? 0)), (int) ($payload['sender_warehouse_id'] ?? ($payload['destination_warehouse_id'] ?? 0))),
+            'receiver_warehouse_id' => $this->localEntityId('warehouse', (int) ($payload['receiver_tenant_id'] ?? $payload['origin_tenant_id']), (int) ($payload['receiver_warehouse_id'] ?? ($payload['from_warehouse_id'] ?? 0))),
             'logistics_mode' => (bool) ($payload['logistics_mode'] ?? false),
             'reason' => $payload['reason'] ?? null,
             'reference' => $payload['reference'] ?? null,
@@ -1024,8 +1068,10 @@ class SyncEventApplier
             foreach ($items as $itemPayload) {
                 DB::table('inventory_transfer_request_items')->insert([
                     'inventory_transfer_request_id' => $requestId,
-                    'origin_product_id' => (int) ($itemPayload['origin_product_id'] ?? 0),
-                    'destination_product_id' => $itemPayload['destination_product_id'] ?? null,
+                    'origin_product_id' => $this->localEntityId('product', (int) $payload['origin_tenant_id'], (int) ($itemPayload['origin_product_id'] ?? 0)),
+                    'destination_product_id' => isset($itemPayload['destination_product_id'])
+                        ? $this->localEntityId('product', (int) ($payload['destination_tenant_id'] ?? 0), (int) $itemPayload['destination_product_id'])
+                        : null,
                     'quantity' => $itemPayload['quantity'] ?? 0,
                     'product_unit_ids' => isset($itemPayload['product_unit_ids'])
                         ? json_encode($itemPayload['product_unit_ids'])
@@ -2753,6 +2799,96 @@ class SyncEventApplier
         $this->upsertByKeys($table, $keys, $values);
 
         return (int) DB::table($table)->where($keys)->value('id');
+    }
+
+    private function rememberEntityMapping(Tenant $tenant, string $entityType, int $remoteId, int $localId, ?string $remoteKey = null): void
+    {
+        $remoteTenantId = DB::table('sync_tenant_mappings')
+            ->where('local_tenant_id', $tenant->id)
+            ->value('remote_tenant_id');
+
+        if (! $remoteTenantId || $remoteId <= 0 || $localId <= 0) {
+            return;
+        }
+
+        DB::table('sync_entity_mappings')->updateOrInsert(
+            [
+                'entity_type' => $entityType,
+                'remote_tenant_id' => (int) $remoteTenantId,
+                'remote_id' => $remoteId,
+            ],
+            [
+                'local_tenant_id' => $tenant->id,
+                'local_id' => $localId,
+                'remote_key' => $remoteKey,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ],
+        );
+    }
+
+    private function localTenantIdForRemote(int $remoteTenantId): int
+    {
+        if ($remoteTenantId <= 0) {
+            return 0;
+        }
+
+        $mapped = DB::table('sync_tenant_mappings')
+            ->where('remote_tenant_id', $remoteTenantId)
+            ->value('local_tenant_id');
+
+        if ($mapped) {
+            return (int) $mapped;
+        }
+
+        $current = app(TenantManager::class)->current();
+        if ($current) {
+            $currentRemoteId = DB::table('sync_tenant_mappings')
+                ->where('local_tenant_id', $current->id)
+                ->value('remote_tenant_id');
+
+            if ((int) $currentRemoteId === $remoteTenantId) {
+                return $current->id;
+            }
+        }
+
+        // Legacy single-tenant installations used cloud IDs directly.
+        if (Tenant::withoutGlobalScopes()->whereKey($remoteTenantId)->exists()) {
+            return $remoteTenantId;
+        }
+
+        throw new RuntimeException("No se encontro el mapeo local del tenant remoto {$remoteTenantId}.");
+    }
+
+    private function localEntityId(string $entityType, int $remoteTenantId, int $remoteId): ?int
+    {
+        if ($remoteId <= 0) {
+            return null;
+        }
+
+        $mapped = DB::table('sync_entity_mappings')
+            ->where('entity_type', $entityType)
+            ->where('remote_tenant_id', $remoteTenantId)
+            ->where('remote_id', $remoteId)
+            ->value('local_id');
+
+        if ($mapped) {
+            return (int) $mapped;
+        }
+
+        $localTenantId = $this->localTenantIdForRemote($remoteTenantId);
+        $table = match ($entityType) {
+            'branch' => 'branches',
+            'product' => 'products',
+            'warehouse' => 'warehouses',
+            default => throw new RuntimeException("Tipo de entidad sincronizada no soportado: {$entityType}."),
+        };
+
+        if (DB::table($table)->where('tenant_id', $localTenantId)->where('id', $remoteId)->exists()) {
+            return $remoteId;
+        }
+
+        throw new RuntimeException("No se encontro el mapeo local del {$entityType} remoto {$remoteId}.");
     }
 
     private function decodePayload(mixed $payload): array

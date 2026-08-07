@@ -78,6 +78,62 @@ class SyncPairingApiTest extends TestCase
         $this->assertDatabaseCount('sync_pairing_codes', 0);
     }
 
+    public function test_group_owner_can_create_and_redeem_a_bundle_for_all_group_tenants(): void
+    {
+        [$group, $owner] = $this->tenantUser('grupo-bundle', 'owner@bundle.test');
+        [$childOne, $childUserOne] = $this->tenantUser('empresa-bundle-uno', 'uno@bundle.test');
+        [$childTwo, $childUserTwo] = $this->tenantUser('empresa-bundle-dos', 'dos@bundle.test');
+        $childOne->update(['parent_id' => $group->id, 'is_group' => false]);
+        $childTwo->update(['parent_id' => $group->id, 'is_group' => false]);
+
+        $owner->tenants()->syncWithoutDetaching([
+            $childOne->id => ['status' => 'active'],
+            $childTwo->id => ['status' => 'active'],
+        ]);
+        $this->grantPermission($group, $owner, 'sync.issue_token');
+
+        $response = $this->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->postJson('/api/sync/group-pairing-codes', [
+                'user_email' => $owner->email,
+                'node_name' => 'Grupo Bundle PC',
+                'expires_in_minutes' => 15,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.group.slug', $group->slug);
+
+        $code = $response->json('data.code');
+        $this->assertSame(40, strlen($code));
+        $this->assertSame(
+            [$group->slug, $childOne->slug, $childTwo->slug],
+            collect($response->json('data.tenants'))->pluck('slug')->all(),
+        );
+
+        $redeemed = $this->postJson('/api/sync/pairing-codes/redeem', [
+            'code' => $code,
+            'node_code' => 'GROUP-BUNDLE-01',
+            'node_name' => 'Grupo Bundle PC',
+        ])->assertCreated();
+
+        $tokens = collect($redeemed->json('data.tenants'));
+        $this->assertSame(
+            [$group->slug, $childOne->slug, $childTwo->slug],
+            $tokens->pluck('tenant.slug')->all(),
+        );
+        $this->assertCount(3, $tokens->pluck('token')->filter()->unique());
+        $this->assertDatabaseHas('sync_pairing_codes', [
+            'code_hash' => hash('sha256', $code),
+            'is_group_bundle' => true,
+        ]);
+
+        $this->postJson('/api/sync/pairing-codes/redeem', [
+            'code' => $code,
+            'node_code' => 'GROUP-BUNDLE-02',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['code']);
+
+        unset($childUserOne, $childUserTwo);
+    }
+
     private function tenantUser(string $slug, string $email): array
     {
         $tenant = Tenant::create(['name' => $slug, 'slug' => $slug]);

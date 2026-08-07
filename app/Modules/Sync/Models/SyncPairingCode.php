@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'target_tenant_id',
     'created_by_user_id',
     'target_user_id',
+    'is_group_bundle',
     'code_hash',
     'node_name',
     'expires_at',
@@ -38,6 +39,7 @@ class SyncPairingCode extends Model
     protected function casts(): array
     {
         return [
+            'is_group_bundle' => 'boolean',
             'expires_at' => 'datetime',
             'redeemed_at' => 'datetime',
         ];

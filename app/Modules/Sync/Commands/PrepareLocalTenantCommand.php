@@ -20,9 +20,12 @@ class PrepareLocalTenantCommand extends Command
         {tenant_name : Nombre visible de la empresa}
         {email : Correo del usuario autorizado}
         {--user-name= : Nombre visible del usuario}
-        {--domain= : Dominio opcional de la empresa}
-        {--password-env=SYNC_BOOTSTRAP_PASSWORD : Variable de entorno que contiene la clave local}
-        {--role=Administrador local : Rol local que se asignara al usuario}';
+         {--domain= : Dominio opcional de la empresa}
+         {--password-env=SYNC_BOOTSTRAP_PASSWORD : Variable de entorno que contiene la clave local}
+         {--role=Administrador local : Rol local que se asignara al usuario}
+         {--remote-tenant-id= : ID del tenant correspondiente en la nube}
+         {--remote-parent-id= : ID del grupo correspondiente en la nube}
+         {--remote-is-group : Indica que el tenant remoto es un grupo}';
 
     protected $description = 'Prepara una empresa y usuario local para poder ejecutar la primera sincronizacion.';
 
@@ -35,6 +38,9 @@ class PrepareLocalTenantCommand extends Command
         $domain = trim((string) $this->option('domain'));
         $roleName = trim((string) $this->option('role')) ?: 'Administrador local';
         $password = (string) getenv((string) $this->option('password-env'));
+        $remoteTenantId = $this->option('remote-tenant-id');
+        $remoteParentId = $this->option('remote-parent-id');
+        $remoteIsGroup = (bool) $this->option('remote-is-group');
 
         if ($tenantSlug === '' || $tenantName === '' || $email === '') {
             $this->error('Empresa, nombre y correo son obligatorios.');
@@ -48,7 +54,7 @@ class PrepareLocalTenantCommand extends Command
             return self::FAILURE;
         }
 
-        $result = DB::transaction(function () use ($tenantSlug, $tenantName, $email, $userName, $domain, $password, $roleName): array {
+        $result = DB::transaction(function () use ($tenantSlug, $tenantName, $email, $userName, $domain, $password, $roleName, $remoteTenantId, $remoteParentId, $remoteIsGroup): array {
             $tenant = Tenant::query()->updateOrCreate(
                 ['slug' => $tenantSlug],
                 [
@@ -72,6 +78,20 @@ class PrepareLocalTenantCommand extends Command
             ]);
 
             $this->preparePermissions($tenant, $user, $roleName);
+
+            if ($remoteTenantId !== null) {
+                DB::table('sync_tenant_mappings')->updateOrInsert(
+                    ['local_tenant_id' => $tenant->id],
+                    [
+                        'remote_tenant_id' => (int) $remoteTenantId,
+                        'remote_parent_id' => $remoteParentId !== null ? (int) $remoteParentId : null,
+                        'remote_slug' => $tenantSlug,
+                        'is_group' => $remoteIsGroup,
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ],
+                );
+            }
 
             return [$tenant, $user];
         });

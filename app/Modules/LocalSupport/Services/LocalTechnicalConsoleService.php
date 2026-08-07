@@ -95,13 +95,16 @@ class LocalTechnicalConsoleService
 
     public function connect(array $data): array
     {
+        set_time_limit(180);
         $response = $this->redeemPairingCode($data);
-        $tenant = $response['tenant'] ?? [];
-        $slug = Str::slug((string) ($tenant['slug'] ?? ''));
-        $name = trim((string) ($tenant['name'] ?? ''));
-        $token = (string) ($response['token'] ?? '');
+        $bundleTenants = isset($response['tenants']) && is_array($response['tenants'])
+            ? $response['tenants']
+            : [[
+                'tenant' => $response['tenant'] ?? [],
+                'token' => $response['token'] ?? '',
+            ]];
 
-        if ($slug === '' || $name === '' || $token === '') {
+        if ($bundleTenants === []) {
             throw ValidationException::withMessages([
                 'code' => 'El codigo fue aceptado, pero la nube no devolvio los datos completos de la empresa.',
             ]);
@@ -109,32 +112,85 @@ class LocalTechnicalConsoleService
 
         $nodeCode = Str::upper(Str::slug((string) $data['node_code'], '-'));
         $nodeName = trim((string) $data['node_name']);
-        $this->writeTenantSettings($slug, $name, $token, $nodeCode, $nodeName, (int) $data['interval']);
-
         $this->runArtisan('migrate', ['--force' => true]);
-        $this->withEnvironment('SYNC_BOOTSTRAP_PASSWORD', (string) $data['local_password'], function () use ($slug, $name, $data): void {
-            $this->runArtisan('sync:prepare-local', [
-                'tenant_slug' => $slug,
-                'tenant_name' => $name,
-                'email' => (string) $data['local_email'],
-                '--user-name' => (string) ($data['local_user_name'] ?? $data['local_email']),
-            ]);
-        });
 
-        $worker = PHP_OS_FAMILY === 'Windows'
-            ? $this->workerAction($slug, 'install')
-            : [
-                'output' => 'En Linux el worker se controla mediante systemd.',
-                'status' => $this->workerStatus($slug),
+        $prepared = [];
+        foreach ($bundleTenants as $bundleTenant) {
+            $tenant = is_array($bundleTenant['tenant'] ?? null) ? $bundleTenant['tenant'] : [];
+            $slug = Str::slug((string) ($tenant['slug'] ?? ''));
+            $name = trim((string) ($tenant['name'] ?? ''));
+            $token = (string) ($bundleTenant['token'] ?? '');
+
+            if ($slug === '' || $name === '' || $token === '') {
+                throw ValidationException::withMessages([
+                    'code' => 'El codigo fue aceptado, pero la nube no devolvio los datos completos del grupo.',
+                ]);
+            }
+
+            $this->writeTenantSettings(
+                slug: $slug,
+                tenantName: $name,
+                token: $token,
+                nodeCode: $nodeCode,
+                nodeName: $nodeName,
+                interval: (int) $data['interval'],
+                remoteTenantId: isset($tenant['id']) ? (int) $tenant['id'] : null,
+                remoteParentId: isset($tenant['parent_id']) ? (int) $tenant['parent_id'] : null,
+                remoteIsGroup: (bool) ($tenant['is_group'] ?? false),
+            );
+
+            $this->withEnvironment('SYNC_BOOTSTRAP_PASSWORD', (string) $data['local_password'], function () use ($slug, $name, $data, $tenant): void {
+                $parameters = [
+                    'tenant_slug' => $slug,
+                    'tenant_name' => $name,
+                    'email' => (string) $data['local_email'],
+                    '--user-name' => (string) ($data['local_user_name'] ?? $data['local_email']),
+                ];
+
+                if (isset($tenant['id'])) {
+                    $parameters['--remote-tenant-id'] = (int) $tenant['id'];
+                    $parameters['--remote-parent-id'] = isset($tenant['parent_id']) ? (int) $tenant['parent_id'] : null;
+                    $parameters['--remote-is-group'] = (bool) ($tenant['is_group'] ?? false);
+                }
+
+                $this->runArtisan('sync:prepare-local', $parameters);
+            });
+
+            $worker = PHP_OS_FAMILY === 'Windows'
+                ? $this->workerAction($slug, 'install')
+                : [
+                    'output' => 'En Linux el worker se controla mediante systemd.',
+                    'status' => $this->workerStatus($slug),
+                ];
+
+            $prepared[] = [
+                'tenant' => $tenant,
+                'download' => [
+                    'status' => 'started',
+                    'message' => 'La descarga inicial continuara en segundo plano.',
+                ],
+                'worker' => $worker,
             ];
+        }
+
+        if (isset($response['tenants'])) {
+            return [
+                'group' => $response['group'] ?? null,
+                'tenants' => $prepared,
+                'download' => [
+                    'status' => 'started',
+                    'message' => 'La descarga inicial del grupo continuara en segundo plano.',
+                ],
+            ];
+        }
+
+        $first = $prepared[0];
 
         return [
-            'tenant' => ['name' => $name, 'slug' => $slug],
-            'download' => [
-                'status' => 'started',
-                'message' => 'La descarga inicial se esta ejecutando en segundo plano. Puedes seguir su estado en la tarjeta de la empresa.',
-            ],
-            'worker' => $worker,
+            'tenant' => $first['tenant'],
+            'tenants' => $prepared,
+            'download' => $first['download'],
+            'worker' => $first['worker'],
         ];
     }
 
@@ -255,7 +311,17 @@ class LocalTechnicalConsoleService
         return (array) $response->json('data');
     }
 
-    private function writeTenantSettings(string $slug, string $tenantName, string $token, string $nodeCode, string $nodeName, int $interval): void
+    private function writeTenantSettings(
+        string $slug,
+        string $tenantName,
+        string $token,
+        string $nodeCode,
+        string $nodeName,
+        int $interval,
+        ?int $remoteTenantId = null,
+        ?int $remoteParentId = null,
+        bool $remoteIsGroup = false,
+    ): void
     {
         $settings = $this->readSettings();
         $tenants = is_array($settings['tenants'] ?? null) ? $settings['tenants'] : [];
@@ -268,6 +334,9 @@ class LocalTechnicalConsoleService
             'token' => $token,
             'node_code' => $nodeCode,
             'node_name' => $nodeName,
+            'remote_tenant_id' => $remoteTenantId,
+            'remote_parent_id' => $remoteParentId,
+            'remote_is_group' => $remoteIsGroup,
             'installation_code' => $installationCode,
             'interval' => max(5, min(300, $interval)),
             'limit' => 100,
