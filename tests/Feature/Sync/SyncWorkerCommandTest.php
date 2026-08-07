@@ -280,6 +280,53 @@ class SyncWorkerCommandTest extends TestCase
         });
     }
 
+    public function test_sync_worker_does_not_regenerate_an_incomplete_initial_snapshot(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Catalogo En Progreso',
+            'slug' => 'empresa-catalogo-en-progreso',
+        ]);
+        $installationCode = 'LOCAL-INCOMPLETE-CATALOG-01';
+
+        DB::table('sync_tenant_readiness')->insert([
+            'tenant_id' => $tenant->id,
+            'installation_code' => $installationCode,
+            'node_code' => 'LOCAL-INCOMPLETE-01',
+            'node_name' => 'Local Incomplete 01',
+            'status' => 'warning',
+            'initial_sync_completed_at' => null,
+            'last_error' => 'Hay eventos pendientes.',
+            'metadata' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-INCOMPLETE-01'],
+            ], 201),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [],
+            ], 200),
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-INCOMPLETE-01',
+            '--name' => 'Local Incomplete 01',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--pull-only' => true,
+            '--installation' => $installationCode,
+        ])->assertExitCode(0);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://cloud.test/api/sync/nodes'
+                && $request['metadata']['initial_snapshot'] === false;
+        });
+    }
+
     public function test_sync_apply_inbox_recovers_ignored_customer_events(): void
     {
         $tenant = Tenant::create([

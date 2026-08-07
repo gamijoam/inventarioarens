@@ -108,7 +108,7 @@ class SyncWorkerService
             ->where('installation_code', $installationCode)
             ->first();
 
-        return ! $readiness || ! $readiness->initial_sync_completed_at;
+        return ! $readiness;
     }
 
     private function registerCloudNode(
