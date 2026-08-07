@@ -119,7 +119,10 @@ class LocalTechnicalConsoleService
             $tenant = is_array($bundleTenant['tenant'] ?? null) ? $bundleTenant['tenant'] : [];
             $slug = Str::slug((string) ($tenant['slug'] ?? ''));
             $name = trim((string) ($tenant['name'] ?? ''));
-            $token = (string) ($bundleTenant['token'] ?? '');
+            $rawToken = $bundleTenant['token'] ?? '';
+            $token = is_array($rawToken)
+                ? (string) ($rawToken['token'] ?? '')
+                : (string) $rawToken;
 
             if ($slug === '' || $name === '' || $token === '') {
                 throw ValidationException::withMessages([
@@ -321,8 +324,7 @@ class LocalTechnicalConsoleService
         ?int $remoteTenantId = null,
         ?int $remoteParentId = null,
         bool $remoteIsGroup = false,
-    ): void
-    {
+    ): void {
         $settings = $this->readSettings();
         $tenants = is_array($settings['tenants'] ?? null) ? $settings['tenants'] : [];
         $installationCode = (string) ($settings['installation_code'] ?? Str::upper(Str::random(12)));

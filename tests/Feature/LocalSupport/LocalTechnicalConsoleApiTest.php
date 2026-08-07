@@ -136,11 +136,11 @@ class LocalTechnicalConsoleApiTest extends TestCase
                     'tenants' => [
                         [
                             'tenant' => ['id' => 2, 'name' => 'Grupo', 'slug' => 'grupo', 'parent_id' => null, 'is_group' => true],
-                            'token' => 'group-token',
+                            'token' => ['token' => 'group-token', 'token_type' => 'Bearer'],
                         ],
                         [
                             'tenant' => ['id' => 3, 'name' => 'Hija', 'slug' => 'hija', 'parent_id' => 2, 'is_group' => false],
-                            'token' => 'child-token',
+                            'token' => ['token' => 'child-token', 'token_type' => 'Bearer'],
                         ],
                     ],
                 ],
