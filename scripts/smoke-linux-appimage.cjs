@@ -11,9 +11,23 @@ function getSmokeConfig(repoRoot, mode) {
                 "frontend",
                 "release",
                 "pos",
-                "POS-0.1.0.AppImage",
+                "Sistema-de-Inventario-POS-0.2.0.AppImage",
             ),
             apiPort: 8806,
+            mode,
+        };
+    }
+
+    if (mode === "technician") {
+        return {
+            appImage: path.join(
+                repoRoot,
+                "frontend",
+                "release",
+                "technician",
+                "Soporte-Tecnico-Inventario-Arens-0.2.0.AppImage",
+            ),
+            apiPort: 8807,
             mode,
         };
     }
@@ -24,7 +38,7 @@ function getSmokeConfig(repoRoot, mode) {
             "frontend",
             "release",
             "admin",
-            "Sistema-de-Inventario-Administrativo-0.1.0.AppImage",
+            "Sistema-de-Inventario-Administrativo-0.2.0.AppImage",
         ),
         apiPort: 8805,
         mode: "admin",

@@ -5,10 +5,16 @@ artifactName: Sistema-de-Inventario-Administrativo-${version}.${ext}
 asar: true
 directories:
   output: release/admin
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: admin
 files:
   - electron/**/*
   - dist/admin/**/*
   - dist/pos/**/*
+  - dist/technician/**/*
   - package.json
 win:
   target:

@@ -6,11 +6,14 @@ const { spawn } = require('node:child_process');
 
 const API_HOST = '127.0.0.1';
 const API_PORT = 8787;
+const DEFAULT_SYNC_CLOUD_URL = 'https://app.miinventariofacil.com/api';
 const ELECTRON_RENDERER_ORIGINS = [
   'http://127.0.0.1:8788',
   'http://127.0.0.1:8789',
+  'http://127.0.0.1:8790',
   'http://localhost:8788',
   'http://localhost:8789',
+  'http://localhost:8790',
 ];
 const RUNTIME_SUPERVISOR_FLAG = '--inventario-runtime-supervisor';
 const RUNTIME_LEASE_TTL_MS = 10000;
@@ -32,12 +35,22 @@ function resolveRuntimeConfig(options = {}) {
     (isPackaged
       ? path.join(resourcesPath, 'runtime', 'php', platform === 'win32' ? 'php.exe' : 'php')
       : 'php');
-  const apiHost = options.apiHost ?? process.env.INVENTARIO_API_HOST ?? API_HOST;
-  const apiPort = Number(options.apiPort ?? process.env.INVENTARIO_API_PORT ?? API_PORT);
+  const localServerSettings = readLocalServerSettings(dataRoot);
+  const explicitApiHost = options.apiHost ?? process.env.INVENTARIO_API_HOST;
+  const apiHost = options.apiClientHost ?? process.env.INVENTARIO_API_CLIENT_HOST ?? API_HOST;
+  const apiBindHost =
+    options.apiBindHost ??
+    process.env.INVENTARIO_API_BIND_HOST ??
+    explicitApiHost ??
+    (localServerSettings.enabled ? localServerSettings.bind_host : API_HOST);
+  const apiPort = Number(
+    options.apiPort ?? process.env.INVENTARIO_API_PORT ?? localServerSettings.api_port ?? API_PORT,
+  );
 
   return {
     appRoot,
     apiHost,
+    apiBindHost,
     apiPort,
     apiUrl: `http://${apiHost}:${apiPort}`,
     appKey: options.appKey,
@@ -53,10 +66,29 @@ function resolveRuntimeConfig(options = {}) {
     phpBinary,
     resourcesPath,
     storagePath: path.join(dataRoot, 'storage'),
-    syncCloudUrl: options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL,
+    syncCloudUrl:
+      options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL ?? DEFAULT_SYNC_CLOUD_URL,
     syncTenant: options.syncTenant ?? process.env.INVENTARIO_SYNC_TENANT,
     syncToken: options.syncToken ?? process.env.INVENTARIO_SYNC_TOKEN,
   };
+}
+
+function readLocalServerSettings(dataRoot) {
+  const settingsPath = path.join(dataRoot, 'local-server.json');
+  if (!fs.existsSync(settingsPath)) {
+    return { enabled: false, bind_host: API_HOST, api_port: API_PORT };
+  }
+
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    return {
+      enabled: settings.enabled === true,
+      bind_host: settings.bind_host === '0.0.0.0' ? '0.0.0.0' : API_HOST,
+      api_port: Number(settings.api_port) > 0 ? Number(settings.api_port) : API_PORT,
+    };
+  } catch {
+    return { enabled: false, bind_host: API_HOST, api_port: API_PORT };
+  }
 }
 
 function ensureAppKey(config) {
@@ -486,7 +518,7 @@ function createRuntimeSupervisor(options = {}) {
 
           apiProcess = spawnProcess(
             config.phpBinary,
-            ['artisan', 'serve', '--host', config.apiHost, '--port', String(config.apiPort)],
+            ['artisan', 'serve', '--host', config.apiBindHost, '--port', String(config.apiPort)],
             {
               cwd: config.backendRoot,
               env: { ...process.env, ...environment },
@@ -531,6 +563,8 @@ function spawnRuntimeSupervisor(config, options = {}) {
     INVENTARIO_RUNTIME_SUPERVISOR: '1',
     INVENTARIO_DATA_ROOT: config.dataRoot,
     INVENTARIO_API_HOST: config.apiHost,
+    INVENTARIO_API_BIND_HOST: config.apiBindHost,
+    INVENTARIO_API_CLIENT_HOST: config.apiHost,
     INVENTARIO_API_PORT: String(config.apiPort),
     INVENTARIO_BACKEND_ROOT: config.backendRoot,
     INVENTARIO_PHP_BIN: config.phpBinary,

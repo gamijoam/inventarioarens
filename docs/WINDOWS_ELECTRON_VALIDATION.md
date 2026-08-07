@@ -1,8 +1,8 @@
 # Validacion Windows de los clientes Electron
 
 **Proyecto:** INVENTARIOARENS
-**Clientes:** `Sistema de Inventario (Administrativo)` y `POS`
-**Fecha de referencia:** 2026-08-06
+**Clientes:** `Sistema de Inventario (Administrativo)`, `POS` y `Soporte Tecnico`
+**Fecha de referencia:** 2026-08-07
 **Objetivo:** guia operativa para que una persona o una IA valide, instale, ejecute y diagnostique los clientes Windows.
 
 ## 1. Alcance
@@ -11,6 +11,7 @@ Esta guia corresponde a los clientes Electron actuales, empaquetados con NSIS:
 
 - `Sistema de Inventario (Administrativo)`
 - `POS`
+- `Soporte Tecnico Inventario Arens`
 
 No debe confundirse con `docs/INSTALADOR_WINDOWS_SQLITE_EXE.md`, que documenta el instalador Windows Laravel anterior.
 
@@ -37,6 +38,7 @@ detiene Laravel. Esto permite cerrar Administrativo sin interrumpir una venta ac
 ```text
 Administrativo renderer  -> http://127.0.0.1:8788
 POS renderer             -> http://127.0.0.1:8789
+Tecnico renderer         -> http://127.0.0.1:8790
                                       |
                                       v
                             Laravel local -> http://127.0.0.1:8787
@@ -52,6 +54,7 @@ Puertos esperados:
 | API Laravel local       |   8787 | autenticacion, inventario, caja, POS y sync local |
 | Renderer Administrativo |   8788 | interfaz administrativa                           |
 | Renderer POS            |   8789 | interfaz de punto de venta                        |
+| Renderer Tecnico        |   8790 | consola local de soporte                          |
 
 Datos persistentes compartidos:
 
@@ -69,6 +72,7 @@ Los datos de configuracion de Electron estan aislados por cliente:
 ```text
 %APPDATA%\InventarioArens-Administrativo\
 %APPDATA%\InventarioArens-POS\
+%APPDATA%\InventarioArens-Soporte\
 ```
 
 No borrar `inventario.sqlite` durante una prueba: contiene los datos locales.
@@ -123,11 +127,12 @@ pnpm exec tsc --noEmit
 pnpm exec eslint electron/app-config.cjs electron/backend-runtime.cjs electron/renderer-server.cjs electron/main.cjs
 ```
 
-Construir ambos clientes:
+Construir los tres clientes:
 
 ```powershell
 pnpm run electron:build:admin
 pnpm run electron:build:pos
+pnpm run electron:build:technician
 ```
 
 Aunque el script se llama `electron:prepare:php:linux`, el script detecta `process.platform` y en Windows prepara el PHP portable Windows definido en `stage-electron-backend.cjs`:
@@ -159,10 +164,12 @@ Get-ChildItem .\release\pos\*.exe | Get-FileHash -Algorithm SHA256
 1. Cerrar cualquier version anterior de Administrativo y POS.
 2. Instalar el `.exe` Administrativo.
 3. Instalar el `.exe` POS.
-4. Ejecutar primero Administrativo.
-5. Esperar hasta que aparezca la pantalla de login.
-6. Ejecutar POS.
-7. Iniciar sesion en ambos clientes con un usuario y tenant validos.
+4. Instalar el `.exe` Soporte Tecnico.
+5. Ejecutar primero Administrativo.
+6. Esperar hasta que aparezca la pantalla de login.
+7. Ejecutar POS.
+8. Ejecutar Soporte Tecnico cuando se necesite administrar la instalacion local.
+9. Iniciar sesion en Administrativo/POS con un usuario y tenant validos.
 
 Los instaladores son NSIS `oneClick`. La ruta final debe verificarse en el acceso directo o en la configuracion de Windows; no asumir que el instalador permitira cambiarla durante el flujo one-click.
 
@@ -226,6 +233,7 @@ Esperado:
 - [ ] Usuario sin permiso no puede ejecutar la accion protegida.
 - [ ] El build empaquetado no muestra `Dev (auth bypass)`.
 - [ ] Cerrar sesion elimina la sesion local y devuelve a login.
+- [ ] Soporte Tecnico abre directamente el Centro tecnico local.
 
 ### 6.4 Administrativo
 
@@ -263,6 +271,21 @@ Esperado:
 - [ ] No aparece error de CSRF al ejecutar acciones desde cualquiera de los dos clientes.
 - [ ] Si ambos arrancan al mismo tiempo, solo uno ejecuta la instalacion SQLite.
 
+### 6.8 Modo LAN opcional
+
+El modo LAN esta desactivado por defecto. Para probarlo:
+
+1. Abrir Soporte Tecnico en la PC anfitriona.
+2. Activar `Modo LAN` en la tarjeta de la instalacion.
+3. Cerrar y volver a abrir los clientes Electron de la PC anfitriona.
+4. En Windows Firewall permitir TCP `8787,8788,8789` solo en el perfil `Private` y `LocalSubnet`.
+5. Desde otra PC de la misma red abrir `http://IP-ANFITRION:8788` para Administrativo o `:8789` para POS.
+6. Iniciar sesion con credenciales normales.
+
+No abrir el puerto en el perfil `Public`. No compartir `inventario.sqlite` por SMB. El host debe
+mantener un cliente Electron abierto mientras existan clientes remotos, porque el supervisor conserva
+Laravel activo mediante los leases de los clientes abiertos.
+
 ### 6.7 Sincronizacion con la nube
 
 La sincronizacion es opcional para una prueba puramente local. Si se valida sync:
@@ -286,8 +309,10 @@ No reutilizar un token de sync de otra empresa. El aislamiento de tokens por ten
 3. Reiniciar Windows.
 4. Abrir nuevamente ambos clientes.
 5. Confirmar que el producto, la venta, la caja y el stock siguen presentes.
-6. Instalar una nueva version sobre la anterior.
+6. Instalar manualmente la primera version con actualizador, `0.2.0`, sobre la anterior `0.1.0`.
 7. Confirmar que la SQLite anterior no fue reemplazada por una vacia.
+8. Publicar una version posterior en el canal correspondiente de GitHub Releases.
+9. Abrir el cliente y confirmar que descarga la actualizacion, pregunta antes de reiniciar y conserva los datos.
 
 Nunca aceptar una actualizacion que cambie la ruta de datos sin migracion o backup explicito.
 
@@ -312,6 +337,8 @@ Errores frecuentes:
 | `No se encontro PHP portable`        | runtime PHP no fue preparado                                      | Ejecutar nuevamente el build con Internet y checksum valido           |
 | API no responde en 8787              | PHP/Laravel local no inicio                                       | Revisar `api.log`, permisos de `%APPDATA%` y proceso `php.exe`        |
 | `CSRF: Origin not in allowlist`      | Se esta usando un build viejo o API iniciada por un proceso viejo | Cerrar ambos clientes y abrir los dos instaladores nuevos             |
+| Actualizacion no aparece             | La version publicada no es mayor o falta metadata del canal      | Revisar version, `latest.yml`/canal y GitHub Release                  |
+| Cliente remoto no conecta            | LAN apagado, firewall o host cerrado                              | Revisar Modo LAN, puertos privados y que el host siga abierto         |
 | SQLite en `0 bytes`                  | instalacion inicial incompleta                                    | No borrar datos; conservar logs y reparar/reinstalar con backup       |
 | POS no ve cambios administrativos    | cache de query o sync pendiente                                   | Recargar cliente, verificar API local y estado de sync                |
 | Sync pendiente                       | token, tenant, red o endpoint cloud                               | Revisar configuracion y `sync.log`; no regenerar token de otro tenant |
@@ -335,6 +362,7 @@ No incluir passwords, tokens Bearer, cookies ni `APP_KEY` en un reporte.
 - No desactivar Windows Defender o SmartScreen globalmente.
 - No publicar `.env`, tokens, cookies, SQLite de produccion ni logs con secretos.
 - No compartir `inventario.sqlite` por una carpeta de red. SQLite local debe vivir en una sola computadora.
+- Modo LAN solo debe habilitarse en redes privadas confiables y con firewall limitado a `LocalSubnet`.
 - No ejecutar escenarios destructivos contra la nube de produccion. Usar tenant y datos de prueba.
 - No usar un token de plataforma para reemplazar el aislamiento de tokens por tenant.
 
@@ -342,8 +370,8 @@ No incluir passwords, tokens Bearer, cookies ni `APP_KEY` en un reporte.
 
 La validacion Windows se considera aprobada solo si:
 
-- ambos instaladores NSIS se construyen sin errores;
-- ambos clientes abren en Windows 10/11 x64;
+- los tres instaladores NSIS se construyen sin errores;
+- los tres clientes abren en Windows 10/11 x64;
 - ambos operan simultaneamente;
 - API, renderer y SQLite usan las rutas/puertos esperados;
 - login, tenant, catalogo, stock, caja y checkout funcionan;
@@ -411,8 +439,8 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 
 1. Leer este documento completo y `AGENTS.md` antes de modificar codigo.
 2. Ejecutar `pnpm test` y `pnpm exec tsc --noEmit` desde `frontend/`.
-3. Construir `pnpm run electron:build:admin` y `pnpm run electron:build:pos`.
-4. Instalar ambos `.exe` en una PC Windows 10/11 x64.
+3. Construir `pnpm run electron:build:admin`, `pnpm run electron:build:pos` y `pnpm run electron:build:technician`.
+4. Instalar los tres `.exe` en una PC Windows 10/11 x64.
 5. Ejecutar la checklist de las secciones 6 y 7, incluyendo arranque simultaneo, cierre individual,
    persistencia, reinicio y actualizacion sobre una instalacion existente.
 6. Capturar logs, hashes, version de Windows y resultado usando el formato de la seccion 14.
@@ -424,6 +452,8 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 - `frontend/electron/app-config.cjs`: nombres, IDs, puertos y directorios `userData` por cliente.
 - `frontend/electron/backend-runtime.test.js`: tests unitarios del runtime compartido.
 - `frontend/electron-builder.admin.yml` y `frontend/electron-builder.pos.yml`: empaquetado NSIS/AppImage.
+- `frontend/electron-builder.technician.yml`: empaquetado del cliente tecnico.
+- `frontend/electron/auto-updater.cjs` y `frontend/electron/update-policy.cjs`: actualizaciones automaticas por canal.
 - `scripts/prepare-portable-php.cjs`: descarga, checksum y staging de PHP portable por plataforma.
 - `scripts/stage-electron-backend.cjs`: staging de Laravel, `vendor/` y recursos del backend.
 - `scripts/smoke-linux-appimage.cjs`: smoke Linux; no reemplaza la prueba Windows.
@@ -441,7 +471,7 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 
 ### 13.4 Contrato del supervisor
 
-- La API local es `127.0.0.1:8787`; Admin usa renderer `8788` y POS usa renderer `8789`.
+- La API local es `127.0.0.1:8787`; Admin usa renderer `8788`, POS usa renderer `8789` y Tecnico usa renderer `8790`.
 - Los dos clientes comparten `%APPDATA%\InventarioArens\` para SQLite, storage, logs y leases.
 - Cada cliente crea un archivo `.lease` bajo `runtime-leases\` y lo actualiza cada dos segundos.
 - El supervisor espera aproximadamente cinco segundos despues del ultimo lease antes de apagar Laravel.
@@ -450,12 +480,16 @@ NSIS, PHP portable Windows y el ciclo de vida real de Windows siguen pendientes.
 - El supervisor es un proceso Electron desacoplado. No implementar un segundo `php artisan serve` desde
   cada ventana ni eliminar el lease mientras el cliente siga abierto.
 
-### 13.5 Pendientes fuera del alcance inmediato
+### 13.5 Estado de actualizaciones y LAN
 
 - Validacion real de NSIS en Windows o un job Windows de CI.
 - Instalacion y operacion del worker de sync como tarea programada/servicio Windows.
-- Modo tecnico Windows para configurar tenant, token, logs y diagnostico.
-- Actualizador automatico de instaladores.
+- El cliente Tecnico ya esta implementado y reutiliza `/support`.
+- `electron-updater` ya esta implementado por los canales `admin`, `pos` y `technician`.
+- La version `0.2.0` es el primer bootstrap del actualizador y debe instalarse manualmente.
+- El modo LAN es opcional, requiere reinicio de los clientes y firewall privado.
+- Todavia falta una publicacion real en GitHub Releases y la firma digital de los instaladores.
+- Todavia falta convertir el runtime LAN en un servicio persistente independiente de las ventanas Electron.
 
 Estos pendientes deben implementarse despues de confirmar que el runtime base, SQLite compartida y el
 ciclo de vida Admin/POS funcionan en Windows.
@@ -469,8 +503,10 @@ Resultado: PASS | FAIL | BLOCKED
 Windows: <version y arquitectura>
 Build Administrativo: PASS | FAIL
 Build POS: PASS | FAIL
+Build Tecnico: PASS | FAIL
 Instalacion Administrativo: PASS | FAIL
 Instalacion POS: PASS | FAIL
+Instalacion Tecnico: PASS | FAIL
 Arranque simultaneo: PASS | FAIL
 API local y puertos: PASS | FAIL
 Login y tenant: PASS | FAIL

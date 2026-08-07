@@ -20,6 +20,7 @@ describe('App mode detection', () => {
   describe('normalizeAppMode', () => {
     it('returns "pos" only for the exact "pos" value', () => {
       expect(normalizeAppMode('pos')).toBe('pos');
+      expect(normalizeAppMode('technician')).toBe('technician');
     });
 
     it('falls back to "admin" for unknown, null, or undefined values', () => {
@@ -57,6 +58,14 @@ describe('App mode detection', () => {
         configurable: true,
       });
       expect(detectAppMode()).toBe('admin');
+    });
+
+    it('detects technician mode from an executable whose name contains "tecnico"', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: 'C:\\Apps\\Soporte-Tecnico-Inventario-Arens.exe',
+        configurable: true,
+      });
+      expect(detectAppMode()).toBe('technician');
     });
 
     it('detects pos mode even when the path contains other words', () => {

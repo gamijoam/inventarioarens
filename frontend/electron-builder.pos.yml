@@ -5,10 +5,16 @@ artifactName: Sistema-de-Inventario-POS-${version}.${ext}
 asar: true
 directories:
   output: release/pos
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: pos
 files:
   - electron/**/*
   - dist/admin/**/*
   - dist/pos/**/*
+  - dist/technician/**/*
   - package.json
 win:
   target:

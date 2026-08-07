@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { isAuthDisabled } from '@/auth/devBypass';
+import { APP_MODE } from '@/config/branding';
 
 /**
  * Ruta raiz (/).
@@ -17,15 +18,18 @@ import { isAuthDisabled } from '@/auth/devBypass';
  */
 export const Route = createFileRoute('/')({
   beforeLoad: () => {
+    if (APP_MODE === 'technician') {
+      // El cliente de soporte es local y no requiere una sesión de empresa.
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/support' });
+    }
     if (isAuthDisabled()) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ to: '/dashboard' });
     }
 
     if (typeof document !== 'undefined') {
-      const hasCookie = document.cookie
-        .split('; ')
-        .some((c) => c.startsWith('auth_token='));
+      const hasCookie = document.cookie.split('; ').some((c) => c.startsWith('auth_token='));
       if (hasCookie) {
         // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw redirect({ to: '/dashboard' });

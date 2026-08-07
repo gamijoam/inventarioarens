@@ -44,6 +44,7 @@ class LocalTechnicalConsoleService
             'database_path' => (string) config('database.connections.sqlite.database'),
             'cloud_url' => (string) config('services.local_support.cloud_url'),
             'printer' => $this->printerStatus(),
+            'lan' => $this->localServerStatus(),
             'tenants' => collect($slugs)
                 ->map(function (string $slug) use ($configured, $localTenants): array {
                     /** @var Tenant|null $tenant */
@@ -78,6 +79,20 @@ class LocalTechnicalConsoleService
         ];
     }
 
+    public function setLocalServerMode(bool $enabled): array
+    {
+        $path = $this->localServerSettingsPath();
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, json_encode([
+            'enabled' => $enabled,
+            'bind_host' => $enabled ? '0.0.0.0' : '127.0.0.1',
+            'api_port' => 8787,
+            'renderer_ports' => [8788, 8789, 8790],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL, true);
+
+        return $this->localServerStatus();
+    }
+
     public function connect(array $data): array
     {
         $response = $this->redeemPairingCode($data);
@@ -106,7 +121,12 @@ class LocalTechnicalConsoleService
             ]);
         });
 
-        $worker = $this->workerAction($slug, 'install');
+        $worker = PHP_OS_FAMILY === 'Windows'
+            ? $this->workerAction($slug, 'install')
+            : [
+                'output' => 'En Linux el worker se controla mediante systemd.',
+                'status' => $this->workerStatus($slug),
+            ];
 
         return [
             'tenant' => ['name' => $name, 'slug' => $slug],
@@ -278,6 +298,26 @@ class LocalTechnicalConsoleService
     private function settingsPath(): string
     {
         return storage_path('app/sync-worker/sync-config.json');
+    }
+
+    private function localServerSettingsPath(): string
+    {
+        return dirname((string) config('database.connections.sqlite.database')).'/local-server.json';
+    }
+
+    private function localServerStatus(): array
+    {
+        $path = $this->localServerSettingsPath();
+        $settings = is_file($path) ? json_decode((string) file_get_contents($path), true) : [];
+        $enabled = is_array($settings) && (bool) ($settings['enabled'] ?? false);
+
+        return [
+            'enabled' => $enabled,
+            'bind_host' => $enabled ? '0.0.0.0' : '127.0.0.1',
+            'api_port' => 8787,
+            'renderer_ports' => [8788, 8789, 8790],
+            'restart_required' => true,
+        ];
     }
 
     private function ensureConfiguredTenant(string $tenantSlug): void

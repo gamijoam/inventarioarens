@@ -1,0 +1,37 @@
+appId: com.inventarioarens.technician
+productName: Soporte Técnico Inventario Arens
+executableName: Soporte-Tecnico-Inventario-Arens
+artifactName: Soporte-Tecnico-Inventario-Arens-${version}.${ext}
+asar: true
+directories:
+  output: release/technician
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: technician
+files:
+  - electron/**/*
+  - dist/admin/**/*
+  - dist/pos/**/*
+  - dist/technician/**/*
+  - package.json
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  shortcutName: Soporte Técnico Inventario Arens
+  uninstallDisplayName: Soporte Técnico Inventario Arens
+  include: build/nsis/separate-install-dir.nsh
+linux:
+  target:
+    - AppImage
+  category: Office
+extraResources:
+  - from: .electron-backend-stage-technician/backend
+    to: backend
+  - from: .electron-backend-stage-technician/runtime/php
+    to: runtime/php

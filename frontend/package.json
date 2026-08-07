@@ -1,7 +1,7 @@
 {
   "name": "inventarioarens-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Desktop clients for INVENTARIOARENS inventory and point-of-sale operations",
   "author": "INVENTARIOARENS",
   "type": "module",
@@ -17,6 +17,7 @@
     "build": "tsc --noEmit && vite build",
     "build:admin": "tsc --noEmit && vite build --mode admin",
     "build:pos": "tsc --noEmit && vite build --mode pos",
+    "build:technician": "tsc --noEmit && vite build --mode technician",
     "preview": "vite preview --port 4173",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
@@ -36,8 +37,10 @@
     "electron:stage-backend": "node ../scripts/stage-electron-backend.cjs",
     "electron:smoke:linux:admin": "node ../scripts/smoke-linux-appimage.cjs admin",
     "electron:smoke:linux:pos": "node ../scripts/smoke-linux-appimage.cjs pos",
+    "electron:smoke:linux:technician": "node ../scripts/smoke-linux-appimage.cjs technician",
     "electron:build:admin": "pnpm run build:admin && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-admin pnpm run electron:stage-backend && electron-builder --config electron-builder.admin.yml",
     "electron:build:pos": "pnpm run build:pos && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-pos pnpm run electron:stage-backend && electron-builder --config electron-builder.pos.yml",
+    "electron:build:technician": "pnpm run build:technician && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-technician pnpm run electron:stage-backend && electron-builder --config electron-builder.technician.yml",
     "prepare": "husky"
   },
   "dependencies": {
@@ -62,6 +65,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.9",
     "laravel-echo": "^2.4.0",
     "lucide-react": "^0.460.0",
     "next-themes": "^0.4.3",

@@ -23,6 +23,14 @@ export interface LocalPrinterStatus {
   url: string;
 }
 
+export interface LocalLanStatus {
+  enabled: boolean;
+  bind_host: string;
+  api_port: number;
+  renderer_ports: number[];
+  restart_required: boolean;
+}
+
 export interface LocalTenantStatus {
   id: number | null;
   name: string;
@@ -44,6 +52,7 @@ export interface LocalSupportStatus {
   database_path: string;
   cloud_url: string;
   printer: LocalPrinterStatus;
+  lan: LocalLanStatus;
   tenants: LocalTenantStatus[];
 }
 
@@ -77,9 +86,22 @@ export function useConnectLocalTenant() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: ConnectLocalTenantPayload) =>
-      postOne<ConnectLocalTenantPayload, ConnectLocalTenantResult>('/local-support/connect', payload, {
-        timeout: 45_000,
-      }),
+      postOne<ConnectLocalTenantPayload, ConnectLocalTenantResult>(
+        '/local-support/connect',
+        payload,
+        {
+          timeout: 45_000,
+        },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
+  });
+}
+
+export function useLocalServerMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      postOne<{ enabled: boolean }, LocalLanStatus>('/local-support/server-mode', { enabled }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });
 }
@@ -88,7 +110,11 @@ export function useLocalTenantSync() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ tenant, cycles = 1 }: { tenant: string; cycles?: number }) =>
-      postOne<{ cycles: number }, { output: string }>(`/local-support/tenants/${tenant}/sync`, { cycles }, { timeout: 180_000 }),
+      postOne<{ cycles: number }, { output: string }>(
+        `/local-support/tenants/${tenant}/sync`,
+        { cycles },
+        { timeout: 180_000 },
+      ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });
 }
@@ -96,7 +122,13 @@ export function useLocalTenantSync() {
 export function useLocalWorkerAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ tenant, action }: { tenant: string; action: 'install' | 'start' | 'stop' | 'restart' }) =>
+    mutationFn: ({
+      tenant,
+      action,
+    }: {
+      tenant: string;
+      action: 'install' | 'start' | 'stop' | 'restart';
+    }) =>
       postOne<{ action: string }, { output: string; status: LocalWorkerStatus }>(
         `/local-support/tenants/${tenant}/worker`,
         { action },
@@ -109,7 +141,11 @@ export function useLocalWorkerAction() {
 export function useLocalRetryFailed() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (tenant: string) => postOne<undefined, { reset: number; applied: number; failed: number }>(`/local-support/tenants/${tenant}/retry-failed`, undefined),
+    mutationFn: (tenant: string) =>
+      postOne<undefined, { reset: number; applied: number; failed: number }>(
+        `/local-support/tenants/${tenant}/retry-failed`,
+        undefined,
+      ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });
 }

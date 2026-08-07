@@ -42,11 +42,56 @@ function contentTypeFor(filePath) {
   return CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
 }
 
+function isLoopbackAddress(address) {
+  const normalized = String(address ?? '').replace(/^::ffff:/, '');
+  return normalized === '127.0.0.1' || normalized === '::1';
+}
+
+function proxyApiRequest(request, response, apiTarget) {
+  const target = new URL(request.url ?? '/', `${apiTarget}/`);
+  const headers = { ...request.headers, host: target.host };
+  delete headers.origin;
+  delete headers.referer;
+
+  const proxy = http.request(
+    target,
+    {
+      method: request.method,
+      headers,
+    },
+    (upstream) => {
+      response.writeHead(upstream.statusCode ?? 502, upstream.headers);
+      upstream.pipe(response);
+    },
+  );
+  proxy.on('error', () => {
+    if (!response.headersSent) response.writeHead(502);
+    response.end('Local API unavailable');
+  });
+  request.pipe(proxy);
+}
+
 function startRendererServer(rootDirectory, options = {}) {
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 0;
+  const apiTarget = options.apiTarget ?? null;
   const server = http.createServer((request, response) => {
     const requestPath = request.url ?? '/';
+
+    if (apiTarget && requestPath.startsWith('/api/')) {
+      if (
+        requestPath.startsWith('/api/local-support') &&
+        !isLoopbackAddress(request.socket.remoteAddress)
+      ) {
+        response.writeHead(404);
+        response.end();
+        return;
+      }
+
+      proxyApiRequest(request, response, apiTarget);
+      return;
+    }
+
     let filePath = safeFilePath(rootDirectory, requestPath);
 
     if (!filePath || (request.method !== 'GET' && request.method !== 'HEAD')) {
@@ -101,6 +146,7 @@ function startRendererServer(rootDirectory, options = {}) {
 
 module.exports = {
   contentTypeFor,
+  isLoopbackAddress,
   safeFilePath,
   startRendererServer,
 };

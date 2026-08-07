@@ -1,7 +1,7 @@
 const path = require('node:path');
 
 function normalizeAppMode(mode) {
-  return mode === 'pos' ? 'pos' : 'admin';
+  return mode === 'pos' || mode === 'technician' ? mode : 'admin';
 }
 
 function detectAppMode(options = {}) {
@@ -18,6 +18,9 @@ function detectAppMode(options = {}) {
   }
   if (exeName.includes('administrativo')) {
     return 'admin';
+  }
+  if (exeName.includes('tecnico') || exeName.includes('soporte')) {
+    return 'technician';
   }
 
   return 'admin';

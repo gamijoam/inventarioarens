@@ -14,7 +14,7 @@
  * ============================================================================
  */
 
-export type AppMode = 'admin' | 'pos';
+export type AppMode = 'admin' | 'pos' | 'technician';
 
 export interface AppDefinition {
   mode: AppMode;
@@ -40,10 +40,19 @@ export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
     tagline: 'Punto de venta',
     description: 'Ventas, pagos, caja, recibos y operación local con sincronización segura.',
   },
+  technician: {
+    mode: 'technician',
+    name: 'Soporte Técnico Inventario Arens',
+    shortName: 'Soporte Técnico',
+    tagline: 'Diagnóstico y sincronización local',
+    description:
+      'Vinculación de empresas, workers, sincronización y diagnóstico de la instalación local.',
+  },
 };
 
 export function resolveAppMode(value: string | undefined): AppMode {
-  return value?.trim().toLowerCase() === 'pos' ? 'pos' : 'admin';
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'pos' || normalized === 'technician' ? normalized : 'admin';
 }
 
 export function getAppDefinition(mode: AppMode): AppDefinition {
@@ -52,6 +61,7 @@ export function getAppDefinition(mode: AppMode): AppDefinition {
 
 export function isRouteAllowedForAppMode(mode: AppMode, pathname: string): boolean {
   if (mode === 'admin') return true;
+  if (mode === 'technician') return pathname === '/support' || pathname.startsWith('/support/');
   return pathname === '/pos' || pathname.startsWith('/pos/');
 }
 

@@ -47,7 +47,8 @@ class SyncInitialSnapshotService
         DB::table('sync_outbox')
             ->where('tenant_id', $tenant->id)
             ->where('target_node_id', $targetNodeId)
-            ->where('idempotency_key', 'like', $this->snapshotPrefix($installationCode, $targetNodeId).'%')
+            ->where('idempotency_key', 'like', 'initial-snapshot:%')
+            ->whereIn('status', ['pending', 'processing', 'failed'])
             ->delete();
     }
 

@@ -336,6 +336,64 @@ class PromotionSyncTest extends TestCase
         $this->assertSame('SNAPSHOT-COMBO', json_decode($event->payload, true)['code']);
     }
 
+    public function test_initial_snapshot_clears_pending_snapshots_from_previous_installations(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Snapshot Limpio', 'slug' => 'snapshot-limpio']);
+        app(TenantManager::class)->set($tenant);
+        $node = SyncNode::create([
+            'code' => 'POS-SNAPSHOT-CLEAN',
+            'name' => 'POS Snapshot Clean',
+            'type' => 'local',
+            'status' => 'active',
+        ]);
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'target_node_id' => $node->id,
+            'target_scope' => 'node',
+            'event_type' => 'product_price.created',
+            'aggregate_type' => 'product_price',
+            'aggregate_id' => 1,
+            'payload' => '{}',
+            'occurred_at' => now(),
+            'available_at' => now(),
+            'status' => 'pending',
+            'idempotency_key' => 'initial-snapshot:OLD-INSTALLATION:product_price.created:product_price:1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'target_node_id' => $node->id,
+            'target_scope' => 'node',
+            'event_type' => 'product.updated',
+            'aggregate_type' => 'product',
+            'aggregate_id' => 2,
+            'payload' => '{}',
+            'occurred_at' => now(),
+            'available_at' => now(),
+            'status' => 'pending',
+            'idempotency_key' => 'catalog-event:product:2',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(SyncInitialSnapshotService::class)->queueForNode($tenant, $node->id, 'NEW-INSTALLATION');
+
+        $this->assertDatabaseMissing('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $node->id,
+            'idempotency_key' => 'initial-snapshot:OLD-INSTALLATION:product_price.created:product_price:1',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'target_node_id' => $node->id,
+            'idempotency_key' => 'catalog-event:product:2',
+        ]);
+    }
+
     private function product(Tenant $tenant, string $sku, string $name): Product
     {
         app(TenantManager::class)->set($tenant);

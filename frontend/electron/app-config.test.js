@@ -9,21 +9,27 @@ describe('Electron app configuration', () => {
     expect(normalizeAppMode('unknown')).toBe('admin');
     expect(normalizeAppMode(undefined)).toBe('admin');
     expect(normalizeAppMode('pos')).toBe('pos');
+    expect(normalizeAppMode('technician')).toBe('technician');
   });
 
   it('keeps the exact product names for both installers', () => {
     expect(getAppConfig('admin').productName).toBe('Sistema de Inventario (Administrativo)');
     expect(getAppConfig('pos').productName).toBe('Sistema de Inventario (POS)');
+    expect(getAppConfig('technician').productName).toBe('Soporte Técnico Inventario Arens');
   });
 
   it('assigns stable renderer ports to both clients', () => {
     expect(getAppConfig('admin').rendererPort).toBe(8788);
     expect(getAppConfig('pos').rendererPort).toBe(8789);
+    expect(getAppConfig('technician').rendererPort).toBe(8790);
   });
 
   it('selects an isolated renderer directory per app', () => {
     expect(rendererDirectory('/bundle', 'admin').replace(/\\/g, '/')).toBe('/bundle/dist/admin');
     expect(rendererDirectory('/bundle', 'pos').replace(/\\/g, '/')).toBe('/bundle/dist/pos');
+    expect(rendererDirectory('/bundle', 'technician').replace(/\\/g, '/')).toBe(
+      '/bundle/dist/technician',
+    );
   });
 
   it('selects an isolated Electron user data directory per app', () => {
@@ -32,6 +38,9 @@ describe('Electron app configuration', () => {
     );
     expect(userDataDirectory('/home/user/.config', 'pos').replace(/\\/g, '/')).toBe(
       '/home/user/.config/InventarioArens-POS',
+    );
+    expect(userDataDirectory('/home/user/.config', 'technician').replace(/\\/g, '/')).toBe(
+      '/home/user/.config/InventarioArens-Soporte',
     );
   });
 });

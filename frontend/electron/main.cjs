@@ -10,6 +10,7 @@ const {
   resolveRuntimeConfig,
 } = require('./backend-runtime.cjs');
 const { startRendererServer } = require('./renderer-server.cjs');
+const { setupAutoUpdater } = require('./auto-updater.cjs');
 
 const appMode = detectAppMode();
 const appConfig = getAppConfig(appMode);
@@ -30,13 +31,6 @@ async function prepareServices() {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   let url = rendererUrl;
 
-  if (!url) {
-    rendererServer ??= await startRendererServer(rendererRoot(), {
-      port: appConfig.rendererPort,
-    });
-    url = rendererServer.url;
-  }
-
   localRuntime ??= createLocalRuntime({
     config: resolveRuntimeConfig({
       appRoot: app.getAppPath(),
@@ -49,6 +43,16 @@ async function prepareServices() {
     supervisorAppPath: app.getAppPath(),
     supervisorExecutable: process.execPath,
   });
+
+  if (!url) {
+    rendererServer ??= await startRendererServer(rendererRoot(), {
+      host: localRuntime.config.apiBindHost,
+      port: appConfig.rendererPort,
+      apiTarget: localRuntime.config.apiUrl,
+    });
+    url = rendererServer.url;
+  }
+
   await localRuntime.start(new URL(url).origin);
 
   return url;
@@ -130,6 +134,7 @@ if (isRuntimeSupervisor) {
         }
 
         await createWindow();
+        setupAutoUpdater({ app, appMode, isRuntimeSupervisor });
 
         app.on('activate', async () => {
           if (BrowserWindow.getAllWindows().length === 0) {

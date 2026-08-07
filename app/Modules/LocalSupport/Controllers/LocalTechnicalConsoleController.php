@@ -19,6 +19,14 @@ class LocalTechnicalConsoleController extends Controller
         return response()->json(['data' => $this->console->status()]);
     }
 
+    public function serverMode(Request $request): JsonResponse
+    {
+        $this->console->assertAvailable((string) $request->ip());
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+
+        return response()->json(['data' => $this->console->setLocalServerMode((bool) $data['enabled'])]);
+    }
+
     public function connect(Request $request): JsonResponse
     {
         $this->console->assertAvailable((string) $request->ip());

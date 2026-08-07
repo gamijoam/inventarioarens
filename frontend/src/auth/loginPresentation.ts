@@ -34,6 +34,16 @@ const LOGIN_PRESENTATIONS: Record<AppMode, LoginPresentation> = {
     submitLabel: 'Entrar al POS',
     footer: 'Venta rápida · Pagos mixtos · Caja · Sincronización',
   },
+  technician: {
+    theme: 'technician',
+    eyebrow: 'Soporte técnico local',
+    title: 'Administra esta instalación',
+    description: 'Vincula empresas, revisa workers y diagnostica la sincronización local.',
+    formEyebrow: 'Acceso técnico',
+    formTitle: 'Credenciales de soporte',
+    submitLabel: 'Entrar al soporte',
+    footer: 'Workers · Sincronización · Diagnóstico local',
+  },
 };
 
 export function getLoginPresentation(mode: AppMode): LoginPresentation {

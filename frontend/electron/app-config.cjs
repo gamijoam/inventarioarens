@@ -13,10 +13,16 @@ const APP_CONFIGS = Object.freeze({
     appId: 'com.inventarioarens.pos',
     rendererPort: 8789,
   }),
+  technician: Object.freeze({
+    mode: 'technician',
+    productName: 'Soporte Técnico Inventario Arens',
+    appId: 'com.inventarioarens.technician',
+    rendererPort: 8790,
+  }),
 });
 
 function normalizeAppMode(mode) {
-  return mode === 'pos' ? 'pos' : 'admin';
+  return mode === 'pos' || mode === 'technician' ? mode : 'admin';
 }
 
 function getAppConfig(mode) {
@@ -28,8 +34,13 @@ function rendererDirectory(appRoot, mode) {
 }
 
 function userDataDirectory(appDataPath, mode) {
+  const normalizedMode = normalizeAppMode(mode);
   const suffix =
-    normalizeAppMode(mode) === 'pos' ? 'InventarioArens-POS' : 'InventarioArens-Administrativo';
+    normalizedMode === 'pos'
+      ? 'InventarioArens-POS'
+      : normalizedMode === 'technician'
+        ? 'InventarioArens-Soporte'
+        : 'InventarioArens-Administrativo';
   return path.join(appDataPath, suffix);
 }
 

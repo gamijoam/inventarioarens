@@ -926,6 +926,27 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
+## Electron updates and technician client (2026-08-07)
+
+The Electron desktop clients use `electron-updater` with GitHub Releases as the initial provider.
+Each client has an independent update channel and artifact configuration:
+
+- `admin`: `Sistema-de-Inventario-Administrativo`
+- `pos`: `Sistema-de-Inventario-POS`
+- `technician`: `Soporte-Tecnico-Inventario-Arens`
+
+The updater downloads in the background and asks before restarting. It never runs in development or
+inside the runtime supervisor. Existing data remains outside the installed application under the
+shared `InventarioArens` data root. The first version that contains the updater must be installed
+manually; later versions can update automatically.
+
+The technician client reuses the local support console at `/support` and can link companies, inspect
+local sync state, and install/control Windows workers. It uses its own Electron app id, renderer port,
+user-data directory, and update channel. LAN access is not enabled by default. The technician can
+explicitly enable LAN server mode; it binds the local runtime/renderers to the private network after
+restart, while the technical console remains loopback-only. Windows Firewall rules and API
+authentication are mandatory for LAN use. SQLite is never shared as a network file.
+
 ## Traslados v2 � Fase 0 (2026-07-19)
 
 Cambios criticos para que el flujo de IMEIs/seriales funcione end-to-end:

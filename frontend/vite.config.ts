@@ -17,7 +17,12 @@ const REVERB_DEFAULTS = {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const appMode = env.VITE_APP_MODE === 'pos' ? 'pos' : 'admin';
+  const appMode =
+    env.VITE_APP_MODE === 'pos'
+      ? 'pos'
+      : env.VITE_APP_MODE === 'technician'
+        ? 'technician'
+        : 'admin';
 
   return {
     plugins: [

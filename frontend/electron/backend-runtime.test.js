@@ -67,6 +67,39 @@ describe('Local Laravel runtime configuration', () => {
     expect(environment.APP_BOOTSTRAP_TOKEN).toBe('bootstrap-token');
   });
 
+  it('uses the production cloud URL when no local override is provided', () => {
+    const previousUrl = process.env.INVENTARIO_SYNC_CLOUD_URL;
+    delete process.env.INVENTARIO_SYNC_CLOUD_URL;
+
+    try {
+      const config = resolveRuntimeConfig({ dataRoot: '/shared/InventarioArens' });
+
+      expect(config.syncCloudUrl).toBe('https://app.miinventariofacil.com/api');
+    } finally {
+      if (previousUrl === undefined) {
+        delete process.env.INVENTARIO_SYNC_CLOUD_URL;
+      } else {
+        process.env.INVENTARIO_SYNC_CLOUD_URL = previousUrl;
+      }
+    }
+  });
+
+  it('keeps the API client local while enabling an explicit LAN bind host', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-runtime-lan-'));
+    fs.writeFileSync(
+      path.join(dataRoot, 'local-server.json'),
+      JSON.stringify({ enabled: true, bind_host: '0.0.0.0', api_port: 8787 }),
+    );
+
+    const config = resolveRuntimeConfig({ dataRoot, isPackaged: false, platform: 'linux' });
+
+    expect(config.apiBindHost).toBe('0.0.0.0');
+    expect(config.apiHost).toBe('127.0.0.1');
+    expect(config.apiUrl).toBe('http://127.0.0.1:8787');
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
   it('only creates sync arguments when a tenant and cloud token are configured', () => {
     expect(syncArguments({})).toBeNull();
     expect(

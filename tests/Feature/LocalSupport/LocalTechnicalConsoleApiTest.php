@@ -5,6 +5,7 @@ namespace Tests\Feature\LocalSupport;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class LocalTechnicalConsoleApiTest extends TestCase
@@ -33,6 +34,33 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->getJson('/api/local-support/status')
             ->assertNotFound();
+    }
+
+    public function test_lan_server_mode_is_disabled_by_default_and_can_be_configured_locally(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $path = dirname((string) config('database.connections.sqlite.database')).'/local-server.json';
+        $previous = File::exists($path) ? File::get($path) : null;
+        File::delete($path);
+
+        try {
+            $initial = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+                ->getJson('/api/local-support/status')
+                ->assertOk();
+            $initial
+                ->assertJsonPath('data.lan.enabled', false)
+                ->assertJsonPath('data.lan.bind_host', '127.0.0.1');
+
+            $response = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+                ->postJson('/api/local-support/server-mode', ['enabled' => true])
+                ->assertOk();
+            $response
+                ->assertJsonPath('data.enabled', true)
+                ->assertJsonPath('data.bind_host', '0.0.0.0')
+                ->assertJsonPath('data.restart_required', true);
+        } finally {
+            $previous === null ? File::delete($path) : File::put($path, $previous);
+        }
     }
 
     public function test_local_technical_console_keeps_a_configured_company_visible_while_it_is_preparing(): void
@@ -64,5 +92,36 @@ class LocalTechnicalConsoleApiTest extends TestCase
         } finally {
             $previous === null ? File::delete($path) : File::put($path, $previous);
         }
+    }
+
+    public function test_connect_does_not_try_to_install_a_windows_worker_on_linux(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
+        Http::fake([
+            'https://cloud.test/api/sync/pairing-codes/redeem' => Http::response([
+                'data' => [
+                    'tenant' => ['name' => 'Empresa local', 'slug' => 'empresa-local'],
+                    'token' => 'sync-token',
+                ],
+            ], 201),
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('A', 40),
+                'node_name' => 'Equipo Linux',
+                'node_code' => 'LINUX-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@empresa.test',
+                'local_user_name' => 'Tecnico local',
+                'local_password' => 'password123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.tenant.slug', 'empresa-local')
+            ->assertJsonPath('data.worker.status.available', false);
+
+        $this->assertDatabaseHas('tenants', ['slug' => 'empresa-local']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://cloud.test/api/sync/pairing-codes/redeem');
     }
 }
