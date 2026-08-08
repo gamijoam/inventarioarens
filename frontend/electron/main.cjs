@@ -10,7 +10,12 @@ const {
   resolveRuntimeConfig,
 } = require('./backend-runtime.cjs');
 const { startRendererServer } = require('./renderer-server.cjs');
-const { setupAutoUpdater } = require('./auto-updater.cjs');
+let setupAutoUpdater = () => false;
+try {
+  ({ setupAutoUpdater } = require('./auto-updater.cjs'));
+} catch (error) {
+  console.warn('[main] auto-updater module not bundled:', error.message);
+}
 
 const appMode = detectAppMode();
 const appConfig = getAppConfig(appMode);

@@ -1,12 +1,27 @@
 const { BrowserWindow, dialog } = require('electron');
-const { autoUpdater } = require('electron-updater');
 
 const { resolveUpdateChannel, shouldEnableAutoUpdater } = require('./update-policy.cjs');
 
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+function loadAutoUpdater(logger) {
+  try {
+    return require('electron-updater').autoUpdater;
+  } catch (error) {
+    logger.warn?.(
+      `[UPDATER] electron-updater is not bundled (${error.message}). Auto-update disabled.`,
+    );
+    return null;
+  }
+}
+
 function setupAutoUpdater({ app, appMode, isRuntimeSupervisor, logger = console }) {
   if (!shouldEnableAutoUpdater({ isPackaged: app.isPackaged, isRuntimeSupervisor })) {
+    return false;
+  }
+
+  const autoUpdater = loadAutoUpdater(logger);
+  if (!autoUpdater) {
     return false;
   }
 
