@@ -258,14 +258,21 @@ class SyncWorkerService
         $acknowledged = 0;
         $failed = 0;
 
-        foreach ($events as $event) {
-            $ack = $this->client($tenant, $token)
-                ->post($this->url($cloudUrl, "sync/events/{$event->event_uuid}/ack"), [
-                    'node_code' => $nodeCode,
-                    'status' => 'applied',
-                ]);
+        $concurrent = $this->http->pool(function ($pool) use ($events, $tenant, $nodeCode, $cloudUrl, $token): void {
+            foreach ($events as $event) {
+                $pool->as($event->event_uuid)->acceptJson()->withToken($token)
+                    ->withHeader('X-Tenant', $tenant->slug)
+                    ->timeout(60)
+                    ->post($this->url($cloudUrl, "sync/events/{$event->event_uuid}/ack"), [
+                        'node_code' => $nodeCode,
+                        'status' => 'applied',
+                    ]);
+            }
+        });
 
-            if ($ack->successful()) {
+        foreach ($events as $event) {
+            $response = $concurrent[$event->event_uuid] ?? null;
+            if ($response && $response->successful()) {
                 $acknowledged++;
             } else {
                 $failed++;
@@ -357,7 +364,7 @@ class SyncWorkerService
     private function client(Tenant $tenant, string $token)
     {
         return $this->http
-            ->timeout(30)
+            ->timeout(60)
             ->acceptJson()
             ->withToken($token)
             ->withHeader('X-Tenant', $tenant->slug);
