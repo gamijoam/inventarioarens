@@ -794,6 +794,9 @@ Si pasa algo que afecte decisiones futuras (nueva convención, nuevo VPS, nueva 
    y actualizar §3.
 8. **Frontend SPA + Electron desde 2026-07-13** → actualizar `docs/FRONTEND_FASES.md` cambiando
    ☐ → 🔄 → ✅ al avanzar, y `docs/IMPLEMENTATION_LOG.md` con cada entrega.
+9. **Updates/workers/sync de escritorio (2026-08-08)** → documentar en
+   `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md` y reflejar en `docs/GRAPHIFY_CONTEXT_MAP.md` antes de
+   tocar el release workflow, las tareas programadas de Windows o la propagación del catálogo.
 
 ---
 
@@ -936,7 +939,7 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
-## Electron updates and technician client (2026-08-07)
+## Electron updates and technician client (2026-08-07, actualizado 2026-08-08)
 
 The Electron desktop clients use `electron-updater` with GitHub Releases as the initial provider.
 Each client has an independent update channel and artifact configuration:
@@ -945,17 +948,35 @@ Each client has an independent update channel and artifact configuration:
 - `pos`: `Sistema-de-Inventario-POS`
 - `technician`: `Soporte-Tecnico-Inventario-Arens`
 
-The updater downloads in the background and asks before restarting. It never runs in development or
-inside the runtime supervisor. Existing data remains outside the installed application under the
-shared `InventarioArens` data root. The first version that contains the updater must be installed
-manually; later versions can update automatically.
+Cada cliente se instala en su propia carpeta (`oneClick: false` + `executableName`), para que no
+colisionen en `inventarioarens-frontend` ni se pisen el `app.asar`.
 
-The technician client reuses the local support console at `/support` and can link companies, inspect
-local sync state, and install/control Windows workers. It uses its own Electron app id, renderer port,
-user-data directory, and update channel. LAN access is not enabled by default. The technician can
-explicitly enable LAN server mode; it binds the local runtime/renderers to the private network after
-restart, while the technical console remains loopback-only. Windows Firewall rules and API
-authentication are mandatory for LAN use. SQLite is never shared as a network file.
+### Releases automáticos
+
+`.github/workflows/release.yml` construye y publica un cliente con `gh workflow run release.yml -f
+client=pos` (o admin/technician). Construye en `windows-latest`, y publica con
+`gh release create v<version>-<client>` (no-draft) subiendo el `.exe`, `.blockmap` y `<channel>.yml`
+(`pos.yml`, `admin.yml`, `technician.yml`). El tag es `v<version>-<client>` para que los tres
+clientes compartan el mismo `package.json` sin colisionar.
+
+**Regla de build**: siempre regenerar el bundle antes de empaquetar
+(`pnpm run build:<client>` y luego `electron-builder`). Empaquetar sin regenerar `dist` publica un
+bundle viejo y la UI nueva no llega.
+
+### Auto-update y workers
+
+- El updater descarga en background y pregunta antes de reiniciar. El check corre al arrancar y cada
+  **1 minuto** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`) — corto para
+  verificar cambios rápido durante desarrollo.
+- La sincronización de escritorio corre por **tareas programadas de Windows** (una por empresa, cada
+  1 minuto) que ejecutan `sync-worker.cmd run` → `php artisan sync:run`, **independientes de la app
+  abierta**. El supervisor de Electron ya no lanza daemons de sync.
+- La propagación del catálogo del grupo a las hijas emite eventos `sync_outbox` por cada spinoff;
+  el applier local matchea productos por `sku`/`catalog_product_id`.
+- El technician reutiliza la consola `/support` para vincular empresas, ver estado de sync y
+  diagnosticar. LAN server mode queda loopback por defecto; SQLite nunca se comparte por red.
+
+Detalle completo en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
 
 ## Traslados v2 � Fase 0 (2026-07-19)
 

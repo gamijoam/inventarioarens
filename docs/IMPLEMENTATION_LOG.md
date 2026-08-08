@@ -1,5 +1,41 @@
 # Registro de implementación
 
+## 2026-08-08 - Sync bidireccional, workers automáticos y sistema de updates Electron
+
+### Sincronización local ↔ nube (fixes de fondo)
+
+- `applyProduct` del applier local ahora matchea por `sku` (o `catalog_product_id`) en vez de caer al
+  primer producto del tenant; esto corregía pushes de productos que fallaban con `UNIQUE constraint`
+  y no llegaban a la nube.
+- La propagación del catálogo del grupo a las hijas (`SharedCatalogPropagationService`) emite eventos
+  `sync_outbox` por cada spinoff tras copiar productos, tasas, listas de precios, marcas, tags, tipos
+  de tasa, métodos de pago, garantías y proveedores. Sin esto, los nodos locales de las hijas nunca
+  recibían los cambios del master.
+- `sync:prepare-local` replica `is_group` y `parent_id` del remoto para que la jerarquía local
+  (grupo vs spinoffs) sea correcta.
+- ACKs de la nube se envían concurrentes (`Http::pool`) para evitar timeouts por ciclo.
+- `clearPreviousSnapshot` ahora borra también los eventos `processed` del snapshot previo al
+  re-registrar un nodo, evitando el `UNIQUE constraint` que devolvía HTTP 500 en `POST /sync/nodes`.
+
+### Workers de escritorio (tareas programadas)
+
+- La sincronización de escritorio corre por tareas programadas de Windows (una por empresa, cada 1
+  minuto) ejecutando `sync-worker.cmd run` → `php artisan sync:run`, independientes de la app abierta.
+- El launcher fija `LARAVEL_STORAGE_PATH`, `DB_DATABASE` y `PHP_INI_SCAN_DIR`; usa rutas cortas (8.3)
+  para no exceder el límite de 261 caracteres de `schtasks /TR`.
+- El supervisor de Electron ya no lanza daemons de sync.
+- Verificación: 5 empresas sincronizan su snapshot completo (osarcell ~977, hijas ~976) sin abrir la app.
+
+### Actualizaciones automáticas del cliente
+
+- `.github/workflows/release.yml` construye y publica un cliente en `windows-latest` y publica con
+  `gh release create v<version>-<client>` (no-draft). El tag es por cliente (`v0.2.3-pos`).
+- `electron-updater` chequea actualizaciones cada 1 minuto, descarga en background e instala al
+  cerrar. Probado: POS 0.2.1 → 0.2.2 → 0.2.3 sin intervención.
+- Cada cliente se instala en su propia carpeta (`oneClick: false`).
+- `.github/workflows/ci.yml` valida solo frontend (tsc + vitest); la suite PHPUnit Feature se corre
+  en local con `phpunit.sqlite.xml`.
+
 ## 2026-08-07 - Vinculación grupal y mapeos de sincronización
 
 - Se agregó `POST /api/sync/group-pairing-codes`, que genera un código de un solo uso para todo el

@@ -247,6 +247,36 @@ Nodos principales:
 - `intercompany_notifications`
 - `intercompany_notification_reads`
 
+## Electron Updates Y Sincronizacion De Escritorio
+
+Los tres clientes Electron (admin, pos, technician) usan `electron-updater` con GitHub
+Releases y canales separados. Cada cliente se instala en su propia carpeta
+(`oneClick: false`). La publicacion la orquesta `.github/workflows/release.yml`, que
+construye en Windows y publica con `gh release create v<version>-<client>` (no-draft).
+
+Documento principal:
+
+- [Electron updates y technician](ELECTRON_UPDATES_AND_TECHNICIAN.md)
+
+La sincronizacion de escritorio corre por **tareas programadas de Windows** (una por
+empresa, cada 1 minuto) que ejecutan `sync-worker.cmd run` -> `php artisan sync:run`,
+independientes de la app abierta. La propagacion del catalogo del grupo a las hijas
+emite eventos `sync_outbox` por cada spinoff, y el applier local matchea productos por
+`sku`/`catalog_product_id`.
+
+Nodos de codigo frecuentes:
+
+- `frontend/electron/auto-updater.cjs` (check cada 1 min)
+- `frontend/electron/backend-runtime.cjs` (supervisor de la API local)
+- `frontend/electron/update-policy.cjs`
+- `.github/workflows/release.yml`
+- `.github/workflows/ci.yml`
+- `LocalTechnicalConsoleService` (vinculacion, tareas programadas)
+- `SharedCatalogPropagationService` (propagacion master -> hijas)
+- `SyncEventApplier` (applier local, matcheo por sku/catalog_product_id)
+- `SyncWorkerService` (push/pull/apply, ACKs concurrentes)
+- `scripts/sync-worker.cmd` y `scripts/sync-worker.ps1`
+
 ## Consultas Recomendadas Para Graphify
 
 Usar estas preguntas como entrada rapida:
