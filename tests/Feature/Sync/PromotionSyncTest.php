@@ -394,6 +394,49 @@ class PromotionSyncTest extends TestCase
         ]);
     }
 
+    public function test_initial_snapshot_regeneration_removes_processed_events_with_same_idempotency_key(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Snapshot Regen', 'slug' => 'snapshot-regen']);
+        app(TenantManager::class)->set($tenant);
+        $node = SyncNode::create([
+            'code' => 'POS-SNAPSHOT-REGEN',
+            'name' => 'POS Snapshot Regen',
+            'type' => 'local',
+            'status' => 'active',
+        ]);
+        $this->branch($tenant, '001', 'Chichiriviche');
+        $first = app(SyncInitialSnapshotService::class)->queueForNode($tenant, $node->id, 'SAME-INSTALLATION');
+
+        DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('target_node_id', $node->id)
+            ->update(['status' => 'processed', 'processed_at' => now()]);
+
+        $summary = app(SyncInitialSnapshotService::class)->queueForNode($tenant, $node->id, 'SAME-INSTALLATION');
+
+        $this->assertSame($first['queued'], $summary['queued']);
+        $this->assertSame(
+            1,
+            DB::table('sync_outbox')
+                ->where('tenant_id', $tenant->id)
+                ->where('target_node_id', $node->id)
+                ->where('idempotency_key', 'like', 'initial-snapshot:%branch.created:branch:%')
+                ->count(),
+        );
+    }
+
+    private function branch(Tenant $tenant, string $code, string $name): int
+    {
+        return (int) DB::table('branches')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => $name,
+            'code' => $code,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     private function product(Tenant $tenant, string $sku, string $name): Product
     {
         app(TenantManager::class)->set($tenant);

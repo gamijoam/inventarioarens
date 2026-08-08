@@ -48,7 +48,6 @@ class SyncInitialSnapshotService
             ->where('tenant_id', $tenant->id)
             ->where('target_node_id', $targetNodeId)
             ->where('idempotency_key', 'like', 'initial-snapshot:%')
-            ->whereIn('status', ['pending', 'processing', 'failed'])
             ->delete();
     }
 
