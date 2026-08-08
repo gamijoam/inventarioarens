@@ -124,6 +124,42 @@ class SyncEventApplierTest extends TestCase
         $this->assertStringContainsString('No se encontro el producto', DB::table('sync_inbox')->where('tenant_id', $tenant->id)->value('last_error'));
     }
 
+    public function test_apply_product_records_catalog_product_id_from_payload(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Cat ID', 'slug' => 'empresa-cat-id']);
+        app(TenantManager::class)->set($tenant);
+
+        $payload = json_encode([
+            'sku' => 'SKU-CAT-001',
+            'name' => 'Producto Catalogado',
+            'tracking_type' => 'quantity',
+            'base_price' => '25.0000',
+            'sale_currency' => 'USD',
+            'catalog_product_id' => 999,
+            'is_active' => true,
+        ]);
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.created',
+            'aggregate_type' => 'product',
+            'payload_hash' => hash('sha256', $payload),
+            'payload' => $payload,
+            'status' => 'received',
+            'received_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => $tenant->id,
+            'sku' => 'SKU-CAT-001',
+            'catalog_product_id' => 999,
+        ]);
+    }
+
     public function test_it_retries_failed_catalog_events_once_their_dependency_arrives(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Retry', 'slug' => 'empresa-retry']);

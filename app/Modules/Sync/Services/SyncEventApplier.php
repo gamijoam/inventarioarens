@@ -372,10 +372,17 @@ class SyncEventApplier
             'reorder_quantity' => $payload['reorder_quantity'] ?? null,
             'is_catalog_active' => array_key_exists('is_catalog_active', $payload) ? (bool) $payload['is_catalog_active'] : true,
             'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+            'catalog_product_id' => isset($payload['catalog_product_id']) ? (int) $payload['catalog_product_id'] : null,
             'updated_at' => $now,
         ];
 
-        $product = DB::table('products')->where('tenant_id', $tenant->id)->where('sku', $sku)->first();
+        $product = DB::table('products')->where('tenant_id', $tenant->id)
+            ->when(isset($payload['catalog_product_id']), fn ($query) => $query->where('catalog_product_id', (int) $payload['catalog_product_id']))
+            ->first();
+
+        if (! $product) {
+            $product = DB::table('products')->where('tenant_id', $tenant->id)->where('sku', $sku)->first();
+        }
         $before = $product ? (array) $product : [];
 
         if ($product) {

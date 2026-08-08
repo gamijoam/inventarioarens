@@ -591,6 +591,7 @@ class SharedCatalogPropagationService
                 'reorder_quantity' => $master->reorder_quantity === null ? null : (string) $master->reorder_quantity,
                 'is_catalog_active' => (bool) ($master->is_catalog_active ?? true),
                 'is_active' => (bool) $master->is_active,
+                'catalog_product_id' => $master->id,
             ],
         );
     }
