@@ -124,6 +124,79 @@ class SyncEventApplierTest extends TestCase
         $this->assertStringContainsString('No se encontro el producto', DB::table('sync_inbox')->where('tenant_id', $tenant->id)->value('last_error'));
     }
 
+    public function test_it_retries_failed_catalog_events_once_their_dependency_arrives(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Retry', 'slug' => 'empresa-retry']);
+        app(TenantManager::class)->set($tenant);
+        $this->priceList($tenant, 'DETAL');
+
+        $now = now();
+        $pricePayload = json_encode([
+            'sku' => 'SKU-RETRY-01',
+            'price_list_code' => 'DETAL',
+            'price' => '22.5000',
+            'currency' => 'USD',
+        ]);
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product_price.created',
+            'aggregate_type' => 'product_price',
+            'payload_hash' => hash('sha256', $pricePayload),
+            'payload' => $pricePayload,
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $first = app(SyncEventApplier::class)->applyPending($tenant);
+        $this->assertSame(1, $first['failed']);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_price.created',
+            'status' => 'failed',
+        ]);
+
+        $productPayload = json_encode([
+            'sku' => 'SKU-RETRY-01',
+            'name' => 'Producto Retry',
+            'tracking_type' => 'quantity',
+            'base_price' => '20.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+        ]);
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.created',
+            'aggregate_type' => 'product',
+            'payload_hash' => hash('sha256', $productPayload),
+            'payload' => $productPayload,
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        app(SyncEventApplier::class)->applyPending($tenant);
+        $this->assertDatabaseHas('products', ['tenant_id' => $tenant->id, 'sku' => 'SKU-RETRY-01']);
+
+        $second = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1, $second['applied']);
+        $this->assertDatabaseHas('product_prices', [
+            'tenant_id' => $tenant->id,
+            'price' => '22.5000',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'product_price.created',
+            'status' => 'applied',
+        ]);
+    }
+
     public function test_it_resolves_product_warranty_policy_by_name_instead_of_cloud_id(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Garantia Sync', 'slug' => 'empresa-garantia-sync']);

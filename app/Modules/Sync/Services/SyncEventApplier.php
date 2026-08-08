@@ -24,6 +24,48 @@ use RuntimeException;
 
 class SyncEventApplier
 {
+    public const RETRYABLE_FAILED_EVENT_TYPES = [
+        'branch.updated',
+        'branch.created',
+        'warehouse.updated',
+        'warehouse.created',
+        'product.updated',
+        'product.created',
+        'customer.updated',
+        'customer.created',
+        'stock_movement.updated',
+        'stock_movement.created',
+        'product_unit.updated',
+        'product_unit.created',
+        'price_list.updated',
+        'price_list.created',
+        'promotion.updated',
+        'promotion.created',
+        'product_price.updated',
+        'product_price.created',
+        'price.updated',
+        'warranty_policy.updated',
+        'warranty_policy.created',
+        'supplier.updated',
+        'supplier.created',
+        'brand.updated',
+        'brand.created',
+        'category.updated',
+        'category.created',
+        'tag.updated',
+        'tag.created',
+        'payment_method.updated',
+        'payment_method.created',
+        'exchange_rate_type.updated',
+        'exchange_rate_type.created',
+        'exchange_rate.updated',
+        'exchange_rate.created',
+        'cash_register.updated',
+        'cash_register.created',
+        'product_entry.created',
+        'product_exit.created',
+    ];
+
     private const REPROCESSABLE_EVENT_TYPES = [
         'branch.updated',
         'branch.created',
@@ -100,6 +142,11 @@ class SyncEventApplier
                         $query
                             ->where('status', 'ignored')
                             ->whereIn('event_type', self::REPROCESSABLE_EVENT_TYPES);
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('status', 'failed')
+                            ->whereIn('event_type', self::RETRYABLE_FAILED_EVENT_TYPES);
                     });
             })
             ->orderBy('id')
