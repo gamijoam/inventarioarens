@@ -1,0 +1,59 @@
+name: Release Electron client
+
+on:
+  workflow_dispatch:
+    inputs:
+      client:
+        description: 'Cliente a publicar'
+        required: true
+        default: 'technician'
+        type: choice
+        options:
+          - technician
+          - admin
+          - pos
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build + publish ${{ github.event.inputs.client || 'all' }}
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare PHP portable runtime
+        working-directory: frontend
+        run: pnpm run electron:prepare:php:linux
+
+      - name: Publish client
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLIENT="${{ github.event.inputs.client }}"
+          if [ -z "$CLIENT" ]; then CLIENT="technician"; fi
+          pnpm run build:${CLIENT}
+          cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-${CLIENT} pnpm run electron:stage-backend
+          pnpm exec electron-builder --config electron-builder.${CLIENT}.yml --publish always

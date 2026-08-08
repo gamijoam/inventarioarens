@@ -2,7 +2,7 @@ const { BrowserWindow, dialog } = require('electron');
 
 const { resolveUpdateChannel, shouldEnableAutoUpdater } = require('./update-policy.cjs');
 
-const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 function loadAutoUpdater(logger) {
   try {
