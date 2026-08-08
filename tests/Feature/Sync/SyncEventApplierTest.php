@@ -3,6 +3,7 @@
 namespace Tests\Feature\Sync;
 
 use App\Modules\AdminPortal\Services\AdminPosSalesService;
+use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
@@ -122,6 +123,54 @@ class SyncEventApplierTest extends TestCase
             'status' => 'failed',
         ]);
         $this->assertStringContainsString('No se encontro el producto', DB::table('sync_inbox')->where('tenant_id', $tenant->id)->value('last_error'));
+    }
+
+    public function test_apply_product_updates_the_matching_sku_not_the_first_tenant_product(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Sku Match', 'slug' => 'empresa-sku-match']);
+        app(TenantManager::class)->set($tenant);
+
+        $first = Product::create([
+            'name' => 'Primero',
+            'sku' => 'SKU-UNO',
+            'tracking_type' => 'quantity',
+            'base_price' => 5,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $second = Product::create([
+            'name' => 'Bluetooth',
+            'sku' => 'CAT-000124',
+            'tracking_type' => 'quantity',
+            'base_price' => 5,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $this->assertLessThan($second->id, $first->id);
+
+        $payload = json_encode([
+            'sku' => 'CAT-000124',
+            'name' => 'ADAPTADOR BLUETOOTH',
+            'tracking_type' => 'quantity',
+            'base_price' => '33.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+        ]);
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.updated',
+            'aggregate_type' => 'product',
+            'payload_hash' => hash('sha256', $payload),
+            'payload' => $payload,
+            'status' => 'received',
+            'received_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(33.0, (float) DB::table('products')->where('id', $second->id)->value('base_price'));
+        $this->assertSame(5.0, (float) DB::table('products')->where('id', $first->id)->value('base_price'));
     }
 
     public function test_apply_product_records_catalog_product_id_from_payload(): void

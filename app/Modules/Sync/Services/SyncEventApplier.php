@@ -378,9 +378,10 @@ class SyncEventApplier
 
         $product = DB::table('products')->where('tenant_id', $tenant->id)
             ->when(isset($payload['catalog_product_id']), fn ($query) => $query->where('catalog_product_id', (int) $payload['catalog_product_id']))
+            ->when(! isset($payload['catalog_product_id']), fn ($query) => $query->where('sku', $sku))
             ->first();
 
-        if (! $product) {
+        if (! $product && ! isset($payload['catalog_product_id'])) {
             $product = DB::table('products')->where('tenant_id', $tenant->id)->where('sku', $sku)->first();
         }
         $before = $product ? (array) $product : [];
