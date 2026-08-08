@@ -536,48 +536,8 @@ function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
   let apiProcess = null;
-  let syncProcesses = [];
-  let reconcileTimer = null;
-
-  function spawnDaemon(daemonArgs, environment) {
-    const syncProcess = spawnProcess(config.phpBinary, daemonArgs, {
-      cwd: config.backendRoot,
-      env: { ...process.env, ...environment },
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    syncProcesses.push({ args: daemonArgs, process: syncProcess });
-    attachLogStream(syncProcess, path.join(config.logDirectory, `sync-${daemonArgs[2]}.log`));
-  }
-
-  function reconcileSyncDaemons(environment) {
-    const daemonArgsList = syncDaemons(config);
-    const runningKeys = new Set(syncProcesses.map((entry) => entry.args.join('\u0000')));
-    const desiredKeys = new Set(daemonArgsList.map((args) => args.join('\u0000')));
-
-    for (const entry of syncProcesses) {
-      if (!desiredKeys.has(entry.args.join('\u0000')) && entry.process && !entry.process.killed) {
-        entry.process.kill();
-      }
-    }
-    syncProcesses = syncProcesses.filter((entry) => desiredKeys.has(entry.args.join('\u0000')));
-
-    for (const daemonArgs of daemonArgsList) {
-      if (!runningKeys.has(daemonArgs.join('\u0000'))) {
-        spawnDaemon(daemonArgs, environment);
-      }
-    }
-  }
 
   async function stopOwnedProcesses() {
-    if (reconcileTimer) {
-      clearInterval(reconcileTimer);
-      reconcileTimer = null;
-    }
-    for (const entry of syncProcesses) {
-      if (entry.process && !entry.process.killed) entry.process.kill();
-    }
-    syncProcesses = [];
     if (apiProcess && !apiProcess.killed) apiProcess.kill();
     apiProcess = null;
   }
@@ -624,10 +584,6 @@ function createRuntimeSupervisor(options = {}) {
           attachLogStream(apiProcess, path.join(config.logDirectory, 'api.log'));
 
           await waitForHealth(config.apiUrl);
-
-          reconcileSyncDaemons(environment);
-          reconcileTimer = setInterval(() => reconcileSyncDaemons(environment), 15000);
-          reconcileTimer.unref?.();
         }
 
         await waitForRuntimeLeases(config);

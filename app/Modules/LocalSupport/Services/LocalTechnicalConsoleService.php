@@ -159,16 +159,20 @@ class LocalTechnicalConsoleService
                 $this->runArtisan('sync:prepare-local', $parameters);
             });
 
+            $worker = PHP_OS_FAMILY === 'Windows'
+                ? $this->installWindowsWorkerTaskQuiet($slug)
+                : [
+                    'output' => 'En Linux el worker se controla mediante systemd.',
+                    'status' => $this->workerStatus($slug),
+                ];
+
             $prepared[] = [
                 'tenant' => $tenant,
                 'download' => [
                     'status' => 'started',
                     'message' => 'La descarga inicial continuara en segundo plano.',
                 ],
-                'worker' => [
-                    'output' => 'El worker de sincronizacion se gestiona desde esta aplicacion mientras esta abierta.',
-                    'status' => $this->workerStatus($slug),
-                ],
+                'worker' => $worker,
             ];
         }
 
@@ -277,6 +281,33 @@ class LocalTechnicalConsoleService
             'output' => trim(implode("\n", $output)),
             'status' => $this->workerStatus($tenantSlug),
         ];
+    }
+
+    private function installWindowsWorkerTaskQuiet(string $tenantSlug): array
+    {
+        $workerScript = base_path('scripts/sync-worker.cmd');
+        if (! is_file($workerScript)) {
+            return [
+                'output' => 'No se encontro el controlador de worker de esta instalacion.',
+                'status' => $this->workerStatus($tenantSlug),
+            ];
+        }
+
+        try {
+            $output = $this->installWindowsWorkerTask($tenantSlug, $workerScript);
+
+            return [
+                'output' => $output,
+                'status' => $this->workerStatus($tenantSlug),
+            ];
+        } catch (ValidationException $exception) {
+            $message = $exception->errors()['worker'][0] ?? 'No se pudo instalar la tarea de sincronizacion.';
+
+            return [
+                'output' => $message,
+                'status' => $this->workerStatus($tenantSlug),
+            ];
+        }
     }
 
     private function redeemPairingCode(array $data): array
@@ -576,7 +607,7 @@ class LocalTechnicalConsoleService
             '/TN', $taskName,
             '/TR', $taskCommand,
             '/SC', 'MINUTE',
-            '/MO', '5',
+            '/MO', '1',
             '/F',
         ]);
         $process->setTimeout(15);
@@ -629,7 +660,7 @@ class LocalTechnicalConsoleService
         if (is_dir($scanDirectory)) {
             $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
         }
-        $lines[] = 'call "'.$workerScript.'" start -TenantSlug "'.$tenantSlug.'" -PhpPath "'.str_replace('/', '\\', $phpBinary).'"';
+        $lines[] = 'call "'.$workerScript.'" run -TenantSlug "'.$tenantSlug.'" -PhpPath "'.str_replace('/', '\\', $phpBinary).'"';
 
         return implode("\r\n", $lines)."\r\n";
     }

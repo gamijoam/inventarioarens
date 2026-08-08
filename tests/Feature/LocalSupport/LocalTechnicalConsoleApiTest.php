@@ -186,7 +186,8 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertStringContainsString((string) config('database.connections.sqlite.database'), $content);
         $this->assertStringContainsString('-TenantSlug "oscar-cell"', $content);
         $this->assertStringContainsString('-PhpPath "', $content);
-        $this->assertStringContainsString('call "C:\\app\\scripts\\sync-worker.cmd"', $content);
+        $this->assertStringContainsString('call "C:\\app\\scripts\\sync-worker.cmd" run ', $content);
+        $this->assertStringNotContainsString(' start -TenantSlug', $content);
         $this->assertStringContainsString(PHP_BINARY, $content);
         $this->assertStringContainsString(storage_path(), $content);
     }
