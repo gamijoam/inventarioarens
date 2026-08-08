@@ -64,11 +64,11 @@ jobs:
           key: ${{ runner.os }}-php-${{ hashFiles('composer.json', 'composer.lock') }}
           restore-keys: ${{ runner.os }}-php-
 
-      - name: Install composer deps
-        run: composer install --prefer-dist --no-interaction --no-progress
-
       - name: Copy .env
         run: cp .env.example .env
+
+      - name: Install composer deps
+        run: composer install --prefer-dist --no-interaction --no-progress
 
       - name: Wait for postgres
         run: |
