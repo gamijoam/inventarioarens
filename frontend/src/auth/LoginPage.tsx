@@ -208,7 +208,7 @@ export function LoginPage() {
                   : 'border-primary/20 bg-primary/5 text-primary',
               )}
             >
-              {isPos ? 'Offline-first' : 'Seguro'}
+              {isPos ? 'Seguro' : 'Seguro'}
             </span>
           </div>
 
