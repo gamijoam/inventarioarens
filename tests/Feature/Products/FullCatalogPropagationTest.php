@@ -11,6 +11,7 @@ use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Support\Permissions\BasePermissions;
@@ -268,6 +269,33 @@ class FullCatalogPropagationTest extends TestCase
             'event_type' => 'product.updated',
             'status' => 'pending',
         ]);
+    }
+
+    public function test_catalog_entities_emit_sync_events_in_spinoff_outbox(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff();
+        $this->useTenant($group);
+
+        $brand = Brand::create(['name' => 'Samsung', 'slug' => 'samsung', 'is_active' => true]);
+        $tag = Tag::create(['name' => 'Oferta', 'slug' => 'oferta', 'color' => '#ff0000']);
+        $priceList = PriceList::create([
+            'name' => 'Detal', 'code' => 'DETAL', 'is_default' => false, 'is_active' => true, 'sort_order' => 1,
+        ]);
+        $rateType = ExchangeRateType::create(['code' => 'BCV', 'name' => 'Banco Central', 'is_default' => true, 'is_active' => true]);
+        $supplier = Supplier::create(['name' => 'Proveedor Test', 'document_type' => 'J', 'document_number' => 'J-12345', 'is_active' => true]);
+
+        $service = app(SharedCatalogPropagationService::class);
+        $service->ensureBrandCopyFor($brand, $spinoff);
+        $service->ensureTagCopyFor($tag, $spinoff);
+        $service->ensurePriceListCopyFor($priceList, $spinoff);
+        $service->ensureExchangeRateTypeCopyFor($rateType, $spinoff);
+        $service->ensureSupplierCopyFor($supplier, $spinoff);
+
+        $this->assertDatabaseHas('sync_outbox', ['tenant_id' => $spinoff->id, 'event_type' => 'brand.updated', 'status' => 'pending']);
+        $this->assertDatabaseHas('sync_outbox', ['tenant_id' => $spinoff->id, 'event_type' => 'tag.updated', 'status' => 'pending']);
+        $this->assertDatabaseHas('sync_outbox', ['tenant_id' => $spinoff->id, 'event_type' => 'price_list.updated', 'status' => 'pending']);
+        $this->assertDatabaseHas('sync_outbox', ['tenant_id' => $spinoff->id, 'event_type' => 'exchange_rate_type.updated', 'status' => 'pending']);
+        $this->assertDatabaseHas('sync_outbox', ['tenant_id' => $spinoff->id, 'event_type' => 'supplier.updated', 'status' => 'pending']);
     }
 
     public function test_propagating_all_is_idempotent(): void

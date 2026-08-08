@@ -653,42 +653,102 @@ class SharedCatalogPropagationService
 
     public function ensureBrandCopyFor(Brand $master, Tenant $spinoff): Brand
     {
-        return $this->upsertCopy($master, $spinoff, [
+        $copy = $this->upsertCopy($master, $spinoff, [
             'name' => null,
             'slug' => null,
             'description' => null,
             'is_active' => null,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'brand.updated',
+            'brand',
+            (int) $copy->id,
+            [
+                'slug' => $master->slug,
+                'name' => $master->name,
+                'description' => $master->description,
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensureTagCopyFor(Tag $master, Tenant $spinoff): Tag
     {
-        return $this->upsertCopy($master, $spinoff, [
+        $copy = $this->upsertCopy($master, $spinoff, [
             'name' => null,
             'slug' => null,
             'color' => null,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'tag.updated',
+            'tag',
+            (int) $copy->id,
+            [
+                'slug' => $master->slug,
+                'name' => $master->name,
+                'color' => $master->color,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensureWarrantyPolicyCopyFor(WarrantyPolicy $master, Tenant $spinoff): WarrantyPolicy
     {
-        return $this->upsertCopy($master, $spinoff, [
+        $copy = $this->upsertCopy($master, $spinoff, [
             'name' => null,
             'duration_days' => null,
             'coverage_type' => null,
             'conditions' => null,
             'is_active' => null,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'warranty_policy.updated',
+            'warranty_policy',
+            (int) $copy->id,
+            [
+                'name' => $master->name,
+                'duration_days' => (int) $master->duration_days,
+                'coverage_type' => $master->coverage_type,
+                'conditions' => $master->conditions,
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensureExchangeRateTypeCopyFor(ExchangeRateType $master, Tenant $spinoff): ExchangeRateType
     {
-        return $this->upsertCopy($master, $spinoff, [
+        $copy = $this->upsertCopy($master, $spinoff, [
             'code' => null,
             'name' => null,
             'is_default' => null,
             'is_active' => null,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'exchange_rate_type.updated',
+            'exchange_rate_type',
+            (int) $copy->id,
+            [
+                'code' => $master->code,
+                'name' => $master->name,
+                'is_default' => (bool) $master->is_default,
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensureExchangeRateCopyFor(ExchangeRate $master, Tenant $spinoff, int $newRateTypeId): ExchangeRate
@@ -775,7 +835,7 @@ class SharedCatalogPropagationService
 
     public function ensurePaymentMethodCopyFor(PaymentMethod $master, Tenant $spinoff): PaymentMethod
     {
-        return $this->upsertCopy($master, $spinoff, [
+        $copy = $this->upsertCopy($master, $spinoff, [
             'code' => null,
             'name' => null,
             'method' => null,
@@ -784,6 +844,24 @@ class SharedCatalogPropagationService
             'is_active' => null,
             'sort_order' => null,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'payment_method.updated',
+            'payment_method',
+            (int) $copy->id,
+            [
+                'code' => $master->code,
+                'name' => $master->name,
+                'method' => $master->method,
+                'currency_mode' => $master->currency_mode,
+                'requires_reference' => (bool) $master->requires_reference,
+                'is_active' => (bool) $master->is_active,
+                'sort_order' => (int) $master->sort_order,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensurePriceListCopyFor(PriceList $master, Tenant $spinoff): PriceList
@@ -805,6 +883,23 @@ class SharedCatalogPropagationService
         ], [
             'payment_exchange_rate_type_id' => $localPaymentRateTypeId,
         ]);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'price_list.updated',
+            'price_list',
+            (int) $copy->id,
+            [
+                'code' => $master->code,
+                'name' => $master->name,
+                'description' => $master->description,
+                'markup_percentage' => $master->markup_percentage === null ? null : (string) $master->markup_percentage,
+                'is_default' => (bool) $master->is_default,
+                'is_active' => (bool) $master->is_active,
+                'sort_order' => (int) $master->sort_order,
+                'payment_exchange_rate_type_code' => $master->paymentExchangeRateType?->code,
+            ],
+        );
 
         return $copy;
     }
@@ -918,22 +1013,40 @@ class SharedCatalogPropagationService
 
         if ($existing) {
             DB::table('suppliers')->where('id', $existing->id)->update($payload);
+            $copy = $existing->fresh();
+        } else {
+            $payload['created_at'] = now();
+            DB::table('suppliers')->insert($payload);
 
-            return $existing->fresh();
+            $copy = Supplier::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $spinoff->id)
+                ->when(
+                    $master->document_type !== null && $master->document_number !== null,
+                    fn ($q) => $q->where('document_type', $master->document_type)->where('document_number', $master->document_number),
+                    fn ($q) => $q->where('name', $master->name),
+                )
+                ->firstOrFail();
         }
 
-        $payload['created_at'] = now();
-        DB::table('suppliers')->insert($payload);
+        $this->recordSpinoffEvent(
+            $spinoff,
+            'supplier.updated',
+            'supplier',
+            (int) $copy->id,
+            [
+                'name' => $master->name,
+                'document_type' => $master->document_type,
+                'document_number' => $master->document_number,
+                'phone' => $master->phone,
+                'email' => $master->email,
+                'fiscal_address' => $master->fiscal_address,
+                'notes' => $master->notes,
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
 
-        return Supplier::query()
-            ->withoutGlobalScopes()
-            ->where('tenant_id', $spinoff->id)
-            ->when(
-                $master->document_type !== null && $master->document_number !== null,
-                fn ($q) => $q->where('document_type', $master->document_type)->where('document_number', $master->document_number),
-                fn ($q) => $q->where('name', $master->name),
-            )
-            ->firstOrFail();
+        return $copy;
     }
 
     private function deactivateOrphanedSharedCopies(Tenant $group, Tenant $spinoff): void
