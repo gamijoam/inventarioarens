@@ -191,6 +191,23 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertStringContainsString(storage_path(), $content);
     }
 
+    public function test_worker_task_command_stays_within_schtasks_261_char_limit(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        $method = new \ReflectionMethod($service, 'workerTaskCommand');
+        $method->setAccessible(true);
+        $longVbs = 'C:\\Users\\gafit\\AppData\\Local\\Programs\\Soporte-Tecnico-Inventario-Arens\\resources\\backend\\scripts\\run-sync-hidden.vbs';
+        $longLauncher = 'C:\\Users\\gafit\\AppData\\Roaming\\InventarioArens\\storage\\app\\sync-worker\\sync-task-oscarcell-tucacas-grande.cmd';
+        $command = $method->invoke($service, $longVbs, $longLauncher);
+
+        $this->assertLessThanOrEqual(261, strlen($command));
+        $this->assertStringContainsString('wscript.exe', $command);
+        $this->assertMatchesRegularExpression('/~1\\.VBS/', $command);
+        $this->assertMatchesRegularExpression('/~[0-9]+\\.CMD/', $command);
+    }
+
     public function test_connect_reports_dns_failure_with_helpful_message(): void
     {
         config()->set('services.local_support.enabled', true);

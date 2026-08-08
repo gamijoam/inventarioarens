@@ -573,7 +573,7 @@ class LocalTechnicalConsoleService
         }
 
         $taskName = 'SistemaInventarioSync-'.$safeSlug;
-        $taskCommand = sprintf('"%s" "%s" "%s"', $this->windowsExecutable('wscript.exe'), $hiddenRunner, $launcher);
+        $taskCommand = $this->workerTaskCommand($hiddenRunner, $launcher);
         $process = new Process([
             $this->windowsExecutable('schtasks.exe'),
             '/Create',
@@ -593,6 +593,28 @@ class LocalTechnicalConsoleService
         throw ValidationException::withMessages([
             'worker' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar el inicio automatico.',
         ]);
+    }
+
+    protected function workerTaskCommand(string $hiddenRunner, string $launcher): string
+    {
+        return sprintf(
+            '"%s" "%s" "%s"',
+            $this->windowsExecutable('wscript.exe'),
+            $this->shortWindowsPath($hiddenRunner),
+            $this->shortWindowsPath($launcher),
+        );
+    }
+
+    protected function shortWindowsPath(string $path): string
+    {
+        if (PHP_OS_FAMILY !== 'Windows' || ! function_exists('shell_exec')) {
+            return $path;
+        }
+
+        $output = shell_exec('cmd /c for %I in ("'.str_replace('"', '""', $path).'") do @echo %~sI');
+        $short = trim((string) $output);
+
+        return $short !== '' ? $short : $path;
     }
 
     protected function workerLauncherContent(string $tenantSlug, string $workerScript): string
