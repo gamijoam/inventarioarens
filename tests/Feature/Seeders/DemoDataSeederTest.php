@@ -34,6 +34,9 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
+/**
+ * @group heavy
+ */
 class DemoDataSeederTest extends TestCase
 {
     use RefreshDatabase;

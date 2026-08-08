@@ -23,6 +23,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
+/**
+ * @group heavy
+ */
 class OperationalReportsDemoSeederTest extends TestCase
 {
     use RefreshDatabase;

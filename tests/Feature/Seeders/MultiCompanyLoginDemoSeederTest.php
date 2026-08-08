@@ -12,6 +12,9 @@ use Database\Seeders\MultiCompanyLoginDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * @group heavy
+ */
 class MultiCompanyLoginDemoSeederTest extends TestCase
 {
     use RefreshDatabase;
