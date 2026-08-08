@@ -16,6 +16,22 @@ jobs:
   phpunit:
     name: PHPUnit (Feature)
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:Y6TPKmU6yumlacirNxbeG5cCr4a1IHMJ4bVpFZRL588=
+      APP_URL: http://127.0.0.1:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: inventory_arens_testing
+      DB_USERNAME: inventory_arens
+      DB_PASSWORD: secret
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      MAIL_MAILER: array
+      BROADCAST_CONNECTION: null
+      BCRYPT_ROUNDS: 4
     services:
       postgres:
         image: postgres:15-alpine

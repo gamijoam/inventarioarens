@@ -86,7 +86,9 @@ describe('Local Laravel runtime configuration', () => {
     }
   });
 
-  it('points the Windows PHP runtime at the bundled CA bundle via PHP_INI_SCAN_DIR', () => {
+  it.skipIf(process.platform !== 'win32')(
+    'points the Windows PHP runtime at the bundled CA bundle via PHP_INI_SCAN_DIR',
+    () => {
     const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-certs-'));
     const phpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-dir-'));
     const certPath = path.join(phpDir, 'cacert.pem');
@@ -117,7 +119,8 @@ describe('Local Laravel runtime configuration', () => {
 
     fs.rmSync(dataRoot, { recursive: true, force: true });
     fs.rmSync(phpDir, { recursive: true, force: true });
-  });
+    },
+  );
 
   it('keeps the API client local while enabling an explicit LAN bind host', () => {
     const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-runtime-lan-'));
