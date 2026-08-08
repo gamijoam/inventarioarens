@@ -598,6 +598,7 @@ class LocalTechnicalConsoleService
     protected function workerLauncherContent(string $tenantSlug, string $workerScript): string
     {
         $storageRoot = rtrim((string) storage_path(), '\\/');
+        $databasePath = (string) config('database.connections.sqlite.database');
         $phpBinary = PHP_BINARY;
         $scanDirectory = dirname(storage_path()).'/php-cert-scan';
 
@@ -606,6 +607,7 @@ class LocalTechnicalConsoleService
             'cd /d "'.base_path().'"',
         ];
         $lines[] = 'set "LARAVEL_STORAGE_PATH='.$storageRoot.'"';
+        $lines[] = 'set "DB_DATABASE='.str_replace('/', '\\', $databasePath).'"';
         if (is_dir($scanDirectory)) {
             $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
         }

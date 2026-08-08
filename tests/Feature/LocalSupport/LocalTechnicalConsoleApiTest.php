@@ -182,6 +182,8 @@ class LocalTechnicalConsoleApiTest extends TestCase
 
         $this->assertStringContainsString('cd /d ', $content);
         $this->assertStringContainsString('LARAVEL_STORAGE_PATH=', $content);
+        $this->assertStringContainsString('DB_DATABASE=', $content);
+        $this->assertStringContainsString((string) config('database.connections.sqlite.database'), $content);
         $this->assertStringContainsString('-TenantSlug "oscar-cell"', $content);
         $this->assertStringContainsString('-PhpPath "', $content);
         $this->assertStringContainsString('call "C:\\app\\scripts\\sync-worker.cmd"', $content);
