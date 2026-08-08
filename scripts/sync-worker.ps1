@@ -23,6 +23,11 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $StorageRoot = $null
 
 function Resolve-InventoryStorageRoot {
+    $fromEnvironment = $env:LARAVEL_STORAGE_PATH
+    if ($fromEnvironment) {
+        return $fromEnvironment
+    }
+
     $envPath = Join-Path $RepoRoot ".env"
     if (Test-Path -LiteralPath $envPath) {
         $line = Get-Content -LiteralPath $envPath | Where-Object {
@@ -141,6 +146,11 @@ function Get-PhpTlsArguments {
 }
 
 function Get-PhpIniScanDirectory {
+    $fromEnvironment = $env:PHP_INI_SCAN_DIR
+    if ($fromEnvironment -and (Test-Path -LiteralPath $fromEnvironment)) {
+        return $fromEnvironment
+    }
+
     $directory = Join-Path $StorageRoot "php-conf"
     $configuration = Join-Path $directory "99-inventarioarens-https.ini"
 

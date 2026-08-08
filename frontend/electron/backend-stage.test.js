@@ -22,6 +22,10 @@ describe('Electron backend staging', () => {
     expect(backendStage.BACKEND_ENTRIES).not.toContainEqual(['.env', '.env']);
   });
 
+  it('stages the Windows worker scripts the technical console needs', () => {
+    expect(backendStage.BACKEND_ENTRIES).toContainEqual(['scripts', 'scripts']);
+  });
+
   it('uses the configured PHP runtime when preparing an installer', () => {
     expect(
       backendStage.resolvePhpRuntimeSource({

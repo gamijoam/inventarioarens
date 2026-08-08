@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\LocalSupport;
 
+use App\Modules\LocalSupport\Services\LocalTechnicalConsoleService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -169,6 +169,24 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertSame('group-token', $settings['tenants']['grupo']['token']);
         $this->assertSame('child-token', $settings['tenants']['hija']['token']);
         $this->assertSame(2, $settings['tenants']['hija']['remote_parent_id']);
+    }
+
+    public function test_worker_launcher_bundles_storage_php_and_tls_scan_dir(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        $method = new \ReflectionMethod($service, 'workerLauncherContent');
+        $method->setAccessible(true);
+        $content = $method->invoke($service, 'oscar-cell', 'C:\\app\\scripts\\sync-worker.cmd');
+
+        $this->assertStringContainsString('cd /d ', $content);
+        $this->assertStringContainsString('LARAVEL_STORAGE_PATH=', $content);
+        $this->assertStringContainsString('-TenantSlug "oscar-cell"', $content);
+        $this->assertStringContainsString('-PhpPath "', $content);
+        $this->assertStringContainsString('call "C:\\app\\scripts\\sync-worker.cmd"', $content);
+        $this->assertStringContainsString(PHP_BINARY, $content);
+        $this->assertStringContainsString(storage_path(), $content);
     }
 
     public function test_connect_reports_dns_failure_with_helpful_message(): void

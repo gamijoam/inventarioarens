@@ -26,6 +26,7 @@ const BACKEND_ENTRIES = Object.freeze([
     ["public", "public"],
     ["resources", "resources"],
     ["routes", "routes"],
+    ["scripts", "scripts"],
     ["vendor", "vendor"],
     ["composer.json", "composer.json"],
     ["composer.lock", "composer.lock"],

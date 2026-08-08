@@ -564,12 +564,7 @@ class LocalTechnicalConsoleService
         $launcher = $stateDirectory.'/sync-task-'.$safeSlug.'.cmd';
         $hiddenRunner = base_path('scripts/run-sync-hidden.vbs');
         File::ensureDirectoryExists($stateDirectory);
-        File::put($launcher, sprintf(
-            "@echo off\r\ncd /d \"%s\"\r\ncall \"%s\" start -TenantSlug \"%s\"\r\n",
-            base_path(),
-            $workerScript,
-            $tenantSlug,
-        ));
+        File::put($launcher, $this->workerLauncherContent($tenantSlug, $workerScript));
 
         if (! is_file($hiddenRunner)) {
             throw ValidationException::withMessages([
@@ -598,6 +593,25 @@ class LocalTechnicalConsoleService
         throw ValidationException::withMessages([
             'worker' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar el inicio automatico.',
         ]);
+    }
+
+    protected function workerLauncherContent(string $tenantSlug, string $workerScript): string
+    {
+        $storageRoot = rtrim((string) storage_path(), '\\/');
+        $phpBinary = PHP_BINARY;
+        $scanDirectory = dirname(storage_path()).'/php-cert-scan';
+
+        $lines = [
+            '@echo off',
+            'cd /d "'.base_path().'"',
+        ];
+        $lines[] = 'set "LARAVEL_STORAGE_PATH='.$storageRoot.'"';
+        if (is_dir($scanDirectory)) {
+            $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
+        }
+        $lines[] = 'call "'.$workerScript.'" start -TenantSlug "'.$tenantSlug.'" -PhpPath "'.str_replace('/', '\\', $phpBinary).'"';
+
+        return implode("\r\n", $lines)."\r\n";
     }
 
     private function runWindowsWorkerTask(string $tenantSlug): string
