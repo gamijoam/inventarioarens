@@ -46,6 +46,43 @@ class SyncTenantMappingTest extends TestCase
         );
     }
 
+    public function test_prepare_local_derives_is_group_and_local_parent_on_the_tenant(): void
+    {
+        $previousPassword = getenv('SYNC_BOOTSTRAP_PASSWORD');
+        putenv('SYNC_BOOTSTRAP_PASSWORD=local-password-123');
+
+        try {
+            $this->artisan('sync:prepare-local', [
+                'tenant_slug' => 'grupo-local',
+                'tenant_name' => 'Grupo Local',
+                'email' => 'grupo@local.test',
+                '--remote-tenant-id' => 10,
+                '--remote-is-group' => true,
+            ])->assertExitCode(0);
+
+            $this->artisan('sync:prepare-local', [
+                'tenant_slug' => 'sucursal-local',
+                'tenant_name' => 'Sucursal Local',
+                'email' => 'grupo@local.test',
+                '--remote-tenant-id' => 11,
+                '--remote-parent-id' => 10,
+                '--remote-is-group' => false,
+            ])->assertExitCode(0);
+        } finally {
+            $previousPassword === false
+                ? putenv('SYNC_BOOTSTRAP_PASSWORD')
+                : putenv('SYNC_BOOTSTRAP_PASSWORD='.$previousPassword);
+        }
+
+        $group = Tenant::where('slug', 'grupo-local')->firstOrFail();
+        $this->assertTrue($group->isGroup());
+        $this->assertNull($group->parent_id);
+
+        $sucursal = Tenant::where('slug', 'sucursal-local')->firstOrFail();
+        $this->assertFalse($sucursal->isGroup());
+        $this->assertSame($group->id, $sucursal->parent_id);
+    }
+
     public function test_product_event_records_remote_to_local_entity_mapping(): void
     {
         $tenant = Tenant::create([

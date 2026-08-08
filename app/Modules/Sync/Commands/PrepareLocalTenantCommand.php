@@ -62,6 +62,8 @@ class PrepareLocalTenantCommand extends Command
                     'domain' => $domain !== '' ? $domain : null,
                     'status' => 'active',
                     'plan' => 'local-sync',
+                    'is_group' => $remoteIsGroup,
+                    'parent_id' => $this->resolveLocalParentId($remoteParentId),
                 ],
             );
 
@@ -105,6 +107,17 @@ class PrepareLocalTenantCommand extends Command
         $this->line('Rol local: '.$roleName);
 
         return self::SUCCESS;
+    }
+
+    private function resolveLocalParentId(?string $remoteParentId): ?int
+    {
+        if ($remoteParentId === null || $remoteParentId === '') {
+            return null;
+        }
+
+        return (int) DB::table('sync_tenant_mappings')
+            ->where('remote_tenant_id', (int) $remoteParentId)
+            ->value('local_tenant_id') ?: null;
     }
 
     private function preparePermissions(Tenant $tenant, User $user, string $roleName): void
