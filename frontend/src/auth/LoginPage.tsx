@@ -107,7 +107,7 @@ export function LoginPage() {
     <main
       className={cn(
         'relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10 sm:px-8',
-        isPos ? 'bg-[#101918] text-white' : 'text-text bg-[#eef0f3]',
+        'text-text bg-[#eef0f3]',
       )}
       data-app-mode={APP_MODE}
       data-testid="login-page"
@@ -119,7 +119,7 @@ export function LoginPage() {
       <div
         className={cn(
           'absolute top-6 left-6 hidden items-center gap-3 sm:flex',
-          isPos ? 'text-white' : 'text-text-primary',
+          'text-text-primary',
         )}
       >
         <div
@@ -135,7 +135,7 @@ export function LoginPage() {
           <p
             className={cn(
               'mt-1 text-[11px] tracking-[0.14em] uppercase',
-              isPos ? 'text-emerald-200' : 'text-text-muted',
+              'text-text-muted',
             )}
           >
             {APP_DEFINITION.tagline}
@@ -145,13 +145,10 @@ export function LoginPage() {
       <div
         className={cn(
           'absolute top-7 right-6 hidden items-center gap-2 text-xs sm:flex',
-          isPos ? 'text-emerald-200' : 'text-text-muted',
+          'text-text-muted',
         )}
       >
-        <span
-          className={cn('size-1.5 rounded-full', isPos ? 'bg-emerald-400' : 'bg-success')}
-          aria-hidden="true"
-        />
+        <span className={cn('size-1.5 rounded-full', isPos ? 'bg-emerald-400' : 'bg-success')} aria-hidden="true" />
         {isPos ? 'Terminal local' : 'Acceso protegido'}
       </div>
 
@@ -163,7 +160,7 @@ export function LoginPage() {
           <p
             className={cn(
               'text-[11px] font-semibold tracking-[0.18em] uppercase',
-              isPos ? 'text-emerald-300' : 'text-primary',
+              'text-primary',
             )}
           >
             {presentation.eyebrow}
@@ -171,7 +168,7 @@ export function LoginPage() {
           <h1
             className={cn(
               'mt-3 text-[2.15rem] leading-tight font-semibold tracking-[-0.03em]',
-              isPos ? 'text-white' : 'text-text-primary',
+              'text-text-primary',
             )}
           >
             {presentation.title}
@@ -179,7 +176,7 @@ export function LoginPage() {
           <p
             className={cn(
               'mx-auto mt-3 max-w-[390px] text-sm leading-6',
-              isPos ? 'text-slate-300' : 'text-text-muted',
+              'text-text-muted',
             )}
           >
             {presentation.description}
@@ -339,7 +336,7 @@ export function LoginPage() {
         <p
           className={cn(
             'mt-5 text-center text-[11px] tracking-[0.12em] uppercase',
-            isPos ? 'text-slate-400' : 'text-text-muted',
+            'text-text-muted',
           )}
         >
           {presentation.footer}
@@ -425,7 +422,7 @@ function TenantPicker({
   return (
     <select
       className={cn(
-        'border-border-strong bg-surface flex h-10 w-full rounded border px-3 text-sm shadow-sm',
+        'border-border-strong bg-surface text-text-primary flex h-10 w-full rounded border px-3 text-sm shadow-sm',
         'focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-50',
       )}
