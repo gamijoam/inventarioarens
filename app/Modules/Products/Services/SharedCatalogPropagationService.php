@@ -12,13 +12,47 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\Sync\Services\SyncOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyPolicy;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class SharedCatalogPropagationService
 {
+    public function __construct(
+        private readonly SyncOutboxService $outbox,
+        private readonly TenantManager $tenants,
+    ) {}
+
+    /**
+     * Emite el evento de sincronizacion en el outbox del spinoff para que
+     * el nodo local de esa empresa baje el cambio del catalogo compartido.
+     * La propagacion del grupo a las hijas escribe directo en el VPS; sin
+     * este evento, los nodos locales de las hijas nunca reciben el cambio.
+     */
+    private function recordSpinoffEvent(Tenant $spinoff, string $eventType, string $aggregateType, int $aggregateId, array $payload): void
+    {
+        $previous = $this->tenants->current();
+        $this->tenants->set($spinoff);
+
+        try {
+            $this->outbox->record(
+                eventType: $eventType,
+                aggregateType: $aggregateType,
+                aggregateId: $aggregateId,
+                payload: $payload,
+            );
+        } finally {
+            if ($previous) {
+                $this->tenants->set($previous);
+            } else {
+                $this->tenants->clear();
+            }
+        }
+    }
+
     public function propagateMaster(Product $master): void
     {
         if (! $master->isCatalogMaster()) {
@@ -410,7 +444,10 @@ class SharedCatalogPropagationService
             ->first();
 
         if ($copy) {
-            return $this->refreshProductForeignKeys($copy, $master, $spinoff);
+            $updated = $this->refreshProductForeignKeys($copy, $master, $spinoff);
+            $this->recordProductCopyEvent($updated, $master, $spinoff, false);
+
+            return $updated;
         }
 
         // Aseguramos que las relaciones que vamos a copiar esten cargadas.
@@ -502,7 +539,51 @@ class SharedCatalogPropagationService
             }
         }
 
+        $this->recordProductCopyEvent($copy, $master, $spinoff, true);
+
         return $copy;
+    }
+
+    private function recordProductCopyEvent(Product $copy, Product $master, Tenant $spinoff, bool $created): void
+    {
+        $master->loadMissing(['saleExchangeRateType', 'brand', 'categories', 'tags', 'warrantyPolicy']);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            $created ? 'product.created' : 'product.updated',
+            'product',
+            (int) $copy->id,
+            [
+                'sku' => $master->sku,
+                'name' => $master->name,
+                'barcode' => $master->barcode,
+                'description' => $master->description,
+                'long_description' => $master->long_description,
+                'tracking_type' => $master->tracking_type,
+                'unit_of_measure' => $master->unit_of_measure,
+                'track_stock' => (bool) $master->track_stock,
+                'base_price' => $master->base_price === null ? null : (string) $master->base_price,
+                'profit_margin' => $master->profit_margin === null ? null : (string) $master->profit_margin,
+                'pricing_mode' => $master->pricing_mode ?? Product::PRICING_AUTOMATIC,
+                'sale_currency' => $master->sale_currency,
+                'sale_exchange_rate_type_code' => $master->saleExchangeRateType?->code,
+                'image_url' => $master->image_url,
+                'brand_slug' => $master->brand?->slug,
+                'category_slugs' => $master->categories->pluck('slug')->values()->all(),
+                'tag_slugs' => $master->tags->pluck('slug')->values()->all(),
+                'warranty_policy_id' => $master->warranty_policy_id,
+                'warranty_policy_name' => $master->warrantyPolicy?->name,
+                'warranty_policy_duration_days' => $master->warrantyPolicy?->duration_days,
+                'warranty_policy_coverage_type' => $master->warrantyPolicy?->coverage_type,
+                'warranty_policy_conditions' => $master->warrantyPolicy?->conditions,
+                'warranty_policy_is_active' => $master->warrantyPolicy ? (bool) $master->warrantyPolicy->is_active : null,
+                'min_stock' => $master->min_stock === null ? null : (string) $master->min_stock,
+                'max_stock' => $master->max_stock === null ? null : (string) $master->max_stock,
+                'reorder_quantity' => $master->reorder_quantity === null ? null : (string) $master->reorder_quantity,
+                'is_catalog_active' => (bool) ($master->is_catalog_active ?? true),
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
     }
 
     /**
@@ -515,6 +596,20 @@ class SharedCatalogPropagationService
         $master->loadMissing(['brand', 'warrantyPolicy', 'saleExchangeRateType']);
 
         $updates = [];
+
+        foreach (Product::MASTER_FIELDS as $field) {
+            if (in_array($field, ['brand_id', 'warranty_policy_id', 'sale_exchange_rate_type_id'], true)) {
+                continue;
+            }
+
+            $masterValue = $master->getAttribute($field);
+            $copyValue = $copy->getAttribute($field);
+
+            if ((string) $masterValue !== (string) $copyValue) {
+                $updates[$field] = $masterValue;
+            }
+        }
+
         if ($master->brand) {
             $localId = Brand::query()->withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('slug', $master->brand->slug)->value('id');
             if ($localId && (int) $copy->brand_id !== (int) $localId) {
@@ -627,20 +722,45 @@ class SharedCatalogPropagationService
                 ->where('id', $existing->id)
                 ->update($payload);
 
-            return $existing->fresh();
+            $copy = $existing->fresh();
+        } else {
+            $payload['created_at'] = now();
+            $payload['updated_at'] = now();
+
+            DB::table('exchange_rates')->insert($payload);
+
+            $copy = ExchangeRate::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $spinoff->id)
+                ->where('exchange_rate_type_id', $newRateTypeId)
+                ->where('effective_at', $master->effective_at)
+                ->first();
         }
 
-        $payload['created_at'] = now();
-        $payload['updated_at'] = now();
-
-        DB::table('exchange_rates')->insert($payload);
-
-        return ExchangeRate::query()
+        $typeCode = $master->relationLoaded('type') ? $master->type?->code : null;
+        $typeCode ??= ExchangeRateType::query()
             ->withoutGlobalScopes()
-            ->where('tenant_id', $spinoff->id)
-            ->where('exchange_rate_type_id', $newRateTypeId)
-            ->where('effective_at', $master->effective_at)
-            ->first();
+            ->where('tenant_id', $master->tenant_id)
+            ->where('id', $master->exchange_rate_type_id)
+            ->value('code');
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            $existing ? 'exchange_rate.updated' : 'exchange_rate.created',
+            'exchange_rate',
+            (int) $copy->id,
+            [
+                'exchange_rate_type_code' => $typeCode,
+                'base_currency' => $master->base_currency,
+                'quote_currency' => $master->quote_currency,
+                'rate' => (string) $master->rate,
+                'effective_at' => $master->effective_at?->toISOString(),
+                'source' => $master->source,
+                'is_active' => (bool) $master->is_active,
+            ],
+        );
+
+        return $copy;
     }
 
     public function ensurePaymentMethodCopyFor(PaymentMethod $master, Tenant $spinoff): PaymentMethod

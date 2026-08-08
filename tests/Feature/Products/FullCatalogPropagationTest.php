@@ -206,6 +206,43 @@ class FullCatalogPropagationTest extends TestCase
             ->count());
     }
 
+    public function test_exchange_rate_copy_emits_sync_event_in_spinoff_outbox(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff();
+        $this->useTenant($group);
+
+        $rateType = ExchangeRateType::create([
+            'code' => 'BCV',
+            'name' => 'Banco Central',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $rate = ExchangeRate::create([
+            'exchange_rate_type_id' => $rateType->id,
+            'base_currency' => ExchangeRate::BASE_USD,
+            'quote_currency' => ExchangeRate::QUOTE_VES,
+            'rate' => 120,
+            'effective_at' => now(),
+            'is_active' => true,
+        ]);
+
+        $service = app(SharedCatalogPropagationService::class);
+        $service->propagateAllToSpinoff($group, $spinoff);
+
+        $spinoffTypeId = ExchangeRateType::withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('code', 'BCV')
+            ->value('id');
+        $this->assertNotNull($spinoffTypeId);
+        $service->ensureExchangeRateCopyFor($rate, $spinoff, $spinoffTypeId);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $spinoff->id,
+            'event_type' => 'exchange_rate.created',
+            'status' => 'pending',
+        ]);
+    }
+
     public function test_propagating_all_is_idempotent(): void
     {
         [$group, $spinoff] = $this->createGroupWithSpinoff();
