@@ -200,6 +200,51 @@ function syncArguments(config) {
   ];
 }
 
+function syncConfigPath(config) {
+  return path.join(config.storagePath, 'app', 'sync-worker', 'sync-config.json');
+}
+
+function readSyncConfig(config) {
+  const configPath = syncConfigPath(config);
+  if (!fs.existsSync(configPath)) return [];
+
+  try {
+    const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const tenants = data?.tenants && typeof data.tenants === 'object' ? data.tenants : {};
+
+    return Object.entries(tenants)
+      .map(([slug, tenant]) => ({
+        slug,
+        cloudUrl: tenant.cloud_url || config.syncCloudUrl || '',
+        token: tenant.token || '',
+        nodeCode: tenant.node_code || 'LOCAL-01',
+        nodeName: tenant.node_name || tenant.node_code || 'Equipo local',
+        installationCode: tenant.installation_code || data.installation_code || slug,
+        interval: Number(tenant.interval) > 0 ? Number(tenant.interval) : 30,
+        limit: Number(tenant.limit) > 0 ? Number(tenant.limit) : 50,
+      }))
+      .filter((tenant) => tenant.token !== '');
+  } catch (error) {
+    console.error(`No se pudo leer ${configPath}:`, error.message);
+    return [];
+  }
+}
+
+function syncDaemons(config) {
+  return readSyncConfig(config).map((tenant) => [
+    'artisan',
+    'sync:daemon',
+    tenant.slug,
+    `--cloud-url=${tenant.cloudUrl}`,
+    `--token=${tenant.token}`,
+    `--node=${tenant.nodeCode}`,
+    `--name=${tenant.nodeName}`,
+    `--installation=${tenant.installationCode}`,
+    `--interval=${tenant.interval}`,
+    `--limit=${tenant.limit}`,
+  ]);
+}
+
 function requestHealth(url, timeout = 750) {
   return new Promise((resolve) => {
     const request = http.get(`${url}/up`, (response) => {
@@ -491,12 +536,49 @@ function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
   let apiProcess = null;
-  let syncProcess = null;
+  let syncProcesses = [];
+  let reconcileTimer = null;
+
+  function spawnDaemon(daemonArgs, environment) {
+    const syncProcess = spawnProcess(config.phpBinary, daemonArgs, {
+      cwd: config.backendRoot,
+      env: { ...process.env, ...environment },
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    syncProcesses.push({ args: daemonArgs, process: syncProcess });
+    attachLogStream(syncProcess, path.join(config.logDirectory, `sync-${daemonArgs[2]}.log`));
+  }
+
+  function reconcileSyncDaemons(environment) {
+    const daemonArgsList = syncDaemons(config);
+    const runningKeys = new Set(syncProcesses.map((entry) => entry.args.join('\u0000')));
+    const desiredKeys = new Set(daemonArgsList.map((args) => args.join('\u0000')));
+
+    for (const entry of syncProcesses) {
+      if (!desiredKeys.has(entry.args.join('\u0000')) && entry.process && !entry.process.killed) {
+        entry.process.kill();
+      }
+    }
+    syncProcesses = syncProcesses.filter((entry) => desiredKeys.has(entry.args.join('\u0000')));
+
+    for (const daemonArgs of daemonArgsList) {
+      if (!runningKeys.has(daemonArgs.join('\u0000'))) {
+        spawnDaemon(daemonArgs, environment);
+      }
+    }
+  }
 
   async function stopOwnedProcesses() {
-    if (syncProcess && !syncProcess.killed) syncProcess.kill();
+    if (reconcileTimer) {
+      clearInterval(reconcileTimer);
+      reconcileTimer = null;
+    }
+    for (const entry of syncProcesses) {
+      if (entry.process && !entry.process.killed) entry.process.kill();
+    }
+    syncProcesses = [];
     if (apiProcess && !apiProcess.killed) apiProcess.kill();
-    syncProcess = null;
     apiProcess = null;
   }
 
@@ -543,16 +625,9 @@ function createRuntimeSupervisor(options = {}) {
 
           await waitForHealth(config.apiUrl);
 
-          const workerArgs = syncArguments(config);
-          if (workerArgs) {
-            syncProcess = spawnProcess(config.phpBinary, workerArgs, {
-              cwd: config.backendRoot,
-              env: { ...process.env, ...environment },
-              windowsHide: true,
-              stdio: ['ignore', 'pipe', 'pipe'],
-            });
-            attachLogStream(syncProcess, path.join(config.logDirectory, 'sync.log'));
-          }
+          reconcileSyncDaemons(environment);
+          reconcileTimer = setInterval(() => reconcileSyncDaemons(environment), 15000);
+          reconcileTimer.unref?.();
         }
 
         await waitForRuntimeLeases(config);
@@ -638,6 +713,7 @@ module.exports = {
   createLocalRuntime,
   createRuntimeSupervisor,
   listLiveRuntimeLeases,
+  readSyncConfig,
   removeRuntimeLease,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
@@ -649,6 +725,7 @@ module.exports = {
   spawnRuntimeSupervisor,
   runtimeStartupLockPath,
   syncArguments,
+  syncDaemons,
   tryAcquireRuntimeStartupLock,
   tryAcquireRuntimeSupervisorLock,
 };

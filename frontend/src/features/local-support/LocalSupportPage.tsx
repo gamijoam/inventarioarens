@@ -4,12 +4,9 @@ import {
   CloudDownload,
   HardDrive,
   MonitorCog,
-  Play,
   Printer,
   RefreshCw,
-  RotateCcw,
   ServerCrash,
-  Square,
   Wrench,
 } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
@@ -30,7 +27,6 @@ import {
   useLocalTenantSync,
   useLocalRetryFailed,
   useLocalServerMode,
-  useLocalWorkerAction,
 } from './api';
 
 export function LocalSupportPage() {
@@ -335,8 +331,7 @@ function InstallationCard({
 function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
   const sync = useLocalTenantSync();
   const retry = useLocalRetryFailed();
-  const worker = useLocalWorkerAction();
-  const busy = sync.isPending || worker.isPending || retry.isPending;
+  const busy = sync.isPending || retry.isPending;
 
   async function runSync() {
     try {
@@ -344,15 +339,6 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
       toast.success(`Sincronizacion de ${tenant.name} completada.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo sincronizar.');
-    }
-  }
-
-  async function changeWorker(action: 'install' | 'start' | 'stop' | 'restart') {
-    try {
-      await worker.mutateAsync({ tenant: tenant.slug, action });
-      toast.success('Estado del worker actualizado.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el worker.');
     }
   }
 
@@ -442,41 +428,9 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
               </Button>
             )}
             {tenant.worker.available && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => changeWorker(tenant.worker.active ? 'restart' : 'start')}
-                  disabled={busy}
-                >
-                  {tenant.worker.active ? (
-                    <RotateCcw className="size-3.5" />
-                  ) : (
-                    <Play className="size-3.5" />
-                  )}{' '}
-                  {tenant.worker.active ? 'Reiniciar worker' : 'Iniciar worker'}
-                </Button>
-                {tenant.worker.active && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => changeWorker('stop')}
-                    disabled={busy}
-                  >
-                    <Square className="size-3.5" /> Detener
-                  </Button>
-                )}
-                {!tenant.worker.active && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => changeWorker('install')}
-                    disabled={busy}
-                  >
-                    <Activity className="size-3.5" /> Reparar inicio automatico
-                  </Button>
-                )}
-              </>
+              <Badge variant="outline" className="text-muted-foreground">
+                <Activity className="size-3.5" /> Sincronizacion en segundo plano activa
+              </Badge>
             )}
           </div>
         )}

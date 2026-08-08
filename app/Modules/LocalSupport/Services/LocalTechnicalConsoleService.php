@@ -159,20 +159,16 @@ class LocalTechnicalConsoleService
                 $this->runArtisan('sync:prepare-local', $parameters);
             });
 
-            $worker = PHP_OS_FAMILY === 'Windows'
-                ? $this->workerAction($slug, 'install')
-                : [
-                    'output' => 'En Linux el worker se controla mediante systemd.',
-                    'status' => $this->workerStatus($slug),
-                ];
-
             $prepared[] = [
                 'tenant' => $tenant,
                 'download' => [
                     'status' => 'started',
                     'message' => 'La descarga inicial continuara en segundo plano.',
                 ],
-                'worker' => $worker,
+                'worker' => [
+                    'output' => 'El worker de sincronizacion se gestiona desde esta aplicacion mientras esta abierta.',
+                    'status' => $this->workerStatus($slug),
+                ],
             ];
         }
 

@@ -18,7 +18,9 @@ const {
   runtimeSupervisorLockIsStale,
   runtimeSupervisorPidPath,
   listLiveRuntimeLeases,
+  readSyncConfig,
   syncArguments,
+  syncDaemons,
   tryAcquireRuntimeStartupLock,
   tryAcquireRuntimeSupervisorLock,
 } = backendRuntime;
@@ -151,6 +153,63 @@ describe('Local Laravel runtime configuration', () => {
       '--name=Electron Local',
       '--installation=ELECTRON-LOCAL',
     ]);
+  });
+
+  it('reads per-tenant daemon arguments from the sync config file', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-sync-config-'));
+    const configPath = path.join(dataRoot, 'storage', 'app', 'sync-worker', 'sync-config.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        version: 2,
+        installation_code: 'INST-01',
+        cloud_url: 'https://app.example.test/api',
+        tenants: {
+          'oscar-cell': {
+            cloud_url: 'https://app.example.test/api',
+            token: 'token-a',
+            node_code: 'LOCAL-01',
+            node_name: 'Equipo local',
+            installation_code: 'INST-01',
+            interval: 15,
+            limit: 100,
+          },
+          'oscarcell-yaracall': {
+            cloud_url: 'https://app.example.test/api',
+            token: 'token-b',
+            node_code: 'LOCAL-01',
+            node_name: 'Equipo local',
+            installation_code: 'INST-01',
+            interval: 15,
+            limit: 100,
+          },
+        },
+      }),
+    );
+
+    const config = resolveRuntimeConfig({ dataRoot, isPackaged: false, platform: 'linux' });
+    const daemons = readSyncConfig(config);
+
+    expect(daemons).toHaveLength(2);
+    expect(daemons[0]).toMatchObject({ slug: 'oscar-cell', token: 'token-a' });
+    expect(daemons[1]).toMatchObject({ slug: 'oscarcell-yaracall', token: 'token-b' });
+    expect(syncDaemons(config)).toEqual([
+      expect.arrayContaining(['artisan', 'sync:daemon', 'oscar-cell']),
+      expect.arrayContaining(['artisan', 'sync:daemon', 'oscarcell-yaracall']),
+    ]);
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('returns no daemons when the sync config is missing or empty', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-sync-empty-'));
+    const config = resolveRuntimeConfig({ dataRoot, isPackaged: false, platform: 'linux' });
+
+    expect(readSyncConfig(config)).toEqual([]);
+    expect(syncDaemons(config)).toEqual([]);
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
   it('serializes concurrent Laravel startup attempts', () => {
