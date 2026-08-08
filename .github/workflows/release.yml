@@ -56,7 +56,7 @@ jobs:
         working-directory: frontend
         run: pnpm run electron:prepare:php:linux
 
-      - name: Publish client
+      - name: Build client
         working-directory: frontend
         shell: bash
         run: |
@@ -65,4 +65,31 @@ jobs:
           if [ -z "$CLIENT" ]; then CLIENT="technician"; fi
           pnpm run build:${CLIENT}
           INVENTARIO_BACKEND_STAGE=.electron-backend-stage-${CLIENT} pnpm run electron:stage-backend
-          pnpm exec electron-builder --config electron-builder.${CLIENT}.yml --publish always
+          # Build without publishing; the release is created explicitly below
+          # because electron-builder + GITHUB_TOKEN leaves drafts and can drop
+          # the large installer.
+          pnpm exec electron-builder --config electron-builder.${CLIENT}.yml
+
+      - name: Publish release
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLIENT="${{ github.event.inputs.client }}"
+          if [ -z "$CLIENT" ]; then CLIENT="technician"; fi
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}-${CLIENT}"
+          YML="${CLIENT}.yml"
+          echo "CLIENT=$CLIENT VERSION=$VERSION TAG=$TAG YML=$YML"
+
+          # Borra cualquier release/tag previo con el mismo nombre para re-publicar limpio.
+          gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
+
+          gh release create "$TAG" \
+            --repo gamijoam/inventarioarens \
+            --title "$VERSION" \
+            --generate-notes \
+            release/${CLIENT}/*.exe \
+            release/${CLIENT}/*.blockmap \
+            release/${CLIENT}/${YML}
+          echo "Publicado $TAG"
