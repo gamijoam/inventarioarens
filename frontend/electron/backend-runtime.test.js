@@ -84,6 +84,39 @@ describe('Local Laravel runtime configuration', () => {
     }
   });
 
+  it('points the Windows PHP runtime at the bundled CA bundle via PHP_INI_SCAN_DIR', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-certs-'));
+    const phpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-dir-'));
+    const certPath = path.join(phpDir, 'cacert.pem');
+    fs.writeFileSync(certPath, 'fake-ca\n');
+
+    const config = {
+      dataRoot,
+      phpBinary: path.join(phpDir, 'php.exe'),
+      appKey: 'base64:test-key',
+      bootstrapToken: 'bootstrap-token',
+      databasePath: path.join(dataRoot, 'inventario.sqlite'),
+      storagePath: path.join(dataRoot, 'storage'),
+      apiUrl: 'http://127.0.0.1:8787',
+      syncCloudUrl: '',
+    };
+    const environment = buildLaravelEnvironment(config, 'http://127.0.0.1:5173');
+
+    const escaped = certPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    expect(environment.SSL_CERT_FILE).toBe(certPath);
+    expect(environment.CURL_CA_BUNDLE).toBe(certPath);
+    expect(environment.PHP_INI_SCAN_DIR).toBe(path.join(dataRoot, 'php-cert-scan'));
+
+    const iniPath = path.join(environment.PHP_INI_SCAN_DIR, 'zz-cacert.ini');
+    expect(fs.existsSync(iniPath)).toBe(true);
+    const iniContent = fs.readFileSync(iniPath, 'utf8');
+    expect(iniContent).toContain(`curl.cainfo = "${escaped}"`);
+    expect(iniContent).toContain(`openssl.cafile = "${escaped}"`);
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+    fs.rmSync(phpDir, { recursive: true, force: true });
+  });
+
   it('keeps the API client local while enabling an explicit LAN bind host', () => {
     const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-runtime-lan-'));
     fs.writeFileSync(

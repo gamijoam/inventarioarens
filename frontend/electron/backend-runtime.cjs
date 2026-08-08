@@ -164,6 +164,18 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     const certPath = path.join(phpDir, 'cacert.pem');
     env.SSL_CERT_FILE = certPath;
     env.CURL_CA_BUNDLE = certPath;
+
+    if (config.dataRoot) {
+      const scanDir = path.join(config.dataRoot, 'php-cert-scan');
+      fs.mkdirSync(scanDir, { recursive: true });
+      const escaped = certPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      fs.writeFileSync(
+        path.join(scanDir, 'zz-cacert.ini'),
+        `curl.cainfo = "${escaped}"\nopenssl.cafile = "${escaped}"\n`,
+        'utf8',
+      );
+      env.PHP_INI_SCAN_DIR = scanDir;
+    }
   }
 
   return env;
