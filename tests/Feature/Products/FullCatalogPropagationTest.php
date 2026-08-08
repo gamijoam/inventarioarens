@@ -243,6 +243,33 @@ class FullCatalogPropagationTest extends TestCase
         ]);
     }
 
+    public function test_sync_master_fields_emits_product_update_in_spinoff_outbox(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff();
+        $this->useTenant($group);
+
+        $master = Product::create([
+            'name' => 'Cosmeticos',
+            'sku' => 'COS-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'unit_of_measure' => Product::UNIT_UNIT,
+            'base_price' => 10,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'sale_currency' => Product::CURRENCY_USD,
+            'is_catalog_master' => true,
+        ]);
+
+        $service = app(SharedCatalogPropagationService::class);
+        $service->propagateAllToSpinoff($group, $spinoff);
+        $service->syncMasterFieldsToCopies($master);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $spinoff->id,
+            'event_type' => 'product.updated',
+            'status' => 'pending',
+        ]);
+    }
+
     public function test_propagating_all_is_idempotent(): void
     {
         [$group, $spinoff] = $this->createGroupWithSpinoff();

@@ -222,13 +222,22 @@ class SharedCatalogPropagationService
             $master->localCopies()->each(function (Product $copy) use ($payload, $master): void {
                 $copy->fill($payload);
                 $copy->is_catalog_active = (bool) $master->is_catalog_active;
+                $updates = collect($payload)
+                    ->reject(fn ($value): bool => $value === null)
+                    ->merge([
+                        'is_catalog_active' => (bool) $master->is_catalog_active,
+                        'updated_at' => now(),
+                    ])
+                    ->all();
                 DB::table('products')
                     ->where('id', $copy->id)
                     ->where('tenant_id', $copy->tenant_id)
-                    ->update(array_merge($payload, [
-                        'is_catalog_active' => (bool) $master->is_catalog_active,
-                        'updated_at' => now(),
-                    ]));
+                    ->update($updates);
+
+                $spinoff = Tenant::query()->withoutGlobalScopes()->find($copy->tenant_id);
+                if ($spinoff) {
+                    $this->recordProductCopyEvent($copy->fresh(), $master, $spinoff, false);
+                }
             });
         });
     }
