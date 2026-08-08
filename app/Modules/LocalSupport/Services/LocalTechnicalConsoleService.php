@@ -292,17 +292,38 @@ class LocalTechnicalConsoleService
             ]);
         }
 
+        $endpoint = $cloudUrl.'/sync/pairing-codes/redeem';
+
         try {
             $response = Http::acceptJson()
                 ->timeout(20)
-                ->post($cloudUrl.'/sync/pairing-codes/redeem', [
+                ->post($endpoint, [
                     'code' => $data['code'],
                     'node_code' => $data['node_code'],
                     'node_name' => $data['node_name'],
                 ]);
-        } catch (ConnectionException) {
+        } catch (ConnectionException $e) {
             throw ValidationException::withMessages([
-                'code' => 'No fue posible conectar con la nube. Verifica Internet e intenta de nuevo.',
+                'code' => sprintf(
+                    'No fue posible conectar con la nube (%s). Verifica Internet, firewall y la URL configurada (%s).',
+                    $e->getMessage(),
+                    $cloudUrl,
+                ),
+            ]);
+        }
+
+        $contentType = $response->header('Content-Type') ?? '';
+
+        if ($contentType !== '' && stripos($contentType, 'text/html') !== false) {
+            $host = parse_url($endpoint, PHP_URL_HOST) ?? $cloudUrl;
+
+            throw ValidationException::withMessages([
+                'code' => sprintf(
+                    'La URL %s devolvio HTML en vez de JSON. Esto suele indicar que Traefik/nginx esta enrutando /api hacia el frontend (SPA) en vez del backend Laravel. Verifica la regla de routing de Traefik para %s y que la regla %s apunte al servicio del backend (puerto 8080), no del frontend.',
+                    $endpoint,
+                    $host,
+                    $endpoint,
+                ),
             ]);
         }
 

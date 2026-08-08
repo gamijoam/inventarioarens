@@ -4,6 +4,8 @@ namespace Tests\Feature\LocalSupport;
 
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -167,5 +169,61 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertSame('group-token', $settings['tenants']['grupo']['token']);
         $this->assertSame('child-token', $settings['tenants']['hija']['token']);
         $this->assertSame(2, $settings['tenants']['hija']['remote_parent_id']);
+    }
+
+    public function test_connect_reports_dns_failure_with_helpful_message(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://nonexistent.invalid.test/api');
+
+        Http::fake(function () {
+            throw new ConnectionException('Could not resolve host: nonexistent.invalid.test');
+        });
+
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('A', 40),
+                'node_name' => 'Equipo Test',
+                'node_code' => 'TEST-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@test.test',
+                'local_password' => 'password123',
+            ]);
+
+        $response->assertStatus(422);
+        $message = (string) $response->json('errors.code.0');
+        $this->assertStringContainsString('No fue posible conectar con la nube', $message);
+        $this->assertStringContainsString('nonexistent.invalid.test', $message);
+    }
+
+    public function test_connect_reports_html_response_from_cloud_as_misrouted_error(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
+
+        Http::fake([
+            'cloud.test/*' => Http::response(
+                '<!doctype html><html><head><title>SPA</title></head><body></body></html>',
+                200,
+                ['Content-Type' => 'text/html; charset=UTF-8'],
+            ),
+        ]);
+
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('A', 40),
+                'node_name' => 'Equipo Test',
+                'node_code' => 'TEST-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@test.test',
+                'local_password' => 'password123',
+            ]);
+
+        $response->assertStatus(422);
+        $message = (string) $response->json('errors.code.0');
+        $this->assertStringContainsString('HTML', $message);
+        $this->assertStringContainsString('cloud.test', $message);
+        $this->assertStringContainsString('Traefik', $message);
+        $this->assertStringContainsString('puerto 8080', $message);
     }
 }
