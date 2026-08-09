@@ -1,19 +1,34 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2, Minus, Plus, Search, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
-import { Loader2, Plus, Search, Trash2 } from 'lucide-react';
 
 import { useAuth } from '@/auth/useAuth';
+import { PosShell } from '@/components/layout/PosShell';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import type { Product } from '@/features/inventory-center/schemas';
-import { PosShell } from '@/components/layout/PosShell';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import type { Product } from '@/features/inventory-center/schemas';
+import {
+  type CreateCustomerPayload,
+  type Customer,
   type HoldPayload,
   useBootstrapRefsForPos,
+  useCreateCustomerForPos,
+  useCustomers,
   useHoldOrder,
   usePosProductsDebounced,
 } from '@/features/pos/api';
 import { TapButton } from '@/features/pos/TapButton';
+import { PERMISSIONS } from '@/permissions/constants';
+import { useCan } from '@/permissions/useCan';
 import { applyKey, canSearch, money, normalizeSearch, type KeyAction } from './armOrderLogic';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 
@@ -23,29 +38,66 @@ interface CartLine {
   quantity: number;
 }
 
-/**
- * Pantalla tactil "Armar orden" para vendedores (permiso pos.orders.hold).
- *
- * A diferencia del POS de caja, esta pantalla NO usa el teclado del sistema:
- * tiene un teclado on-screen propio con botones grandes, pensado para
- * tablets Android donde el teclado virtual cancela los taps. El vendedor
- * busca, arma el ticket y lo envia para que la cajera lo cobre.
- */
+const EMPTY_CUSTOMER: CreateCustomerPayload = {
+  name: '',
+  document_type: 'V',
+  document_number: '',
+  phone: '',
+  email: '',
+  is_active: true,
+  is_generic: false,
+};
+
+function stockOf(product: Product): number {
+  return Math.max(0, Number(product.available_stock ?? 0));
+}
+
+function customerDocument(customer: Customer): string {
+  const document = [customer.document_type, customer.document_number].filter(Boolean).join('-');
+  return (
+    [document, customer.phone, customer.email].find((value) => Boolean(value)) ??
+    'Cliente registrado'
+  );
+}
+
 export function ArmOrderScreen() {
   const { signOut } = useAuth();
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [customerForm, setCustomerForm] = useState<CreateCustomerPayload>(EMPTY_CUSTOMER);
   const holdOrder = useHoldOrder();
+  const createCustomer = useCreateCustomerForPos();
+  const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
   const refs = useBootstrapRefsForPos();
-  const warehouse = refs.refs?.warehouses?.[0] ?? null;
+  const warehouses = useMemo(
+    () => (refs.refs?.warehouses ?? []).filter((item) => item.status === 'active'),
+    [refs.refs?.warehouses],
+  );
+  const warehouse =
+    warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
   const warehouseId = warehouse?.id ?? null;
 
-  const { data: productPage, isLoading } = usePosProductsDebounced(query, warehouseId, {
+  useEffect(() => {
+    if (selectedWarehouseId == null && warehouses[0]) {
+      setSelectedWarehouseId(warehouses[0].id);
+    }
+  }, [selectedWarehouseId, warehouses]);
+
+  const {
+    data: productPage,
+    isLoading,
+    isError,
+  } = usePosProductsDebounced(query.trim(), warehouseId, {
     enabled: canSearch(query) && warehouseId != null,
     debounceMs: 150,
   });
   const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
-
+  const customerQuery = useCustomers(customerSearch);
   const total = cart.reduce(
     (sum, line) => sum + Number(line.product.base_price ?? 0) * line.quantity,
     0,
@@ -56,9 +108,21 @@ export function ArmOrderScreen() {
   }
 
   function addProduct(product: Product): void {
+    const stock = stockOf(product);
+    if (stock <= 0) {
+      toast.error(
+        `${product.name} no tiene stock disponible en ${warehouse?.name ?? 'este almacen'}.`,
+      );
+      return;
+    }
+
     setCart((current) => {
       const existing = current.find((line) => line.product.id === product.id);
       if (existing) {
+        if (existing.quantity >= stock) {
+          toast.error(`Solo hay ${stock} unidades disponibles de ${product.name}.`);
+          return current;
+        }
         return current.map((line) =>
           line.id === existing.id ? { ...line, quantity: line.quantity + 1 } : line,
         );
@@ -68,8 +132,60 @@ export function ArmOrderScreen() {
     setQuery('');
   }
 
+  function changeQuantity(index: number, delta: number): void {
+    setCart((current) =>
+      current.flatMap((line, currentIndex) => {
+        if (currentIndex !== index) return [line];
+        const next = line.quantity + delta;
+        if (next <= 0) return [];
+        if (next > stockOf(line.product)) {
+          toast.error(`Solo hay ${stockOf(line.product)} unidades disponibles.`);
+          return [line];
+        }
+        return [{ ...line, quantity: next }];
+      }),
+    );
+  }
+
   function removeLine(index: number): void {
-    setCart((current) => current.filter((_, i) => i !== index));
+    setCart((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
+  function changeWarehouse(value: string): void {
+    if (cart.length > 0) {
+      setCart([]);
+      toast.info('El ticket se limpio porque cambiaste el almacen de salida.');
+    }
+    setSelectedWarehouseId(Number(value));
+    setQuery('');
+  }
+
+  function assignCustomer(customer: Customer | null): void {
+    setSelectedCustomer(customer);
+    setCustomerOpen(false);
+    setCustomerSearch('');
+    setCreatingCustomer(false);
+  }
+
+  async function saveCustomer(): Promise<void> {
+    if (!customerForm.name.trim() || !customerForm.document_number.trim()) {
+      toast.error('Nombre y documento son obligatorios.');
+      return;
+    }
+    try {
+      const customer = await createCustomer.mutateAsync({
+        ...customerForm,
+        name: customerForm.name.trim(),
+        document_number: customerForm.document_number.trim(),
+        phone: customerForm.phone?.trim() ? customerForm.phone.trim() : null,
+        email: customerForm.email?.trim() ? customerForm.email.trim() : null,
+      });
+      setCustomerForm(EMPTY_CUSTOMER);
+      assignCustomer(customer);
+      toast.success('Cliente creado y asignado al ticket.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el cliente.');
+    }
   }
 
   async function submitOrder(): Promise<void> {
@@ -83,7 +199,8 @@ export function ArmOrderScreen() {
     }
 
     const payload: HoldPayload = {
-      customer_name: 'Consumidor Final',
+      customer_id: selectedCustomer?.id ?? null,
+      customer_name: selectedCustomer?.name ?? 'Consumidor Final',
       items: cart.map((line) => ({
         warehouse_id: warehouseId,
         product_id: line.product.id,
@@ -98,6 +215,7 @@ export function ArmOrderScreen() {
       const order = await holdOrder.mutateAsync(payload);
       setCart([]);
       setQuery('');
+      setSelectedCustomer(null);
       toast.success(`Orden #${order.id} armada. La cajera la cobrara.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo armar la orden.');
@@ -109,12 +227,25 @@ export function ArmOrderScreen() {
       <div className="bg-bg text-text-primary flex h-dvh min-h-0 flex-col overflow-hidden">
         <header className="border-border/80 bg-surface/95 flex min-h-16 shrink-0 items-center gap-3 border-b px-4 py-3 pr-32">
           <div className="min-w-0">
-            <h1 className="text-text-primary text-lg font-bold">Armar pedido</h1>
+            <h1 className="text-lg font-bold">Armar pedido</h1>
             <p className="text-text-muted truncate text-xs sm:text-sm">
-              {warehouse?.name ? `${warehouse.name} · ` : ''}Selecciona productos y envíalos a caja.
+              Selecciona productos disponibles y envialos a caja.
             </p>
           </div>
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-2">
+            <Warehouse className="text-text-muted hidden size-4 sm:block" />
+            <Select
+              aria-label="Almacen"
+              value={warehouseId ?? ''}
+              onChange={(event) => changeWarehouse(event.target.value)}
+              className="h-10 min-w-36"
+            >
+              {warehouses.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
             <Badge variant="info">{cart.length} productos</Badge>
           </div>
         </header>
@@ -123,7 +254,7 @@ export function ArmOrderScreen() {
           <section className="flex min-h-0 flex-col gap-3">
             <div className="border-border bg-surface flex items-center gap-3 rounded-2xl border px-4 py-3">
               <Search className="text-text-muted size-5 shrink-0" />
-              <p className="text-text-primary flex-1 truncate text-xl font-semibold">
+              <p className="flex-1 truncate text-xl font-semibold">
                 {normalizeSearch(query) ? query : 'Escribe para buscar...'}
               </p>
               {query && (
@@ -141,13 +272,17 @@ export function ArmOrderScreen() {
 
             <div className="min-h-0 flex-1 overflow-auto rounded-2xl">
               {isLoading ? (
-                <div className="border-border bg-surface text-text-muted flex items-center justify-center rounded-2xl border p-8 text-sm">
+                <div className="border-border bg-surface text-text-muted flex items-center justify-center gap-2 rounded-2xl border p-8 text-sm">
                   <Loader2 className="size-5 animate-spin" /> Buscando...
+                </div>
+              ) : isError ? (
+                <div className="border-danger/40 bg-danger/5 text-danger rounded-2xl border p-8 text-center text-sm">
+                  No se pudo consultar el inventario. Revisa la conexion e intenta de nuevo.
                 </div>
               ) : products.length === 0 ? (
                 <div className="border-border bg-surface text-text-muted rounded-2xl border p-8 text-center text-sm">
                   {canSearch(query)
-                    ? 'No hay productos con esa busqueda.'
+                    ? `No hay productos que coincidan en ${warehouse?.name ?? 'el almacen seleccionado'}.`
                     : 'Usa el teclado para buscar un producto.'}
                 </div>
               ) : (
@@ -157,19 +292,20 @@ export function ArmOrderScreen() {
                       key={product.id}
                       data-testid={`product-${product.id}`}
                       onPress={() => addProduct(product)}
-                      className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 active:border-primary active:bg-primary/10 group min-h-24 touch-manipulation overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all select-none"
+                      disabled={stockOf(product) <= 0}
+                      className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 active:border-primary active:bg-primary/10 min-h-24 touch-manipulation overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all select-none disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <p className="truncate font-semibold">{product.name}</p>
                       <p className="text-text-muted font-mono text-xs">
                         {product.sku ?? product.barcode ?? 'Sin codigo'}
                       </p>
-                      <div className="mt-3 flex items-center justify-between">
+                      <div className="mt-3 flex items-center justify-between gap-2">
                         <span className="text-lg font-bold">
                           {money(Number(product.base_price ?? 0))}
                         </span>
-                        <span className="bg-primary/10 text-primary rounded-full p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Plus className="size-4" />
-                        </span>
+                        <Badge variant={stockOf(product) > 0 ? 'success' : 'warning'}>
+                          {stockOf(product) > 0 ? `Stock ${stockOf(product)}` : 'Agotado'}
+                        </Badge>
                       </div>
                     </TapButton>
                   ))}
@@ -182,8 +318,38 @@ export function ArmOrderScreen() {
 
           <aside className="border-border bg-surface flex min-h-0 flex-col rounded-2xl border shadow-sm max-[560px]:min-h-80">
             <div className="border-border border-b p-4">
-              <h2 className="font-bold">Ticket</h2>
-              <p className="text-text-muted text-xs">Se envia a la cajera para cobro.</p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-bold">Ticket</h2>
+                  <p className="text-text-muted text-xs">Se envia a la cajera para cobro.</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Seleccionar cliente"
+                  onClick={() => setCustomerOpen(true)}
+                >
+                  <UserRound className="size-4" /> Cliente
+                </Button>
+              </div>
+              <button
+                type="button"
+                aria-label="Cambiar cliente asignado"
+                onClick={() => setCustomerOpen(true)}
+                className="border-border bg-bg/50 mt-3 w-full rounded-lg border px-3 py-2 text-left"
+              >
+                <p className="text-text-muted text-[11px] font-semibold uppercase">
+                  Cliente asignado
+                </p>
+                <p className="truncate text-sm font-semibold">
+                  {selectedCustomer?.name ?? 'Consumidor Final'}
+                </p>
+                {selectedCustomer && (
+                  <p className="text-text-muted truncate text-xs">
+                    {customerDocument(selectedCustomer)}
+                  </p>
+                )}
+              </button>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
               {cart.length === 0 ? (
@@ -192,19 +358,33 @@ export function ArmOrderScreen() {
                 cart.map((line, index) => (
                   <div
                     key={line.id}
-                    className="border-border bg-bg/40 flex items-center gap-3 rounded-xl border p-2"
+                    className="border-border bg-bg/40 flex items-center gap-2 rounded-xl border p-2"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{line.product.name}</p>
                       <p className="text-text-muted text-xs">
-                        x{line.quantity} ·{' '}
-                        {money(Number(line.product.base_price ?? 0) * line.quantity)}
+                        {line.quantity} x {money(Number(line.product.base_price ?? 0))}
                       </p>
                     </div>
+                    <TapButton
+                      onPress={() => changeQuantity(index, -1)}
+                      className="border-border flex size-8 items-center justify-center rounded-lg border"
+                      aria-label={`Restar ${line.product.name}`}
+                    >
+                      <Minus className="size-4" />
+                    </TapButton>
+                    <TapButton
+                      onPress={() => changeQuantity(index, 1)}
+                      disabled={line.quantity >= stockOf(line.product)}
+                      className="border-border flex size-8 items-center justify-center rounded-lg border disabled:opacity-40"
+                      aria-label={`Sumar ${line.product.name}`}
+                    >
+                      <Plus className="size-4" />
+                    </TapButton>
                     <button
                       type="button"
                       onClick={() => removeLine(index)}
-                      className="text-text-muted hover:text-danger"
+                      className="text-text-muted hover:text-danger p-1"
                       aria-label={`Quitar ${line.product.name}`}
                     >
                       <Trash2 className="size-4" />
@@ -233,6 +413,156 @@ export function ArmOrderScreen() {
             </div>
           </aside>
         </div>
+
+        <Dialog open={customerOpen} onOpenChange={setCustomerOpen}>
+          <DialogContent className="max-h-[88dvh] max-w-2xl overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Cliente del pedido</DialogTitle>
+              <DialogDescription>
+                Busca por nombre, cedula o telefono. Tambien puedes crear uno sin salir del POS.
+              </DialogDescription>
+            </DialogHeader>
+
+            {!creatingCustomer ? (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="text-text-muted absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                  <Input
+                    value={customerSearch}
+                    onChange={(event) => setCustomerSearch(event.target.value)}
+                    placeholder="Nombre, cedula o telefono"
+                    className="h-12 pl-10 text-base"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  <TapButton
+                    onPress={() => assignCustomer(null)}
+                    className="border-border hover:border-primary w-full rounded-xl border p-3 text-left"
+                  >
+                    <p className="font-semibold">Consumidor Final</p>
+                    <p className="text-text-muted text-xs">Continuar sin cliente registrado</p>
+                  </TapButton>
+                  {customerQuery.isLoading && (
+                    <p className="text-text-muted p-4 text-center text-sm">Buscando clientes...</p>
+                  )}
+                  {customerSearch.trim().length >= 2 &&
+                    !customerQuery.isLoading &&
+                    (customerQuery.data ?? []).length === 0 && (
+                      <p className="text-text-muted p-4 text-center text-sm">
+                        No hay clientes con esa busqueda.
+                      </p>
+                    )}
+                  {(customerQuery.data ?? []).map((customer) => (
+                    <TapButton
+                      key={customer.id}
+                      onPress={() => assignCustomer(customer)}
+                      className="border-border hover:border-primary w-full rounded-xl border p-3 text-left"
+                    >
+                      <p className="font-semibold">{customer.name}</p>
+                      <p className="text-text-muted text-xs">{customerDocument(customer)}</p>
+                    </TapButton>
+                  ))}
+                </div>
+                {canCreateCustomer && (
+                  <Button
+                    variant="outline"
+                    className="h-11 w-full"
+                    onClick={() => setCreatingCustomer(true)}
+                  >
+                    <Plus className="size-4" /> Crear cliente
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="block space-y-1 text-sm font-medium">
+                  <span>Nombre</span>
+                  <Input
+                    value={customerForm.name}
+                    onChange={(event) =>
+                      setCustomerForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    className="h-11"
+                    autoFocus
+                  />
+                </label>
+                <div className="grid grid-cols-[90px_1fr] gap-2">
+                  <label className="block space-y-1 text-sm font-medium">
+                    <span>Tipo</span>
+                    <Select
+                      value={customerForm.document_type}
+                      onChange={(event) =>
+                        setCustomerForm((current) => ({
+                          ...current,
+                          document_type: event.target
+                            .value as CreateCustomerPayload['document_type'],
+                        }))
+                      }
+                      className="h-11"
+                    >
+                      {['V', 'E', 'J', 'G', 'P'].map((type) => (
+                        <option key={type}>{type}</option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="block space-y-1 text-sm font-medium">
+                    <span>Cedula o documento</span>
+                    <Input
+                      value={customerForm.document_number}
+                      onChange={(event) =>
+                        setCustomerForm((current) => ({
+                          ...current,
+                          document_number: event.target.value,
+                        }))
+                      }
+                      className="h-11"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="block space-y-1 text-sm font-medium">
+                    <span>Telefono</span>
+                    <Input
+                      value={customerForm.phone ?? ''}
+                      onChange={(event) =>
+                        setCustomerForm((current) => ({ ...current, phone: event.target.value }))
+                      }
+                      className="h-11"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm font-medium">
+                    <span>Email</span>
+                    <Input
+                      type="email"
+                      value={customerForm.email ?? ''}
+                      onChange={(event) =>
+                        setCustomerForm((current) => ({ ...current, email: event.target.value }))
+                      }
+                      className="h-11"
+                    />
+                  </label>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setCreatingCustomer(false)}
+                  >
+                    Volver
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    loading={createCustomer.isPending}
+                    onClick={() => void saveCustomer()}
+                  >
+                    Guardar y asignar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </PosShell>
   );

@@ -61,7 +61,6 @@ class ProductController extends Controller
         // de bug: sin esto, available_stock siempre es null.
         if ($request->filled('warehouse_id')) {
             $warehouseId = $request->integer('warehouse_id');
-            $query->whereHas('stockBalances', fn ($q) => $q->where('warehouse_id', $warehouseId));
             $query->withSum(
                 ['stockBalances as available_stock' => fn ($q) => $q->where('warehouse_id', $warehouseId)],
                 'quantity_available',

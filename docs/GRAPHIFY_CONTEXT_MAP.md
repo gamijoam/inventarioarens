@@ -148,6 +148,12 @@ Nodos de codigo frecuentes:
 El dominio monetario usa doble cuenta USD/VES y snapshot historico de tasa. POS, caja, pagos,
 CXC, CXP, garantias y ajustes financieros deben conservar trazabilidad append-only.
 
+La ruta `/pos/armar` es la experiencia tactil para vendedores que preparan pedidos sin cobrar.
+Consulta productos bajo demanda para el almacen seleccionado, muestra `available_stock`, bloquea
+agotados y cantidades superiores a existencia, y permite buscar o crear el cliente antes de enviar
+la orden pendiente a caja. La busqueda de catalogo no excluye productos sin fila de stock en el
+almacen: los devuelve con existencia cero para distinguir "agotado" de "no existe".
+
 Documentos clave:
 
 - [Metodos de pago](MODULO_METODOS_PAGO.md)
@@ -281,6 +287,8 @@ Nodos de codigo frecuentes:
 - `frontend/src/features/pos-armar/OnScreenKeyboard.tsx` (teclado on-screen propio, sin teclado del sistema)
 - `frontend/src/features/pos-armar/armOrderLogic.ts` (logica pura del teclado/busqueda)
 - `frontend/src/features/pos/PosTerminal.tsx` (redirige vendedores con pos.orders.hold sin pos.checkout a /pos/armar)
+- `ProductController::index` (busqueda por catalogo y suma de stock para el almacen solicitado)
+- `useCustomers` y `useCreateCustomerForPos` (seleccion y alta rapida del cliente en el pedido)
 
 ## Consultas Recomendadas Para Graphify
 

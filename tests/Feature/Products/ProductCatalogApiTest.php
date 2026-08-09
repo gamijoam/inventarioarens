@@ -215,6 +215,53 @@ class ProductCatalogApiTest extends TestCase
             ->assertJsonPath('data.available_stock', 7);
     }
 
+    public function test_product_search_keeps_catalog_matches_without_stock_in_selected_warehouse(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+        $branch = Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Principal',
+            'code' => 'MAIN',
+            'is_active' => true,
+        ]);
+        $warehouseWithStock = Warehouse::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branch->id,
+            'name' => 'Deposito',
+            'code' => 'DEP',
+            'is_active' => true,
+        ]);
+        $selectedWarehouse = Warehouse::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branch->id,
+            'name' => 'Mostrador',
+            'code' => 'POS',
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Adaptador USB-C',
+            'sku' => 'CAT-000516',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+        ]);
+        StockBalance::create([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouseWithStock->id,
+            'product_id' => $product->id,
+            'quantity_available' => 4,
+        ]);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products?search=ADAPTADOR&warehouse_id={$selectedWarehouse->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $product->id)
+            ->assertJsonPath('data.0.available_stock', 0);
+    }
+
     public function test_tracking_type_all_returns_quantity_and_serialized_products(): void
     {
         $tenant = $this->tenant();
