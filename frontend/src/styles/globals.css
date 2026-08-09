@@ -197,6 +197,17 @@
     outline-offset: 2px;
   }
 
+  /* Cliente POS en tablets: elimina el delay de doble-tap y el scroll
+   * por hover para que el primer toque dispare la accion al instante. */
+  .pos-touch-mode,
+  .pos-touch-mode button,
+  .pos-touch-mode [role='button'],
+  .pos-touch-mode a,
+  .pos-touch-mode select {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

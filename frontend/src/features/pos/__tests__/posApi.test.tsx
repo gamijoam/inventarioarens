@@ -44,6 +44,7 @@ import {
 } from '../api';
 import {
   formatPosRateLabel,
+  isTouchPointer,
   shouldHandlePosGlobalShortcut,
   shouldTriggerPosCheckoutOnEnter,
   shouldTriggerPosCheckoutShortcut,
@@ -69,6 +70,13 @@ describe('pos api', () => {
       'Banco Central (BCV) @',
     );
     expect(formatPosRateLabel(null)).toBe('Sin tasa activa');
+  });
+
+  it('reconoce punteros tactiles (touch/pen) para seleccion inmediata en tablet', () => {
+    expect(isTouchPointer({ pointerType: 'touch' })).toBe(true);
+    expect(isTouchPointer({ pointerType: 'pen' })).toBe(true);
+    expect(isTouchPointer({ pointerType: 'mouse' })).toBe(false);
+    expect(isTouchPointer({})).toBe(false);
   });
 
   it('parsea el bootstrap usando api.get (response.data) y NO getOne (response.data.data)', async () => {

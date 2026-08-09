@@ -158,6 +158,23 @@ function isInForm(target: HTMLElement | null): boolean {
   return target.closest('form, [role="dialog"], [data-panel]') !== null;
 }
 
+/**
+ * Decide si un `pointerdown` debe contar como seleccion/accion en el POS.
+ *
+ * En tablets, un `pointerdown` sobre un boton es mas confiable que `click`:
+ * cuando el teclado virtual esta abierto (p. ej. por el input de busqueda),
+ * el PRIMER tap solo cierra el teclado y `click` no se dispara. Usar
+ * `pointerdown` (que se emite al tocar, antes del blur del teclado) evita
+ * ese "doble tap" y hace que el POS responda al instante en tactil.
+ *
+ * Para no romper el flujo de mouse (seleccion por hover + Enter), solo
+ * tratamos como accion los punteros tactiles (pointerType touch/pen). Un
+ * click de mouse sigue pasando por el `onClick` normal.
+ */
+export function isTouchPointer(event: { pointerType?: string }): boolean {
+  return event.pointerType === 'touch' || event.pointerType === 'pen';
+}
+
 export function shouldHandlePosGlobalShortcut(key: string, isEditableField: boolean): boolean {
   if (['F2', 'F3', 'F4', 'F6', 'F7', 'F9'].includes(key)) return true;
   if (key === 'Delete') return !isEditableField;
@@ -2979,7 +2996,6 @@ function SerialSelectionPanel({
           onChange={(event) => onSearch(event.target.value)}
           placeholder="Buscar IMEI o serial..."
           className="h-10 pl-9 font-mono"
-          autoFocus
           data-testid="pos-serial-search"
         />
         <p className="text-text-muted mt-1 px-1 text-xs">
@@ -3005,6 +3021,9 @@ function SerialSelectionPanel({
                 key={serial.id}
                 type="button"
                 disabled={disabled}
+                onPointerDown={(event) => {
+                  if (isTouchPointer(event)) onToggle(serial);
+                }}
                 onClick={() => onToggle(serial)}
                 className={cn(
                   'hover:bg-bg flex w-full items-center justify-between gap-3 p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
@@ -3097,6 +3116,9 @@ function QuickPaymentPanel({
               <button
                 key={method.id}
                 type="button"
+                onPointerDown={(event) => {
+                  if (isTouchPointer(event)) onSelect(method.id);
+                }}
                 onClick={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
                 className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
@@ -3159,7 +3181,6 @@ function ProductSearchPanel({
         <div className="relative">
           <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
-            autoFocus
             value={search}
             onChange={(event) => onSearch(event.target.value)}
             onKeyDown={(event) => {
@@ -3223,6 +3244,11 @@ function ProductSearchPanel({
             <button
               key={product.id}
               type="button"
+              onPointerDown={(event) => {
+                // En tablets el primer tap con teclado abierto no dispara
+                // `click`; responder al pointerdown tactil agrega al toque.
+                if (isTouchPointer(event)) void onSelect(product);
+              }}
               onClick={() => void onSelect(product)}
               onMouseEnter={() => setSelectedIndex(index)}
               className={cn(

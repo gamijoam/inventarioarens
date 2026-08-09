@@ -5,14 +5,23 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
-import { APP_NAME } from '@/config/branding';
+import { APP_MODE, APP_NAME } from '@/config/branding';
 import { routeTree } from './routeTree.gen';
 import { registerUnauthorizedHandler } from '@/api/client';
+import { applyPosViewport, enablePosTouchMode } from '@/features/pos/touchSupport';
 
 import '@/styles/globals.css';
 
 // Seteamos el <title> de la pestana con el nombre del branding.
 document.title = APP_NAME;
+
+// El cliente POS se usa en tablets: desactivamos el zoom por touch y
+// aplicamos touch-action: manipulation para que el primer tap no se
+// consuma en cerrar el teclado o en doble-tap zoom.
+if (APP_MODE === 'pos') {
+  applyPosViewport();
+  enablePosTouchMode();
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
