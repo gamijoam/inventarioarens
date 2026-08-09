@@ -153,6 +153,9 @@ Consulta productos bajo demanda para el almacen seleccionado, muestra `available
 agotados y cantidades superiores a existencia, y permite buscar o crear el cliente antes de enviar
 la orden pendiente a caja. La busqueda de catalogo no excluye productos sin fila de stock en el
 almacen: los devuelve con existencia cero para distinguir "agotado" de "no existe".
+La pantalla obtiene los almacenes del bootstrap del POS y, si ese resumen llega vacio, consulta
+`GET /api/warehouses` como fuente alternativa. Siempre muestra el almacen de salida seleccionado y
+no activa la busqueda de productos hasta disponer de un almacen activo.
 
 Documentos clave:
 

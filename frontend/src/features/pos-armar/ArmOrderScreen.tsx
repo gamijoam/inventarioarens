@@ -25,6 +25,7 @@ import {
   useCustomers,
   useHoldOrder,
   usePosProductsDebounced,
+  useWarehousesForPos,
 } from '@/features/pos/api';
 import { TapButton } from '@/features/pos/TapButton';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -74,17 +75,31 @@ export function ArmOrderScreen() {
   const createCustomer = useCreateCustomerForPos();
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
   const refs = useBootstrapRefsForPos();
-  const warehouses = useMemo(
-    () => (refs.refs?.warehouses ?? []).filter((item) => item.status === 'active'),
-    [refs.refs?.warehouses],
-  );
+  const fallbackWarehouses = useWarehousesForPos();
+  const warehouses = useMemo(() => {
+    const bootstrapItems = refs.refs?.warehouses ?? [];
+    const source = bootstrapItems.length > 0 ? bootstrapItems : (fallbackWarehouses.data ?? []);
+
+    return source
+      .filter(
+        (item) =>
+          item.status !== 'inactive' && (!('is_active' in item) || item.is_active !== false),
+      )
+      .map((item) => ({
+        id: item.id,
+        code: item.code,
+        name: item.name,
+        status: item.status ?? 'active',
+      }));
+  }, [fallbackWarehouses.data, refs.refs?.warehouses]);
   const warehouse =
     warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
   const warehouseId = warehouse?.id ?? null;
 
   useEffect(() => {
-    if (selectedWarehouseId == null && warehouses[0]) {
-      setSelectedWarehouseId(warehouses[0].id);
+    const selectedStillExists = warehouses.some((item) => item.id === selectedWarehouseId);
+    if (!selectedStillExists) {
+      setSelectedWarehouseId(warehouses[0]?.id ?? null);
     }
   }, [selectedWarehouseId, warehouses]);
 
@@ -232,20 +247,33 @@ export function ArmOrderScreen() {
               Selecciona productos disponibles y envialos a caja.
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Warehouse className="text-text-muted hidden size-4 sm:block" />
-            <Select
-              aria-label="Almacen"
-              value={warehouseId ?? ''}
-              onChange={(event) => changeWarehouse(event.target.value)}
-              className="h-10 min-w-36"
-            >
-              {warehouses.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
+          <div className="ml-auto flex items-end gap-2">
+            <label className="min-w-0 space-y-1">
+              <span className="text-text-muted flex items-center gap-1 text-[10px] font-semibold uppercase">
+                <Warehouse className="size-3.5" /> Almacen de salida
+              </span>
+              <Select
+                aria-label="Almacen de salida"
+                value={warehouseId ?? ''}
+                onChange={(event) => changeWarehouse(event.target.value)}
+                disabled={warehouses.length === 0}
+                className="h-10 max-w-64 min-w-40"
+              >
+                {warehouses.length === 0 && (
+                  <option value="">
+                    {refs.isLoading || fallbackWarehouses.isLoading
+                      ? 'Cargando almacenes...'
+                      : 'Sin almacenes disponibles'}
+                  </option>
+                )}
+                {warehouses.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.code ? `${item.code} - ` : ''}
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
             <Badge variant="info">{cart.length} productos</Badge>
           </div>
         </header>
@@ -271,7 +299,15 @@ export function ArmOrderScreen() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto rounded-2xl">
-              {isLoading ? (
+              {warehouseId == null ? (
+                <div className="border-warning/40 bg-warning/5 text-warning rounded-2xl border p-8 text-center text-sm">
+                  {refs.isLoading || fallbackWarehouses.isLoading
+                    ? 'Cargando los almacenes de esta empresa...'
+                    : refs.isError || fallbackWarehouses.isError
+                      ? 'No se pudieron consultar los almacenes. Revisa la conexion y vuelve a intentar.'
+                      : 'Esta empresa no tiene un almacen activo. Configura uno antes de armar pedidos.'}
+                </div>
+              ) : isLoading ? (
                 <div className="border-border bg-surface text-text-muted flex items-center justify-center gap-2 rounded-2xl border p-8 text-sm">
                   <Loader2 className="size-5 animate-spin" /> Buscando...
                 </div>

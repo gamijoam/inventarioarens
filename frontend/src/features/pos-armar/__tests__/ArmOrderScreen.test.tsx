@@ -5,6 +5,23 @@ const mocks = vi.hoisted(() => ({
   holdMutate: vi.fn(),
   signOut: vi.fn(),
   createCustomer: vi.fn(),
+  bootstrapWarehouses: [
+    { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
+    { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
+  ],
+  fallbackWarehouses: [] as {
+    id: number;
+    name: string;
+    code: string;
+    status?: string;
+    is_active?: boolean;
+  }[],
+  productQuery: vi.fn(),
+  productResult: {
+    isLoading: false,
+    isError: false,
+    data: { data: [] as Record<string, unknown>[] },
+  },
 }));
 
 vi.mock('@/auth/useAuth', () => ({
@@ -22,11 +39,13 @@ vi.mock('@/permissions/useCan', () => ({
 vi.mock('@/features/pos/api', () => ({
   useBootstrapRefsForPos: () => ({
     refs: {
-      warehouses: [
-        { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
-        { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
-      ],
+      warehouses: mocks.bootstrapWarehouses,
     },
+  }),
+  useWarehousesForPos: () => ({
+    data: mocks.fallbackWarehouses,
+    isLoading: false,
+    isError: false,
   }),
   useHoldOrder: () => ({ isPending: false, mutateAsync: mocks.holdMutate }),
   useCustomers: (search: string) => ({
@@ -48,33 +67,10 @@ vi.mock('@/features/pos/api', () => ({
     isPending: false,
     mutateAsync: mocks.createCustomer,
   }),
-  usePosProductsDebounced: () => ({
-    isLoading: false,
-    data: {
-      data: [
-        {
-          id: 41,
-          tenant_id: 1,
-          name: 'Adaptador USB-C',
-          sku: 'CAT-000516',
-          barcode: null,
-          base_price: 12.5,
-          available_stock: 2,
-          tracking_type: 'quantity',
-        },
-        {
-          id: 42,
-          tenant_id: 1,
-          name: 'Producto agotado',
-          sku: 'SIN-STOCK',
-          barcode: null,
-          base_price: 5,
-          available_stock: 0,
-          tracking_type: 'quantity',
-        },
-      ],
-    },
-  }),
+  usePosProductsDebounced: (...args: unknown[]) => {
+    mocks.productQuery(...args);
+    return mocks.productResult;
+  },
 }));
 
 vi.mock('../OnScreenKeyboard', () => ({
@@ -87,6 +83,56 @@ describe('<ArmOrderScreen>', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.holdMutate.mockResolvedValue({ id: 101 });
+    mocks.bootstrapWarehouses.splice(
+      0,
+      mocks.bootstrapWarehouses.length,
+      { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
+      { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
+    );
+    mocks.fallbackWarehouses.splice(0);
+    mocks.productResult.data.data = [
+      {
+        id: 41,
+        tenant_id: 1,
+        name: 'Adaptador USB-C',
+        sku: 'CAT-000516',
+        barcode: null,
+        base_price: 12.5,
+        available_stock: 2,
+        tracking_type: 'quantity',
+      },
+      {
+        id: 42,
+        tenant_id: 1,
+        name: 'Producto agotado',
+        sku: 'SIN-STOCK',
+        barcode: null,
+        base_price: 5,
+        available_stock: 0,
+        tracking_type: 'quantity',
+      },
+    ];
+  });
+
+  it('usa el listado alternativo y selecciona un almacen cuando bootstrap llega vacio', async () => {
+    mocks.bootstrapWarehouses.splice(0);
+    mocks.fallbackWarehouses.push({
+      id: 12,
+      name: 'Almacen tablet',
+      code: 'TABLET',
+      status: 'active',
+    });
+
+    render(<ArmOrderScreen />);
+
+    expect(screen.getByLabelText('Almacen de salida')).toHaveValue('12');
+    await waitFor(() =>
+      expect(mocks.productQuery).toHaveBeenLastCalledWith(
+        '',
+        12,
+        expect.objectContaining({ enabled: false }),
+      ),
+    );
   });
 
   it('agrega el producto con el primer toque tactil en tablet', () => {
