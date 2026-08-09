@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Spinner } from '@/components/ui/Spinner';
 import type { TenantOption } from '@/types/user';
 import { cn } from '@/lib/cn';
+import { getPostLoginRoute } from '@/auth/postLoginRoute';
 
 const DEBOUNCE_MS = 500;
 
@@ -57,7 +58,10 @@ export function LoginPage() {
   }, [email]);
 
   useEffect(() => {
-    if (isAuthenticated) void navigate({ to: '/dashboard' });
+    if (isAuthenticated) {
+      const session = useSessionStore.getState();
+      void navigate({ to: getPostLoginRoute(session.roles, Array.from(session.permissions)) });
+    }
   }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -80,7 +84,8 @@ export function LoginPage() {
         password,
         device_name: window.navigator.userAgent.slice(0, 100),
       });
-      await navigate({ to: '/dashboard' });
+      const session = useSessionStore.getState();
+      await navigate({ to: getPostLoginRoute(session.roles, Array.from(session.permissions)) });
     } catch (err) {
       const status = (err as { status?: number })?.status;
       if (status === 401 || status === 422) useSessionStore.getState().clearSession();

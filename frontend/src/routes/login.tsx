@@ -2,6 +2,8 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { LoginPage } from '@/auth/LoginPage';
 import { isAuthDisabled } from '@/auth/devBypass';
+import { getPostLoginRoute } from '@/auth/postLoginRoute';
+import { useSessionStore } from '@/stores/session';
 
 /**
  * Ruta /login.
@@ -26,8 +28,11 @@ export const Route = createFileRoute('/login')({
         .split('; ')
         .some((c) => c.startsWith('auth_token='));
       if (hasCookie) {
+        const session = useSessionStore.getState();
         // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw redirect({ to: '/dashboard' });
+        throw redirect({
+          to: getPostLoginRoute(session.roles, Array.from(session.permissions)),
+        });
       }
     }
   },
