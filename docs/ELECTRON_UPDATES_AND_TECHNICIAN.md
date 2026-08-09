@@ -213,7 +213,7 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 
 | Cliente | Version | Tag | Assets |
 | --- | --- | --- | --- |
-| POS | 0.2.17 | `v0.2.17-pos` | `Sistema-de-Inventario-POS-0.2.17.exe` + blockmap + `pos.yml` |
+| POS | 0.2.18 | `v0.2.18-pos` | `Sistema-de-Inventario-POS-0.2.18.exe` + blockmap + `pos.yml` |
 | Admin | 0.2.5 | `v0.2.5-admin` | `Sistema-de-Inventario-Administrativo-0.2.5.exe` + blockmap + `admin.yml` |
 | Technician | 0.2.5 | `v0.2.5-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.5.exe` + blockmap + `technician.yml` |
 
@@ -233,6 +233,7 @@ Historial POS reciente (mismo `frontend/package.json`, tags `v0.2.x-pos`):
 - `0.2.15` nueva pantalla tactil "Armar orden" `/pos/armar` (teclado on-screen propio, redirige vendedores con `pos.orders.hold` sin `pos.checkout`)
 - `0.2.16` diagnostico temporal para confirmar si el tap llegaba al producto en tablet
 - `0.2.17` pantalla `/pos/armar` sin sidebar administrativo y productos con control tactil robusto
+- `0.2.18` `/pos/armar` se monta como pantalla independiente; corrige el terminal clasico que seguia visible y no agregaba productos al tocar
 
 ## LAN Server Mode
 
@@ -327,7 +328,8 @@ Nueva pagina separada del POS normal, disenada para tablets Android. Vive en
 - **Logica pura** en `armOrderLogic.ts` (keyAction/applyKey/normalizeSearch/canSearch/money).
 - **Redireccion automatica**: `PosTerminal` redirige a `/pos/armar` si el usuario es
   `sellerOnlyMode` (`pos.orders.hold` sin `pos.checkout`). El POS de cajero se conserva intacto.
-- Ruta: `frontend/src/routes/_authed/pos.armar.tsx` (regenera `routeTree.gen.ts` al hacer build).
+- Ruta: `frontend/src/routes/_authed/pos_.armar.tsx` (el guion bajo evita anidarla dentro de
+  `pos.tsx`; regenera `routeTree.gen.ts` al hacer build).
 
 ### Correccion tactil y de layout (v0.2.17)
 
@@ -338,6 +340,14 @@ Nueva pagina separada del POS normal, disenada para tablets Android. Vive en
 - El pedido y su resumen se distribuyen en dos columnas en tablet y se apilan solo en telefonos.
 - El diagnostico visible de v0.2.16 fue retirado. El comportamiento queda cubierto por pruebas que
   simulan un toque Android y verifican que el producto aparece en el pedido con el total correcto.
+
+### Correccion de montaje de la pantalla de armado (v0.2.18)
+
+- La ruta tactil se declara como hermana de `/pos`, conservando la URL publica `/pos/armar`.
+- Esto evita que TanStack Router intente renderizarla dentro de `pos.tsx`, que contiene el terminal
+  de cobro y no un `Outlet` para rutas hijas.
+- Una prueba sobre el arbol de rutas exige que `/pos/armar` dependa directamente del layout
+  autenticado; asi se valida que la tablet recibe `ArmOrderScreen` y no `PosTerminal`.
 
 ## Proceso completo de actualizacion (runbook operativo)
 

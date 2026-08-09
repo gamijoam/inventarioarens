@@ -6360,3 +6360,11 @@ Regla:
 - Se agrego una campana en el encabezado, acceso directo a la solicitud y
   acciones para marcar una o todas las notificaciones como leidas.
 - Auditoria: `docs/AUDITORIA_NOTIFICACIONES_INTEREMPRESA_2026-08-03.md`.
+
+## 2026-08-09 - Montaje independiente de `/pos/armar`
+
+- Se corrigio la declaracion de la ruta de armado tactil para que no quede anidada dentro del
+  terminal general `/pos`.
+- La URL se mantiene en `/pos/armar`, pero ahora monta directamente `ArmOrderScreen`; esto corrige
+  el caso en tablet donde el resultado se mostraba en `PosTerminal` y el toque no agregaba el item.
+- Se agrego una prueba del arbol de rutas y se conservaron las pruebas tactiles y de layout POS.
