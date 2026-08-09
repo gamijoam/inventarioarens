@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { usePosTap } from '../usePosTap';
@@ -32,7 +33,7 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
     render(<Probe />);
 
     const handlers = result?.bind() ?? {};
-    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: () => {} });
+    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
     expect(onTap).toHaveBeenCalledTimes(1);
   });
 
@@ -48,7 +49,7 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
     render(<Probe />);
 
     const handlers = result?.bind() ?? {};
-    handlers.onPointerDown?.({ pointerType: 'mouse', preventDefault: () => {} });
+    handlers.onPointerDown?.({ pointerType: 'mouse', preventDefault: vi.fn() });
     expect(onTap).not.toHaveBeenCalled();
   });
 
@@ -64,7 +65,7 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
     render(<Probe />);
 
     const handlers = result?.bind() ?? {};
-    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: () => {} });
+    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
     expect(onTap).not.toHaveBeenCalled();
   });
 
@@ -80,9 +81,34 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
     render(<Probe />);
 
     const handlers = result?.bind() ?? {};
-    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: () => {} });
+    handlers.onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
     result?.fire();
     result?.fire();
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantiene la deduplicacion aunque el toque provoque un render', () => {
+    const onTap = vi.fn();
+    let result!: ReturnType<typeof usePosTap>;
+
+    function Probe() {
+      const [, setVersion] = useState(0);
+      result = usePosTap(() => {
+        onTap();
+        setVersion((version) => version + 1);
+      });
+      return <button type="button" data-testid="target" {...result.bind()} />;
+    }
+
+    render(<Probe />);
+
+    act(() => {
+      result.bind().onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
+    });
+    act(() => {
+      result.fire();
+    });
 
     expect(onTap).toHaveBeenCalledTimes(1);
   });

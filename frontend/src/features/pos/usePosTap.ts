@@ -1,4 +1,5 @@
 import { useDrag } from '@use-gesture/react';
+import { useRef } from 'react';
 
 export interface PosTapHandlers {
   onPointerDown?: (event: unknown) => void;
@@ -15,7 +16,7 @@ export interface UsePosTapResult {
    * debe llamar a esta funcion para no duplicar el disparo del pointerdown
    * tactil ni el tap de use-gesture.
    */
-  fire: () => void;
+  fire: (source?: 'touch' | 'click' | 'gesture') => void;
 }
 
 /**
@@ -38,12 +39,22 @@ export interface UsePosTapResult {
  * la accion se ejecute mas de una vez por toque.
  */
 export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
-  let lastFiredAt = 0;
+  const lastTouchFiredAt = useRef(0);
+  const lastGestureFiredAt = useRef(0);
   const DEDUP_MS = 400;
-  const fire = (): void => {
+  const fire = (source: 'touch' | 'click' | 'gesture' = 'gesture'): void => {
     const now = Date.now();
-    if (now - lastFiredAt < DEDUP_MS) return;
-    lastFiredAt = now;
+    if (source === 'click') {
+      // Android can emit a native click after the immediate touch action.
+      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+    } else if (source === 'touch') {
+      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+      lastTouchFiredAt.current = now;
+    } else {
+      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+      if (now - lastGestureFiredAt.current < DEDUP_MS) return;
+      lastGestureFiredAt.current = now;
+    }
     if (enabled) onTap();
   };
 
@@ -51,7 +62,7 @@ export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
     ({ tap, event }) => {
       if (!tap || !enabled) return;
       event?.preventDefault?.();
-      fire();
+      fire('gesture');
     },
     {
       filterTaps: true,
@@ -72,7 +83,7 @@ export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
         onPointerDown(event: unknown): void {
           const pointer = event as { pointerType?: string };
           if (pointer.pointerType === 'touch' || pointer.pointerType === 'pen') {
-            fire();
+            fire('touch');
           }
           pointerDown?.(event);
         },
@@ -80,5 +91,3 @@ export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
     },
   };
 }
-
-

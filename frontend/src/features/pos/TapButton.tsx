@@ -25,7 +25,7 @@ export function TapButton({ onPress, children, onClick, disabled, ...rest }: Tap
       type="button"
       {...bind()}
       onClick={(event) => {
-        fire();
+        fire('click');
         onClick?.(event);
       }}
       disabled={disabled}
