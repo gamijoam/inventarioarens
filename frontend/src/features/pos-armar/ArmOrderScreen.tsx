@@ -52,6 +52,9 @@ export function ArmOrderScreen() {
   }
 
   function addProduct(product: Product): void {
+    // DIAGNOSTICO TEMPORAL: confirma si el evento del tap llego.
+    console.log('[ARMAR] onClick producto', product.id, product.name, 'cart=', cart.length);
+    toast.info(`[DIAG] onClick ${product.name} cart=${cart.length}`);
     setCart((current) => {
       const existing = current.find((line) => line.product.id === product.id);
       if (existing) {
