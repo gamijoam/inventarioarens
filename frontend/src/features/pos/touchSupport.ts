@@ -91,6 +91,11 @@ export function installPosTouchTap(
     if (!isTouchPointerType(event)) return;
     const element = closestInteractive(event.target);
     if (!element) return;
+    // Evita el blur del input/teclado virtual y el scroll/drag por defecto
+    // que el navegador inicia al tocar. Sin esto, el PRIMER tap cuando el
+    // teclado esta abierto (busqueda) solo cierra el teclado, el layout
+    // cambia y el pointerup llega con coordenadas distintas -> se pierde.
+    event.preventDefault();
     pending = { element, x: event.clientX, y: event.clientY };
   }
 

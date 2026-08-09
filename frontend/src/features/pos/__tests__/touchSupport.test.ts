@@ -119,4 +119,23 @@ describe('installPosTouchTap', () => {
 
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it('previene el blur del input en pointerdown para no perder el primer tap cuando el teclado esta abierto', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    let defaultPrevented = false;
+    const down = pointerEvent('pointerdown', 'touch', 10, 10);
+    down.preventDefault = () => {
+      defaultPrevented = true;
+    };
+    button.dispatchEvent(down);
+    button.dispatchEvent(pointerEvent('pointerup', 'touch', 10, 10));
+
+    expect(defaultPrevented).toBe(true);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    input.remove();
+  });
 });
