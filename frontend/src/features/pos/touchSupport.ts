@@ -96,23 +96,34 @@ export function isTouchPrimaryDevice(
 
 export interface TouchTapHandlers {
   onTouchStart?: React.TouchEventHandler<HTMLElement>;
+  onTouchMove?: React.TouchEventHandler<HTMLElement>;
   onTouchEnd?: React.TouchEventHandler<HTMLElement>;
+  onTouchCancel?: React.TouchEventHandler<HTMLElement>;
 }
 
 /**
  * Handlers nativos de touch para botones dentro de contenedores con scroll
  * (grid de productos, sugerencias, metodos de pago).
  *
- * Por que no basta con click ni pointer events: en tablets, tocar un boton
- * que vive en un `overflow: auto` hace que el navegador inicie un scroll
- * gesture; el `pointerup` puede no entregarse o el `click` se pierde.
- * `onTouchEnd` SIEMPRE llega, asi que aqui guardamos la posicion del
- * `touchstart` y, si el dedo no se movio mas de `TAP_SLOP_PX`, disparamos
- * la accion y hacemos `preventDefault()` para que el click sintetico
- * posterior del navegador NO duplique la accion.
+ * Por que no basta con click ni pointer events: en tablets Android, tocar un
+ * boton que vive en un `overflow: auto` (o con el teclado virtual abierto)
+ * hace que el navegador:
+ *   1. inicie un scroll gesture -> el `click` se pierde, o
+ *   2. emita `touchcancel` en el PRIMER toque para cerrar el teclado (el
+ *      `touchend` nunca llega).
  *
- * Uso: esparcir `{ onTouchStart, onTouchEnd }` sobre el elemento, ademas
- * del `onClick` normal (que cubre mouse/teclado).
+ * Solucion:
+ *   - `onTouchStart`: cerramos el teclado virtual (blur del input activo)
+ *     ANTES de que el navegador decida cancelar el toque. Asi `touchend`
+ *     llega de forma fiable en el primer tap.
+ *   - `onTouchMove`: marcamos movimiento; si el dedo se mueve mas de
+ *     `TAP_SLOP_PX` es scroll y NO se dispara la accion.
+ *   - `onTouchEnd`: si no hubo movimiento, disparamos la accion y hacemos
+ *     `preventDefault()` para que el click sintetico NO duplique.
+ *   - `onTouchCancel`: reseteamos (Android cancela al iniciar scroll).
+ *
+ * Uso: esparcir el resultado sobre el elemento, ademas del `onClick` normal
+ * (que cubre mouse/teclado).
  */
 export function touchTapHandlers(
   action: () => void,
@@ -120,6 +131,7 @@ export function touchTapHandlers(
 ): TouchTapHandlers {
   let startY = 0;
   let startX = 0;
+  let moved = false;
 
   return {
     onTouchStart(event: React.TouchEvent<HTMLElement>): void {
@@ -127,17 +139,30 @@ export function touchTapHandlers(
       if (!touch) return;
       startX = touch.clientX;
       startY = touch.clientY;
+      moved = false;
+      // Android cancela el primer toque cuando el teclado esta abierto
+      // (emite touchcancel en vez de touchend). Cerramos el teclado aqui
+      // para que el tap se complete de forma fiable.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active !== event.currentTarget) {
+        active.blur();
+      }
+    },
+    onTouchMove(event: React.TouchEvent<HTMLElement>): void {
+      const touch = event.touches[0];
+      if (!touch) return;
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.hypot(dx, dy) > TAP_SLOP_PX) moved = true;
     },
     onTouchEnd(event: React.TouchEvent<HTMLElement>): void {
-      if (!enabled) return;
-      const changed = event.changedTouches[0];
-      if (!changed) return;
-      const dx = changed.clientX - startX;
-      const dy = changed.clientY - startY;
-      if (Math.hypot(dx, dy) > TAP_SLOP_PX) return;
+      if (!enabled || moved) return;
       // Evita que el click sintetico posterior duplique la accion.
       event.preventDefault();
       action();
+    },
+    onTouchCancel(): void {
+      moved = true;
     },
   };
 }

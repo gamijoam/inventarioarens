@@ -150,26 +150,36 @@ describe('touchTapHandlers', () => {
     changedTouches: TouchLike[];
     defaultPrevented: boolean;
     preventDefault: () => void;
+    currentTarget?: HTMLElement;
+  };
+  type MockHandlers = {
+    onTouchStart?: (event: MockTouchEvent) => void;
+    onTouchMove?: (event: MockTouchEvent) => void;
+    onTouchEnd?: (event: MockTouchEvent) => void;
+    onTouchCancel?: (event: MockTouchEvent) => void;
   };
 
-  function touchEvent(type: 'start' | 'end', x: number, y: number): MockTouchEvent {
+  function touchEvent(
+    type: 'start' | 'move' | 'end',
+    x: number,
+    y: number,
+    currentTarget?: HTMLElement,
+  ): MockTouchEvent {
     const touch = { clientX: x, clientY: y };
     return {
-      touches: type === 'start' ? [touch] : [],
+      touches: type === 'end' ? [] : [touch],
       changedTouches: type === 'end' ? [touch] : [],
       defaultPrevented: false,
       preventDefault() {
         this.defaultPrevented = true;
       },
+      currentTarget,
     };
   }
 
   it('dispara la accion en un tap sin movimiento y previene el click sintetico', () => {
     const action = vi.fn();
-    const handlers = touchTapHandlers(action) as {
-      onTouchStart?: (event: MockTouchEvent) => void;
-      onTouchEnd?: (event: MockTouchEvent) => void;
-    };
+    const handlers = touchTapHandlers(action) as MockHandlers;
 
     const end = touchEvent('end', 5, 5);
     handlers.onTouchStart?.(touchEvent('start', 5, 5));
@@ -179,25 +189,53 @@ describe('touchTapHandlers', () => {
     expect(end.defaultPrevented).toBe(true);
   });
 
+  it('cierra el teclado virtual en touchstart para que Android no cancele el primer tap', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    const buttonEl = document.createElement('button');
+    document.body.appendChild(buttonEl);
+    // jsdom no mantiene focus de verdad; simulamos el blur spy sobre el
+    // activeElement del documento en el momento del touchstart.
+    const blurSpy = vi.fn();
+    vi.spyOn(document, 'activeElement', 'get').mockReturnValue(input);
+    input.blur = blurSpy;
+    const action = vi.fn();
+    const handlers = touchTapHandlers(action) as MockHandlers;
+
+    handlers.onTouchStart?.(touchEvent('start', 5, 5, buttonEl));
+    handlers.onTouchEnd?.(touchEvent('end', 5, 5, buttonEl));
+
+    expect(blurSpy).toHaveBeenCalled();
+    expect(action).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+    input.remove();
+    buttonEl.remove();
+  });
+
   it('NO dispara la accion si el toque se movio (scroll/drag del contenedor)', () => {
     const action = vi.fn();
-    const handlers = touchTapHandlers(action) as {
-      onTouchStart?: (event: MockTouchEvent) => void;
-      onTouchEnd?: (event: MockTouchEvent) => void;
-    };
+    const handlers = touchTapHandlers(action) as MockHandlers;
 
     handlers.onTouchStart?.(touchEvent('start', 5, 5));
+    handlers.onTouchMove?.(touchEvent('move', 90, 70));
     handlers.onTouchEnd?.(touchEvent('end', 90, 70));
+
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('NO dispara la accion si Android cancela el toque (touchcancel) al iniciar scroll', () => {
+    const action = vi.fn();
+    const handlers = touchTapHandlers(action) as MockHandlers;
+
+    handlers.onTouchStart?.(touchEvent('start', 5, 5));
+    handlers.onTouchCancel?.(touchEvent('end', 90, 70));
 
     expect(action).not.toHaveBeenCalled();
   });
 
   it('no dispara la accion cuando el boton esta deshabilitado', () => {
     const action = vi.fn();
-    const handlers = touchTapHandlers(action, false) as {
-      onTouchStart?: (event: MockTouchEvent) => void;
-      onTouchEnd?: (event: MockTouchEvent) => void;
-    };
+    const handlers = touchTapHandlers(action, false) as MockHandlers;
 
     handlers.onTouchStart?.(touchEvent('start', 5, 5));
     handlers.onTouchEnd?.(touchEvent('end', 5, 5));
