@@ -1,5 +1,32 @@
 # Registro de implementación
 
+## 2026-08-09 - Sesión: flujo vendedor->cajera, fixes tablet y pantalla "Armar orden"
+
+### Flujo vendedor -> cajera (TDD)
+- Permiso `pos.orders.hold` (armar) separado de `pos.checkout` (cobrar). `pos_orders.seller_id`
+  + relacion `seller()` (base para comisiones).
+- `POST /api/pos/orders` (armar orden sin caja/pagos/IMEI, reserva stock, guarda seller).
+- `addPayments` acepta `cash_register_session_id` (caja de la cajera) + items para asignar IMEI.
+- Contrato TDD: `tests/Feature/POS/PosHoldOrderApiTest.php`.
+- Fix: cancelar una orden armada sin sesion de caja lanzaba ModelNotFound (`cancelPending`).
+
+### Fixes tablet Android (POS 0.2.6 -> 0.2.14)
+- El problema real: tocar un boton dentro de un contenedor con `overflow: auto` en Android no
+  dispara la accion (el navegador prioriza el gesto de scroll / emite pointercancel al cerrar el
+  teclado). Se probaron: onPointerDown, listener global, touchTapHandlers (touch nativo),
+  use-gesture/react, y disparo en pointerdown con dedup.
+- Aplicados a productos/sugerencias/pagos/IMEIs del POS normal.
+
+### Pantalla tactil "Armar orden" (POS 0.2.15)
+- Nueva pagina `/pos/armar` en `frontend/src/features/pos-armar/` con teclado on-screen propio
+  (sin teclado del sistema) para tablets. Redirige a vendedores (`pos.orders.hold` sin
+  `pos.checkout`). El POS de cajero se conserva.
+- v0.2.16: diagnostico visible (toast `[DIAG]`) para confirmar si el tap llega al producto.
+
+### Versionado publicado (POS)
+`0.2.4`..`0.2.16` (fix LAN, tactil, pantalla de armar, diagnostico). Admin/Technician en `0.2.5`.
+Proceso completo y estado en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
+
 ## 2026-08-09 - Release POS v0.2.4 (flujo vendedor -> cajera)
 
 - Se publicó `v0.2.4-pos` (non-draft) con el flujo "vendedor arma -> cajera cobra" completo:

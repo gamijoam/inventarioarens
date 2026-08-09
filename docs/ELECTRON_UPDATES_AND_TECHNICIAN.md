@@ -213,9 +213,25 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 
 | Cliente | Version | Tag | Assets |
 | --- | --- | --- | --- |
-| POS | 0.2.4 | `v0.2.4-pos` | `Sistema-de-Inventario-POS-0.2.4.exe` + blockmap + `pos.yml` |
-| Admin | 0.2.3 | `v0.2.3-admin` | `Sistema-de-Inventario-Administrativo-0.2.3.exe` + blockmap + `admin.yml` |
-| Technician | 0.2.3 | `v0.2.3-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.3.exe` + blockmap + `technician.yml` |
+| POS | 0.2.16 | `v0.2.16-pos` | `Sistema-de-Inventario-POS-0.2.16.exe` + blockmap + `pos.yml` |
+| Admin | 0.2.5 | `v0.2.5-admin` | `Sistema-de-Inventario-Administrativo-0.2.5.exe` + blockmap + `admin.yml` |
+| Technician | 0.2.5 | `v0.2.5-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.5.exe` + blockmap + `technician.yml` |
+
+Historial POS reciente (mismo `frontend/package.json`, tags `v0.2.x-pos`):
+
+- `0.2.4` fix LAN renderer (URL loopback con bind 0.0.0.0)
+- `0.2.5` alineacion de los tres clientes + fix LAN compartido
+- `0.2.6` soporte tactil basico (onPointerDown + touch-action)
+- `0.2.7` tap en busqueda con teclado abierto (preventDefault en pointerdown)
+- `0.2.8` tap tactil global (installPosTouchTap)
+- `0.2.9` blur input + no autofocus en tactil (installPosTouchTap retirado)
+- `0.2.10` touchTapHandlers (onTouchStart/End nativos)
+- `0.2.11` cierre de teclado en touchstart (Android touchcancel)
+- `0.2.12` same + dedup
+- `0.2.13` libreria @use-gesture/react (TapButton + usePosTap)
+- `0.2.14` auditoria: disparar en pointerdown (cubre pointercancel de Android)
+- `0.2.15` nueva pantalla tactil "Armar orden" `/pos/armar` (teclado on-screen propio, redirige vendedores con `pos.orders.hold` sin `pos.checkout`)
+- `0.2.16` diagnostico visible (toast `[DIAG]`) en la pantalla de armar para confirmar si el tap llega al producto en tablet
 
 ## LAN Server Mode
 
@@ -296,3 +312,108 @@ Limitaciones recordadas:
 - El modo vendedor (solo armar) se activa por PERMISO (`pos.orders.hold` sin `pos.checkout`), no por dispositivo.
 - El API local sigue siendo loopback para las consolas técnicas; la tablet solo usa los renderers 8788/8789.
 - SQLite nunca se comparte por red (SMB); solo HTTP.
+
+## Pantalla tactil "Armar orden" (v0.2.15+)
+
+Nueva pagina separada del POS normal, disenada para tablets Android. Vive en
+`frontend/src/features/pos-armar/` y se sirve en la ruta `/pos/armar` del bundle POS.
+
+- **Teclado on-screen propio** (`OnScreenKeyboard`): botones grandes (A-Z, 0-9, ESPACIO, BORRAR).
+  NO usa el teclado del sistema Android, para que el tap no se pierda por el cierre del teclado virtual.
+- **`ArmOrderScreen`**: buscador con teclado propio, grid de productos con tap=agregar directo,
+  carrito lateral con totales y boton "Enviar a la cajera" que hace `POST /api/pos/orders`
+  (mismo endpoint del flujo vendedor -> cajera).
+- **Logica pura** en `armOrderLogic.ts` (keyAction/applyKey/normalizeSearch/canSearch/money).
+- **Redireccion automatica**: `PosTerminal` redirige a `/pos/armar` si el usuario es
+  `sellerOnlyMode` (`pos.orders.hold` sin `pos.checkout`). El POS de cajero se conserva intacto.
+- Ruta: `frontend/src/routes/_authed/pos.armar.tsx` (regenera `routeTree.gen.ts` al hacer build).
+
+### Diagnostico tablet en curso (v0.2.16)
+
+- Problema: en la tablet Android, tocar un producto dentro de un grid con `overflow: auto`
+  no dispara la accion, aunque los botones fuera de scroll (shell, teclado on-screen) si funcionan.
+- Hipotesis actual: el contenedor con scroll se "come" el primer tap en ese dispositivo.
+- v0.2.16 agrega un toast `[DIAG] onClick <producto> cart=N` en la pantalla de armar para
+  confirmar si el evento del tap llega. Si aparece, el problema es estado/render; si no, es el scroll.
+- Proximo paso si es el scroll: quitar `overflow-auto` del grid y dejar que la pagina haga scroll.
+
+## Proceso completo de actualizacion (runbook operativo)
+
+Este flujo se usa para publicar cualquier fix o feature a los clientes de escritorio
+(admin, pos, technician). El backend Laravel viaja DENTRO de cada cliente, asi que cada
+cambio de la app = un release nuevo del cliente.
+
+### Paso 1 - Cambios y tests
+
+```bash
+# Backend: correr los tests del modulo afectado
+php vendor/bin/phpunit -c phpunit.sqlite.xml tests/Feature/<Modulo>/
+
+# Frontend: typecheck + tests
+cd frontend
+pnpm typecheck
+pnpm vitest run
+```
+
+### Paso 2 - Commit y push
+
+```bash
+git add -A
+git commit -m "tipo(scope): descripcion"
+git push origin main          # corre el pre-push hook (suite completa, puede tardar)
+```
+
+### Paso 3 - Subir version y publicar
+
+```bash
+# 1) Bump version en frontend/package.json (electron-updater solo actualiza si la version es MAYOR)
+# 2) Commit + push del bump
+git add frontend/package.json && git commit -m "chore: bump version to 0.2.17" && git push origin main
+
+# 3) Publicar el/los clientes (uno por cliente)
+gh workflow run release.yml -f client=pos         --repo gamijoam/inventarioarens
+gh workflow run release.yml -f client=admin       --repo gamijoam/inventarioarens
+gh workflow run release.yml -f client=technician  --repo gamijoam/inventarioarens
+
+# 4) Seguir el estado y verificar
+gh run watch --repo gamijoam/inventarioarens
+gh release view v0.2.17-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets
+```
+
+### Paso 4 - Instalar en las PC (cuando el auto-update no es suficiente)
+
+Si un cliente no puede auto-actualizarse (p. ej. version muy vieja sin updater, o falla el
+supervisor), instalar manual el `.exe` del release:
+
+```bash
+# Descargar
+gh release download v0.2.17-pos --repo gamijoam/inventarioarens --pattern "*.exe" --dir $env:TEMP\installers
+
+# Instalar silencioso (NSIS)
+Start-Process "$env:TEMP\installers\Sistema-de-Inventario-POS-0.2.17.exe" -ArgumentList "/S" -Wait
+
+# Verificar version instalada (desde el asar)
+node -e "const asar=require('@electron/asar'); const p=asar.extractFile('C:/Users/gafit/AppData/Local/Programs/Sistema-de-Inventario-POS/resources/app.asar','package.json'); console.log(JSON.parse(p.toString()).version)"
+```
+
+IMPORTANTE: si hubo una version corriendo antes, **cerrar todos los procesos** del cliente y
+del supervisor PHP (`Get-Process -Name "*Sistema*","*POS*","php" | Stop-Process -Force`) y
+**limpiar locks** (`%APPDATA%\InventarioArens\.runtime-supervisor.lock`, `.pid`) antes de
+reabrir, para que el backend nuevo tome el puerto 8787.
+
+### Paso 5 - Deploy del backend a la nube (si el cambio lo requiere)
+
+```bash
+ssh root@212.28.176.157   # password: GaboMac12
+cd /opt/inventarioarens-cloud
+sudo /usr/bin/env git pull
+sudo /usr/bin/env composer install --no-dev --optimize-autoloader
+sudo /usr/bin/env php artisan optimize:clear
+sudo /usr/bin/env php artisan migrate --force
+# Si hubo cambios de permisos/roles:
+sudo /usr/bin/env php artisan db:seed --class=RolesAndPermissionsSeeder --force
+```
+
+Los permisos NO viajan por sync; cada nodo los siembra desde `BasePermissions`. En local,
+re-correr `php artisan sync:prepare-local <slug> <empresa> <email>` (idempotente) o re-vincular
+desde el Soporte Tecnico para que el permiso nuevo exista en el SQLite local.

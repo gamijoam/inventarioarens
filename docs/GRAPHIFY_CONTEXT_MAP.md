@@ -277,6 +277,10 @@ Nodos de codigo frecuentes:
 - `SyncEventApplier` (applier local, matcheo por sku/catalog_product_id)
 - `SyncWorkerService` (push/pull/apply, ACKs concurrentes)
 - `scripts/sync-worker.cmd` y `scripts/sync-worker.ps1`
+- `frontend/src/features/pos-armar/ArmOrderScreen.tsx` (pantalla tactil "Armar orden", ruta /pos/armar)
+- `frontend/src/features/pos-armar/OnScreenKeyboard.tsx` (teclado on-screen propio, sin teclado del sistema)
+- `frontend/src/features/pos-armar/armOrderLogic.ts` (logica pura del teclado/busqueda)
+- `frontend/src/features/pos/PosTerminal.tsx` (redirige vendedores con pos.orders.hold sin pos.checkout a /pos/armar)
 
 ## Consultas Recomendadas Para Graphify
 
