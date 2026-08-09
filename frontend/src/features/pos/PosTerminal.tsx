@@ -104,7 +104,8 @@ import {
   roundMoney,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
-import { isTouchPrimaryDevice, shouldAutoFocusSearch, touchTapHandlers } from './touchSupport';
+import { TapButton } from './TapButton';
+import { isTouchPrimaryDevice, shouldAutoFocusSearch } from './touchSupport';
 import {
   type PrintJob,
   openTicketPdf,
@@ -1074,39 +1075,21 @@ export function PosTerminal() {
                   <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
                     <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
                       <span>Resultados rapidos</span>
-                      <button
-                        type="button"
-                        className="text-primary font-semibold hover:underline"
-                        {...touchTapHandlers(() => {
-                          setProductSearch(query);
-                          setPanel('product-search');
-                        })}
-                        onClick={() => {
+                      <TapButton
+                        onPress={() => {
                           setProductSearch(query);
                           setPanel('product-search');
                         }}
+                        className="text-primary font-semibold hover:underline"
                       >
                         Ver todos
-                      </button>
+                      </TapButton>
                     </div>
                     <div className="max-h-96 overflow-auto p-2">
                       {quickSearchResults.map((product, index) => (
-                        <button
+                        <TapButton
                           key={product.id}
-                          type="button"
-                          className={cn(
-                            'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                            index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
-                          )}
-                          {...touchTapHandlers(() => {
-                            void addProduct(product).then((added) => {
-                              if (added) {
-                                setQuery('');
-                                setQuickSearchIndex(0);
-                              }
-                            });
-                          })}
-                          onClick={() => {
+                          onPress={() => {
                             void addProduct(product).then((added) => {
                               if (added) {
                                 setQuery('');
@@ -1115,6 +1098,10 @@ export function PosTerminal() {
                             });
                           }}
                           onMouseEnter={() => setQuickSearchIndex(index)}
+                          className={cn(
+                            'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                            index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
+                          )}
                         >
                           <ProductImageView
                             image={primaryProductImage(product)}
@@ -1139,7 +1126,7 @@ export function PosTerminal() {
                               ? `Stock ${Number(product.available_stock)}`
                               : 'Sin stock'}
                           </Badge>
-                        </button>
+                        </TapButton>
                       ))}
                     </div>
                   </div>
@@ -3093,12 +3080,10 @@ function SerialSelectionPanel({
             const checked = selectedIds.has(serial.id);
             const disabled = !checked && selectedIds.size >= Number(line.quantity);
             return (
-              <button
+              <TapButton
                 key={serial.id}
-                type="button"
                 disabled={disabled}
-                {...touchTapHandlers(() => onToggle(serial), !disabled)}
-                onClick={() => onToggle(serial)}
+                onPress={() => onToggle(serial)}
                 className={cn(
                   'hover:bg-bg flex w-full items-center justify-between gap-3 p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                   checked && 'bg-primary/10 ring-primary/20 ring-1 ring-inset',
@@ -3114,7 +3099,7 @@ function SerialSelectionPanel({
                 <Badge variant={checked ? 'success' : 'default'}>
                   {checked ? 'Seleccionado' : serial.status}
                 </Badge>
-              </button>
+              </TapButton>
             );
           })}
         </div>
@@ -3187,11 +3172,9 @@ function QuickPaymentPanel({
           {methods.map((method) => {
             const preview = previewQuickPayment(method, cartTotal, payments, rate);
             return (
-              <button
+              <TapButton
                 key={method.id}
-                type="button"
-                {...touchTapHandlers(() => onSelect(method.id))}
-                onClick={() => onSelect(method.id)}
+                onPress={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
                 className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
@@ -3208,7 +3191,7 @@ function QuickPaymentPanel({
                 </div>
                 <p className="mt-4 text-2xl font-bold">{preview.amountLabel}</p>
                 <p className="text-text-muted text-xs">{preview.detail}</p>
-              </button>
+              </TapButton>
             );
           })}
         </div>
@@ -3313,11 +3296,9 @@ function ProductSearchPanel({
       ) : (
         <div className="grid max-h-[68vh] gap-3 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
           {products.map((product, index) => (
-            <button
+            <TapButton
               key={product.id}
-              type="button"
-              {...touchTapHandlers(() => void onSelect(product))}
-              onClick={() => void onSelect(product)}
+              onPress={() => void onSelect(product)}
               onMouseEnter={() => setSelectedIndex(index)}
               className={cn(
                 'group border-border bg-surface hover:border-primary/60 focus-visible:ring-primary overflow-hidden rounded-2xl border text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2',
@@ -3373,7 +3354,7 @@ function ProductSearchPanel({
                   Se valida precio de lista al seleccionar
                 </p>
               </div>
-            </button>
+            </TapButton>
           ))}
         </div>
       )}
