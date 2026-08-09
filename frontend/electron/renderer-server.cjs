@@ -73,6 +73,11 @@ function proxyApiRequest(request, response, apiTarget) {
 
 function startRendererServer(rootDirectory, options = {}) {
   const host = options.host ?? '127.0.0.1';
+  // El cliente (ventana Electron) SIEMPRE debe navegar a loopback, incluso
+  // cuando el servidor se bindea a 0.0.0.0 para LAN. 0.0.0.0 no es una IP
+  // navegable: si la URL del renderer quedara en http://0.0.0.0:8789 la
+  // ventana no carga y la app se cierra al arrancar con modo LAN activo.
+  const clientHost = options.clientHost ?? loopbackUrlHost(host);
   const port = options.port ?? 0;
   const apiTarget = options.apiTarget ?? null;
   const server = http.createServer((request, response) => {
@@ -138,15 +143,26 @@ function startRendererServer(rootDirectory, options = {}) {
       server.removeListener('error', reject);
       resolve({
         server,
-        url: `http://${host}:${address.port}`,
+        url: `http://${clientHost}:${address.port}`,
       });
     });
   });
 }
 
+/**
+ * Traduce el host de bind a un host navegable por la ventana de Electron.
+ * 0.0.0.0 / :: se traducen a 127.0.0.1; cualquier otro host se conserva.
+ */
+function loopbackUrlHost(bindHost) {
+  const normalized = String(bindHost ?? '').replace(/^::ffff:/, '');
+  if (normalized === '0.0.0.0' || normalized === '::') return '127.0.0.1';
+  return normalized;
+}
+
 module.exports = {
   contentTypeFor,
   isLoopbackAddress,
+  loopbackUrlHost,
   safeFilePath,
   startRendererServer,
 };

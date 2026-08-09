@@ -41,6 +41,19 @@ describe('Electron renderer server', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  it('exposes a loopback URL to the Electron window when binding to 0.0.0.0 (LAN mode)', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-renderer-lan-'));
+    fs.writeFileSync(path.join(root, 'index.html'), '<!doctype html>');
+    const renderer = await startRendererServer(root, { host: '0.0.0.0', port: 0 });
+
+    // El servidor se bindea a 0.0.0.0 (LAN) pero la ventana navega por loopback.
+    expect(new URL(renderer.url).hostname).toBe('127.0.0.1');
+    expect(renderer.server.address()).toMatchObject({ address: '0.0.0.0' });
+
+    await new Promise((resolve) => renderer.server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it('proxies API requests without forwarding the browser Origin header', async () => {
     const target = await new Promise((resolve) => {
       const server = http.createServer((request, response) => {
