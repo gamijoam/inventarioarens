@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-09 - Release POS v0.2.4 (flujo vendedor -> cajera)
+
+- Se publicó `v0.2.4-pos` (non-draft) con el flujo "vendedor arma -> cajera cobra" completo:
+  backend + frontend + tests TDD. Tag `v0.2.4-pos`, exe `Sistema-de-Inventario-POS-0.2.4.exe`.
+- Doc `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`: actualizado el estado publicado y agregado el
+  procedimiento "Probar el flujo vendedor arma -> cajera cobra desde la tablet (LAN)" (activar LAN en
+  Soporte Técnico, firewall privado 8787-8789, URLs 8788/8789, usuarios locales por permiso,
+  limitaciones: host abierto, SQLite no se comparte por red).
+
 ## 2026-08-09 - Flujo "vendedor arma -> cajera cobra" en POS (TDD)
 
 ### Backend

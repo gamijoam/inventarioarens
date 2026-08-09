@@ -213,7 +213,7 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 
 | Cliente | Version | Tag | Assets |
 | --- | --- | --- | --- |
-| POS | 0.2.3 | `v0.2.3-pos` | `Sistema-de-Inventario-POS-0.2.3.exe` + blockmap + `pos.yml` |
+| POS | 0.2.4 | `v0.2.4-pos` | `Sistema-de-Inventario-POS-0.2.4.exe` + blockmap + `pos.yml` |
 | Admin | 0.2.3 | `v0.2.3-admin` | `Sistema-de-Inventario-Administrativo-0.2.3.exe` + blockmap + `admin.yml` |
 | Technician | 0.2.3 | `v0.2.3-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.3.exe` + blockmap + `technician.yml` |
 
@@ -257,3 +257,42 @@ Remove-NetFirewallRule -DisplayName "Inventario Arens LAN"
 
 Do not share `inventario.sqlite` through SMB and do not expose PostgreSQL. Remote clients must use the
 HTTP API/renderer, never the database file.
+
+### Probar el flujo "vendedor arma -> cajera cobra" desde la tablet (LAN)
+
+Requisitos previos en la PC host:
+
+- Clientes actualizados (al menos POS `>= 0.2.4`, que trae `pos.orders.hold` y el modo vendedor).
+- El permiso `pos.orders.hold` debe existir localmente: si la PC ya estaba preparada antes del
+  release, re-correr `php artisan sync:prepare-local <slug> <empresa> <email>` (idempotente) o
+  re-vincular desde el Soporte Técnico. Recuerda: roles/permisos NO viajan por sync.
+- Dos usuarios locales con permisos distintos (si quieres separar los roles):
+  - **Vendedor** (solo arma): rol con `pos.view` + `pos.orders.hold` (SIN `pos.checkout`).
+  - **Cajera** (solo cobra): rol con `pos.view` + `pos.checkout` + `pos.cancel` + `cash_register.open`.
+  - Si un usuario tiene ambos permisos, el POS le muestra el flujo completo de cajera (no el modo vendedor).
+
+Pasos:
+
+1. **Activar LAN en el host**: Soporte Técnico -> opción de conexión por red -> activar. Esto escribe
+   `bind_host: 0.0.0.0` en `%APPDATA%\InventarioArens\local-server.json`. **Reiniciar los clientes**
+   del host para que el cambio tome efecto (el supervisor de la API local respeta el bind host al arrancar).
+2. **Abrir el firewall privado** (ver regla arriba, puertos `8787,8788,8789`, solo subnet local).
+3. **Conocer la IP del host**: `ipconfig` (adaptador de red privada). La tablet debe estar en la MISMA red.
+4. **Desde la tablet** (navegador) abrir:
+   - `http://HOST-IP:8789` -> POS (prueba principal del flujo)
+   - `http://HOST-IP:8788` -> Administrativo (opcional)
+5. **Iniciar sesión con el usuario local** (los usuarios viven en el backend local del host; si no existen,
+   el técnico los crea/vincula). La tablet consume el mismo SQLite del host via HTTP, no comparte la base.
+6. **Probar el flujo**:
+   - Vendedor en la tablet: arma la orden (agrega items, cantidades, cliente) y pulsa **"Armar orden"**.
+     No pide IMEI en serializados (solo arma), no exige abrir caja, no muestra botones de cobro/pago.
+   - Cajera (otra sesión/tablet o el host): abre su caja, entra a **Pendientes**, ve la orden con
+     "Armada por <vendedor>", la retoma, asigna IMEI si aplica y cobra con su propia caja.
+   - El `seller_id` queda registrado en la orden (estructura lista para comisiones).
+
+Limitaciones recordadas:
+
+- El host debe permanecer abierto con el/los clientes corriendo mientras la tablet lo usa.
+- El modo vendedor (solo armar) se activa por PERMISO (`pos.orders.hold` sin `pos.checkout`), no por dispositivo.
+- El API local sigue siendo loopback para las consolas técnicas; la tablet solo usa los renderers 8788/8789.
+- SQLite nunca se comparte por red (SMB); solo HTTP.
