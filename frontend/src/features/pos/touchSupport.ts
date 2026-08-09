@@ -69,6 +69,56 @@ function isTouchPointerType(event: { pointerType?: string }): boolean {
   return event.pointerType === 'touch' || event.pointerType === 'pen';
 }
 
+import type React from 'react';
+
+export interface TouchTapHandlers {
+  onTouchStart?: React.TouchEventHandler<HTMLElement>;
+  onTouchEnd?: React.TouchEventHandler<HTMLElement>;
+}
+
+/**
+ * Handlers nativos de touch para botones dentro de contenedores con scroll
+ * (grid de productos, sugerencias, metodos de pago).
+ *
+ * Por que no basta con click ni pointer events: en tablets, tocar un boton
+ * que vive en un `overflow: auto` hace que el navegador inicie un scroll
+ * gesture; el `pointerup` puede no entregarse o el `click` se pierde.
+ * `onTouchEnd` SIEMPRE llega, asi que aqui guardamos la posicion del
+ * `touchstart` y, si el dedo no se movio mas de `TAP_SLOP_PX`, disparamos
+ * la accion y hacemos `preventDefault()` para que el click sintetico
+ * posterior del navegador NO duplique la accion.
+ *
+ * Uso: esparcir `{ onTouchStart, onTouchEnd }` sobre el elemento, ademas
+ * del `onClick` normal (que cubre mouse/teclado).
+ */
+export function touchTapHandlers(
+  action: () => void,
+  enabled = true,
+): TouchTapHandlers {
+  let startY = 0;
+  let startX = 0;
+
+  return {
+    onTouchStart(event: React.TouchEvent<HTMLElement>): void {
+      const touch = event.touches[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+    },
+    onTouchEnd(event: React.TouchEvent<HTMLElement>): void {
+      if (!enabled) return;
+      const changed = event.changedTouches[0];
+      if (!changed) return;
+      const dx = changed.clientX - startX;
+      const dy = changed.clientY - startY;
+      if (Math.hypot(dx, dy) > TAP_SLOP_PX) return;
+      // Evita que el click sintetico posterior duplique la accion.
+      event.preventDefault();
+      action();
+    },
+  };
+}
+
 /**
  * Instala un listener global que hace que cualquier boton/enlace del POS
  * responda al PRIMER tap tactil, sin doble disparo.

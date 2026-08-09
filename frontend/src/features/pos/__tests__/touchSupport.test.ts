@@ -6,6 +6,7 @@ import {
   enablePosTouchMode,
   installPosTouchTap,
   posViewportContent,
+  touchTapHandlers,
 } from '../touchSupport';
 
 function createMeta(): HTMLMetaElement {
@@ -137,5 +138,68 @@ describe('installPosTouchTap', () => {
     expect(defaultPrevented).toBe(true);
     expect(onClick).toHaveBeenCalledTimes(1);
     input.remove();
+  });
+});
+
+describe('touchTapHandlers', () => {
+  type TouchLike = { clientX: number; clientY: number };
+  type MockTouchEvent = {
+    touches: TouchLike[];
+    changedTouches: TouchLike[];
+    defaultPrevented: boolean;
+    preventDefault: () => void;
+  };
+
+  function touchEvent(type: 'start' | 'end', x: number, y: number): MockTouchEvent {
+    const touch = { clientX: x, clientY: y };
+    return {
+      touches: type === 'start' ? [touch] : [],
+      changedTouches: type === 'end' ? [touch] : [],
+      defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true;
+      },
+    };
+  }
+
+  it('dispara la accion en un tap sin movimiento y previene el click sintetico', () => {
+    const action = vi.fn();
+    const handlers = touchTapHandlers(action) as {
+      onTouchStart?: (event: MockTouchEvent) => void;
+      onTouchEnd?: (event: MockTouchEvent) => void;
+    };
+
+    const end = touchEvent('end', 5, 5);
+    handlers.onTouchStart?.(touchEvent('start', 5, 5));
+    handlers.onTouchEnd?.(end);
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(end.defaultPrevented).toBe(true);
+  });
+
+  it('NO dispara la accion si el toque se movio (scroll/drag del contenedor)', () => {
+    const action = vi.fn();
+    const handlers = touchTapHandlers(action) as {
+      onTouchStart?: (event: MockTouchEvent) => void;
+      onTouchEnd?: (event: MockTouchEvent) => void;
+    };
+
+    handlers.onTouchStart?.(touchEvent('start', 5, 5));
+    handlers.onTouchEnd?.(touchEvent('end', 90, 70));
+
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('no dispara la accion cuando el boton esta deshabilitado', () => {
+    const action = vi.fn();
+    const handlers = touchTapHandlers(action, false) as {
+      onTouchStart?: (event: MockTouchEvent) => void;
+      onTouchEnd?: (event: MockTouchEvent) => void;
+    };
+
+    handlers.onTouchStart?.(touchEvent('start', 5, 5));
+    handlers.onTouchEnd?.(touchEvent('end', 5, 5));
+
+    expect(action).not.toHaveBeenCalled();
   });
 });

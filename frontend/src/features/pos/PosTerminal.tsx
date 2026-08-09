@@ -104,6 +104,7 @@ import {
   roundMoney,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
+import { touchTapHandlers } from './touchSupport';
 import {
   type PrintJob,
   openTicketPdf,
@@ -1073,6 +1074,10 @@ export function PosTerminal() {
                       <button
                         type="button"
                         className="text-primary font-semibold hover:underline"
+                        {...touchTapHandlers(() => {
+                          setProductSearch(query);
+                          setPanel('product-search');
+                        })}
                         onClick={() => {
                           setProductSearch(query);
                           setPanel('product-search');
@@ -1090,6 +1095,14 @@ export function PosTerminal() {
                             'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
                             index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
                           )}
+                          {...touchTapHandlers(() => {
+                            void addProduct(product).then((added) => {
+                              if (added) {
+                                setQuery('');
+                                setQuickSearchIndex(0);
+                              }
+                            });
+                          })}
                           onClick={() => {
                             void addProduct(product).then((added) => {
                               if (added) {
@@ -3076,6 +3089,7 @@ function SerialSelectionPanel({
                 key={serial.id}
                 type="button"
                 disabled={disabled}
+                {...touchTapHandlers(() => onToggle(serial), !disabled)}
                 onClick={() => onToggle(serial)}
                 className={cn(
                   'hover:bg-bg flex w-full items-center justify-between gap-3 p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
@@ -3168,6 +3182,7 @@ function QuickPaymentPanel({
               <button
                 key={method.id}
                 type="button"
+                {...touchTapHandlers(() => onSelect(method.id))}
                 onClick={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
                 className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
@@ -3293,6 +3308,7 @@ function ProductSearchPanel({
             <button
               key={product.id}
               type="button"
+              {...touchTapHandlers(() => void onSelect(product))}
               onClick={() => void onSelect(product)}
               onMouseEnter={() => setSelectedIndex(index)}
               className={cn(
