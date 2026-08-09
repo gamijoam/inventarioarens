@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   POS_TOUCH_CLASS,
   applyPosViewport,
   enablePosTouchMode,
+  installPosTouchTap,
   posViewportContent,
 } from '../touchSupport';
 
@@ -14,8 +15,24 @@ function createMeta(): HTMLMetaElement {
   return meta;
 }
 
+function pointerEvent(type: string, pointerType: string, x: number, y: number): Event {
+  // jsdom no define PointerEvent; lo emulamos con un MouseEvent y las
+  // propiedades que el listener global lee (pointerType, clientX/Y).
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerType: { value: pointerType },
+    clientX: { value: x },
+    clientY: { value: y },
+  });
+  return event;
+}
+
 describe('pos touchSupport', () => {
+  let cleanup: (() => void) | null = null;
+
   afterEach(() => {
+    cleanup?.();
+    cleanup = null;
     document.head.querySelectorAll('meta[name="viewport"]').forEach((meta) => meta.remove());
     document.body.classList.remove(POS_TOUCH_CLASS);
   });
@@ -40,5 +57,66 @@ describe('pos touchSupport', () => {
   it('agrega la clase pos-touch-mode al body', () => {
     enablePosTouchMode(document);
     expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(true);
+  });
+});
+
+describe('installPosTouchTap', () => {
+  let cleanup: (() => void) | null = null;
+  let button: HTMLButtonElement;
+
+  beforeEach(() => {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Agregar';
+    document.body.appendChild(button);
+    cleanup = installPosTouchTap(document);
+  });
+
+  afterEach(() => {
+    cleanup?.();
+    cleanup = null;
+    button.remove();
+  });
+
+  it('dispara la accion en el primer tap tactil sin esperar un click nativo', () => {
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    button.dispatchEvent(pointerEvent('pointerdown', 'touch', 10, 10));
+    button.dispatchEvent(pointerEvent('pointerup', 'touch', 10, 10));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('no dispara dos veces por el click sintetico posterior', () => {
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    button.dispatchEvent(pointerEvent('pointerdown', 'touch', 10, 10));
+    button.dispatchEvent(pointerEvent('pointerup', 'touch', 10, 10));
+    // El navegador emite un click sintetico justo despues del pointerup.
+    button.dispatchEvent(pointerEvent('click', 'touch', 10, 10));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('no dispara la accion si el toque se movio (scroll/drag)', () => {
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    button.dispatchEvent(pointerEvent('pointerdown', 'touch', 10, 10));
+    button.dispatchEvent(pointerEvent('pointerup', 'touch', 80, 60));
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('ignora eventos de mouse (el click normal sigue funcionando)', () => {
+    const onClick = vi.fn();
+    button.addEventListener('click', onClick);
+
+    button.dispatchEvent(pointerEvent('pointerdown', 'mouse', 10, 10));
+    button.dispatchEvent(pointerEvent('pointerup', 'mouse', 10, 10));
+
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

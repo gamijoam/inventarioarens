@@ -7,9 +7,11 @@
  * 2. Sin `touch-action: manipulation` hay ~300ms de delay (doble-tap para
  *    zoom) y el primer tap puede interpretarse como scroll/hover.
  *
- * Este modulo expone helpers puros para ajustar el viewport SOLO en el
- * bundle POS y una utilidad para construir handlers que respondan al
- * pointer/touch de forma inmediata.
+ * Este modulo expone:
+ * - Helpers puros para ajustar el viewport SOLO en el bundle POS.
+ * - `installPosTouchTap`: listener global que hace que CUALQUIER boton del
+ *   POS responda al primer toque tactil (cubre todos los botones, no solo
+ *   los que tienen onPointerDown explicito).
  */
 export const POS_TOUCH_CLASS = 'pos-touch-mode';
 
@@ -45,4 +47,90 @@ export function enablePosTouchMode(
   documentRef: Pick<Document, 'body'> = document,
 ): void {
   documentRef.body.classList.add(POS_TOUCH_CLASS);
+}
+
+/**
+ * Distancia maxima (px) de movimiento permitida para que un toque se
+ * considere un TAP y no un scroll/drag.
+ */
+const TAP_SLOP_PX = 10;
+
+/** Ventana (ms) en la que se suprime el click sintetico posterior al tap. */
+const SUPPRESS_CLICK_MS = 350;
+
+const INTERACTIVE_SELECTOR = 'button, [role="button"], a, label, select, input[type="checkbox"], input[type="radio"]';
+
+function closestInteractive(target: EventTarget | null): Element | null {
+  if (!(target instanceof Element)) return null;
+  return target.closest(INTERACTIVE_SELECTOR);
+}
+
+function isTouchPointerType(event: { pointerType?: string }): boolean {
+  return event.pointerType === 'touch' || event.pointerType === 'pen';
+}
+
+/**
+ * Instala un listener global que hace que cualquier boton/enlace del POS
+ * responda al PRIMER tap tactil, sin doble disparo.
+ *
+ * - pointerdown: recuerda el elemento y su posicion.
+ * - pointerup: si el toque no se movio mas de `TAP_SLOP_PX`, dispara
+ *   `click()` manualmente y marca una ventana de supresion para que el
+ *   click sintetico del navegador no vuelva a disparar la accion.
+ *
+ * Para mouse no hace nada: los botones siguen funcionando con el click
+ * normal. Retorna una funcion para desinstalar el listener.
+ */
+export function installPosTouchTap(
+  documentRef: Pick<Document, 'addEventListener' | 'removeEventListener'> = document,
+): () => void {
+  let pending: { element: Element; x: number; y: number } | null = null;
+  let suppressClickUntil = 0;
+
+  function onPointerDown(event: PointerEvent): void {
+    if (!isTouchPointerType(event)) return;
+    const element = closestInteractive(event.target);
+    if (!element) return;
+    pending = { element, x: event.clientX, y: event.clientY };
+  }
+
+  function onPointerUp(event: PointerEvent): void {
+    if (!isTouchPointerType(event) || !pending) return;
+    const { element, x, y } = pending;
+    pending = null;
+
+    const dx = event.clientX - x;
+    const dy = event.clientY - y;
+    if (Math.hypot(dx, dy) > TAP_SLOP_PX) return;
+
+    if (!element.isConnected) return;
+    suppressClickUntil = Date.now() + SUPPRESS_CLICK_MS;
+    const synthetic = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: undefined,
+    });
+    // Marcamos el click que disparamos para no suprimirlo nosotros mismos.
+    (synthetic as MouseEvent & { __posTap?: boolean }).__posTap = true;
+    element.dispatchEvent(synthetic);
+  }
+
+  function onClick(event: MouseEvent): void {
+    // Ignorar el click sintetico que el navegador emite tras el tap
+    // tactil, pero NO nuestro propio click de confirmacion.
+    if (Date.now() >= suppressClickUntil) return;
+    if ((event as MouseEvent & { __posTap?: boolean }).__posTap) return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+  }
+
+  documentRef.addEventListener('pointerdown', onPointerDown, true);
+  documentRef.addEventListener('pointerup', onPointerUp, true);
+  documentRef.addEventListener('click', onClick, true);
+
+  return () => {
+    documentRef.removeEventListener('pointerdown', onPointerDown, true);
+    documentRef.removeEventListener('pointerup', onPointerUp, true);
+    documentRef.removeEventListener('click', onClick, true);
+  };
 }
