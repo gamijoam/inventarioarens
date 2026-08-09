@@ -10,13 +10,13 @@ export interface TapButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> 
 /**
  * Boton del POS con deteccion de tap robusta para tablets (Android).
  *
- * Usa use-gesture (`useDrag` + `filterTaps`) para detectar el toque sin
- * movimiento de forma fiable incluso con el teclado virtual abierto o en
- * contenedores con scroll. `onPress` se dispara en el tap; `onClick` sigue
- * disponible para mouse/teclado y como respaldo.
+ * `onPress` se dispara al primer toque tactil (pointerdown inmediato, que
+ * cubre el pointercancel de Android al cerrar el teclado) y tambien via
+ * use-gesture y el onClick de respaldo. La deduplicacion interna evita que
+ * la accion se ejecute mas de una vez por toque.
  */
 export function TapButton({ onPress, children, onClick, disabled, ...rest }: TapButtonProps) {
-  const bind = usePosTap(() => {
+  const { bind, fire } = usePosTap(() => {
     if (onPress && !disabled) onPress();
   }, !disabled);
 
@@ -25,7 +25,7 @@ export function TapButton({ onPress, children, onClick, disabled, ...rest }: Tap
       type="button"
       {...bind()}
       onClick={(event) => {
-        if (onPress && !disabled) onPress();
+        fire();
         onClick?.(event);
       }}
       disabled={disabled}
