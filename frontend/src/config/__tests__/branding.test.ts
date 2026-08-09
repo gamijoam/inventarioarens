@@ -36,6 +36,7 @@ describe('application branding modes', () => {
   it('limita el modo POS a sus rutas operativas sin restringir el Administrativo', () => {
     expect(isRouteAllowedForAppMode('pos', '/pos')).toBe(true);
     expect(isRouteAllowedForAppMode('pos', '/pos/receipt')).toBe(true);
+    expect(isRouteAllowedForAppMode('pos', '/pos/armar')).toBe(true);
     expect(isRouteAllowedForAppMode('pos', '/inventory')).toBe(false);
     expect(isRouteAllowedForAppMode('admin', '/inventory')).toBe(true);
     expect(isRouteAllowedForAppMode('admin', '/pos')).toBe(true);

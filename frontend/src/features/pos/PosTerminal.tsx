@@ -318,6 +318,14 @@ export function PosTerminal() {
    * oculta el cobro/pago.
    */
   const sellerOnlyMode = canHold && !canCheckout;
+  // Vendedor (pos.orders.hold sin pos.checkout): se redirige a la pantalla
+  // tactil de armar orden, que no requiere caja. El POS de cajero se
+  // conserva intacto en /pos.
+  useEffect(() => {
+    if (sellerOnlyMode) {
+      void navigate({ to: '/pos/armar' });
+    }
+  }, [sellerOnlyMode, navigate]);
   const canViewPromotions = permissions.has(PERMISSIONS.POS_PROMOTIONS_VIEW);
   const canCollectReceivables = permissions.has(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const canCancel = permissions.has(PERMISSIONS.POS_CANCEL);

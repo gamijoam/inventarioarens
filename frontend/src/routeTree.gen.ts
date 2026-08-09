@@ -38,6 +38,7 @@ import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inven
 import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
+import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos.armar'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
@@ -196,6 +197,11 @@ const AuthedTransfersTransferIdRoute =
     path: '/$transferId',
     getParentRoute: () => AuthedTransfersRoute,
   } as any)
+const AuthedPosArmarRoute = AuthedPosArmarRouteImport.update({
+  id: '/armar',
+  path: '/armar',
+  getParentRoute: () => AuthedPosRoute,
+} as any)
 const AuthedInventoryManualMovementsRoute =
   AuthedInventoryManualMovementsRouteImport.update({
     id: '/inventory/manual-movements',
@@ -268,7 +274,7 @@ export interface FileRoutesByFullPath {
   '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
-  '/pos': typeof AuthedPosRoute
+  '/pos': typeof AuthedPosRouteWithChildren
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
@@ -290,6 +296,7 @@ export interface FileRoutesByFullPath {
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/pos/armar': typeof AuthedPosArmarRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/import/': typeof AuthedImportIndexRoute
@@ -309,7 +316,7 @@ export interface FileRoutesByTo {
   '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/payables': typeof AuthedPayablesRoute
   '/payment-methods': typeof AuthedPaymentMethodsRoute
-  '/pos': typeof AuthedPosRoute
+  '/pos': typeof AuthedPosRouteWithChildren
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
@@ -331,6 +338,7 @@ export interface FileRoutesByTo {
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/pos/armar': typeof AuthedPosArmarRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/import': typeof AuthedImportIndexRoute
@@ -352,7 +360,7 @@ export interface FileRoutesById {
   '/_authed/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
   '/_authed/payables': typeof AuthedPayablesRoute
   '/_authed/payment-methods': typeof AuthedPaymentMethodsRoute
-  '/_authed/pos': typeof AuthedPosRoute
+  '/_authed/pos': typeof AuthedPosRouteWithChildren
   '/_authed/printing': typeof AuthedPrintingRoute
   '/_authed/promotions': typeof AuthedPromotionsRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/_authed/pos/armar': typeof AuthedPosArmarRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/import/': typeof AuthedImportIndexRoute
@@ -417,6 +426,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory/manual-movements'
+    | '/pos/armar'
     | '/transfers/$transferId'
     | '/users/$userId'
     | '/import/'
@@ -458,6 +468,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory/manual-movements'
+    | '/pos/armar'
     | '/transfers/$transferId'
     | '/users/$userId'
     | '/import'
@@ -500,6 +511,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/catalogs'
     | '/_authed/inventory/currency'
     | '/_authed/inventory/manual-movements'
+    | '/_authed/pos/armar'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
     | '/_authed/import/'
@@ -722,6 +734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTransfersTransferIdRouteImport
       parentRoute: typeof AuthedTransfersRoute
     }
+    '/_authed/pos/armar': {
+      id: '/_authed/pos/armar'
+      path: '/armar'
+      fullPath: '/pos/armar'
+      preLoaderRoute: typeof AuthedPosArmarRouteImport
+      parentRoute: typeof AuthedPosRoute
+    }
     '/_authed/inventory/manual-movements': {
       id: '/_authed/inventory/manual-movements'
       path: '/inventory/manual-movements'
@@ -817,6 +836,18 @@ const AuthedInventoryTransferRequestsRouteWithChildren =
     AuthedInventoryTransferRequestsRouteChildren,
   )
 
+interface AuthedPosRouteChildren {
+  AuthedPosArmarRoute: typeof AuthedPosArmarRoute
+}
+
+const AuthedPosRouteChildren: AuthedPosRouteChildren = {
+  AuthedPosArmarRoute: AuthedPosArmarRoute,
+}
+
+const AuthedPosRouteWithChildren = AuthedPosRoute._addFileChildren(
+  AuthedPosRouteChildren,
+)
+
 interface AuthedTransfersRouteChildren {
   AuthedTransfersTransferIdRoute: typeof AuthedTransfersTransferIdRoute
 }
@@ -859,7 +890,7 @@ interface AuthedRouteChildren {
   AuthedInventoryTransferRequestsRoute: typeof AuthedInventoryTransferRequestsRouteWithChildren
   AuthedPayablesRoute: typeof AuthedPayablesRoute
   AuthedPaymentMethodsRoute: typeof AuthedPaymentMethodsRoute
-  AuthedPosRoute: typeof AuthedPosRoute
+  AuthedPosRoute: typeof AuthedPosRouteWithChildren
   AuthedPrintingRoute: typeof AuthedPrintingRoute
   AuthedPromotionsRoute: typeof AuthedPromotionsRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
@@ -892,7 +923,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
     AuthedInventoryTransferRequestsRouteWithChildren,
   AuthedPayablesRoute: AuthedPayablesRoute,
   AuthedPaymentMethodsRoute: AuthedPaymentMethodsRoute,
-  AuthedPosRoute: AuthedPosRoute,
+  AuthedPosRoute: AuthedPosRouteWithChildren,
   AuthedPrintingRoute: AuthedPrintingRoute,
   AuthedPromotionsRoute: AuthedPromotionsRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
