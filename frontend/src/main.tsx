@@ -8,24 +8,19 @@ import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { APP_MODE, APP_NAME } from '@/config/branding';
 import { routeTree } from './routeTree.gen';
 import { registerUnauthorizedHandler } from '@/api/client';
-import {
-  applyPosViewport,
-  enablePosTouchMode,
-  installPosTouchTap,
-} from '@/features/pos/touchSupport';
+import { applyPosViewport, enablePosTouchMode } from '@/features/pos/touchSupport';
 
 import '@/styles/globals.css';
 
 // Seteamos el <title> de la pestana con el nombre del branding.
 document.title = APP_NAME;
 
-// El cliente POS se usa en tablets: desactivamos el zoom por touch,
-// aplicamos touch-action: manipulation e instalamos el listener global de
-// tap para que cualquier boton responda al primer toque (sin doble click).
+// El cliente POS se usa en tablets: desactivamos el zoom por touch y
+// aplicamos touch-action: manipulation. El tap tactil de botones dentro de
+// contenedores con scroll lo maneja touchTapHandlers (onTouchEnd nativo).
 if (APP_MODE === 'pos') {
   applyPosViewport();
   enablePosTouchMode();
-  installPosTouchTap();
 }
 
 const queryClient = new QueryClient({

@@ -104,7 +104,7 @@ import {
   roundMoney,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
-import { touchTapHandlers } from './touchSupport';
+import { isTouchPrimaryDevice, shouldAutoFocusSearch, touchTapHandlers } from './touchSupport';
 import {
   type PrintJob,
   openTicketPdf,
@@ -829,7 +829,10 @@ export function PosTerminal() {
   }, [activeCashRegisters, openingRegisterId]);
 
   useEffect(() => {
-    if (panel === null) {
+    // En dispositivos tactiles NO re-focalizar el buscador: reabre el
+    // teclado virtual, cambia el layout y pierde la accion del tap. En
+    // escritorio si conviene para escribir directo.
+    if (panel === null && shouldAutoFocusSearch(isTouchPrimaryDevice())) {
       searchRef.current?.focus();
     }
   }, [cart.length, panel]);
@@ -1918,6 +1921,11 @@ export function PosTerminal() {
       ];
     });
     setQuery('');
+    // Cierra el teclado virtual (si el input de busqueda tenia foco) para
+    // que el layout no cambie al agregar y la accion no se pierda en tablet.
+    if (document.activeElement instanceof HTMLElement && isTouchPrimaryDevice()) {
+      document.activeElement.blur();
+    }
     if (shouldSelectSerials && !scannedSerial) {
       window.setTimeout(() => {
         if (newLineId) setSerialLineId(newLineId);

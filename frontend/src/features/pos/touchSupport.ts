@@ -13,6 +13,8 @@
  *   POS responda al primer toque tactil (cubre todos los botones, no solo
  *   los que tienen onPointerDown explicito).
  */
+import type React from 'react';
+
 export const POS_TOUCH_CLASS = 'pos-touch-mode';
 
 /**
@@ -69,7 +71,28 @@ function isTouchPointerType(event: { pointerType?: string }): boolean {
   return event.pointerType === 'touch' || event.pointerType === 'pen';
 }
 
-import type React from 'react';
+/**
+ * Decide si el POS debe auto-focalizar el input de busqueda al volver al
+ * panel principal. En escritorio conviene (el usuario escribe directo);
+ * en tablets/tactil NO: re-focalizar el input abre el teclado virtual,
+ * cambia el layout y pierde la accion del tap que acaba de ocurrir.
+ */
+export function shouldAutoFocusSearch(isTouchDevice: boolean): boolean {
+  return !isTouchDevice;
+}
+
+/**
+ * Detecta si el dispositivo actual soporta entrada tactil primaria.
+ * No-op seguro en entornos sin navigator.
+ */
+export function isTouchPrimaryDevice(
+  navigatorRef: { maxTouchPoints?: number; userAgent?: string } = navigator,
+): boolean {
+  if (typeof navigatorRef.maxTouchPoints === 'number' && navigatorRef.maxTouchPoints > 0) {
+    return true;
+  }
+  return /Android|iPhone|iPad|iPod|Tablet|Mobile/i.test(navigatorRef.userAgent ?? '');
+}
 
 export interface TouchTapHandlers {
   onTouchStart?: React.TouchEventHandler<HTMLElement>;

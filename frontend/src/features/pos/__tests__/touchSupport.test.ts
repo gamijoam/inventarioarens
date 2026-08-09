@@ -5,7 +5,9 @@ import {
   applyPosViewport,
   enablePosTouchMode,
   installPosTouchTap,
+  isTouchPrimaryDevice,
   posViewportContent,
+  shouldAutoFocusSearch,
   touchTapHandlers,
 } from '../touchSupport';
 
@@ -201,5 +203,22 @@ describe('touchTapHandlers', () => {
     handlers.onTouchEnd?.(touchEvent('end', 5, 5));
 
     expect(action).not.toHaveBeenCalled();
+  });
+});
+
+describe('autofocus y deteccion tactil', () => {
+  it('no auto-focaliza el buscador en dispositivos tactiles (evita reabrir teclado)', () => {
+    expect(shouldAutoFocusSearch(true)).toBe(false);
+    expect(shouldAutoFocusSearch(false)).toBe(true);
+  });
+
+  it('detecta dispositivos tactiles por maxTouchPoints', () => {
+    expect(isTouchPrimaryDevice({ maxTouchPoints: 10, userAgent: 'x' })).toBe(true);
+  });
+
+  it('detecta tablets/moviles por user agent', () => {
+    expect(isTouchPrimaryDevice({ maxTouchPoints: 0, userAgent: 'Android Tablet' })).toBe(true);
+    expect(isTouchPrimaryDevice({ maxTouchPoints: 0, userAgent: 'iPad' })).toBe(true);
+    expect(isTouchPrimaryDevice({ maxTouchPoints: 0, userAgent: 'Mozilla/5.0 (Windows NT 10.0)' })).toBe(false);
   });
 });
