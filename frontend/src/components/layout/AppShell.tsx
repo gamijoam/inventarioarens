@@ -13,7 +13,7 @@ interface AppShellProps {
  */
 export function AppShell({ children }: AppShellProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isFullBleed = pathname === '/pos';
+  const isFullBleed = pathname === '/pos' || pathname.startsWith('/pos/');
 
   if (isFullBleed) {
     return <>{children}</>;

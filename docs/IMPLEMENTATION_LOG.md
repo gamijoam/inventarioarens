@@ -17,14 +17,18 @@
   use-gesture/react, y disparo en pointerdown con dedup.
 - Aplicados a productos/sugerencias/pagos/IMEIs del POS normal.
 
-### Pantalla tactil "Armar orden" (POS 0.2.15)
+### Pantalla tactil "Armar orden" (POS 0.2.15 -> 0.2.17)
 - Nueva pagina `/pos/armar` en `frontend/src/features/pos-armar/` con teclado on-screen propio
   (sin teclado del sistema) para tablets. Redirige a vendedores (`pos.orders.hold` sin
   `pos.checkout`). El POS de cajero se conserva.
-- v0.2.16: diagnostico visible (toast `[DIAG]`) para confirmar si el tap llega al producto.
+- v0.2.16: diagnostico temporal para confirmar si el tap llegaba al producto.
+- v0.2.17: `/pos/armar` usa layout POS de pantalla completa, sin sidebar ni topbar administrativos.
+  Los resultados usan `TapButton`, que confirma el toque desde `pointerdown` en Android aun cuando
+  el navegador cancele el click por scroll o teclado. Se retiro el diagnostico visible y se agregaron
+  pruebas de integracion para el layout y el tap tactil que agrega productos al pedido.
 
 ### Versionado publicado (POS)
-`0.2.4`..`0.2.16` (fix LAN, tactil, pantalla de armar, diagnostico). Admin/Technician en `0.2.5`.
+`0.2.4`..`0.2.17` (fix LAN, tactil y pantalla dedicada para armar pedidos). Admin/Technician en `0.2.5`.
 Proceso completo y estado en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
 
 ## 2026-08-09 - Release POS v0.2.4 (flujo vendedor -> cajera)

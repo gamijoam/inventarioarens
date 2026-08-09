@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, LogOut, Plus, Search, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Search, Trash2 } from 'lucide-react';
 
 import { useAuth } from '@/auth/useAuth';
 import { Badge } from '@/components/ui/Badge';
@@ -13,6 +13,7 @@ import {
   useHoldOrder,
   usePosProductsDebounced,
 } from '@/features/pos/api';
+import { TapButton } from '@/features/pos/TapButton';
 import { applyKey, canSearch, money, normalizeSearch, type KeyAction } from './armOrderLogic';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 
@@ -45,16 +46,16 @@ export function ArmOrderScreen() {
   });
   const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
 
-  const total = cart.reduce((sum, line) => sum + Number(line.product.base_price ?? 0) * line.quantity, 0);
+  const total = cart.reduce(
+    (sum, line) => sum + Number(line.product.base_price ?? 0) * line.quantity,
+    0,
+  );
 
   function handleKey(action: KeyAction): void {
     setQuery((current) => applyKey(current, action));
   }
 
   function addProduct(product: Product): void {
-    // DIAGNOSTICO TEMPORAL: confirma si el evento del tap llego.
-    console.log('[ARMAR] onClick producto', product.id, product.name, 'cart=', cart.length);
-    toast.info(`[DIAG] onClick ${product.name} cart=${cart.length}`);
     setCart((current) => {
       const existing = current.find((line) => line.product.id === product.id);
       if (existing) {
@@ -104,32 +105,21 @@ export function ArmOrderScreen() {
   }
 
   return (
-    <PosShell
-      onExit={() => void signOut()}
-      context={{
-        tenantName: 'Armar orden',
-        branchName: null,
-        warehouseName: warehouse?.name ?? null,
-        cashRegisterName: null,
-        sessionStatus: 'closed',
-        syncStatus: 'online',
-      }}
-    >
-      <div className="bg-bg text-text-primary flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="border-border/80 bg-surface/95 flex shrink-0 items-center gap-3 border-b px-4 py-3">
-          <h1 className="text-text-primary text-lg font-bold">Armar orden</h1>
-          <p className="text-text-muted hidden text-sm sm:block">
-            Busca, arma el ticket y envíalo para que la cajera lo cobre.
-          </p>
-          <div className="ml-auto flex items-center gap-2">
+    <PosShell onExit={() => void signOut()}>
+      <div className="bg-bg text-text-primary flex h-dvh min-h-0 flex-col overflow-hidden">
+        <header className="border-border/80 bg-surface/95 flex min-h-16 shrink-0 items-center gap-3 border-b px-4 py-3 pr-32">
+          <div className="min-w-0">
+            <h1 className="text-text-primary text-lg font-bold">Armar pedido</h1>
+            <p className="text-text-muted truncate text-xs sm:text-sm">
+              {warehouse?.name ? `${warehouse.name} · ` : ''}Selecciona productos y envíalos a caja.
+            </p>
+          </div>
+          <div className="ml-auto flex items-center">
             <Badge variant="info">{cart.length} productos</Badge>
-            <Button variant="outline" size="sm" onClick={() => void signOut()}>
-              <LogOut className="size-4" /> Salir
-            </Button>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(240px,32vw)] gap-3 overflow-hidden p-3 max-[560px]:grid-cols-1 max-[560px]:overflow-auto sm:gap-4 sm:p-4">
           <section className="flex min-h-0 flex-col gap-3">
             <div className="border-border bg-surface flex items-center gap-3 rounded-2xl border px-4 py-3">
               <Search className="text-text-muted size-5 shrink-0" />
@@ -163,24 +153,25 @@ export function ArmOrderScreen() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                   {products.map((product) => (
-                    <button
+                    <TapButton
                       key={product.id}
-                      type="button"
                       data-testid={`product-${product.id}`}
-                      onClick={() => addProduct(product)}
-                      className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 group overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all"
+                      onPress={() => addProduct(product)}
+                      className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 active:border-primary active:bg-primary/10 group min-h-24 touch-manipulation overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all select-none"
                     >
                       <p className="truncate font-semibold">{product.name}</p>
                       <p className="text-text-muted font-mono text-xs">
                         {product.sku ?? product.barcode ?? 'Sin codigo'}
                       </p>
                       <div className="mt-3 flex items-center justify-between">
-                        <span className="text-lg font-bold">{money(Number(product.base_price ?? 0))}</span>
+                        <span className="text-lg font-bold">
+                          {money(Number(product.base_price ?? 0))}
+                        </span>
                         <span className="bg-primary/10 text-primary rounded-full p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                           <Plus className="size-4" />
                         </span>
                       </div>
-                    </button>
+                    </TapButton>
                   ))}
                 </div>
               )}
@@ -189,7 +180,7 @@ export function ArmOrderScreen() {
             <OnScreenKeyboard onKey={handleKey} disabled={holdOrder.isPending} />
           </section>
 
-          <aside className="border-border bg-surface flex min-h-0 flex-col rounded-2xl border shadow-sm">
+          <aside className="border-border bg-surface flex min-h-0 flex-col rounded-2xl border shadow-sm max-[560px]:min-h-80">
             <div className="border-border border-b p-4">
               <h2 className="font-bold">Ticket</h2>
               <p className="text-text-muted text-xs">Se envia a la cajera para cobro.</p>
@@ -206,7 +197,8 @@ export function ArmOrderScreen() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{line.product.name}</p>
                       <p className="text-text-muted text-xs">
-                        x{line.quantity} · {money(Number(line.product.base_price ?? 0) * line.quantity)}
+                        x{line.quantity} ·{' '}
+                        {money(Number(line.product.base_price ?? 0) * line.quantity)}
                       </p>
                     </div>
                     <button
@@ -231,7 +223,11 @@ export function ArmOrderScreen() {
                 disabled={cart.length === 0 || holdOrder.isPending}
                 onClick={() => void submitOrder()}
               >
-                {holdOrder.isPending ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />}
+                {holdOrder.isPending ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  <Plus className="size-5" />
+                )}
                 Enviar a la cajera
               </Button>
             </div>

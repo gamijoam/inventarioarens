@@ -58,6 +58,16 @@ describe('<AppShell> POS integration', () => {
     expect(screen.queryByTestId('admin-topbar')).not.toBeInTheDocument();
   });
 
+  it('delega /pos/armar al contenido tactil sin sidebar ni topbar administrativos', () => {
+    routerState.pathname = '/pos/armar';
+
+    render(<AppShell>Pantalla para armar pedidos</AppShell>);
+
+    expect(screen.getByText('Pantalla para armar pedidos')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('admin-topbar')).not.toBeInTheDocument();
+  });
+
   it('conserva el shell administrativo fuera de /pos', () => {
     routerState.pathname = '/inventory';
 

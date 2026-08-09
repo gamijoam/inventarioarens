@@ -213,7 +213,7 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 
 | Cliente | Version | Tag | Assets |
 | --- | --- | --- | --- |
-| POS | 0.2.16 | `v0.2.16-pos` | `Sistema-de-Inventario-POS-0.2.16.exe` + blockmap + `pos.yml` |
+| POS | 0.2.17 | `v0.2.17-pos` | `Sistema-de-Inventario-POS-0.2.17.exe` + blockmap + `pos.yml` |
 | Admin | 0.2.5 | `v0.2.5-admin` | `Sistema-de-Inventario-Administrativo-0.2.5.exe` + blockmap + `admin.yml` |
 | Technician | 0.2.5 | `v0.2.5-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.5.exe` + blockmap + `technician.yml` |
 
@@ -231,7 +231,8 @@ Historial POS reciente (mismo `frontend/package.json`, tags `v0.2.x-pos`):
 - `0.2.13` libreria @use-gesture/react (TapButton + usePosTap)
 - `0.2.14` auditoria: disparar en pointerdown (cubre pointercancel de Android)
 - `0.2.15` nueva pantalla tactil "Armar orden" `/pos/armar` (teclado on-screen propio, redirige vendedores con `pos.orders.hold` sin `pos.checkout`)
-- `0.2.16` diagnostico visible (toast `[DIAG]`) en la pantalla de armar para confirmar si el tap llega al producto en tablet
+- `0.2.16` diagnostico temporal para confirmar si el tap llegaba al producto en tablet
+- `0.2.17` pantalla `/pos/armar` sin sidebar administrativo y productos con control tactil robusto
 
 ## LAN Server Mode
 
@@ -328,14 +329,15 @@ Nueva pagina separada del POS normal, disenada para tablets Android. Vive en
   `sellerOnlyMode` (`pos.orders.hold` sin `pos.checkout`). El POS de cajero se conserva intacto.
 - Ruta: `frontend/src/routes/_authed/pos.armar.tsx` (regenera `routeTree.gen.ts` al hacer build).
 
-### Diagnostico tablet en curso (v0.2.16)
+### Correccion tactil y de layout (v0.2.17)
 
-- Problema: en la tablet Android, tocar un producto dentro de un grid con `overflow: auto`
-  no dispara la accion, aunque los botones fuera de scroll (shell, teclado on-screen) si funcionan.
-- Hipotesis actual: el contenedor con scroll se "come" el primer tap en ese dispositivo.
-- v0.2.16 agrega un toast `[DIAG] onClick <producto> cart=N` en la pantalla de armar para
-  confirmar si el evento del tap llega. Si aparece, el problema es estado/render; si no, es el scroll.
-- Proximo paso si es el scroll: quitar `overflow-auto` del grid y dejar que la pagina haga scroll.
+- `/pos/armar` se considera una ruta POS de pantalla completa y no carga el sidebar ni la barra
+  administrativa, incluso cuando se abre desde navegador por la red local.
+- Los resultados de productos usan `TapButton`: confirma la seleccion desde `pointerdown` para
+  evitar que Android pierda la accion cuando emite `pointercancel` por scroll o teclado.
+- El pedido y su resumen se distribuyen en dos columnas en tablet y se apilan solo en telefonos.
+- El diagnostico visible de v0.2.16 fue retirado. El comportamiento queda cubierto por pruebas que
+  simulan un toque Android y verifican que el producto aparece en el pedido con el total correcto.
 
 ## Proceso completo de actualizacion (runbook operativo)
 
