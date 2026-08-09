@@ -25,6 +25,7 @@ import type { Customer } from './api';
 import type { PosCartLine, PosPaymentLine } from './posLogic';
 import type { CurrencyCode, DiscountType } from './posLogic';
 import type { Promotion } from '@/features/promotions/schemas';
+import { createClientId } from '@/lib/clientId';
 
 export type Panel =
   | 'pay'
@@ -188,7 +189,7 @@ export const usePosCartStore = create<{
         return existing.id;
       }
 
-      const id = crypto.randomUUID();
+      const id = createClientId();
       set({
         lines: [
           ...current,

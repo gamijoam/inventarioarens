@@ -28,6 +28,7 @@ import {
   useWarehousesForPos,
 } from '@/features/pos/api';
 import { TapButton } from '@/features/pos/TapButton';
+import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { applyKey, canSearch, money, normalizeSearch, type KeyAction } from './armOrderLogic';
@@ -142,7 +143,7 @@ export function ArmOrderScreen() {
           line.id === existing.id ? { ...line, quantity: line.quantity + 1 } : line,
         );
       }
-      return [...current, { id: crypto.randomUUID(), product, quantity: 1 }];
+      return [...current, { id: createClientId(), product, quantity: 1 }];
     });
     setQuery('');
   }

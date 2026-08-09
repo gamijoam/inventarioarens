@@ -156,6 +156,8 @@ almacen: los devuelve con existencia cero para distinguir "agotado" de "no exist
 La pantalla obtiene los almacenes del bootstrap del POS y, si ese resumen llega vacio, consulta
 `GET /api/warehouses` como fuente alternativa. Siempre muestra el almacen de salida seleccionado y
 no activa la busqueda de productos hasta disponer de un almacen activo.
+Los identificadores temporales del carrito y los pagos usan `createClientId`, que conserva
+compatibilidad con navegadores de tablet sin `crypto.randomUUID` mediante `crypto.getRandomValues`.
 
 Documentos clave:
 

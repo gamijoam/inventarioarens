@@ -37,6 +37,7 @@ import { usePermissionContext } from '@/permissions/PermissionContext';
 import { useSessionStore } from '@/stores/session';
 import { useAuth } from '@/auth/useAuth';
 import { cn } from '@/lib/cn';
+import { createClientId } from '@/lib/clientId';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
 import { useAvailablePosPromotions } from '@/features/promotions/api';
@@ -739,7 +740,7 @@ export function PosTerminal() {
 
     setCart([
       {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         product_id: exchangeDraft.product.id,
         name: exchangeDraft.product.name,
         sku: exchangeDraft.product.sku ?? null,
@@ -1873,7 +1874,7 @@ export function PosTerminal() {
             : line,
         );
       }
-      newLineId = crypto.randomUUID();
+      newLineId = createClientId();
       return [
         ...current,
         {
@@ -2130,7 +2131,7 @@ export function PosTerminal() {
     setPayments((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         method: configured?.method ?? method,
         currency,
         amount: paymentAmountForCurrency(
