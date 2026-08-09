@@ -32,4 +32,22 @@ describe('buildPosShellActions', () => {
     expect(callbacks.onOpenReceipt).toHaveBeenCalledOnce();
     expect(callbacks.onOpenClose).toHaveBeenCalledOnce();
   });
+
+  it('en modo vendedor solo expone Pendientes y Recibo (sin Caja ni Cerrar turno)', () => {
+    const callbacks = {
+      onOpenCash: vi.fn(),
+      onOpenPending: vi.fn(),
+      onOpenReceipt: vi.fn(),
+      onOpenClose: vi.fn(),
+    };
+
+    const actions = buildPosShellActions(callbacks, true);
+
+    expect(actions.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: 'pending', label: 'Pendientes' },
+      { id: 'receipt', label: 'Recibo' },
+    ]);
+    expect(actions.some((action) => action.id === 'cash')).toBe(false);
+    expect(actions.some((action) => action.id === 'close')).toBe(false);
+  });
 });

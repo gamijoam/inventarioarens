@@ -1,5 +1,50 @@
 # Registro de implementación
 
+## 2026-08-09 - Flujo "vendedor arma -> cajera cobra" en POS (TDD)
+
+### Backend
+- Nuevo permiso `pos.orders.hold` en `BasePermissions` (catálogo + Owner/Administrador/Gerente/Vendedor).
+- Migracion `pos_orders.seller_id` (quien armo la orden) + relacion `seller()` -> estructura lista
+  para comisiones. `cashier_id` pasa a significar quien cobro.
+- Nuevo endpoint `POST /api/pos/orders` (`PosOrderController::hold` + `PosCheckoutService::holdOrder`):
+  arma orden pendiente SIN sesion de caja, SIN pagos y SIN exigir IMEI en productos serializados;
+  reserva stock, guarda `seller_id` y emite `pos.order.pending`.
+- `addPayments` ahora acepta `cash_register_session_id` (la caja de la cajera) y `items`
+  (`sale_item_id` + `product_unit_ids`) para asignar IMEIs al cobrar; al pagar reasigna
+  `cashier_id` y `cash_register_session_id` al cobrador.
+- `PosOrderResource` expone `seller` y el payload de sync incluye `seller_id`/`seller`.
+- Contrato TDD: `tests/Feature/POS/PosHoldOrderApiTest.php` (10 tests) aprobado antes de implementar.
+
+### Frontend
+- `api.ts`: `useHoldOrder` (POST /pos/orders), `useAddPosPayments` con sesion + items, schema con
+  `seller`/`seller_id`/`cashier_id`.
+- `PosTerminal`: modo vendedor (`pos.orders.hold` sin `pos.checkout`) permite armar sin caja
+  (boton "Armar orden", oculta Pago/CxC/Caja/Cerrar turno, atajos adaptados). `holdSale` ya no usa
+  el hack del pago de 0.01. `recoverPendingOrder` conserva `sale_item_id` y `payPendingOrder` envia
+  la sesion de la cajera + IMEIs asignados. `HoldPanel` muestra "Armada por <vendedor>".
+
+### Nota operativa: aplicar permisos en nube y local
+- Roles/permisos **NO viajan por sync** (solo datos de negocio). Se siembran desde `BasePermissions`
+  en cada lado con el codigo actualizado.
+- **Nube (VPS)**: `php artisan db:seed --class=RolesAndPermissionsSeeder --force` para crear
+  `pos.orders.hold` y actualizar los roles (idempotente).
+- **Local**: el permiso llega con el release del cliente; para nodos ya preparados basta re-correr
+  `sync:prepare-local <slug> <empresa> <email>` (idempotente) que recrea permisos/roles, o
+  re-vincular la empresa desde el Soporte Tecnico.
+
+## 2026-08-09 - Release de los tres clientes Electron en v0.2.3
+
+- El technician ya tenia releases publicados de sesiones previas (`v0.2.2-technician`,
+  `v0.2.3-technician`), aunque no tenian workflow run asociado visible.
+- El **admin nunca habia sido publicado**: se lanzo `gh workflow run release.yml -f client=admin`
+  (run `31285672554`, 3m57s) y quedo publicado `v0.2.3-admin` (non-draft) con
+  `Sistema-de-Inventario-Administrativo-0.2.3.exe` + `.blockmap` + `admin.yml`.
+- Los tres clientes quedan ahora en **0.2.3** alineados (POS, Admin, Technician). Importante porque
+  comparten el SQLite local y el puerto `127.0.0.1:8787`; versiones desalineadas de backend pueden
+  servir una DB ya migrada por otro cliente.
+- Se documentó el **runbook de publicación de fixes** paso a paso (bump de versión → workflow →
+  verificación → errores comunes) en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
+
 ## 2026-08-08 - Sync bidireccional, workers automáticos y sistema de updates Electron
 
 ### Sincronización local ↔ nube (fixes de fondo)

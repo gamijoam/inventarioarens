@@ -200,6 +200,11 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
 - **Excepciones por diseño**:
   - Eventos append-only (ventas, pagos, caja, kardex) — nunca se sobreescriben, solo se anexan + auditan.
   - Datos admin-managed (precios, tasas, permisos) — nube gana.
+  - ⚠️ **Roles y permisos NO viajan por sync**: cada nodo (nube y local) los siembra desde
+    `BasePermissions` con el código. En la nube: `php artisan db:seed --class=RolesAndPermissionsSeeder --force`
+    (idempotente) tras el deploy. En local: el permiso llega con el release del cliente; para nodos
+    ya preparados re-correr `sync:prepare-local <slug> <empresa> <email>` (idempotente) o re-vincular
+    desde el Soporte Técnico.
   - Productos — campos separados entre cloud-managed y local-operational.
   - Clientes — upsert por documento/teléfono/UUID.
 - **Token de sync** vs **token de usuario**:

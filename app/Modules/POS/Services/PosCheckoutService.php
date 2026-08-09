@@ -214,10 +214,60 @@ class PosCheckoutService
         }, 1200, ['items' => count($items), 'payments' => count($payments)]);
     }
 
-    public function addPayments(PosOrder $order, User $cashier, array $payments): PosOrder
+    public function holdOrder(
+        User $seller,
+        array $items,
+        ?int $customerId = null,
+        ?string $customerName = null,
+        ?int $promotionId = null,
+        ?string $promotionCode = null,
+    ): PosOrder {
+        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode): PosOrder {
+            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode): PosOrder {
+                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
+
+                $sale = PerformanceProbe::measure(
+                    'POS armar crear venta borrador',
+                    fn (): Sale => $this->sales->createDraft($seller, $items, $customerId),
+                    500,
+                    ['items' => count($items)]
+                );
+
+                $order = PosOrder::create([
+                    'sale_id' => $sale->id,
+                    'cash_register_session_id' => null,
+                    'customer_id' => $customerId,
+                    'status' => PosOrder::STATUS_OPEN,
+                    'seller_id' => $seller->id,
+                    'customer_name' => $customerName,
+                    'total_base_amount' => $sale->total_base_amount,
+                    'total_local_amount' => $sale->total_local_amount,
+                    'opened_at' => now(),
+                ]);
+
+                PerformanceProbe::measure(
+                    'POS armar reservar stock',
+                    fn () => $this->reserveOrderInventory($order, $seller, requireSerialUnits: false),
+                    500,
+                    ['order_id' => $order->id, 'items' => count($items)]
+                );
+
+                $this->recordOrderSyncEvent($order->refresh(), 'pos.order.pending');
+
+                return PerformanceProbe::measure(
+                    'POS armar cargar respuesta',
+                    fn (): PosOrder => $order->refresh()->load(['customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    300,
+                    ['order_id' => $order->id]
+                );
+            });
+        }, 1200, ['items' => count($items)]);
+    }
+
+    public function addPayments(PosOrder $order, User $cashier, array $payments, ?int $cashRegisterSessionId = null, array $chargeItems = []): PosOrder
     {
-        return PerformanceProbe::measure('POS completar orden pendiente total', function () use ($order, $cashier, $payments): PosOrder {
-            return DB::transaction(function () use ($order, $cashier, $payments): PosOrder {
+        return PerformanceProbe::measure('POS completar orden pendiente total', function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems): PosOrder {
+            return DB::transaction(function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems): PosOrder {
                 $order = PosOrder::query()
                     ->with(['sale.items', 'cashRegisterSession', 'payments'])
                     ->lockForUpdate()
@@ -235,7 +285,16 @@ class PosCheckoutService
                     ]);
                 }
 
-                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
+                $this->applyChargeItemsToSale($order, $chargeItems);
+
+                $sessionId = $cashRegisterSessionId ?? $order->cash_register_session_id;
+                if (! $sessionId) {
+                    throw ValidationException::withMessages([
+                        'cash_register_session_id' => 'Indica la sesion de caja con la que se cobra la orden.',
+                    ]);
+                }
+
+                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($sessionId);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
 
                 $priceLists = $this->priceListsForItems($this->itemsForExistingOrder($order));
@@ -331,6 +390,8 @@ class PosCheckoutService
                     );
                     $order->update([
                         'status' => PosOrder::STATUS_PAID,
+                        'cashier_id' => $cashier->id,
+                        'cash_register_session_id' => $cashRegisterSession->id,
                         'paid_at' => now(),
                         'closed_at' => now(),
                     ]);
@@ -579,6 +640,88 @@ class PosCheckoutService
             ->all();
     }
 
+    /**
+     * Asigna los IMEI/seriales elegidos por la cajera a los sale_items de
+     * una orden armada sin IMEI. Tambien valida que los productos
+     * serializados queden con un IMEI por unidad antes de cobrar.
+     *
+     * @param  array<int, array{sale_item_id:int, product_unit_ids?:int[]}>  $chargeItems
+     */
+    private function applyChargeItemsToSale(PosOrder $order, array $chargeItems): void
+    {
+        if ($chargeItems === []) {
+            $order->loadMissing('sale.items.product');
+            $this->assertSerializedItemsHaveUnits($order);
+
+            return;
+        }
+
+        $saleItemIds = collect($chargeItems)
+            ->pluck('sale_item_id')
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $items = $order->sale->items->keyBy('id');
+
+        if (count($saleItemIds) !== count($items->intersectByKeys(array_flip($saleItemIds)))) {
+            throw ValidationException::withMessages([
+                'items' => 'La asignacion de seriales no coincide con los items de la orden.',
+            ]);
+        }
+
+        $assignedByItem = [];
+        foreach ($chargeItems as $chargeItem) {
+            $itemId = (int) $chargeItem['sale_item_id'];
+            $unitIds = $chargeItem['product_unit_ids'] ?? [];
+            $item = $items->get($itemId);
+
+            if (! $item) {
+                throw ValidationException::withMessages([
+                    'items' => 'La asignacion de seriales incluye un item que no pertenece a la orden.',
+                ]);
+            }
+
+            if ($item->product->requiresSerializedTracking() && count($unitIds) !== (int) $item->quantity) {
+                throw ValidationException::withMessages([
+                    'items' => 'Los productos serializados requieren seleccionar un IMEI o serial por cada unidad vendida.',
+                ]);
+            }
+
+            $assignedByItem[$itemId] = array_values(array_map('intval', $unitIds));
+        }
+
+        foreach ($items as $item) {
+            if (! isset($assignedByItem[$item->id])) {
+                continue;
+            }
+
+            $item->update([
+                'product_unit_ids' => $assignedByItem[$item->id] ?: null,
+            ]);
+        }
+
+        $order->load('sale.items.product');
+        $this->assertSerializedItemsHaveUnits($order);
+    }
+
+    private function assertSerializedItemsHaveUnits(PosOrder $order): void
+    {
+        foreach ($order->sale->items as $item) {
+            if (! $item->product->requiresSerializedTracking()) {
+                continue;
+            }
+
+            $unitIds = $item->product_unit_ids ?? [];
+            if ((float) $item->quantity !== floor((float) $item->quantity) || count($unitIds) !== (int) $item->quantity) {
+                throw ValidationException::withMessages([
+                    'items' => 'Los productos serializados requieren seleccionar un IMEI o serial por cada unidad vendida.',
+                ]);
+            }
+        }
+    }
+
     private function resolveConfiguredPaymentMethod(array $payment, $restrictedPriceLists, int $index): ?PaymentMethod
     {
         $query = PaymentMethod::query()
@@ -729,7 +872,7 @@ class PosCheckoutService
         return round($paidBase, 4) + 0.0001 >= round($totalBase, 4);
     }
 
-    private function reserveOrderInventory(PosOrder $order, User $cashier): void
+    private function reserveOrderInventory(PosOrder $order, User $cashier, bool $requireSerialUnits = true): void
     {
         if ($this->orderHasReservation($order)) {
             return;
@@ -749,7 +892,9 @@ class PosCheckoutService
                 productVariantId: $item->product_variant_id,
             );
 
-            $this->reserveProductUnitsForSaleItem($item, $movement);
+            if ($requireSerialUnits) {
+                $this->reserveProductUnitsForSaleItem($item, $movement);
+            }
         }
     }
 
@@ -902,6 +1047,7 @@ class PosCheckoutService
     {
         $order->loadMissing([
             'cashier',
+            'seller',
             'customer',
             'cashRegisterSession.branch',
             'cashRegisterSession.cashRegister',
@@ -987,6 +1133,8 @@ class PosCheckoutService
                     'branch_name' => $session?->branch?->name,
                     'cash_register_name' => $session?->cashRegister?->name,
                     'cashier_name' => $order->cashier?->name,
+                    'seller_id' => $order->seller_id,
+                    'seller_name' => $order->seller?->name,
                     'customer_document_type' => $customer?->document_type,
                     'customer_document_number' => $customer?->document_number,
                     'total_base_amount' => (string) $order->total_base_amount,
@@ -1005,6 +1153,10 @@ class PosCheckoutService
                 'cashier' => [
                     'name' => $order->cashier?->name,
                     'email' => $order->cashier?->email,
+                ],
+                'seller' => [
+                    'name' => $order->seller?->name,
+                    'email' => $order->seller?->email,
                 ],
                 'customer' => [
                     'name' => $customer?->name,

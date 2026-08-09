@@ -47,6 +47,7 @@ import {
   type CheckoutPayload,
   type CreateCustomerPayload,
   type Customer,
+  type HoldPayload,
   type PosOrder,
   type PosPaymentMethod,
   type PaymentMethod,
@@ -57,6 +58,7 @@ import {
   useAvailableProductSerialsForPos,
   useCancelPosOrder,
   useCheckout,
+  useHoldOrder,
   useCloseCashSession,
   useCreateCustomerForPos,
   useCustomers,
@@ -210,14 +212,11 @@ export interface PosShellActionCallbacks {
   onOpenClose: () => void;
 }
 
-export function buildPosShellActions(callbacks: PosShellActionCallbacks): PosShellAction[] {
-  return [
-    {
-      id: 'cash',
-      label: 'Caja',
-      permission: PERMISSIONS.CASH_REGISTER_VIEW,
-      onClick: callbacks.onOpenCash,
-    },
+export function buildPosShellActions(
+  callbacks: PosShellActionCallbacks,
+  sellerOnlyMode = false,
+): PosShellAction[] {
+  const actions: PosShellAction[] = [
     {
       id: 'pending',
       label: 'Pendientes',
@@ -230,13 +229,26 @@ export function buildPosShellActions(callbacks: PosShellActionCallbacks): PosShe
       permission: PERMISSIONS.POS_VIEW,
       onClick: callbacks.onOpenReceipt,
     },
-    {
+  ];
+
+  if (!sellerOnlyMode) {
+    actions.unshift(
+      {
+        id: 'cash',
+        label: 'Caja',
+        permission: PERMISSIONS.CASH_REGISTER_VIEW,
+        onClick: callbacks.onOpenCash,
+      },
+    );
+    actions.push({
       id: 'close',
       label: 'Cerrar turno',
       permission: PERMISSIONS.CASH_REGISTER_CLOSE,
       onClick: callbacks.onOpenClose,
-    },
-  ];
+    });
+  }
+
+  return actions;
 }
 
 export function formatPosRateLabel(
@@ -258,7 +270,14 @@ export function PosTerminal() {
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
+  const canHold = permissions.has(PERMISSIONS.POS_ORDERS_HOLD);
   const canDiscount = permissions.has(PERMISSIONS.POS_DISCOUNT);
+  /**
+   * Modo vendedor: arma ordenes con pos.orders.hold pero NO cobra
+   * (no tiene pos.checkout). No requiere abrir sesion de caja y la UI
+   * oculta el cobro/pago.
+   */
+  const sellerOnlyMode = canHold && !canCheckout;
   const canViewPromotions = permissions.has(PERMISSIONS.POS_PROMOTIONS_VIEW);
   const canCollectReceivables = permissions.has(PERMISSIONS.ACCOUNTS_RECEIVABLE_COLLECT);
   const canCancel = permissions.has(PERMISSIONS.POS_CANCEL);
@@ -488,6 +507,7 @@ export function PosTerminal() {
       : null;
   const priceListPaymentIssue = priceListMethodIssue ?? priceListRateIssue;
   const checkout = useCheckout();
+  const holdOrder = useHoldOrder();
   const completeExchange = useCompleteSalesReturnExchange();
   const addPayments = useAddPosPayments();
   const cancelOrder = useCancelPosOrder();
@@ -565,12 +585,15 @@ export function PosTerminal() {
     hasActiveSession: Boolean(activeSession),
     isOnline,
   });
-  const shellActions = buildPosShellActions({
-    onOpenCash: () => setPanel('cash'),
-    onOpenPending: () => setPanel('hold'),
-    onOpenReceipt: () => setPanel('receipt'),
-    onOpenClose: () => setPanel('cash'),
-  });
+  const shellActions = buildPosShellActions(
+    {
+      onOpenCash: () => setPanel('cash'),
+      onOpenPending: () => setPanel('hold'),
+      onOpenReceipt: () => setPanel('receipt'),
+      onOpenClose: () => setPanel('cash'),
+    },
+    sellerOnlyMode,
+  );
   const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
   const { data: availableSerials = [], isLoading: loadingSerials } =
     useAvailableProductSerialsForPos(
@@ -753,7 +776,11 @@ export function PosTerminal() {
         })
       ) {
         event.preventDefault();
-        void confirmPaidSaleRef.current?.();
+        if (sellerOnlyMode) {
+          void holdSaleRef.current?.();
+        } else {
+          void confirmPaidSaleRef.current?.();
+        }
         return;
       }
 
@@ -761,6 +788,9 @@ export function PosTerminal() {
         event.preventDefault();
         switch (event.key) {
           case 'F2': {
+            if (sellerOnlyMode) {
+              return;
+            }
             if (priceListPaymentIssue) {
               toast.error(priceListPaymentIssue);
               return;
@@ -816,6 +846,7 @@ export function PosTerminal() {
     customerName,
     query,
     panel,
+    sellerOnlyMode,
     priceListPaymentIssue,
     setPanel,
     setProductSearch,
@@ -843,12 +874,13 @@ export function PosTerminal() {
   }
 
   if (
-    cashSessionClosed ||
-    (!activeSession &&
-      !cashSessionOpening &&
-      !bootstrap.isLoading &&
-      !bootstrap.isError &&
-      bootstrapReady)
+    !sellerOnlyMode &&
+    (cashSessionClosed ||
+      (!activeSession &&
+        !cashSessionOpening &&
+        !bootstrap.isLoading &&
+        !bootstrap.isError &&
+        bootstrapReady))
   ) {
     return (
       <PosShell
@@ -1067,22 +1099,38 @@ export function PosTerminal() {
             </div>
           </div>
           <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                void confirmPaidSale();
-              }}
-              disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-              className="shadow-sm"
-            >
-              {checkout.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CreditCard className="size-4" />
-              )}
-              Cobrar
-            </Button>
+            {sellerOnlyMode ? (
+              <Button
+                size="sm"
+                onClick={() => void holdSale()}
+                disabled={cart.length === 0 || holdOrder.isPending}
+                className="shadow-sm"
+              >
+                {holdOrder.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <PauseCircle className="size-4" />
+                )}
+                Armar orden
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                  void confirmPaidSale();
+                }}
+                disabled={Boolean(checkoutBlockReason) || checkout.isPending}
+                className="shadow-sm"
+              >
+                {checkout.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CreditCard className="size-4" />
+                )}
+                Cobrar
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1093,17 +1141,19 @@ export function PosTerminal() {
             >
               <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                setPanel('pay');
-              }}
-              disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-            >
-              <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
-            </Button>
+            {!sellerOnlyMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                  setPanel('pay');
+                }}
+                disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+              >
+                <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
+              </Button>
+            )}
             {canViewPromotions && (
               <Button
                 variant={selectedPromotion ? 'secondary' : 'outline'}
@@ -1117,14 +1167,16 @@ export function PosTerminal() {
             <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
               <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={cart.length === 0 || !canCheckout || checkout.isPending}
-              onClick={() => void holdSale()}
-            >
-              <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
-            </Button>
+            {!sellerOnlyMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={cart.length === 0 || !canCheckout || checkout.isPending}
+                onClick={() => void holdSale()}
+              >
+                <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
+              </Button>
+            )}
           </div>
         </header>
 
@@ -1329,35 +1381,52 @@ export function PosTerminal() {
                   {checkoutBlockReason}
                 </p>
               )}
-              <Button
-                className="h-12 w-full text-base"
-                disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-                onClick={() => void confirmPaidSale()}
-              >
-                {checkout.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CreditCard className="size-5" />
-                )}
-                <ShortcutText label="F10" text="Cobrar" />
-              </Button>
-              <Button
-                className="h-10 w-full"
-                variant="secondary"
-                disabled={
-                  !canCheckout ||
-                  !canCollectReceivables ||
-                  cart.length === 0 ||
-                  hasStockIssue(cart) ||
-                  hasPriceIssue(cart) ||
-                  Boolean(priceListPaymentIssue) ||
-                  checkout.isPending
-                }
-                onClick={() => setPanel('credit')}
-              >
-                <Wallet className="size-4" />
-                Enviar a CxC
-              </Button>
+              {sellerOnlyMode ? (
+                <Button
+                  className="h-12 w-full text-base"
+                  disabled={cart.length === 0 || holdOrder.isPending}
+                  onClick={() => void holdSale()}
+                >
+                  {holdOrder.isPending ? (
+                    <Loader2 className="size-5 animate-spin" />
+                  ) : (
+                    <PauseCircle className="size-5" />
+                  )}
+                  Armar orden
+                </Button>
+              ) : (
+                <Button
+                  className="h-12 w-full text-base"
+                  disabled={Boolean(checkoutBlockReason) || checkout.isPending}
+                  onClick={() => void confirmPaidSale()}
+                >
+                  {checkout.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="size-5" />
+                  )}
+                  <ShortcutText label="F10" text="Cobrar" />
+                </Button>
+              )}
+              {!sellerOnlyMode && (
+                <Button
+                  className="h-10 w-full"
+                  variant="secondary"
+                  disabled={
+                    !canCheckout ||
+                    !canCollectReceivables ||
+                    cart.length === 0 ||
+                    hasStockIssue(cart) ||
+                    hasPriceIssue(cart) ||
+                    Boolean(priceListPaymentIssue) ||
+                    checkout.isPending
+                  }
+                  onClick={() => setPanel('credit')}
+                >
+                  <Wallet className="size-4" />
+                  Enviar a CxC
+                </Button>
+              )}
             </div>
           </aside>
         </main>
@@ -1454,6 +1523,7 @@ export function PosTerminal() {
                 orders={pendingOrders}
                 selected={selectedPending}
                 canCancel={canCancel}
+                canCharge={canCheckout}
                 onSelect={setSelectedPending}
                 onPaySelected={() => selectedPending && void recoverPendingOrder(selectedPending)}
                 onCancel={(order) => cancelOrder.mutate(order.id)}
@@ -2164,7 +2234,7 @@ export function PosTerminal() {
   }
 
   async function holdSale(): Promise<void> {
-    if (!activeSession || cart.length === 0) return;
+    if (cart.length === 0) return;
     if (priceListPaymentIssue) {
       toast.error(priceListPaymentIssue);
       return;
@@ -2173,27 +2243,17 @@ export function PosTerminal() {
       toast.error(priceIssue);
       return;
     }
-    if (serialIssue) {
-      toast.error(serialIssue);
-      openMissingSerialPanel();
-      return;
-    }
-    if (!canCheckout) {
-      toast.error('No tienes permiso pos.checkout para poner ventas en espera.');
+    if (!canHold) {
+      toast.error('No tienes permiso pos.orders.hold para armar ordenes.');
       return;
     }
     try {
-      await checkout.mutateAsync({
-        ...buildCheckoutPayload(activeSession.id, 'pending'),
-        payments: [
-          { method: 'cash', currency: 'USD', amount: 0.01, status: 'pending', reference: 'hold' },
-        ],
-      });
+      await holdOrder.mutateAsync(buildHoldPayload());
       clearTicket();
-      toast.success('Venta puesta en espera.');
+      toast.success('Orden armada. La cajera podra cobrarla.');
     } catch (error) {
       void bootstrap.refetch();
-      toast.error(error instanceof Error ? error.message : 'No se pudo poner la venta en espera.');
+      toast.error(error instanceof Error ? error.message : 'No se pudo armar la orden.');
     }
   }
 
@@ -2202,9 +2262,21 @@ export function PosTerminal() {
       toast.error('Agrega pagos para completar el ticket.');
       return;
     }
+    if (!activeSession) {
+      toast.error('No hay caja abierta para cobrar.');
+      return;
+    }
+    const items = cart
+      .filter((line) => line.sale_item_id && (line.selected_serials?.length ?? 0) > 0)
+      .map((line) => ({
+        sale_item_id: line.sale_item_id!,
+        product_unit_ids: (line.selected_serials ?? []).map((serial) => serial.id),
+      }));
     const paid = await addPayments.mutateAsync({
       orderId: order.id,
       payments: payments.map(toPaymentPayload),
+      cashRegisterSessionId: activeSession.id,
+      items,
     });
     setLastReceipt(paid);
     void createAndDispatchPrintJobs(paid, false);
@@ -2258,6 +2330,7 @@ export function PosTerminal() {
             sku: product.sku,
             barcode: product.barcode,
             warehouse_id: item.warehouse_id,
+            sale_item_id: item.id,
             quantity: Number(item.quantity),
             available_stock: Math.max(Number(product.available_stock ?? 0), Number(item.quantity)),
             unit_price: Number(item.unit_price),
@@ -2320,6 +2393,27 @@ export function PosTerminal() {
             : [],
       })),
       payments: status === 'captured' ? payments.map(toPaymentPayload) : [],
+    };
+  }
+
+  function buildHoldPayload(): HoldPayload {
+    return {
+      customer_id: selectedCustomer?.id ?? null,
+      customer_name: selectedCustomer ? selectedCustomer.name : customerName,
+      promotion_id: selectedPromotion?.id ?? null,
+      promotion_code: selectedPromotion?.code ?? null,
+      items: cart.map((line) => ({
+        warehouse_id: line.warehouse_id,
+        product_id: line.product_id,
+        price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
+        price_source:
+          line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
+        quantity: line.quantity,
+        discount_type: canDiscount ? (line.discount_type ?? null) : null,
+        discount_value: canDiscount ? (line.discount_value ?? null) : null,
+        discount_reason: canDiscount ? (line.discount_reason ?? null) : null,
+        product_unit_ids: [],
+      })),
     };
   }
 
@@ -3408,6 +3502,7 @@ function HoldPanel(props: {
   orders: PosOrder[];
   selected: PosOrder | null;
   canCancel: boolean;
+  canCharge: boolean;
   onSelect: (order: PosOrder) => void;
   onPaySelected: () => void;
   onCancel: (order: PosOrder) => void;
@@ -3418,7 +3513,7 @@ function HoldPanel(props: {
         <EmptyPanelState
           icon={<PauseCircle className="size-7" />}
           title="Sin tickets en espera"
-          description="Cuando pauses una venta aparecerá aquí para retomarla y cobrarla."
+          description="Cuando armes o pongas en espera una venta aparecerá aquí para retomarla y cobrarla."
         />
       )}
       {props.orders.length > 0 && (
@@ -3442,6 +3537,11 @@ function HoldPanel(props: {
                     <p className="text-text-muted text-sm">
                       {order.customer_name ?? 'Consumidor Final'}
                     </p>
+                    {order.seller?.name && (
+                      <p className="text-text-muted mt-1 text-xs">
+                        Armada por {order.seller.name}
+                      </p>
+                    )}
                   </div>
                   <p className="text-xl font-bold">{money(order.total_base_amount ?? 0)}</p>
                 </div>
@@ -3458,13 +3558,15 @@ function HoldPanel(props: {
             }
           >
             <div className="space-y-2">
-              <Button
-                className="h-11 w-full"
-                disabled={!props.selected}
-                onClick={props.onPaySelected}
-              >
-                Cobrar seleccionado
-              </Button>
+              {props.canCharge ? (
+                <Button
+                  className="h-11 w-full"
+                  disabled={!props.selected}
+                  onClick={props.onPaySelected}
+                >
+                  Cobrar seleccionado
+                </Button>
+              ) : null}
               {props.selected && props.canCancel && (
                 <Button
                   className="h-11 w-full"

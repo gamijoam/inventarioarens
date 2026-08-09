@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'customer_id',
     'status',
     'cashier_id',
+    'seller_id',
     'customer_name',
     'total_base_amount',
     'total_local_amount',
@@ -58,6 +59,11 @@ class PosOrder extends Model
     public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    public function seller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'seller_id');
     }
 
     public function cashRegisterSession(): BelongsTo

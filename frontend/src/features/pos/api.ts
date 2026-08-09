@@ -261,15 +261,25 @@ export const PosOrderSchema = z
   .object({
     id: z.number().int(),
     sale_id: z.number().int().nullable().optional(),
-    cash_register_session_id: z.number().int(),
+    cash_register_session_id: z.number().int().nullable().optional(),
     customer_id: z.number().int().nullable().optional(),
     status: z.string(),
+    cashier_id: z.number().int().nullable().optional(),
+    seller_id: z.number().int().nullable().optional(),
     customer_name: z.string().nullable().optional(),
     total_base_amount: nullableNumber,
     paid_base_amount: nullableNumber,
     opened_at: z.string().nullable().optional(),
     paid_at: z.string().nullable().optional(),
     payments: z.array(PosPaymentSchema).optional(),
+    seller: z
+      .object({
+        id: z.number().int(),
+        name: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
     sale: z.unknown().optional(),
   })
   .passthrough();
@@ -317,6 +327,28 @@ export interface CheckoutPayload {
     status?: 'captured' | 'pending' | 'failed';
     reference?: string | null;
   }>;
+}
+
+/**
+ * Payload para armar una orden pendiente (POST /api/pos/orders).
+ * No lleva sesion de caja ni pagos: el vendedor solo arma el ticket y la
+ * cajera lo cobra despues con su propia sesion.
+ */
+export interface HoldPayload {
+  customer_id?: number | null;
+  customer_name?: string | null;
+  promotion_id?: number | null;
+  promotion_code?: string | null;
+  items: CheckoutPayload['items'];
+}
+
+/**
+ * Items opcionales que la cajera envia al cobrar una orden armada sin IMEI.
+ * Cada entrada asigna IMEIs/seriales a un sale_item de la orden.
+ */
+export interface ChargeItemPayload {
+  sale_item_id: number;
+  product_unit_ids: number[];
 }
 
 export interface OpenCashSessionPayload {
@@ -516,20 +548,44 @@ export function useCheckout() {
   });
 }
 
+export function useHoldOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: HoldPayload) =>
+      postOne<HoldPayload, PosOrder>('/pos/orders', payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
+      void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
+    },
+  });
+}
+
 export function useAddPosPayments() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       orderId,
       payments,
+      cashRegisterSessionId,
+      items,
     }: {
       orderId: number;
       payments: CheckoutPayload['payments'];
+      cashRegisterSessionId?: number | null;
+      items?: ChargeItemPayload[];
     }) =>
-      postOne<{ payments: CheckoutPayload['payments'] }, PosOrder>(
-        `/pos/orders/${orderId}/payments`,
-        { payments },
-      ),
+      postOne<
+        {
+          payments: CheckoutPayload['payments'];
+          cash_register_session_id?: number | null;
+          items?: ChargeItemPayload[];
+        },
+        PosOrder
+      >(`/pos/orders/${orderId}/payments`, {
+        payments,
+        cash_register_session_id: cashRegisterSessionId ?? null,
+        items: items && items.length > 0 ? items : undefined,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });

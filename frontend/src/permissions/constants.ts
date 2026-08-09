@@ -42,6 +42,7 @@ export const PERMISSIONS = {
 
   // POS
   POS_VIEW: 'pos.view',
+  POS_ORDERS_HOLD: 'pos.orders.hold',
   POS_CHECKOUT: 'pos.checkout',
   POS_CANCEL: 'pos.cancel',
   POS_DISCOUNT: 'pos.discount',

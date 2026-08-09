@@ -8,6 +8,12 @@ export interface PosCartLine {
   sku?: string | null;
   barcode?: string | null;
   warehouse_id: number;
+  /**
+   * ID del sale_item de la orden armada cuando esta linea se recupero de
+   * un ticket en espera. Se usa al cobrar para asignar IMEIs/seriales al
+   * item original de la venta (POST /pos/orders/{id}/payments items).
+   */
+  sale_item_id?: number | null;
   quantity: number;
   available_stock: number;
   unit_price: number;

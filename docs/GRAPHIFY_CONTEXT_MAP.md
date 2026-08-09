@@ -256,7 +256,8 @@ construye en Windows y publica con `gh release create v<version>-<client>` (no-d
 
 Documento principal:
 
-- [Electron updates y technician](ELECTRON_UPDATES_AND_TECHNICIAN.md)
+- [Electron updates y technician](ELECTRON_UPDATES_AND_TECHNICIAN.md) — incluye el runbook de
+  publicacion de fixes (bump de version, workflow por cliente, verificacion y tabla de errores comunes)
 
 La sincronizacion de escritorio corre por **tareas programadas de Windows** (una por
 empresa, cada 1 minuto) que ejecutan `sync-worker.cmd run` -> `php artisan sync:run`,

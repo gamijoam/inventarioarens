@@ -31,10 +31,12 @@ import {
   useBranchesForPos,
   useCashSessions,
   useCheckout,
+  useAddPosPayments,
   useCreateCashRegister,
   useCreateCustomerForPos,
   useCreatePaymentMethod,
   useCloseCashSession,
+  useHoldOrder,
   useOpenCashSession,
   usePosBootstrap,
   usePosProducts,
@@ -633,6 +635,78 @@ describe('pos api', () => {
       credit_due_date: '2026-08-01',
       items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
       payments: [],
+    });
+  });
+
+  it('arma una orden pendiente (hold) SIN sesion de caja ni pagos', async () => {
+    mockPostOne.mockResolvedValue({ id: 21, status: 'open', sale_id: 31, seller_id: 7 });
+
+    const { result } = renderHook(() => useHoldOrder(), { wrapper });
+    result.current.mutate({
+      customer_id: 5,
+      customer_name: 'Cliente Mostrador',
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 2 }],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/pos/orders', {
+      customer_id: 5,
+      customer_name: 'Cliente Mostrador',
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 2 }],
+    });
+    expect(result.current.data?.seller_id).toBe(7);
+  });
+
+  it('completa el cobro de una orden pendiente con la sesion de la cajera e IMEIs asignados', async () => {
+    mockPostOne.mockResolvedValue({ id: 21, status: 'paid', sale_id: 31 });
+
+    const { result } = renderHook(() => useAddPosPayments(), { wrapper });
+    result.current.mutate({
+      orderId: 21,
+      cashRegisterSessionId: 9,
+      items: [{ sale_item_id: 41, product_unit_ids: [101, 102] }],
+      payments: [
+        {
+          method: 'cash',
+          currency: 'USD',
+          amount: 200,
+          status: 'captured',
+        },
+      ],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/pos/orders/21/payments', {
+      payments: [
+        {
+          method: 'cash',
+          currency: 'USD',
+          amount: 200,
+          status: 'captured',
+        },
+      ],
+      cash_register_session_id: 9,
+      items: [{ sale_item_id: 41, product_unit_ids: [101, 102] }],
+    });
+  });
+
+  it('completa el cobro de una orden pendiente SIN items cuando no hay IMEIs', async () => {
+    mockPostOne.mockResolvedValue({ id: 22, status: 'paid', sale_id: 32 });
+
+    const { result } = renderHook(() => useAddPosPayments(), { wrapper });
+    result.current.mutate({
+      orderId: 22,
+      cashRegisterSessionId: 10,
+      payments: [{ method: 'transfer', currency: 'USD', amount: 100 }],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith('/pos/orders/22/payments', {
+      payments: [{ method: 'transfer', currency: 'USD', amount: 100 }],
+      cash_register_session_id: 10,
     });
   });
 });

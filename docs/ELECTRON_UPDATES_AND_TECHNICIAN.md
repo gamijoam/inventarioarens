@@ -142,6 +142,81 @@ validated locally with `phpunit.sqlite.xml`; running it in CI with PostgreSQL to
 had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI.
 The demo seeder tests are tagged `@group heavy`.
 
+## Runbook: publicar un fix (PASO A PASO)
+
+Este es el flujo completo para lanzar un cambio (bugfix o feature) a los clientes de escritorio.
+El backend Laravel viaja DENTRO de cada cliente (`resources/backend`), asi que **no hay
+actualizacion de backend separada**: cada fix de la app = un release nuevo del cliente.
+
+### Antes de empezar (checklist)
+
+- [ ] Los cambios backend corren al menos los tests del modulo afectado: `php vendor/bin/phpunit tests/Feature/<Modulo>/`
+- [ ] Los cambios frontend pasan typecheck y tests: `cd frontend && pnpm typecheck && pnpm test`
+- [ ] El fix esta commiteado y pusheado a `origin/main` (el workflow publica desde el repo, no desde tu PC)
+
+### Paso 1 - Subir version en frontend/package.json
+
+electron-updater SOLO actualiza cuando la version publicada es **mayor** que la instalada. Si no
+subes la version, re-publicar lo mismo NO reinstala nada en las maquinas ya actualizadas.
+
+```bash
+# En frontend/package.json sube el campo "version" (semver), e.g. 0.2.3 -> 0.2.4
+git add frontend/package.json
+git commit -m "chore: bump version to 0.2.4"
+git push
+```
+
+### Paso 2 - Publicar el/los cliente(s)
+
+Un release por cliente, tag `v<version>-<client>`:
+
+```bash
+gh workflow run release.yml -f client=pos          --repo gamijoam/inventarioarens
+gh workflow run release.yml -f client=admin        --repo gamijoam/inventarioarens
+gh workflow run release.yml -f client=technician   --repo gamijoam/inventarioarens
+```
+
+Seguir el estado hasta que termine (3-4 min):
+
+```bash
+gh run watch --repo gamijoam/inventarioarens
+```
+
+Regla de oro: si una PC tiene los tres clientes instalados y comparten el SQLite local y el puerto
+`127.0.0.1:8787`, **publica los tres a la misma version** para evitar que un backend viejo sirva
+contra una DB ya migrada por otro cliente nuevo.
+
+### Paso 3 - Verificar la publicacion
+
+```bash
+# Debe salir no-draft y con 3 assets (.exe, .blockmap, <channel>.yml)
+gh release view v0.2.4-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets
+```
+
+### Paso 4 - En la PC del usuario
+
+El cliente chequea actualizaciones al abrir y cada 1 minuto, descarga en background y pregunta si
+reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
+
+### Errores comunes y que hacer
+
+| Sintoma | Causa probable | Fix |
+| --- | --- | --- |
+| El release publica la UI vieja / el fix "no llego" | `electron-builder` empaqueto sin regenerar `dist/<client>` | El workflow SIEMPRE corre `pnpm run build:<client>` antes de empaquetar. Si publicaste desde tu PC manualmente, corre `pnpm run build:<client>` antes de `electron-builder`. |
+| Release queda en Draft o sin `.exe` | electron-builder + GITHUB_TOKEN deja drafts y puede soltar el instalador grande | El workflow publica explícito con `gh release create` (no-draft). Si hiciste publish manual y quedo draft, repite el fallback manual con `gh release create`. |
+| La maquina no descarga la nueva version | Version no bumpiada o canal equivocado | El updater solo aplica versiones MAYORES. Verifica que subiste `package.json` y que el tag es `v<version>-<client>`. |
+| Los tres clientes quedan en la misma carpeta y se pisan el `app.asar` | Installers antiguos compartiendo `%LOCALAPPDATA%\Programs\inventarioarens-frontend\` | Reinstalar con los builds nuevos (`oneClick: false` + `executableName` por cliente). Ver workaround en AGENTS.md §14. |
+| Sync no refleja un fix de datos | El worker es una tarea programada (cada 1 min), no depende de la app | No requiere actualizar la app; espera el ciclo del worker o corre `php artisan sync:run <slug>` local. |
+| Backend nube debe actualizarse | El fix toca el backend del VPS | `ssh root@212.28.176.157` + `git pull` + `composer install --no-dev --optimize-autoloader` + `php artisan optimize:clear` + `php artisan migrate --force`. Independiente de los clientes de escritorio. |
+
+### Estado publicado (2026-08-09)
+
+| Cliente | Version | Tag | Assets |
+| --- | --- | --- | --- |
+| POS | 0.2.3 | `v0.2.3-pos` | `Sistema-de-Inventario-POS-0.2.3.exe` + blockmap + `pos.yml` |
+| Admin | 0.2.3 | `v0.2.3-admin` | `Sistema-de-Inventario-Administrativo-0.2.3.exe` + blockmap + `admin.yml` |
+| Technician | 0.2.3 | `v0.2.3-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.3.exe` + blockmap + `technician.yml` |
+
 ## LAN Server Mode
 
 The local API remains bound to `127.0.0.1` by default. The Technical Support client can enable an

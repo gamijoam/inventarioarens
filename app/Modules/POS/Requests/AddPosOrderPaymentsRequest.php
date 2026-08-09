@@ -16,6 +16,15 @@ class AddPosOrderPaymentsRequest extends FormRequest
         $tenantIds = [$tenantId];
 
         return [
+            'cash_register_session_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('cash_register_sessions', 'id')->where('tenant_id', $tenantId),
+            ],
+            'items' => ['sometimes', 'array'],
+            'items.*.sale_item_id' => ['required', 'integer'],
+            'items.*.product_unit_ids' => ['sometimes', 'array'],
+            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.payment_method_id' => [
                 'nullable',

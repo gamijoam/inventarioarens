@@ -7,6 +7,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Requests\AddPosOrderPaymentsRequest;
 use App\Modules\POS\Requests\StorePosCheckoutRequest;
+use App\Modules\POS\Requests\StorePosHoldRequest;
 use App\Modules\POS\Resources\PosOrderResource;
 use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
@@ -30,6 +31,7 @@ class PosOrderController extends Controller
 
         $query = PosOrder::query()
             ->with([
+                'seller',
                 'customer',
                 'sale',
                 'sale.items',
@@ -115,6 +117,41 @@ class PosOrderController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
+    public function hold(StorePosHoldRequest $request, PosCheckoutService $checkout): JsonResponse
+    {
+        Gate::authorize('hold', PosOrder::class);
+
+        if ($request->filled('promotion_id')) {
+            abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
+        }
+        if ($request->filled('promotion_code')) {
+            abort_unless($request->user()?->can('pos.promotions.code'), Response::HTTP_FORBIDDEN);
+        }
+
+        $hasDiscount = collect($request->validated('items', []))->contains(
+            fn (array $item): bool => filled($item['discount_type'] ?? null)
+                && (float) ($item['discount_value'] ?? 0) > 0,
+        );
+        if ($hasDiscount) {
+            Gate::authorize('discount', PosOrder::class);
+        }
+
+        $order = $checkout->holdOrder(
+            seller: $request->user(),
+            items: $request->validated('items'),
+            customerId: $request->validated('customer_id'),
+            customerName: $request->validated('customer_name'),
+            promotionId: $request->validated('promotion_id'),
+            promotionCode: $request->validated('promotion_code'),
+        );
+
+        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
+
+        return PosOrderResource::make($order)
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
     public function addPayments(AddPosOrderPaymentsRequest $request, PosOrder $posOrder, PosCheckoutService $checkout): PosOrderResource
     {
         Gate::authorize('addPayment', $posOrder);
@@ -123,6 +160,8 @@ class PosOrderController extends Controller
             order: $posOrder,
             cashier: $request->user(),
             payments: $request->validated('payments'),
+            cashRegisterSessionId: $request->validated('cash_register_session_id'),
+            chargeItems: $request->validated('items', []),
         );
 
         $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);

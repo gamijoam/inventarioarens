@@ -18,6 +18,7 @@ class PosOrderResource extends JsonResource
             'customer_id' => $this->customer_id,
             'status' => $this->status,
             'cashier_id' => $this->cashier_id,
+            'seller_id' => $this->seller_id,
             'customer_name' => $this->customer_name,
             'total_base_amount' => $this->total_base_amount,
             'total_local_amount' => $this->total_local_amount,
@@ -27,6 +28,11 @@ class PosOrderResource extends JsonResource
             'paid_at' => $this->paid_at?->toISOString(),
             'closed_at' => $this->closed_at?->toISOString(),
             'customer' => CustomerResource::make($this->whenLoaded('customer')),
+            'seller' => $this->whenLoaded('seller', fn () => [
+                'id' => $this->seller->id,
+                'name' => $this->seller->name,
+                'email' => $this->seller->email,
+            ]),
             'sale' => SaleResource::make($this->whenLoaded('sale')),
             'payments' => PosPaymentResource::collection($this->whenLoaded('payments')),
         ];

@@ -1,0 +1,64 @@
+<?php
+
+namespace App\Modules\POS\Requests;
+
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StorePosHoldRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenantIds = [$tenantId];
+
+        return [
+            'customer_name' => ['nullable', 'string', 'max:255'],
+            'promotion_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('promotions', 'id')->where('tenant_id', $tenantId),
+            ],
+            'promotion_code' => ['nullable', 'string', 'max:80'],
+            'customer_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('customers', 'id')->where('tenant_id', $tenantId),
+            ],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.warehouse_id' => [
+                'required',
+                'integer',
+                Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId),
+            ],
+            'items.*.product_id' => [
+                'required',
+                'integer',
+                Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
+            'items.*.price_list_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
+            'items.*.price_source' => ['nullable', 'string', Rule::in(['base', 'price_list', 'list'])],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.product_variant_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('product_variants', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
+            'items.*.product_unit_ids' => ['sometimes', 'array'],
+            'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
+            'items.*.discount_type' => ['nullable', 'string', Rule::in(['percent', 'fixed'])],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_reason' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
