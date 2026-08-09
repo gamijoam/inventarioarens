@@ -494,6 +494,53 @@ class PosHoldOrderApiTest extends TestCase
         $this->assertTrue(method_exists($order, 'seller'));
     }
 
+    public function test_cashier_can_cancel_sellers_held_order_without_cash_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera', ['pos.view', 'pos.cancel']);
+
+        $orderId = $this->armedOrderId($tenant, $seller, $warehouse, $product, 2);
+
+        // La orden armada por el vendedor no tiene cash_register_session_id.
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'id' => $orderId,
+            'cash_register_session_id' => null,
+            'status' => PosOrder::STATUS_OPEN,
+        ]);
+
+        $response = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_CANCELLED)
+            ->assertJsonPath('data.sale.status', Sale::STATUS_CANCELLED);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '5.0000',
+            'quantity_reserved' => '0.0000',
+        ]);
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'pos.order.cancelled',
+            'aggregate_type' => 'pos_order',
+            'aggregate_id' => $orderId,
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

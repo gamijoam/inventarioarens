@@ -22,6 +22,16 @@ export interface PosShellAction {
   permission: PermissionName | readonly PermissionName[];
   onClick: () => void;
   disabled?: boolean;
+  /**
+   * Contador mostrado como badge junto a la etiqueta (p. ej. ordenes
+   * pendientes). Se renderiza solo si es > 0.
+   */
+  badge?: number;
+  /**
+   * Resalta visualmente la accion (p. ej. hay una orden pendiente nueva
+   * que la cajera aun no ha revisado).
+   */
+  alert?: boolean;
 }
 
 interface PosShellProps {
@@ -39,6 +49,14 @@ function hasRequiredPermission(
   const requiredPermissions: readonly PermissionName[] =
     typeof required === 'string' ? [required] : required;
   return requiredPermissions.some((permission) => permissions.has(permission));
+}
+
+function cnAction(alert: boolean | undefined, disabled: boolean | undefined): string {
+  const base =
+    'border-border bg-bg text-text-secondary hover:text-text-primary relative rounded-md border px-3 py-2 text-xs font-medium transition-colors';
+  if (disabled) return `${base} cursor-not-allowed opacity-50`;
+  if (alert) return `${base} border-primary/70 bg-primary/10 text-primary font-semibold shadow-sm`;
+  return base;
 }
 
 function sessionStatusLabel(status: PosSessionStatus): string {
@@ -117,11 +135,28 @@ export function PosShell({
                 <button
                   key={action.id}
                   type="button"
-                  className="border-border bg-bg text-text-secondary hover:text-text-primary rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cnAction(
+                    action.alert,
+                    action.disabled,
+                  )}
                   onClick={action.onClick}
                   disabled={action.disabled}
                 >
+                  {action.alert && (
+                    <span
+                      aria-hidden="true"
+                      className="bg-danger absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full"
+                    />
+                  )}
                   {action.label}
+                  {typeof action.badge === 'number' && action.badge > 0 && (
+                    <span
+                      data-testid={`pos-action-badge-${action.id}`}
+                      className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm"
+                    >
+                      {action.badge > 99 ? '99+' : action.badge}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

@@ -497,6 +497,13 @@ export function usePosProductsDebounced(
   return { ...query, debouncedSearch, abortRef };
 }
 
+/**
+ * Ordenes abiertas (pendientes de cobro) de todo el tenant.
+ *
+ * Hace polling cada 15s para que la cajera detecte ordenes nuevas armadas
+ * por un vendedor en otra terminal SIN tener que abrir el panel. Al llegar
+ * una nueva, PosTerminal muestra la alerta.
+ */
 export function useOpenPosOrders() {
   return useQuery({
     queryKey: posKeys.orders('open'),
@@ -504,6 +511,8 @@ export function useOpenPosOrders() {
       const response = await getPaginated<unknown>('/pos/orders?status=open&per_page=50');
       return z.array(PosOrderSchema).parse(response.data);
     },
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
   });
 }
 

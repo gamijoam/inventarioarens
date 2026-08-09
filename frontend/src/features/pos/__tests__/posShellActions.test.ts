@@ -50,4 +50,42 @@ describe('buildPosShellActions', () => {
     expect(actions.some((action) => action.id === 'cash')).toBe(false);
     expect(actions.some((action) => action.id === 'close')).toBe(false);
   });
+
+  it('agrega el badge con el conteo de pendientes a la accion Pendientes', () => {
+    const callbacks = {
+      onOpenCash: vi.fn(),
+      onOpenPending: vi.fn(),
+      onOpenReceipt: vi.fn(),
+      onOpenClose: vi.fn(),
+    };
+
+    const actions = buildPosShellActions(callbacks, false, 5);
+    const pending = actions.find((action) => action.id === 'pending');
+
+    expect(pending?.badge).toBe(5);
+
+    const sinBadge = buildPosShellActions(callbacks, false, 0).find(
+      (action) => action.id === 'pending',
+    );
+    expect(sinBadge?.badge).toBe(0);
+  });
+
+  it('resalta la accion Pendientes cuando hay una alerta de orden nueva', () => {
+    const callbacks = {
+      onOpenCash: vi.fn(),
+      onOpenPending: vi.fn(),
+      onOpenReceipt: vi.fn(),
+      onOpenClose: vi.fn(),
+    };
+
+    const actions = buildPosShellActions(callbacks, false, 2, true);
+    const pending = actions.find((action) => action.id === 'pending');
+
+    expect(pending?.alert).toBe(true);
+
+    const sinAlerta = buildPosShellActions(callbacks, false, 2, false).find(
+      (action) => action.id === 'pending',
+    );
+    expect(sinAlerta?.alert).toBe(false);
+  });
 });

@@ -203,4 +203,72 @@ describe('<PosShell>', () => {
 
     expect(onClick).toHaveBeenCalledOnce();
   });
+
+  it('muestra el badge de conteo y no lo dibuja cuando es cero', () => {
+    permissionState.permissions = new Set([PERMISSIONS.POS_VIEW]);
+    const { rerender } = render(
+      <PosShell
+        actions={[
+          {
+            id: 'pending',
+            label: 'Pendientes',
+            permission: PERMISSIONS.POS_VIEW,
+            onClick: vi.fn(),
+            badge: 4,
+          },
+        ]}
+      >
+        Contenido POS
+      </PosShell>,
+    );
+
+    expect(screen.getByTestId('pos-action-badge-pending')).toHaveTextContent('4');
+
+    rerender(
+      <PosShell
+        actions={[
+          {
+            id: 'pending',
+            label: 'Pendientes',
+            permission: PERMISSIONS.POS_VIEW,
+            onClick: vi.fn(),
+            badge: 0,
+          },
+        ]}
+      >
+        Contenido POS
+      </PosShell>,
+    );
+
+    expect(screen.queryByTestId('pos-action-badge-pending')).not.toBeInTheDocument();
+  });
+
+  it('resalta la accion cuando la alerta de orden nueva esta activa', () => {
+    permissionState.permissions = new Set([PERMISSIONS.POS_VIEW]);
+
+    render(
+      <PosShell
+        actions={[
+          {
+            id: 'pending',
+            label: 'Pendientes',
+            permission: PERMISSIONS.POS_VIEW,
+            onClick: vi.fn(),
+            alert: true,
+            badge: 3,
+          },
+        ]}
+      >
+        Contenido POS
+      </PosShell>,
+    );
+
+    const badge = screen.getByTestId('pos-action-badge-pending');
+    const button = badge.closest('button');
+
+    expect(button).not.toBeNull();
+    expect(button?.className).toContain('text-primary');
+    expect(button?.className).toContain('font-semibold');
+    expect(badge).toHaveTextContent('3');
+  });
 });

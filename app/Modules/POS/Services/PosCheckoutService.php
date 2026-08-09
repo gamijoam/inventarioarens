@@ -438,8 +438,13 @@ class PosCheckoutService
                     ]);
                 }
 
-                $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
-                $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                // Las ordenes armadas por un vendedor (sin caja) no tienen
+                // cash_register_session_id; solo se valida la caja cuando
+                // existe. Cancelar una orden sin caja no exige turno abierto.
+                if ($order->cash_register_session_id) {
+                    $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($order->cash_register_session_id);
+                    $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                }
 
                 PerformanceProbe::measure(
                     'POS cancelar liberar reserva',

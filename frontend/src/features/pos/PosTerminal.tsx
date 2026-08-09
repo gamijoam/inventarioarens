@@ -103,6 +103,7 @@ import {
   type PosPaymentLine,
   roundMoney,
 } from './posLogic';
+import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
 import {
   type PrintJob,
   openTicketPdf,
@@ -175,6 +176,22 @@ export function isTouchPointer(event: { pointerType?: string }): boolean {
   return event.pointerType === 'touch' || event.pointerType === 'pen';
 }
 
+/**
+ * Handler de boton apto para tablet: si el evento es tactil (touch/pen),
+ * ejecuta la accion de inmediato y hace `preventDefault()` para que el
+ * navegador NO dispare luego el `click` sintetico (evita el doble disparo).
+ * Para mouse devuelve false y deja que el `onClick` normal del boton actue.
+ */
+export function triggerPosPointerAction(
+  event: { pointerType?: string; preventDefault?: () => void },
+  action: () => void,
+): boolean {
+  if (!isTouchPointer(event)) return false;
+  event.preventDefault?.();
+  action();
+  return true;
+}
+
 export function shouldHandlePosGlobalShortcut(key: string, isEditableField: boolean): boolean {
   if (['F2', 'F3', 'F4', 'F6', 'F7', 'F9'].includes(key)) return true;
   if (key === 'Delete') return !isEditableField;
@@ -232,6 +249,8 @@ export interface PosShellActionCallbacks {
 export function buildPosShellActions(
   callbacks: PosShellActionCallbacks,
   sellerOnlyMode = false,
+  pendingCount = 0,
+  pendingAlert = false,
 ): PosShellAction[] {
   const actions: PosShellAction[] = [
     {
@@ -239,6 +258,8 @@ export function buildPosShellActions(
       label: 'Pendientes',
       permission: PERMISSIONS.POS_VIEW,
       onClick: callbacks.onOpenPending,
+      badge: pendingCount,
+      alert: pendingAlert,
     },
     {
       id: 'receipt',
@@ -458,6 +479,35 @@ export function PosTerminal() {
     return session ? [session] : [];
   }, [bootstrap.data, fallbackSessions]);
   const { data: pendingOrders = [] } = useOpenPosOrders();
+  // Rastrea los ids ya vistos para detectar ordenes nuevas entre pollings
+  // y mostrar la alerta sin molestar por cada refetch.
+  const seenPendingIdsRef = useRef<Set<number>>(new Set());
+  const [pendingAlert, setPendingAlert] = useState<number[]>([]);
+  useEffect(() => {
+    if (pendingOrders.length === 0) return;
+    const currentIds = pendingOrders.map((order) => order.id);
+    const fresh = newPendingOrderIds(
+      Array.from(seenPendingIdsRef.current),
+      pendingOrders.map((order) => ({ id: order.id })),
+    );
+    if (fresh.length > 0) {
+      seenPendingIdsRef.current = new Set(currentIds);
+      setPendingAlert(fresh);
+      if (panel !== 'hold') {
+        toast.info(
+          fresh.length === 1
+            ? `Nueva orden pendiente #${fresh[0]}. Revisa Pendientes.`
+            : `${fresh.length} ordenes pendientes nuevas. Revisa Pendientes.`,
+        );
+      }
+    } else {
+      // Sin nuevas: solo amplia el set conocido para no repetir alertas.
+      seenPendingIdsRef.current = new Set(currentIds);
+    }
+  }, [pendingOrders, panel]);
+  const pendingCount = countPendingOrders(pendingOrders);
+  // True mientras haya una alerta de orden nueva que la cajera no ha visto.
+  const hasPendingAlert = pendingAlert.length > 0;
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: customerCredit } = useCustomerCredit(selectedCustomer?.id ?? null);
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
@@ -605,11 +655,16 @@ export function PosTerminal() {
   const shellActions = buildPosShellActions(
     {
       onOpenCash: () => setPanel('cash'),
-      onOpenPending: () => setPanel('hold'),
+      onOpenPending: () => {
+        setPendingAlert([]);
+        setPanel('hold');
+      },
       onOpenReceipt: () => setPanel('receipt'),
       onOpenClose: () => setPanel('cash'),
     },
     sellerOnlyMode,
+    pendingCount,
+    hasPendingAlert,
   );
   const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
   const { data: availableSerials = [], isLoading: loadingSerials } =
@@ -1018,6 +1073,12 @@ export function PosTerminal() {
                       <button
                         type="button"
                         className="text-primary font-semibold hover:underline"
+                        onPointerDown={(event) => {
+                          triggerPosPointerAction(event, () => {
+                            setProductSearch(query);
+                            setPanel('product-search');
+                          });
+                        }}
                         onClick={() => {
                           setProductSearch(query);
                           setPanel('product-search');
@@ -1035,6 +1096,16 @@ export function PosTerminal() {
                             'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
                             index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
                           )}
+                          onPointerDown={(event) => {
+                            triggerPosPointerAction(event, () => {
+                              void addProduct(product).then((added) => {
+                                if (added) {
+                                  setQuery('');
+                                  setQuickSearchIndex(0);
+                                }
+                              });
+                            });
+                          }}
                           onClick={() => {
                             void addProduct(product).then((added) => {
                               if (added) {
@@ -3022,7 +3093,7 @@ function SerialSelectionPanel({
                 type="button"
                 disabled={disabled}
                 onPointerDown={(event) => {
-                  if (isTouchPointer(event)) onToggle(serial);
+                  triggerPosPointerAction(event, () => onToggle(serial));
                 }}
                 onClick={() => onToggle(serial)}
                 className={cn(
@@ -3117,7 +3188,7 @@ function QuickPaymentPanel({
                 key={method.id}
                 type="button"
                 onPointerDown={(event) => {
-                  if (isTouchPointer(event)) onSelect(method.id);
+                  triggerPosPointerAction(event, () => onSelect(method.id));
                 }}
                 onClick={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
@@ -3247,7 +3318,7 @@ function ProductSearchPanel({
               onPointerDown={(event) => {
                 // En tablets el primer tap con teclado abierto no dispara
                 // `click`; responder al pointerdown tactil agrega al toque.
-                if (isTouchPointer(event)) void onSelect(product);
+                triggerPosPointerAction(event, () => void onSelect(product));
               }}
               onClick={() => void onSelect(product)}
               onMouseEnter={() => setSelectedIndex(index)}
