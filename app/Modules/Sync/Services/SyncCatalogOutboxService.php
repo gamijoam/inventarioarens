@@ -266,7 +266,7 @@ class SyncCatalogOutboxService
      */
     public function purchaseOrderCreated(PurchaseOrder $order): void
     {
-        $order->loadMissing(['supplier', 'items.product', 'items.warehouse']);
+        $order->loadMissing(['supplier', 'items.product', 'items.productVariant', 'items.warehouse']);
         $documentNumber = $this->purchaseDocumentNumber($order);
 
         $this->outbox->record(
@@ -287,6 +287,7 @@ class SyncCatalogOutboxService
                 'items' => $order->items->map(fn ($item): array => [
                     'sku' => $item->product?->sku,
                     'warehouse_code' => $item->warehouse?->code,
+                    'product_variant_sku' => $item->productVariant?->sku_variant,
                     'quantity' => (string) $item->quantity,
                     'unit_cost' => (string) $item->unit_cost,
                     'base_unit_cost' => (string) $item->base_unit_cost,

@@ -628,7 +628,78 @@ class SyncEventApplier
             'updated_at' => $now,
         ]);
 
+        $po = DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        // Replicar los items del draft para que la UI de la nube muestre
+        // los productos y costos de la orden pendiente. El evento trae
+        // sku/warehouse_code (identidad natural entre nodos); resolvemos
+        // los IDs locales y creamos los purchase_items con received_quantity=0.
+        foreach ($payload['items'] ?? [] as $item) {
+            $sku = $this->nullableString($item['sku'] ?? null);
+            $warehouseCode = $this->nullableString($item['warehouse_code'] ?? null);
+
+            if ($sku === null || $warehouseCode === null) {
+                continue;
+            }
+
+            try {
+                $product = $this->productBySku($tenant, $sku);
+                $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
+            } catch (RuntimeException) {
+                // Si el catalogo aun no llego (producto o almacen desconocido),
+                // omitimos ese item: el PO existe y se completa al recibir.
+                continue;
+            }
+
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $unitCost = $this->nullableString($item['unit_cost'] ?? null) !== null
+                ? (float) $item['unit_cost']
+                : null;
+            $baseUnitCost = $this->nullableString($item['base_unit_cost'] ?? null) !== null
+                ? (float) $item['base_unit_cost']
+                : null;
+            $variantId = $this->variantIdBySku($tenant, $product->id, $item['product_variant_sku'] ?? null);
+
+            DB::table('purchase_items')->insert([
+                'tenant_id' => $tenant->id,
+                'purchase_order_id' => $po->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variantId,
+                'quantity' => $quantity,
+                'received_quantity' => 0,
+                'unit_cost' => $unitCost,
+                'total_cost' => $unitCost === null ? null : round($unitCost * $quantity, 4),
+                'base_unit_cost' => $baseUnitCost,
+                'base_total_cost' => $baseUnitCost === null ? null : round($baseUnitCost * $quantity, 4),
+                'serial_units' => null,
+                'stock_movement_id' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
         return 'applied';
+    }
+
+    private function variantIdBySku(Tenant $tenant, int $productId, mixed $variantSku): ?int
+    {
+        $variantSku = $this->nullableString($variantSku);
+
+        if ($variantSku === null) {
+            return null;
+        }
+
+        $variant = DB::table('product_variants')
+            ->where('tenant_id', $tenant->id)
+            ->where('product_id', $productId)
+            ->where('sku_variant', $variantSku)
+            ->first();
+
+        return $variant?->id;
     }
 
     /**

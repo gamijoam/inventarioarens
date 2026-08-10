@@ -71,7 +71,8 @@ class PurchaseOrderSyncTest extends TestCase
 
     public function test_purchase_order_created_event_persists_metadata_in_cloud(): void
     {
-        [$tenant] = $this->setupTenant();
+        [$tenant, , , $warehouse, $product] = $this->setupTenant();
+
         $poId = 99;
 
         $payload = [
@@ -108,6 +109,23 @@ class PurchaseOrderSyncTest extends TestCase
             'supplier_id' => null, // suppliers no se replican en esta iteracion
             'purchase_currency' => 'USD',
             'total_base_amount' => 500.0,
+        ]);
+
+        // Los items del draft se replican para que la UI de la nube muestre
+        // productos y costos de la orden pendiente.
+        $poId = (int) DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', 'PO-2026-0001')
+            ->value('id');
+        $this->assertDatabaseHas('purchase_items', [
+            'tenant_id' => $tenant->id,
+            'purchase_order_id' => $poId,
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 50.0,
+            'received_quantity' => 0,
+            'unit_cost' => 10.0,
+            'base_unit_cost' => 10.0,
         ]);
     }
 
