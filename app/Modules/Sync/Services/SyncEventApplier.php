@@ -714,6 +714,13 @@ class SyncEventApplier
      * Esto preserva la trazabilidad de la fuente (la compra) y mantiene
      * el stock sincronizado entre local y nube.
      *
+     * Ademas de crear la entrada de stock, marca el `purchase_orders`
+     * existente como `received`/`partially_received` y actualiza los
+     * `purchase_items` con la cantidad recibida. Sin esto, la UI de la nube
+     * mostraria la compra como pendiente de recibir (boton "Recibir
+     * mercancia") aunque el stock ya entro, arriesgando una recepcion
+     * duplicada.
+     *
      * Si la nube ya recibio este mismo `purchase_order.received` (por reintento
      * o reprocesamiento), `applyProductEntry` es idempotente via
      * (tenant_id, document_number) y no duplica stock.
@@ -734,7 +741,84 @@ class SyncEventApplier
             'items' => $payload['items'] ?? [],
         ];
 
-        return $this->applyProductEntry($tenant, $mapped);
+        $this->applyProductEntry($tenant, $mapped);
+        $this->markPurchaseOrderReceived($tenant, $payload);
+
+        return 'applied';
+    }
+
+    /**
+     * Marca el purchase_order existente como recibido en la nube y actualiza
+     * los purchase_items con las cantidades recibidas. El evento trae
+     * sku/warehouse_code (identidad natural); resolvemos los items por
+     * (product_id, product_variant_id) dentro del PO.
+     */
+    private function markPurchaseOrderReceived(Tenant $tenant, array $payload): void
+    {
+        $documentNumber = $this->requiredString($payload, 'document_number');
+        $po = DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if (! $po) {
+            return;
+        }
+
+        $receivedItems = 0;
+        $receivedBase = 0.0;
+
+        foreach ($payload['items'] ?? [] as $item) {
+            $sku = $this->nullableString($item['sku'] ?? null);
+            if ($sku === null) {
+                continue;
+            }
+
+            $product = $this->productBySku($tenant, $sku);
+            $variantId = $this->variantIdBySku($tenant, (int) $product->id, $item['product_variant_sku'] ?? null, $item['product_variant_color'] ?? null);
+            $quantity = (float) ($item['quantity'] ?? 0);
+
+            $query = DB::table('purchase_items')
+                ->where('tenant_id', $tenant->id)
+                ->where('purchase_order_id', $po->id)
+                ->where('product_id', $product->id);
+
+            if ($variantId !== null) {
+                $query->where('product_variant_id', $variantId);
+            }
+
+            $pi = $query->first();
+
+            if (! $pi) {
+                continue;
+            }
+
+            DB::table('purchase_items')
+                ->where('id', $pi->id)
+                ->update([
+                    'received_quantity' => $quantity,
+                    'updated_at' => now(),
+                ]);
+
+            $receivedItems++;
+            $receivedBase += round((float) $pi->base_unit_cost * $quantity, 4);
+        }
+
+        $totalItems = DB::table('purchase_items')
+            ->where('tenant_id', $tenant->id)
+            ->where('purchase_order_id', $po->id)
+            ->count();
+
+        $allReceived = $receivedItems > 0 && $totalItems > 0 && $receivedItems >= $totalItems;
+
+        DB::table('purchase_orders')
+            ->where('id', $po->id)
+            ->update([
+                'status' => $allReceived ? 'received' : 'partially_received',
+                'received_base_amount' => $receivedBase,
+                'received_at' => $payload['received_at'] ?? now(),
+                'updated_at' => now(),
+            ]);
     }
 
     /**

@@ -135,6 +135,27 @@ class PurchaseOrderSyncTest extends TestCase
         [$tenant, , , $warehouse, $product] = $this->setupTenant();
         $poId = 99;
 
+        // Primero llega el `created` (crea el PO en la nube).
+        $createdPayload = [
+            'document_number' => 'PO-2026-0001',
+            'status' => 'draft',
+            'supplier_name' => 'Distribuidora XYZ',
+            'purchase_currency' => 'USD',
+            'total_base_amount' => '85.0000',
+            'total_local_amount' => '85.0000',
+            'items' => [
+                [
+                    'sku' => $product->sku,
+                    'warehouse_code' => $warehouse->code,
+                    'quantity' => '10.0000',
+                    'unit_cost' => '8.5000',
+                    'base_unit_cost' => '8.5000',
+                ],
+            ],
+        ];
+        $this->enqueueEvent($tenant->id, 'purchase_order.created', $createdPayload, $poId);
+        app(SyncEventApplier::class)->applyPending($tenant, 10);
+
         $payload = [
             'document_number' => 'PO-2026-0001',
             'status' => 'received',
@@ -187,6 +208,24 @@ class PurchaseOrderSyncTest extends TestCase
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
             ->value('quantity_available'));
+
+        // El purchase_order en la nube debe quedar como received (no pendiente),
+        // para que la UI no muestre "Recibir mercancia" y arriesgue duplicar.
+        $this->assertDatabaseHas('purchase_orders', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'PO-2026-0001',
+            'status' => 'received',
+        ]);
+        $poId = (int) DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', 'PO-2026-0001')
+            ->value('id');
+        $this->assertDatabaseHas('purchase_items', [
+            'tenant_id' => $tenant->id,
+            'purchase_order_id' => $poId,
+            'product_id' => $product->id,
+            'received_quantity' => 10.0,
+        ]);
 
         // Verifica que se creo el stock_movement.
         $this->assertDatabaseHas('stock_movements', [
