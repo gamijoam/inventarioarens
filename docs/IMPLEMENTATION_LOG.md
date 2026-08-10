@@ -1,5 +1,40 @@
 # Registro de implementación
 
+## 2026-08-10 - Trait Syncable: sincronización automática de modelos (CxP/CxC)
+
+### Contexto
+Los bugs de sync venían de la emisión manual: el desarrollador debía acordarse de
+llamar al outbox. Con 15+ nodos locales sincronizando, se necesita que **todo
+modelo que cambie emita su evento**, sin excepción.
+
+### Trait `Syncable` (`app/Support/Sync/Syncable.php`)
+- Escucha `created`/`updated`/`deleted` de Eloquent y emite al outbox automáticamente.
+- El modelo implementa `syncOutboxMethod(string $action): ?string` (método del
+  outbox por acción, o `null`).
+- Sin tenant resuelto → no emite (evita errores de emisión fuera de request tenant).
+- `syncableSuspended(callable)` para backfills/imports masivos.
+- No genera bucles: el applier usa `DB::table()` (no dispara observers).
+
+### Brechas financieras cerradas
+- **CxP (AccountsPayable)**: antes 0 eventos. Ahora `accounts_payable.created`/
+  `updated` (via trait) + `accounts_payable.payment_registered` (pago).
+- **CxC (AccountsReceivable)**: antes solo pagos. Ahora `accounts_receivable.created`/
+  `updated` (via trait).
+- **Applier**: nuevos handlers `applyAccountsPayable`, `applyPayablePayment`,
+  `applyAccountsReceivable` (upsert por document_number en la nube). Antes estos
+  event types eran `ignored`.
+
+### TDD
+- `tests/Feature/Sync/SyncableTraitTest.php` (6 tests): emisión automática,
+  suspensión, anidamiento, sin-tenant no emite.
+- `tests/Feature/Sync/FinancialSyncTest.php` (4 tests): CxP/CxC emiten por trait
+  y el applier los aplica.
+- Suite Sync: 115 passed / 1 skipped. Financiera: 27/28 (1 fallo preexistente
+  cash_register).
+
+### Diseño
+Ver `docs/SYNCABLE_AUTOMATIC_SYNC_2026-08-10.md`.
+
 ## 2026-08-10 - Sync de variantes en compras + PO recibido duplicado en nube
 
 ### Variantes no viajaban en sync (compras y creación)

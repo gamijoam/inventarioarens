@@ -2,6 +2,9 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
@@ -202,6 +205,53 @@ class SyncCatalogOutboxService
     public function customerDeactivated(Customer $customer): void
     {
         $this->recordCustomer('customer.updated', $customer);
+    }
+
+    public function accountsPayableCreated(AccountsPayable $payable): void
+    {
+        $this->recordAccountsPayable('accounts_payable.created', $payable);
+    }
+
+    public function accountsPayableUpdated(AccountsPayable $payable): void
+    {
+        $this->recordAccountsPayable('accounts_payable.updated', $payable);
+    }
+
+    public function accountsPayablePaymentCreated(AccountsPayablePayment $payment): void
+    {
+        $payment->loadMissing(['account', 'exchangeRateType']);
+
+        $this->outbox->record(
+            eventType: 'accounts_payable.payment_registered',
+            aggregateType: 'accounts_payable_payment',
+            aggregateId: $payment->id,
+            payload: [
+                'payable_document' => $payment->account?->document_number,
+                'payment' => [
+                    'id' => $payment->id,
+                    'amount' => (string) $payment->amount,
+                    'amount_base' => (string) $payment->amount_base,
+                    'amount_local' => (string) $payment->amount_local,
+                    'payment_currency' => $payment->payment_currency,
+                    'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                    'exchange_rate' => $payment->exchange_rate === null ? null : (string) $payment->exchange_rate,
+                    'method' => $payment->method,
+                    'reference' => $payment->reference,
+                    'paid_at' => $payment->paid_at?->toISOString(),
+                ],
+            ],
+            idempotencyKey: $this->eventKey('accounts_payable.payment_registered', 'accounts_payable_payment', $payment->id, $payment->updated_at),
+        );
+    }
+
+    public function accountsReceivableCreated(AccountsReceivable $receivable): void
+    {
+        $this->recordAccountsReceivable('accounts_receivable.created', $receivable);
+    }
+
+    public function accountsReceivableUpdated(AccountsReceivable $receivable): void
+    {
+        $this->recordAccountsReceivable('accounts_receivable.updated', $receivable);
     }
 
     public function productEntryCreated(ProductEntry $entry): void
@@ -752,6 +802,76 @@ class SyncCatalogOutboxService
                 'is_active' => (bool) $customer->is_active,
             ],
             idempotencyKey: $this->eventKey($eventType, 'customer', $customer->id, $customer->updated_at),
+        );
+    }
+
+    private function recordAccountsPayable(string $eventType, AccountsPayable $payable): void
+    {
+        $payable->loadMissing('supplier');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'accounts_payable',
+            aggregateId: $payable->id,
+            payload: [
+                'document_number' => $payable->document_number,
+                'purchase_order_id' => $payable->purchase_order_id,
+                'supplier_document' => $payable->supplier?->document_number,
+                'supplier_name' => $payable->supplier?->name,
+                'status' => $payable->status,
+                'currency' => $payable->currency,
+                'exchange_rate_type_code' => $payable->exchange_rate_type_code,
+                'exchange_rate' => $payable->exchange_rate === null ? null : (string) $payable->exchange_rate,
+                'original_base_amount' => (string) $payable->original_base_amount,
+                'original_local_amount' => (string) $payable->original_local_amount,
+                'returned_base_amount' => (string) $payable->returned_base_amount,
+                'returned_local_amount' => (string) $payable->returned_local_amount,
+                'paid_base_amount' => (string) $payable->paid_base_amount,
+                'paid_local_amount' => (string) $payable->paid_local_amount,
+                'adjusted_base_amount' => (string) $payable->adjusted_base_amount,
+                'adjusted_local_amount' => (string) $payable->adjusted_local_amount,
+                'balance_base_amount' => (string) $payable->balance_base_amount,
+                'balance_local_amount' => (string) $payable->balance_local_amount,
+                'due_date' => $payable->due_date?->toDateString(),
+                'opened_at' => $payable->opened_at?->toISOString(),
+                'paid_at' => $payable->paid_at?->toISOString(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'accounts_payable', $payable->id, $payable->updated_at),
+        );
+    }
+
+    private function recordAccountsReceivable(string $eventType, AccountsReceivable $receivable): void
+    {
+        $receivable->loadMissing('customer');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'accounts_receivable',
+            aggregateId: $receivable->id,
+            payload: [
+                'document_number' => $receivable->document_number,
+                'sale_id' => $receivable->sale_id,
+                'customer_document' => $receivable->customer?->document_number,
+                'customer_name' => $receivable->customer?->name,
+                'status' => $receivable->status,
+                'currency' => $receivable->currency,
+                'exchange_rate_type_code' => $receivable->exchange_rate_type_code,
+                'exchange_rate' => $receivable->exchange_rate === null ? null : (string) $receivable->exchange_rate,
+                'original_base_amount' => (string) $receivable->original_base_amount,
+                'original_local_amount' => (string) $receivable->original_local_amount,
+                'returned_base_amount' => (string) $receivable->returned_base_amount,
+                'returned_local_amount' => (string) $receivable->returned_local_amount,
+                'collected_base_amount' => (string) $receivable->collected_base_amount,
+                'collected_local_amount' => (string) $receivable->collected_local_amount,
+                'adjusted_base_amount' => (string) $receivable->adjusted_base_amount,
+                'adjusted_local_amount' => (string) $receivable->adjusted_local_amount,
+                'balance_base_amount' => (string) $receivable->balance_base_amount,
+                'balance_local_amount' => (string) $receivable->balance_local_amount,
+                'due_date' => $receivable->due_date?->toDateString(),
+                'opened_at' => $receivable->opened_at?->toISOString(),
+                'paid_at' => $receivable->paid_at?->toISOString(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'accounts_receivable', $receivable->id, $receivable->updated_at),
         );
     }
 

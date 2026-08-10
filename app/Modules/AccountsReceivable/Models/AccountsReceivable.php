@@ -4,6 +4,7 @@ namespace App\Modules\AccountsReceivable\Models;
 
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Sales\Models\Sale;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class AccountsReceivable extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
 
     public const STATUS_PENDING = 'pending';
 
@@ -43,6 +44,15 @@ class AccountsReceivable extends Model
     public const STATUS_OVERDUE = 'overdue';
 
     protected $table = 'accounts_receivables';
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        return match ($action) {
+            'created' => 'accountsReceivableCreated',
+            'updated' => 'accountsReceivableUpdated',
+            default => null,
+        };
+    }
 
     protected function casts(): array
     {

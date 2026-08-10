@@ -270,6 +270,9 @@ class SyncEventApplier
                 'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
                 'accounts_receivable.payment_registered' => $this->applyReceivablePayment($tenant, $payload, $event),
                 'sales_return.updated' => $this->applySalesReturn($tenant, $payload, $event),
+                'accounts_payable.created', 'accounts_payable.updated' => $this->applyAccountsPayable($tenant, $payload, $event),
+                'accounts_payable.payment_registered' => $this->applyPayablePayment($tenant, $payload, $event),
+                'accounts_receivable.created', 'accounts_receivable.updated' => $this->applyAccountsReceivable($tenant, $payload, $event),
                 default => 'ignored',
             };
         } finally {
@@ -2538,6 +2541,190 @@ class SyncEventApplier
 
         if ($status === SalesReturn::STATUS_PROCESSED && $previousStatus !== SalesReturn::STATUS_PROCESSED) {
             app(AccountsReceivableService::class)->applySalesReturn(SalesReturn::query()->findOrFail($returnId));
+        }
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica `accounts_payable.created` / `accounts_payable.updated` en la nube.
+     * Upsert por (tenant_id, document_number) — identidad natural entre nodos.
+     */
+    private function applyAccountsPayable(Tenant $tenant, array $payload, array $event): string
+    {
+        $documentNumber = $this->nullableString($payload['document_number'] ?? null);
+        $purchaseOrderId = $payload['purchase_order_id'] ?? null;
+        $supplierDocument = $this->nullableString($payload['supplier_document'] ?? null);
+        $supplierId = null;
+
+        if ($supplierDocument !== null) {
+            $supplierId = DB::table('suppliers')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $supplierDocument)
+                ->value('id');
+        }
+
+        $existing = DB::table('accounts_payables')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        $values = [
+            'supplier_id' => $supplierId,
+            'status' => $payload['status'] ?? 'pending',
+            'currency' => $payload['currency'] ?? 'USD',
+            'exchange_rate_type_code' => $this->nullableString($payload['exchange_rate_type_code'] ?? null),
+            'exchange_rate' => $this->nullableString($payload['exchange_rate'] ?? null),
+            'original_base_amount' => (float) ($payload['original_base_amount'] ?? 0),
+            'original_local_amount' => (float) ($payload['original_local_amount'] ?? 0),
+            'returned_base_amount' => (float) ($payload['returned_base_amount'] ?? 0),
+            'returned_local_amount' => (float) ($payload['returned_local_amount'] ?? 0),
+            'paid_base_amount' => (float) ($payload['paid_base_amount'] ?? 0),
+            'paid_local_amount' => (float) ($payload['paid_local_amount'] ?? 0),
+            'adjusted_base_amount' => (float) ($payload['adjusted_base_amount'] ?? 0),
+            'adjusted_local_amount' => (float) ($payload['adjusted_local_amount'] ?? 0),
+            'balance_base_amount' => (float) ($payload['balance_base_amount'] ?? 0),
+            'balance_local_amount' => (float) ($payload['balance_local_amount'] ?? 0),
+            'due_date' => $this->nullableString($payload['due_date'] ?? null),
+            'opened_at' => $this->nullableString($payload['opened_at'] ?? null),
+            'paid_at' => $this->nullableString($payload['paid_at'] ?? null),
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            if ($purchaseOrderId !== null) {
+                $values['purchase_order_id'] = (int) $purchaseOrderId;
+            }
+
+            DB::table('accounts_payables')
+                ->where('id', $existing->id)
+                ->update($values);
+        } else {
+            $values['tenant_id'] = $tenant->id;
+            $values['purchase_order_id'] = (int) ($purchaseOrderId ?? 0);
+            $values['document_number'] = $documentNumber;
+            $values['created_at'] = now();
+
+            DB::table('accounts_payables')->insert($values);
+        }
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica `accounts_payable.payment_registered` en la nube.
+     * Registra un pago sobre la CxP ya sincronizada por document_number.
+     */
+    private function applyPayablePayment(Tenant $tenant, array $payload, array $event): string
+    {
+        $payableDocument = $this->nullableString($payload['payable_document'] ?? null);
+        $payment = $payload['payment'] ?? [];
+
+        if ($payableDocument === null || ! is_array($payment)) {
+            return 'ignored';
+        }
+
+        $payable = DB::table('accounts_payables')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $payableDocument)
+            ->first();
+
+        if (! $payable) {
+            return 'ignored';
+        }
+
+        $now = now();
+        $sourceId = (int) ($payment['id'] ?? 0);
+        $ref = $payment['reference'] ?? null;
+
+        $existing = DB::table('accounts_payable_payments')
+            ->where('tenant_id', $tenant->id)
+            ->when($sourceId > 0, fn ($q) => $q->where('id', $sourceId))
+            ->when($ref !== null, fn ($q) => $q->where('reference', $ref))
+            ->where('accounts_payable_id', $payable->id)
+            ->first();
+
+        if ($existing) {
+            return 'applied';
+        }
+
+        DB::table('accounts_payable_payments')->insert([
+            'tenant_id' => $tenant->id,
+            'accounts_payable_id' => $payable->id,
+            'payment_currency' => $payment['payment_currency'] ?? $payable->currency ?? 'USD',
+            'amount' => (float) ($payment['amount'] ?? 0),
+            'exchange_rate_type_code' => $this->nullableString($payment['exchange_rate_type_code'] ?? null),
+            'exchange_rate' => $this->nullableString($payment['exchange_rate'] ?? null),
+            'amount_base' => (float) ($payment['amount_base'] ?? 0),
+            'amount_local' => (float) ($payment['amount_local'] ?? 0),
+            'method' => $this->nullableString($payment['method'] ?? null),
+            'reference' => $ref,
+            'notes' => $this->nullableString($payment['notes'] ?? null),
+            'created_by' => null,
+            'paid_at' => $this->nullableString($payment['paid_at'] ?? null),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica `accounts_receivable.created` / `accounts_receivable.updated` en la nube.
+     * Upsert por (tenant_id, document_number). El customer se resuelve por documento.
+     */
+    private function applyAccountsReceivable(Tenant $tenant, array $payload, array $event): string
+    {
+        $documentNumber = $this->nullableString($payload['document_number'] ?? null);
+        $saleId = $payload['sale_id'] ?? null;
+        $customerDocument = $this->nullableString($payload['customer_document'] ?? null);
+        $customerId = $customerDocument !== null
+            ? DB::table('customers')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $customerDocument)
+                ->value('id')
+            : null;
+
+        $existing = DB::table('accounts_receivables')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        $values = [
+            'customer_id' => $customerId,
+            'status' => $payload['status'] ?? 'pending',
+            'currency' => $payload['currency'] ?? 'USD',
+            'original_base_amount' => (float) ($payload['original_base_amount'] ?? 0),
+            'original_local_amount' => (float) ($payload['original_local_amount'] ?? 0),
+            'returned_base_amount' => (float) ($payload['returned_base_amount'] ?? 0),
+            'returned_local_amount' => (float) ($payload['returned_local_amount'] ?? 0),
+            'collected_base_amount' => (float) ($payload['collected_base_amount'] ?? 0),
+            'collected_local_amount' => (float) ($payload['collected_local_amount'] ?? 0),
+            'adjusted_base_amount' => (float) ($payload['adjusted_base_amount'] ?? 0),
+            'adjusted_local_amount' => (float) ($payload['adjusted_local_amount'] ?? 0),
+            'balance_base_amount' => (float) ($payload['balance_base_amount'] ?? 0),
+            'balance_local_amount' => (float) ($payload['balance_local_amount'] ?? 0),
+            'due_date' => $this->nullableString($payload['due_date'] ?? null),
+            'opened_at' => $this->nullableString($payload['opened_at'] ?? null),
+            'paid_at' => $this->nullableString($payload['paid_at'] ?? null),
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            if ($saleId !== null) {
+                $values['sale_id'] = (int) $saleId;
+            }
+
+            DB::table('accounts_receivables')
+                ->where('id', $existing->id)
+                ->update($values);
+        } else {
+            $values['tenant_id'] = $tenant->id;
+            $values['sale_id'] = (int) ($saleId ?? 0);
+            $values['document_number'] = $documentNumber;
+            $values['created_at'] = now();
+
+            DB::table('accounts_receivables')->insert($values);
         }
 
         return 'applied';

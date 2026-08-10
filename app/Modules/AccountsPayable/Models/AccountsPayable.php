@@ -5,6 +5,7 @@ namespace App\Modules\AccountsPayable\Models;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Suppliers\Models\Supplier;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -36,7 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class AccountsPayable extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
 
     public const STATUS_PENDING = 'pending';
 
@@ -47,6 +48,15 @@ class AccountsPayable extends Model
     public const STATUS_OVERDUE = 'overdue';
 
     protected $table = 'accounts_payables';
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        return match ($action) {
+            'created' => 'accountsPayableCreated',
+            'updated' => 'accountsPayableUpdated',
+            default => null,
+        };
+    }
 
     protected function casts(): array
     {

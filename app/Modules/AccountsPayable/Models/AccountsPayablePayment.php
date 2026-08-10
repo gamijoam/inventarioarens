@@ -4,6 +4,7 @@ namespace App\Modules\AccountsPayable\Models;
 
 use App\Models\User;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +27,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class AccountsPayablePayment extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        return match ($action) {
+            'created' => 'accountsPayablePaymentCreated',
+            default => null,
+        };
+    }
 
     protected function casts(): array
     {

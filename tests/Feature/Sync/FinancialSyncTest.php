@@ -1,0 +1,208 @@
+<?php
+
+namespace Tests\Feature\Sync;
+
+use App\Models\User;
+use App\Modules\AccountsPayable\Models\AccountsPayable;
+use App\Modules\AccountsPayable\Services\AccountsPayableService;
+use App\Modules\Branches\Models\Branch;
+use App\Modules\Products\Models\Product;
+use App\Modules\Purchases\Models\PurchaseItem;
+use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Sales\Models\Sale;
+use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\Sync\Services\SyncEventApplier;
+use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+/**
+ * Verifica que las cuentas por pagar (CxP) emiten eventos de sync de forma
+ * automatica (via trait Syncable) y que la nube las aplica (SyncEventApplier),
+ * garantizando sincronizacion bidireccional local<->nube.
+ */
+class FinancialSyncTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function setupTenant(): array
+    {
+        $tenant = Tenant::create(['name' => 'T', 'slug' => 't']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+        $branch = Branch::create(['name' => 'B', 'code' => 'B1']);
+        $warehouse = Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'W1',
+            'code' => 'WH-01',
+        ]);
+        $product = Product::create([
+            'name' => 'P',
+            'sku' => 'TEST-SKU-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10.0,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        $supplier = Supplier::create([
+            'name' => 'Proveedor Test',
+            'document_type' => Supplier::DOCUMENT_J,
+            'document_number' => 'J-11111111-1',
+        ]);
+
+        return [$tenant, $user, $warehouse, $product, $supplier];
+    }
+
+    private function createPayable(Tenant $tenant, Supplier $supplier, PurchaseOrder $po): AccountsPayable
+    {
+        return app(AccountsPayableService::class)->createForPurchase($po);
+    }
+
+    private function createReceivedPurchase(Tenant $tenant, User $user, Warehouse $warehouse, Product $product, Supplier $supplier): PurchaseOrder
+    {
+        $po = PurchaseOrder::create([
+            'tenant_id' => $tenant->id,
+            'supplier_id' => $supplier->id,
+            'status' => PurchaseOrder::STATUS_RECEIVED,
+            'document_number' => 'COMPRA-SYNC-001',
+            'issued_at' => now(),
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'total_base_amount' => 100.0,
+            'total_local_amount' => 100.0,
+            'received_base_amount' => 100.0,
+            'received_local_amount' => 100.0,
+            'created_by' => $user->id,
+        ]);
+        PurchaseItem::create([
+            'tenant_id' => $tenant->id,
+            'purchase_order_id' => $po->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 10,
+            'unit_cost' => 10,
+            'total_cost' => 100,
+            'base_unit_cost' => 10,
+            'base_total_cost' => 100,
+            'received_quantity' => 10,
+        ]);
+
+        return $po;
+    }
+
+    private function enqueueEvent(int $tenantId, string $eventType, array $payload, int $aggregateId = 1): void
+    {
+        $now = now();
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenantId,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => $eventType,
+            'aggregate_type' => str_replace('.created', '', $eventType),
+            'aggregate_id' => $aggregateId,
+            'payload_hash' => hash('sha256', json_encode($payload)),
+            'payload' => json_encode($payload),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    public function test_payable_creation_emits_sync_event_via_trait(): void
+    {
+        [$tenant, $user, $warehouse, $product, $supplier] = $this->setupTenant();
+        $po = $this->createReceivedPurchase($tenant, $user, $warehouse, $product, $supplier);
+
+        $this->createPayable($tenant, $supplier, $po);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'accounts_payable.created',
+        ]);
+    }
+
+    public function test_payable_payment_emits_sync_event_via_trait(): void
+    {
+        [$tenant, $user, $warehouse, $product, $supplier] = $this->setupTenant();
+        $po = $this->createReceivedPurchase($tenant, $user, $warehouse, $product, $supplier);
+        $payable = $this->createPayable($tenant, $supplier, $po);
+
+        app(AccountsPayableService::class)->registerPayment($payable, $user, [
+            'payment_currency' => 'USD',
+            'amount' => 40,
+            'method' => 'transferencia',
+            'reference' => 'PAGO-SYNC-1',
+        ]);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'accounts_payable.payment_registered',
+        ]);
+    }
+
+    public function test_applier_applies_payable_created_to_cloud(): void
+    {
+        [$tenant, $user, $warehouse, $product, $supplier] = $this->setupTenant();
+        $po = $this->createReceivedPurchase($tenant, $user, $warehouse, $product, $supplier);
+
+        $this->enqueueEvent($tenant->id, 'accounts_payable.created', [
+            'document_number' => 'CXP-SYNC-001',
+            'purchase_order_id' => $po->id,
+            'supplier_document' => 'J-11111111-1',
+            'supplier_name' => 'Proveedor Test',
+            'status' => 'pending',
+            'currency' => 'USD',
+            'original_base_amount' => '100.0000',
+            'original_local_amount' => '100.0000',
+            'balance_base_amount' => '100.0000',
+            'balance_local_amount' => '100.0000',
+        ], 200);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('accounts_payables', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'CXP-SYNC-001',
+            'status' => 'pending',
+            'original_base_amount' => 100.0,
+            'balance_base_amount' => 100.0,
+        ]);
+    }
+
+    public function test_applier_applies_receivable_created_to_cloud(): void
+    {
+        [$tenant] = $this->setupTenant();
+        $sale = Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 50,
+            'total_local_amount' => 50,
+        ]);
+
+        $this->enqueueEvent($tenant->id, 'accounts_receivable.created', [
+            'document_number' => 'VENTA-SYNC-001',
+            'sale_id' => $sale->id,
+            'status' => 'pending',
+            'currency' => 'USD',
+            'original_base_amount' => '50.0000',
+            'original_local_amount' => '50.0000',
+            'balance_base_amount' => '50.0000',
+            'balance_local_amount' => '50.0000',
+        ], 300);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'VENTA-SYNC-001',
+            'status' => 'pending',
+            'original_base_amount' => 50.0,
+            'balance_base_amount' => 50.0,
+        ]);
+    }
+}
