@@ -112,6 +112,58 @@ class PurchaseOrderApiTest extends TestCase
             ->assertJsonValidationErrors('items');
     }
 
+    public function test_quantity_purchase_receives_the_selected_color_variant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variantes Cantidad', 'slug' => 'empresa-variantes-cantidad']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'ACCESORIO-COLOR-001');
+        $product->variants()->createMany([
+            ['color' => 'Azul', 'color_hex' => '#2563EB', 'is_active' => true, 'position' => 1],
+            ['color' => 'Verde', 'color_hex' => '#16A34A', 'is_active' => true, 'position' => 2],
+        ]);
+        $green = $product->variants()->where('color', 'Verde')->firstOrFail();
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras variantes cantidad', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'product_variant_id' => $green->id,
+                    'quantity' => 3,
+                    'unit_cost' => 12.5,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant_id', $green->id)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant_id', $green->id);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $green->id,
+            'quantity_available' => '3.0000',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $green->id,
+            'type' => 'purchase',
+        ]);
+    }
+
     public function test_user_can_create_draft_purchase_without_moving_inventory(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

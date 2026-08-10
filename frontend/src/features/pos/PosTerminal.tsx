@@ -1851,24 +1851,31 @@ export function PosTerminal() {
     requestedQuantity = 1,
     selectedVariant?: ProductVariant | null,
   ): Promise<boolean> {
-    if (!selectedVariant && !scannedSerial && selectedWarehouse) {
-      const variants = await getProductVariants(product.id, selectedWarehouse.id);
-      const namedVariants = variants.filter((variant) => Boolean(variant.color));
-      if (namedVariants.length > 0) {
-        setVariantPickerProduct(product);
-        setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
+    const warehouse = selectedWarehouse;
+    if (!warehouse) {
+      toast.error('Selecciona un almacen antes de agregar productos.');
+      return false;
+    }
+
+    if (!selectedVariant && !scannedSerial) {
+      try {
+        const variants = await getProductVariants(product.id, warehouse.id);
+        const namedVariants = variants.filter((variant) => Boolean(variant.color));
+        if (namedVariants.length > 0) {
+          setVariantPickerProduct(product);
+          setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
+          return false;
+        }
+        selectedVariant = variants[0] ?? null;
+      } catch {
+        toast.error('No se pudieron consultar las variantes de este producto. Intenta de nuevo.');
         return false;
       }
-      selectedVariant = variants[0] ?? null;
     }
 
     const available = Number(selectedVariant?.stock_available ?? product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
       toast.error('Producto sin stock disponible.');
-      return false;
-    }
-    if (!selectedWarehouse) {
-      toast.error('Selecciona un almacen.');
       return false;
     }
     const quote = selectedPriceList ? await quoteProduct(product, selectedPriceList) : null;
@@ -1878,7 +1885,7 @@ export function PosTerminal() {
     const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
     const lineMatchesVariant = (line: PosCartLine) =>
       line.product_id === product.id &&
-      line.warehouse_id === selectedWarehouse.id &&
+      line.warehouse_id === warehouse.id &&
       (line.product_variant_id ?? null) === (selectedVariant?.id ?? null);
     const matchingLine = cart.find(lineMatchesVariant);
     const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
@@ -1934,7 +1941,7 @@ export function PosTerminal() {
           name: product.name,
           sku: product.sku,
           barcode: product.barcode,
-          warehouse_id: selectedWarehouse.id,
+          warehouse_id: warehouse.id,
           quantity,
           available_stock: available,
           unit_price:

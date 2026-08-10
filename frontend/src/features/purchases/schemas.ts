@@ -61,6 +61,16 @@ export const PurchaseItemSchema = z.object({
   base_total_cost: z.union([z.number(), z.string()]).nullable().optional(),
   // Relaciones opcionales (eager loaded en show).
   product: z.unknown().nullable().optional(),
+  product_variant: z
+    .object({
+      id: z.number().int().positive(),
+      color: z.string().nullable().optional(),
+      color_hex: z.string().nullable().optional(),
+      sku_variant: z.string().nullable().optional(),
+      barcode_variant: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   warehouse: z.unknown().nullable().optional(),
 });
 export type PurchaseItem = z.infer<typeof PurchaseItemSchema>;

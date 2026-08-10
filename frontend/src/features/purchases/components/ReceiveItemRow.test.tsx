@@ -56,4 +56,20 @@ describe('ReceiveItemRow', () => {
 
     expect(screen.queryByText('IMEIs / seriales de esta recepcion')).toBeNull();
   });
+
+  it('identifica la variante de color que se esta recibiendo', () => {
+    render(
+      <ReceiveItemRow
+        value={makeValue({
+          product_tracking_type: 'quantity',
+          product_variant_name: 'Verde',
+          product_variant_sku: 'TEL-VERDE',
+          serial_units: [],
+        })}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Variante: Verde (TEL-VERDE)')).toBeInTheDocument();
+  });
 });

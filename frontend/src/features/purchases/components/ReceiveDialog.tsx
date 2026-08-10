@@ -71,6 +71,8 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
         product_id: product?.id ?? it.product_id,
         product_name: product?.name ?? `Producto #${it.product_id}`,
         product_sku: product?.sku ?? null,
+        product_variant_name: it.product_variant?.color ?? null,
+        product_variant_sku: it.product_variant?.sku_variant ?? null,
         product_tracking_type: product?.tracking_type,
         warehouse_code: warehouse?.code ?? `Almacen #${it.warehouse_id}`,
         ordered_quantity: ordered,

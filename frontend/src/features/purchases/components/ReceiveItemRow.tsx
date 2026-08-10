@@ -19,6 +19,8 @@ export interface ReceiveItemRowValue {
   product_id: number;
   product_name: string;
   product_sku?: string | null;
+  product_variant_name?: string | null;
+  product_variant_sku?: string | null;
   product_tracking_type?: string;
   warehouse_code: string;
   /** Cantidad pedida en el draft original */
@@ -71,6 +73,12 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
           <div className="text-text-muted mt-0.5 flex items-center gap-1.5 text-xs">
             {value.product_sku && (
               <code className="bg-bg rounded px-1 py-0.5">{value.product_sku}</code>
+            )}
+            {value.product_variant_name && (
+              <Badge variant="info" className="text-[10px]">
+                Variante: {value.product_variant_name}
+                {value.product_variant_sku ? ` (${value.product_variant_sku})` : ''}
+              </Badge>
             )}
             <span>|</span>
             <span>
