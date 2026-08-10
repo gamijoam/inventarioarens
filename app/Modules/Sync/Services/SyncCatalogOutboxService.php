@@ -807,7 +807,7 @@ class SyncCatalogOutboxService
 
     private function recordAccountsPayable(string $eventType, AccountsPayable $payable): void
     {
-        $payable->loadMissing('supplier');
+        $payable->loadMissing(['supplier', 'purchaseOrder']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -816,6 +816,7 @@ class SyncCatalogOutboxService
             payload: [
                 'document_number' => $payable->document_number,
                 'purchase_order_id' => $payable->purchase_order_id,
+                'purchase_order_document' => $payable->purchaseOrder?->document_number,
                 'supplier_document' => $payable->supplier?->document_number,
                 'supplier_name' => $payable->supplier?->name,
                 'status' => $payable->status,

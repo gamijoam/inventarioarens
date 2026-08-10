@@ -2553,7 +2553,6 @@ class SyncEventApplier
     private function applyAccountsPayable(Tenant $tenant, array $payload, array $event): string
     {
         $documentNumber = $this->nullableString($payload['document_number'] ?? null);
-        $purchaseOrderId = $payload['purchase_order_id'] ?? null;
         $supplierDocument = $this->nullableString($payload['supplier_document'] ?? null);
         $supplierId = null;
 
@@ -2561,6 +2560,24 @@ class SyncEventApplier
             $supplierId = DB::table('suppliers')
                 ->where('tenant_id', $tenant->id)
                 ->where('document_number', $supplierDocument)
+                ->value('id');
+        }
+
+        // El purchase_order_id del payload es el id LOCAL, no sirve como FK en
+        // la nube. Resolvemos el PO de la nube por document_number (identidad
+        // natural entre nodos). Si el PO aun no llego, la CxP se aplica sin
+        // purchase_order_id y se conserva el documento como referencia.
+        $purchaseOrderId = null;
+        $poDocument = $this->nullableString($payload['purchase_order_document'] ?? null);
+
+        if ($poDocument === null && $documentNumber !== null) {
+            $poDocument = str_starts_with($documentNumber, 'COMPRA-') ? $documentNumber : null;
+        }
+
+        if ($poDocument !== null) {
+            $purchaseOrderId = DB::table('purchase_orders')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $poDocument)
                 ->value('id');
         }
 

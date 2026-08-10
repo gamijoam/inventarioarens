@@ -151,7 +151,8 @@ class FinancialSyncTest extends TestCase
 
         $this->enqueueEvent($tenant->id, 'accounts_payable.created', [
             'document_number' => 'CXP-SYNC-001',
-            'purchase_order_id' => $po->id,
+            'purchase_order_id' => 999, // id local, NO existe en la nube
+            'purchase_order_document' => $po->document_number,
             'supplier_document' => 'J-11111111-1',
             'supplier_name' => 'Proveedor Test',
             'status' => 'pending',
