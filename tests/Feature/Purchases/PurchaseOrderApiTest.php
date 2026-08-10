@@ -573,6 +573,137 @@ class PurchaseOrderApiTest extends TestCase
         }
     }
 
+    public function test_second_purchase_of_same_color_variant_does_not_fail(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Recompra Verde', 'slug' => 'empresa-recompra-verde']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'ACCESORIO-VERDE-RE-001');
+        $green = $product->variants()->create([
+            'color' => 'Verde',
+            'color_hex' => '#16A34A',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras recompra verde', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $payload = fn (int $quantity): array => [
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $green->id,
+                'quantity' => $quantity,
+                'unit_cost' => 12.5,
+            ]],
+        ];
+
+        // Primera compra del color verde: debe funcionar.
+        $first = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', $payload(2))
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant_id', $green->id)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$first}/receive")
+            ->assertOk();
+
+        // Segunda compra del MISMO color (verde) en el mismo almacen: no debe
+        // dar error de duplicado ni de stock_balances.
+        $second = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', $payload(3))
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant_id', $green->id)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$second}/receive")
+            ->assertOk();
+
+        // El stock del color verde acumula ambas compras (2 + 3 = 5).
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $green->id,
+            'quantity_available' => '5.0000',
+        ]);
+    }
+
+    public function test_receive_purchase_with_two_color_variants_does_not_fail(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Dos Colores', 'slug' => 'empresa-dos-colores']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'ACCESORIO-DOS-COLORES-001');
+        $blue = $product->variants()->create([
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $green = $product->variants()->create([
+            'color' => 'Verde',
+            'color_hex' => '#16A34A',
+            'is_active' => true,
+            'position' => 2,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras dos colores', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product->id,
+                        'product_variant_id' => $green->id,
+                        'quantity' => 1,
+                        'unit_cost' => 10,
+                    ],
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product->id,
+                        'product_variant_id' => $blue->id,
+                        'quantity' => 2,
+                        'unit_cost' => 12,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk();
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $green->id,
+            'quantity_available' => '1.0000',
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $blue->id,
+            'quantity_available' => '2.0000',
+        ]);
+    }
+
     private function product(Tenant $tenant, string $trackingType, string $sku, bool $withRate = false): array
     {
         $this->useTenant($tenant);
