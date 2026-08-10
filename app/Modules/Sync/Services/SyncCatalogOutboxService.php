@@ -24,6 +24,7 @@ use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use Carbon\CarbonInterface;
@@ -252,6 +253,62 @@ class SyncCatalogOutboxService
     public function accountsReceivableUpdated(AccountsReceivable $receivable): void
     {
         $this->recordAccountsReceivable('accounts_receivable.updated', $receivable);
+    }
+
+    /**
+     * Emite el evento de venta confirmada (módulo Sales puro, fuera de POS).
+     * Las ventas del POS viajan con `pos.order.*` (sale embebido), por lo que
+     * este evento se emite solo para ventas sin PosOrder. Incluye la identidad
+     * de sync (sale_id + node) para que la nube haga upsert por sync_source.
+     */
+    public function saleConfirmed(Sale $sale): void
+    {
+        $sale->loadMissing([
+            'customer',
+            'items.product',
+            'items.variant',
+            'items.warehouse',
+            'items.priceList',
+        ]);
+
+        $this->outbox->record(
+            eventType: 'sale.confirmed',
+            aggregateType: 'sale',
+            aggregateId: $sale->id,
+            payload: [
+                'sale_id' => $sale->id,
+                'status' => $sale->status,
+                'customer_document_type' => $sale->customer?->document_type,
+                'customer_document_number' => $sale->customer?->document_number,
+                'total_base_amount' => (string) $sale->total_base_amount,
+                'total_local_amount' => (string) $sale->total_local_amount,
+                'confirmed_at' => $sale->confirmed_at?->toISOString(),
+                'cancelled_at' => $sale->cancelled_at?->toISOString(),
+                'items' => $sale->items->map(fn ($item): array => [
+                    'sku' => $item->product?->sku,
+                    'warehouse_code' => $item->warehouse?->code,
+                    'product_variant_sku' => $item->variant?->sku_variant,
+                    'product_variant_color' => $item->variant?->color,
+                    'price_list_code' => $item->priceList?->code,
+                    'quantity' => (string) $item->quantity,
+                    'unit_price' => (string) $item->unit_price,
+                    'base_unit_price' => (string) $item->base_unit_price,
+                    'base_total_amount' => (string) $item->base_total_amount,
+                    'total_amount' => (string) $item->total_amount,
+                    'sale_currency' => $item->sale_currency,
+                    'exchange_rate_type_code' => $item->exchange_rate_type_code,
+                    'exchange_rate' => $item->exchange_rate === null ? null : (string) $item->exchange_rate,
+                    'discount_type' => $item->discount_type,
+                    'discount_value' => $item->discount_value === null ? null : (string) $item->discount_value,
+                    'discount_amount' => $item->discount_amount === null ? null : (string) $item->discount_amount,
+                    'promotion_code' => $item->promotion_code,
+                    'promotion_name' => $item->promotion_name,
+                    'promotion_benefit_type' => $item->promotion_benefit_type,
+                    'product_unit_ids' => $item->product_unit_ids ?? [],
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey('sale.confirmed', 'sale', $sale->id, $sale->updated_at),
+        );
     }
 
     public function productEntryCreated(ProductEntry $entry): void

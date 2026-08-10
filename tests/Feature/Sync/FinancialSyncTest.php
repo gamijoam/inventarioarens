@@ -6,10 +6,14 @@ use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Customers\Models\Customer;
+use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\Product;
 use App\Modules\Purchases\Models\PurchaseItem;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Services\SaleService;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
@@ -205,5 +209,119 @@ class FinancialSyncTest extends TestCase
             'original_base_amount' => 50.0,
             'balance_base_amount' => 50.0,
         ]);
+    }
+
+    public function test_confirming_plain_sale_emits_sale_confirmed_event(): void
+    {
+        [$tenant, $user, $warehouse, $product] = $this->setupTenant();
+        StockBalance::create([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+
+        $sale = app(SaleService::class)->createDraft($user, [
+            [
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 2,
+            ],
+        ]);
+        app(SaleService::class)->confirm($sale, $user);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'sale.confirmed',
+        ]);
+    }
+
+    public function test_confirming_pos_sale_does_not_emit_sale_confirmed(): void
+    {
+        [$tenant, $user, $warehouse, $product] = $this->setupTenant();
+        StockBalance::create([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+
+        // Simula una venta con PosOrder asociado (flujo POS).
+        $sale = $this->confirmedSaleWithPosOrder($tenant, $user, $warehouse, $product);
+        $this->assertNotNull($sale);
+
+        $this->assertDatabaseMissing('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'sale.confirmed',
+        ]);
+    }
+
+    public function test_applier_applies_sale_confirmed_to_cloud(): void
+    {
+        [$tenant, , $warehouse, $product] = $this->setupTenant();
+        $customer = Customer::create([
+            'name' => 'Cliente Sync',
+            'document_type' => Customer::DOCUMENT_V,
+            'document_number' => 'V-22222222',
+        ]);
+
+        $this->enqueueEvent($tenant->id, 'sale.confirmed', [
+            'sale_id' => 77,
+            'status' => 'confirmed',
+            'customer_document_type' => 'V',
+            'customer_document_number' => 'V-22222222',
+            'total_base_amount' => '200.0000',
+            'total_local_amount' => '200.0000',
+            'confirmed_at' => now()->toISOString(),
+            'items' => [[
+                'sku' => $product->sku,
+                'warehouse_code' => $warehouse->code,
+                'quantity' => '2.0000',
+                'unit_price' => '100.0000',
+                'base_unit_price' => '100.0000',
+                'base_total_amount' => '200.0000',
+                'total_amount' => '200.0000',
+                'sale_currency' => 'USD',
+            ]],
+        ], 77);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('sales', [
+            'tenant_id' => $tenant->id,
+            'sync_source_id' => 77,
+            'status' => 'confirmed',
+            'customer_id' => $customer->id,
+            'total_base_amount' => 200.0,
+        ]);
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'quantity' => 2.0,
+        ]);
+    }
+
+    private function confirmedSaleWithPosOrder(Tenant $tenant, User $user, Warehouse $warehouse, Product $product): Sale
+    {
+        $sale = Sale::create([
+            'tenant_id' => $tenant->id,
+            'status' => Sale::STATUS_CONFIRMED,
+            'customer_id' => null,
+            'total_base_amount' => 20,
+            'total_local_amount' => 20,
+            'created_by' => $user->id,
+        ]);
+        PosOrder::create([
+            'tenant_id' => $tenant->id,
+            'sale_id' => $sale->id,
+            'status' => 'paid',
+            'total_base_amount' => 20,
+            'total_local_amount' => 20,
+            'paid_base_amount' => 20,
+            'paid_local_amount' => 20,
+        ]);
+
+        return $sale->refresh();
     }
 }

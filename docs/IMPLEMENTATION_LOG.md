@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de ventas del módulo Sales (fuera de POS)
+
+### Problema
+El módulo `Sales` puro (ventas creadas fuera del POS) no emitía eventos de sync.
+Solo las ventas del POS viajaban (embebidas en `pos.order.*`).
+
+### Fix
+- **Trait `Syncable` en `Sale`**: emite `sale.confirmed` cuando la venta pasa a
+  `confirmed` y NO tiene `PosOrder` asociado (ventas puras). Las del POS no
+  duplican evento.
+- **Outbox**: `saleConfirmed(Sale)` emite payload con cliente, totales, items
+  (sku, warehouse_code, variante, price_list, precios, promociones, seriales).
+- **Applier**: `applySale` + `syncPlainSaleItems` — upsert de la venta por
+  `(tenant_id, sync_source_node_code, sync_source_id)` y replica `sale_items`.
+  No aplica stock (las ventas puras del local ya descontaron stock allí).
+- `sale.confirmed` agregado a listas retryable/reprocessable.
+- TDD: venta pura emite, venta POS NO emite, applier aplica. Suite Sync 118
+  passed/1 skipped, Sales 11/11.
+
 ## 2026-08-10 - Trait Syncable: sincronización automática de modelos (CxP/CxC)
 
 ### Contexto

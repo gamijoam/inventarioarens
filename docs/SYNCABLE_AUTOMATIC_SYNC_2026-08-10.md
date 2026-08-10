@@ -76,6 +76,7 @@ AccountsPayable::syncableSuspended(function () {
 | `AccountsPayable` | `accounts_payable.created`, `accounts_payable.updated` |
 | `AccountsPayablePayment` | `accounts_payable.payment_registered` |
 | `AccountsReceivable` | `accounts_receivable.created`, `accounts_receivable.updated` |
+| `Sale` | `sale.confirmed` (solo ventas del módulo Sales SIN PosOrder; las del POS viajan con `pos.order.*`) |
 
 > Los modelos de catálogo (Product, Variant, Customer, Supplier, etc.) ya emiten
 > eventos manualmente desde sus controllers desde antes. NO se les agregó
@@ -91,6 +92,7 @@ AccountsPayable::syncableSuspended(function () {
 | `accounts_payable.created` / `updated` | `applyAccountsPayable` | Upsert CxP por `(tenant_id, document_number)`; supplier por documento |
 | `accounts_payable.payment_registered` | `applyPayablePayment` | Registra el pago sobre la CxP sincronizada |
 | `accounts_receivable.created` / `updated` | `applyAccountsReceivable` | Upsert CxC por `(tenant_id, document_number)`; customer por documento |
+| `sale.confirmed` | `applySale` | Upsert venta por `(tenant_id, sync_source_node_code, sync_source_id)` + replica `sale_items` |
 
 Esto garantiza que la nube **aplica** los cambios y, cuando el flujo es inverso,
 los bajos al local (mismo applier corre en ambos lados).

@@ -7,6 +7,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\SalesReturns\Models\SalesReturn;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -25,13 +26,33 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class Sale extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
 
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_CONFIRMED = 'confirmed';
 
     public const STATUS_CANCELLED = 'cancelled';
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        if ($action !== 'updated') {
+            return null;
+        }
+
+        // Solo las ventas confirmadas del módulo Sales (sin POS) emiten
+        // `sale.confirmed`. Las del POS viajan con pos.order.* (sale embebido),
+        // por lo que no deben duplicar evento.
+        if ($this->status !== self::STATUS_CONFIRMED) {
+            return null;
+        }
+
+        if ($this->relationLoaded('posOrder') ? $this->posOrder !== null : $this->posOrder()->exists()) {
+            return null;
+        }
+
+        return 'saleConfirmed';
+    }
 
     protected function casts(): array
     {

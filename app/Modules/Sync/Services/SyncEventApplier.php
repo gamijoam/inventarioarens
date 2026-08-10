@@ -71,6 +71,7 @@ class SyncEventApplier
         'accounts_payable.payment_registered',
         'accounts_receivable.created',
         'accounts_receivable.updated',
+        'sale.confirmed',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -138,6 +139,7 @@ class SyncEventApplier
         'accounts_payable.payment_registered',
         'accounts_receivable.created',
         'accounts_receivable.updated',
+        'sale.confirmed',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -285,6 +287,7 @@ class SyncEventApplier
                 'accounts_payable.created', 'accounts_payable.updated' => $this->applyAccountsPayable($tenant, $payload, $event),
                 'accounts_payable.payment_registered' => $this->applyPayablePayment($tenant, $payload, $event),
                 'accounts_receivable.created', 'accounts_receivable.updated' => $this->applyAccountsReceivable($tenant, $payload, $event),
+                'sale.confirmed' => $this->applySale($tenant, $payload, $event),
                 default => 'ignored',
             };
         } finally {
@@ -2757,6 +2760,111 @@ class SyncEventApplier
         }
 
         return 'applied';
+    }
+
+    /**
+     * Aplica `sale.confirmed` (ventas del módulo Sales puro, sin POS) en la nube.
+     * Upsert de la venta por (tenant_id, sync_source_node_code, sync_source_id)
+     * y replica los sale_items. No aplica stock: las ventas puras del local ya
+     * descontaron stock alli; para la nube el stock se reconcilia por los
+     * stock_movements que acompanan la operacion.
+     */
+    private function applySale(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceSaleId = (int) ($payload['sale_id'] ?? $event['aggregate_id'] ?? 0);
+
+        if ($sourceSaleId <= 0) {
+            return 'ignored';
+        }
+
+        $now = now();
+        $customerId = $this->customerIdByDocument(
+            $tenant,
+            $payload['customer_document_type'] ?? null,
+            $payload['customer_document_number'] ?? null,
+        );
+
+        $saleId = $this->upsertAndGetId(
+            'sales',
+            [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceSaleId,
+            ],
+            [
+                'status' => $payload['status'] ?? 'confirmed',
+                'customer_id' => $customerId,
+                'total_base_amount' => $payload['total_base_amount'] ?? 0,
+                'total_local_amount' => $payload['total_local_amount'] ?? 0,
+                'created_by' => null,
+                'confirmed_at' => $this->nullableDate($payload['confirmed_at'] ?? null) ?? $now,
+                'cancelled_at' => $this->nullableDate($payload['cancelled_at'] ?? null),
+                'updated_at' => $now,
+            ]
+        );
+
+        $this->syncPlainSaleItems($tenant, $saleId, $sourceNodeCode, $payload['items'] ?? []);
+
+        return 'applied';
+    }
+
+    /**
+     * Replica los sale_items de una venta pura (sin POS). La identidad de sync
+     * por item se deriva de (sale_id local + indice) porque el payload del
+     * evento no incluye el item_id local.
+     */
+    private function syncPlainSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, array $items): void
+    {
+        $now = now();
+
+        foreach ($items as $index => $item) {
+            $sku = $this->nullableString($item['sku'] ?? null);
+            $warehouseCode = $this->nullableString($item['warehouse_code'] ?? null);
+
+            if ($sku === null || $warehouseCode === null) {
+                continue;
+            }
+
+            $product = $this->productBySku($tenant, $sku);
+            $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
+            $priceListId = $this->nullablePriceListIdByCode($tenant, $item['price_list_code'] ?? null);
+            $sourceItemId = $saleId * 1000 + $index + 1;
+
+            $this->upsertByKeys(
+                'sale_items',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sync_source_node_code' => $sourceNodeCode,
+                    'sync_source_id' => $sourceItemId,
+                ],
+                [
+                    'sale_id' => $saleId,
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceListId,
+                    'price_list_name' => $item['price_list_name'] ?? null,
+                    'quantity' => $item['quantity'] ?? 1,
+                    'sale_currency' => strtoupper($item['sale_currency'] ?? 'USD'),
+                    'unit_price' => $item['unit_price'] ?? 0,
+                    'total_amount' => $item['total_amount'] ?? 0,
+                    'base_unit_price' => $item['base_unit_price'] ?? 0,
+                    'base_total_amount' => $item['base_total_amount'] ?? 0,
+                    'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $item['exchange_rate_type_code'] ?? null, null),
+                    'exchange_rate_type_code' => $item['exchange_rate_type_code'] ?? null,
+                    'exchange_rate' => $item['exchange_rate'] ?? null,
+                    'stock_movement_id' => null,
+                    'product_unit_ids' => isset($item['product_unit_ids']) ? json_encode($item['product_unit_ids']) : null,
+                    'discount_type' => $item['discount_type'] ?? null,
+                    'discount_value' => $item['discount_value'] ?? 0,
+                    'discount_amount' => $item['discount_amount'] ?? 0,
+                    'promotion_code' => $item['promotion_code'] ?? null,
+                    'promotion_name' => $item['promotion_name'] ?? null,
+                    'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
+                    'updated_at' => $now,
+                ]
+            );
+        }
     }
 
     private function localSerialUnitIds(Tenant $tenant, int $productId, int $warehouseId, array $serialUnits): array
