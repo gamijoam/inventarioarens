@@ -1,5 +1,37 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de variantes en compras + PO recibido duplicado en nube
+
+### Variantes no viajaban en sync (compras y creación)
+- Síntoma: en el VPS no aparecía la variante ROJA creada en el cliente local, y una compra creada con
+  presentación llegaba sin items.
+- Causas encadenadas:
+  1. `ProductVariantController::store` no emitía `product_variant.created` (solo update/delete).
+  2. `purchase_order.created`/`purchase_order.received` no enviaban la identidad de la variante.
+  3. El applier ignoraba la variante al crear `stock_balances`/`stock_movements`/items.
+- Fix (commits `d581017`, `c61947f`, `ecb4162`):
+  - `store()` emite `variantCreated`.
+  - Outbox de compras envía `product_variant_sku` + `product_variant_color`.
+  - Applier resuelve la variante por `sku_variant` o `color` (presentaciones sin sku) y la aplica en
+    stock/movements/entry/exit items.
+  - Migración `2026_08_10_140000_add_product_variant_id_to_entry_exit_items.php`.
+- TDD: emisión (local→nube) y aplicación (nube) de eventos con variantes. Suite Sync 105 passed/1 skipped.
+- Deploy al VPS (`ecb4162`) + backfill de items de compras draft + actualización del backend PHP de
+  los 3 clientes instalados (Admin, POS, Soporte Técnico) + emisión manual de `product_variant.created`
+  de variantes pre-existentes (AZUL/VERDE) desde el worker local.
+
+### PurchaseOrder recibido en local quedaba pendiente en la nube (duplicación)
+- Síntoma: COMPRA-000009 recibida en local aparecía como `draft` con botón "Recibir mercancía" en la
+  nube. Si se recibía de nuevo, duplicaba stock.
+- Causa: `applyPurchaseOrderReceived` creaba el `product_entry` (stock) pero NO marcaba el
+  `purchase_orders` como `received` ni actualizaba `purchase_items.received_quantity`.
+- Fix (commit `93729f1`): `applyPurchaseOrderReceived` ahora llama `markPurchaseOrderReceived()` que
+  actualiza status (`received`/`partially_received`), `received_at`, `received_base_amount` y
+  `received_quantity` de los items por `(product_id, product_variant_id)`.
+- Data-fix en nube: marcadas como `received` las compras con stock ya aplicado (COMPRA-000002,
+  000003, 000004, 000006, 000009). COMPRA-000005 y 000008 quedan `draft` (sin stock aplicado).
+- Deploy al VPS (`93729f1`) + copia del `SyncEventApplier.php` a los 3 clientes instalados.
+
 ## 2026-08-10 - Frontend VPS desactualizado + data-fix stock ACCESORIOS COSMETICOS
 
 ### Frontend del VPS servía un build viejo (sin variantes)
