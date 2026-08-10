@@ -1,7 +1,7 @@
 {
   "name": "inventarioarens-frontend",
   "private": true,
-  "version": "0.2.26",
+  "version": "0.2.27",
   "description": "Desktop clients for INVENTARIOARENS inventory and point-of-sale operations",
   "author": "INVENTARIOARENS",
   "type": "module",
