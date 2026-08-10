@@ -51,6 +51,11 @@ class ProductVariantController extends Controller
             ]);
         });
 
+        // Emitir evento de sync para que la variante (presentacion/color)
+        // se replique a la nube. Sin esto, las compras/POS que usan la
+        // variante por sku_variant no pueden resolverla en el otro nodo.
+        app(SyncCatalogOutboxService::class)->variantCreated($variant);
+
         return ProductVariantResource::make($variant)->response()->setStatusCode(201);
     }
 

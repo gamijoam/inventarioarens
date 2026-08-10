@@ -3,15 +3,17 @@
 namespace Tests\Feature\Products;
 
 use App\Models\User;
-use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Products\Models\Product;
-use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -192,6 +194,36 @@ class ProductVariantApiTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_create_variant_via_api_emits_sync_event_with_variant_identity(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Sync Variantes', 'slug' => 'empresa-sync-variantes']);
+        $product = $this->productFor($tenant, 'iPhone 15', 'IPHONE-15');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.view', 'products.update']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/products/{$product->id}/variants", [
+                'color' => 'Verde',
+                'color_hex' => '#16a34a',
+                'sku_variant' => 'IPHONE-15-VERDE',
+                'position' => 1,
+            ])
+            ->assertCreated();
+
+        // Al crear una variante se debe emitir `product_variant.created` para
+        // que el otro nodo (nube) pueda resolver la presentacion por
+        // (product_sku, sku_variant) al aplicar compras o ventas.
+        $payload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product_variant.created')
+            ->value('payload'), true);
+
+        $this->assertSame('IPHONE-15', $payload['product_sku'] ?? null);
+        $this->assertSame('Verde', $payload['color'] ?? null);
+        $this->assertSame('IPHONE-15-VERDE', $payload['sku_variant'] ?? null);
+    }
+
     private function productFor(Tenant $tenant, string $name, string $sku): Product
     {
         $this->useTenant($tenant);
@@ -199,11 +231,12 @@ class ProductVariantApiTest extends TestCase
         return Product::create(['name' => $name, 'sku' => $sku]);
     }
 
-    private function warehouseFor(Tenant $tenant): \App\Modules\Warehouses\Models\Warehouse
+    private function warehouseFor(Tenant $tenant): Warehouse
     {
         $this->useTenant($tenant);
-        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
-        return \App\Modules\Warehouses\Models\Warehouse::create([
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+
+        return Warehouse::create([
             'branch_id' => $branch->id,
             'name' => 'Almacén',
             'code' => 'WH',
@@ -221,7 +254,7 @@ class ProductVariantApiTest extends TestCase
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void
     {
         $this->useTenant($tenant);
-        $role = \Spatie\Permission\Models\Role::findOrCreate($roleName, 'web');
+        $role = Role::findOrCreate($roleName, 'web');
         $role->syncPermissions($permissions);
         $user->assignRole($role);
     }
