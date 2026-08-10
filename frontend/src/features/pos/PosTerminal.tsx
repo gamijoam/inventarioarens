@@ -526,11 +526,16 @@ export function PosTerminal() {
   const hasPendingAlert = pendingAlert.length > 0;
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: customerCredit } = useCustomerCredit(selectedCustomer?.id ?? null);
+  const effectiveWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
   const shouldSearchProducts = activeProductSearch.trim().length >= 2;
-  const { data: productPage, isLoading: loadingProducts } = usePosProductsDebounced(
+  const {
+    data: productPage,
+    isLoading: loadingProducts,
+    debouncedSearch,
+  } = usePosProductsDebounced(
     activeProductSearch,
-    warehouseId,
+    effectiveWarehouseId,
     {
       enabled: shouldSearchProducts,
     },
@@ -693,7 +698,15 @@ export function PosTerminal() {
     setSerialSearch('');
   }, [panel, serialLineId]);
   const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
-  const quickSearchResults = useMemo(() => products.slice(0, 4), [products]);
+  const quickSearchResults = useMemo(
+    () =>
+      panel === null &&
+      query.trim().length >= 2 &&
+      debouncedSearch.trim().toLocaleLowerCase() === query.trim().toLocaleLowerCase()
+        ? products.slice(0, 4)
+        : [],
+    [debouncedSearch, panel, products, query],
+  );
   const [quickSearchIndex, setQuickSearchIndex] = useState(0);
   useEffect(() => {
     setQuickSearchIndex(0);
@@ -1085,7 +1098,7 @@ export function PosTerminal() {
                   data-pos-search-input="true"
                   data-testid="pos-search"
                 />
-                {!panel && query.trim().length >= 2 && quickSearchResults.length > 0 && (
+                {!panel && query.trim().length >= 2 && (loadingProducts || quickSearchResults.length > 0) && (
                   <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
                     <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
                       <span>Resultados rapidos</span>
@@ -1100,7 +1113,13 @@ export function PosTerminal() {
                       </TapButton>
                     </div>
                     <div className="max-h-96 overflow-auto p-2">
-                      {quickSearchResults.map((product, index) => (
+                      {loadingProducts && quickSearchResults.length === 0 ? (
+                        <div className="text-text-muted px-2 py-3 text-sm">Buscando productos...</div>
+                      ) : quickSearchResults.length === 0 ? (
+                        <div className="text-text-muted px-2 py-3 text-sm">
+                          No hay productos con esa búsqueda.
+                        </div>
+                      ) : quickSearchResults.map((product, index) => (
                         <TapButton
                           key={product.id}
                           onPress={() => {

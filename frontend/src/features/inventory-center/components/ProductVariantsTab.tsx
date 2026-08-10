@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
+import { Select } from '@/components/ui/Select';
+import { useWarehouses } from '@/features/inventory-center/api';
 import { useProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import { cn } from '@/lib/cn';
@@ -34,7 +36,13 @@ const EMPTY_FORM: VariantFormState = {
 };
 
 export function ProductVariantsTab({ productId }: { productId: number }) {
-  const { data: variants = [], isLoading, refetch } = useProductVariants(productId);
+  const { data: warehouses = [] } = useWarehouses();
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
+  const selectedWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
+  const { data: variants = [], isLoading, refetch } = useProductVariants(
+    productId,
+    selectedWarehouseId,
+  );
   const [form, setForm] = useState<VariantFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -215,7 +223,30 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Variantes activas ({sorted.filter((v) => v.is_active).length})</CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Variantes activas ({sorted.filter((v) => v.is_active).length})</CardTitle>
+              <CardDescription>
+                El stock se muestra para el almacén seleccionado.
+              </CardDescription>
+            </div>
+            {warehouses.length > 0 && (
+              <div className="min-w-56 space-y-1">
+                <Label htmlFor="variant-stock-warehouse">Almacén</Label>
+                <Select
+                  id="variant-stock-warehouse"
+                  value={selectedWarehouseId ?? ''}
+                  onChange={(event) => setWarehouseId(Number(event.target.value) || null)}
+                >
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.code} - {warehouse.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {sorted.length === 0 ? (
@@ -247,6 +278,12 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
                       {variant.sku_variant ?? variant.barcode_variant ?? 'Sin SKU'}
                     </div>
                   </div>
+                  <Badge
+                    variant={Number(variant.stock_available ?? 0) > 0 ? 'success' : 'warning'}
+                    className="shrink-0"
+                  >
+                    Stock {Number(variant.stock_available ?? 0)}
+                  </Badge>
                   {variant.price_override != null && (
                     <Badge variant="info">${Number(variant.price_override).toFixed(2)}</Badge>
                   )}

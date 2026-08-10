@@ -17,9 +17,15 @@ const mockUseProductVariants = vi.fn();
 const mockPostOne = vi.fn();
 const mockPatchOne = vi.fn();
 const mockDeleteOne = vi.fn();
+const mockUseWarehouses = vi.fn();
 
 vi.mock('@/features/inventory-center/variantApi', () => ({
-  useProductVariants: (productId: number) => mockUseProductVariants(productId),
+  useProductVariants: (productId: number, warehouseId?: number | null) =>
+    mockUseProductVariants(productId, warehouseId),
+}));
+
+vi.mock('@/features/inventory-center/api', () => ({
+  useWarehouses: () => mockUseWarehouses(),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -122,6 +128,7 @@ describe('ProductVariantsTab', () => {
     mockPostOne.mockReset();
     mockPatchOne.mockReset();
     mockDeleteOne.mockReset();
+    mockUseWarehouses.mockReturnValue({ data: [] });
   });
 
   it('muestra empty state cuando no hay variantes', async () => {
@@ -147,6 +154,28 @@ describe('ProductVariantsTab', () => {
 
     render(<ProductVariantsTab productId={100} />, { wrapper });
     expect(screen.getByTestId('skeleton')).toBeInTheDocument();
+  });
+
+  it('muestra el stock de cada variante para el almacen seleccionado', async () => {
+    mockUseWarehouses.mockReturnValue({
+      data: [{ id: 7, code: 'PRINCIPAL', name: 'Almacen principal' }],
+    });
+    mockUseProductVariants.mockReturnValue({
+      data: [
+        makeVariant({ color: 'Azul', stock_available: 2 }),
+        makeVariant({ id: 2, color: 'Verde', stock_available: 1 }),
+      ],
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(<ProductVariantsTab productId={100} />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Stock 2')).toHaveLength(1);
+      expect(screen.getAllByText('Stock 1')).toHaveLength(1);
+      expect(mockUseProductVariants).toHaveBeenCalledWith(100, 7);
+    });
   });
 
   it('crea una variante al enviar el formulario', async () => {
