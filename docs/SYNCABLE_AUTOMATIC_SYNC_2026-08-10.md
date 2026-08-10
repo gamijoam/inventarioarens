@@ -77,6 +77,7 @@ AccountsPayable::syncableSuspended(function () {
 | `AccountsPayablePayment` | `accounts_payable.payment_registered` |
 | `AccountsReceivable` | `accounts_receivable.created`, `accounts_receivable.updated` |
 | `Sale` | `sale.confirmed` (solo ventas del módulo Sales SIN PosOrder; las del POS viajan con `pos.order.*`) |
+| `User` (vía `AccessControlService`) | `user.roles.synced` (datos del user + membresía `tenant_user` + roles asignados) |
 
 > Los modelos de catálogo (Product, Variant, Customer, Supplier, etc.) ya emiten
 > eventos manualmente desde sus controllers desde antes. NO se les agregó
@@ -93,6 +94,13 @@ AccountsPayable::syncableSuspended(function () {
 | `accounts_payable.payment_registered` | `applyPayablePayment` | Registra el pago sobre la CxP sincronizada |
 | `accounts_receivable.created` / `updated` | `applyAccountsReceivable` | Upsert CxC por `(tenant_id, document_number)`; customer por documento |
 | `sale.confirmed` | `applySale` | Upsert venta por `(tenant_id, sync_source_node_code, sync_source_id)` + replica `sale_items` |
+| `user.roles.synced` | `applyUserRoles` | Upsert usuario por email (con password hash), membresía `tenant_user` (active/inactive) y roles por nombre en el tenant |
+
+### Permisos y roles — nuevo (2026-08-10, P0)
+- Antes: roles/permisos NO viajaban por sync (diseño documentado en AGENTS.md §5). Un cambio de permiso en el VPS no llegaba al local.
+- Ahora: `AccessControlService` emite `user.roles.synced` al crear/adjuntar usuario, cambiar su status y cambiar sus roles. El applier lo aplica en el nodo destino (local o nube) creando/actualizando el usuario (email), su membresía y sus roles.
+- El password hash viaja para permitir login local; los roles viajan por nombre y se crean en el destino si faltan.
+- TDD: `tests/Feature/Sync/FinancialSyncTest.php` (emisión + aplicación + inactivación). Suite Sync 121 passed/1 skipped, AccessControl 51/51.
 
 Esto garantiza que la nube **aplica** los cambios y, cuando el flujo es inverso,
 los bajos al local (mismo applier corre en ambos lados).

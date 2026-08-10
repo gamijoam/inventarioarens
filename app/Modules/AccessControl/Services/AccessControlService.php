@@ -4,6 +4,7 @@ namespace App\Modules\AccessControl\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
 use App\Support\Permissions\BasePermissions;
@@ -202,6 +203,8 @@ class AccessControlService
                 'roles' => $this->userRoleNames($user),
             ]);
 
+            $this->emitUserRolesSync($user, $tenant);
+
             return $user;
         });
     }
@@ -250,6 +253,8 @@ class AccessControlService
             'status' => $status,
         ]);
 
+        $this->emitUserRolesSync($user, $tenant);
+
         return $user;
     }
 
@@ -293,6 +298,8 @@ class AccessControlService
                 'roles' => $this->userRoleNames($user),
                 'tenant_id' => $targetTenant->id,
             ]);
+
+            $this->emitUserRolesSync($user, $targetTenant);
 
             return $user;
         } finally {
@@ -677,5 +684,22 @@ class AccessControlService
             ->get()
             ->unique('name')
             ->values();
+    }
+
+    /**
+     * Emite `user.roles.synced` para que los cambios de usuario/membresía/roles
+     * viajen entre local y nube. Es seguro llamarlo dentro de la transacción:
+     * el outbox solo registra el payload (no lee el estado final de rol del
+     * model con relaciones stale), y el applier lo aplica idempotentemente.
+     */
+    private function emitUserRolesSync(User $user, Tenant $tenant): void
+    {
+        try {
+            app(SyncCatalogOutboxService::class)->userRolesSynced($user, $tenant);
+        } catch (\Throwable $e) {
+            // No romper la operación de gestión de usuarios por un fallo de
+            // emisión de sync; el siguiente ciclo de sync re-conciliará.
+            report($e);
+        }
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Sync;
 
 use App\Models\User;
+use App\Modules\AccessControl\Services\AccessControlService;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Branches\Models\Branch;
@@ -21,7 +22,9 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /**
@@ -323,5 +326,80 @@ class FinancialSyncTest extends TestCase
         ]);
 
         return $sale->refresh();
+    }
+
+    public function test_assigning_role_emits_user_roles_synced(): void
+    {
+        [$tenant, $user] = $this->setupTenant();
+        $target = User::factory()->create(['name' => 'Cajero', 'email' => 'cajero.sync@test.test']);
+        $target->tenants()->attach($tenant, ['status' => 'active']);
+        Permission::findOrCreate('sales.create', 'web');
+
+        app(AccessControlService::class)->updateUserRoles(
+            $target,
+            ['Vendedor'],
+            $user,
+            $tenant,
+        );
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'user.roles.synced',
+        ]);
+    }
+
+    public function test_applier_applies_user_roles_synced_to_destination(): void
+    {
+        [$tenant] = $this->setupTenant();
+
+        $this->enqueueEvent($tenant->id, 'user.roles.synced', [
+            'email' => 'nuevo.cajero@test.test',
+            'name' => 'Nuevo Cajero',
+            'password_hash' => Hash::make('Secret1234!'),
+            'is_platform_admin' => false,
+            'tenant_id' => $tenant->id,
+            'tenant_slug' => $tenant->slug,
+            'is_active' => true,
+            'roles' => ['Vendedor'],
+        ], 1);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'nuevo.cajero@test.test',
+            'name' => 'Nuevo Cajero',
+        ]);
+        $user = User::where('email', 'nuevo.cajero@test.test')->firstOrFail();
+        $this->assertDatabaseHas('tenant_user', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
+        $this->assertTrue($user->hasRole('Vendedor'));
+    }
+
+    public function test_applier_inactivates_user_when_is_active_false(): void
+    {
+        [$tenant] = $this->setupTenant();
+        $user = User::factory()->create(['name' => 'Cajero', 'email' => 'cajero.inactivo@test.test']);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        $this->enqueueEvent($tenant->id, 'user.roles.synced', [
+            'email' => 'cajero.inactivo@test.test',
+            'name' => 'Cajero',
+            'is_platform_admin' => false,
+            'is_active' => false,
+            'roles' => [],
+        ], 2);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $this->assertDatabaseHas('tenant_user', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'status' => 'inactive',
+        ]);
     }
 }

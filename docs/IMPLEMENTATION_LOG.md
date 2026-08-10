@@ -1,5 +1,27 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de usuarios, roles y permisos (P0)
+
+### Problema
+Roles y permisos NO viajaban por sync (AGENTS.md §5). Si se le quitaba un permiso
+a un usuario desde el VPS, el local conservaba el acceso viejo hasta un proceso
+manual (`sync:prepare-local`). Sin handlers en el applier: cualquier evento de
+usuario caía en `ignored`.
+
+### Fix
+- **Outbox**: `userRolesSynced(User, Tenant)` emite `user.roles.synced` con email,
+  name, password hash, `is_platform_admin`, status de membresía (`tenant_user`) y
+  los roles asignados (por nombre) en ese tenant.
+- **Applier**: `applyUserRoles` — upsert del usuario por email (password hash
+  incluido para login local), upsert de la membresía `tenant_user`
+  (active/inactive) y sincronización de roles en el tenant (crea el rol si falta).
+- **Emisión** desde `AccessControlService`: `createOrAttachUser`, `updateStatus` y
+  `updateUserRoles` llaman `emitUserRolesSync` (falla no rompe la operación).
+- `user.roles.synced` en listas retryable/reprocessable.
+- TDD: emisión al asignar rol, aplicación en destino (crea user+membership+role),
+  inactivación por `is_active=false`. Suite Sync 121 passed/1 skipped,
+  AccessControl 51/51.
+
 ## 2026-08-10 - Sync de ventas del módulo Sales (fuera de POS)
 
 ### Problema

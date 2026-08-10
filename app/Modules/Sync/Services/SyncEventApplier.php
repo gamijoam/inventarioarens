@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 
 class SyncEventApplier
 {
@@ -72,6 +74,7 @@ class SyncEventApplier
         'accounts_receivable.created',
         'accounts_receivable.updated',
         'sale.confirmed',
+        'user.roles.synced',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -140,6 +143,7 @@ class SyncEventApplier
         'accounts_receivable.created',
         'accounts_receivable.updated',
         'sale.confirmed',
+        'user.roles.synced',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -288,6 +292,7 @@ class SyncEventApplier
                 'accounts_payable.payment_registered' => $this->applyPayablePayment($tenant, $payload, $event),
                 'accounts_receivable.created', 'accounts_receivable.updated' => $this->applyAccountsReceivable($tenant, $payload, $event),
                 'sale.confirmed' => $this->applySale($tenant, $payload, $event),
+                'user.roles.synced' => $this->applyUserRoles($tenant, $payload),
                 default => 'ignored',
             };
         } finally {
@@ -3498,5 +3503,113 @@ class SyncEventApplier
             ],
             'created_by' => null,
         ]);
+    }
+
+    /**
+     * Aplica `user.roles.synced` (cambios de usuario/membresía/roles) en el
+     * nodo destino. Es el mecanismo que hace viajar permisos y accesos entre
+     * local y nube (antes no viajaban).
+     *
+     * - Upsert del usuario por email (incluye password hash para login local).
+     * - Upsert de la membresía tenant_user (status active/inactive).
+     * - Sincroniza los roles del usuario en el tenant (por nombre; crea el rol
+     *   si no existe y le asigna los permisos base del catálogo).
+     */
+    private function applyUserRoles(Tenant $tenant, array $payload): string
+    {
+        $email = mb_strtolower(trim((string) ($payload['email'] ?? '')));
+
+        if ($email === '') {
+            return 'ignored';
+        }
+
+        $user = User::query()->firstOrNew(['email' => $email]);
+        $user->name = (string) ($payload['name'] ?? $user->name ?? $email);
+        $passwordHash = $this->nullableString($payload['password_hash'] ?? null);
+
+        if ($passwordHash !== null && $passwordHash !== '') {
+            $user->password = $passwordHash;
+        }
+
+        if (array_key_exists('is_platform_admin', $payload)) {
+            $user->is_platform_admin = (bool) $payload['is_platform_admin'];
+        }
+
+        $user->save();
+
+        $isActive = array_key_exists('is_active', $payload)
+            ? (bool) $payload['is_active']
+            : true;
+
+        $pivot = DB::table('tenant_user')
+            ->where('tenant_id', $tenant->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($pivot) {
+            DB::table('tenant_user')
+                ->where('id', $pivot->id)
+                ->update([
+                    'status' => $isActive ? 'active' : 'inactive',
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('tenant_user')->insert([
+                'tenant_id' => $tenant->id,
+                'user_id' => $user->id,
+                'status' => $isActive ? 'active' : 'inactive',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Sincronizar roles por nombre en el tenant destino.
+        $roleNames = array_values(array_filter(array_map(
+            fn (mixed $role): string => trim((string) $role),
+            $payload['roles'] ?? []
+        )));
+
+        if (function_exists('setPermissionsTeamId')) {
+            setPermissionsTeamId($tenant->id);
+        }
+
+        $roleIds = [];
+        foreach ($roleNames as $roleName) {
+            $role = Role::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('name', $roleName)
+                ->where('guard_name', 'web')
+                ->first();
+
+            if (! $role) {
+                $role = Role::create([
+                    'name' => $roleName,
+                    'guard_name' => 'web',
+                    'tenant_id' => $tenant->id,
+                ]);
+            }
+
+            $roleIds[] = $role->id;
+        }
+
+        DB::table('model_has_roles')
+            ->where('tenant_id', $tenant->id)
+            ->where('model_id', $user->id)
+            ->where('model_type', User::class)
+            ->whereNotIn('role_id', $roleIds)
+            ->delete();
+
+        foreach ($roleIds as $roleId) {
+            DB::table('model_has_roles')->updateOrInsert(
+                [
+                    'tenant_id' => $tenant->id,
+                    'role_id' => $roleId,
+                    'model_id' => $user->id,
+                    'model_type' => User::class,
+                ]
+            );
+        }
+
+        return 'applied';
     }
 }

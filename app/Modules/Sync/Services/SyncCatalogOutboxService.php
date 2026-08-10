@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Services;
 
+use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
@@ -26,8 +27,10 @@ use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 class SyncCatalogOutboxService
 {
@@ -308,6 +311,51 @@ class SyncCatalogOutboxService
                 ])->values()->all(),
             ],
             idempotencyKey: $this->eventKey('sale.confirmed', 'sale', $sale->id, $sale->updated_at),
+        );
+    }
+
+    /**
+     * Emite el estado completo de un usuario dentro de un tenant: datos del
+     * user (email/name/password hash), su status de membresia y los roles
+     * asignados en ese tenant. Es el mecanismo para que cambios de permisos
+     * y accesos viajen entre local y nube (antes no viajaban).
+     *
+     * El password hash viaja para que el usuario pueda autenticarse en el nodo
+     * destino sin reingresar credenciales. Los roles viajan por nombre; el
+     * applier resuelve/crea el rol por (tenant_id, name) y sincroniza.
+     */
+    public function userRolesSynced(User $user, Tenant $tenant): void
+    {
+        $pivotStatus = DB::table('tenant_user')
+            ->where('tenant_id', $tenant->id)
+            ->where('user_id', $user->id)
+            ->value('status');
+
+        $roleNames = DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.tenant_id', $tenant->id)
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->pluck('roles.name')
+            ->values()
+            ->all();
+
+        $this->outbox->record(
+            eventType: 'user.roles.synced',
+            aggregateType: 'user',
+            aggregateId: $user->id,
+            payload: [
+                'email' => $user->email,
+                'name' => $user->name,
+                'password_hash' => $user->getRawOriginal('password'),
+                'is_platform_admin' => (bool) $user->is_platform_admin,
+                'tenant_id' => $tenant->id,
+                'tenant_slug' => $tenant->slug,
+                'is_active' => $pivotStatus === 'active',
+                'roles' => $roleNames,
+                'user_updated_at' => $user->updated_at?->toISOString(),
+            ],
+            idempotencyKey: $this->eventKey('user.roles.synced', 'user', $user->id, $user->updated_at),
         );
     }
 
