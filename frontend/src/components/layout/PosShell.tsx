@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { usePermissionContext } from '@/permissions/PermissionContext';
 import type { PermissionName } from '@/permissions/constants';
+import { AppVersionBadge } from './AppVersionBadge';
 
 export type PosSessionStatus = 'open' | 'closed' | 'loading';
 export type PosSyncStatus = 'online' | 'offline' | 'syncing';
@@ -103,6 +104,7 @@ export function PosShell({
             <h1 className="text-text-primary text-lg leading-tight font-semibold">POS</h1>
             {context && <p className="text-text-muted text-xs">{context.tenantName}</p>}
           </div>
+          <AppVersionBadge className="ml-1" />
           {context && (
             <>
               <div className="text-text-secondary flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">

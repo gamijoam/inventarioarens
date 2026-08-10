@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { useAuth, useAvailableTenants } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { AppVersionBadge } from '@/components/layout/AppVersionBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,6 +96,7 @@ export function Topbar() {
           </div>
           <p className="text-text-muted text-xs leading-tight">{tenant?.slug ?? '—'}</p>
         </div>
+        <AppVersionBadge />
       </div>
 
       {/* Acciones usuario */}

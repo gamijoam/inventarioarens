@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { AppVersionBadge } from '@/components/layout/AppVersionBadge';
 import { formatDateTime } from '@/lib/format';
 
 import {
@@ -48,6 +49,7 @@ export function LocalSupportPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <AppVersionBadge />
             <Button
               variant="outline"
               size="sm"

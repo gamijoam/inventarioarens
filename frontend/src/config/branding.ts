@@ -72,6 +72,13 @@ export const APP_SHORT_NAME = APP_DEFINITION.shortName;
 export const APP_TAGLINE = APP_DEFINITION.tagline;
 export const APP_DESCRIPTION = APP_DEFINITION.description;
 
+/**
+ * Version de la aplicacion, inyectada al compilar por vite (define) desde
+ * `frontend/package.json`. Dev siempre cae en un valor de desarrollo; en
+ * los builds de release contiene la version exacta del bundle.
+ */
+export const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev';
+
 export const APP_FEATURES = [
   'Venta en mostrador con pagos mixtos USD/VES',
   'Catálogo por cantidad o serializado (IMEI)',

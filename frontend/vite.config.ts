@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+
+// Version de la app leida de package.json y expuesta como
+// import.meta.env.VITE_APP_VERSION. Se incrusta en el bundle en build,
+// por lo que la version mostrada siempre coincide con la instalada.
+const PACKAGE_VERSION = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version;
 
 // Variables para Laravel Reverb (WebSocket push notifications).
 // Ver docs/REVERB_WEBSOCKETS_PLAN.md. En produccion estas se inyectan
@@ -42,6 +50,7 @@ export default defineConfig(({ mode }) => {
     // Inyecta defaults de Reverb como fallback. El .env real toma
     // precedencia sobre estos defaults si el archivo existe.
     define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(PACKAGE_VERSION),
       ...Object.fromEntries(
         Object.entries(REVERB_DEFAULTS).map(([k, v]) => [
           `import.meta.env.${k}`,
