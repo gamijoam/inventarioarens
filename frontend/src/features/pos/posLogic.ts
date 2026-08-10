@@ -99,6 +99,29 @@ export function clampQuantity(quantity: number, available: number): number {
   return Math.min(positive, Math.max(0, available));
 }
 
+export interface VariantMatchInput {
+  product_id: number;
+  warehouse_id: number;
+  product_variant_id?: number | null;
+}
+
+/**
+ * Encuentra en el carrito la linea que corresponde al mismo producto +
+ * almacen + variante. Esto permite tener 1 unidad de un color y 2 de otro
+ * como lineas separadas del mismo producto, sin mezclar cantidades.
+ */
+export function findMatchingVariantLine(
+  lines: PosCartLine[],
+  input: VariantMatchInput,
+): PosCartLine | undefined {
+  return lines.find(
+    (line) =>
+      line.product_id === input.product_id &&
+      line.warehouse_id === input.warehouse_id &&
+      (line.product_variant_id ?? null) === (input.product_variant_id ?? null),
+  );
+}
+
 export function expandPromotionItems(
   items: { product_id: number; quantity: number }[],
   sets: number,

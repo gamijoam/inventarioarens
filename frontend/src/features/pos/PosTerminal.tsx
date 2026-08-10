@@ -101,6 +101,7 @@ import {
   lineTotal,
   missingSerialIssue,
   paymentBaseAmount,
+  findMatchingVariantLine,
   type CurrencyCode,
   type DiscountType,
   type PosCartLine,
@@ -302,6 +303,25 @@ export function formatPosRateLabel(
   const typeLabel =
     rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
+}
+
+export interface SearchPanelAction {
+  setProductSearch: (value: string) => void;
+  setPanel: (panel: 'product-search') => void;
+}
+
+/**
+ * Handler de una sugerencia del buscador del POS.
+ *
+ * Abre el panel de busqueda completo (mismo flujo que F3 / "Ver todos") en
+ * lugar de agregar directo al carrito. Razon: los productos con variantes o
+ * color necesitan el VariantPicker, y agregar directo desde el dropdown
+ * fallaba en tablets. Desde el panel, el usuario toca el producto y el
+ * VariantPicker se abre de forma fiable.
+ */
+export function openSearchFromSuggestion(query: string, action: SearchPanelAction): void {
+  action.setProductSearch(query);
+  action.setPanel('product-search');
 }
 
 export const POS_LAYOUT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col overflow-hidden';
@@ -1123,11 +1143,14 @@ export function PosTerminal() {
                         <TapButton
                           key={product.id}
                           onPress={() => {
-                            void addProduct(product).then((added) => {
-                              if (added) {
-                                setQuery('');
-                                setQuickSearchIndex(0);
-                              }
+                            // La sugerencia abre el panel de busqueda (mismo
+                            // flujo que F3 / "Ver todos"): asi los productos
+                            // con variantes/color muestran el VariantPicker de
+                            // forma fiable. Agregar directo desde el dropdown
+                            // fallaba en tablets.
+                            openSearchFromSuggestion(query, {
+                              setProductSearch,
+                              setPanel: (panel) => setPanel(panel),
                             });
                           }}
                           onMouseEnter={() => setQuickSearchIndex(index)}
@@ -1883,11 +1906,12 @@ export function PosTerminal() {
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
     const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
-    const lineMatchesVariant = (line: PosCartLine) =>
-      line.product_id === product.id &&
-      line.warehouse_id === warehouse.id &&
-      (line.product_variant_id ?? null) === (selectedVariant?.id ?? null);
-    const matchingLine = cart.find(lineMatchesVariant);
+    const variantMatch = {
+      product_id: product.id,
+      warehouse_id: warehouse.id,
+      product_variant_id: selectedVariant?.id ?? null,
+    };
+    const matchingLine = findMatchingVariantLine(cart, variantMatch);
     const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
     if (matchingLine && matchingLine.quantity + quantity > maximumQuantity) {
       toast.error(`No hay stock suficiente de ${product.name} para cargar la promoción.`);
@@ -1908,7 +1932,7 @@ export function PosTerminal() {
     }
     let newLineId: string | null = null;
     setCart((current) => {
-      const existing = current.find(lineMatchesVariant);
+      const existing = findMatchingVariantLine(current, variantMatch);
       if (existing) {
         newLineId = existing.id;
         return current.map((line) =>

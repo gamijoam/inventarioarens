@@ -45,6 +45,7 @@ import {
 import {
   formatPosRateLabel,
   isTouchPointer,
+  openSearchFromSuggestion,
   shouldHandlePosGlobalShortcut,
   shouldTriggerPosCheckoutOnEnter,
   shouldTriggerPosCheckoutShortcut,
@@ -77,6 +78,26 @@ describe('pos api', () => {
     expect(isTouchPointer({ pointerType: 'pen' })).toBe(true);
     expect(isTouchPointer({ pointerType: 'mouse' })).toBe(false);
     expect(isTouchPointer({})).toBe(false);
+  });
+
+  it('abre el panel de busqueda desde una sugerencia (en vez de agregar directo)', () => {
+    const setProductSearch = vi.fn();
+    const setPanel = vi.fn();
+    const action = { setProductSearch, setPanel: (panel: 'product-search') => setPanel(panel) };
+
+    openSearchFromSuggestion('adaptador', action);
+
+    expect(setProductSearch).toHaveBeenCalledWith('adaptador');
+    expect(setPanel).toHaveBeenCalledWith('product-search');
+  });
+
+  it('preserva el texto de busqueda al abrir el panel desde la sugerencia', () => {
+    const action = { setProductSearch: vi.fn(), setPanel: vi.fn() };
+
+    openSearchFromSuggestion('TEL-VERDE', action);
+
+    expect(action.setProductSearch).toHaveBeenCalledWith('TEL-VERDE');
+    expect(action.setPanel).toHaveBeenCalledWith('product-search');
   });
 
   it('parsea el bootstrap usando api.get (response.data) y NO getOne (response.data.data)', async () => {

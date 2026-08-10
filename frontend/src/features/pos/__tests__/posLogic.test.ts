@@ -4,6 +4,7 @@ import {
   calculateCartTotals,
   calculatePaymentTotals,
   clampQuantity,
+  findMatchingVariantLine,
   firstPriceIssue,
   hasPriceIssue,
   hasStockIssue,
@@ -142,5 +143,39 @@ describe('POS cart logic', () => {
     expect(hasPriceIssue([line])).toBe(true);
     expect(firstPriceIssue([line])).toBe('Producto no tiene precio en Mayor.');
     expect(hasPriceIssue([baseLine])).toBe(false);
+  });
+
+  it('separa lineas por variante/color: 1 verde y 2 azul no se mezclan', () => {
+    const verde: PosCartLine = { ...baseLine, id: 'v1', product_variant_id: 1, quantity: 1 };
+    const azul: PosCartLine = { ...baseLine, id: 'a1', product_variant_id: 2, quantity: 2 };
+
+    const foundVerde = findMatchingVariantLine([verde, azul], {
+      product_id: baseLine.product_id,
+      warehouse_id: baseLine.warehouse_id,
+      product_variant_id: 1,
+    });
+    const foundAzul = findMatchingVariantLine([verde, azul], {
+      product_id: baseLine.product_id,
+      warehouse_id: baseLine.warehouse_id,
+      product_variant_id: 2,
+    });
+
+    expect(foundVerde?.id).toBe('v1');
+    expect(foundVerde?.quantity).toBe(1);
+    expect(foundAzul?.id).toBe('a1');
+    expect(foundAzul?.quantity).toBe(2);
+  });
+
+  it('encuentra la linea sin variante (null) por separado de las de color', () => {
+    const general: PosCartLine = { ...baseLine, id: 'g1', product_variant_id: null, quantity: 3 };
+    const verde: PosCartLine = { ...baseLine, id: 'v1', product_variant_id: 1, quantity: 1 };
+
+    const found = findMatchingVariantLine([general, verde], {
+      product_id: baseLine.product_id,
+      warehouse_id: baseLine.warehouse_id,
+      product_variant_id: null,
+    });
+
+    expect(found?.id).toBe('g1');
   });
 });
