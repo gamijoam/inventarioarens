@@ -23,6 +23,7 @@ import { cn } from '@/lib/cn';
 import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
 import { PricesEditor } from '@/features/inventory-center/components/PricesEditor';
 import { ProductRelations } from '@/features/inventory-center/components/ProductRelations';
+import { ProductVariantsTab } from '@/features/inventory-center/components/ProductVariantsTab';
 import { ProfitMarginPanel } from '@/features/inventory-center/components/ProfitMarginPanel';
 import { KardexTab } from '@/features/inventory-center/components/KardexTab';
 import { AuditsTab } from '@/features/inventory-center/components/AuditsTab';
@@ -156,6 +157,9 @@ function ProductDetailPage() {
             <TabsTrigger value="serials">Seriales / IMEI</TabsTrigger>
           )}
           <TabsTrigger value="prices">Precios por lista</TabsTrigger>
+          <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
+            <TabsTrigger value="variants">Variantes</TabsTrigger>
+          </Can>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
           <TabsTrigger value="kardex">Kardex</TabsTrigger>
           <TabsTrigger value="audits">Auditoria</TabsTrigger>
@@ -214,6 +218,12 @@ function ProductDetailPage() {
         <TabsContent value="prices" className="space-y-4">
           <PricesTab productId={id} />
         </TabsContent>
+
+        <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
+          <TabsContent value="variants" className="space-y-4">
+            <ProductVariantsTab productId={id} />
+          </TabsContent>
+        </Can>
 
         <TabsContent value="movements" className="space-y-4">
           <MovementsTab movements={recent_movements} />
