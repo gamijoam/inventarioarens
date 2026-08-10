@@ -32,6 +32,18 @@ modelo que cambie emita su evento**, sin excepción.
 - Suite Sync: 115 passed / 1 skipped. Financiera: 27/28 (1 fallo preexistente
   cash_register).
 
+### Fix post-despliegue (CxP por document_number)
+- El primer intento de aplicar `accounts_payable.created` fallaba con FK: el
+  `purchase_order_id` del payload es el ID LOCAL, que no existe en la nube.
+- Fix (`d663f5e`): `applyAccountsPayable` resuelve el PO de la nube por
+  `document_number` (identidad natural). El outbox envía `purchase_order_document`.
+- Se agregaron los event types financieros a `RETRYABLE_FAILED_EVENT_TYPES` y
+  `REPROCESSABLE_EVENT_TYPES` (`26aa3ab`).
+- Data-fix en nube: las CxP del backfill manual tenían `purchase_order_id` con
+  ID local mal mapeado; se corrigieron las 7 CxP del tenant 2 para que apunten
+  al PO correcto por documento. Estado final verificado.
+- `SyncEventApplier.php` copiado a los 3 clientes locales.
+
 ### Diseño
 Ver `docs/SYNCABLE_AUTOMATIC_SYNC_2026-08-10.md`.
 
