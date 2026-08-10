@@ -265,12 +265,14 @@ class PurchaseOrderApiTest extends TestCase
             ->json('data.id');
 
         // El evento purchase_order.created debe incluir product_variant_sku
-        // para que la nube pueda resolver la variante por identidad natural.
+        // y product_variant_color para que la nube pueda resolver la variante
+        // por identidad natural (sku_variant o color).
         $createdPayload = json_decode((string) DB::table('sync_outbox')
             ->where('tenant_id', $tenant->id)
             ->where('event_type', 'purchase_order.created')
             ->value('payload'), true);
         $this->assertSame('SYNC-AZUL', $createdPayload['items'][0]['product_variant_sku'] ?? null);
+        $this->assertSame('Azul', $createdPayload['items'][0]['product_variant_color'] ?? null);
 
         // Al recibir, el evento purchase_order.received tambien debe llevar la variante.
         $this
@@ -284,6 +286,7 @@ class PurchaseOrderApiTest extends TestCase
             ->where('event_type', 'purchase_order.received')
             ->value('payload'), true);
         $this->assertSame('SYNC-AZUL', $receivedPayload['items'][0]['product_variant_sku'] ?? null);
+        $this->assertSame('Azul', $receivedPayload['items'][0]['product_variant_color'] ?? null);
     }
 
     public function test_receive_purchase_partially_then_fully_updates_inventory_and_payable(): void

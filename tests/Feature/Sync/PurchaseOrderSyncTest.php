@@ -313,7 +313,7 @@ class PurchaseOrderSyncTest extends TestCase
             'product_id' => $product->id,
             'color' => 'Rojo',
             'color_hex' => '#DC2626',
-            'sku_variant' => 'TEST-SKU-ROJO',
+            'sku_variant' => null,
             'is_active' => true,
             'position' => 1,
         ]);
@@ -328,7 +328,8 @@ class PurchaseOrderSyncTest extends TestCase
                 [
                     'sku' => $product->sku,
                     'warehouse_code' => $warehouse->code,
-                    'product_variant_sku' => 'TEST-SKU-ROJO',
+                    'product_variant_sku' => null,
+                    'product_variant_color' => 'Rojo',
                     'quantity' => '3.0000',
                     'unit_cost' => '12.0000',
                     'serial_units' => [],

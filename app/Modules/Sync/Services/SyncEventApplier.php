@@ -576,6 +576,7 @@ class SyncEventApplier
                     reason: "Entrada manual {$documentNumber}",
                     now: $now,
                     productVariantSku: $item['product_variant_sku'] ?? null,
+                    productVariantColor: $item['product_variant_color'] ?? null,
                 );
             }
 
@@ -662,7 +663,7 @@ class SyncEventApplier
             $baseUnitCost = $this->nullableString($item['base_unit_cost'] ?? null) !== null
                 ? (float) $item['base_unit_cost']
                 : null;
-            $variantId = $this->variantIdBySku($tenant, $product->id, $item['product_variant_sku'] ?? null);
+            $variantId = $this->variantIdBySku($tenant, $product->id, $item['product_variant_sku'] ?? null, $item['product_variant_color'] ?? null);
 
             DB::table('purchase_items')->insert([
                 'tenant_id' => $tenant->id,
@@ -686,21 +687,24 @@ class SyncEventApplier
         return 'applied';
     }
 
-    private function variantIdBySku(Tenant $tenant, int $productId, mixed $variantSku): ?int
+    private function variantIdBySku(Tenant $tenant, int $productId, mixed $variantSku, mixed $variantColor = null): ?int
     {
         $variantSku = $this->nullableString($variantSku);
+        $variantColor = $this->nullableString($variantColor);
 
-        if ($variantSku === null) {
+        $query = DB::table('product_variants')
+            ->where('tenant_id', $tenant->id)
+            ->where('product_id', $productId);
+
+        if ($variantSku !== null) {
+            $query->where('sku_variant', $variantSku);
+        } elseif ($variantColor !== null) {
+            $query->where('color', $variantColor);
+        } else {
             return null;
         }
 
-        $variant = DB::table('product_variants')
-            ->where('tenant_id', $tenant->id)
-            ->where('product_id', $productId)
-            ->where('sku_variant', $variantSku)
-            ->first();
-
-        return $variant?->id;
+        return $query->value('id');
     }
 
     /**
@@ -794,6 +798,7 @@ class SyncEventApplier
                     reason: "Salida manual {$documentNumber}",
                     now: $now,
                     productVariantSku: $item['product_variant_sku'] ?? null,
+                    productVariantColor: $item['product_variant_color'] ?? null,
                 );
             }
 
@@ -821,6 +826,7 @@ class SyncEventApplier
         string $reason,
         $now,
         mixed $productVariantSku = null,
+        mixed $productVariantColor = null,
     ): void {
         if ($quantity <= 0.0) {
             return;
@@ -829,7 +835,7 @@ class SyncEventApplier
         $product = $this->productBySku($tenant, $productSku);
         $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
         $normalizedSerialUnits = $this->normalizeSerialUnits($serialUnits);
-        $variantId = $this->variantIdBySku($tenant, (int) $product->id, $productVariantSku);
+        $variantId = $this->variantIdBySku($tenant, (int) $product->id, $productVariantSku, $productVariantColor);
 
         $stockBalance = DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
