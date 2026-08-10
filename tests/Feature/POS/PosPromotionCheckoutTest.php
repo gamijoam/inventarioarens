@@ -642,6 +642,56 @@ class PosPromotionCheckoutTest extends TestCase
             ->postJson('/api/pos/checkouts', $payload);
     }
 
+    public function test_checkout_bundle_promotion_with_product_variant_preserves_color_and_price(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        // El telefono tiene variantes/colores.
+        $green = $phone->variants()->create([
+            'color' => 'Verde',
+            'color_hex' => '#16A34A',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        // La variante verde tiene su propio stock en el almacen.
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $phone->id,
+            'product_variant_id' => $green->id,
+            'quantity_available' => 5,
+        ]);
+        $promotion = $this->createBundlePromotion($tenant, $cashier, $phone, $charger, 50, 'COMBO-VAR');
+
+        $response = $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => [
+                [
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $phone->id,
+                    'product_variant_id' => $green->id,
+                    'quantity' => 1,
+                ],
+                [
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $charger->id,
+                    'quantity' => 1,
+                ],
+            ],
+            'payments' => [$this->cashPayment(50)],
+            'cash_register_session_id' => $session->id,
+        ])->assertCreated();
+
+        // El total aplica el precio del bundle ($50) no la suma normal ($55).
+        $this->assertSame(50.0, (float) $response->json('data.sale.total_base_amount'));
+        $this->assertSame(PosOrder::STATUS_PAID, $response->json('data.status'));
+        // La linea del telefono conserva la variante verde.
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $phone->id,
+            'product_variant_id' => $green->id,
+            'promotion_id' => $promotion['id'],
+        ]);
+    }
+
     private function useTenant(Tenant $tenant): void
     {
         app(TenantManager::class)->set($tenant);

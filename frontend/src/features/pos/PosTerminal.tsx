@@ -102,6 +102,7 @@ import {
   missingSerialIssue,
   paymentBaseAmount,
   findMatchingVariantLine,
+  promotionLineUnitPrice,
   type CurrencyCode,
   type DiscountType,
   type PosCartLine,
@@ -437,8 +438,15 @@ export function PosTerminal() {
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
-  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
-  const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
+const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
+// Contexto de promocion propagado al VariantPicker cuando la linea viene de
+// una promocion cargada (precio de promocion + ref), para que al elegir el
+// color la linea mantenga el valor de la promocion.
+const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
+  price: number;
+  ref: { id: number; code?: string | null; benefitType?: string } | null;
+} | null>(null);
   const [serialSearch, setSerialSearch] = useState('');
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -1780,11 +1788,25 @@ export function PosTerminal() {
               warehouseId={selectedWarehouse?.id ?? warehouseId}
               open={variantPickerProduct !== null}
               initialQuantity={variantPickerQuantity}
-              onClose={() => setVariantPickerProduct(null)}
+              onClose={() => {
+                setVariantPickerProduct(null);
+                setVariantPickerPromotion(null);
+              }}
               onSelect={({ variant, quantity }) => {
                 const product = variantPickerProduct;
+                const promotion = variantPickerPromotion;
                 setVariantPickerProduct(null);
-                if (product) void addProduct(product, undefined, quantity, variant);
+                setVariantPickerPromotion(null);
+                if (product) {
+                  void addProduct(
+                    product,
+                    undefined,
+                    quantity,
+                    variant,
+                    promotion?.price,
+                    promotion?.ref ?? null,
+                  );
+                }
               }}
             />
           </PanelShell>
@@ -1873,6 +1895,8 @@ export function PosTerminal() {
     scannedSerial?: ProductSerial,
     requestedQuantity = 1,
     selectedVariant?: ProductVariant | null,
+    promotionPriceOverride?: number,
+    promotionRef?: { id: number; code?: string | null; benefitType?: string } | null,
   ): Promise<boolean> {
     const warehouse = selectedWarehouse;
     if (!warehouse) {
@@ -1887,6 +1911,13 @@ export function PosTerminal() {
         if (namedVariants.length > 0) {
           setVariantPickerProduct(product);
           setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
+          // Conserva el contexto de promocion si esta linea viene de una
+          // promocion cargada, para que al elegir color se mantenga el precio.
+          if (promotionPriceOverride !== undefined) {
+            setVariantPickerPromotion({ price: promotionPriceOverride, ref: promotionRef ?? null });
+          } else {
+            setVariantPickerPromotion(null);
+          }
           return false;
         }
         selectedVariant = variants[0] ?? null;
@@ -1969,8 +2000,13 @@ export function PosTerminal() {
           quantity,
           available_stock: available,
           unit_price:
-            quote?.base_price_usd ?? Number(selectedVariant?.price_override ?? product.base_price ?? 0),
+            promotionPriceOverride ??
+            quote?.base_price_usd ??
+            Number(selectedVariant?.price_override ?? product.base_price ?? 0),
           base_unit_price: Number(selectedVariant?.price_override ?? product.base_price ?? 0),
+          promotion_id: promotionRef?.id ?? null,
+          promotion_code: promotionRef?.code ?? null,
+          promotion_benefit_type: promotionRef?.benefitType ?? null,
           currency: quote?.sale_currency ?? product.sale_currency ?? 'USD',
           base_currency: product.sale_currency ?? 'USD',
           exchange_rate: quote?.exchange_rate ?? null,
@@ -2026,6 +2062,8 @@ export function PosTerminal() {
       return;
     }
 
+    const totalPromotionQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
     try {
       const products = await Promise.all(
         items.map((item) => getProductForPos(item.product_id, selectedWarehouse.id)),
@@ -2041,28 +2079,34 @@ export function PosTerminal() {
         return;
       }
 
-      const shortage = loadedItems.find(
-        ({ item, product }) =>
-          product.track_stock !== false &&
-          item.quantity +
-            (cart.find(
-              (line) =>
-                line.product_id === item.product_id && line.warehouse_id === selectedWarehouse.id,
-            )?.quantity ?? 0) >
-            Number(product.available_stock ?? 0),
-      );
-
-      if (shortage) {
-        toast.error(`Stock insuficiente para ${shortage.product.name}.`);
-        return;
+      const promotionRef = {
+        id: promotion.id,
+        code: promotion.code,
+        benefitType: promotion.benefit_type,
+      };
+      // Precio unitario que se muestra en el carrito para el valor de la
+      // promocion (el backend re-valida y ajusta en el checkout).
+      const unitPriceByProduct = new Map<number, number>();
+      for (const { item, product } of loadedItems) {
+        const base = Number(product.base_price ?? 0);
+        unitPriceByProduct.set(
+          item.product_id,
+          promotionLineUnitPrice(promotion, base, totalPromotionQuantity),
+        );
       }
 
-      const previousCart = cart;
+      // Si el producto tiene variantes, addProduct abrira el VariantPicker y
+      // retornara false (se continua con los demas items y se setea la
+      // promocion al final).
       for (const { item, product } of loadedItems) {
-        if (!(await addProduct(product, undefined, item.quantity))) {
-          setCart(previousCart);
-          return;
-        }
+        await addProduct(
+          product,
+          undefined,
+          item.quantity,
+          undefined,
+          unitPriceByProduct.get(item.product_id),
+          promotionRef,
+        );
       }
 
       setSelectedPromotion(promotion);

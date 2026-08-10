@@ -30,6 +30,13 @@ export interface PosCartLine {
   price_list_name?: string | null;
   price_issue?: string | null;
   /**
+   * Referencia a la promocion aplicada a la linea (para mostrar el precio
+   * de promocion en el carrito y conservar el contexto al recuperar tickets).
+   */
+  promotion_id?: number | null;
+  promotion_code?: string | null;
+  promotion_benefit_type?: string | null;
+  /**
    * Tasa de cambio asociada a esta linea. Viene del `quote` que retorna
    * `GET /products/{id}/price` y refleja la tasa anclada al producto
    * (ej. PARALELO). Es un snapshot del precio y no define la tasa usada
@@ -136,6 +143,56 @@ export function expandPromotionItems(
   }
 
   return [...quantities].map(([product_id, quantity]) => ({ product_id, quantity }));
+}
+
+export interface PromotionPricingInput {
+  benefit_type: string;
+  price_usd: number;
+  discount_percent: number | null;
+  discount_amount_usd: number | null;
+}
+
+/**
+ * Calcula el precio unitario (USD) que debe MOSTRAR una linea del carrito
+ * cuando pertenece a una promocion cargada.
+ *
+ * Es un espejo visual del calculo que el backend hace en
+ * `PromotionService::applyToItems` al cobrar, para que el ticket muestre el
+ * valor de la promocion desde el momento en que se carga, no el precio normal.
+ *
+ * - fixed_bundle_price / fixed_item_price: prorratea `price_usd` entre las
+ *   unidades de los componentes (por el momento usa la cantidad total de la
+ *   promocion; el backend ajusta por componente en el checkout).
+ * - percent_discount: base * (1 - percent/100).
+ * - fixed_discount: base - amount.
+ * - free_item / buy_x_get_y: se mantiene el precio base (el descuento se
+ *   resuelve en el backend).
+ */
+export function promotionLineUnitPrice(
+  promotion: PromotionPricingInput,
+  baseUnitPrice: number,
+  totalPromotionQuantity: number,
+): number {
+  const base = Number.isFinite(baseUnitPrice) ? baseUnitPrice : 0;
+
+  switch (promotion.benefit_type) {
+    case 'fixed_bundle_price':
+    case 'fixed_item_price': {
+      const totalQty = Math.max(1, Math.floor(Number(totalPromotionQuantity) || 1));
+      const total = Number(promotion.price_usd ?? 0);
+      return roundMoney(total / totalQty);
+    }
+    case 'percent_discount': {
+      const pct = Number(promotion.discount_percent ?? 0);
+      return roundMoney(base * (1 - Math.min(100, Math.max(0, pct)) / 100));
+    }
+    case 'fixed_discount': {
+      const amount = Number(promotion.discount_amount_usd ?? 0);
+      return roundMoney(Math.max(0, base - amount));
+    }
+    default:
+      return roundMoney(base);
+  }
 }
 
 export function lineSubtotal(line: Pick<PosCartLine, 'quantity' | 'unit_price'>): number {
