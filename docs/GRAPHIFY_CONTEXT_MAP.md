@@ -269,6 +269,8 @@ Documento principal:
 
 - [Electron updates y technician](ELECTRON_UPDATES_AND_TECHNICIAN.md) — incluye el runbook de
   publicacion de fixes (bump de version, workflow por cliente, verificacion y tabla de errores comunes)
+- [Login operativo y publicacion Electron](LOGIN_ROUTING_AND_ELECTRON_RELEASE_2026-08-09.md) — conserva
+  las reglas de redireccion por permisos, el contrato `pos.orders.hold` y el flujo de releases por cliente.
 
 La sincronizacion de escritorio corre por **tareas programadas de Windows** (una por
 empresa, cada 1 minuto) que ejecutan `sync-worker.cmd run` -> `php artisan sync:run`,
@@ -291,7 +293,9 @@ Nodos de codigo frecuentes:
 - `frontend/src/features/pos-armar/ArmOrderScreen.tsx` (pantalla tactil "Armar orden", ruta /pos/armar)
 - `frontend/src/features/pos-armar/OnScreenKeyboard.tsx` (teclado on-screen propio, sin teclado del sistema)
 - `frontend/src/features/pos-armar/armOrderLogic.ts` (logica pura del teclado/busqueda)
-- `frontend/src/features/pos/PosTerminal.tsx` (redirige vendedores con pos.orders.hold sin pos.checkout a /pos/armar)
+- `frontend/src/auth/postLoginRoute.ts` (redirige por permisos: vendedor con `pos.orders.hold` a /pos/armar y cajero a /pos)
+- `frontend/src/auth/postLoginRoute.test.ts` (contrato de redireccion de vendedor, cajero y administrativos)
+- `frontend/src/features/pos/PosTerminal.tsx` (terminal POS de cobro)
 - `ProductController::index` (busqueda por catalogo y suma de stock para el almacen solicitado)
 - `useCustomers` y `useCreateCustomerForPos` (seleccion y alta rapida del cliente en el pedido)
 

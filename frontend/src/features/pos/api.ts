@@ -310,6 +310,7 @@ export interface CheckoutPayload {
   items: Array<{
     warehouse_id: number;
     product_id: number;
+    product_variant_id?: number | null;
     price_list_id?: number | null;
     price_source?: 'base' | 'price_list';
     quantity: number;

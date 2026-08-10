@@ -10,6 +10,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Purchases\Models\PurchaseItem;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
@@ -55,6 +56,7 @@ class PurchaseOrderService
             foreach ($data['items'] as $item) {
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
                 $product = Product::query()->findOrFail($item['product_id']);
+                $variant = $this->resolveVariant($product, $item['product_variant_id'] ?? null);
                 $quantity = (float) $item['quantity'];
                 $serialUnits = $item['serial_units'] ?? [];
                 $this->validateSerialUnits($product, $quantity, $serialUnits);
@@ -67,6 +69,7 @@ class PurchaseOrderService
                     'purchase_order_id' => $purchaseOrder->id,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $variant?->id,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'total_cost' => $totalCost,
@@ -86,7 +89,7 @@ class PurchaseOrderService
                 'total_local_amount' => $totalLocal,
             ]);
 
-            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse']);
+            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.productVariant', 'items.warehouse']);
 
             // Emitir evento de sync para que la nube tenga visibilidad del
             // borrador (efecto real sobre stock ocurre en receive()).
@@ -100,7 +103,7 @@ class PurchaseOrderService
     {
         return DB::transaction(function () use ($purchaseOrder, $user, $data): PurchaseOrder {
             $purchaseOrder = PurchaseOrder::query()
-                ->with(['items.product', 'items.warehouse'])
+                ->with(['items.product', 'items.productVariant', 'items.warehouse'])
                 ->lockForUpdate()
                 ->findOrFail($purchaseOrder->id);
 
@@ -130,6 +133,7 @@ class PurchaseOrderService
                     reason: "Compra #{$purchaseOrder->id}",
                     referenceType: PurchaseOrder::class,
                     referenceId: $purchaseOrder->id,
+                    productVariantId: $item->product_variant_id,
                 );
 
                 $item->update(['stock_movement_id' => $movement->id]);
@@ -169,7 +173,7 @@ class PurchaseOrderService
 
             app(AccountsPayableService::class)->createForPurchase($purchaseOrder->refresh());
 
-            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+            $po = $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.productVariant', 'items.warehouse', 'items.stockMovement']);
 
             // Emitir evento de sync para que la nube cree la entrada de stock
             // correspondiente. Solo emite items que efectivamente se recibieron
@@ -194,7 +198,7 @@ class PurchaseOrderService
             'cancelled_at' => now(),
         ]);
 
-        return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.warehouse']);
+        return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.productVariant', 'items.warehouse']);
     }
 
     private function rateSnapshot(string $currency, ?int $rateTypeId): array
@@ -370,6 +374,7 @@ class PurchaseOrderService
         foreach ($serialUnits ?? $item->serial_units ?? [] as $serialUnit) {
             ProductUnit::create([
                 'product_id' => $item->product_id,
+                'product_variant_id' => $item->product_variant_id,
                 'warehouse_id' => $item->warehouse_id,
                 'serial_type' => $serialUnit['serial_type'],
                 'serial_number' => $serialUnit['serial_number'],
@@ -377,5 +382,45 @@ class PurchaseOrderService
                 'acquired_stock_movement_id' => $movementId,
             ]);
         }
+    }
+
+    private function resolveVariant(Product $product, ?int $variantId): ?ProductVariant
+    {
+        $activeVariants = ProductVariant::query()
+            ->where('product_id', $product->id)
+            ->where('is_active', true)
+            ->get();
+
+        if ($variantId === null) {
+            if ($activeVariants->count() > 1 || $activeVariants->contains(fn (ProductVariant $variant): bool => filled($variant->color))) {
+                throw ValidationException::withMessages([
+                    'items' => "Selecciona la variante o color para el producto {$product->name}.",
+                ]);
+            }
+
+            return null;
+        }
+
+        $variant = $activeVariants->firstWhere('id', $variantId);
+
+        if (! $variant) {
+            throw ValidationException::withMessages([
+                'items' => "La variante seleccionada no pertenece al producto {$product->name} o está inactiva.",
+            ]);
+        }
+
+        if ((int) $variant->product_id !== (int) $product->id) {
+            throw ValidationException::withMessages([
+                'items' => 'La variante seleccionada no pertenece al producto indicado.',
+            ]);
+        }
+
+        if (! $variant->is_active) {
+            throw ValidationException::withMessages([
+                'items' => 'La variante seleccionada está inactiva.',
+            ]);
+        }
+
+        return $variant;
     }
 }

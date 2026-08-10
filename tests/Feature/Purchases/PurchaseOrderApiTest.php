@@ -8,6 +8,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
@@ -24,6 +25,92 @@ use Tests\TestCase;
 class PurchaseOrderApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_purchase_preserves_variant_through_receipt_and_serial_unit(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variantes', 'slug' => 'empresa-variantes']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_SERIALIZED, 'IPHONE-COLOR-001');
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'IPHONE-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $supplier = $this->supplier($tenant, 'Proveedor Variantes', 'J-9001');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras variantes', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 1,
+                    'unit_cost' => 500,
+                    'serial_units' => [[
+                        'serial_type' => 'imei',
+                        'serial_number' => '860000000000001',
+                    ]],
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
+            ->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant_id', $variant->id);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'type' => 'purchase',
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'serial_number' => '860000000000001',
+        ]);
+    }
+
+    public function test_purchase_requires_variant_when_product_has_color_variants(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variantes Requeridas', 'slug' => 'empresa-variantes-requeridas']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'COLOR-REQ-001');
+        $product->variants()->create([
+            'color' => 'Rojo',
+            'color_hex' => '#DC2626',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras variantes requeridas', ['purchases.create']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 10,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items');
+    }
 
     public function test_user_can_create_draft_purchase_without_moving_inventory(): void
     {

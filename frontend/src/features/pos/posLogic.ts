@@ -4,6 +4,8 @@ export type CurrencyCode = 'USD' | 'VES';
 export interface PosCartLine {
   id: string;
   product_id: number;
+  product_variant_id?: number | null;
+  product_variant_name?: string | null;
   name: string;
   sku?: string | null;
   barcode?: string | null;

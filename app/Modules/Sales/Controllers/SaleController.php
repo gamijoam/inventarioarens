@@ -32,6 +32,7 @@ class SaleController extends Controller
                 'posOrder.cashRegisterSession.cashRegister',
                 'posOrder.payments.paymentMethod',
                 'items.product',
+                'items.variant',
                 'items.warehouse',
                 'salesReturns.items',
             ])
@@ -119,6 +120,7 @@ class SaleController extends Controller
             'posOrder.cashRegisterSession.cashRegister',
             'posOrder.payments.paymentMethod',
             'items.product',
+            'items.variant',
             'items.warehouse',
             'items.stockMovement',
             'salesReturns.items',

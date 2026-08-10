@@ -119,14 +119,14 @@ class SaleService
                 'total_local_amount' => $totalLocal,
             ]);
 
-            return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse']);
+            return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
         });
     }
 
     public function confirm(Sale $sale, User $user): Sale
     {
         return DB::transaction(function () use ($sale, $user): Sale {
-            $sale = Sale::query()->with(['items.product', 'items.warehouse'])->lockForUpdate()->findOrFail($sale->id);
+            $sale = Sale::query()->with(['items.product', 'items.variant', 'items.warehouse'])->lockForUpdate()->findOrFail($sale->id);
 
             if ($sale->status !== Sale::STATUS_DRAFT) {
                 throw ValidationException::withMessages(['status' => 'Solo se pueden confirmar ventas en borrador.']);
@@ -184,7 +184,7 @@ class SaleService
 
             app(AccountsReceivableService::class)->createForSale($sale->refresh());
 
-            return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse', 'items.stockMovement']);
+            return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse', 'items.stockMovement']);
         });
     }
 
@@ -199,7 +199,7 @@ class SaleService
             'cancelled_at' => now(),
         ]);
 
-        return $sale->refresh()->load(['customer', 'items.product', 'items.warehouse']);
+        return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
     }
 
     private function validatedProductUnitsForSaleItem(SaleItem $item): array

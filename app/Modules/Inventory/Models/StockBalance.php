@@ -3,6 +3,7 @@
 namespace App\Modules\Inventory\Models;
 
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warehouses\Models\WarehouseLocation;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'warehouse_id',
     'product_id',
+    'product_variant_id',
     'location_id',
     'quantity_available',
     'quantity_reserved',
@@ -32,6 +34,11 @@ class StockBalance extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
     public function location(): BelongsTo

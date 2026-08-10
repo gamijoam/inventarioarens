@@ -56,7 +56,12 @@ export function VariantPicker({
     setQuantity(Math.max(1, initialQuantity));
   }, [open, initialVariantId, initialQuantity]);
 
-  const sorted = useMemo(() => [...variants].sort((a, b) => a.position - b.position), [variants]);
+  const sorted = useMemo(() => {
+    const hasNamedVariants = variants.some((variant) => Boolean(variant.color));
+    return [...variants]
+      .filter((variant) => !hasNamedVariants || Boolean(variant.color))
+      .sort((a, b) => a.position - b.position);
+  }, [variants]);
 
   const selected = sorted.find((variant) => variant.id === selectedId) ?? null;
   const available = selected?.stock_available ?? 0;

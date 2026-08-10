@@ -52,6 +52,7 @@ export const PurchaseItemSchema = z.object({
   quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
   received_quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
   serial_units: z.array(z.unknown()).nullable().optional(),
+  product_variant_id: z.number().int().positive().nullable().optional(),
   stock_movement_id: z.number().int().nullable().optional(),
   // Costos (opcionales por permisos).
   unit_cost: z.union([z.number(), z.string()]).nullable().optional(),
@@ -158,6 +159,7 @@ const positiveNumber = (max = 999_999) =>
 export const PurchaseItemInputSchema = z.object({
   warehouse_id: positiveNumber(),
   product_id: positiveNumber(),
+  product_variant_id: z.coerce.number().int().positive().nullable().optional(),
   quantity: positiveNumber(),
   unit_cost: positiveNumber(),
   serial_units: z

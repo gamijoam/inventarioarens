@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Boxes, Package, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useWarehouses } from '@/features/inventory-center/api';
+import { useProductVariants } from '@/features/inventory-center/variantApi';
 import { cn } from '@/lib/cn';
 
 import type { ImeiInput } from './ImeiListInput';
@@ -15,6 +16,7 @@ import { ProductAutocomplete, type ProductAutocompleteOption } from './ProductAu
 export interface PurchaseItemRowValue {
   warehouse_id: number | null;
   product_id: number | null;
+  product_variant_id: number | null;
   product_info: ProductAutocompleteOption | null;
   quantity: number;
   unit_cost: number;
@@ -40,11 +42,23 @@ export function PurchaseItemRow({
   index,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
+  const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
+    value.product_id ?? 0,
+  );
+  const activeVariants = useMemo(() => variants.filter((variant) => variant.is_active), [variants]);
+  const hasVariantChoice = activeVariants.length > 1 || activeVariants.some((variant) => variant.color);
   const subtotal = useMemo(
     () => (Number.isFinite(value.quantity) ? value.quantity * value.unit_cost : 0),
     [value.quantity, value.unit_cost],
   );
   const isSerialized = value.product_info?.tracking_type === 'serialized';
+
+  useEffect(() => {
+    if (!value.product_id || !value.product_variant_id) return;
+    if (!activeVariants.some((variant) => variant.id === value.product_variant_id)) {
+      onChange({ ...value, product_variant_id: null });
+    }
+  }, [activeVariants, onChange, value]);
 
   return (
     <section
@@ -92,6 +106,7 @@ export function PurchaseItemRow({
                 onChange({
                   ...value,
                   product_id: id,
+                  product_variant_id: null,
                   product_info: product ?? null,
                   serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
                 })
@@ -108,6 +123,37 @@ export function PurchaseItemRow({
                       minimumFractionDigits: 2,
                     })}
                   </span>
+                )}
+              </div>
+            )}
+            {value.product_info && hasVariantChoice && (
+              <div className="mt-3 space-y-1.5">
+                <label className="text-text-secondary text-xs font-semibold uppercase">
+                  Variante / color <span className="text-danger">*</span>
+                </label>
+                <Select
+                  value={value.product_variant_id ? String(value.product_variant_id) : ''}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      product_variant_id: event.target.value ? Number(event.target.value) : null,
+                    })
+                  }
+                  disabled={disabled || variantsLoading}
+                  className={cn('h-11', !value.product_variant_id && 'border-warning')}
+                >
+                  <option value="">
+                    {variantsLoading ? 'Cargando variantes...' : 'Seleccionar variante / color'}
+                  </option>
+                  {activeVariants.map((variant) => (
+                    <option key={variant.id} value={String(variant.id)}>
+                      {variant.color ?? 'Variante general'}
+                      {variant.sku_variant ? ` · ${variant.sku_variant}` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {!value.product_variant_id && (
+                  <p className="text-warning text-xs">Selecciona el color o variante que ingresará.</p>
                 )}
               </div>
             )}

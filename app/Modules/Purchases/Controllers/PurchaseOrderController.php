@@ -88,7 +88,7 @@ class PurchaseOrderController extends Controller
         Gate::authorize('view', $purchaseOrder);
 
         return PurchaseOrderResource::make(
-            $purchaseOrder->load(['supplier', 'accountPayable', 'items.product', 'items.warehouse', 'items.stockMovement'])
+            $purchaseOrder->load(['supplier', 'accountPayable', 'items.product', 'items.productVariant', 'items.warehouse', 'items.stockMovement'])
         );
     }
 

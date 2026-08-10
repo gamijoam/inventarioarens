@@ -29,6 +29,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             type: 'purchase',
@@ -40,6 +41,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 

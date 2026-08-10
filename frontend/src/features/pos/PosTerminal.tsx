@@ -43,6 +43,9 @@ import { ProductImage as ProductImageView } from '@/features/inventory-center/co
 import { useAvailablePosPromotions } from '@/features/promotions/api';
 import type { Promotion } from '@/features/promotions/schemas';
 import { PromotionsPanel } from './PromotionsPanel';
+import { VariantPicker } from './VariantPicker';
+import { getProductVariants } from '@/features/inventory-center/variantApi';
+import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import {
   type CashRegisterSession,
   type CheckoutPayload,
@@ -414,6 +417,8 @@ export function PosTerminal() {
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+  const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
   const [serialSearch, setSerialSearch] = useState('');
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -1727,6 +1732,19 @@ export function PosTerminal() {
                 onToggle={(serial) => toggleSerial(serialLine.id, serial)}
               />
             )}
+            <VariantPicker
+              productId={variantPickerProduct?.id ?? 0}
+              productName={variantPickerProduct?.name ?? ''}
+              warehouseId={selectedWarehouse?.id ?? warehouseId}
+              open={variantPickerProduct !== null}
+              initialQuantity={variantPickerQuantity}
+              onClose={() => setVariantPickerProduct(null)}
+              onSelect={({ variant, quantity }) => {
+                const product = variantPickerProduct;
+                setVariantPickerProduct(null);
+                if (product) void addProduct(product, undefined, quantity, variant);
+              }}
+            />
           </PanelShell>
         )}
       </div>
@@ -1812,8 +1830,20 @@ export function PosTerminal() {
     product: Product,
     scannedSerial?: ProductSerial,
     requestedQuantity = 1,
+    selectedVariant?: ProductVariant | null,
   ): Promise<boolean> {
-    const available = Number(product.available_stock ?? 0);
+    if (!selectedVariant && !scannedSerial && selectedWarehouse) {
+      const variants = await getProductVariants(product.id, selectedWarehouse.id);
+      const namedVariants = variants.filter((variant) => Boolean(variant.color));
+      if (namedVariants.length > 0) {
+        setVariantPickerProduct(product);
+        setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
+        return false;
+      }
+      selectedVariant = variants[0] ?? null;
+    }
+
+    const available = Number(selectedVariant?.stock_available ?? product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
       toast.error('Producto sin stock disponible.');
       return false;
@@ -1827,22 +1857,24 @@ export function PosTerminal() {
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
     const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
-    const existingLine = cart.find(
-      (line) => line.product_id === product.id && line.warehouse_id === selectedWarehouse.id,
-    );
+    const lineMatchesVariant = (line: PosCartLine) =>
+      line.product_id === product.id &&
+      line.warehouse_id === selectedWarehouse.id &&
+      (line.product_variant_id ?? null) === (selectedVariant?.id ?? null);
+    const matchingLine = cart.find(lineMatchesVariant);
     const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
-    if (existingLine && existingLine.quantity + quantity > maximumQuantity) {
+    if (matchingLine && matchingLine.quantity + quantity > maximumQuantity) {
       toast.error(`No hay stock suficiente de ${product.name} para cargar la promoción.`);
       return false;
     }
-    if (scannedSerial && existingLine) {
-      if (existingLine.selected_serials?.some((serial) => serial.id === scannedSerial.id)) {
+    if (scannedSerial && matchingLine) {
+      if (matchingLine.selected_serials?.some((serial) => serial.id === scannedSerial.id)) {
         toast.error('Ese IMEI/serial ya esta agregado al ticket.');
         return false;
       }
       if (
-        clampQuantity(existingLine.quantity + 1, existingLine.available_stock) <=
-        existingLine.quantity
+        clampQuantity(matchingLine.quantity + 1, matchingLine.available_stock) <=
+        matchingLine.quantity
       ) {
         toast.error('No hay mas unidades disponibles de este producto.');
         return false;
@@ -1850,9 +1882,7 @@ export function PosTerminal() {
     }
     let newLineId: string | null = null;
     setCart((current) => {
-      const existing = current.find(
-        (line) => line.product_id === product.id && line.warehouse_id === selectedWarehouse.id,
-      );
+      const existing = current.find(lineMatchesVariant);
       if (existing) {
         newLineId = existing.id;
         return current.map((line) =>
@@ -1880,14 +1910,17 @@ export function PosTerminal() {
         {
           id: newLineId,
           product_id: product.id,
+          product_variant_id: selectedVariant?.id ?? null,
+          product_variant_name: selectedVariant?.color ?? null,
           name: product.name,
           sku: product.sku,
           barcode: product.barcode,
           warehouse_id: selectedWarehouse.id,
           quantity,
           available_stock: available,
-          unit_price: quote?.base_price_usd ?? Number(product.base_price ?? 0),
-          base_unit_price: Number(product.base_price ?? 0),
+          unit_price:
+            quote?.base_price_usd ?? Number(selectedVariant?.price_override ?? product.base_price ?? 0),
+          base_unit_price: Number(selectedVariant?.price_override ?? product.base_price ?? 0),
           currency: quote?.sale_currency ?? product.sale_currency ?? 'USD',
           base_currency: product.sale_currency ?? 'USD',
           exchange_rate: quote?.exchange_rate ?? null,
@@ -2377,6 +2410,8 @@ export function PosTerminal() {
     interface PendingSaleItem {
       id: number;
       product_id: number;
+      product_variant_id?: number | null;
+      product_variant_name?: string | null;
       warehouse_id: number;
       quantity: number;
       sale_currency?: CurrencyCode;
@@ -2415,6 +2450,8 @@ export function PosTerminal() {
           return {
             id: `pending-${item.id}`,
             product_id: item.product_id,
+            product_variant_id: item.product_variant_id ?? null,
+            product_variant_name: item.product_variant_name ?? null,
             name: product.name,
             sku: product.sku,
             barcode: product.barcode,
@@ -2469,6 +2506,7 @@ export function PosTerminal() {
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
+        product_variant_id: line.product_variant_id ?? null,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
@@ -2494,6 +2532,7 @@ export function PosTerminal() {
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
+        product_variant_id: line.product_variant_id ?? null,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
@@ -2635,6 +2674,11 @@ function CartLineRow({
             </div>
             <div className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
+              {line.product_variant_name && (
+                <Badge variant="default" className="text-[10px]">
+                  {line.product_variant_name}
+                </Badge>
+              )}
               <span>{money(line.unit_price)} c/u</span>
               {line.price_list_name && (
                 <Badge variant="default" className="text-[10px]">

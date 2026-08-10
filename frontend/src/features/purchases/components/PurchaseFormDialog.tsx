@@ -40,6 +40,7 @@ function emptyItem(): PurchaseItemRowValue {
   return {
     warehouse_id: null,
     product_id: null,
+    product_variant_id: null,
     product_info: null,
     quantity: 1,
     unit_cost: 0,
@@ -152,6 +153,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
       return {
         warehouse_id: it.warehouse_id ?? 0,
         product_id: it.product_id ?? 0,
+        product_variant_id: it.product_variant_id ?? undefined,
         quantity: it.quantity,
         unit_cost: it.unit_cost,
         serial_units: serialUnits,

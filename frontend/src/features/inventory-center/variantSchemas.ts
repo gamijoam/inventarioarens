@@ -20,7 +20,7 @@ export const ProductVariantSchema = z.object({
    * Stock disponible agregado en TODOS los almacenes. El POS
    * recalcula por almacen cuando recibe el warehouse_id.
    */
-  stock_available: z.number().optional(),
+  stock_available: z.coerce.number().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

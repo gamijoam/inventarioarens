@@ -20,6 +20,7 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -110,6 +111,64 @@ class PosCheckoutApiTest extends TestCase
             'aggregate_id' => $response->json('data.id'),
             'status' => 'pending',
         ]);
+    }
+
+    public function test_pos_checkout_preserves_selected_variant_in_sale_and_stock_movement(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variantes', 'slug' => 'empresa-variantes']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-VAR', 500);
+        $this->useTenant($tenant);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity_available' => 2,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $response = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.items.0.product_variant_id', $variant->id);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'type' => 'sale',
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity_available' => '1.0000',
+        ]);
+
+        $this->assertNotNull($response->json('data.sale_id'));
     }
 
     public function test_pos_checkout_rejects_discount_without_special_permission(): void

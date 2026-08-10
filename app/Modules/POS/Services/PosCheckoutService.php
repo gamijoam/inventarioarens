@@ -206,7 +206,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS cargar respuesta checkout',
-                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -256,7 +256,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS armar cargar respuesta',
-                    fn (): PosOrder => $order->refresh()->load(['customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -403,7 +403,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS pendiente cargar respuesta',
-                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -416,7 +416,7 @@ class PosCheckoutService
         return PerformanceProbe::measure('POS cancelar orden pendiente total', function () use ($order, $cashier): PosOrder {
             return DB::transaction(function () use ($order, $cashier): PosOrder {
                 $order = PosOrder::query()
-                    ->with(['sale.items.product', 'sale.items.warehouse', 'cashRegisterSession', 'payments'])
+                    ->with(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'cashRegisterSession', 'payments'])
                     ->lockForUpdate()
                     ->findOrFail($order->id);
 
@@ -469,7 +469,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS cancelar cargar respuesta',
-                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -655,7 +655,7 @@ class PosCheckoutService
     private function applyChargeItemsToSale(PosOrder $order, array $chargeItems): void
     {
         if ($chargeItems === []) {
-            $order->loadMissing('sale.items.product');
+            $order->loadMissing(['sale.items.product', 'sale.items.variant']);
             $this->assertSerializedItemsHaveUnits($order);
 
             return;
@@ -707,7 +707,7 @@ class PosCheckoutService
             ]);
         }
 
-        $order->load('sale.items.product');
+        $order->load(['sale.items.product', 'sale.items.variant']);
         $this->assertSerializedItemsHaveUnits($order);
     }
 
@@ -883,7 +883,7 @@ class PosCheckoutService
             return;
         }
 
-        $order->loadMissing(['sale.items.product', 'sale.items.warehouse']);
+        $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
             $movement = $this->inventory->reserve(
@@ -909,7 +909,7 @@ class PosCheckoutService
             return;
         }
 
-        $order->loadMissing(['sale.items.product', 'sale.items.warehouse']);
+        $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
             $this->inventory->release(
@@ -1060,6 +1060,7 @@ class PosCheckoutService
             'sale.customer',
             'sale.receivable.payments',
             'sale.items.product',
+            'sale.items.variant',
             'sale.items.warehouse',
             'sale.items.priceList',
         ]);

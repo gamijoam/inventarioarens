@@ -18,6 +18,7 @@ class PurchaseItemResource extends JsonResource
             'purchase_order_id' => $this->purchase_order_id,
             'warehouse_id' => $this->warehouse_id,
             'product_id' => $this->product_id,
+            'product_variant_id' => $this->product_variant_id,
             'quantity' => $this->quantity,
             'received_quantity' => $this->received_quantity,
             'unit_cost' => $this->when($canSeeCosts, $this->unit_cost),
@@ -27,6 +28,13 @@ class PurchaseItemResource extends JsonResource
             'serial_units' => $this->serial_units,
             'stock_movement_id' => $this->stock_movement_id,
             'product' => ProductResource::make($this->whenLoaded('product')),
+            'product_variant' => $this->whenLoaded('productVariant', fn () => [
+                'id' => $this->productVariant->id,
+                'color' => $this->productVariant->color,
+                'color_hex' => $this->productVariant->color_hex,
+                'sku_variant' => $this->productVariant->sku_variant,
+                'barcode_variant' => $this->productVariant->barcode_variant,
+            ]),
             'warehouse' => WarehouseResource::make($this->whenLoaded('warehouse')),
         ];
     }
