@@ -5,6 +5,7 @@ namespace Tests\Feature\Sync;
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -251,6 +252,116 @@ class PurchaseOrderSyncTest extends TestCase
             ->where('product_id', $product->id)
             ->where('status', 'available')
             ->count());
+    }
+
+    public function test_purchase_order_created_with_variant_replicates_variant_items_in_cloud(): void
+    {
+        [$tenant, , , $warehouse, $product] = $this->setupTenant();
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'TEST-SKU-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        $payload = [
+            'document_number' => 'PO-2026-VARIANT',
+            'status' => 'draft',
+            'supplier_name' => 'Distribuidora Variantes',
+            'purchase_currency' => 'USD',
+            'total_base_amount' => '30.0000',
+            'total_local_amount' => '30.0000',
+            'items' => [
+                [
+                    'sku' => $product->sku,
+                    'warehouse_code' => $warehouse->code,
+                    'product_variant_sku' => 'TEST-SKU-AZUL',
+                    'quantity' => '2.0000',
+                    'unit_cost' => '15.0000',
+                    'base_unit_cost' => '15.0000',
+                ],
+            ],
+        ];
+
+        $this->enqueueEvent($tenant->id, 'purchase_order.created', $payload, 200);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $poId = (int) DB::table('purchase_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', 'PO-2026-VARIANT')
+            ->value('id');
+
+        $this->assertDatabaseHas('purchase_items', [
+            'tenant_id' => $tenant->id,
+            'purchase_order_id' => $poId,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => 2.0,
+            'received_quantity' => 0,
+            'base_unit_cost' => 15.0,
+        ]);
+    }
+
+    public function test_purchase_order_received_with_variant_creates_stock_on_variant_in_cloud(): void
+    {
+        [$tenant, , , $warehouse, $product] = $this->setupTenant();
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Rojo',
+            'color_hex' => '#DC2626',
+            'sku_variant' => 'TEST-SKU-ROJO',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        $payload = [
+            'document_number' => 'PO-2026-RECVARIANT',
+            'status' => 'received',
+            'supplier_name' => 'Distribuidora Variantes',
+            'purchase_currency' => 'USD',
+            'received_at' => now()->toISOString(),
+            'items' => [
+                [
+                    'sku' => $product->sku,
+                    'warehouse_code' => $warehouse->code,
+                    'product_variant_sku' => 'TEST-SKU-ROJO',
+                    'quantity' => '3.0000',
+                    'unit_cost' => '12.0000',
+                    'serial_units' => [],
+                ],
+            ],
+        ];
+
+        $this->enqueueEvent($tenant->id, 'purchase_order.received', $payload, 200);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        // El stock debe quedar en la variante (no en el producto base).
+        $this->assertEquals(3.0, (float) DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->where('product_variant_id', $variant->id)
+            ->value('quantity_available'));
+
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'entry',
+            'product_variant_id' => $variant->id,
+            'quantity' => '3.0000',
+        ]);
+
+        $this->assertDatabaseHas('product_entry_items', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => '3.0000',
+        ]);
     }
 
     public function test_purchase_order_received_is_idempotent(): void

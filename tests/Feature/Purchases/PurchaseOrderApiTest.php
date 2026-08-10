@@ -231,6 +231,61 @@ class PurchaseOrderApiTest extends TestCase
         $this->assertSame($documentNumber, $payload['document_number'] ?? null);
     }
 
+    public function test_purchase_with_variant_emits_sync_events_with_variant_sku(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Sync Variantes', 'slug' => 'empresa-sync-variantes']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'SYNC-COLOR-001');
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'SYNC-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $supplier = $this->supplier($tenant, 'Proveedor Sync', 'J-9002');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras sync', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 2,
+                    'unit_cost' => 15,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        // El evento purchase_order.created debe incluir product_variant_sku
+        // para que la nube pueda resolver la variante por identidad natural.
+        $createdPayload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'purchase_order.created')
+            ->value('payload'), true);
+        $this->assertSame('SYNC-AZUL', $createdPayload['items'][0]['product_variant_sku'] ?? null);
+
+        // Al recibir, el evento purchase_order.received tambien debe llevar la variante.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk();
+
+        $receivedPayload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'purchase_order.received')
+            ->value('payload'), true);
+        $this->assertSame('SYNC-AZUL', $receivedPayload['items'][0]['product_variant_sku'] ?? null);
+    }
+
     public function test_receive_purchase_partially_then_fully_updates_inventory_and_payable(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

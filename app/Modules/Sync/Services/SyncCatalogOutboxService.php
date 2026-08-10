@@ -305,7 +305,7 @@ class SyncCatalogOutboxService
      */
     public function purchaseOrderReceived(PurchaseOrder $order): void
     {
-        $order->loadMissing(['supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+        $order->loadMissing(['supplier', 'items.product', 'items.productVariant', 'items.warehouse', 'items.stockMovement']);
         $documentNumber = $this->purchaseDocumentNumber($order);
 
         // Solo emitimos los items que efectivamente se recibieron en esta
@@ -318,6 +318,7 @@ class SyncCatalogOutboxService
             ->map(fn ($item): array => [
                 'sku' => $item->product?->sku,
                 'warehouse_code' => $item->warehouse?->code,
+                'product_variant_sku' => $item->productVariant?->sku_variant,
                 'quantity' => (string) $item->received_quantity,
                 'unit_cost' => $item->base_unit_cost === null ? null : (string) $item->base_unit_cost,
                 'serial_units' => $item->serial_units ?? [],

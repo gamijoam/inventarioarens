@@ -575,6 +575,7 @@ class SyncEventApplier
                     serialUnits: $item['serial_units'] ?? null,
                     reason: "Entrada manual {$documentNumber}",
                     now: $now,
+                    productVariantSku: $item['product_variant_sku'] ?? null,
                 );
             }
 
@@ -792,6 +793,7 @@ class SyncEventApplier
                     serialUnits: $item['product_unit_ids'] ?? null,
                     reason: "Salida manual {$documentNumber}",
                     now: $now,
+                    productVariantSku: $item['product_variant_sku'] ?? null,
                 );
             }
 
@@ -818,6 +820,7 @@ class SyncEventApplier
         mixed $serialUnits,
         string $reason,
         $now,
+        mixed $productVariantSku = null,
     ): void {
         if ($quantity <= 0.0) {
             return;
@@ -826,11 +829,13 @@ class SyncEventApplier
         $product = $this->productBySku($tenant, $productSku);
         $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
         $normalizedSerialUnits = $this->normalizeSerialUnits($serialUnits);
+        $variantId = $this->variantIdBySku($tenant, (int) $product->id, $productVariantSku);
 
         $stockBalance = DB::table('stock_balances')
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
+            ->where('product_variant_id', $variantId)
             ->lockForUpdate()
             ->first();
 
@@ -840,6 +845,7 @@ class SyncEventApplier
                 ->where('tenant_id', $tenant->id)
                 ->where('warehouse_id', $warehouse->id)
                 ->where('product_id', $product->id)
+                ->where('product_variant_id', $variantId)
                 ->update([
                     'quantity_available' => $newQuantity,
                 ]);
@@ -848,6 +854,7 @@ class SyncEventApplier
                 'tenant_id' => $tenant->id,
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $variantId,
                 'quantity_available' => $documentType === 'entry' ? $quantity : -$quantity,
                 'quantity_reserved' => 0,
                 'quantity_damaged' => 0,
@@ -858,6 +865,7 @@ class SyncEventApplier
             'tenant_id' => $tenant->id,
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
+            'product_variant_id' => $variantId,
             'type' => $documentType,
             'quantity' => $quantity,
             'unit_cost' => $unitCost,
@@ -875,6 +883,7 @@ class SyncEventApplier
                 'product_entry_id' => $productEntryId,
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $variantId,
                 'quantity' => $quantity,
                 'unit_cost' => $unitCost,
                 'stock_movement_id' => $movementId,
@@ -890,6 +899,7 @@ class SyncEventApplier
                 movementId: $movementId,
                 serialUnits: $normalizedSerialUnits,
                 now: $now,
+                productVariantId: $variantId,
             );
         } else {
             DB::table('product_exit_items')->insert([
@@ -897,6 +907,7 @@ class SyncEventApplier
                 'product_exit_id' => $productExitId,
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $variantId,
                 'quantity' => $quantity,
                 'stock_movement_id' => $movementId,
                 'product_unit_ids' => $normalizedSerialUnits !== [] ? json_encode($normalizedSerialUnits) : null,
@@ -930,6 +941,7 @@ class SyncEventApplier
         int $movementId,
         array $serialUnits,
         $now,
+        ?int $productVariantId = null,
     ): void {
         foreach ($serialUnits as $serialUnit) {
             DB::table('product_units')->updateOrInsert(
@@ -940,6 +952,7 @@ class SyncEventApplier
                 ],
                 [
                     'product_id' => $productId,
+                    'product_variant_id' => $productVariantId,
                     'warehouse_id' => $warehouseId,
                     'status' => 'available',
                     'acquired_stock_movement_id' => $movementId,
