@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-08-10 - Frontend VPS desactualizado + data-fix stock ACCESORIOS COSMETICOS
+
+### Frontend del VPS servía un build viejo (sin variantes)
+- Síntoma: en `app.miinventariofacil.com` (VPS `212.28.176.157`) la UI de productos no mostraba la
+  pestaña de variantes.
+- Causa: Laravel sirve la SPA desde `frontend/dist/index.html` (vía `routes/web.php`), y ese build
+  era del 2026-08-08. Además `frontend/dist/` está en `.gitignore`, así que `git pull` jamás
+  actualiza el bundle servido.
+- Fix: `git pull` a `dfe5592`, `composer install --no-dev`, `optimize:clear`, `npm run build:admin`
+  en el VPS (node v20 + node_modules ya presentes, no hace falta pnpm), y copiar `dist/admin/*` → `dist/`.
+- Runbook completo: `docs/RECOMPILAR_FRONTEND_VPS_2026-08-10.md`.
+
+### Data-fix stock ACCESORIOS COSMETICOS (tenant 2, producto 9717)
+- Síntoma: inventario mostraba ~26 und, pero las presentaciones (variantes) sumaban menos.
+- Causa: `product_entry` 2 y 5 registraron 21 und sin `product_variant_id` (quedaron en el producto
+  "base"), mientras la variante NEGRA tenía 4.5. `available_stock` del listado suma todas las filas
+  de `stock_balances` (base + variantes) → 25.5 ≈ 26.
+- Fix: transacción que movió las 21 und a la variante NEGRA (4882) en `stock_balances`, generando
+  `stock_movements` `adjustment_out`/`adjustment_in` con `reference_type='data_fix'` para auditoría.
+  Stock base quedó en 0; variante NEGRA en 25.5.
+- Otros productos con el mismo patrón (stock base suelto + variantes activas) detectados pero NO
+  tocados (podrían ser legítimos): ADAPTADOR 3 EN 1 (tenant 2: 100, tenant 3: 120), ADAPTADOR 5
+  VOLTIOS (tenant 2: 100), IPHONE 20 (tenant 3: 2), IPHONE 12 64GB (tenant 3: 1).
+
 ## 2026-08-09 - Sesión: flujo vendedor->cajera, fixes tablet y pantalla "Armar orden"
 
 ### Flujo vendedor -> cajera (TDD)
