@@ -64,6 +64,13 @@ class SyncEventApplier
         'cash_register.created',
         'product_entry.created',
         'product_exit.created',
+        'purchase_order.created',
+        'purchase_order.received',
+        'accounts_payable.created',
+        'accounts_payable.updated',
+        'accounts_payable.payment_registered',
+        'accounts_receivable.created',
+        'accounts_receivable.updated',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -126,6 +133,11 @@ class SyncEventApplier
         'pos.order.cancelled',
         'accounts_receivable.payment_registered',
         'sales_return.updated',
+        'accounts_payable.created',
+        'accounts_payable.updated',
+        'accounts_payable.payment_registered',
+        'accounts_receivable.created',
+        'accounts_receivable.updated',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
