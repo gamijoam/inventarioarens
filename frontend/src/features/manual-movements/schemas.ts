@@ -41,6 +41,15 @@ export const ManualMovementSchema = z.object({
   notes: z.string().nullable().optional(),
   status: z.enum(MANUAL_MOVEMENT_STATUSES),
   product: RelatedEntitySchema,
+  product_variant_id: z.number().int().positive().nullable().optional(),
+  product_variant: z
+    .object({
+      id: z.number().int().positive(),
+      color: z.string().nullable().optional(),
+      sku_variant: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   quantity: z.coerce.number().positive(),
   warehouse: RelatedEntitySchema,
   creator: RelatedEntitySchema,
@@ -59,6 +68,7 @@ export type ManualMovementType = (typeof MANUAL_MOVEMENT_TYPES)[number];
 export const CreateManualMovementSchema = z.object({
   warehouse_id: z.number().int().positive('Selecciona un almacén.'),
   product_id: z.number().int().positive('Selecciona un producto.'),
+  product_variant_id: z.number().int().positive().nullable().optional(),
   quantity: z.number().positive('La cantidad debe ser mayor a cero.'),
   type: z.enum(MANUAL_MOVEMENT_TYPES),
   reason: z.string().trim().min(1, 'El motivo es obligatorio.').max(255),

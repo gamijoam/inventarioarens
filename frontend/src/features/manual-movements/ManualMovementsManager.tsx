@@ -254,6 +254,14 @@ function MovementDetailDialog({
         </DialogHeader>
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <Detail label="Producto" value={movement.product.name ?? '—'} />
+          <Detail
+            label="Variante / Color"
+            value={
+              movement.product_variant
+                ? (movement.product_variant.color ?? movement.product_variant.sku_variant ?? '—')
+                : '—'
+            }
+          />
           <Detail label="Almacén" value={movement.warehouse.name ?? '—'} />
           <Detail label="Tipo" value={MANUAL_MOVEMENT_TYPE_LABELS[movement.type]} />
           <Detail label="Cantidad" value={String(movement.quantity)} />

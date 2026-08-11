@@ -1,7 +1,7 @@
 <?php
 
-use App\Modules\Inventory\Controllers\InventoryMovementController;
 use App\Modules\Inventory\Controllers\InventoryManualMovementController;
+use App\Modules\Inventory\Controllers\InventoryMovementController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('inventory')->group(function (): void {

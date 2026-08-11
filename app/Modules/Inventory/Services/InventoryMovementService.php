@@ -91,9 +91,9 @@ class InventoryMovementService
         );
     }
 
-    public function adjustmentIn(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null): StockMovement
+    public function adjustmentIn(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null, ?int $productVariantId = null): StockMovement
     {
-        return $this->increaseAvailable('adjustment_in', $warehouse, $product, $quantity, null, $createdBy, $reason);
+        return $this->increaseAvailable('adjustment_in', $warehouse, $product, $quantity, null, $createdBy, $reason, null, null, $productVariantId);
     }
 
     public function saleReturn(
@@ -150,6 +150,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'adjustment_out',
@@ -160,6 +161,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -318,18 +320,19 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
-            $balance = $this->balanceFor($warehouse, $product);
+            $balance = $this->balanceFor($warehouse, $product, $productVariantId);
             $this->ensureEnough((float) $balance->quantity_available, $quantity, 'available');
 
             $balance->quantity_available = (float) $balance->quantity_available - $quantity;
             $balance->quantity_damaged = (float) $balance->quantity_damaged + $quantity;
             $balance->save();
 
-            return $this->recordMovement('damaged', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+            return $this->recordMovement('damaged', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
         });
     }
 

@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { SingleSelectCombobox } from '@/components/ui/SingleSelectCombobox';
 import { Textarea } from '@/components/ui/Textarea';
 import { useProductsForTransfer } from '@/features/transfers/api';
+import { useProductVariants } from '@/features/inventory-center/variantApi';
 import { useCreateManualMovement, useRejectManualMovement } from './api';
 import {
   CreateManualMovementSchema,
@@ -45,15 +46,19 @@ export function CreateManualMovementDialog({
   const create = useCreateManualMovement();
   const [warehouseId, setWarehouseId] = useState(0);
   const [productId, setProductId] = useState<number | null>(null);
+  const [variantId, setVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<ManualMovementType>('internal_consumption');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { data: variants = [] } = useProductVariants(productId ?? 0);
+  const hasVariants = variants.some((variant) => Boolean(variant.color) || Boolean(variant.sku_variant));
   useEffect(() => {
     if (open) {
       setWarehouseId(0);
       setProductId(null);
+      setVariantId(null);
       setQuantity(1);
       setType('internal_consumption');
       setReason('');
@@ -61,6 +66,10 @@ export function CreateManualMovementDialog({
       setErrors({});
     }
   }, [open]);
+  // Al cambiar de producto, resetear la variante seleccionada.
+  useEffect(() => {
+    setVariantId(null);
+  }, [productId]);
   const productOptions = useMemo(
     () =>
       products.map((product) => ({
@@ -75,6 +84,7 @@ export function CreateManualMovementDialog({
     const parsed = CreateManualMovementSchema.safeParse({
       warehouse_id: warehouseId,
       product_id: productId ?? 0,
+      product_variant_id: hasVariants ? variantId : null,
       quantity,
       type,
       reason,
@@ -125,6 +135,23 @@ export function CreateManualMovementDialog({
               placeholder="Buscar producto…"
             />
           </Field>
+          {hasVariants && (
+            <Field label="Variante / Color" error={errors.product_variant_id}>
+              <Select
+                value={variantId ?? 0}
+                onChange={(e) => setVariantId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value={0}>Seleccionar variante</option>
+                {variants
+                  .filter((variant) => Boolean(variant.color) || Boolean(variant.sku_variant))
+                  .map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {variant.color ?? variant.sku_variant ?? `Variante ${variant.id}`}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Tipo" error={errors.type}>
             <Select value={type} onChange={(e) => setType(e.target.value as ManualMovementType)}>
               {MANUAL_MOVEMENT_TYPES.map((item) => (

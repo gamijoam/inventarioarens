@@ -134,6 +134,99 @@ class ManualMovementAllTypesTest extends TestCase
         ]);
     }
 
+    public function test_approve_with_product_variant_moves_that_variant_stock(): void
+    {
+        $cases = [
+            ['type' => 'adjustment_in', 'expected' => 6.0],   // 3 + 3
+            ['type' => 'internal_consumption', 'expected' => 0.0], // 3 - 3
+            ['type' => 'loss', 'expected' => 0.0],           // 3 dañadas -> available 0
+        ];
+
+        foreach ($cases as $case) {
+            $this->runVariantTypeCase($case['type'], $case['expected']);
+        }
+    }
+
+    private function runVariantTypeCase(string $type, float $expectedAvailable): void
+    {
+        $tenant = Tenant::create(['name' => "Tenant Var {$type}", 'slug' => 'tenant-var-'.str_replace('_', '-', $type)]);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => "Sucursal Var {$type}", 'code' => "BR-VAR-{$type}"]);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => "Almacen Var {$type}", 'code' => "WH-VAR-{$type}"]);
+        $product = Product::create([
+            'name' => "Producto Var {$type}",
+            'sku' => "SKU-VAR-{$type}",
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+
+        $variant = $product->variants()->create([
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => "SKU-VAR-{$type}-AZUL",
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        // Stock SOLO en la variante Azul.
+        app(InventoryMovementService::class)->purchase(
+            warehouse: $warehouse,
+            product: $product,
+            quantity: 3,
+            unitCost: 5.0,
+            productVariantId: $variant->id,
+        );
+
+        $user = $this->createUser($tenant);
+        $this->grantRole($tenant, $user, "Role Var {$type}", [
+            'inventory.manual_movements.create',
+            'inventory.manual_movements.approve',
+            'inventory.manual_movements.view',
+        ]);
+
+        $movement = InventoryManualMovement::create([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => 3,
+            'type' => $type,
+            'reason' => "Movimiento variante {$type}",
+            'status' => 'pending',
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory/manual-movements/{$movement->id}/approve");
+
+        $response->assertOk();
+
+        $balance = StockBalance::where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->where('product_variant_id', $variant->id)
+            ->first();
+
+        $this->assertNotNull($balance, "Debe existir stock balance para la variante ({$type}).");
+        $this->assertSame($expectedAvailable, (float) $balance->quantity_available, "Stock de la variante tras {$type}");
+
+        // El stock de la variante NULL no debe tocarse.
+        $nullBalance = StockBalance::where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->whereNull('product_variant_id')
+            ->first();
+        $this->assertNull($nullBalance, "No debe crearse balance sin variante ({$type}).");
+
+        $this->assertDatabaseHas('stock_movements', [
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+        ]);
+    }
+
     public function test_approve_returns_422_when_insufficient_stock_instead_of_500(): void
     {
         $tenant = Tenant::create(['name' => 'Tenant Sin Stock', 'slug' => 'tenant-sin-stock']);

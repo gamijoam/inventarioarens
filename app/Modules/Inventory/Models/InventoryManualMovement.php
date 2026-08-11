@@ -3,8 +3,9 @@
 namespace App\Modules\Inventory\Models;
 
 use App\Models\User;
-use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,6 +16,7 @@ class InventoryManualMovement extends Model
     protected $fillable = [
         'warehouse_id',
         'product_id',
+        'product_variant_id',
         'quantity',
         'type',
         'reason',
@@ -39,6 +41,11 @@ class InventoryManualMovement extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function productVariant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -58,5 +65,4 @@ class InventoryManualMovement extends Model
     {
         return $this->belongsTo(StockMovement::class);
     }
-
 }

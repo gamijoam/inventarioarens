@@ -14,12 +14,12 @@ class InventoryManualMovementFilterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'warehouse_id' => ['nullable','integer'],
-            'type' => ['nullable','string'],
-            'status' => ['nullable','string'],
-            'created_by' => ['nullable','integer'],
-            'from' => ['nullable','date'],
-            'to' => ['nullable','date'],
+            'warehouse_id' => ['nullable', 'integer'],
+            'type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'created_by' => ['nullable', 'integer'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
         ];
     }
 }
