@@ -489,6 +489,19 @@ este orden estricto:
 6. **Suite final**: ejecutar los tests unitarios, integración, feature y E2E afectados, además de la
    suite completa cuando el cambio tenga impacto transversal. Documentar resultados verdes, fallos
    preexistentes y riesgos residuales antes de declarar la tarea terminada.
+7. **Tests de contrato entre capas (incidencia 2026-08-11)**: los tests unitarios de cada capa
+   pueden estar verdes aunque el **contrato backend→JSON→Zod** esté roto. Reglas mínimas para toda
+   entidad replicada por sync o consumida por el frontend:
+   - Backend: el test del applier/endpoint debe assertar los **timestamps** (`created_at`,
+     `updated_at`) de la fila insertada, no solo la existencia/columnas de negocio. Un insert con
+     `updated_at` null deja al frontend descartando el recurso (ver `SyncEventApplierTest`,
+     `FinancialSyncTest`).
+   - Frontend: los tests del parser real (`api.ts`/`variantApi.ts` → `safeParse` → filtro) deben
+     correr con la **respuesta real de la API** (campos nullable incluidos), NO solo mockear el
+     hook completo. Si el componente mockea `useX`, igual debe existir un test del `getX` que
+     parsea (ver `frontend/src/features/inventory-center/__tests__/variantApi.test.ts`).
+   - Los schemas Zod de lectura DEBEN usar `z.string().nullable().optional()` en timestamps
+     (o `z.coerce`) para que un `null` nunca descarte el recurso.
 
 No se debe comenzar la implementación de una funcionalidad nueva sin tener primero sus tests
 unitarios y de integración revisados y aprobados como contrato de comportamiento.

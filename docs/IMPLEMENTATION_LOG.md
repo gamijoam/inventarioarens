@@ -1,5 +1,69 @@
 # Registro de implementación
 
+## 2026-08-11 - Fix: timestamps en inserts del applier + schemas Zod defensivos + colisión de nº de compra
+
+### Incidencia 1: crear borrador de compra daba "Error de servidor" (500)
+- **Causa**: `PurchaseOrderService::createDraft` derivaba `COMPRA-<id_local>` del
+  autoincrement de SQLite. Los documentos sincronizados desde la nube pueden ocupar
+  números mayores que `max(id)` local (ej: id local 7 = `COMPRA-000011` traído de la
+  nube donde tenía id 11). El próximo autoincrement local (11) generaba `COMPRA-000011`
+  → colisión `UNIQUE(tenant_id, document_number)` → 500.
+- **Fix** (`f84077b`): nuevo `nextDocumentNumber()` que calcula el siguiente número
+  desde el máximo documento `COMPRA-` existente del tenant. Test de regresión que
+  reproduce el escenario real (ids desalineados por sync).
+- TDD: red (500) → verde (`COMPRA-000012`).
+
+### Incidencia 2: variantes creadas en un nodo no aparecían en el otro (datos sí estaban)
+- **Causa raíz (doble origen)**:
+  1. `SyncEventApplier::upsertByKeys` insertaba filas sin `updated_at` → quedaba `null`.
+  2. El schema Zod del frontend usaba `updated_at: z.string().optional()`, que **rechaza
+     `null`** (solo permite `undefined`). `getProductVariants` filtra con
+     `.filter(parsed => parsed.success)` → la variante se descartaba silenciosamente
+     en la UI aunque existía en la BD.
+  - Afectaba ambas direcciones: GRIS (local→nube) invisible en el VPS; ROJO (nube→local)
+    invisible en local.
+- **Fix** (`69f019d`):
+  - Backend: `upsertByKeys` inserta `created_at` **y** `updated_at`.
+  - Frontend: `created_at`/`updated_at` ahora `nullable` en el schema de variantes.
+  - Backfill: se corrigieron los `updated_at` null existentes en local y nube (6 variantes
+    en la nube, incluidas otras ocultas de días anteriores).
+- TDD: test backend (applier setea `updated_at`) + test frontend `variantApi.test.ts`
+  (variante con `updated_at: null` no se descarta — se verificó en rojo con `git stash`).
+
+### Incidencia 3: auditoría completa del applier reveló 4 tablas más con el mismo bug
+- **Auditoría**: se revisaron los 26 inserts directos + todos los `upsertByKeys` del
+  `SyncEventApplier`. Ya estaban correctos: purchase_items, stock_movements,
+  product_entry_items, product_exit_items, product_exits, product_entries, product_units,
+  accounts_payable_payments, inventory_transfers (vía upsert) y los catálogos.
+- **4 tablas insertaban sin `updated_at`** (`ebc490e`):
+  - `products` (applyProduct), `accounts_payables` (applyAccountsPayable),
+    `accounts_receivables` (applyAccountsReceivable), `warranty_policies` (applyWarrantyPolicy).
+- Frontend defensivo: `created_at`/`updated_at` nullable en customers, suppliers,
+  purchases, transfers e inventory-center (brand/tag/product) — ningún recurso vuelve a
+  ocultarse por timestamp null.
+- Tests: asserts `updated_at` en CxP/CxC sync + test `applyProduct` nuevo.
+- Backfill: ambas BDs ya estaban limpias (0 null) en esas tablas.
+
+### Lección de proceso: los tests eran verdes pero no cubrían el contrato entre capas
+- Los tests backend assertaban "la fila existe" (`assertDatabaseHas` con color/tenant),
+  pero **ninguno assertaba `updated_at`** — por eso el applier insertaba sin ese campo
+  y el test daba verde.
+- Los tests frontend de `ProductVariantsTab` **mockean el hook completo**
+  (`useProductVariants`), inyectando datos ya parseados. La capa rota
+  (`getProductVariants` → `safeParse` → `filter(parsed.success)`) nunca se ejecutaba
+  en un test.
+- El error era de **contrato entre capas**: backend serializaba `updated_at: null` y el
+  schema Zod `z.string().optional()` lo rechazaba. Ningún test cruzaba ese puente
+  (salida real del backend → JSON → Zod).
+- **Regla agregada**: toda entidad replicada por sync debe (a) assertar sus timestamps
+  en el test del applier, y (b) tener un test frontend que parsee la respuesta real de la
+  API (sin mockear el parseo) incluyendo campos nullable. Ver `AGENTS.md §9.3.1`.
+
+### Versiones
+- Commits: `f84077b`, `69f019d`, `ebc490e`, bump `366cac9` → releases 0.2.33
+  (admin, pos, technician).
+- Suite Sync: 138 passed / 1 skipped (preexistente). `tsc --noEmit` limpio. Pint aplicado.
+
 ## 2026-08-10 - Fix: imágenes de producto sincronizan local<->nube
 
 ### Auditoría (hallazgos)
