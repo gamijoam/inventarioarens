@@ -1,8 +1,8 @@
 <?php
 
 use App\Modules\Products\Controllers\LocalImageProxyController;
+use App\Modules\TelegramBot\Controllers\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /*
  * Rutas web no-API.
@@ -29,7 +29,7 @@ Route::get('/', function () use ($spaIndex) {
             'name' => config('app.name', 'INVENTARIOARENS'),
             'env' => app()->environment(),
             'api' => url('/api'),
-            'message' => 'Frontend SPA no construido. La API esta disponible en ' . url('/api'),
+            'message' => 'Frontend SPA no construido. La API esta disponible en '.url('/api'),
             'health' => url('/up'),
         ], 200);
     }
@@ -82,6 +82,13 @@ Route::get('api/images/{uuid}', [LocalImageProxyController::class, 'show'])
     ->where('uuid', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
     ->name('local.image.show');
 
+// Webhook del bot de Telegram. PUBLICO: Telegram no envia headers custom de
+// auth. La autenticidad se valida por el header X-Telegram-Bot-Api-Secret-Token
+// contra TELEGRAM_WEBHOOK_SECRET; el enrutado adicional por lista blanca vive
+// en TelegramBotService (chat_ids no autorizados se ignoran silenciosamente).
+Route::post('telegram/webhook', [TelegramWebhookController::class, 'handle'])
+    ->name('telegram.webhook');
+
 // Catch-all SPA: cualquier ruta que NO sea /api/* o /up devuelve el index.html.
 // Esto es el comportamiento estandar de React Router/Vite SPA: el server siempre
 // devuelve index.html para rutas desconocidas y el cliente resuelve el routing.
@@ -91,7 +98,7 @@ Route::fallback(function () use ($spaIndex) {
     if (! is_file($spaIndex)) {
         return response()->json([
             'error' => 'Not Found',
-            'message' => 'La ruta solicitada no existe. La API esta disponible en ' . url('/api'),
+            'message' => 'La ruta solicitada no existe. La API esta disponible en '.url('/api'),
         ], 404);
     }
 

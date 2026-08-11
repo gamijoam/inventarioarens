@@ -51,6 +51,13 @@ return [
         'tls_cacert' => env('SYNC_TLS_CACERT'),
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        // Secret token que Telegram envia en el header X-Telegram-Bot-Api-Secret-Token
+        // al llamar al webhook. Valida que el update viene de Telegram.
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+    ],
+
     'local_support' => [
         // Esta consola solamente se habilita para instalaciones locales. Sus
         // rutas tambien exigen que el request llegue desde loopback.

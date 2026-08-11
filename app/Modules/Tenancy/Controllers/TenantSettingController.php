@@ -8,6 +8,7 @@ use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -31,7 +32,7 @@ class TenantSettingController extends Controller
         return response()->json([
             'data' => [
                 'tenant_id' => $tenant->id,
-                'settings' => $setting->settings ?? [],
+                'settings' => $this->mergeWhitelistInto($tenant, $setting->settings ?? []),
             ],
         ]);
     }
@@ -52,6 +53,18 @@ class TenantSettingController extends Controller
         $current = $setting->settings ?? [];
         $incoming = $data['settings'] ?? [];
 
+        // La whitelist de Telegram vive en la tabla telegram_bot_users (no en
+        // el JSON) para lookups rapidos por chat_id. La sincronizamos y la
+        // quitamos del JSON.
+        $whitelist = $incoming['telegram']['whitelist'] ?? null;
+        if (is_array($whitelist)) {
+            $this->syncTelegramWhitelist($tenant, $whitelist);
+            unset($incoming['telegram']['whitelist']);
+            if ($incoming['telegram'] === []) {
+                unset($incoming['telegram']);
+            }
+        }
+
         // Merge profundo por seccion para no pisar secciones que el frontend
         // no envia (solo actualiza la seccion 'telegram').
         $merged = array_replace_recursive($current, $incoming);
@@ -60,9 +73,56 @@ class TenantSettingController extends Controller
         return response()->json([
             'data' => [
                 'tenant_id' => $tenant->id,
-                'settings' => $setting->fresh()->settings ?? [],
+                'settings' => $this->mergeWhitelistInto($tenant, $setting->fresh()->settings ?? []),
             ],
         ]);
+    }
+
+    /**
+     * Reemplaza la lista blanca del tenant en la tabla telegram_bot_users.
+     */
+    private function syncTelegramWhitelist(Tenant $tenant, array $whitelist): void
+    {
+        DB::table('telegram_bot_users')
+            ->where('tenant_id', $tenant->id)
+            ->delete();
+
+        $now = now();
+        foreach ($whitelist as $entry) {
+            $chatId = trim((string) ($entry['telegram_id'] ?? ''));
+            if ($chatId === '') {
+                continue;
+            }
+
+            DB::table('telegram_bot_users')->insert([
+                'tenant_id' => $tenant->id,
+                'telegram_chat_id' => $chatId,
+                'name' => trim((string) ($entry['name'] ?? '')) ?: null,
+                'user_id' => null,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
+    /**
+     * Expone la lista blanca actual en settings.telegram.whitelist para el panel.
+     */
+    private function mergeWhitelistInto(Tenant $tenant, array $settings): array
+    {
+        $rows = DB::table('telegram_bot_users')
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('id')
+            ->get(['id', 'name', 'telegram_chat_id']);
+
+        $settings['telegram']['whitelist'] = $rows->map(fn ($row): array => [
+            'id' => (int) $row->id,
+            'name' => $row->name,
+            'telegram_id' => $row->telegram_chat_id,
+        ])->values()->all();
+
+        return $settings;
     }
 
     /**

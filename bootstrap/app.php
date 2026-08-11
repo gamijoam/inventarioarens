@@ -37,6 +37,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Modules/Sync/Commands',
         __DIR__.'/../app/Console/Commands',
         __DIR__.'/../app/Modules/DataImport/Commands',
+        __DIR__.'/../app/Modules/TelegramBot/Console',
     ])
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('images:download --limit=20')
@@ -49,6 +50,20 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('03:00')
             ->withoutOverlapping(30)
             ->appendOutputTo(storage_path('logs/imports-cleanup.log'));
+
+        // Bot de Telegram: alertas de stock bajo y resumen diario. Correr cada
+        // hora; el comando evalua la hora configurada por cada empresa.
+        $schedule->command('telegram:alerts --type=stock')
+            ->hourly()
+            ->withoutOverlapping(10)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/telegram-alerts.log'));
+
+        $schedule->command('telegram:alerts --type=resumen')
+            ->hourly()
+            ->withoutOverlapping(10)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/telegram-resumen.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);

@@ -96,6 +96,43 @@ class TenantSettingApiTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_whitelist_is_stored_in_table_and_exposed_on_read(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa', 'slug' => 'empresa']);
+        $user = $this->member($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/tenant-settings', [
+                'settings' => [
+                    'telegram' => [
+                        'enabled' => true,
+                        'whitelist' => [
+                            ['name' => 'Juan Perez', 'telegram_id' => '123456789'],
+                            ['name' => 'Maria Lopez', 'telegram_id' => '987654321'],
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.telegram.whitelist.0.telegram_id', '123456789')
+            ->assertJsonPath('data.settings.telegram.whitelist.1.name', 'Maria Lopez');
+
+        $this->assertDatabaseHas('telegram_bot_users', [
+            'tenant_id' => $tenant->id,
+            'telegram_chat_id' => '123456789',
+        ]);
+        $this->assertDatabaseHas('telegram_bot_users', [
+            'tenant_id' => $tenant->id,
+            'telegram_chat_id' => '987654321',
+        ]);
+
+        // El JSON de settings NO debe contener la whitelist (vive en la tabla).
+        $stored = json_decode((string) DB::table('tenant_settings')->where('tenant_id', $tenant->id)->value('settings'), true);
+        $this->assertArrayNotHasKey('whitelist', $stored['telegram'] ?? []);
+    }
+
     private function member(Tenant $tenant): User
     {
         $user = User::factory()->create();
