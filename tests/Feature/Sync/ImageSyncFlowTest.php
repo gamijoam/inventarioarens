@@ -197,4 +197,36 @@ class ImageSyncFlowTest extends TestCase
 
         $this->assertStringStartsWith('https://app.miinventariofacil.com/storage/', $payload['cloud_url'] ?? '');
     }
+
+    public function test_outbox_uses_cloud_storage_path_over_local_tenant_path(): void
+    {
+        [$tenant, $user] = $this->setupTenant();
+        config(['services.sync.public_base' => 'https://app.miinventariofacil.com']);
+        config(['app.url' => 'http://localhost']);
+        Storage::fake('product-images');
+
+        $product = $this->seedProduct($tenant);
+        $service = app(ProductImageService::class);
+        $image = $service->upload($product, $this->fakeJpegUpload()['image'], null, $user);
+
+        // Simular la ruta real asignada por la nube (tenant cloud, distinta del
+        // storage_path local que usa el tenant local).
+        DB::table('product_images')
+            ->where('id', $image->id)
+            ->update(['cloud_storage_path' => 'products/99/2026/08/real-cloud-path.webp']);
+
+        // Re-emitir un evento (setPrimary) para que use cloud_storage_path.
+        $service->setPrimary($image);
+
+        $payload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product.image.updated')
+            ->orderByDesc('id')
+            ->value('payload'), true);
+
+        // El evento emitido despues (reorder/update) debe usar la ruta de la
+        // nube, no el storage_path local (tenant 1).
+        $this->assertStringStartsWith('https://app.miinventariofacil.com/storage/products/99/', $payload['cloud_url'] ?? '');
+        $this->assertStringNotContainsString('products/1/', $payload['cloud_url'] ?? '');
+    }
 }

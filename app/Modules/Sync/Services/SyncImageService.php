@@ -48,7 +48,8 @@ class SyncImageService
 
         $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension());
         $now = now();
-        $relPath = "products/{$tenant->id}/{$now->format('Y')}/{$now->format('m')}/{$uuid}.{$ext}";
+        $variantSuffix = $variant === 'original' ? '' : "_{$variant}";
+        $relPath = "products/{$tenant->id}/{$now->format('Y')}/{$now->format('m')}/{$uuid}{$variantSuffix}.{$ext}";
 
         Storage::disk('product-images')->put($relPath, $bytes);
 

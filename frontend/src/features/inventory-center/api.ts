@@ -135,7 +135,7 @@ export function useProduct(productId: number) {
   return useQuery({
     queryKey: productKeys.detail(productId),
     queryFn: async () => {
-      const data = await getOne<unknown>(`/products/${productId}`);
+      const data = await getOne<unknown>(`/products/${productId}?with_images=1`);
       return ProductSchema.parse(data);
     },
     enabled: Number.isFinite(productId) && productId > 0,

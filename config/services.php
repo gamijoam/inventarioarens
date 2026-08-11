@@ -42,7 +42,9 @@ return [
         // En la nube coincide con APP_URL; en los nodos locales debe apuntar a
         // la nube (p.ej. https://app.miinventariofacil.com) para que la imagen
         // se pueda descargar allí.
-        'public_base' => env('SYNC_PUBLIC_BASE'),
+        // Fallback defensivo: si no hay SYNC_PUBLIC_BASE explícito, derivar la
+        // base desde SYNC_CLOUD_URL quitando el sufijo /api (o /api/).
+        'public_base' => env('SYNC_PUBLIC_BASE') ?: preg_replace('#/api/?$#', '', (string) env('SYNC_CLOUD_URL', '')),
     ],
 
     'local_support' => [

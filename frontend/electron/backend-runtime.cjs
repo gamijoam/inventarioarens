@@ -157,6 +157,10 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     SESSION_SECURE_COOKIE: 'false',
     SYNC_CLOUD_URL: config.syncCloudUrl ?? '',
     SYNC_CLOUD_TOKEN: config.syncToken ?? '',
+    // Base pública de la NUBE para construir cloud_url de imágenes en eventos
+    // de sync. Sin esto, un nodo local emitiría http://127.0.0.1:8787/... y la
+    // nube guardaría una URL rota (imágenes en blanco en el VPS).
+    SYNC_PUBLIC_BASE: config.syncCloudUrl ? String(config.syncCloudUrl).replace(/\/api\/?$/, '') : '',
   };
 
   if (process.platform === 'win32') {

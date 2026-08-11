@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\Storage;
     'product_id',
     'uploaded_by',
     'storage_path',
+    'cloud_storage_path',
     'mime',
     'size',
     'original_name',
@@ -94,14 +95,27 @@ class ProductImage extends Model
     // ---- URL accessors ----
 
     /**
+     * Indica si este nodo es un cliente local (Electron), no la nube.
+     * En un nodo local no existe el alias nginx /storage/, por lo que las
+     * URLs de las variantes deben pasar por el proxy /api/images/{uuid},
+     * que sirve desde synced-images o hace 302 a la URL de la nube.
+     */
+    public function isLocalNode(): bool
+    {
+        return config('app.env') === 'local';
+    }
+
+    /**
      * URL publica (CDN/cloud cuando el local apunta al cloud, o /storage/ nativo).
-     * Construye con disk `public` (storage:link ya hecho) o cloud URL segun APP_URL.
+     * En nodos locales devuelve el proxy /api/images/{uuid}.
      */
     public function url(): string
     {
-        $relPath = $this->storage_path;
+        if ($this->isLocalNode()) {
+            return $this->proxyUrl();
+        }
 
-        return $this->storagePublicUrl($relPath);
+        return $this->storagePublicUrl($this->storage_path);
     }
 
     /**
@@ -110,10 +124,11 @@ class ProductImage extends Model
      */
     public function mediumUrl(): string
     {
-        $variant = $this->relationLoaded('variants')
-            ? $this->variants->firstWhere('variant', 'medium')
-            : $this->variants()->where('variant', 'medium')->first();
-        $rel = $variant?->storage_path ?? $this->storage_path;
+        $rel = $this->variantRelPath('medium');
+
+        if ($this->isLocalNode()) {
+            return $this->proxyUrl('medium');
+        }
 
         return $this->storagePublicUrl($rel);
     }
@@ -123,12 +138,41 @@ class ProductImage extends Model
      */
     public function thumbUrl(): string
     {
-        $variant = $this->relationLoaded('variants')
-            ? $this->variants->firstWhere('variant', 'thumb')
-            : $this->variants()->where('variant', 'thumb')->first();
-        $rel = $variant?->storage_path ?? $this->storage_path;
+        $rel = $this->variantRelPath('thumb');
+
+        if ($this->isLocalNode()) {
+            return $this->proxyUrl('thumb');
+        }
 
         return $this->storagePublicUrl($rel);
+    }
+
+    /**
+     * Ruta del proxy local: {app.url}/api/images/{uuid} con la variante pedida.
+     * El proxy sirve desde synced-images (descarga offline) o 302 al cloud.
+     * Se usa URL absoluta (app.url = apiUrl del nodo local) porque el <img>
+     * del browser Electron resuelve rutas relativas contra el origin del
+     * renderer, no contra el backend.
+     */
+    private function proxyUrl(string $variant = 'original'): string
+    {
+        $url = rtrim((string) config('app.url'), '/').'/api/images/'.$this->uuid;
+
+        if ($variant !== 'original') {
+            $url .= '?variant='.$variant;
+        }
+
+        return $url;
+    }
+
+    private function variantRelPath(string $variant): string
+    {
+        $variant = $this->relationLoaded('variants')
+            ? $this->variants->firstWhere('variant', $variant)
+            : $this->variants()->where('variant', $variant)->first();
+        $rel = $variant?->storage_path ?? $this->storage_path;
+
+        return $rel;
     }
 
     private function storagePublicUrl(string $relPath): string

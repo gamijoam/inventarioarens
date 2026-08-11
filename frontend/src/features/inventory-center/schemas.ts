@@ -396,7 +396,6 @@ export const ProductImageSchema = z.object({
   uploaded_at: z.string().nullable().optional(),
 });
 export type ProductImage = z.infer<typeof ProductImageSchema>;
-
 /**
  * Schema del producto en respuesta del backend.
  *

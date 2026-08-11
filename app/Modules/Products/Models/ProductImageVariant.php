@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'product_image_id',
     'variant',
     'storage_path',
+    'cloud_storage_path',
     'mime',
     'size',
     'width',

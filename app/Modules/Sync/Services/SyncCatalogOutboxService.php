@@ -805,8 +805,9 @@ class SyncCatalogOutboxService
         $variants = $image->relationLoaded('variants') ? $image->variants : $image->variants()->get();
         $variantMap = [];
         foreach ($variants as $variant) {
+            $variantCloudPath = $variant->cloud_storage_path ?: $variant->storage_path;
             $variantMap[$variant->variant] = [
-                'cloud_url' => "{$cloudBase}/storage/{$variant->storage_path}",
+                'cloud_url' => "{$cloudBase}/storage/{$variantCloudPath}",
                 'size' => (int) $variant->size,
                 'mime' => $variant->mime,
                 'width' => (int) $variant->width,
@@ -814,11 +815,15 @@ class SyncCatalogOutboxService
             ];
         }
 
+        // cloud_storage_path es la ruta REAL asignada por la nube (tenant cloud).
+        // storage_path en un nodo local usa el tenant local y no coincide con la
+        // ruta del archivo en la nube; usarlo romperia la URL descargable.
+        $imageCloudPath = $image->cloud_storage_path ?: $image->storage_path;
         $payload = [
             'uuid' => $image->uuid,
             'product_sku' => $productSku,
             'product_id' => $image->product_id,
-            'cloud_url' => "{$cloudBase}/storage/{$image->storage_path}",
+            'cloud_url' => "{$cloudBase}/storage/{$imageCloudPath}",
             'mime' => $image->mime,
             'size' => (int) $image->size,
             'width' => (int) $image->width,

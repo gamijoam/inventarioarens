@@ -145,8 +145,11 @@ class ProductImageService
 
     /**
      * Publica el binario de la imagen (original + variantes) en la nube, para
-     * que la cloud_url del evento sea descargable por la nube. Si no hay nube
-     * configurada (instalacion standalone) o falla, no bloquea la subida local.
+     * que la cloud_url del evento sea descargable por la nube. Persiste la
+     * ruta REAL que la nube asigno (cloud_storage_path) porque el storage_path
+     * local usa el tenant local y no coincide con el path del archivo en la
+     * nube. Si no hay nube configurada (instalacion standalone) o falla, no
+     * bloquea la subida local.
      */
     private function publishImageToCloud(ProductImage $image): void
     {
@@ -166,6 +169,7 @@ class ProductImageService
                 $files[$variant->variant] = ['path' => $variant->storage_path, 'sha256' => $image->sha256];
             }
 
+            $cloudPaths = [];
             foreach ($files as $variant => $file) {
                 if (! $disk->exists($file['path'])) {
                     continue;
@@ -178,21 +182,49 @@ class ProductImageService
                 file_put_contents($tmp, $disk->get($file['path']));
 
                 try {
-                    $this->syncImages->publishToCloud(
+                    $result = $this->syncImages->publishToCloud(
                         uuid: (string) $image->uuid,
                         productSku: (string) $productSku,
                         variant: (string) $variant,
                         sha256: (string) $file['sha256'],
                         filePath: $tmp,
                     );
+                    if ($result !== null && isset($result['storage_path'])) {
+                        $cloudPaths[$variant] = (string) $result['storage_path'];
+                    }
                 } catch (\Throwable $e) {
                     report($e);
                 } finally {
                     @unlink($tmp);
                 }
             }
+
+            if ($cloudPaths !== []) {
+                $this->persistCloudPaths($image, $cloudPaths);
+            }
         } catch (\Throwable $e) {
             report($e);
+        }
+    }
+
+    /**
+     * Guarda en las filas locales el storage_path real asignado por la nube,
+     * para que los eventos de sync posteriores (updated/reorder/delete) usen
+     * la ruta correcta del archivo en la nube en vez de reconstruirla con el
+     * tenant local.
+     */
+    private function persistCloudPaths(ProductImage $image, array $cloudPaths): void
+    {
+        if (isset($cloudPaths['original'])) {
+            $image->update(['cloud_storage_path' => $cloudPaths['original']]);
+        }
+
+        foreach ($image->variants as $variant) {
+            if (isset($cloudPaths[$variant->variant])) {
+                ProductImageVariant::query()
+                    ->whereKey($variant->id)
+                    ->update(['cloud_storage_path' => $cloudPaths[$variant->variant]]);
+            }
         }
     }
 

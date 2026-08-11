@@ -20,13 +20,15 @@ import { formatCost, formatMoney } from '@/lib/money';
 import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements } from '@/features/inventory-center/api';
+import { useProduct, useProductSerials, useProductStockByWarehouse, useProductMovements, useProductImages } from '@/features/inventory-center/api';
 import { PricesEditor } from '@/features/inventory-center/components/PricesEditor';
 import { ProductRelations } from '@/features/inventory-center/components/ProductRelations';
 import { ProductVariantsTab } from '@/features/inventory-center/components/ProductVariantsTab';
 import { ProfitMarginPanel } from '@/features/inventory-center/components/ProfitMarginPanel';
 import { KardexTab } from '@/features/inventory-center/components/KardexTab';
 import { AuditsTab } from '@/features/inventory-center/components/AuditsTab';
+import { ProductGalleryPanel } from '@/features/inventory-center/components/ProductGalleryPanel';
+import { ImageGallery } from '@/features/inventory-center/components/ImageGallery';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import type { ProductStock, ProductSerial, ProductMovement } from '@/features/inventory-center/schemas';
@@ -48,6 +50,7 @@ function ProductDetailPage() {
   const { data: stock_by_warehouse = [] } = useProductStockByWarehouse(id);
   const { data: serialsData = [] } = useProductSerials(id);
   const { data: recent_movements = [] } = useProductMovements(id);
+  const { data: galleryImages = [] } = useProductImages(id);
   const serials: ProductSerial[] = serialsData;
 
   if (isLoading) {
@@ -157,6 +160,7 @@ function ProductDetailPage() {
             <TabsTrigger value="serials">Seriales / IMEI</TabsTrigger>
           )}
           <TabsTrigger value="prices">Precios por lista</TabsTrigger>
+          <TabsTrigger value="images">Imágenes</TabsTrigger>
           <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
             <TabsTrigger value="variants">Variantes</TabsTrigger>
           </Can>
@@ -203,6 +207,7 @@ function ProductDetailPage() {
 
           <ProductRelations product={product} />
           <ProfitMarginPanel product={product} />
+          <ProductGalleryPanel images={product.images ?? galleryImages} />
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">
@@ -218,6 +223,11 @@ function ProductDetailPage() {
         <TabsContent value="prices" className="space-y-4">
           <PricesTab productId={id} />
         </TabsContent>
+
+        <TabsContent value="images" className="space-y-4">
+          <ImageGallery productId={id} images={galleryImages} canEdit />
+        </TabsContent>
+
 
         <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
           <TabsContent value="variants" className="space-y-4">

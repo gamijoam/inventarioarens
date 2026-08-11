@@ -175,6 +175,116 @@ class LocalImageProxyTest extends TestCase
         $response->assertHeader('Content-Type', 'image/png');
     }
 
+    public function test_serves_variant_thumb_when_requested(): void
+    {
+        [$tenant] = $this->seedTenant();
+        $product = $this->seedProduct($tenant);
+
+        $image = ProductImage::create([
+            'uuid' => self::VALID_UUID,
+            'product_id' => $product->id,
+            'storage_path' => 'products/2/2026/07/test-image.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('a', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+        $image->variants()->create([
+            'tenant_id' => $tenant->id,
+            'variant' => 'thumb',
+            'storage_path' => 'products/2/2026/07/test-image_thumb.webp',
+            'mime' => 'image/webp',
+            'size' => 200,
+            'width' => 200,
+            'height' => 200,
+        ]);
+
+        Storage::fake('synced-images');
+        Storage::disk('synced-images')->put(
+            'products/2/2026/07/test-image_thumb.webp',
+            'thumb-bytes'
+        );
+
+        $response = $this->getJson("/api/images/{$image->uuid}?variant=thumb");
+
+        $response->assertOk();
+        $this->assertSame('thumb-bytes', $response->streamedContent());
+    }
+
+    public function test_serves_from_local_upload_storage_when_not_in_synced(): void
+    {
+        [$tenant] = $this->seedTenant();
+        $product = $this->seedProduct($tenant);
+
+        $image = ProductImage::create([
+            'uuid' => self::VALID_UUID,
+            'product_id' => $product->id,
+            'storage_path' => 'products/2/2026/07/local-upload.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('c', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+
+        // La imagen fue subida en este nodo: vive en product-images, no en synced-images.
+        Storage::fake('product-images');
+        Storage::disk('product-images')->put($image->storage_path, 'local-upload-bytes');
+
+        // synced-images vacio a proposito.
+        Storage::fake('synced-images');
+
+        $response = $this->getJson("/api/images/{$image->uuid}");
+
+        $response->assertOk();
+        $this->assertSame('local-upload-bytes', $response->streamedContent());
+    }
+
+    public function test_url_accessor_uses_proxy_in_local_node(): void
+    {
+        [$tenant] = $this->seedTenant();
+        $product = $this->seedProduct($tenant);
+
+        $image = ProductImage::create([
+            'uuid' => self::VALID_UUID,
+            'product_id' => $product->id,
+            'storage_path' => 'products/2/2026/07/local-upload.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('c', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+        $image->variants()->create([
+            'tenant_id' => $tenant->id,
+            'variant' => 'thumb',
+            'storage_path' => 'products/2/2026/07/local-upload_thumb.webp',
+            'mime' => 'image/webp',
+            'size' => 200,
+            'width' => 200,
+            'height' => 200,
+        ]);
+
+        config(['app.env' => 'local']);
+
+        // En un nodo local el accessor devuelve la URL del proxy, no /storage.
+        $this->assertStringContainsString('/api/images/'.self::VALID_UUID, $image->url());
+        $this->assertStringContainsString('variant=thumb', $image->thumbUrl());
+        $this->assertStringContainsString('variant=medium', $image->mediumUrl());
+        $this->assertStringNotContainsString('/storage/', $image->url());
+
+        // En la nube (production) vuelve a la URL de storage.
+        config(['app.env' => 'production']);
+        $this->assertStringContainsString('/storage/', $image->url());
+    }
+
     // ---- Helpers ----
 
     /**
