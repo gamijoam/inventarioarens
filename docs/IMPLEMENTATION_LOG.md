@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de cajas y sesiones de caja (P2)
+
+### Problema
+`cash.session.opened/closed` se emitían pero el applier los ignoraba (caían en
+`ignored` permanente). `cash_register.created` solo viajaba por foto inicial
+(una caja creada después del pairing no se propagaba). El payload de la sesión
+usaba IDs locales (branch_id, cash_register_id, cashier_id) sin identidad natural.
+
+### Fix
+- **`CashRegister` usa `Syncable`** → emite `cash_register.created/updated`.
+- **Payload de la sesión enriquecido**: `branch_code`, `cash_register_code` y
+  emails de cashier/opener/closer/reviewer.
+- **Applier `applyCashSession`**: upsert de la sesión por
+  `(tenant_id, sync_source_node_code, sync_source_id)`, resolviendo
+  branch/cash_register por code y users por email (`userIdByEmail`).
+- **Migración**: `sync_source_*` en `cash_register_sessions`.
+- `cash.session.opened/closed` en listas retryable/reprocessable.
+- TDD: `CashSessionSyncTest` (3 tests: emisión caja, sesión opened, sesión
+  closed). Suite Sync 130 passed/1 skipped, CashRegister 20/20.
+
 ## 2026-08-10 - Sync de sucursales y almacenes (P1)
 
 ### Problema

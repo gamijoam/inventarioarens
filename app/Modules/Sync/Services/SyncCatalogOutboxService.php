@@ -7,6 +7,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
@@ -412,6 +413,35 @@ class SyncCatalogOutboxService
                 'branch_code' => $warehouse->branch?->code,
             ],
             idempotencyKey: $this->eventKey($eventType, 'warehouse', $warehouse->id, $warehouse->updated_at),
+        );
+    }
+
+    public function cashRegisterCreated(CashRegister $register): void
+    {
+        $this->recordCashRegister('cash_register.created', $register);
+    }
+
+    public function cashRegisterUpdated(CashRegister $register): void
+    {
+        $this->recordCashRegister('cash_register.updated', $register);
+    }
+
+    private function recordCashRegister(string $eventType, CashRegister $register): void
+    {
+        $register->loadMissing('branch');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'cash_register',
+            aggregateId: $register->id,
+            payload: [
+                'code' => $register->code,
+                'name' => $register->name,
+                'status' => $register->status,
+                'notes' => $register->notes,
+                'branch_code' => $register->branch?->code,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'cash_register', $register->id, $register->updated_at),
         );
     }
 

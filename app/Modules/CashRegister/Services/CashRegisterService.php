@@ -627,6 +627,8 @@ class CashRegisterService
 
     private function recordSessionSyncEvent(CashRegisterSession $session, string $eventType): void
     {
+        $session->loadMissing(['branch', 'cashRegister', 'cashier', 'opener', 'closer', 'reviewer']);
+
         $this->syncOutbox->record(
             eventType: $eventType,
             aggregateType: 'cash_register_session',
@@ -634,10 +636,15 @@ class CashRegisterService
             payload: [
                 'session_id' => $session->id,
                 'branch_id' => $session->branch_id,
+                'branch_code' => $session->branch?->code,
                 'cash_register_id' => $session->cash_register_id,
+                'cash_register_code' => $session->cashRegister?->code,
                 'cashier_id' => $session->cashier_id,
+                'cashier_email' => $session->cashier?->email,
                 'opened_by' => $session->opened_by,
+                'opened_by_email' => $session->opener?->email,
                 'closed_by' => $session->closed_by,
+                'closed_by_email' => $session->closer?->email,
                 'status' => $session->status,
                 'opening_base_amount' => (string) $session->opening_base_amount,
                 'opening_local_amount' => (string) $session->opening_local_amount,
@@ -656,6 +663,7 @@ class CashRegisterService
                 'counting_mode' => $session->counting_mode,
                 'review_status' => $session->review_status,
                 'reviewed_by' => $session->reviewed_by,
+                'reviewed_by_email' => $session->reviewer?->email,
                 'reviewed_at' => $session->reviewed_at?->toJSON(),
                 'review_notes' => $session->review_notes,
                 'opened_at' => $session->opened_at?->toJSON(),

@@ -78,6 +78,8 @@ class SyncEventApplier
         'sale.confirmed',
         'user.roles.synced',
         'purchase_return.created',
+        'cash.session.opened',
+        'cash.session.closed',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -148,6 +150,8 @@ class SyncEventApplier
         'sale.confirmed',
         'user.roles.synced',
         'purchase_return.created',
+        'cash.session.opened',
+        'cash.session.closed',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -284,6 +288,7 @@ class SyncEventApplier
                 'purchase_order.created' => $this->applyPurchaseOrderCreated($tenant, $payload),
                 'purchase_order.received' => $this->applyPurchaseOrderReceived($tenant, $payload),
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
+                'cash.session.opened', 'cash.session.closed' => $this->applyCashSession($tenant, $payload, $event),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
                 'inventory_transfer_request.accepted' => $this->applyInventoryTransferRequestAccepted($tenant, $payload),
@@ -2196,6 +2201,101 @@ class SyncEventApplier
         );
 
         return 'applied';
+    }
+
+    /**
+     * Aplica `cash.session.opened` / `cash.session.closed` en el nodo destino.
+     * La sesion de caja se replica por (tenant_id, sync_source_node_code,
+     * sync_source_id). Resuelve branch/cash_register por code y los users por
+     * email (identidad natural).
+     */
+    private function applyCashSession(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceSessionId = (int) ($payload['session_id'] ?? $event['aggregate_id'] ?? 0);
+
+        if ($sourceSessionId <= 0) {
+            return 'ignored';
+        }
+
+        $branchCode = $this->nullableString($payload['branch_code'] ?? null);
+        $cashRegisterCode = $this->nullableString($payload['cash_register_code'] ?? null);
+
+        if ($branchCode === null) {
+            throw new RuntimeException('La sesion de caja sincronizada no trae branch_code.');
+        }
+
+        $branch = $this->branchByCode($tenant, $branchCode);
+        $cashRegisterId = null;
+
+        if ($cashRegisterCode !== null) {
+            $cashRegisterId = DB::table('cash_registers')
+                ->where('tenant_id', $tenant->id)
+                ->where('code', mb_strtoupper($cashRegisterCode))
+                ->value('id');
+        }
+
+        $cashierId = $this->userIdByEmail($tenant, $payload['cashier_email'] ?? null);
+        $openedById = $this->userIdByEmail($tenant, $payload['opened_by_email'] ?? null);
+        $closedById = $this->userIdByEmail($tenant, $payload['closed_by_email'] ?? null);
+        $reviewedById = $this->userIdByEmail($tenant, $payload['reviewed_by_email'] ?? null);
+
+        $now = now();
+        $status = $payload['status'] ?? 'open';
+
+        $this->upsertByKeys(
+            'cash_register_sessions',
+            [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceSessionId,
+            ],
+            [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegisterId,
+                'cashier_id' => $cashierId,
+                'opened_by' => $openedById,
+                'closed_by' => $closedById,
+                'status' => $status,
+                'opening_base_amount' => $payload['opening_base_amount'] ?? 0,
+                'opening_local_amount' => $payload['opening_local_amount'] ?? 0,
+                'expected_base_amount' => $payload['expected_base_amount'] ?? 0,
+                'expected_local_amount' => $payload['expected_local_amount'] ?? 0,
+                'expected_cash_usd' => $this->nullableString($payload['expected_cash_usd'] ?? null),
+                'expected_cash_ves' => $this->nullableString($payload['expected_cash_ves'] ?? null),
+                'counted_base_amount' => $this->nullableString($payload['counted_base_amount'] ?? null),
+                'counted_local_amount' => $this->nullableString($payload['counted_local_amount'] ?? null),
+                'counted_cash_usd' => $this->nullableString($payload['counted_cash_usd'] ?? null),
+                'counted_cash_ves' => $this->nullableString($payload['counted_cash_ves'] ?? null),
+                'difference_base_amount' => $this->nullableString($payload['difference_base_amount'] ?? null),
+                'difference_local_amount' => $this->nullableString($payload['difference_local_amount'] ?? null),
+                'difference_cash_usd' => $this->nullableString($payload['difference_cash_usd'] ?? null),
+                'difference_cash_ves' => $this->nullableString($payload['difference_cash_ves'] ?? null),
+                'counting_mode' => $payload['counting_mode'] ?? 'standard',
+                'review_status' => $payload['review_status'] ?? 'pending',
+                'reviewed_by' => $reviewedById,
+                'reviewed_at' => $this->nullableString($payload['reviewed_at'] ?? null),
+                'review_notes' => $this->nullableString($payload['review_notes'] ?? null),
+                'opened_at' => $this->nullableDate($payload['opened_at'] ?? null) ?? $now,
+                'closed_at' => $this->nullableDate($payload['closed_at'] ?? null),
+                'updated_at' => $now,
+            ]
+        );
+
+        return 'applied';
+    }
+
+    private function userIdByEmail(Tenant $tenant, mixed $email): ?int
+    {
+        $email = $this->nullableString($email);
+
+        if ($email === null) {
+            return null;
+        }
+
+        $id = DB::table('users')->where('email', mb_strtolower($email))->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     private function applyPosOrder(Tenant $tenant, array $payload, array $event): string

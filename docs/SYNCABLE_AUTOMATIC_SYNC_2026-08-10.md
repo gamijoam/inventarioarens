@@ -80,6 +80,8 @@ AccountsPayable::syncableSuspended(function () {
 | `User` (vía `AccessControlService`) | `user.roles.synced` (datos del user + membresía `tenant_user` + roles asignados) |
 | `Branch` | `branch.created`, `branch.updated` |
 | `Warehouse` | `warehouse.created`, `warehouse.updated` |
+| `CashRegister` | `cash_register.created`, `cash_register.updated` |
+| `CashRegisterSession` (vía `CashRegisterService`) | `cash.session.opened`, `cash.session.closed` |
 
 > Los modelos de catálogo (Product, Variant, Customer, Supplier, etc.) ya emiten
 > eventos manualmente desde sus controllers desde antes. NO se les agregó
@@ -98,6 +100,7 @@ AccountsPayable::syncableSuspended(function () {
 | `sale.confirmed` | `applySale` | Upsert venta por `(tenant_id, sync_source_node_code, sync_source_id)` + replica `sale_items` |
 | `user.roles.synced` | `applyUserRoles` | Upsert usuario por email (con password hash), membresía `tenant_user` (active/inactive) y roles por nombre en el tenant |
 | `purchase_return.created` | `applyPurchaseReturn` | Devolución de compra: upsert por sync_source, decrementa stock (salida), marca seriales removed y actualiza la CxP |
+| `cash.session.opened` / `cash.session.closed` | `applyCashSession` | Sesión de caja: upsert por sync_source, resuelve branch/cash_register por code y users por email |
 
 ### Permisos y roles — nuevo (2026-08-10, P0)
 - Antes: roles/permisos NO viajaban por sync (diseño documentado en AGENTS.md §5). Un cambio de permiso en el VPS no llegaba al local.
@@ -116,6 +119,15 @@ AccountsPayable::syncableSuspended(function () {
 - Ahora: los modelos `Branch` y `Warehouse` usan `Syncable` → emiten `branch.created/updated` y `warehouse.created/updated`. El applier ya tenía handlers (`applyBranch`, `applyWarehouse`).
 - TDD: `tests/Feature/Sync/BranchWarehouseSyncTest.php` (emisión + aplicación). Suite Sync 127 passed/1 skipped.
 - Nota: no existe un agregado "settings de empresa" (sin tabla/endpoint); el cierre de esta P1 fue replicar la configuración de sucursales/almacenes (la configuración de tienda que el sistema expone hoy).
+
+### Cajas y sesiones — nuevo (2026-08-10, P2)
+- Antes: `cash.session.opened/closed` se emitían pero el applier los ignoraba; `cash_register.created` solo viajaba por foto inicial.
+- Ahora:
+  - `CashRegister` usa `Syncable` → emite `cash_register.created/updated`.
+  - El payload de la sesión incluye `branch_code`, `cash_register_code` y emails de cashier/opener/closer/reviewer (identidad natural).
+  - Applier `applyCashSession` replica la sesión (upsert por sync_source) resolviendo branch/cash_register por code y users por email.
+  - Migración `2026_08_10_160000_add_sync_source_to_cash_register_sessions.php`.
+- TDD: `tests/Feature/Sync/CashSessionSyncTest.php` (3 tests). Suite Sync 130 passed/1 skipped, CashRegister 20/20.
 
 Esto garantiza que la nube **aplica** los cambios y, cuando el flujo es inverso,
 los bajos al local (mismo applier corre en ambos lados).
