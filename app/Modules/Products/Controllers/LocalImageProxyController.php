@@ -52,14 +52,24 @@ class LocalImageProxyController extends Controller
             abort(404);
         }
 
-        $image = ProductImage::query()
+        $query = ProductImage::query()
             ->where('uuid', $uuid)
             // Excluir soft-deleted: una imagen borrada no debe servirse desde
             // el cache local NI via 302 al cloud. La UI debe dejar de mostrarla
             // inmediatamente. Si el frontend cacheo la URL, ve una imagen rota,
             // que es exactamente lo que queremos (se limpio en la nube).
-            ->with('variants')
-            ->first();
+            ->with('variants');
+
+        // El uuid ya no es unico global (es unico por tenant tras la
+        // propagacion de imagenes a spinoffs). Si el TenantManager ya tiene
+        // un tenant resuelto (nodo local con sesion activa), filtrar por el
+        // para no servir la imagen de otro tenant del mismo nodo.
+        $currentTenant = $this->tenants->current();
+        if ($currentTenant !== null) {
+            $query->where('tenant_id', $currentTenant->id);
+        }
+
+        $image = $query->orderBy('id')->first();
 
         if (! $image) {
             abort(404);

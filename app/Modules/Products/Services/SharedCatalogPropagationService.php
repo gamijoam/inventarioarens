@@ -9,6 +9,7 @@ use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Suppliers\Models\Supplier;
@@ -551,6 +552,217 @@ class SharedCatalogPropagationService
         $this->recordProductCopyEvent($copy, $master, $spinoff, true);
 
         return $copy;
+    }
+
+    /**
+     * Propaga las imagenes de un producto maestro a las copias de los
+     * spinoffs. Cada imagen se clona (mismo uuid, mismo cloud_storage_path,
+     * mismas variantes) y se emite `product.image.uploaded` en el outbox del
+     * spinoff para que su nodo local la baje.
+     */
+    public function propagateProductImages(Product $master): void
+    {
+        if (! $master->isCatalogMaster()) {
+            return;
+        }
+
+        $images = $master->images()->with('variants')->get();
+        if ($images->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($master, $images): void {
+            foreach ($this->spinoffsFor($master->tenant_id) as $spinoff) {
+                $copy = $this->findCopyForMaster($master, $spinoff);
+                if (! $copy) {
+                    continue;
+                }
+
+                foreach ($images as $image) {
+                    $this->upsertImageCopy($image, $copy, $spinoff);
+                    $this->recordImageSpinoffEvent($spinoff, $image, 'product.image.uploaded');
+                }
+            }
+        });
+    }
+
+    /**
+     * Marca como eliminada la copia de una imagen en cada spinoff y emite
+     * `product.image.deleted` para que los nodos locales la limpien.
+     */
+    public function propagateProductImageDeleted(ProductImage $image): void
+    {
+        $master = Product::query()
+            ->withoutGlobalScopes()
+            ->whereKey($image->product_id)
+            ->first();
+
+        if (! $master || ! $master->isCatalogMaster()) {
+            return;
+        }
+
+        DB::transaction(function () use ($master, $image): void {
+            foreach ($this->spinoffsFor($master->tenant_id) as $spinoff) {
+                $copyImage = ProductImage::query()
+                    ->withoutGlobalScopes()
+                    ->where('tenant_id', $spinoff->id)
+                    ->where('uuid', $image->uuid)
+                    ->first();
+
+                if ($copyImage) {
+                    $copyImage->delete();
+                }
+
+                $this->recordImageSpinoffEvent($spinoff, $image, 'product.image.deleted', includeDeleted: true);
+            }
+        });
+    }
+
+    /**
+     * Busca la copia local del producto maestro en un spinoff.
+     */
+    private function findCopyForMaster(Product $master, Tenant $spinoff): ?Product
+    {
+        return Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $master->id)
+            ->first();
+    }
+
+    /**
+     * Inserta (si no existe) o actualiza la fila ProductImage del spinoff,
+     * clonando las variantes de la imagen del master.
+     */
+    private function upsertImageCopy(ProductImage $image, Product $copy, Tenant $spinoff): ProductImage
+    {
+        $existing = ProductImage::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('uuid', $image->uuid)
+            ->first();
+
+        $attributes = [
+            'tenant_id' => $spinoff->id,
+            'product_id' => $copy->id,
+            'storage_path' => $image->storage_path,
+            'cloud_storage_path' => $image->cloud_storage_path ?: $image->storage_path,
+            'mime' => $image->mime,
+            'size' => $image->size,
+            'original_name' => $image->original_name,
+            'width' => $image->width,
+            'height' => $image->height,
+            'sha256' => $image->sha256,
+            'alt' => $image->alt,
+            'sort' => $image->sort,
+            'is_primary' => (bool) $image->is_primary,
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            DB::table('product_images')
+                ->where('id', $existing->id)
+                ->where('tenant_id', $spinoff->id)
+                ->update($attributes);
+
+            $copyImage = $existing->fresh();
+        } else {
+            $attributes['uuid'] = $image->uuid;
+            $attributes['created_at'] = now();
+            DB::table('product_images')->insert($attributes);
+
+            $copyImage = ProductImage::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $spinoff->id)
+                ->where('uuid', $image->uuid)
+                ->firstOrFail();
+        }
+
+        $this->syncImageVariants($image, $copyImage, $spinoff);
+
+        return $copyImage;
+    }
+
+    /**
+     * Replica las variantes (original/medium/thumb) de la imagen a la copia.
+     */
+    private function syncImageVariants(ProductImage $image, ProductImage $copy, Tenant $spinoff): void
+    {
+        foreach ($image->variants as $variant) {
+            DB::table('product_image_variants')->updateOrInsert(
+                [
+                    'tenant_id' => $spinoff->id,
+                    'product_image_id' => $copy->id,
+                    'variant' => $variant->variant,
+                ],
+                [
+                    'storage_path' => $variant->storage_path,
+                    'cloud_storage_path' => $variant->cloud_storage_path ?: $variant->storage_path,
+                    'mime' => $variant->mime,
+                    'size' => $variant->size,
+                    'width' => $variant->width,
+                    'height' => $variant->height,
+                    'updated_at' => now(),
+                ],
+            );
+        }
+    }
+
+    /**
+     * Emite el evento de imagen en el outbox del spinoff con el mismo payload
+     * que SyncCatalogOutboxService (cloud_url usa public_base + cloud_storage_path).
+     */
+    private function recordImageSpinoffEvent(Tenant $spinoff, ProductImage $image, string $eventType, bool $includeDeleted = false): void
+    {
+        $cloudBase = rtrim((string) (config('services.sync.public_base') ?: config('app.url')), '/');
+        $productSku = $image->product?->sku
+            ?? Product::query()->withoutGlobalScopes()->whereKey($image->product_id)->value('sku');
+
+        if ($includeDeleted) {
+            $payload = [
+                'uuid' => $image->uuid,
+                'product_sku' => $productSku,
+                'product_id' => $image->product_id,
+            ];
+        } else {
+            $variants = $image->relationLoaded('variants') ? $image->variants : $image->variants()->get();
+            $variantMap = [];
+            foreach ($variants as $variant) {
+                $variantCloudPath = $variant->cloud_storage_path ?: $variant->storage_path;
+                $variantMap[$variant->variant] = [
+                    'cloud_url' => "{$cloudBase}/storage/{$variantCloudPath}",
+                    'size' => (int) $variant->size,
+                    'mime' => $variant->mime,
+                    'width' => (int) $variant->width,
+                    'height' => (int) $variant->height,
+                ];
+            }
+
+            $imageCloudPath = $image->cloud_storage_path ?: $image->storage_path;
+            $payload = [
+                'uuid' => $image->uuid,
+                'product_sku' => $productSku,
+                'product_id' => $image->product_id,
+                'cloud_url' => "{$cloudBase}/storage/{$imageCloudPath}",
+                'mime' => $image->mime,
+                'size' => (int) $image->size,
+                'width' => (int) $image->width,
+                'height' => (int) $image->height,
+                'sha256' => $image->sha256,
+                'alt' => $image->alt,
+                'sort' => (int) $image->sort,
+                'is_primary' => (bool) $image->is_primary,
+                'variants' => $variantMap,
+            ];
+        }
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            $eventType,
+            'product_image',
+            (int) ($image->id ?? crc32((string) $image->uuid)),
+            $payload,
+        );
     }
 
     private function recordProductCopyEvent(Product $copy, Product $master, Tenant $spinoff, bool $created): void

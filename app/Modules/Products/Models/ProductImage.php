@@ -3,12 +3,14 @@
 namespace App\Modules\Products\Models;
 
 use App\Models\User;
+use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -63,6 +65,90 @@ class ProductImage extends Model
     use BelongsToTenant, SoftDeletes;
 
     protected $table = 'product_images';
+
+    protected static function booted(): void
+    {
+        static::created(function (ProductImage $image): void {
+            static::propagateAfterCommit(fn () => static::propagateToSpinoffs($image, 'uploaded'));
+        });
+
+        static::updated(function (ProductImage $image): void {
+            static::propagateAfterCommit(fn () => static::propagateToSpinoffs($image, 'uploaded'));
+        });
+
+        static::deleted(function (ProductImage $image): void {
+            static::propagateAfterCommit(fn () => static::propagateDeleteToSpinoffs($image));
+        });
+    }
+
+    /**
+     * Difiere la propagacion hasta el commit para no romper transacciones
+     * ni contaminar savepoints con errores del hook. En tests se desactiva.
+     */
+    protected static function propagateAfterCommit(callable $runner): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($runner);
+
+            return;
+        }
+
+        try {
+            $runner();
+        } catch (\Throwable $e) {
+            logger()->warning('Product image propagation failed', [
+                'image' => null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Propaga una imagen del catalogo del grupo a los spinoffs si el tenant
+     * actual es grupo y el producto es catalog master.
+     */
+    protected static function propagateToSpinoffs(ProductImage $image, string $action): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $product = Product::query()
+            ->withoutGlobalScopes()
+            ->whereKey($image->product_id)
+            ->first();
+
+        if (! $product || ! $product->isCatalogMaster()) {
+            return;
+        }
+
+        app(SharedCatalogPropagationService::class)->propagateProductImages($product);
+    }
+
+    /**
+     * Propaga la eliminacion de una imagen a los spinoffs.
+     */
+    protected static function propagateDeleteToSpinoffs(ProductImage $image): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $product = Product::query()
+            ->withoutGlobalScopes()
+            ->whereKey($image->product_id)
+            ->first();
+
+        if (! $product || ! $product->isCatalogMaster()) {
+            return;
+        }
+
+        app(SharedCatalogPropagationService::class)->propagateProductImageDeleted($image);
+    }
 
     protected function casts(): array
     {

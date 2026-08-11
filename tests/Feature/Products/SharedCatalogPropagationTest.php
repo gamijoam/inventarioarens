@@ -9,12 +9,14 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -46,6 +48,7 @@ class SharedCatalogPropagationTest extends TestCase
             'tracking_type' => Product::TRACKING_QUANTITY,
             'base_price' => 500,
             'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
             'is_catalog_master' => true,
         ]);
 
@@ -82,6 +85,7 @@ class SharedCatalogPropagationTest extends TestCase
             'tracking_type' => Product::TRACKING_QUANTITY,
             'base_price' => 500,
             'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
             'is_catalog_master' => true,
         ]);
 
@@ -120,6 +124,7 @@ class SharedCatalogPropagationTest extends TestCase
             'tracking_type' => Product::TRACKING_QUANTITY,
             'base_price' => 500,
             'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
             'is_catalog_master' => true,
         ]);
 
@@ -166,6 +171,7 @@ class SharedCatalogPropagationTest extends TestCase
             'tracking_type' => Product::TRACKING_QUANTITY,
             'base_price' => 400,
             'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
             'is_catalog_master' => true,
         ]);
 
@@ -211,6 +217,7 @@ class SharedCatalogPropagationTest extends TestCase
             'tracking_type' => Product::TRACKING_SERIALIZED,
             'base_price' => 250,
             'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
             'is_catalog_master' => true,
         ]);
 
@@ -293,6 +300,172 @@ class SharedCatalogPropagationTest extends TestCase
             ->where('tenant_id', $spinoff->id)
             ->where('product_id', $master->id)
             ->count());
+    }
+
+    public function test_master_product_image_propagates_to_spinoff_copy(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-IMG-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+
+        // Subir una imagen al master.
+        $image = ProductImage::create([
+            'tenant_id' => $group->id,
+            'product_id' => $product->id,
+            'uuid' => '22222222-2222-4222-8222-222222222222',
+            'storage_path' => 'products/1/2026/08/master-image.webp',
+            'cloud_storage_path' => 'products/1/2026/08/master-image.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('d', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateProductImages($product);
+
+        $copy = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $product->id)
+            ->first();
+
+        $this->assertNotNull($copy);
+
+        $copyImage = ProductImage::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copy->id)
+            ->first();
+
+        $this->assertNotNull($copyImage, 'La imagen del master debe propagarse a la copia del spinoff.');
+        $this->assertSame($image->uuid, $copyImage->uuid);
+        $this->assertSame('products/1/2026/08/master-image.webp', $copyImage->cloud_storage_path);
+        $this->assertSame($image->sha256, $copyImage->sha256);
+    }
+
+    public function test_master_product_image_delete_cascades_to_spinoff_copies(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-IMG-DEL-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+
+        $image = ProductImage::create([
+            'tenant_id' => $group->id,
+            'product_id' => $product->id,
+            'uuid' => '33333333-3333-4333-8333-333333333333',
+            'storage_path' => 'products/1/2026/08/master-del.webp',
+            'cloud_storage_path' => 'products/1/2026/08/master-del.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('e', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateProductImages($product);
+
+        $copy = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $product->id)
+            ->first();
+
+        $copyImage = ProductImage::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('uuid', $image->uuid)
+            ->first();
+
+        $this->assertNotNull($copyImage);
+
+        // Soft-delete en el master.
+        app(SharedCatalogPropagationService::class)->propagateProductImageDeleted($image);
+
+        $deletedCopy = ProductImage::query()
+            ->withoutGlobalScopes()
+            ->withTrashed()
+            ->where('tenant_id', $spinoff->id)
+            ->where('uuid', $image->uuid)
+            ->first();
+
+        $this->assertNotNull($deletedCopy);
+        $this->assertNotNull($deletedCopy->deleted_at, 'La copia en el spinoff debe marcarse como eliminada.');
+    }
+
+    public function test_image_upload_emits_sync_event_in_spinoff_outbox(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-IMG-OUTBOX-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+
+        $image = ProductImage::create([
+            'tenant_id' => $group->id,
+            'product_id' => $product->id,
+            'uuid' => '44444444-4444-4444-8444-444444444444',
+            'storage_path' => 'products/1/2026/08/master-outbox.webp',
+            'cloud_storage_path' => 'products/1/2026/08/master-outbox.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('f', 64),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateProductImages($product);
+
+        $event = DB::table('sync_outbox')
+            ->where('tenant_id', $spinoff->id)
+            ->where('event_type', 'product.image.uploaded')
+            ->orderByDesc('id')
+            ->first();
+
+        $this->assertNotNull($event, 'Debe emitirse product.image.uploaded en el outbox del spinoff.');
+        $payload = json_decode((string) $event->payload, true);
+        $this->assertSame($image->uuid, $payload['uuid'] ?? null);
+        $this->assertSame('IPHONE-IMG-OUTBOX-001', $payload['product_sku'] ?? null);
     }
 
     private function createGroupWithSpinoff(string $spinoffSlug): array
