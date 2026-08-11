@@ -777,7 +777,11 @@ class SyncCatalogOutboxService
      */
     private function recordProductImage(string $eventType, ProductImage $image, bool $includeDeleted): void
     {
-        $cloudBase = rtrim((string) config('app.url'), '/');
+        // Base pública para cloud_url: en la NUBE es el APP_URL; en los nodos
+        // locales debe apuntar a la nube (SYNC_PUBLIC_BASE) para que la imagen
+        // sea descargable desde allí. Sin esto, un nodo local emite
+        // http://localhost/... y la nube no puede bajar el archivo.
+        $cloudBase = rtrim((string) (config('services.sync.public_base') ?: config('app.url')), '/');
         $productSku = $image->product?->sku
             ?? Product::query()->whereKey($image->product_id)->value('sku');
 

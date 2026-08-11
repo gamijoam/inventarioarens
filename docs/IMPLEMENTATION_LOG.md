@@ -1,5 +1,35 @@
 # Registro de implementación
 
+## 2026-08-10 - Fix: imágenes de producto sincronizan local<->nube
+
+### Auditoría (hallazgos)
+- **Bug crítico**: el `cloud_url` de las imágenes se construía con `config('app.url')`
+  del nodo emisor. Un nodo local (APP_URL=http://localhost) emitía eventos con
+  `cloud_url=http://localhost/...` y la nube no podía descargar el binario.
+  Imágenes subidas en local nunca llegaban a la nube y corrompían storage_path.
+- El snapshot inicial no incluía las imágenes de la galería.
+- La dirección nube->local ya funcionaba (URLs públicas + SyncDownloadService + sha256).
+
+### Fix
+- `config/services.php`: nuevo `services.sync.public_base` (SYNC_PUBLIC_BASE) —
+  base pública de la NUBE para construir cloud_url. En la nube coincide con
+  APP_URL; en los locales apunta a la nube.
+- `recordProductImage` y el snapshot usan `public_base`.
+- **Endpoint `POST /api/sync/images`** (nube): recibe el binario (multipart con
+  uuid, product_sku, variant, sha256), valida sha256 y lo guarda en
+  `product-images`. Devuelve la cloud_url pública.
+- **`SyncImageService`**: `storeFromNode` (nube) y `publishToCloud` (local).
+- **`ProductImageService::upload`**: después de persistir, publica original +
+  variantes a la nube (`publishImageToCloud`), y luego emite el evento.
+- **Snapshot inicial**: `queueProductImages` incluye la galería (uuid, cloud_url,
+  sha256, variantes) en la foto inicial.
+- TDD: `tests/Feature/Sync/ImageSyncFlowTest.php` (4 tests: cloud_url usa
+  public_base, endpoint guarda binario, applier aplica, snapshot incluye
+  imágenes). Suite Sync 136 passed/1 skipped.
+- Nota: `ProductImageApiTest::test_user_can_upload_image...` falla con
+  "Array to string conversion" — **preexistente** (falla sin estos cambios),
+  de entorno, no relacionado con sync.
+
 ## 2026-08-10 - Fix: la foto inicial (snapshot) ahora reconstruye el stock
 
 ### Problema

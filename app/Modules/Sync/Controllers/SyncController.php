@@ -3,14 +3,16 @@
 namespace App\Modules\Sync\Controllers;
 
 use App\Modules\Sync\Requests\AcknowledgeSyncEventRequest;
-use App\Modules\Sync\Requests\CreateSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\CreateSyncGroupPairingCodeRequest;
+use App\Modules\Sync\Requests\CreateSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\IssueSyncTokenRequest;
 use App\Modules\Sync\Requests\PullSyncEventsRequest;
 use App\Modules\Sync\Requests\PushSyncEventsRequest;
 use App\Modules\Sync\Requests\RedeemSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\RegisterSyncNodeRequest;
 use App\Modules\Sync\Requests\SyncReadinessRequest;
+use App\Modules\Sync\Requests\UploadSyncImageRequest;
+use App\Modules\Sync\Services\SyncImageService;
 use App\Modules\Sync\Services\SyncPairingService;
 use App\Modules\Sync\Services\SyncReadinessService;
 use App\Modules\Sync\Services\SyncTokenService;
@@ -28,6 +30,7 @@ class SyncController extends Controller
         private readonly SyncReadinessService $readiness,
         private readonly SyncTokenService $tokens,
         private readonly SyncPairingService $pairing,
+        private readonly SyncImageService $images,
         private readonly TenantManager $tenancy,
     ) {}
 
@@ -151,5 +154,21 @@ class SyncController extends Controller
                 $request->userAgent(),
             ),
         ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Recibe el binario de una imagen que un nodo local sube para publicarla
+     * en la nube. El local emite luego el evento product.image.uploaded con la
+     * cloud_url resultante (base de la nube).
+     */
+    public function uploadImage(UploadSyncImageRequest $request): JsonResponse
+    {
+        $result = $this->images->storeFromNode(
+            $this->tenancy->require(),
+            $request->validated(),
+            $request->file('image'),
+        );
+
+        return response()->json(['data' => $result], Response::HTTP_CREATED);
     }
 }

@@ -33,6 +33,7 @@ class SyncInitialSnapshotService
             'customer.created' => $this->queueCustomers($tenant, $targetNodeId, $installationCode),
             'stock_movement.created' => $this->queueStockMovements($tenant, $targetNodeId, $installationCode),
             'product_unit.created' => $this->queueProductUnits($tenant, $targetNodeId, $installationCode),
+            'product.image.uploaded' => $this->queueProductImages($tenant, $targetNodeId, $installationCode),
             'cash_register.created' => $this->queueCashRegisters($tenant, $targetNodeId, $installationCode),
         ];
 
@@ -577,6 +578,72 @@ class SyncInitialSnapshotService
                     $count++;
                 }
             }, 'product_units.id', 'id');
+
+        return $count;
+    }
+
+    private function queueProductImages(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $count = 0;
+
+        DB::table('product_images')
+            ->join('products', function ($join): void {
+                $join->on('products.id', '=', 'product_images.product_id')
+                    ->on('products.tenant_id', '=', 'product_images.tenant_id');
+            })
+            ->leftJoin('product_image_variants', 'product_image_variants.product_image_id', '=', 'product_images.id')
+            ->whereNull('product_images.deleted_at')
+            ->where('product_images.tenant_id', $tenant->id)
+            ->orderBy('product_images.id')
+            ->select(
+                'product_images.*',
+                'products.sku as product_sku',
+                'product_image_variants.variant',
+                'product_image_variants.storage_path as variant_storage_path',
+                'product_image_variants.mime as variant_mime',
+                'product_image_variants.size as variant_size',
+                'product_image_variants.width as variant_width',
+                'product_image_variants.height as variant_height',
+            )
+            ->chunkById(200, function ($rows) use ($tenant, $targetNodeId, $installationCode, &$count): void {
+                $grouped = $rows->groupBy('id');
+
+                foreach ($grouped as $imageRows) {
+                    $first = $imageRows->first();
+                    $cloudBase = rtrim((string) (config('services.sync.public_base') ?: config('app.url')), '/');
+
+                    $variantMap = [];
+                    foreach ($imageRows as $row) {
+                        if ($row->variant === null) {
+                            continue;
+                        }
+                        $variantMap[$row->variant] = [
+                            'cloud_url' => "{$cloudBase}/storage/{$row->variant_storage_path}",
+                            'size' => (int) $row->variant_size,
+                            'mime' => $row->variant_mime,
+                            'width' => (int) $row->variant_width,
+                            'height' => (int) $row->variant_height,
+                        ];
+                    }
+
+                    $this->record($tenant, $targetNodeId, $installationCode, 'product.image.uploaded', 'product_image', (int) $first->id, [
+                        'uuid' => $first->uuid,
+                        'product_sku' => $first->product_sku,
+                        'product_id' => $first->product_id,
+                        'cloud_url' => "{$cloudBase}/storage/{$first->storage_path}",
+                        'mime' => $first->mime,
+                        'size' => (int) $first->size,
+                        'width' => (int) $first->width,
+                        'height' => (int) $first->height,
+                        'sha256' => $first->sha256,
+                        'alt' => $first->alt,
+                        'sort' => (int) $first->sort,
+                        'is_primary' => (bool) $first->is_primary,
+                        'variants' => $variantMap,
+                    ]);
+                    $count++;
+                }
+            }, 'product_images.id', 'id');
 
         return $count;
     }

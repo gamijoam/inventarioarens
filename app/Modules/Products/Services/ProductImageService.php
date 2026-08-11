@@ -7,6 +7,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Modules\Sync\Services\SyncImageService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,7 @@ class ProductImageService
         private readonly ImageProcessor $processor,
         private readonly TenantManager $tenants,
         private readonly SyncCatalogOutboxService $outbox,
+        private readonly SyncImageService $syncImages,
     ) {}
 
     /**
@@ -135,9 +137,63 @@ class ProductImageService
         }
 
         // Emitir evento outbox DESPUES del commit.
+        $this->publishImageToCloud($persistedImage);
         $this->outbox->imageUploaded($persistedImage->fresh(['variants']));
 
         return $persistedImage->fresh(['variants', 'product']);
+    }
+
+    /**
+     * Publica el binario de la imagen (original + variantes) en la nube, para
+     * que la cloud_url del evento sea descargable por la nube. Si no hay nube
+     * configurada (instalacion standalone) o falla, no bloquea la subida local.
+     */
+    private function publishImageToCloud(ProductImage $image): void
+    {
+        try {
+            $disk = Storage::disk('product-images');
+            $productSku = $image->product?->sku
+                ?? Product::query()->whereKey($image->product_id)->value('sku');
+
+            if ($productSku === null) {
+                return;
+            }
+
+            $files = [
+                'original' => ['path' => $image->storage_path, 'sha256' => $image->sha256],
+            ];
+            foreach ($image->variants as $variant) {
+                $files[$variant->variant] = ['path' => $variant->storage_path, 'sha256' => $image->sha256];
+            }
+
+            foreach ($files as $variant => $file) {
+                if (! $disk->exists($file['path'])) {
+                    continue;
+                }
+
+                $tmp = tempnam(sys_get_temp_dir(), 'img_pub_');
+                if ($tmp === false) {
+                    continue;
+                }
+                file_put_contents($tmp, $disk->get($file['path']));
+
+                try {
+                    $this->syncImages->publishToCloud(
+                        uuid: (string) $image->uuid,
+                        productSku: (string) $productSku,
+                        variant: (string) $variant,
+                        sha256: (string) $file['sha256'],
+                        filePath: $tmp,
+                    );
+                } catch (\Throwable $e) {
+                    report($e);
+                } finally {
+                    @unlink($tmp);
+                }
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

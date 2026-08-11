@@ -38,6 +38,11 @@ return [
     'sync' => [
         'cloud_url' => env('SYNC_CLOUD_URL'),
         'token' => env('SYNC_CLOUD_TOKEN'),
+        // Base pública de la NUBE para construir cloud_url de imágenes.
+        // En la nube coincide con APP_URL; en los nodos locales debe apuntar a
+        // la nube (p.ej. https://app.miinventariofacil.com) para que la imagen
+        // se pueda descargar allí.
+        'public_base' => env('SYNC_PUBLIC_BASE'),
     ],
 
     'local_support' => [
