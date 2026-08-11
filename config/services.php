@@ -45,6 +45,10 @@ return [
         // Fallback defensivo: si no hay SYNC_PUBLIC_BASE explícito, derivar la
         // base desde SYNC_CLOUD_URL quitando el sufijo /api (o /api/).
         'public_base' => env('SYNC_PUBLIC_BASE') ?: preg_replace('#/api/?$#', '', (string) env('SYNC_CLOUD_URL', '')),
+        // Bundle de CA para clientes HTTP (Guzzle) contra la nube. Si el
+        // proceso PHP arranca sin PHP_INI_SCAN_DIR, curl.cainfo queda vacío y
+        // TLS falla; este override lo resuelve. Opcional.
+        'tls_cacert' => env('SYNC_TLS_CACERT'),
     ],
 
     'local_support' => [

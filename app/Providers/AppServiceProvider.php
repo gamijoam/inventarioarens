@@ -54,6 +54,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -103,8 +104,78 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('inventory.manual-movement-operation', [InventoryPolicy::class, 'approveManualMovement']);
 
         $this->configureRateLimiters();
+        $this->configureHttpClientTls();
 
         TenantReferenceCacheInvalidator::register();
+    }
+
+    /**
+     * Asegura que los clientes HTTP (Guzzle vía Laravel Http) tengan un
+     * bundle de CA válido para verificar TLS contra la nube.
+     *
+     * En los clientes Electron el runtime PHP trae un cacert.pem junto al
+     * binario, pero el proceso puede arrancar sin `PHP_INI_SCAN_DIR` (por
+     * ejemplo si se reinicia el backend sin re-lanzar el supervisor), con lo
+     * que `curl.cainfo` queda vacío y TODOS los requests HTTPS fallan con
+     * "cURL error 77/60: unable to get local issuer certificate". Ese fallo
+     * hacía que las imágenes subidas en local nunca publicaran su binario a
+     * la nube (publishImageToCloud reportaba el error y seguía).
+     *
+     * Aquí seteamos curl.cainfo / openssl.cafile a nivel de proceso SI el
+     * runtime trae un cacert.pem válido, independiente de la config INI.
+     */
+    private function configureHttpClientTls(): void
+    {
+        $cacert = $this->resolveCacertPath();
+
+        if ($cacert === null) {
+            return;
+        }
+
+        if (function_exists('curl_version')) {
+            $current = ini_get('curl.cainfo') ?: '';
+            if ($current === '' || ! is_file($current)) {
+                @ini_set('curl.cainfo', $cacert);
+            }
+        }
+
+        if (function_exists('openssl_get_cert_locations')) {
+            $locations = openssl_get_cert_locations();
+            $current = $locations['default_cert_file'] ?? '';
+            if ($current === '' || ! is_file($current)) {
+                @ini_set('openssl.cafile', $cacert);
+            }
+        }
+
+        // Guzzle lee curl.cainfo en el momento de crear cada client; forzar
+        // el CA en las opciones globales de Laravel Http como respaldo.
+        Http::globalOptions([
+            'verify' => $cacert,
+        ]);
+    }
+
+    /**
+     * Resuelve el bundle de CA a usar para los clientes HTTP.
+     * Prioridad:
+     *  1. Config SYNC_TLS_CACERT (override explicito del operador).
+     *  2. runtime/php/cacert.pem relativo al repo (cliente Electron).
+     *  3. cacert.pem junto al binario PHP actual (dirname(PHP_BINARY)).
+     */
+    private function resolveCacertPath(): ?string
+    {
+        $candidates = [
+            config('services.sync.tls_cacert'),
+            base_path('runtime/php/cacert.pem'),
+            dirname(PHP_BINARY).DIRECTORY_SEPARATOR.'cacert.pem',
+        ];
+
+        foreach (array_filter($candidates) as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function configureRateLimiters(): void
