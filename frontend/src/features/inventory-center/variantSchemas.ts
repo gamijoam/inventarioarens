@@ -21,8 +21,8 @@ export const ProductVariantSchema = z.object({
    * recalcula por almacen cuando recibe el warehouse_id.
    */
   stock_available: z.coerce.number().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 
 export type ProductVariant = z.infer<typeof ProductVariantSchema>;

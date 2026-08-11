@@ -615,6 +615,51 @@ class SyncEventApplierTest extends TestCase
         ]);
     }
 
+    public function test_apply_product_variant_sets_updated_at_on_insert(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variantes Sync', 'slug' => 'empresa-variantes-sync']);
+        app(TenantManager::class)->set($tenant);
+        $productId = $this->product($tenant, 'SKU-VARIANT-001', 'Aire Portatil', '100.0000');
+
+        $now = now();
+
+        $payload = [
+            'product_sku' => 'SKU-VARIANT-001',
+            'color' => 'GRIS',
+            'color_hex' => '#888888',
+            'sku_variant' => null,
+            'is_active' => true,
+            'position' => 0,
+        ];
+
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product_variant.created',
+            'aggregate_type' => 'product_variant',
+            'aggregate_id' => null,
+            'payload_hash' => hash('sha256', json_encode($payload)),
+            'payload' => json_encode($payload),
+            'status' => 'received',
+            'received_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1, $summary['applied']);
+        $variant = DB::table('product_variants')
+            ->where('tenant_id', $tenant->id)
+            ->where('product_id', $productId)
+            ->where('color', 'GRIS')
+            ->first();
+
+        $this->assertNotNull($variant);
+        $this->assertNotNull($variant->updated_at, 'updated_at debe quedar seteado para que el frontend (schema Zod) no descarte la variante.');
+        $this->assertNotNull($variant->created_at);
+    }
+
     private function product(Tenant $tenant, string $sku, string $name, string $price): int
     {
         return (int) DB::table('products')->insertGetId([

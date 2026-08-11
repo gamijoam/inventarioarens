@@ -3534,6 +3534,7 @@ class SyncEventApplier
 
         DB::table($table)->insert(array_merge($keys, $values, [
             'created_at' => now(),
+            'updated_at' => now(),
         ]));
     }
 
