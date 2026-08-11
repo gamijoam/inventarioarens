@@ -130,6 +130,29 @@ AccountsPayable::syncableSuspended(function () {
   - Migración `2026_08_10_160000_add_sync_source_to_cash_register_sessions.php`.
 - TDD: `tests/Feature/Sync/CashSessionSyncTest.php` (3 tests). Suite Sync 130 passed/1 skipped, CashRegister 20/20.
 
+### Imágenes de producto — nuevo (2026-08-10)
+- Antes: el `cloud_url` de las imágenes se construía con el `APP_URL` del nodo
+  emisor. Un nodo local (`http://localhost`) emitía eventos con
+  `cloud_url=http://localhost/...` y la nube no podía descargar el binario.
+  Las imágenes subidas localmente nunca llegaban a la nube. Además la foto
+  inicial no incluía la galería.
+- Ahora:
+  - `config/services.php` → `services.sync.public_base` (`SYNC_PUBLIC_BASE`):
+    base pública de la NUBE para construir `cloud_url` (en local apunta a la
+    nube; en la nube es su APP_URL).
+  - `recordProductImage` y el snapshot usan `public_base`.
+  - Endpoint `POST /api/sync/images` (nube): recibe el binario (multipart +
+    uuid + product_sku + variant + sha256), valida el hash y lo guarda en
+    `product-images`, devolviendo la cloud_url pública.
+  - `SyncImageService`: `storeFromNode` (nube) y `publishToCloud` (local).
+  - `ProductImageService::upload` publica original + variantes a la nube antes
+    de emitir el evento.
+  - Snapshot inicial incluye `product_images` (galería con variantes).
+- TDD: `tests/Feature/Sync/ImageSyncFlowTest.php` (4 tests). Suite Sync 136
+  passed/1 skipped.
+- Nota: `ProductImageApiTest::test_user_can_upload_image...` falla con
+  "Array to string conversion" — preexistente, de entorno, no relacionado.
+
 Esto garantiza que la nube **aplica** los cambios y, cuando el flujo es inverso,
 los bajos al local (mismo applier corre en ambos lados).
 
@@ -139,8 +162,15 @@ los bajos al local (mismo applier corre en ambos lados).
   `syncableSuspended` bloquea, anidamiento, sin tenant no emite.
 - `tests/Feature/Sync/FinancialSyncTest.php` — CxP/CxC emiten por trait (creación y
   pago) y el applier los aplica en la nube.
+- `tests/Feature/Sync/PurchaseReturnSyncTest.php` — devoluciones de compra.
+- `tests/Feature/Sync/BranchWarehouseSyncTest.php` — sucursales y almacenes.
+- `tests/Feature/Sync/CashSessionSyncTest.php` — cajas y sesiones.
+- `tests/Feature/Sync/StockSnapshotSyncTest.php` — snapshot reconstruye stock.
+- `tests/Feature/Sync/ImageSyncFlowTest.php` — imágenes local<->nube.
+- `tests/Feature/Sync/UserRolesSyncTest.php` — usuarios/roles/permisos (dentro de
+  FinancialSyncTest).
 
-Suite Sync: 115 passed / 1 skipped. Financiera: 27/28 (1 fallo preexistente de
+Suite Sync: 136 passed / 1 skipped. Financiera: 27/28 (1 fallo preexistente de
 `cash_register_sessions.expected_base_amount`, no relacionado).
 
 ## 6. Documento de arquitectura de sincronización
