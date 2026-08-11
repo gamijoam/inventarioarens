@@ -118,6 +118,15 @@ const KardexMovementSchema = z.object({
   warehouse_name: z.string().nullable().optional(),
   product_id: z.number().int(),
   product_name: z.string().optional(),
+  product_variant_id: z.number().int().nullable().optional(),
+  product_variant: z
+    .object({
+      id: z.number().int(),
+      color: z.string().nullable().optional(),
+      sku_variant: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   type: z.string(),
   quantity_in: z.union([z.number(), z.string()]).optional(),
   quantity_out: z.union([z.number(), z.string()]).optional(),
@@ -133,6 +142,7 @@ const KardexResponseSchema = z.object({
     product_id: z.number().int(),
     product_name: z.string().optional(),
     warehouse_id: z.number().int().nullable().optional(),
+    product_variant_id: z.number().int().nullable().optional(),
     opening_balance: z.union([z.number(), z.string()]).optional(),
     closing_balance: z.union([z.number(), z.string()]).optional(),
     movements: z.array(KardexMovementSchema),
@@ -199,7 +209,7 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
       <CardHeader>
         <CardTitle>Kardex</CardTitle>
         <CardDescription>
-          Historial cronologico de entradas y salidas ({entries.length}). Saldo: {opening} → {closing}.
+          Historial cronologico de entradas y salidas ({entries.length}). Stock inicial: {opening} → final: {closing}.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -208,6 +218,7 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
             <tr>
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Fecha</th>
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Tipo</th>
+              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Variante</th>
               <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">Almacen</th>
               <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
                 Entrada
@@ -244,6 +255,9 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
                     >
                       {movementTypeLabel(e.type)}
                     </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-text-muted">
+                    {e.product_variant?.color ?? e.product_variant?.sku_variant ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-text-muted">{e.warehouse_name ?? '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-success">

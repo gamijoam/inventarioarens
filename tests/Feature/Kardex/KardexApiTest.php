@@ -116,6 +116,95 @@ class KardexApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_kardex_running_balance_is_anchored_to_real_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Ancla', 'slug' => 'empresa-ancla']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'ANCLA');
+        $user = $this->kardexUser($tenant);
+
+        // Stock real de 5 unidades.
+        $this->service()->purchase($warehouse, $product, 5);
+        // Un ajuste de salida de 1 deja el stock real en 4.
+        $this->service()->adjustmentOut($warehouse, $product, 1);
+
+        // Incluso SIN date_from, el saldo de cada fila debe reflejar el stock
+        // real (lo que queda), no un acumulado que parte de 0.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/kardex/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.opening_balance', 0)
+            ->assertJsonPath('data.closing_balance', 4)
+            ->assertJsonCount(2, 'data.movements')
+            ->assertJsonPath('data.movements.0.type', 'purchase')
+            ->assertJsonPath('data.movements.0.running_balance', 5)
+            ->assertJsonPath('data.movements.1.type', 'adjustment_out')
+            ->assertJsonPath('data.movements.1.running_balance', 4);
+    }
+
+    public function test_kardex_can_filter_by_product_variant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Var Kardex', 'slug' => 'empresa-var-kardex']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'VARKDX');
+        $user = $this->kardexUser($tenant);
+
+        $azul = $product->variants()->create([
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'VARKDX-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $verde = $product->variants()->create([
+            'color' => 'Verde',
+            'color_hex' => '#16A34A',
+            'sku_variant' => 'VARKDX-VERDE',
+            'is_active' => true,
+            'position' => 2,
+        ]);
+
+        $this->service()->purchase($warehouse, $product, 5, null, null, null, null, null, $azul->id);
+        $this->service()->purchase($warehouse, $product, 3, null, null, null, null, null, $verde->id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/kardex/products/{$product->id}?product_variant_id={$azul->id}")
+            ->assertOk()
+            ->assertJsonPath('data.product_variant_id', $azul->id)
+            ->assertJsonPath('data.closing_balance', 5)
+            ->assertJsonCount(1, 'data.movements')
+            ->assertJsonPath('data.movements.0.product_variant_id', $azul->id)
+            ->assertJsonPath('data.movements.0.running_balance', 5);
+    }
+
+    public function test_kardex_without_variant_filter_shows_variant_per_movement(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Var Todo', 'slug' => 'empresa-var-todo']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'VARTODO');
+        $user = $this->kardexUser($tenant);
+
+        $azul = $product->variants()->create([
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'VARTODO-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        $this->service()->purchase($warehouse, $product, 5, null, null, null, null, null, $azul->id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/kardex/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.movements.0.product_variant_id', $azul->id)
+            ->assertJsonPath('data.movements.0.product_variant.color', 'Azul')
+            ->assertJsonPath('data.closing_balance', 5);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

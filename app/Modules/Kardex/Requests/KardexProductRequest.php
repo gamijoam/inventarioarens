@@ -23,6 +23,11 @@ class KardexProductRequest extends FormRequest
                 'integer',
                 Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId),
             ],
+            'product_variant_id' => [
+                'sometimes',
+                'integer',
+                Rule::exists('product_variants', 'id')->where('tenant_id', $tenantId),
+            ],
             'date_from' => ['sometimes', 'date'],
             'date_to' => ['sometimes', 'date', 'after_or_equal:date_from'],
         ];
