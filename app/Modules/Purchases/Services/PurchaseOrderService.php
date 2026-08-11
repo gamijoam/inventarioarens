@@ -46,7 +46,7 @@ class PurchaseOrderService
             ]);
 
             if (! $purchaseOrder->document_number) {
-                $purchaseOrder->document_number = 'COMPRA-'.str_pad((string) $purchaseOrder->id, 6, '0', STR_PAD_LEFT);
+                $purchaseOrder->document_number = $this->nextDocumentNumber();
                 $purchaseOrder->save();
             }
 
@@ -199,6 +199,22 @@ class PurchaseOrderService
         ]);
 
         return $purchaseOrder->refresh()->load(['supplier', 'items.product', 'items.productVariant', 'items.warehouse']);
+    }
+
+    private function nextDocumentNumber(): string
+    {
+        $max = PurchaseOrder::query()
+            ->where('document_number', 'like', 'COMPRA-%')
+            ->pluck('document_number')
+            ->map(function (string $doc): ?int {
+                $suffix = substr($doc, 7);
+
+                return ctype_digit($suffix) ? (int) $suffix : null;
+            })
+            ->filter()
+            ->max();
+
+        return 'COMPRA-'.str_pad((string) ((int) $max + 1), 6, '0', STR_PAD_LEFT);
     }
 
     private function rateSnapshot(string $currency, ?int $rateTypeId): array

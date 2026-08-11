@@ -231,6 +231,50 @@ class PurchaseOrderApiTest extends TestCase
         $this->assertSame($documentNumber, $payload['document_number'] ?? null);
     }
 
+    public function test_draft_document_number_avoids_collision_with_synced_documents(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Colision', 'slug' => 'empresa-colision']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'AUD-COLLISION');
+        $supplier = $this->supplier($tenant, 'Proveedor Demo', '100-COL');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras colision', ['purchases.create', 'purchases.view']);
+
+        // Simula el estado real tras sync: un documento traido de la nube ocupa
+        // un numero (COMPRA-000011) mayor que el max(id) local. El proximo
+        // autoincrement local (11) colisionaria si el numero se derivara del id.
+        for ($id = 1; $id <= 10; $id++) {
+            $documentNumber = $id === 7 ? 'COMPRA-000011' : sprintf('COMPRA-%06d', $id);
+            DB::table('purchase_orders')->insert([
+                'tenant_id' => $tenant->id,
+                'status' => PurchaseOrder::STATUS_DRAFT,
+                'document_number' => $documentNumber,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'total_base_amount' => 0,
+                'total_local_amount' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $documentNumber = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 10,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.document_number');
+
+        $this->assertSame('COMPRA-000012', $documentNumber);
+    }
+
     public function test_purchase_with_variant_emits_sync_events_with_variant_sku(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Sync Variantes', 'slug' => 'empresa-sync-variantes']);
