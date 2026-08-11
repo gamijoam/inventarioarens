@@ -180,6 +180,9 @@ class FinancialSyncTest extends TestCase
             'original_base_amount' => 100.0,
             'balance_base_amount' => 100.0,
         ]);
+
+        $payable = DB::table('accounts_payables')->where('document_number', 'CXP-SYNC-001')->first();
+        $this->assertNotNull($payable->updated_at, 'CxP sincronizada no debe quedar con updated_at null.');
     }
 
     public function test_applier_applies_receivable_created_to_cloud(): void
@@ -212,6 +215,9 @@ class FinancialSyncTest extends TestCase
             'original_base_amount' => 50.0,
             'balance_base_amount' => 50.0,
         ]);
+
+        $receivable = DB::table('accounts_receivables')->where('document_number', 'VENTA-SYNC-001')->first();
+        $this->assertNotNull($receivable->updated_at, 'CxC sincronizada no debe quedar con updated_at null.');
     }
 
     public function test_confirming_plain_sale_emits_sale_confirmed_event(): void
@@ -401,5 +407,27 @@ class FinancialSyncTest extends TestCase
             'user_id' => $user->id,
             'status' => 'inactive',
         ]);
+    }
+
+    public function test_applier_sets_updated_at_when_creating_product_via_sync(): void
+    {
+        [$tenant] = $this->setupTenant();
+
+        $this->enqueueEvent($tenant->id, 'product.created', [
+            'sku' => 'SKU-SYNC-PROD-001',
+            'name' => 'Producto Sincronizado',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => '20.0000',
+            'sale_currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ], 1);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $summary['applied']);
+
+        $product = DB::table('products')->where('sku', 'SKU-SYNC-PROD-001')->first();
+        $this->assertNotNull($product);
+        $this->assertNotNull($product->updated_at, 'Producto creado via sync no debe quedar con updated_at null.');
+        $this->assertNotNull($product->created_at);
     }
 }

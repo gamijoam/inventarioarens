@@ -191,8 +191,8 @@ export const TransferSchema = z.object({
   received_at: z.string().nullable().optional(),
   cancelled_at: z.string().nullable().optional(),
   resolved_at: z.string().nullable().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
   items: z.array(TransferItemSchema).optional(),
 });
 export type Transfer = z.infer<typeof TransferSchema>;

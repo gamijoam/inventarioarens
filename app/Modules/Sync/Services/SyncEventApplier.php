@@ -426,6 +426,7 @@ class SyncEventApplier
             $productId = (int) DB::table('products')->insertGetId(array_merge($fields, [
                 'tenant_id' => $tenant->id,
                 'created_at' => $now,
+                'updated_at' => $now,
             ]));
         }
 
@@ -2826,6 +2827,7 @@ class SyncEventApplier
             $values['purchase_order_id'] = (int) ($purchaseOrderId ?? 0);
             $values['document_number'] = $documentNumber;
             $values['created_at'] = now();
+            $values['updated_at'] = now();
 
             DB::table('accounts_payables')->insert($values);
         }
@@ -2945,6 +2947,7 @@ class SyncEventApplier
             $values['sale_id'] = (int) ($saleId ?? 0);
             $values['document_number'] = $documentNumber;
             $values['created_at'] = now();
+            $values['updated_at'] = now();
 
             DB::table('accounts_receivables')->insert($values);
         }
@@ -3494,6 +3497,7 @@ class SyncEventApplier
             'tenant_id' => $tenant->id,
             'name' => $name,
             'created_at' => $now,
+            'updated_at' => $now,
         ]));
     }
 

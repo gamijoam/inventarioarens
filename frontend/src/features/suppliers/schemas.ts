@@ -28,8 +28,8 @@ export const SupplierSchema = z.object({
   fiscal_address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 

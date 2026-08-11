@@ -18,8 +18,8 @@ export const BrandSchema = z.object({
   description: z.string().nullable().optional(),
   is_active: z.boolean(),
   products_count: z.number().int().nonnegative().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 export type Brand = z.infer<typeof BrandSchema>;
 
@@ -63,8 +63,8 @@ export const TagSchema = z.object({
   slug: z.string(),
   color: z.string().nullable().optional(),
   products_count: z.number().int().nonnegative().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 export type Tag = z.infer<typeof TagSchema>;
 
@@ -506,8 +506,8 @@ export const ProductSchema = z.object({
   is_catalog_master: z.boolean().optional(),
   is_catalog_active: z.boolean().optional(),
 
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 export type Product = z.infer<typeof ProductSchema>;
 
@@ -623,8 +623,8 @@ export const ProductPriceSchema = z
     exchange_rate_type_id: z.number().int().nullable().optional(),
     exchange_rate_type: z.unknown().nullable().optional(),
     is_active: z.boolean().optional(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
   })
   .transform((p) => ({
     id: p.id,

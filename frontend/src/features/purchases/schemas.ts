@@ -124,8 +124,8 @@ export const PurchaseSchema = z.object({
   created_by: z.number().int().nullable().optional(),
   received_at: z.string().nullable().optional(),
   cancelled_at: z.string().nullable().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
   // Relaciones opcionales.
   supplier: z.unknown().nullable().optional(),
   items: z.array(PurchaseItemSchema).optional(),

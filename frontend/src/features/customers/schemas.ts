@@ -32,8 +32,8 @@ export const CustomerSchema = z.object({
   credit_balance_base_amount: z.union([z.number(), z.string()]).optional().transform((value) => Number(value ?? 0)),
   customer_group_id: z.number().int().nullable().optional(),
   zone_id: z.number().int().nullable().optional(),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
 
