@@ -175,7 +175,15 @@ export function ManualMovementsManager() {
                             onClick={() =>
                               approve.mutate(
                                 { id: movement.id },
-                                { onSuccess: () => toast.success('Movimiento aprobado') },
+                                {
+                                  onSuccess: () => toast.success('Movimiento aprobado'),
+                                  onError: (error) =>
+                                    toast.error(
+                                      error instanceof Error
+                                        ? error.message
+                                        : 'No se pudo aprobar el movimiento.',
+                                    ),
+                                },
                               )
                             }
                           >

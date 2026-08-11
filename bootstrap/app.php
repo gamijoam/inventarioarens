@@ -5,7 +5,10 @@ use App\Http\Middleware\IdempotencyKey;
 use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Services\CookieIssuer;
+use App\Modules\Inventory\Exceptions\InsufficientStockException;
+use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -35,7 +38,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
         __DIR__.'/../app/Modules/DataImport/Commands',
     ])
-    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+    ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('images:download --limit=20')
             ->everyFifteenMinutes()
             ->withoutOverlapping(10)
@@ -71,6 +74,33 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // Errores de inventario -> 422 amigable, no 500.
+        $exceptions->render(function (InsufficientStockException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Stock insuficiente para esta operación de inventario.',
+                    'errors' => [
+                        'quantity' => ['No hay suficiente stock disponible para el movimiento.'],
+                    ],
+                ], 422);
+            }
+
+            return null;
+        });
+
+        $exceptions->render(function (InvalidStockQuantityException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'La cantidad de inventario debe ser mayor que cero.',
+                    'errors' => [
+                        'quantity' => ['La cantidad debe ser mayor que cero.'],
+                    ],
+                ], 422);
+            }
+
+            return null;
+        });
     })->create();
 
 if ($storagePath !== null && $storagePath !== '') {
