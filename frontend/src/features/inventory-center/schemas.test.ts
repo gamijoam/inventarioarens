@@ -3,6 +3,7 @@ import {
   ProductSchema,
   PaginatedProductsSchema,
   StoreProductSchema,
+  UpdateProductSchema,
   BulkActionSchema,
   StoreExchangeRateTypeSchema,
   StoreExchangeRateSchema,
@@ -64,6 +65,33 @@ describe('StoreProductSchema', () => {
     expect(StoreProductSchema.safeParse({ ...valid, image_url: '' }).success).toBe(true);
     expect(StoreProductSchema.safeParse({ ...valid, image_url: 'https://example.com/x.jpg' }).success).toBe(true);
     expect(StoreProductSchema.safeParse({ ...valid, image_url: 'not-a-url' }).success).toBe(false);
+  });
+});
+
+describe('UpdateProductSchema', () => {
+  it('permite editar solo el nombre sin pedir base_price ni profit_margin (producto manual)', () => {
+    const result = UpdateProductSchema.safeParse({
+      name: 'Nombre nuevo',
+      pricing_mode: 'manual',
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.name).toBe('Nombre nuevo');
+  });
+
+  it('permite editar solo un campo no monetario sin tocar el precio', () => {
+    const result = UpdateProductSchema.safeParse({
+      description: 'nueva descripcion',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('acepta base_price opcional cuando se edita un producto manual', () => {
+    const result = UpdateProductSchema.safeParse({
+      base_price: 123.5,
+      pricing_mode: 'manual',
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.base_price).toBe(123.5);
   });
 });
 

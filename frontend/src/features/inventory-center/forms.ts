@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { type StoreProductInput, type StoreProductValues, StoreProductSchema } from './schemas';
+import { type StoreProductInput, type StoreProductValues, StoreProductSchema, UpdateProductSchema } from './schemas';
 import { useCreateProduct, useUpdateProduct } from './api';
 
 export type ProductFormMode = 'create' | 'edit';
@@ -77,7 +77,11 @@ export function useProductForm({
   }, [formId]);
 
   const form = useForm<StoreProductInput, unknown, StoreProductValues>({
-    resolver: zodResolver(StoreProductSchema),
+    // En edicion usamos el schema parcial: el usuario puede modificar solo
+    // lo que quiera (ej: el nombre) sin que el resolver exija base_price,
+    // profit_margin o last_purchase_cost. StoreProductSchema (con su
+    // superRefine de 'base_price obligatorio en manual') aplica solo al crear.
+    resolver: zodResolver(mode === 'edit' ? UpdateProductSchema : StoreProductSchema),
     defaultValues: stableDefaults as StoreProductInput,
     mode: 'onBlur',
   });
