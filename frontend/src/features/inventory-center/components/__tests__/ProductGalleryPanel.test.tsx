@@ -8,7 +8,7 @@
  *  - El modal se abre/cierra.
  */
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ProductGalleryPanel } from '../ProductGalleryPanel';
 import type { ProductImage } from '../../schemas';
@@ -46,7 +46,6 @@ describe('ProductGalleryPanel', () => {
     const { container } = render(<ProductGalleryPanel images={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
-
   it('muestra la imagen principal y el badge Principal', () => {
     render(
       <ProductGalleryPanel
@@ -69,7 +68,7 @@ describe('ProductGalleryPanel', () => {
     );
 
     const thumbButtons = screen.getAllByRole('button');
-    fireEvent.click(thumbButtons[1]);
+    fireEvent.click(thumbButtons[1] as HTMLElement);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
