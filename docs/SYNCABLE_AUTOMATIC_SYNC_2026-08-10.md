@@ -101,6 +101,7 @@ AccountsPayable::syncableSuspended(function () {
 | `user.roles.synced` | `applyUserRoles` | Upsert usuario por email (con password hash), membresía `tenant_user` (active/inactive) y roles por nombre en el tenant |
 | `purchase_return.created` | `applyPurchaseReturn` | Devolución de compra: upsert por sync_source, decrementa stock (salida), marca seriales removed y actualiza la CxP |
 | `cash.session.opened` / `cash.session.closed` | `applyCashSession` | Sesión de caja: upsert por sync_source, resuelve branch/cash_register por code y users por email |
+| `stock_movement.created` (snapshot) | `applyStockMovement` | Registra el movimiento **y aplica su efecto neto a `stock_balances`** (entradas suman, salidas restan) con guard de idempotencia. Sin esto, la foto inicial bajaba productos sin stock. |
 
 ### Permisos y roles — nuevo (2026-08-10, P0)
 - Antes: roles/permisos NO viajaban por sync (diseño documentado en AGENTS.md §5). Un cambio de permiso en el VPS no llegaba al local.

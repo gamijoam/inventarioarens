@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-10 - Fix: la foto inicial (snapshot) ahora reconstruye el stock
+
+### Problema
+Al vincular una empresa nueva, los productos bajaban pero el stock no. El
+snapshot replicaba los `stock_movements` (historial) pero el applier
+(`applyStockMovement`) solo guardaba el registro, **sin aplicar su efecto a
+`stock_balances`**. El stock disponible quedaba en 0 en el nodo destino.
+
+### Fix
+- `applyStockMovement` ahora aplica el efecto neto del movimiento a
+  `stock_balances` según el tipo: entradas (purchase, sale_return,
+  adjustment_in, transfer_in, return_in) suman; salidas (sale,
+  purchase_return, adjustment_out, transfer_out, return_out, damaged,
+  reserved) restan.
+- Guard de idempotencia: si el movimiento ya existía (re-proceso), no vuelve a
+  tocar el balance (evita duplicar saldos).
+- TDD: `tests/Feature/Sync/StockSnapshotSyncTest.php` (reconstruye balance
+  neto 10-3=7 y re-proceso no duplica). Suite Sync 132 passed/1 skipped.
+
 ## 2026-08-10 - Sync de cajas y sesiones de caja (P2)
 
 ### Problema

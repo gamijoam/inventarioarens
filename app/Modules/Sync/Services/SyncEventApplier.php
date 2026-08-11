@@ -524,6 +524,10 @@ class SyncEventApplier
                 'reason' => $payload['reason'] ?? 'Snapshot de sincronizacion',
             ];
 
+        $existing = DB::table('stock_movements')
+            ->where($keys)
+            ->value('id');
+
         $this->upsertByKeys(
             'stock_movements',
             $keys,
@@ -542,7 +546,83 @@ class SyncEventApplier
             ]
         );
 
+        // Si el movimiento ya existia (re-proceso), no volver a aplicar el efecto
+        // al stock (evita duplicar saldos).
+        if ($existing) {
+            return 'applied';
+        }
+
+        $this->applyStockMovementToBalance(
+            tenant: $tenant,
+            warehouseId: (int) $warehouse->id,
+            productId: (int) $product->id,
+            variantId: $this->variantIdBySku($tenant, (int) $product->id, $payload['product_variant_sku'] ?? null, $payload['product_variant_color'] ?? null),
+            type: (string) ($payload['type'] ?? 'adjustment'),
+            quantity: (float) ($payload['quantity'] ?? 0),
+        );
+
         return 'applied';
+    }
+
+    /**
+     * Aplica el efecto neto de un stock_movement sobre stock_balances.
+     * Las entradas (purchase, sale_return, adjustment_in, transfer_in, return_in)
+     * suman; las salidas (sale, purchase_return, adjustment_out, transfer_out,
+     * return_out, damaged, reserved) restan. Los tipos neutros (released) no
+     * afectan el disponible.
+     */
+    private function applyStockMovementToBalance(
+        Tenant $tenant,
+        int $warehouseId,
+        int $productId,
+        ?int $variantId,
+        string $type,
+        float $quantity,
+    ): void {
+        if ($quantity <= 0.0) {
+            return;
+        }
+
+        $sign = match ($type) {
+            'purchase', 'sale_return', 'adjustment_in', 'transfer_in',
+            'transfer_request_in', 'return_in' => 1,
+            'sale', 'purchase_return', 'adjustment_out', 'transfer_out',
+            'transfer_request_out', 'return_out', 'damaged', 'reserved' => -1,
+            default => 0,
+        };
+
+        if ($sign === 0) {
+            return;
+        }
+
+        $balance = DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->where('product_variant_id', $variantId)
+            ->lockForUpdate()
+            ->first();
+
+        $delta = $sign * $quantity;
+
+        if ($balance) {
+            DB::table('stock_balances')
+                ->where('id', $balance->id)
+                ->update([
+                    'quantity_available' => max(0.0, (float) $balance->quantity_available + $delta),
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $productId,
+                'product_variant_id' => $variantId,
+                'quantity_available' => max(0.0, $delta),
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
     }
 
     /**
