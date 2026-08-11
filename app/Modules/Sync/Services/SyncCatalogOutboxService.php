@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
@@ -29,6 +30,7 @@ use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -357,6 +359,59 @@ class SyncCatalogOutboxService
                 'user_updated_at' => $user->updated_at?->toISOString(),
             ],
             idempotencyKey: $this->eventKey('user.roles.synced', 'user', $user->id, $user->updated_at),
+        );
+    }
+
+    public function branchCreated(Branch $branch): void
+    {
+        $this->recordBranch('branch.created', $branch);
+    }
+
+    public function branchUpdated(Branch $branch): void
+    {
+        $this->recordBranch('branch.updated', $branch);
+    }
+
+    public function warehouseCreated(Warehouse $warehouse): void
+    {
+        $this->recordWarehouse('warehouse.created', $warehouse);
+    }
+
+    public function warehouseUpdated(Warehouse $warehouse): void
+    {
+        $this->recordWarehouse('warehouse.updated', $warehouse);
+    }
+
+    private function recordBranch(string $eventType, Branch $branch): void
+    {
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'branch',
+            aggregateId: $branch->id,
+            payload: [
+                'code' => $branch->code,
+                'name' => $branch->name,
+                'status' => $branch->status,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'branch', $branch->id, $branch->updated_at),
+        );
+    }
+
+    private function recordWarehouse(string $eventType, Warehouse $warehouse): void
+    {
+        $warehouse->loadMissing('branch');
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'warehouse',
+            aggregateId: $warehouse->id,
+            payload: [
+                'code' => $warehouse->code,
+                'name' => $warehouse->name,
+                'status' => $warehouse->status,
+                'branch_code' => $warehouse->branch?->code,
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'warehouse', $warehouse->id, $warehouse->updated_at),
         );
     }
 

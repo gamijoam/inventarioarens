@@ -5,6 +5,7 @@ namespace App\Modules\Warehouses\Models;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -14,11 +15,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['branch_id', 'name', 'code', 'status'])]
 class Warehouse extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
 
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_INACTIVE = 'inactive';
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        return match ($action) {
+            'created' => 'warehouseCreated',
+            'updated' => 'warehouseUpdated',
+            default => null,
+        };
+    }
 
     public function branch(): BelongsTo
     {

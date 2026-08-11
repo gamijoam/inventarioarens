@@ -78,6 +78,8 @@ AccountsPayable::syncableSuspended(function () {
 | `AccountsReceivable` | `accounts_receivable.created`, `accounts_receivable.updated` |
 | `Sale` | `sale.confirmed` (solo ventas del módulo Sales SIN PosOrder; las del POS viajan con `pos.order.*`) |
 | `User` (vía `AccessControlService`) | `user.roles.synced` (datos del user + membresía `tenant_user` + roles asignados) |
+| `Branch` | `branch.created`, `branch.updated` |
+| `Warehouse` | `warehouse.created`, `warehouse.updated` |
 
 > Los modelos de catálogo (Product, Variant, Customer, Supplier, etc.) ya emiten
 > eventos manualmente desde sus controllers desde antes. NO se les agregó
@@ -108,6 +110,12 @@ AccountsPayable::syncableSuspended(function () {
 - Ahora: `PurchaseReturnService::create` emite `purchase_return.created` con los items (sku, warehouse, quantity, seriales). El applier `applyPurchaseReturn` decrementa stock en la nube (salida `purchase_return`), marca los seriales como `removed` y actualiza la CxP vía `AccountsPayableService::applyPurchaseReturn`.
 - Migración `2026_08_10_150000_add_sync_source_to_purchase_returns.php` agrega `sync_source_*` a `purchase_returns`/`purchase_return_items`.
 - TDD: `tests/Feature/Sync/PurchaseReturnSyncTest.php` (emisión + aplicación con stock + seriales removed). Suite Sync 124 passed/1 skipped.
+
+### Sucursales y almacenes — nuevo (2026-08-10, P1)
+- Antes: branch/warehouse solo viajaban en la foto inicial del snapshot. Crear una sucursal o renombrar un almacén en un nodo no se replicaba al otro.
+- Ahora: los modelos `Branch` y `Warehouse` usan `Syncable` → emiten `branch.created/updated` y `warehouse.created/updated`. El applier ya tenía handlers (`applyBranch`, `applyWarehouse`).
+- TDD: `tests/Feature/Sync/BranchWarehouseSyncTest.php` (emisión + aplicación). Suite Sync 127 passed/1 skipped.
+- Nota: no existe un agregado "settings de empresa" (sin tabla/endpoint); el cierre de esta P1 fue replicar la configuración de sucursales/almacenes (la configuración de tienda que el sistema expone hoy).
 
 Esto garantiza que la nube **aplica** los cambios y, cuando el flujo es inverso,
 los bajos al local (mismo applier corre en ambos lados).

@@ -1,5 +1,23 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de sucursales y almacenes (P1)
+
+### Problema
+Branch/warehouse solo viajaban en la foto inicial del snapshot. Crear una
+sucursal o renombrar un almacén en un nodo no se replicaba al otro (los
+controllers no emitían eventos de sync).
+
+### Fix
+- `Branch` y `Warehouse` usan el trait `Syncable` → emiten `branch.created/updated`
+  y `warehouse.created/updated` automáticamente.
+- El applier ya tenía handlers (`applyBranch`, `applyWarehouse`) — solo faltaba
+  la emisión.
+- Fix de import: `SyncCatalogOutboxService::userRolesSynced` no importaba
+  `App\Modules\Tenancy\Models\Tenant` (resolvía a un namespace inexistente);
+  agregado el import.
+- TDD: `tests/Feature/Sync/BranchWarehouseSyncTest.php` (3 tests). Suite Sync
+  127 passed/1 skipped, AccessControl 51/51.
+
 ## 2026-08-10 - Sync de devoluciones de compra (P1)
 
 ### Problema
