@@ -11,6 +11,7 @@ use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Sync\Services\SyncOutboxService;
@@ -552,6 +553,166 @@ class SharedCatalogPropagationService
         $this->recordProductCopyEvent($copy, $master, $spinoff, true);
 
         return $copy;
+    }
+
+    /**
+     * Propaga las variantes (colores/presentaciones) de un producto maestro a
+     * las copias de los spinoffs. Cada variante se identifica por
+     * (product_id, sku_variant|color) en el spinoff, se clona y se emite
+     * `product_variant.created` en el outbox del spinoff para que su nodo
+     * local las baje.
+     */
+    public function propagateProductVariants(Product $master): void
+    {
+        if (! $master->isCatalogMaster()) {
+            return;
+        }
+
+        $variants = $master->variants()->get();
+        if ($variants->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($master, $variants): void {
+            foreach ($this->spinoffsFor($master->tenant_id) as $spinoff) {
+                $copy = $this->findCopyForMaster($master, $spinoff);
+                if (! $copy) {
+                    continue;
+                }
+
+                foreach ($variants as $variant) {
+                    $copyVariant = $this->upsertVariantCopy($variant, $copy, $spinoff);
+                    $this->recordVariantSpinoffEvent($spinoff, $variant, $master, $copyVariant, 'product_variant.created');
+                }
+            }
+        });
+    }
+
+    /**
+     * Elimina la copia de una variante en cada spinoff y emite
+     * `product_variant.deleted` para que los nodos locales la limpien.
+     */
+    public function propagateProductVariantDeleted(ProductVariant $variant): void
+    {
+        $master = Product::query()
+            ->withoutGlobalScopes()
+            ->whereKey($variant->product_id)
+            ->first();
+
+        if (! $master || ! $master->isCatalogMaster()) {
+            return;
+        }
+
+        DB::transaction(function () use ($master, $variant): void {
+            foreach ($this->spinoffsFor($master->tenant_id) as $spinoff) {
+                $copy = $this->findCopyForMaster($master, $spinoff);
+                if (! $copy) {
+                    continue;
+                }
+
+                DB::table('product_variants')
+                    ->where('tenant_id', $spinoff->id)
+                    ->where('product_id', $copy->id)
+                    ->where(function ($query) use ($variant): void {
+                        $query->where('sku_variant', $variant->sku_variant)
+                            ->when($variant->sku_variant === null, fn ($q) => $q->orWhere(fn ($qq) => $qq->whereNull('sku_variant')->where('color', $variant->color)));
+                    })
+                    ->delete();
+
+                $this->recordVariantSpinoffEvent($spinoff, $variant, $master, null, 'product_variant.deleted');
+            }
+        });
+    }
+
+    /**
+     * Inserta (si no existe) o actualiza la fila ProductVariant del spinoff,
+     * identificando por sku_variant|color dentro del producto copia.
+     */
+    private function upsertVariantCopy(ProductVariant $variant, Product $copy, Tenant $spinoff): ProductVariant
+    {
+        $query = DB::table('product_variants')
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copy->id);
+
+        if ($variant->sku_variant !== null && $variant->sku_variant !== '') {
+            $query->where('sku_variant', $variant->sku_variant);
+        } else {
+            $query->whereNull('sku_variant')->where('color', $variant->color);
+        }
+
+        $existing = $query->first();
+
+        $payload = [
+            'tenant_id' => $spinoff->id,
+            'product_id' => $copy->id,
+            'color' => $variant->color,
+            'color_hex' => $variant->color_hex,
+            'sku_variant' => $variant->sku_variant,
+            'barcode_variant' => $variant->barcode_variant,
+            'price_override' => $variant->price_override,
+            'is_active' => (bool) $variant->is_active,
+            'position' => (int) $variant->position,
+            'updated_at' => now(),
+        ];
+
+        if ($existing) {
+            DB::table('product_variants')
+                ->where('id', $existing->id)
+                ->where('tenant_id', $spinoff->id)
+                ->update($payload);
+
+            return ProductVariant::query()
+                ->withoutGlobalScopes()
+                ->whereKey($existing->id)
+                ->firstOrFail();
+        }
+
+        $payload['created_at'] = now();
+        DB::table('product_variants')->insert($payload);
+
+        return ProductVariant::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copy->id)
+            ->where(function ($query) use ($variant): void {
+                if ($variant->sku_variant !== null && $variant->sku_variant !== '') {
+                    $query->where('sku_variant', $variant->sku_variant);
+                } else {
+                    $query->whereNull('sku_variant')->where('color', $variant->color);
+                }
+            })
+            ->firstOrFail();
+    }
+
+    /**
+     * Emite el evento de variante en el outbox del spinoff con el mismo
+     * formato que SyncCatalogOutboxService (identidad natural por sku_variant).
+     */
+    private function recordVariantSpinoffEvent(
+        Tenant $spinoff,
+        ProductVariant $variant,
+        Product $master,
+        ?ProductVariant $copyVariant,
+        string $eventType,
+    ): void {
+        $aggregateId = $copyVariant?->id ?? crc32((string) $variant->id.'-'.$variant->sku_variant);
+
+        $this->recordSpinoffEvent(
+            $spinoff,
+            $eventType,
+            'product_variant',
+            $aggregateId,
+            [
+                'product_sku' => $master->sku,
+                'color' => $variant->color,
+                'color_hex' => $variant->color_hex,
+                'sku_variant' => $variant->sku_variant,
+                'barcode_variant' => $variant->barcode_variant,
+                'price_override' => $variant->price_override === null ? null : (string) $variant->price_override,
+                'is_active' => (bool) $variant->is_active,
+                'position' => (int) $variant->position,
+            ],
+        );
     }
 
     /**

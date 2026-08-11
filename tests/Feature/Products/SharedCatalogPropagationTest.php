@@ -302,6 +302,144 @@ class SharedCatalogPropagationTest extends TestCase
             ->count());
     }
 
+    public function test_master_product_variants_propagate_to_spinoff_copy(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-VAR-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        $product->variants()->create([
+            'color' => 'Azul',
+            'color_hex' => '#2563EB',
+            'sku_variant' => 'IPHONE-VAR-AZUL',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $product->variants()->create([
+            'color' => 'Negro',
+            'color_hex' => '#000000',
+            'sku_variant' => 'IPHONE-VAR-NEGRO',
+            'is_active' => true,
+            'position' => 2,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+        app(SharedCatalogPropagationService::class)->propagateProductVariants($product);
+
+        $copy = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $product->id)
+            ->first();
+
+        $this->assertNotNull($copy);
+
+        $variants = DB::table('product_variants')
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copy->id)
+            ->whereNotNull('color')
+            ->orderBy('position')
+            ->get();
+
+        $this->assertCount(2, $variants);
+        $this->assertSame(['Azul', 'Negro'], $variants->pluck('color')->all());
+        $this->assertContains('IPHONE-VAR-AZUL', $variants->pluck('sku_variant')->all());
+        $this->assertContains('IPHONE-VAR-NEGRO', $variants->pluck('sku_variant')->all());
+    }
+
+    public function test_master_product_variant_delete_cascades_to_spinoff_copy(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-VAR-DEL-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        $variant = $product->variants()->create([
+            'color' => 'Verde',
+            'color_hex' => '#16A34A',
+            'sku_variant' => 'IPHONE-VAR-VERDE',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+        app(SharedCatalogPropagationService::class)->propagateProductVariants($product);
+
+        $copyVariant = DB::table('product_variants')
+            ->where('tenant_id', $spinoff->id)
+            ->where('sku_variant', 'IPHONE-VAR-VERDE')
+            ->first();
+
+        $this->assertNotNull($copyVariant);
+
+        app(SharedCatalogPropagationService::class)->propagateProductVariantDeleted($variant);
+
+        $after = DB::table('product_variants')
+            ->where('tenant_id', $spinoff->id)
+            ->where('sku_variant', 'IPHONE-VAR-VERDE')
+            ->first();
+
+        $this->assertNull($after, 'La variante debe eliminarse en el spinoff.');
+    }
+
+    public function test_master_variant_emits_sync_event_in_spinoff_outbox(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-VAR-OUTBOX-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        $product->variants()->create([
+            'color' => 'Rojo',
+            'color_hex' => '#EF4444',
+            'sku_variant' => 'IPHONE-VAR-ROJO',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        app(SharedCatalogPropagationService::class)->propagateMaster($product);
+        app(SharedCatalogPropagationService::class)->propagateProductVariants($product);
+
+        $event = DB::table('sync_outbox')
+            ->where('tenant_id', $spinoff->id)
+            ->where('event_type', 'product_variant.created')
+            ->orderByDesc('id')
+            ->first();
+
+        $this->assertNotNull($event, 'Debe emitirse product_variant.created en el outbox del spinoff.');
+        $payload = json_decode((string) $event->payload, true);
+        $this->assertSame('IPHONE-VAR-OUTBOX-001', $payload['product_sku'] ?? null);
+        $this->assertSame('Rojo', $payload['color'] ?? null);
+    }
+
     public function test_master_product_image_propagates_to_spinoff_copy(): void
     {
         [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-soledad');
