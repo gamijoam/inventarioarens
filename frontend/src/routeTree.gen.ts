@@ -38,6 +38,7 @@ import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inven
 import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
+import { Route as AuthedSettingsTelegramRouteImport } from './routes/_authed/settings/telegram'
 import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos_.armar'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
@@ -197,6 +198,11 @@ const AuthedTransfersTransferIdRoute =
     path: '/$transferId',
     getParentRoute: () => AuthedTransfersRoute,
   } as any)
+const AuthedSettingsTelegramRoute = AuthedSettingsTelegramRouteImport.update({
+  id: '/settings/telegram',
+  path: '/settings/telegram',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedPosArmarRoute = AuthedPosArmarRouteImport.update({
   id: '/pos_/armar',
   path: '/pos/armar',
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/import/': typeof AuthedImportIndexRoute
@@ -339,6 +346,7 @@ export interface FileRoutesByTo {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/import': typeof AuthedImportIndexRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/_authed/pos_/armar': typeof AuthedPosArmarRoute
+  '/_authed/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/import/': typeof AuthedImportIndexRoute
@@ -427,6 +436,7 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
     | '/import/'
@@ -469,6 +479,7 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
     | '/import'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/currency'
     | '/_authed/inventory/manual-movements'
     | '/_authed/pos_/armar'
+    | '/_authed/settings/telegram'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
     | '/_authed/import/'
@@ -734,6 +746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTransfersTransferIdRouteImport
       parentRoute: typeof AuthedTransfersRoute
     }
+    '/_authed/settings/telegram': {
+      id: '/_authed/settings/telegram'
+      path: '/settings/telegram'
+      fullPath: '/settings/telegram'
+      preLoaderRoute: typeof AuthedSettingsTelegramRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/pos_/armar': {
       id: '/_authed/pos_/armar'
       path: '/pos/armar'
@@ -899,6 +918,7 @@ interface AuthedRouteChildren {
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
   AuthedInventoryManualMovementsRoute: typeof AuthedInventoryManualMovementsRoute
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
+  AuthedSettingsTelegramRoute: typeof AuthedSettingsTelegramRoute
   AuthedImportIndexRoute: typeof AuthedImportIndexRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
   AuthedImportSessionsSessionIdRoute: typeof AuthedImportSessionsSessionIdRoute
@@ -933,6 +953,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
   AuthedInventoryManualMovementsRoute: AuthedInventoryManualMovementsRoute,
   AuthedPosArmarRoute: AuthedPosArmarRoute,
+  AuthedSettingsTelegramRoute: AuthedSettingsTelegramRoute,
   AuthedImportIndexRoute: AuthedImportIndexRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,
   AuthedImportSessionsSessionIdRoute: AuthedImportSessionsSessionIdRoute,

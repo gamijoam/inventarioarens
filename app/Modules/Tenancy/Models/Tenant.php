@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['name', 'slug', 'domain', 'status', 'plan', 'parent_id', 'is_group'])]
 class Tenant extends Model
@@ -36,6 +37,15 @@ class Tenant extends Model
                 $tenant->is_group = $tenant->parent_id === null;
             }
         });
+
+        static::created(function (Tenant $tenant): void {
+            $tenant->setting()->firstOrCreate(['tenant_id' => $tenant->id]);
+        });
+    }
+
+    public function setting(): HasOne
+    {
+        return $this->hasOne(TenantSetting::class, 'tenant_id');
     }
 
     public function users(): BelongsToMany

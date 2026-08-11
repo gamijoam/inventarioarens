@@ -6,6 +6,7 @@ use App\Modules\Tenancy\Controllers\MasterController;
 use App\Modules\Tenancy\Controllers\PlatformAdminController;
 use App\Modules\Tenancy\Controllers\TenantController;
 use App\Modules\Tenancy\Controllers\TenantGroupController;
+use App\Modules\Tenancy\Controllers\TenantSettingController;
 use App\Modules\Tenancy\Middleware\EnsureGroupOwner;
 use App\Modules\Tenancy\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,10 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     Route::get('tenants/{tenant}/users', [CrossTenantUserController::class, 'index']);
     Route::post('tenants/{tenant}/users', [CrossTenantUserController::class, 'store']);
     Route::delete('tenants/{tenant}/users/{user}', [CrossTenantUserController::class, 'destroy']);
+
+    // Configuracion por empresa (apartado Telegram, alertas, etc).
+    Route::get('tenant-settings', [TenantSettingController::class, 'show']);
+    Route::patch('tenant-settings', [TenantSettingController::class, 'update']);
 });
 
 /**

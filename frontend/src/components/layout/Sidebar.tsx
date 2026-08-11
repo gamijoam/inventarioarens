@@ -28,6 +28,8 @@ import {
   Printer,
   Upload,
   ClipboardList,
+  Settings2,
+  Send,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -207,6 +209,20 @@ const NAV_ITEMS: NavItem[] = [
         icon: Building2,
         permission: PERMISSIONS.TENANTS_VIEW,
         hideIfNoOwnedGroup: true,
+      },
+    ],
+  },
+  {
+    to: '/settings',
+    label: 'Configuración',
+    icon: Settings2,
+    permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+    children: [
+      {
+        to: '/settings/telegram',
+        label: 'Telegram',
+        icon: Send,
+        permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
       },
     ],
   },
