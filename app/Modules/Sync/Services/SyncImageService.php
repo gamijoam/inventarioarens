@@ -4,6 +4,7 @@ namespace App\Modules\Sync\Services;
 
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -81,7 +82,16 @@ class SyncImageService
             return null;
         }
 
+        // El endpoint /api/sync/images exige X-Tenant (middleware ResolveTenant).
+        // Sin el header la nube responde 404 "Tenant not found" y el binario
+        // nunca se publica. Derivar del tenant activo del nodo local.
+        $tenantSlug = $this->tenantSlug();
+        if ($tenantSlug === null) {
+            return null;
+        }
+
         $response = Http::withToken($token)
+            ->withHeader('X-Tenant', $tenantSlug)
             ->attach('image', file_get_contents($filePath), basename($filePath))
             ->post("{$cloudUrl}/sync/images", [
                 'uuid' => $uuid,
@@ -91,9 +101,29 @@ class SyncImageService
             ]);
 
         if (! $response->successful()) {
+            report('sync.image.publish_failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'product_sku' => $productSku,
+            ]);
+
             return null;
         }
 
         return $response->json('data') ?? null;
+    }
+
+    /**
+     * Resuelve el slug del tenant activo del nodo local para el header
+     * X-Tenant. Usa el TenantManager actual, o el nodo sync del worker.
+     */
+    private function tenantSlug(): ?string
+    {
+        $current = app(TenantManager::class)->current();
+        if ($current !== null) {
+            return $current->slug;
+        }
+
+        return null;
     }
 }
