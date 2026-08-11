@@ -68,6 +68,11 @@ class SharedCatalogPropagationService
                 $this->ensureProductCopyFor($master, $spinoff);
             }
         });
+
+        // Un master nuevo puede nacer ya con variantes o imagenes (o ser
+        // editado para agregarlas). Propagarlas a las copias existentes.
+        $this->propagateProductVariants($master);
+        $this->propagateProductImages($master);
     }
 
     /**
@@ -356,6 +361,8 @@ class SharedCatalogPropagationService
                 ->get();
             foreach ($masters as $master) {
                 $this->ensureProductCopyFor($master, $spinoff);
+                $this->propagateProductVariants($master);
+                $this->propagateProductImages($master);
             }
 
             foreach ($priceLists as $list) {

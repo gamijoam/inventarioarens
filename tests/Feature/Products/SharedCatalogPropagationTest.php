@@ -606,6 +606,90 @@ class SharedCatalogPropagationTest extends TestCase
         $this->assertSame('IPHONE-IMG-OUTBOX-001', $payload['product_sku'] ?? null);
     }
 
+    public function test_new_spinoff_receives_variants_and_images_from_masters(): void
+    {
+        [$group, $spinoff] = $this->createGroupWithSpinoff('danubio-nuevo');
+
+        $this->useTenant($group);
+
+        $product = Product::create([
+            'name' => 'iPhone 13',
+            'sku' => 'IPHONE-NEW-SPIN-001',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 500,
+            'sale_currency' => Product::CURRENCY_USD,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+            'is_catalog_master' => true,
+        ]);
+
+        $product->variants()->create([
+            'color' => 'Dorado',
+            'color_hex' => '#D4AF37',
+            'sku_variant' => 'IPHONE-NEW-SPIN-DORADO',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        ProductImage::create([
+            'tenant_id' => $group->id,
+            'product_id' => $product->id,
+            'uuid' => '55555555-5555-4555-8555-555555555555',
+            'storage_path' => 'products/1/2026/08/master-new-spin.webp',
+            'cloud_storage_path' => 'products/1/2026/08/master-new-spin.webp',
+            'mime' => 'image/webp',
+            'size' => 1234,
+            'width' => 800,
+            'height' => 600,
+            'sha256' => str_repeat('a1', 32),
+            'sort' => 0,
+            'is_primary' => true,
+        ]);
+
+        // El spinoff se crea DESPUES del producto: propagateAllToSpinoff
+        // debe copiar producto + variantes + imagenes.
+        $this->useTenant($group);
+        app(SharedCatalogPropagationService::class)->propagateAllToSpinoff($group, $spinoff);
+
+        $copy = Product::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('catalog_product_id', $product->id)
+            ->first();
+
+        $this->assertNotNull($copy, 'El producto debe copiarse al spinoff nuevo.');
+
+        $variant = DB::table('product_variants')
+            ->where('tenant_id', $spinoff->id)
+            ->where('product_id', $copy->id)
+            ->where('sku_variant', 'IPHONE-NEW-SPIN-DORADO')
+            ->first();
+
+        $this->assertNotNull($variant, 'La variante del master debe copiarse al spinoff nuevo.');
+        $this->assertSame('Dorado', $variant->color);
+
+        $image = ProductImage::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $spinoff->id)
+            ->where('uuid', '55555555-5555-4555-8555-555555555555')
+            ->first();
+
+        $this->assertNotNull($image, 'La imagen del master debe copiarse al spinoff nuevo.');
+
+        $variantEvent = DB::table('sync_outbox')
+            ->where('tenant_id', $spinoff->id)
+            ->where('event_type', 'product_variant.created')
+            ->orderByDesc('id')
+            ->first();
+        $this->assertNotNull($variantEvent, 'Debe emitirse product_variant.created para el spinoff nuevo.');
+
+        $imageEvent = DB::table('sync_outbox')
+            ->where('tenant_id', $spinoff->id)
+            ->where('event_type', 'product.image.uploaded')
+            ->orderByDesc('id')
+            ->first();
+        $this->assertNotNull($imageEvent, 'Debe emitirse product.image.uploaded para el spinoff nuevo.');
+    }
+
     private function createGroupWithSpinoff(string $spinoffSlug): array
     {
         $group = Tenant::create([
