@@ -82,7 +82,7 @@ export function ProductForm({
   // Galeria de imagenes (Sprint de imagenes Nivel 2). Solo se carga si
   // hay productId (modo edit). El useQuery queda deshabilitado en create.
   const { data: galleryImages = [] } = useProductImages(productId ?? null);
-  const pricingMode = form.watch('pricing_mode') ?? 'automatic';
+  const pricingMode = form.watch('pricing_mode') ?? 'manual';
   const cost = Number(form.watch('last_purchase_cost'));
   const margin = Number(form.watch('profit_margin'));
   const calculatedSalePrice =

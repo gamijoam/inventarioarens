@@ -99,7 +99,7 @@ class StoreProductRequest extends FormRequest
     protected function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            if ($this->input('pricing_mode', Product::PRICING_AUTOMATIC) === Product::PRICING_MANUAL
+            if ($this->input('pricing_mode', Product::PRICING_MANUAL) === Product::PRICING_MANUAL
                 && $this->input('base_price') === null) {
                 $validator->errors()->add('base_price', 'El precio de venta es obligatorio en modo manual.');
             }

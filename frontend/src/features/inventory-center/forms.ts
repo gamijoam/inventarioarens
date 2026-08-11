@@ -43,7 +43,7 @@ const CREATE_DEFAULTS: StoreProductValues = {
   base_price: undefined,
   profit_margin: 25,
   last_purchase_cost: undefined,
-  pricing_mode: 'automatic',
+  pricing_mode: 'manual',
   sale_currency: 'USD',
   sale_exchange_rate_type_id: undefined,
   min_stock: undefined,

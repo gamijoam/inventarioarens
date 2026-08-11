@@ -42,6 +42,8 @@ class ProductApiTest extends TestCase
                 'name' => 'Samsung A06',
                 'sku' => 'SAMSUNG-A06',
                 'tracking_type' => Product::TRACKING_SERIALIZED,
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'profit_margin' => 25,
             ])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Samsung A06')
@@ -849,6 +851,8 @@ class ProductApiTest extends TestCase
             ->postJson('/api/products', [
                 'name' => 'Samsung A06',
                 'sku' => 'SAMSUNG-A06',
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'profit_margin' => 25,
             ])
             ->assertForbidden();
     }

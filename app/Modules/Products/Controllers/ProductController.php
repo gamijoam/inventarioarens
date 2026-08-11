@@ -136,7 +136,7 @@ class ProductController extends Controller
         Gate::authorize('create', Product::class);
 
         $data = $request->validated();
-        $data['pricing_mode'] = $data['pricing_mode'] ?? Product::PRICING_AUTOMATIC;
+        $data['pricing_mode'] = $data['pricing_mode'] ?? Product::PRICING_MANUAL;
         $this->applyAutomaticPrice($data);
         $categoryIds = $data['category_ids'] ?? [];
         $tagIds = $data['tag_ids'] ?? [];

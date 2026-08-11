@@ -363,6 +363,8 @@ class ProductCatalogApiTest extends TestCase
                 'sku' => 'GAL-S24',
                 'tracking_type' => 'quantity',
                 'brand_id' => $brand->id,
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'profit_margin' => 25,
                 'sale_currency' => 'USD',
             ]);
 
@@ -556,5 +558,56 @@ class ProductCatalogApiTest extends TestCase
             ->assertJsonPath('data.0.images.0.id', $image->id)
             ->assertJsonPath('data.0.images.0.is_primary', true);
         $this->assertStringContainsString('thumb.webp', $withImagesResponse->json('data.0.images.0.thumb_url'));
+    }
+
+    public function test_create_product_defaults_to_manual_pricing_mode(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto Manual Default',
+                'sku' => 'MANUAL-DEFAULT-001',
+                'tracking_type' => 'quantity',
+                'base_price' => 50.00,
+                'profit_margin' => 10.00,
+                'sale_currency' => 'USD',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.pricing_mode', Product::PRICING_MANUAL);
+
+        $product = Product::where('sku', 'MANUAL-DEFAULT-001')->first();
+        $this->assertSame(Product::PRICING_MANUAL, $product->pricing_mode);
+        $this->assertEquals(50.0, (float) $product->base_price);
+    }
+
+    public function test_create_product_with_explicit_automatic_keeps_automatic(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto Auto Explicito',
+                'sku' => 'AUTO-EXPLICITO-001',
+                'tracking_type' => 'quantity',
+                'base_price' => 100.00,
+                'profit_margin' => 25.00,
+                'last_purchase_cost' => 80.00,
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'sale_currency' => 'USD',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.pricing_mode', Product::PRICING_AUTOMATIC);
+
+        $product = Product::where('sku', 'AUTO-EXPLICITO-001')->first();
+        $this->assertSame(Product::PRICING_AUTOMATIC, $product->pricing_mode);
     }
 }
