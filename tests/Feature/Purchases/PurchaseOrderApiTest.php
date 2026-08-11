@@ -387,13 +387,19 @@ class PurchaseOrderApiTest extends TestCase
             'product_id' => $product->id,
             'quantity_available' => '1.0000',
         ]);
-        $this->assertDatabaseHas('accounts_payables', [
-            'tenant_id' => $tenant->id,
-            'document_number' => 'FAC-PARCIAL-001',
-            'original_base_amount' => '15.0000',
-            'balance_base_amount' => '15.0000',
-            'due_date' => '2026-07-16',
-        ]);
+
+        // Comparar numericamente y por fecha: SQLite guarda decimales como
+        // float y fechas con hora (2026-07-16 00:00:00), Postgres como
+        // string '15.0000' y date (2026-07-16). assertDatabaseHas no es
+        // cross-DB para estos tipos.
+        $payable = DB::table('accounts_payables')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', 'FAC-PARCIAL-001')
+            ->first();
+        $this->assertNotNull($payable);
+        $this->assertEqualsWithDelta(15.0, (float) $payable->original_base_amount, 0.0001);
+        $this->assertEqualsWithDelta(15.0, (float) $payable->balance_base_amount, 0.0001);
+        $this->assertSame('2026-07-16', substr((string) $payable->due_date, 0, 10));
 
         $this
             ->actingAs($user)

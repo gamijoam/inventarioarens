@@ -173,6 +173,53 @@ class SyncEventApplierTest extends TestCase
         $this->assertSame(5.0, (float) DB::table('products')->where('id', $first->id)->value('base_price'));
     }
 
+    public function test_apply_product_with_remote_catalog_product_id_updates_by_sku_when_catalog_mismatch(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Catalog Mismatch', 'slug' => 'empresa-catalog-mismatch']);
+        app(TenantManager::class)->set($tenant);
+
+        // El spinoff tiene la copia con catalog_product_id LOCAL (105) y sku CAT-000499.
+        $local = Product::create([
+            'name' => 'ADAPTADOR DE CORRIENTE ROHS',
+            'sku' => 'CAT-000499',
+            'tracking_type' => 'quantity',
+            'base_price' => 75,
+            'sale_currency' => Product::CURRENCY_USD,
+            'catalog_product_id' => 105,
+        ]);
+
+        // El evento del grupo llega con catalog_product_id REMOTO (9747) que
+        // no coincide con el local. El applier debe caer a la busqueda por SKU
+        // y ACTUALIZAR, no insertar (que romperia el UNIQUE tenant_id+sku).
+        $payload = json_encode([
+            'sku' => 'CAT-000499',
+            'name' => 'ADAPTADOR DE CORRIENTE ROHS',
+            'tracking_type' => 'quantity',
+            'base_price' => '80.0000',
+            'sale_currency' => 'USD',
+            'is_active' => true,
+            'catalog_product_id' => 9747,
+        ]);
+        DB::table('sync_inbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => (string) Str::uuid(),
+            'event_type' => 'product.updated',
+            'aggregate_type' => 'product',
+            'payload_hash' => hash('sha256', $payload),
+            'payload' => $payload,
+            'status' => 'received',
+            'received_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1, $summary['applied']);
+        $this->assertSame(80.0, (float) DB::table('products')->where('id', $local->id)->value('base_price'));
+        $this->assertSame(1, DB::table('products')->where('tenant_id', $tenant->id)->where('sku', 'CAT-000499')->count());
+    }
+
     public function test_apply_product_records_catalog_product_id_from_payload(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Cat ID', 'slug' => 'empresa-cat-id']);

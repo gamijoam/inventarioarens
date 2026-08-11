@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
-use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -66,7 +65,10 @@ class ProductImageApiTest extends TestCase
             'aggregate_type' => 'product_image',
         ]);
 
-        $payload = json_decode((string) SyncOutbox::query()
+        // Usar DB::table en vez del modelo SyncOutbox: el modelo castea
+        // payload a array, y (string) $array dispara "Array to string
+        // conversion". DB::table devuelve el JSON crudo.
+        $payload = json_decode((string) DB::table('sync_outbox')
             ->where('event_type', 'product.image.uploaded')
             ->latest('id')
             ->value('payload'), true);
@@ -107,7 +109,7 @@ class ProductImageApiTest extends TestCase
         $this->uploadOne($product, $user, $tenant->slug, $this->fakeJpegUpload(400, 400), 'first');
         $this->assertSame(1, ProductImage::query()->where('product_id', $product->id)->count());
 
-        SyncOutbox::query()->where('event_type', 'product.image.uploaded')->delete();
+        DB::table('sync_outbox')->where('event_type', 'product.image.uploaded')->delete();
 
         $this->uploadOne($product, $user, $tenant->slug, $this->fakeJpegUpload(400, 400), 'second');
 

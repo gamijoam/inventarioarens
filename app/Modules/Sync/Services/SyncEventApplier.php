@@ -414,7 +414,11 @@ class SyncEventApplier
             ->when(! isset($payload['catalog_product_id']), fn ($query) => $query->where('sku', $sku))
             ->first();
 
-        if (! $product && ! isset($payload['catalog_product_id'])) {
+        // Fallback por SKU: el catalog_product_id del evento es el id REMOTO
+        // del master, que NO coincide con el id local del spinoff (guardado al
+        // propagar). Sin este fallback, el applier intentaba insertar y rompia
+        // el UNIQUE(tenant_id, sku) cuando la copia ya existia.
+        if (! $product) {
             $product = DB::table('products')->where('tenant_id', $tenant->id)->where('sku', $sku)->first();
         }
         $before = $product ? (array) $product : [];
@@ -2303,7 +2307,10 @@ class SyncEventApplier
         $cashRegisterCode = $this->nullableString($payload['cash_register_code'] ?? null);
 
         if ($branchCode === null) {
-            throw new RuntimeException('La sesion de caja sincronizada no trae branch_code.');
+            // Evento legacy que no incluye branch_code (payload viejo). No se
+            // puede ubicar la sucursal: ignorarlo en vez de reintentar en cada
+            // sync y ensuciar el log de fallos.
+            return 'ignored';
         }
 
         $branch = $this->branchByCode($tenant, $branchCode);
@@ -2594,7 +2601,10 @@ class SyncEventApplier
             ->value('id');
 
         if (! $saleId) {
-            throw new RuntimeException("No se encontro la venta sincronizada {$sourceSaleId} para aplicar el cobro.");
+            // La venta no se ha replicado localmente (puede llegar despues o
+            // ser un evento huerfano). No lanzar: dejarlo como ignorado para
+            // no reintentar en cada sync ni ensuciar el log de fallos.
+            return 'ignored';
         }
 
         $accountId = $this->upsertAndGetId(
@@ -2901,6 +2911,23 @@ class SyncEventApplier
     {
         $documentNumber = $this->nullableString($payload['document_number'] ?? null);
         $saleId = $payload['sale_id'] ?? null;
+
+        // Si el evento trae un sale_id que no existe localmente (por ejemplo
+        // una venta pura que nunca se replico, o IDs remotos desalineados),
+        // NO intentar insertar: romperia la FK y quedaria en failed
+        // reintentandose en cada sync. Marcarlo como ignorado para no
+        // bloquear el resto del sync; la CxC se reconciliara por otros medios
+        // (document_number) o por un reintento manual si la venta llega.
+        if ($saleId !== null) {
+            $saleExists = DB::table('sales')
+                ->where('tenant_id', $tenant->id)
+                ->where('id', (int) $saleId)
+                ->exists();
+            if (! $saleExists) {
+                return 'ignored';
+            }
+        }
+
         $customerDocument = $this->nullableString($payload['customer_document'] ?? null);
         $customerId = $customerDocument !== null
             ? DB::table('customers')

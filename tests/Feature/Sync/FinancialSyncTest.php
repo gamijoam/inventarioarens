@@ -430,4 +430,94 @@ class FinancialSyncTest extends TestCase
         $this->assertNotNull($product->updated_at, 'Producto creado via sync no debe quedar con updated_at null.');
         $this->assertNotNull($product->created_at);
     }
+
+    public function test_receivable_with_missing_sale_is_ignored_not_failed(): void
+    {
+        [$tenant] = $this->setupTenant();
+
+        // El evento trae sale_id que NO existe localmente (venta pura nunca
+        // replicada o ID remoto desalineado). Debe marcarse como ignorado,
+        // no como failed (que se reintentaria en cada sync rompiendo la FK).
+        $this->enqueueEvent($tenant->id, 'accounts_receivable.created', [
+            'document_number' => 'VENTA-HUERFANA-999',
+            'sale_id' => 999999,
+            'status' => 'pending',
+            'currency' => 'USD',
+            'original_base_amount' => '12.1000',
+            'original_local_amount' => '36300.0000',
+            'balance_base_amount' => '12.1000',
+            'balance_local_amount' => '36300.0000',
+        ], 300);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(0, $summary['applied']);
+        $this->assertSame(1, $summary['ignored']);
+
+        $this->assertDatabaseMissing('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'document_number' => 'VENTA-HUERFANA-999',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'accounts_receivable.created',
+            'status' => 'ignored',
+        ]);
+    }
+
+    public function test_receivable_payment_for_missing_sale_is_ignored_not_failed(): void
+    {
+        [$tenant] = $this->setupTenant();
+
+        $this->enqueueEvent($tenant->id, 'accounts_receivable.payment_registered', [
+            'sale_id' => 12,
+            'receivable' => [
+                'status' => 'paid',
+                'document_number' => 'VENTA-12',
+                'currency' => 'USD',
+                'original_base_amount' => '11.0000',
+                'original_local_amount' => '33000.0000',
+                'collected_base_amount' => '11.0000',
+                'collected_local_amount' => '33000.0000',
+                'balance_base_amount' => '0.0000',
+                'balance_local_amount' => '0.0000',
+            ],
+            'payment' => [
+                'amount' => '11.0000',
+                'method' => 'cash',
+            ],
+        ], 12);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(0, $summary['applied']);
+        $this->assertSame(1, $summary['ignored']);
+
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'accounts_receivable.payment_registered',
+            'status' => 'ignored',
+        ]);
+    }
+
+    public function test_cash_session_without_branch_code_is_ignored_not_failed(): void
+    {
+        [$tenant] = $this->setupTenant();
+
+        $this->enqueueEvent($tenant->id, 'cash.session.opened', [
+            'session_id' => 3,
+            'cash_register_id' => 4,
+            'status' => 'open',
+            'opening_base_amount' => '100.0000',
+            'opening_local_amount' => '100.0000',
+        ], 3);
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(0, $summary['applied']);
+        $this->assertSame(1, $summary['ignored']);
+
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'cash.session.opened',
+            'status' => 'ignored',
+        ]);
+    }
 }
