@@ -160,7 +160,7 @@ function ProductDetailPage() {
             <TabsTrigger value="serials">Seriales / IMEI</TabsTrigger>
           )}
           <TabsTrigger value="prices">Precios por lista</TabsTrigger>
-          <TabsTrigger value="images">Imágenes</TabsTrigger>
+          <TabsTrigger value="images">Galería</TabsTrigger>
           <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
             <TabsTrigger value="variants">Variantes</TabsTrigger>
           </Can>
@@ -169,45 +169,54 @@ function ProductDetailPage() {
           <TabsTrigger value="audits">Auditoria</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Información general</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="SKU"><code className="rounded bg-bg px-1.5 py-0.5 text-xs">{product.sku}</code></Field>
-              <Field label="Nombre">{product.name}</Field>
-              <Field label="Tipo">
-                <Badge variant={product.tracking_type === 'serialized' ? 'info' : 'default'}>
-                  {product.tracking_type === 'serialized' ? 'Serializado (IMEI/serial)' : 'Por cantidad'}
-                </Badge>
-              </Field>
-              <Field label="Estado">
-                <Badge variant={product.is_active ? 'success' : 'default'}>
-                  {product.is_active ? 'Activo' : 'Inactivo'}
-                </Badge>
-              </Field>
-              <Field label="Precio base">{formatMoney(product.base_price)}</Field>
-              <Field label="Moneda de venta preferida">{product.sale_currency ?? '—'}</Field>
-              <Field label="Vendible">
-                <Badge variant={product.is_active ? 'success' : 'default'}>
-                  {product.is_active ? 'Sí' : 'No'}
-                </Badge>
-              </Field>
-              <Field label="Tiene garantía">
-                <Badge variant={product.warranty_policy_id ? 'info' : 'default'}>
-                  {product.warranty_policy_id ? 'Sí' : 'No'}
-                </Badge>
-              </Field>
-              <Field label="Última actualización">
-                {product.updated_at ? formatRelative(product.updated_at) : '—'}
-              </Field>
-            </CardContent>
-          </Card>
+        <TabsContent value="general">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Galeria de imagenes a la izquierda (col 1) */}
+            <div className="lg:col-span-1">
+              <ProductGalleryPanel images={product.images ?? galleryImages} />
+            </div>
 
-          <ProductRelations product={product} />
-          <ProfitMarginPanel product={product} />
-          <ProductGalleryPanel images={product.images ?? galleryImages} />
+            {/* Datos y relaciones a la derecha (cols 2-3) */}
+            <div className="space-y-4 lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Información general</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="SKU"><code className="rounded bg-bg px-1.5 py-0.5 text-xs">{product.sku}</code></Field>
+                  <Field label="Nombre">{product.name}</Field>
+                  <Field label="Tipo">
+                    <Badge variant={product.tracking_type === 'serialized' ? 'info' : 'default'}>
+                      {product.tracking_type === 'serialized' ? 'Serializado (IMEI/serial)' : 'Por cantidad'}
+                    </Badge>
+                  </Field>
+                  <Field label="Estado">
+                    <Badge variant={product.is_active ? 'success' : 'default'}>
+                      {product.is_active ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </Field>
+                  <Field label="Precio base">{formatMoney(product.base_price)}</Field>
+                  <Field label="Moneda de venta preferida">{product.sale_currency ?? '—'}</Field>
+                  <Field label="Vendible">
+                    <Badge variant={product.is_active ? 'success' : 'default'}>
+                      {product.is_active ? 'Sí' : 'No'}
+                    </Badge>
+                  </Field>
+                  <Field label="Tiene garantía">
+                    <Badge variant={product.warranty_policy_id ? 'info' : 'default'}>
+                      {product.warranty_policy_id ? 'Sí' : 'No'}
+                    </Badge>
+                  </Field>
+                  <Field label="Última actualización">
+                    {product.updated_at ? formatRelative(product.updated_at) : '—'}
+                  </Field>
+                </CardContent>
+              </Card>
+
+              <ProductRelations product={product} />
+              <ProfitMarginPanel product={product} />
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">

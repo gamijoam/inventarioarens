@@ -24,7 +24,12 @@ export function ProductGalleryPanel({ images }: ProductGalleryPanelProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const primary = images.find((image) => image.is_primary) ?? images[0];
-  const selected = images.find((image) => image.id === selectedId) ?? primary;
+  // El modal solo se abre cuando el usuario hace click en una imagen. Al
+  // montar, selectedId es null y NO debe haber preview (bug: antes caia a
+  // primary y el modal se abria solo al entrar al detalle).
+  const selected = selectedId !== null
+    ? images.find((image) => image.id === selectedId) ?? null
+    : null;
 
   if (images.length === 0) {
     return null;

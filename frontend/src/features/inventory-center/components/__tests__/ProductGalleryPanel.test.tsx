@@ -57,6 +57,17 @@ describe('ProductGalleryPanel', () => {
     expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
   });
 
+  it('no abre la preview al montar (bug: se abria sola al entrar al detalle)', () => {
+    render(
+      <ProductGalleryPanel
+        images={[makeImage({ is_primary: true, alt: 'Imagen A' }), makeImage({ id: 2, alt: 'Imagen B' })]}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Imágenes')).toBeInTheDocument();
+  });
+
   it('abre la preview al hacer click en una miniatura', async () => {
     render(
       <ProductGalleryPanel
