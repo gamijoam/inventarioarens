@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-10 - Sync de devoluciones de compra (P1)
+
+### Problema
+`purchase_return` (devolución al proveedor) no emitía eventos de sync. El retorno
+de stock no se replicaba en la nube; la CxP de la orden quedaba desincronizada.
+
+### Fix
+- **Outbox**: `purchaseReturnCreated(PurchaseReturn)` emite `purchase_return.created`
+  con items (sku, warehouse_code, quantity, seriales) + `purchase_order_document`.
+- **Applier**: `applyPurchaseReturn` — upsert de la devolución por
+  `(tenant_id, sync_source_node_code, sync_source_id)`, decrementa stock en la
+  nube (movimiento `purchase_return` = salida al proveedor), marca seriales
+  `removed` y actualiza la CxP via `AccountsPayableService::applyPurchaseReturn`.
+- **Emisión** desde `PurchaseReturnService::create` (falla no rompe la operación).
+- **Migración**: `sync_source_*` en `purchase_returns` y `purchase_return_items`.
+- `purchase_return.created` en listas retryable/reprocessable.
+- TDD: `PurchaseReturnSyncTest` (emisión, aplicación con decremento de stock,
+  seriales removed). Suite Sync 124 passed/1 skipped, PurchaseReturns 5/5.
+
 ## 2026-08-10 - Sync de usuarios, roles y permisos (P0)
 
 ### Problema

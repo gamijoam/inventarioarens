@@ -3,6 +3,7 @@
 namespace App\Modules\Sync\Services;
 
 use App\Models\User;
+use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -12,6 +13,7 @@ use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Promotions\Models\Promotion;
+use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Models\SalesReturnItem;
 use App\Modules\Tenancy\Models\Tenant;
@@ -75,6 +77,7 @@ class SyncEventApplier
         'accounts_receivable.updated',
         'sale.confirmed',
         'user.roles.synced',
+        'purchase_return.created',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -144,6 +147,7 @@ class SyncEventApplier
         'accounts_receivable.updated',
         'sale.confirmed',
         'user.roles.synced',
+        'purchase_return.created',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -293,6 +297,7 @@ class SyncEventApplier
                 'accounts_receivable.created', 'accounts_receivable.updated' => $this->applyAccountsReceivable($tenant, $payload, $event),
                 'sale.confirmed' => $this->applySale($tenant, $payload, $event),
                 'user.roles.synced' => $this->applyUserRoles($tenant, $payload),
+                'purchase_return.created' => $this->applyPurchaseReturn($tenant, $payload, $event),
                 default => 'ignored',
             };
         } finally {
@@ -3503,6 +3508,192 @@ class SyncEventApplier
             ],
             'created_by' => null,
         ]);
+    }
+
+    /**
+     * Aplica `purchase_return.created` (devolución de compra al proveedor) en
+     * el nodo destino. La devolución es una SALIDA de stock: decrementa
+     * stock_balances y marca los seriales como removed. Luego actualiza la CxP
+     * de la orden (AccountsPayableService::applyPurchaseReturn).
+     *
+     * Idempotente: upsert por (tenant_id, sync_source_node_code, sync_source_id).
+     */
+    private function applyPurchaseReturn(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceReturnId = (int) ($payload['return_id'] ?? $event['aggregate_id'] ?? 0);
+
+        if ($sourceReturnId <= 0) {
+            return 'ignored';
+        }
+
+        $poDocument = $this->nullableString($payload['purchase_order_document'] ?? null);
+        $purchaseOrderId = $poDocument !== null
+            ? DB::table('purchase_orders')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $poDocument)
+                ->value('id')
+            : null;
+
+        if (! $purchaseOrderId) {
+            // El PO origen aún no llegó; reintentar más tarde.
+            throw new RuntimeException('No se encontro la orden de compra origen para aplicar la devolucion.');
+        }
+
+        $now = now();
+
+        $previousStatus = DB::table('purchase_returns')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceReturnId)
+            ->value('status');
+
+        $returnId = $this->upsertAndGetId(
+            'purchase_returns',
+            [
+                'tenant_id' => $tenant->id,
+                'sync_source_node_code' => $sourceNodeCode,
+                'sync_source_id' => $sourceReturnId,
+            ],
+            [
+                'purchase_order_id' => $purchaseOrderId,
+                'status' => $payload['status'] ?? 'processed',
+                'reason' => $this->nullableString($payload['reason'] ?? null),
+                'created_by' => null,
+                'processed_at' => $this->nullableDate($payload['processed_at'] ?? null) ?? $now,
+                'updated_at' => $now,
+            ]
+        );
+
+        $previousProcessed = $previousStatus === 'processed';
+
+        foreach ($payload['items'] ?? [] as $index => $item) {
+            $sku = $this->nullableString($item['sku'] ?? null);
+            $warehouseCode = $this->nullableString($item['warehouse_code'] ?? null);
+
+            if ($sku === null || $warehouseCode === null) {
+                continue;
+            }
+
+            $product = $this->productBySku($tenant, $sku);
+            $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
+            $quantity = (float) ($item['quantity'] ?? 0);
+
+            if ($quantity <= 0.0) {
+                throw new RuntimeException('La devolucion sincronizada contiene una cantidad invalida.');
+            }
+
+            $sourceItemId = $sourceReturnId * 1000 + $index + 1;
+
+            // Resolver el purchase_item del PO en la nube (por producto).
+            // Los items de compra no viajan por sync; se usan como referencia
+            // para cumplir la FK purchase_return_items.purchase_item_id.
+            $purchaseItemId = DB::table('purchase_items')
+                ->where('tenant_id', $tenant->id)
+                ->where('purchase_order_id', $purchaseOrderId)
+                ->where('product_id', $product->id)
+                ->value('id');
+
+            $returnItemId = $this->upsertAndGetId(
+                'purchase_return_items',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sync_source_node_code' => $sourceNodeCode,
+                    'sync_source_id' => $sourceItemId,
+                ],
+                [
+                    'purchase_return_id' => $returnId,
+                    'purchase_item_id' => (int) ($purchaseItemId ?? 0),
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => $quantity,
+                    'reason' => $this->nullableString($item['reason'] ?? null),
+                    'updated_at' => $now,
+                ]
+            );
+
+            $alreadyHasMovement = DB::table('purchase_return_items')
+                ->where('id', $returnItemId)
+                ->value('stock_movement_id');
+
+            if ($alreadyHasMovement || $previousProcessed) {
+                continue;
+            }
+
+            $movement = app(InventoryMovementService::class)->purchaseReturn(
+                Warehouse::query()->findOrFail($warehouse->id),
+                Product::query()->findOrFail($product->id),
+                $quantity,
+                null,
+                $item['reason'] ?? $payload['reason'] ?? "Devolucion sincronizada #{$sourceReturnId}",
+                PurchaseReturn::class,
+                $returnId,
+            );
+
+            DB::table('purchase_return_items')->where('id', $returnItemId)->update([
+                'stock_movement_id' => $movement->id,
+                'updated_at' => $now,
+            ]);
+
+            $serialUnits = $item['product_serial_units'] ?? [];
+            if (is_array($serialUnits) && $serialUnits !== []) {
+                $this->markCloudSerialUnitsRemoved($tenant, $product->id, $warehouse->id, $serialUnits, $movement->id);
+            }
+        }
+
+        if ($poDocument !== null && ! $previousProcessed) {
+            $po = DB::table('purchase_orders')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $poDocument)
+                ->first();
+
+            if ($po) {
+                $return = PurchaseReturn::query()
+                    ->withoutGlobalScopes()
+                    ->with('items')
+                    ->find($returnId);
+
+                if ($return) {
+                    app(AccountsPayableService::class)
+                        ->applyPurchaseReturn($return);
+                }
+            }
+        }
+
+        return 'applied';
+    }
+
+    /**
+     * Marca los seriales devueltos como removed en la nube (salida al proveedor).
+     */
+    private function markCloudSerialUnitsRemoved(Tenant $tenant, int $productId, int $warehouseId, array $serialUnits, int $movementId): void
+    {
+        foreach ($serialUnits as $serialUnit) {
+            if (! isset($serialUnit['serial_type'], $serialUnit['serial_number'])) {
+                continue;
+            }
+
+            $unit = DB::table('product_units')
+                ->where('tenant_id', $tenant->id)
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('serial_type', $serialUnit['serial_type'])
+                ->where('serial_number', $serialUnit['serial_number'])
+                ->where('status', 'available')
+                ->first();
+
+            if (! $unit) {
+                continue;
+            }
+
+            DB::table('product_units')
+                ->where('id', $unit->id)
+                ->update([
+                    'status' => 'removed',
+                    'released_stock_movement_id' => $movementId,
+                    'updated_at' => now(),
+                ]);
+        }
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Models\PurchaseReturnItem;
 use App\Modules\Purchases\Models\PurchaseItem;
 use App\Modules\Purchases\Models\PurchaseOrder;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -81,7 +82,15 @@ class PurchaseReturnService
 
             app(AccountsPayableService::class)->applyPurchaseReturn($purchaseReturn->refresh());
 
-            return $purchaseReturn->refresh()->load(['purchaseOrder.supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+            $purchaseReturn = $purchaseReturn->refresh()->load(['purchaseOrder.supplier', 'items.product', 'items.warehouse', 'items.stockMovement']);
+
+            try {
+                app(SyncCatalogOutboxService::class)->purchaseReturnCreated($purchaseReturn);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            return $purchaseReturn;
         });
     }
 

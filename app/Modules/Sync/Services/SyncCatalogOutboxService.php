@@ -24,6 +24,7 @@ use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Promotions\Models\Promotion;
+use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
@@ -502,6 +503,63 @@ class SyncCatalogOutboxService
             ],
             idempotencyKey: $this->eventKey('purchase_order.received', 'purchase_order', $order->id, $order->updated_at),
         );
+    }
+
+    /**
+     * Emite `purchase_return.created` (devolucion de compra al proveedor).
+     * La devolucion decrementa stock en el nodo origen (salida de mercancia);
+     * el applier replica esa salida en el nodo destino.
+     */
+    public function purchaseReturnCreated(PurchaseReturn $return): void
+    {
+        $return->loadMissing([
+            'purchaseOrder',
+            'items.product',
+            'items.warehouse',
+            'items.stockMovement',
+        ]);
+
+        $this->outbox->record(
+            eventType: 'purchase_return.created',
+            aggregateType: 'purchase_return',
+            aggregateId: $return->id,
+            payload: [
+                'return_id' => $return->id,
+                'purchase_order_document' => $return->purchaseOrder?->document_number,
+                'status' => $return->status,
+                'reason' => $return->reason,
+                'processed_at' => $return->processed_at?->toISOString(),
+                'items' => $return->items->map(fn ($item): array => [
+                    'sku' => $item->product?->sku,
+                    'warehouse_code' => $item->warehouse?->code,
+                    'quantity' => (string) $item->quantity,
+                    'product_serial_units' => collect($item->product_unit_ids ?? [])
+                        ->map(function (int $unitId): ?array {
+                            $unit = $this->productUnitBy($unitId);
+
+                            return $unit ? [
+                                'serial_type' => $unit['serial_type'],
+                                'serial_number' => $unit['serial_number'],
+                            ] : null;
+                        })
+                        ->filter()
+                        ->values()
+                        ->all(),
+                    'reason' => $item->reason,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey('purchase_return.created', 'purchase_return', $return->id, $return->updated_at),
+        );
+    }
+
+    private function productUnitBy(int $unitId): ?array
+    {
+        $unit = DB::table('product_units')->where('id', $unitId)->first();
+
+        return $unit ? [
+            'serial_type' => $unit->serial_type,
+            'serial_number' => $unit->serial_number,
+        ] : null;
     }
 
     private function purchaseDocumentNumber(PurchaseOrder $order): string
