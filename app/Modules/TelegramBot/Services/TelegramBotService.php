@@ -9,6 +9,7 @@ use App\Modules\TelegramBot\Handlers\TodasHandler;
 use App\Modules\TelegramBot\Models\TelegramBotUser;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Nucleo del bot de Telegram: resuelve quien es el remitente (lista blanca),
@@ -73,7 +74,24 @@ class TelegramBotService
 
         $entry = $this->resolveFromChatId($chatId);
         if (! $entry) {
-            // Fuera de lista blanca: silencio total.
+            // Fuera de lista blanca: solo respondemos a /start para que la
+            // persona conozca su chat_id y pueda pasarselo al administrador
+            // para activar el acceso. Cualquier otro comando se ignora en
+            // silencio (el chat_id NO es secreto: es el propio id del chat).
+            $firstLine = strtok($text, "\n") ?: '';
+            $parts = preg_split('/\s+/', trim($firstLine)) ?: [];
+            $command = strtolower((string) ($parts[0] ?? ''));
+
+            if ($command === '/start') {
+                $this->api->sendMessage(
+                    $chatId,
+                    "Tu Telegram ID es: <code>{$chatId}</code>\n\n"
+                    .'Envíaselo al administrador para activar tu acceso al bot.'
+                );
+            }
+
+            Log::info('telegram.unlisted_chat', ['chat_id' => $chatId, 'text' => $text]);
+
             return;
         }
 

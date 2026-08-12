@@ -34,20 +34,38 @@ class TelegramWebhookTest extends TestCase
             ->assertStatus(403);
     }
 
-    public function test_webhook_accepts_valid_secret_and_ignores_unlisted_chat(): void
+    public function test_webhook_accepts_valid_secret_and_responds_with_chat_id_on_start(): void
     {
         config(['services.telegram.bot_token' => '123:TOKEN']);
         config(['services.telegram.webhook_secret' => 'correct-secret']);
 
-        Http::fake();
+        Http::fake(['https://api.telegram.org/bot*/sendMessage' => Http::response(['ok' => true])]);
 
+        // Chat no en lista blanca: /start SI responde con su chat_id.
         $this
             ->postJson('/telegram/webhook', ['message' => ['chat' => ['id' => '999999'], 'text' => '/start']], [
                 'X-Telegram-Bot-Api-Secret-Token' => 'correct-secret',
             ])
             ->assertOk();
 
-        // Chat no en lista blanca: NO se envia ninguna respuesta a Telegram.
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bot123:TOKEN/sendMessage');
+    }
+
+    public function test_webhook_ignores_non_start_command_for_unlisted_chat(): void
+    {
+        config(['services.telegram.bot_token' => '123:TOKEN']);
+        config(['services.telegram.webhook_secret' => 'correct-secret']);
+
+        Http::fake();
+
+        // Chat no en lista blanca: un comando que no sea /start se ignora en
+        // silencio (no se envia nada a Telegram).
+        $this
+            ->postJson('/telegram/webhook', ['message' => ['chat' => ['id' => '999999'], 'text' => '/resumen']], [
+                'X-Telegram-Bot-Api-Secret-Token' => 'correct-secret',
+            ])
+            ->assertOk();
+
         Http::assertNothingSent();
     }
 
