@@ -184,6 +184,8 @@ class LocalTechnicalConsoleApiTest extends TestCase
             },
         ]);
 
+        // El test corre en el entorno de CI (Linux); el arranque bajo demanda
+        // delega en systemctl que no existe, por lo que el health sigue fallando.
         $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson('/api/local-support/printer/test')
             ->assertOk()
@@ -230,6 +232,9 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertStringContainsString('printer:serve --port=17777 --bind=127.0.0.1', $content);
         $this->assertStringContainsString(PHP_BINARY, $content);
         $this->assertStringContainsString(storage_path(), $content);
+        $this->assertStringContainsString('start "InventarioArensPrinter" /min cmd /c', $content);
+        $this->assertStringContainsString('printer-agent.pid', $content);
+        $this->assertStringContainsString('printer-agent.log', $content);
     }
 
     public function test_worker_launcher_bundles_storage_php_and_tls_scan_dir(): void

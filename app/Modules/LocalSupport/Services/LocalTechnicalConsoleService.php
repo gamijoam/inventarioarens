@@ -530,6 +530,19 @@ class LocalTechnicalConsoleService
             $output[] = $this->runWindowsPrinterTask();
         }
 
+        $healthy = false;
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            if ($this->printerHealthy()) {
+                $healthy = true;
+                break;
+            }
+            usleep(500_000);
+        }
+
+        $output[] = $healthy
+            ? 'El agente responde en http://127.0.0.1:17777.'
+            : 'El agente no responde aun. Revisa storage/app/printer-agent/printer-agent.log.';
+
         return [
             'output' => trim(implode("\n", $output)),
             'status' => $this->printerStatus(),
@@ -538,29 +551,106 @@ class LocalTechnicalConsoleService
 
     public function printerTest(): array
     {
-        try {
-            $response = Http::acceptJson()->timeout(5)->get('http://127.0.0.1:17777/health');
-
-            if ($response->successful()) {
-                return [
-                    'ok' => true,
-                    'message' => 'El agente responde en http://127.0.0.1:17777.',
-                    'status' => $this->printerStatus(),
-                ];
+        if (! $this->printerHealthy()) {
+            // Intenta arrancarlo bajo demanda: primero el launcher de la tarea
+            // (si existe) y luego un arranque directo como fallback.
+            try {
+                $this->startPrinterAgent();
+            } catch (\Throwable) {
+                // No detener el diagnostico si el arranque falla.
             }
 
+            for ($attempt = 0; $attempt < 8; $attempt++) {
+                if ($this->printerHealthy()) {
+                    return [
+                        'ok' => true,
+                        'message' => 'El agente fue iniciado y responde en http://127.0.0.1:17777.',
+                        'status' => $this->printerStatus(),
+                    ];
+                }
+                usleep(500_000);
+            }
+        }
+
+        if ($this->printerHealthy()) {
             return [
-                'ok' => false,
-                'message' => 'El agente respondio con error HTTP '.$response->status().'.',
-                'status' => $this->printerStatus(),
-            ];
-        } catch (ConnectionException) {
-            return [
-                'ok' => false,
-                'message' => 'El agente no responde. Ejecuta "Instalar agente" primero.',
+                'ok' => true,
+                'message' => 'El agente responde en http://127.0.0.1:17777.',
                 'status' => $this->printerStatus(),
             ];
         }
+
+        return [
+            'ok' => false,
+            'message' => 'El agente no responde. Revisa el log del agente o instala de nuevo.',
+            'status' => $this->printerStatus(),
+        ];
+    }
+
+    private function printerHealthy(): bool
+    {
+        try {
+            $response = Http::acceptJson()->timeout(2)->get('http://127.0.0.1:17777/health');
+
+            return $response->successful();
+        } catch (ConnectionException) {
+            return false;
+        }
+    }
+
+    /**
+     * Arranca el agente bajo demanda.
+     *
+     * - Windows: usa el lanzador .cmd (via tarea si existe, o directo con start).
+     * - Linux: systemctl --user start del servicio.
+     */
+    private function startPrinterAgent(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $this->printerActionLinux('start');
+
+            return;
+        }
+
+        $launcher = storage_path('app/printer-agent/printer-agent.cmd');
+        if (! is_file($launcher)) {
+            // Sin lanzador aun: crearlo e instalarlo (equivale a "Instalar agente").
+            $this->installWindowsPrinterTask();
+            $this->runWindowsPrinterTask();
+
+            return;
+        }
+
+        $taskName = 'InventarioArensPrinterAgent';
+        $process = new Process([
+            $this->windowsExecutable('schtasks.exe'),
+            '/Run',
+            '/TN', $taskName,
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            return;
+        }
+
+        // Fallback: arrancar el launcher directamente con cmd start (desacoplado).
+        $hidden = base_path('scripts/run-sync-hidden.vbs');
+        if (is_file($hidden)) {
+            $process = new Process([
+                $this->windowsExecutable('wscript.exe'),
+                $this->shortWindowsPath($hidden),
+                $this->shortWindowsPath($launcher),
+            ]);
+            $process->setTimeout(15);
+            $process->run();
+
+            return;
+        }
+
+        $process = new Process(['cmd.exe', '/c', 'start', '""', '/b', $launcher]);
+        $process->setTimeout(15);
+        $process->run();
     }
 
     private function printerActionLinux(string $action): array
@@ -627,6 +717,9 @@ class LocalTechnicalConsoleService
         $storageRoot = rtrim((string) storage_path(), '\\/');
         $databasePath = (string) config('database.connections.sqlite.database');
         $scanDirectory = dirname(storage_path()).'/php-cert-scan';
+        $stateDirectory = storage_path('app/printer-agent');
+        $logFile = str_replace('/', '\\', $stateDirectory.'/printer-agent.log');
+        $pidFile = str_replace('/', '\\', $stateDirectory.'/printer-agent.pid');
 
         $lines = [
             '@echo off',
@@ -637,7 +730,12 @@ class LocalTechnicalConsoleService
         if (is_dir($scanDirectory)) {
             $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
         }
-        $lines[] = '"'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1';
+        $lines[] = 'if not exist "'.$stateDirectory.'" mkdir "'.$stateDirectory.'"';
+        // Lanza el agente desacoplado, registra su PID y envia la salida al log.
+        // `start` exige el titulo primero ("InventarioArensPrinter"); el binario
+        // va citado y la redireccion se aplica al proceso hijo con el comando /c.
+        $lines[] = 'start "InventarioArensPrinter" /min cmd /c ""'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1 >> "'.$logFile.'" 2>&1"';
+        $lines[] = 'for /f "tokens=2 delims=," %%A in (\'wmic process where "name=\'php.exe\' and commandline like \'%%printer:serve%%\'" get ProcessId /format:csv 2^>nul\') do if not "%%A"=="" echo %%A> "'.$pidFile.'"';
 
         return implode("\r\n", $lines)."\r\n";
     }
@@ -668,18 +766,31 @@ class LocalTechnicalConsoleService
         $pidPath = storage_path('app/printer-agent/printer-agent.pid');
         $pid = is_file($pidPath) ? (int) trim((string) file_get_contents($pidPath)) : 0;
 
+        if ($pid > 0 && $this->isWindowsProcessActive($pid)) {
+            $process = new Process([
+                $this->windowsExecutable('taskkill.exe'),
+                '/PID', (string) $pid,
+                '/T', '/F',
+            ]);
+            $process->setTimeout(15);
+            $process->run();
+            File::delete($pidPath);
+
+            return 'Agente de impresion detenido (pid '.$pid.').';
+        }
+
+        // Fallback: cerrar cualquier php que ejecute printer:serve.
         $process = new Process([
             $this->windowsExecutable('taskkill.exe'),
             '/F',
             '/IM', 'php.exe',
-            '/FI', 'WINDOWTITLE eq invt-printer-*',
+            '/FI', 'WINDOWTITLE eq InventarioArensPrinter*',
         ]);
         $process->setTimeout(15);
         $process->run();
+        File::delete($pidPath);
 
-        return $pid > 0
-            ? 'Agente de impresion detenido (pid '.$pid.').'
-            : 'No se encontro un agente de impresion activo (se intento cerrar).';
+        return 'No se encontro un agente de impresion activo por PID; se intento cerrar por nombre.';
     }
 
     private function runArtisan(string $command, array $parameters = [], bool $throwOnFailure = true): string
