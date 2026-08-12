@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process');
 
 const API_HOST = '127.0.0.1';
 const API_PORT = 8787;
+const PRINTER_PORT = 17777;
 const DEFAULT_SYNC_CLOUD_URL = 'https://app.miinventariofacil.com/api';
 const ELECTRON_RENDERER_ORIGINS = [
   'http://127.0.0.1:8788',
@@ -46,12 +47,16 @@ function resolveRuntimeConfig(options = {}) {
   const apiPort = Number(
     options.apiPort ?? process.env.INVENTARIO_API_PORT ?? localServerSettings.api_port ?? API_PORT,
   );
+  const printerPort = Number(
+    options.printerPort ?? process.env.INVENTARIO_PRINTER_PORT ?? PRINTER_PORT,
+  );
 
   return {
     appRoot,
     apiHost,
     apiBindHost,
     apiPort,
+    printerPort,
     apiUrl: `http://${apiHost}:${apiPort}`,
     appKey: options.appKey,
     backendRoot,
@@ -202,6 +207,13 @@ function syncArguments(config) {
     `--name=${nodeName}`,
     `--installation=${installationCode}`,
   ];
+}
+
+function printerArguments(config) {
+  const port = Number(config.printerPort ?? PRINTER_PORT);
+  const bind = config.printerBindHost ?? API_HOST;
+
+  return ['artisan', 'printer:serve', `--port=${port}`, `--bind=${bind}`];
 }
 
 function syncConfigPath(config) {
@@ -540,10 +552,29 @@ function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
   let apiProcess = null;
+  let printerProcess = null;
 
   async function stopOwnedProcesses() {
     if (apiProcess && !apiProcess.killed) apiProcess.kill();
     apiProcess = null;
+    if (printerProcess && !printerProcess.killed) printerProcess.kill();
+    printerProcess = null;
+  }
+
+  function ensurePrinterAgent() {
+    if (printerProcess && !printerProcess.killed) return;
+
+    printerProcess = spawnProcess(
+      config.phpBinary,
+      printerArguments(config),
+      {
+        cwd: config.backendRoot,
+        env: { ...process.env, ...buildLaravelEnvironment(config, null) },
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    attachLogStream(printerProcess, path.join(config.logDirectory, 'printer.log'));
   }
 
   return {
@@ -590,6 +621,7 @@ function createRuntimeSupervisor(options = {}) {
           await waitForHealth(config.apiUrl);
         }
 
+        ensurePrinterAgent();
         await waitForRuntimeLeases(config);
         return ownsApi;
       } finally {
@@ -673,6 +705,7 @@ module.exports = {
   createLocalRuntime,
   createRuntimeSupervisor,
   listLiveRuntimeLeases,
+  printerArguments,
   readSyncConfig,
   removeRuntimeLease,
   releaseRuntimeStartupLock,

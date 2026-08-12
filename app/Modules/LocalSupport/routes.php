@@ -10,4 +10,6 @@ Route::prefix('local-support')->middleware('throttle:auth')->group(function (): 
     Route::post('tenants/{tenant}/sync', [LocalTechnicalConsoleController::class, 'sync']);
     Route::post('tenants/{tenant}/worker', [LocalTechnicalConsoleController::class, 'worker']);
     Route::post('tenants/{tenant}/retry-failed', [LocalTechnicalConsoleController::class, 'retry']);
+    Route::post('printer/action', [LocalTechnicalConsoleController::class, 'printerAction']);
+    Route::post('printer/test', [LocalTechnicalConsoleController::class, 'printerTest']);
 });

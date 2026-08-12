@@ -18,6 +18,7 @@ const {
   runtimeSupervisorLockIsStale,
   runtimeSupervisorPidPath,
   listLiveRuntimeLeases,
+  printerArguments,
   readSyncConfig,
   syncArguments,
   syncDaemons,
@@ -155,6 +156,24 @@ describe('Local Laravel runtime configuration', () => {
       '--node=LOCAL-01',
       '--name=Electron Local',
       '--installation=ELECTRON-LOCAL',
+    ]);
+  });
+
+  it('builds printer agent arguments on the default 17777 port', () => {
+    expect(printerArguments({})).toEqual([
+      'artisan',
+      'printer:serve',
+      '--port=17777',
+      '--bind=127.0.0.1',
+    ]);
+  });
+
+  it('respects a custom printer port when configured', () => {
+    expect(printerArguments({ printerPort: 17778 })).toEqual([
+      'artisan',
+      'printer:serve',
+      '--port=17778',
+      '--bind=127.0.0.1',
     ]);
   });
 

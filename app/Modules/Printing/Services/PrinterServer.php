@@ -261,16 +261,27 @@ class PrinterServer
 
     private function printThermal(array $ticket, array $station, string $jobId): array
     {
+        $printerType = $station['printer_type'] ?? 'windows_printer';
         $printerName = $station['printer_name'] ?? null;
-        if (! $printerName) {
+
+        if ($printerType !== 'network' && ! $printerName) {
             return [
                 'ok' => false,
                 'message' => 'Estacion sin printer_name. Configura la estacion con un nombre de impresora.',
             ];
         }
 
+        $profile = $ticket['profile'] ?? [];
         $text = $this->buildPlainTicket($ticket);
-        $result = app(ThermalPrinterService::class)->print($text, $printerName);
+
+        $result = app(ThermalPrinterService::class)->print($text, $printerName, [
+            'printer_type' => $printerType,
+            'network_host' => $station['network_host'] ?? null,
+            'network_port' => (int) ($station['network_port'] ?? ThermalPrinterService::PORT_9100),
+            'cut_paper' => (bool) ($profile['cut_paper'] ?? false),
+            'open_cash_drawer' => (bool) ($profile['open_cash_drawer'] ?? false),
+        ]);
+
         if (! ($result['ok'] ?? false)) {
             return [
                 'ok' => false,
@@ -279,8 +290,10 @@ class PrinterServer
         }
 
         return [
+            'ok' => true,
             'status' => 'printed',
-            'message' => $result['message'] ?? "Enviado a {$printerName}",
+            'message' => $result['message'] ?? 'Impreso.',
+            'printer' => $result['printer'] ?? ($printerName ?? 'red'),
         ];
     }
 

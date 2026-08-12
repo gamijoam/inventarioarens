@@ -64,17 +64,21 @@ class PosTicketPrintService
 
     public function renderPreviewPdf(PrintProfile $profile): string
     {
-        $snapshot = $this->previewSnapshot($profile);
         $dompdf = app('dompdf.wrapper');
-        $dompdf->loadHTML(View::make('printing.pos-ticket', [
-            'job' => null,
-            'ticket' => $snapshot,
-        ])->render());
-        $widthPoints = ((int) data_get($snapshot, 'profile.paper_width_mm', 80)) === 58 ? 164.4 : 226.8;
+        $dompdf->loadHTML($this->renderPreviewHtml($profile));
+        $widthPoints = ((int) $profile->paper_width_mm) === 58 ? 164.4 : 226.8;
         $dompdf->setPaper([0, 0, $widthPoints, 900], 'portrait');
         $dompdf->render();
 
         return $dompdf->output();
+    }
+
+    public function renderPreviewHtml(PrintProfile $profile): string
+    {
+        return View::make('printing.pos-ticket', [
+            'job' => null,
+            'ticket' => $this->previewSnapshot($profile),
+        ])->render();
     }
 
     public function markStatus(PrintJob $job, array $data): PrintJob

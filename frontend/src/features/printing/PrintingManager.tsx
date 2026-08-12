@@ -334,6 +334,18 @@ export function PrintingManager() {
                   <option value="thermal">Termica</option>
                   <option value="both">Termica + digital</option>
                 </Select>
+                <Select value={station.printer_type} onChange={(event) => setStation((current) => ({ ...current, printer_type: event.target.value as PrinterStationPayload['printer_type'] }))}>
+                  <option value="windows_printer">Impresora Windows (driver)</option>
+                  <option value="network">Impresora de red (TCP 9100)</option>
+                </Select>
+                {station.printer_type === 'network' ? (
+                  <>
+                    <Input value={station.network_host ?? ''} onChange={(event) => setStation((current) => ({ ...current, network_host: event.target.value }))} placeholder="IP de la impresora, ej. 192.168.1.50" />
+                    <Input value={String(station.network_port ?? 9100)} onChange={(event) => setStation((current) => ({ ...current, network_port: Number(event.target.value) || 9100 }))} placeholder="Puerto TCP (default 9100)" />
+                  </>
+                ) : (
+                  <Input value={station.printer_name ?? ''} onChange={(event) => setStation((current) => ({ ...current, printer_name: event.target.value }))} placeholder="Nombre exacto de impresora Windows" />
+                )}
                 <Select value={String(station.branch_id ?? '')} onChange={(event) => setStation((current) => ({ ...current, branch_id: event.target.value ? Number(event.target.value) : null }))}>
                   <option value="">Sucursal opcional</option>
                   {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -342,7 +354,6 @@ export function PrintingManager() {
                   <option value="">Caja opcional</option>
                   {cashRegisters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </Select>
-                <Input value={station.printer_name ?? ''} onChange={(event) => setStation((current) => ({ ...current, printer_name: event.target.value }))} placeholder="Nombre exacto de impresora Windows" />
                 <Input value={station.digital_directory ?? ''} onChange={(event) => setStation((current) => ({ ...current, digital_directory: event.target.value }))} placeholder="Carpeta digital, ej. Desktop\\Tickets" />
                 <div className="flex gap-2 lg:col-span-2">
                   <Button className="flex-1" disabled={createStation.isPending || updateStation.isPending} onClick={() => void submitStation()}>

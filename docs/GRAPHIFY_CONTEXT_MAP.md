@@ -223,8 +223,13 @@ Toda funcionalidad nueva requiere tests. Los cambios backend deben correr al men
 y, si hay riesgo cross-tenant, pruebas de aislamiento. Sync tiene pruebas propias y smoke test cuando
 aplica.
 
+El laboratorio de dia simulado (`lab:day` + `LabDayService`) ejecuta un ciclo real de negocio
+(login -> POS -> devolucion -> compra -> traslado) contra la API local o VPS con datos desechables;
+`scripts/run-day-lab.ps1` orquesta todo (seed + lab + k6 + Playwright).
+
 Documentos clave:
 
+- [Laboratorio de dia simulado](LAB_DAY_SIMULADO.md)
 - [Auditoria calidad tests](AUDIT_2026-07-11/10_CALIDAD_TESTS.md)
 - [Roadmap auditoria](AUDIT_2026-07-11/ROADMAP.md)
 - [Pendientes backend](PENDIENTES_BACKEND_2026-07-12.md)
@@ -232,6 +237,12 @@ Documentos clave:
 
 Nodos de codigo frecuentes:
 
+- `LabDayCommand`
+- `LabDayService`
+- `SeedStressLabCommand`
+- `tests/Feature/Console/LabDaySeedTest`
+- `tests/Feature/Console/LabDayServiceTest`
+- `scripts/run-day-lab.ps1`
 - `tests/TestCase.php`
 - `RefreshDatabase`
 - `TenantIsolationTest`
@@ -257,6 +268,61 @@ Nodos principales:
 - `useIntercompanyNotificationBroadcast`
 - `intercompany_notifications`
 - `intercompany_notification_reads`
+
+## Impresion De Tickets (Printing)
+
+La impresion de tickets POS usa `PrintProfile` (58/80mm con flags de visibilidad por seccion),
+`PrinterStation` (une caja/sucursal con una salida termica, digital o ambas) y `PrintJob` (snapshot
+del ticket al pagar). El agente local `printer:serve` escucha en `127.0.0.1:17777` y envia a la
+impresora fisica: driver Windows (PowerShell `Out-Printer`) / Linux (lpr/lp), o impresora de red
+por TCP 9100 con comandos ESC/POS (corte GS V, gaveta ESC p). El panel vive en `frontend` ruta
+`/printing` y la consola `/support` permite instalar/iniciar/probar el agente.
+
+Documentos clave:
+
+- [Guia de prueba con impresora real](GUIA_PRUEBA_IMPRESORA_REAL.md)
+- [Centro tecnico local](CENTRO_TECNICO_LOCAL.md)
+
+Nodos de codigo frecuentes:
+
+- `PosTicketPrintService` (snapshot + render HTML/PDF del ticket)
+- `ThermalPrinterService` (driver / red ESC/POS, sanitize ASCII)
+- `PrinterServer` (HTTP server del agente local)
+- `PrintProfile` / `PrinterStation` / `PrintJob`
+- `PrinterServeCommand` (`php artisan printer:serve`)
+- `LocalTechnicalConsoleService::printerAction/printerTest` (consola /support)
+- `PrintingManager` (frontend, ruta /printing)
+- `resources/views/printing/pos-ticket.blade.php`
+
+## Bot De Telegram Y Configuracion Por Empresa
+
+El bot de administracion de Telegram usa una lista blanca (`telegram_bot_users`) que vincula
+`telegram_chat_id` a `user_id` por tenant. El webhook `POST /telegram/webhook` es publico y se
+autentica por `X-Telegram-Bot-Api-Secret-Token`. La configuracion por empresa vive en
+`tenant_settings` (JSON de secciones) y se expone via `GET/PATCH /api/tenant-settings`. El panel
+del frontend (Configuracion -> Telegram) sincroniza la whitelist delete+insert.
+
+Documento principal:
+
+- [Modulo TelegramBot](TELEGRAM_BOT_MODULE.md)
+
+Nodos de codigo frecuentes:
+
+- `TelegramApiService`
+- `TelegramBotService`
+- `TelegramReportService`
+- `TelegramWebhookController`
+- `StartHandler`
+- `ResumenHandler`
+- `TodasHandler`
+- `TelegramBotUser`
+- `TelegramLinkCommand`
+- `TelegramAlertsCommand`
+- `TenantSetting`
+- `TenantSettingController`
+- `TelegramSettingsPanel`
+- `tenant_settings`
+- `telegram_bot_users`
 
 ## Electron Updates Y Sincronizacion De Escritorio
 
@@ -310,3 +376,4 @@ Usar estas preguntas como entrada rapida:
 - `.\scripts\graphify.cmd path "ResolveTenant" "TenantManager"`
 - `.\scripts\graphify.cmd path "InventoryTransferService" "StockMovement"`
 - `.\scripts\graphify.cmd explain "BasePermissions"`
+- `.\scripts\graphify.cmd path "TelegramWebhookController" "TelegramBotService"`

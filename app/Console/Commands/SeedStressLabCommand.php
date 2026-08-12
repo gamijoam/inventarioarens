@@ -14,6 +14,7 @@ use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -32,6 +33,9 @@ class SeedStressLabCommand extends Command
         {--products=100 : Productos por empresa (10-10000)}
         {--prefix=loadtest : Prefijo seguro de los slugs creados}
         {--password=loadtest-password : Clave de los usuarios de carga}
+        {--role=vendedor : Rol del usuario de carga (vendedor|gerente)}
+        {--warehouses=1 : Almacenes por empresa (1-2)}
+        {--supplier : Crea un proveedor de laboratorio por empresa}
         {--force : Confirma la creacion o actualizacion de datos de carga}
         {--allow-production : Permite ejecutarlo en produccion durante una ventana aprobada}';
 
@@ -55,6 +59,21 @@ class SeedStressLabCommand extends Command
         $productCount = (int) $this->option('products');
         $prefix = strtolower(trim((string) $this->option('prefix')));
         $password = (string) $this->option('password');
+        $role = strtolower(trim((string) $this->option('role')));
+        $warehouses = (int) $this->option('warehouses');
+        $withSupplier = (bool) $this->option('supplier');
+
+        if (! in_array($role, ['vendedor', 'gerente'], true)) {
+            $this->error('El rol debe ser vendedor o gerente.');
+
+            return self::INVALID;
+        }
+
+        if ($warehouses < 1 || $warehouses > 2) {
+            $this->error('El numero de almacenes debe estar entre 1 y 2.');
+
+            return self::INVALID;
+        }
 
         if ($tenantCount < 3 || $tenantCount > 20) {
             $this->error('El numero de empresas debe estar entre 3 y 20.');
@@ -82,9 +101,9 @@ class SeedStressLabCommand extends Command
 
         $this->call(RolesAndPermissionsSeeder::class);
 
-        DB::transaction(function () use ($tenantCount, $productCount, $prefix, $password): void {
+        DB::transaction(function () use ($tenantCount, $productCount, $prefix, $password, $role, $warehouses, $withSupplier): void {
             for ($number = 1; $number <= $tenantCount; $number++) {
-                $this->seedTenant($number, $productCount, $prefix, $password);
+                $this->seedTenant($number, $productCount, $prefix, $password, $role, $warehouses, $withSupplier);
             }
         });
 
@@ -99,7 +118,7 @@ class SeedStressLabCommand extends Command
         return self::SUCCESS;
     }
 
-    private function seedTenant(int $number, int $productCount, string $prefix, string $password): void
+    private function seedTenant(int $number, int $productCount, string $prefix, string $password, string $role, int $warehouses, bool $withSupplier): void
     {
         $suffix = str_pad((string) $number, 2, '0', STR_PAD_LEFT);
         $slug = "{$prefix}-{$suffix}";
@@ -127,8 +146,9 @@ class SeedStressLabCommand extends Command
 
         $tenant->users()->syncWithoutDetaching([$user->id => ['status' => 'active']]);
         setPermissionsTeamId($tenant->id);
-        $role = Role::findOrCreate('Vendedor', 'web');
-        $role->syncPermissions(BasePermissions::ROLE_PERMISSIONS['Vendedor']);
+        $roleName = ucfirst($role);
+        $role = Role::findOrCreate($roleName, 'web');
+        $role->syncPermissions(BasePermissions::ROLE_PERMISSIONS[$roleName]);
         $user->syncRoles([$role]);
 
         $branch = Branch::query()->updateOrCreate(
@@ -144,6 +164,28 @@ class SeedStressLabCommand extends Command
                 'status' => Warehouse::STATUS_ACTIVE,
             ]
         );
+
+        if ($warehouses >= 2) {
+            Warehouse::query()->updateOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => "LAB-{$suffix}-02"],
+                [
+                    'branch_id' => $branch->id,
+                    'name' => "Almacen laboratorio {$suffix} 2",
+                    'status' => Warehouse::STATUS_ACTIVE,
+                ]
+            );
+        }
+
+        if ($withSupplier) {
+            Supplier::query()->updateOrCreate(
+                ['tenant_id' => $tenant->id, 'document_number' => "LAB-SUP-{$suffix}"],
+                [
+                    'name' => "Proveedor laboratorio {$suffix}",
+                    'document_type' => Supplier::DOCUMENT_J,
+                    'is_active' => true,
+                ]
+            );
+        }
 
         $cashRegister = CashRegister::query()->updateOrCreate(
             ['tenant_id' => $tenant->id, 'code' => "LAB-{$suffix}-POS"],

@@ -80,19 +80,19 @@ INVENTARIOARENS/
 ├── app/
 │   ├── Http/Controllers/Controller.php   ← SOLO base. El resto de controllers vive en módulos.
 │   ├── Models/User.php                   ← ÚNICO model fuera de módulos.
-│   ├── Modules/                          ← 35 módulos con MVC propio cada uno.
+│   ├── Modules/                          ← 40 módulos con MVC propio cada uno.
 │   ├── Providers/                        ← AppServiceProvider.
 │   └── Support/
 │       ├── Permissions/BasePermissions.php          ← Catálogo de 102 permisos + 6 roles.
 │       ├── Performance/PerformanceProbe.php          ← Métricas PERF OK/LENTO BACKEND.
-│       └── Tenancy/                                   ← TenantManager, TenantScope, BelongsToTenant trait.
+│       ├── Tenancy/                                   ← TenantManager, TenantScope, BelongsToTenant trait.
+│       └── Lab/LabDayService.php                     ← Ciclo real de negocio del lab:day (ver docs/LAB_DAY_SIMULADO.md).
 ├── bootstrap/
 │   ├── app.php                            ← Middleware aliases 'api.auth' + 'tenant', comandos.
 │   └── providers.php
 ├── config/                                ← app, auth, cache, database, filesystems, queue, session, services.
 ├── database/
-│   ├── migrations/                        ← 72+ migraciones (cronología 2026-07-02 → hoy).
-│   ├── seeders/{DatabaseSeeder,RolesAndPermissionsSeeder,DemoDataSeeder,MultiCompanyLoginDemoSeeder}.php
+│   ├── migrations/                        ← 72+ migraciones (cronología 2026-07-02 → hoy).│   ├── seeders/{DatabaseSeeder,RolesAndPermissionsSeeder,DemoDataSeeder,MultiCompanyLoginDemoSeeder}.php
 │   └── factories/UserFactory.php
 ├── docs/                                  ← ~45 .md de diseño, implementación, auditoría e historia.
 ├── frontend/                             ← SPA React + TS + TanStack + Tailwind + dos clientes Electron.
@@ -680,6 +680,25 @@ existente, confirmar primero con el usuario (afecta a otros productos).
 - `docs/INSTRUCCIONES_FRONTEND_SAAS_MASTER.md` — contrato API para `/api/master/*`.
 - `docs/INSTRUCCIONES_FRONTEND_PERMISSIONS.md` — 3 niveles de permisos.
 - `docs/INSTRUCCIONES_FRONTEND_SCOPES.md` — scopes por recurso.
+
+**Telegram / Configuración por empresa**:
+- `docs/TELEGRAM_BOT_MODULE.md` — bot de administración por empresa: webhook, lista blanca
+  (`telegram_bot_users`), resumen diario, alertas de stock, `tenant_settings` y
+  `GET/PATCH /api/tenant-settings`. Bot real `miinentariofaciladmin_bot` (token en `.env` del VPS).
+
+**Laboratorios / testing automatizado**:
+- `docs/LAB_DAY_SIMULADO.md` — día simulado: `php artisan lab:day` + `scripts/run-day-lab.ps1`
+  ejecutan un ciclo real de negocio (login → POS → devolución → compra → traslado) contra local o
+  VPS con datos desechables, junto a k6 (`run-stress-lab.ps1`), sync-e2e y Playwright.
+
+**Impresión de tickets**:
+- Módulo `Printing` (`app/Modules/Printing/`): perfiles 58/80mm, estaciones, jobs con snapshot.
+  Agente local `php artisan printer:serve` en `127.0.0.1:17777` → driver Windows (`Out-Printer`)
+  / Linux (`lpr`) o impresora de red TCP 9100 con ESC/POS (corte GS V, gaveta ESC p). Panel en
+  `/printing` del frontend. Detalle en `docs/MODULES.md` y `docs/GRAPHIFY_CONTEXT_MAP.md`.
+- Prueba fisica con impresora real: `docs/GUIA_PRUEBA_IMPRESORA_REAL.md`.
+- Consola `/support` controla el agente: `POST /api/local-support/printer/{action,test}`
+  (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).
 
 **Auditoría backend 2026-07-11**:
 - `docs/AUDIT_2026-07-11/00_RESUMEN_EJECUTIVO.md`

@@ -141,6 +141,78 @@ class TestPrinterServer(unittest.TestCase):
         finally:
             self._wait(proc)
 
+    def test_print_thermal_network_sends_escp_to_tcp(self):
+        """Modo red: el agente conecta a la impresora TCP y envia ESC/POS."""
+        import socket as _socket
+
+        # Servidor TCP dummy (impresora simulada en 127.0.0.1:0).
+        listener = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(8)
+        printer_host, printer_port = listener.getsockname()
+
+        agent_proc, agent_port = self._run_server(max_requests=2)
+        received = b""
+        try:
+            status, data, _ = self._http(agent_port, "POST", "/print", {
+                "job_id": "t-net",
+                "output": "thermal",
+                "station": {
+                    "printer_type": "network",
+                    "network_host": printer_host,
+                    "network_port": printer_port,
+                },
+                "payload": {
+                    "profile": {"cut_paper": True, "open_cash_drawer": True},
+                    "tenant": {"name": "Test"},
+                    "pos_order": {"id": 1, "customer_name": "Cli"},
+                    "totals": {"total_base_amount": 10.0, "paid_base_amount": 10.0},
+                    "items": [{"product_name": "Prod", "quantity": 1, "unit_price": 10.0, "total": 10.0, "serials": []}],
+                },
+            })
+            conn, _ = listener.accept()
+            conn.settimeout(5)
+            while True:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                received += chunk
+                if b"\x1d\x56\x00" in received:
+                    break
+            conn.close()
+
+            self.assertEqual(status, 200)
+            self.assertTrue(data.get("ok"), data)
+            self.assertEqual(data.get("status"), "printed")
+            # ESC p (gaveta) al inicio.
+            self.assertTrue(received.startswith(b"\x1bp\x00\x19\xfa") or received.startswith(b"\x1b\x70\x00\x19\xfa"))
+            self.assertIn(b"Ticket POS #1", received)
+            # GS V 0 (corte) al final.
+            self.assertTrue(received.endswith(b"\x1d\x56\x00"))
+        finally:
+            listener.close()
+            self._wait(agent_proc)
+
+    def test_print_thermal_network_connection_refused(self):
+        """Modo red con destino inalcanzable: ok=false con mensaje de conexion."""
+        proc, port = self._run_server(max_requests=2)
+        try:
+            status, data, _ = self._http(port, "POST", "/print", {
+                "job_id": "t-net-err",
+                "output": "thermal",
+                "station": {
+                    "printer_type": "network",
+                    "network_host": "127.0.0.1",
+                    "network_port": 1,
+                },
+                "payload": {"profile": {}, "tenant": {"name": "x"}, "pos_order": {"id": 1}},
+            })
+            self.assertEqual(status, 200)
+            self.assertFalse(data.get("ok"))
+        finally:
+            self._wait(proc)
+
     def test_options_returns_204(self):
         proc, port = self._run_server(max_requests=2)
         try:

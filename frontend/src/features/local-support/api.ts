@@ -151,3 +151,34 @@ export function useLocalRetryFailed() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
   });
 }
+
+export interface LocalPrinterActionResult {
+  output: string;
+  status: LocalPrinterStatus;
+}
+
+export function useLocalPrinterAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: 'install' | 'start' | 'stop' | 'restart') =>
+      postOne<{ action: string }, LocalPrinterActionResult>(
+        '/local-support/printer/action',
+        { action },
+        { timeout: 45_000 },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
+  });
+}
+
+export function useLocalPrinterTest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      postOne<undefined, { ok: boolean; message: string; status: LocalPrinterStatus }>(
+        '/local-support/printer/test',
+        undefined,
+        { timeout: 45_000 },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
+  });
+}

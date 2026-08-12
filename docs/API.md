@@ -4999,6 +4999,91 @@ Reglas:
 - es solo lectura;
 - la pantalla web usa este endpoint al presionar `Ver` en una orden.
 
+## Configuracion por empresa (tenant-settings)
+
+Archivo de rutas:
+
+```txt
+app/Modules/Tenancy/routes.php
+```
+
+Controller:
+
+```txt
+App\Modules\Tenancy\Controllers\TenantSettingController
+```
+
+Configuracion por tenant en `tenant_settings` (una fila por tenant, JSON de secciones). La
+seccion `telegram` incluye la lista blanca del bot de Telegram. Docs: `docs/TELEGRAM_BOT_MODULE.md`.
+
+### Ver configuracion
+
+```txt
+GET /api/tenant-settings
+```
+
+Permiso requerido:
+
+```txt
+pertenecer al tenant (user autenticado activo en la empresa)
+```
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "tenant_id": 2,
+    "settings": {
+      "telegram": {
+        "whitelist": [
+          { "id": 1, "name": "Gabo (Master)", "telegram_id": "7951437965" }
+        ]
+      }
+    }
+  }
+}
+```
+
+La whitelist del response se fusiona desde la tabla `telegram_bot_users`.
+
+### Actualizar configuracion
+
+```txt
+PATCH /api/tenant-settings
+```
+
+Permiso requerido:
+
+```txt
+Owner o Administrador del tenant (403 si el user no es miembro activo)
+```
+
+Body:
+
+```json
+{
+  "settings": {
+    "telegram": {
+      "enabled": true,
+      "report_time": "21:00",
+      "low_stock_alerts": true,
+      "low_stock_frequency": "4h",
+      "low_stock_threshold": 5,
+      "whitelist": [
+        { "name": "Gabo (Master)", "telegram_id": "7951437965" }
+      ]
+    }
+  }
+}
+```
+
+Reglas:
+
+- hace merge por seccion: actualizar `telegram` preserva las demas secciones;
+- `whitelist` sincroniza `telegram_bot_users` (delete + insert): la lista enviada es la completa;
+- si se omite un `telegram_id` que estaba en la lista, ese chat pierde acceso.
+
 ## Respuestas y errores comunes
 
 ### Sin autenticacion

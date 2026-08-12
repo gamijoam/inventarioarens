@@ -6,6 +6,7 @@ use App\Modules\Printing\Models\PrinterStation;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StorePrinterStationRequest extends FormRequest
 {
@@ -33,5 +34,12 @@ class StorePrinterStationRequest extends FormRequest
             'save_html_copy' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->sometimes('network_host', 'required|string|max:255', fn ($input): bool => ($input->printer_type ?? null) === PrinterStation::PRINTER_NETWORK);
+        $validator->sometimes('network_port', 'required|integer|min:1|max:65535', fn ($input): bool => ($input->printer_type ?? null) === PrinterStation::PRINTER_NETWORK);
+        $validator->sometimes('printer_name', 'required|string|max:255', fn ($input): bool => ($input->printer_type ?? null) === PrinterStation::PRINTER_WINDOWS && in_array($input->output_mode ?? null, [PrinterStation::OUTPUT_THERMAL, PrinterStation::OUTPUT_BOTH], true));
     }
 }

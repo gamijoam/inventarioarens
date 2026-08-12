@@ -94,6 +94,7 @@ describe('<Sidebar>', () => {
       'Metodos de pago',
       'Importar datos',
       'Acceso',
+      'Configuración',
     ]);
   });
 

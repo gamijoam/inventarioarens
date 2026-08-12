@@ -1,5 +1,81 @@
 # Registro de implementación
 
+## 2026-08-12 - Laboratorio de dia simulado (lab:day)
+
+### Contexto
+Se creo un runner que ejecuta un **ciclo real de negocio** contra la API (local o VPS) con datos
+desechables, para probar la app en situacion real y de forma automatizable. Docs:
+`docs/LAB_DAY_SIMULADO.md`.
+
+### Backend
+- **Comando `lab:day`** (`app/Console/Commands/LabDayCommand.php`): prepara `--tenants` empresas
+  desechables `{prefix}-XX` y ejecuta por cada una: login -> bootstrap POS -> ventas POS
+  (`--sales`, con Idempotency-Key) -> devolucion (approve+process) -> compra+receive ->
+  traslado logistico (prepare/dispatch/receive). Genera reporte JSON en
+  `storage/app/lab-reports/<fecha>/`.
+- **`LabDayService`** (`app/Support/Lab/LabDayService.php`): el ciclo HTTP completo, con manejo
+  de errores por fase y reporte.
+- **`stress:seed` extendido** (compatible hacia atras): `--role=vendedor|gerente` (default
+  vendedor), `--warehouses=1-2` (default 1), `--supplier`. El lab usa rol Gerente + 2 almacenes +
+  proveedor, porque Vendedor no puede compras/traslados/devoluciones.
+- Guardas: requiere `--force`; en `APP_ENV=production` exige `--allow-production`; password
+  minimo 12; prefijo validado; tenants 3-5.
+
+### Frontend
+- Ninguno (backend API + lab por HTTP).
+
+### Verificacion / deploy
+- `tests/Feature/Console/LabDaySeedTest.php` (5 tests: guardas + preparacion rol Gerente +
+  2 almacenes + proveedor + caja + dry-run).
+- `tests/Feature/Console/LabDayServiceTest.php` (3 tests: ciclo completo con `Http::fake()`,
+  login fallido, bootstrap sin sesion).
+- Suite del modulo 8/8 verde; Pint aplicado.
+
+## 2026-08-11 - Bot de Telegram por empresa + configuracion por tenant (tenant_settings)
+
+### Contexto
+Se integro un bot de administracion de Telegram para que cada empresa reciba resumen diario
+y alertas de stock bajo. Docs: `docs/TELEGRAM_BOT_MODULE.md`.
+
+### Backend
+- **Tabla `tenant_settings`** (`2026_08_12_100000_create_tenant_settings_table.php`): una fila por
+  tenant, JSON de secciones. Se crea automaticamente al registrar la empresa o spinoff
+  (hook `created` en `Tenant.php`). Acceso tipado `get()`/`set()` en `TenantSetting`.
+- **Tabla `telegram_bot_users`** (`2026_08_12_110000_create_telegram_bot_users_table.php`): lista
+  blanca, vincula `telegram_chat_id` a `user_id` dentro de un tenant.
+- **`GET/PATCH /api/tenant-settings`** (`TenantSettingController`): leer/actualizar secciones por
+  empresa. `PATCH` valida Owner/Admin y **sincroniza la whitelist de Telegram** (delete + insert:
+  la lista enviada es la completa). La whitelist del GET se fusiona desde la tabla vía
+  `mergeWhitelistInto()`.
+- **Modulo `TelegramBot`**: `TelegramApiService` (Bot API via Http, sin dependencias),
+  `TelegramBotService` (resuelve chat de la lista blanca, visibilidad segun rol: Platform admin =
+  todas, Owner de grupo = grupo+hijas, Admin = solo su empresa), `TelegramReportService`
+  (reusa `DashboardSummaryService`), webhook publico `POST /telegram/webhook` validado por
+  `X-Telegram-Bot-Api-Secret-Token`, handlers `/start` `/ayuda` `/resumen` `/resumen empresa:<x>`
+  `/todas`, comandos `telegram:link` y `telegram:alerts`, schedule horario.
+- **CSRF**: `telegram/webhook` excluido de `validateCsrfTokens` (Telegram no envia token CSRF).
+- **Mejora UX**: `/start` de un chat no listado responde con su `chat_id` para que se lo pase
+  al admin y lo agregue a la lista; el resto de comandos se ignoran en silencio.
+
+### Frontend
+- Seccion `Configuracion` -> `Telegram` en el Sidebar.
+- `TelegramSettingsPanel.tsx`: activar bot, hora de resumen, alertas de stock bajo con frecuencia,
+  lista blanca editable y boton Guardar (`PATCH /api/tenant-settings`).
+- Ruta `_authed/settings/telegram.tsx`.
+
+### Verificacion / deploy
+- Suite TelegramBot 16/16 + Tenancy 104/104 verde; Pint y tsc limpios.
+- Desplegado en `a9d543fa` (backend + frontend + migraciones + cron `schedule:run` verificado).
+- Bot vinculado: `telegram:link oscar-cell gabo@gabo.com 7951437965 --name='Gabo (Master)'`.
+- Webhook registrado en `https://app.miinventariofacil.com/telegram/webhook`.
+
+### Nota operativa (bug detectado en pruebas 2026-08-11)
+Al probar el flujo del panel en el VPS se confirmo que el backend responde correctamente a
+`PATCH /api/tenant-settings` (con `whitelist: []` devuelve 200 y deja `telegram_bot_users` vacia).
+Si el usuario elimina su ID en el panel pero **no presiona "Guardar configuracion"**, el cambio
+no llega al backend (en el log de Laravel solo aparecen GETs de `api/tenant-settings`). El panel
+edita estado local y solo persiste con el boton Guardar.
+
 ## 2026-08-11 - Fix: timestamps en inserts del applier + schemas Zod defensivos + colisión de nº de compra
 
 ### Incidencia 1: crear borrador de compra daba "Error de servidor" (500)

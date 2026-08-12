@@ -71,4 +71,23 @@ class LocalTechnicalConsoleController extends Controller
             'data' => $this->console->retryFailed(Str::slug($tenant)),
         ]);
     }
+
+    public function printerAction(Request $request): JsonResponse
+    {
+        $this->console->assertAvailable((string) $request->ip());
+        $data = $request->validate(['action' => ['required', 'string', 'in:install,start,stop,restart']]);
+
+        return response()->json([
+            'data' => $this->console->printerAction($data['action']),
+        ]);
+    }
+
+    public function printerTest(Request $request): JsonResponse
+    {
+        $this->console->assertAvailable((string) $request->ip());
+
+        return response()->json([
+            'data' => $this->console->printerTest(),
+        ]);
+    }
 }

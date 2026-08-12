@@ -233,6 +233,30 @@ powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 images retry-faile
 powershell -ExecutionPolicy Bypass -File .\inventoryarens.ps1 images emit --tenant demo-caracas --product-sku COCOSETE-3
 ```
 
+## Agente de impresion en la consola tecnica (/support)
+
+El Centro Tecnico Local (`/support`) permite instalar, iniciar y probar el agente de impresion
+desde la UI, ademas del health check pasivo. Solo responde desde `127.0.0.1` y cuando
+`LOCAL_TECHNICAL_CONSOLE_ENABLED=true`.
+
+```txt
+GET  /api/local-support/status                     estado global (incluye printer.available)
+POST /api/local-support/printer/test               health check del agente en :17777
+POST /api/local-support/printer/action             body: {action: install|start|stop|restart}
+```
+
+- **Windows**: `install` crea el lanzador `storage/app/printer-agent/printer-agent.cmd` y la tarea
+  `InventarioArensPrinterAgent` (schtasks). `start`/`restart` ejecutan la tarea.
+- **Linux**: delega en `systemctl --user` del servicio `inventoryarens-printer`.
+- El cliente Electron tambien arranca el agente automaticamente junto con la API local
+  (`backend-runtime.cjs` -> `printer:serve`), asi que en una PC nueva normalmente no hay que
+  instalar nada.
+
+El agente soporta dos modos de impresion configurados en `/printing`:
+- **Impresora Windows (driver)**: envia texto plano por `Out-Printer` (nombres con espacios OK).
+- **Impresora de red (TCP 9100)**: envia ESC/POS raw, con corte de papel (GS V) y apertura de
+  gaveta (ESC p) segun las flags del perfil.
+
 Los comandos de reintento no borran datos. Solo cambian eventos fallidos de `sync_inbox` a `received`,
 limpian el error anterior y ejecutan el aplicador normal.
 

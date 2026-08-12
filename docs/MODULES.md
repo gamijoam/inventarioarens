@@ -154,11 +154,14 @@ Responsabilidad:
 - resolver el tenant actual;
 - mantener el tenant actual durante la peticion;
 - definir el modelo `Tenant`;
-- registrar servicios de tenancy.
+- registrar servicios de tenancy;
+- configuracion por empresa (`tenant_settings`) con `GET/PATCH /api/tenant-settings`.
 
 Archivos principales:
 
 - `app/Modules/Tenancy/Models/Tenant.php`
+- `app/Modules/Tenancy/Models/TenantSetting.php`
+- `app/Modules/Tenancy/Controllers/TenantSettingController.php`
 - `app/Modules/Tenancy/Middleware/ResolveTenant.php`
 - `app/Modules/Tenancy/Providers/TenancyServiceProvider.php`
 
@@ -442,6 +445,37 @@ Regla importante:
 - la eliminacion API desactiva al proveedor con `is_active = false`;
 - el portal administrativo permite buscar por nombre, documento, telefono o correo;
 - el portal administrativo permite crear, editar, desactivar y reactivar proveedores sin borrar historicos.
+
+### Printing
+
+Responsabilidad:
+
+- perfiles de ticket POS (58/80mm, flags de visibilidad por seccion);
+- estaciones de impresion (caja/sucursal -> salida termica, digital o ambas);
+- cola de trabajos de impresion con snapshot del ticket al pagar;
+- render HTML y PDF del ticket (dompdf, ancho 58/80mm);
+- agente local `printer:serve` en `127.0.0.1:17777` que envia a impresora
+  fisica: driver Windows (PowerShell `Out-Printer`) o Linux (lpr/lp), o
+  impresora de red por TCP 9100 con comandos ESC/POS (corte de papel GS V,
+  apertura de gaveta ESC p).
+
+Archivos principales:
+
+- `app/Modules/Printing/Models/{PrintProfile,PrinterStation,PrintJob}.php`
+- `app/Modules/Printing/Controllers/{PrintProfileController,PrinterStationController,PrintJobController}.php`
+- `app/Modules/Printing/Services/{PosTicketPrintService,ThermalPrinterService,PrinterServer}.php`
+- `app/Modules/Printing/Requests/*.php`
+- `app/Modules/Printing/Resources/*.php`
+- `app/Console/Commands/PrinterServeCommand.php`
+- `resources/views/printing/pos-ticket.blade.php`
+- `frontend/src/features/printing/{PrintingManager.tsx,api.ts}`
+
+Regla importante:
+
+- el snapshot se toma al pagar (solo ordenes `paid`);
+- las flags `show_*` del perfil controlan que secciones salen en el ticket;
+- el agente local es por estacion y se prueba desde `/printing` (Probar termica/digital);
+- modo red requiere `printer_type=network` + `network_host` + `network_port` (TCP 9100).
 
 ### Purchases
 
@@ -1107,6 +1141,38 @@ Regla importante:
 - resolver con `refund` puede crear salida de caja o ajuste contra saldo pendiente;
 - un reembolso por garantia no puede aplicar caja y rebaja de saldo en la misma accion;
 - las acciones de recibir, revisar y entregar se auditan en `audit_logs`.
+
+### TelegramBot
+
+Responsabilidad:
+
+- bot de administracion por empresa via Telegram;
+- lista blanca (`telegram_bot_users`) que vincula `telegram_chat_id` a `user_id` por tenant;
+- webhook publico `POST /telegram/webhook` autenticado por `X-Telegram-Bot-Api-Secret-Token`;
+- visibilidad segun rol del user vinculado (Platform admin = todas, Owner = grupo + hijas,
+  Admin = solo su empresa);
+- resumen diario y alertas de stock bajo por Telegram;
+- panel de configuracion en el frontend (Configuracion -> Telegram).
+
+Archivos principales:
+
+- `app/Modules/TelegramBot/Services/TelegramApiService.php`
+- `app/Modules/TelegramBot/Services/TelegramBotService.php`
+- `app/Modules/TelegramBot/Services/TelegramReportService.php`
+- `app/Modules/TelegramBot/Controllers/TelegramWebhookController.php`
+- `app/Modules/TelegramBot/Handlers/{Handler,StartHandler,HelpHandler,ResumenHandler,TodasHandler}.php`
+- `app/Modules/TelegramBot/Models/TelegramBotUser.php`
+- `app/Modules/TelegramBot/Console/{TelegramLinkCommand,TelegramAlertsCommand}.php`
+- `frontend/src/features/telegram-settings/TelegramSettingsPanel.tsx`
+- `frontend/src/features/telegram-settings/api.ts`
+
+Regla importante:
+
+- un chat fuera de la lista blanca se ignora en silencio (solo `/start` responde su `chat_id`);
+- la configuracion por empresa vive en `tenant_settings` y se expone via `GET/PATCH /api/tenant-settings`;
+- la whitelist se sincroniza delete+insert desde el panel: la lista enviada es la completa.
+
+Documentacion: `docs/TELEGRAM_BOT_MODULE.md`.
 
 ### Audit
 

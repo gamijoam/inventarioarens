@@ -212,6 +212,79 @@ class PrintingApiTest extends TestCase
             ->assertJsonPath('data.digital_directory', 'Desktop\\TicketsDemo');
     }
 
+    public function test_network_station_requires_host_and_port(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage']);
+        $profile = $this->profile($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/printing/stations', [
+                'print_profile_id' => $profile->id,
+                'name' => 'Red',
+                'code' => 'RED-01',
+                'output_mode' => PrinterStation::OUTPUT_THERMAL,
+                'printer_type' => PrinterStation::PRINTER_NETWORK,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['network_host', 'network_port']);
+    }
+
+    public function test_network_station_can_be_created_with_host(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage']);
+        $profile = $this->profile($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/printing/stations', [
+                'print_profile_id' => $profile->id,
+                'name' => 'Termica Red',
+                'code' => 'RED-02',
+                'output_mode' => PrinterStation::OUTPUT_THERMAL,
+                'printer_type' => PrinterStation::PRINTER_NETWORK,
+                'network_host' => '192.168.1.50',
+                'network_port' => 9100,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.printer_type', PrinterStation::PRINTER_NETWORK)
+            ->assertJsonPath('data.network_host', '192.168.1.50')
+            ->assertJsonPath('data.network_port', 9100);
+    }
+
+    public function test_windows_thermal_station_requires_printer_name(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Administrador', ['printing.view', 'printing.manage']);
+        $profile = $this->profile($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/printing/stations', [
+                'print_profile_id' => $profile->id,
+                'name' => 'Termica',
+                'code' => 'TERM-01',
+                'output_mode' => PrinterStation::OUTPUT_THERMAL,
+                'printer_type' => PrinterStation::PRINTER_WINDOWS,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['printer_name']);
+    }
+
     public function test_printing_resources_do_not_cross_tenants(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

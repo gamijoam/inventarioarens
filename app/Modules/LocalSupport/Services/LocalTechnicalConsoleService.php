@@ -502,6 +502,186 @@ class LocalTechnicalConsoleService
         }
     }
 
+    /**
+     * Instala/inicia/detiene/reinicia el agente de impresion local.
+     *
+     * - Windows: crea un lanzador .cmd y una tarea de Windows una sola vez.
+     * - Linux: usa systemctl --user del servicio inventoryarens-printer.
+     */
+    public function printerAction(string $action): array
+    {
+        if (! in_array($action, ['install', 'start', 'stop', 'restart'], true)) {
+            throw ValidationException::withMessages([
+                'printer' => 'Accion de agente invalida.',
+            ]);
+        }
+
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return $this->printerActionLinux($action);
+        }
+
+        $output = [];
+        if (in_array($action, ['stop', 'restart'], true)) {
+            $output[] = $this->stopWindowsPrinter();
+        }
+
+        if (in_array($action, ['install', 'start', 'restart'], true)) {
+            $output[] = $this->installWindowsPrinterTask();
+            $output[] = $this->runWindowsPrinterTask();
+        }
+
+        return [
+            'output' => trim(implode("\n", $output)),
+            'status' => $this->printerStatus(),
+        ];
+    }
+
+    public function printerTest(): array
+    {
+        try {
+            $response = Http::acceptJson()->timeout(5)->get('http://127.0.0.1:17777/health');
+
+            if ($response->successful()) {
+                return [
+                    'ok' => true,
+                    'message' => 'El agente responde en http://127.0.0.1:17777.',
+                    'status' => $this->printerStatus(),
+                ];
+            }
+
+            return [
+                'ok' => false,
+                'message' => 'El agente respondio con error HTTP '.$response->status().'.',
+                'status' => $this->printerStatus(),
+            ];
+        } catch (ConnectionException) {
+            return [
+                'ok' => false,
+                'message' => 'El agente no responde. Ejecuta "Instalar agente" primero.',
+                'status' => $this->printerStatus(),
+            ];
+        }
+    }
+
+    private function printerActionLinux(string $action): array
+    {
+        $unit = 'inventoryarens-printer.service';
+        $sub = ['start' => 'start', 'stop' => 'stop', 'restart' => 'restart'];
+        $systemAction = $action === 'install' ? 'start' : ($sub[$action] ?? 'start');
+
+        $process = new Process(['systemctl', '--user', $systemAction, $unit]);
+        $process->setTimeout(15);
+        $process->run();
+        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+
+        if (! $process->isSuccessful()) {
+            throw ValidationException::withMessages([
+                'printer' => $output !== '' ? $output : 'No se pudo '.$action.' el agente de impresion.',
+            ]);
+        }
+
+        return [
+            'output' => 'Agente de impresion '.$action.' (systemd).',
+            'status' => $this->printerStatus(),
+        ];
+    }
+
+    private function installWindowsPrinterTask(): string
+    {
+        $stateDirectory = storage_path('app/printer-agent');
+        $launcher = $stateDirectory.'/printer-agent.cmd';
+        $content = $this->printerLauncherContent();
+
+        File::ensureDirectoryExists($stateDirectory);
+        File::put($launcher, $content);
+
+        $taskName = 'InventarioArensPrinterAgent';
+        $taskCommand = sprintf(
+            'cmd.exe /c ""%s""',
+            $this->shortWindowsPath($launcher),
+        );
+        $process = new Process([
+            $this->windowsExecutable('schtasks.exe'),
+            '/Create',
+            '/TN', $taskName,
+            '/TR', $taskCommand,
+            '/SC', 'ONCE',
+            '/ST', '00:00',
+            '/F',
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            return 'Agente de impresion instalado como tarea de Windows.';
+        }
+
+        throw ValidationException::withMessages([
+            'printer' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar la tarea del agente de impresion.',
+        ]);
+    }
+
+    protected function printerLauncherContent(): string
+    {
+        $phpBinary = PHP_BINARY;
+        $storageRoot = rtrim((string) storage_path(), '\\/');
+        $databasePath = (string) config('database.connections.sqlite.database');
+        $scanDirectory = dirname(storage_path()).'/php-cert-scan';
+
+        $lines = [
+            '@echo off',
+            'cd /d "'.base_path().'"',
+            'set "LARAVEL_STORAGE_PATH='.$storageRoot.'"',
+            'set "DB_DATABASE='.str_replace('/', '\\', $databasePath).'"',
+        ];
+        if (is_dir($scanDirectory)) {
+            $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
+        }
+        $lines[] = '"'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1';
+
+        return implode("\r\n", $lines)."\r\n";
+    }
+
+    private function runWindowsPrinterTask(): string
+    {
+        $taskName = 'InventarioArensPrinterAgent';
+        $process = new Process([
+            $this->windowsExecutable('schtasks.exe'),
+            '/Run',
+            '/TN', $taskName,
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+
+        if (! $process->isSuccessful()) {
+            throw ValidationException::withMessages([
+                'printer' => $output !== '' ? $output : 'No se pudo iniciar la tarea del agente de impresion.',
+            ]);
+        }
+
+        return 'Agente de impresion iniciado mediante la tarea de Windows.';
+    }
+
+    private function stopWindowsPrinter(): string
+    {
+        $pidPath = storage_path('app/printer-agent/printer-agent.pid');
+        $pid = is_file($pidPath) ? (int) trim((string) file_get_contents($pidPath)) : 0;
+
+        $process = new Process([
+            $this->windowsExecutable('taskkill.exe'),
+            '/F',
+            '/IM', 'php.exe',
+            '/FI', 'WINDOWTITLE eq invt-printer-*',
+        ]);
+        $process->setTimeout(15);
+        $process->run();
+
+        return $pid > 0
+            ? 'Agente de impresion detenido (pid '.$pid.').'
+            : 'No se encontro un agente de impresion activo (se intento cerrar).';
+    }
+
     private function runArtisan(string $command, array $parameters = [], bool $throwOnFailure = true): string
     {
         $exitCode = Artisan::call($command, $parameters);

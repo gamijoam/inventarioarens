@@ -24,6 +24,8 @@ import { formatDateTime } from '@/lib/format';
 import {
   type LocalTenantStatus,
   useConnectLocalTenant,
+  useLocalPrinterAction,
+  useLocalPrinterTest,
   useLocalSupportStatus,
   useLocalTenantSync,
   useLocalRetryFailed,
@@ -260,6 +262,8 @@ function InstallationCard({
   };
 }) {
   const serverMode = useLocalServerMode();
+  const printerAction = useLocalPrinterAction();
+  const printerTest = useLocalPrinterTest();
 
   async function toggleLan(): Promise<void> {
     try {
@@ -267,6 +271,28 @@ function InstallationCard({
       toast.success('Modo LAN guardado. Reinicia los clientes Electron para aplicar el cambio.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el modo LAN.');
+    }
+  }
+
+  async function runPrinterAction(action: 'install' | 'start' | 'stop' | 'restart'): Promise<void> {
+    try {
+      const result = await printerAction.mutateAsync(action);
+      toast.success(result.output || 'Accion completada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo controlar el agente.');
+    }
+  }
+
+  async function testPrinter(): Promise<void> {
+    try {
+      const result = await printerTest.mutateAsync();
+      if (result.ok) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo probar el agente.');
     }
   }
 
@@ -309,17 +335,49 @@ function InstallationCard({
             {lan?.enabled ? 'Desactivar modo LAN' : 'Activar modo LAN'}
           </Button>
         </div>
-        <div className="border-border flex items-center justify-between gap-3 rounded border p-3">
-          <div className="flex items-center gap-2">
-            <Printer className="text-text-muted size-4" />
-            <div>
-              <p className="text-text-muted text-xs">Agente de impresion</p>
-              <p className="text-sm font-medium">{printer?.message ?? 'Sin comprobar'}</p>
+        <div className="border-border rounded border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Printer className="text-text-muted size-4" />
+              <div>
+                <p className="text-text-muted text-xs">Agente de impresion</p>
+                <p className="text-sm font-medium">{printer?.message ?? 'Sin comprobar'}</p>
+              </div>
             </div>
+            <Badge variant={printer?.available ? 'success' : 'warning'}>
+              {printer?.available ? 'Conectado' : 'Detenido'}
+            </Badge>
           </div>
-          <Badge variant={printer?.available ? 'success' : 'warning'}>
-            {printer?.available ? 'Conectado' : 'Detenido'}
-          </Badge>
+          <p className="text-text-muted mt-2 text-xs">
+            Permite imprimir tickets en la impresora termica de esta computadora (sirve en
+            127.0.0.1:17777).
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => void runPrinterAction('install')}
+              disabled={printerAction.isPending}
+            >
+              <Wrench className="size-3.5" /> Instalar agente
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void runPrinterAction(printer?.available ? 'restart' : 'start')}
+              disabled={printerAction.isPending}
+            >
+              <RefreshCw className="size-3.5" />
+              {printer?.available ? 'Reiniciar' : 'Iniciar'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void testPrinter()}
+              disabled={printerTest.isPending}
+            >
+              <Activity className="size-3.5" /> Probar agente
+            </Button>
+          </div>
         </div>
         <div className="border-primary/20 bg-primary/5 text-text-muted rounded border p-3 text-xs">
           Los tokens quedan protegidos en la configuracion local y nunca se muestran en esta

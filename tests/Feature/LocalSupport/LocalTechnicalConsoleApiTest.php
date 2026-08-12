@@ -98,6 +98,10 @@ class LocalTechnicalConsoleApiTest extends TestCase
 
     public function test_connect_does_not_try_to_install_a_windows_worker_on_linux(): void
     {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Este test valida el comportamiento en Linux (CI); en Windows el worker reporta available=true.');
+        }
+
         config()->set('services.local_support.enabled', true);
         config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
         Http::fake([
@@ -169,6 +173,63 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertSame('group-token', $settings['tenants']['grupo']['token']);
         $this->assertSame('child-token', $settings['tenants']['hija']['token']);
         $this->assertSame(2, $settings['tenants']['hija']['remote_parent_id']);
+    }
+
+    public function test_printer_test_reports_agent_unreachable_until_installed(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        Http::fake([
+            'http://127.0.0.1:17777/*' => function () {
+                throw new ConnectionException('Connection refused');
+            },
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/printer/test')
+            ->assertOk()
+            ->assertJsonPath('data.ok', false)
+            ->assertJsonPath('data.status.available', false);
+    }
+
+    public function test_printer_test_reports_agent_healthy_when_responding(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        Http::fake([
+            'http://127.0.0.1:17777/health' => Http::response(['ok' => true, 'service' => 'inventarioarens-printer-agent'], 200),
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/printer/test')
+            ->assertOk()
+            ->assertJsonPath('data.ok', true)
+            ->assertJsonPath('data.status.available', true);
+    }
+
+    public function test_printer_action_rejects_invalid_action(): void
+    {
+        config()->set('services.local_support.enabled', true);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/printer/action', ['action' => 'explode'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['action']);
+    }
+
+    public function test_printer_launcher_bundles_storage_php_and_printer_serve(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        $method = new \ReflectionMethod($service, 'printerLauncherContent');
+        $method->setAccessible(true);
+        $content = $method->invoke($service);
+
+        $this->assertStringContainsString('cd /d ', $content);
+        $this->assertStringContainsString('LARAVEL_STORAGE_PATH=', $content);
+        $this->assertStringContainsString('DB_DATABASE=', $content);
+        $this->assertStringContainsString('printer:serve --port=17777 --bind=127.0.0.1', $content);
+        $this->assertStringContainsString(PHP_BINARY, $content);
+        $this->assertStringContainsString(storage_path(), $content);
     }
 
     public function test_worker_launcher_bundles_storage_php_and_tls_scan_dir(): void

@@ -35,7 +35,27 @@ Las acciones son idempotentes: repetirlas no debe duplicar eventos porque la sin
 
 ## Impresion
 
-La tarjeta de instalacion muestra si el agente local responde en `127.0.0.1:17777`. Si aparece detenido, iniciar el agente con el instalador/herramienta local correspondiente y actualizar la consola. El agente no controla el estado de caja ni el worker; son servicios independientes.
+La tarjeta de instalacion muestra si el agente local responde en `127.0.0.1:17777` y permite
+controlarlo desde la consola:
+
+- **Instalar agente**: crea el lanzador y la tarea de Windows (`InventarioArensPrinterAgent`) o
+  activa el servicio systemd (`inventoryarens-printer`) en Linux.
+- **Iniciar / Reiniciar**: arranca o reinicia el agente `printer:serve`.
+- **Probar agente**: verifica el health check en `http://127.0.0.1:17777/health`.
+
+El agente sirve los tickets POS en la impresora termica de esta computadora. Tambien se inicia
+automaticamente cuando el cliente Electron (Administrativo o POS) arranca la API local, por lo que
+en una PC nueva normalmente no hace falta instalar nada.
+
+El agente no controla el estado de caja ni el worker; son servicios independientes.
+
+Las rutas de la consola:
+
+```txt
+GET  /api/local-support/status                     estado global (incluye printer.available)
+POST /api/local-support/printer/test               health check del agente
+POST /api/local-support/printer/action             body: {action: install|start|stop|restart}
+```
 
 ## Diagnostico recomendado
 
