@@ -84,6 +84,13 @@ $app = Application::configure(basePath: dirname(__DIR__))
         EncryptCookies::except([
             CookieIssuer::COOKIE_NAME,
         ]);
+
+        // El webhook de Telegram no envia cookies ni token CSRF (es un
+        // request de servidor a servidor). La autenticidad se valida por el
+        // header X-Telegram-Bot-Api-Secret-Token en el controller.
+        $middleware->validateCsrfTokens(except: [
+            'telegram/webhook',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
