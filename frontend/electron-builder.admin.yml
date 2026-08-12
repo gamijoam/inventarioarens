@@ -17,6 +17,7 @@ files:
   - dist/technician/**/*
   - package.json
 win:
+  icon: build/icons/admin/icon.ico
   target:
     - nsis
 nsis:
@@ -27,6 +28,7 @@ nsis:
   uninstallDisplayName: Sistema de Inventario (Administrativo)
   include: build/nsis/separate-install-dir.nsh
 linux:
+  icon: build/icons/admin
   target:
     - AppImage
   category: Office

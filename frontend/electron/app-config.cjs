@@ -15,7 +15,7 @@ const APP_CONFIGS = Object.freeze({
   }),
   technician: Object.freeze({
     mode: 'technician',
-    productName: 'Soporte Técnico Inventario Arens',
+    productName: 'Soporte Técnico',
     appId: 'com.inventarioarens.technician',
     rendererPort: 8790,
   }),

@@ -15,7 +15,7 @@ describe('Electron app configuration', () => {
   it('keeps the exact product names for both installers', () => {
     expect(getAppConfig('admin').productName).toBe('Sistema de Inventario (Administrativo)');
     expect(getAppConfig('pos').productName).toBe('Sistema de Inventario (POS)');
-    expect(getAppConfig('technician').productName).toBe('Soporte Técnico Inventario Arens');
+    expect(getAppConfig('technician').productName).toBe('Soporte Técnico');
   });
 
   it('assigns stable renderer ports to both clients', () => {

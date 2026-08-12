@@ -215,7 +215,7 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 | --- | --- | --- | --- |
 | POS | 0.2.18 | `v0.2.18-pos` | `Sistema-de-Inventario-POS-0.2.18.exe` + blockmap + `pos.yml` |
 | Admin | 0.2.5 | `v0.2.5-admin` | `Sistema-de-Inventario-Administrativo-0.2.5.exe` + blockmap + `admin.yml` |
-| Technician | 0.2.5 | `v0.2.5-technician` | `Soporte-Tecnico-Inventario-Arens-0.2.5.exe` + blockmap + `technician.yml` |
+| Technician | 0.2.5 | `v0.2.5-technician` | `Soporte-Tecnico-Inventario-0.2.5.exe` + blockmap + `technician.yml` |
 
 Historial POS reciente (mismo `frontend/package.json`, tags `v0.2.x-pos`):
 

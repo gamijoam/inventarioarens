@@ -1,7 +1,7 @@
 appId: com.inventarioarens.technician
-productName: Soporte Técnico Inventario Arens
-executableName: Soporte-Tecnico-Inventario-Arens
-artifactName: Soporte-Tecnico-Inventario-Arens-${version}.${ext}
+productName: Soporte Técnico
+executableName: Soporte-Tecnico-Inventario
+artifactName: Soporte-Tecnico-Inventario-${version}.${ext}
 asar: true
 directories:
   output: release/technician
@@ -17,16 +17,18 @@ files:
   - dist/technician/**/*
   - package.json
 win:
+  icon: build/icons/technician/icon.ico
   target:
     - nsis
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: false
-  shortcutName: Soporte Técnico Inventario Arens
-  uninstallDisplayName: Soporte Técnico Inventario Arens
+  shortcutName: Soporte Técnico
+  uninstallDisplayName: Soporte Técnico
   include: build/nsis/separate-install-dir.nsh
 linux:
+  icon: build/icons/technician
   target:
     - AppImage
   category: Office

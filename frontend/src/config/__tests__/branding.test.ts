@@ -12,7 +12,7 @@ describe('application branding modes', () => {
   it('define los nombres visibles del Administrativo y del POS', () => {
     expect(APP_DEFINITIONS.admin.name).toBe('Sistema de Inventario (Administrativo)');
     expect(APP_DEFINITIONS.pos.name).toBe('POS');
-    expect(APP_DEFINITIONS.technician.name).toBe('Soporte Técnico Inventario Arens');
+    expect(APP_DEFINITIONS.technician.name).toBe('Soporte Técnico');
     expect(getAppDefinition('admin')).toEqual(APP_DEFINITIONS.admin);
     expect(getAppDefinition('pos')).toEqual(APP_DEFINITIONS.pos);
   });

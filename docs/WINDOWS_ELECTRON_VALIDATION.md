@@ -11,7 +11,7 @@ Esta guia corresponde a los clientes Electron actuales, empaquetados con NSIS:
 
 - `Sistema de Inventario (Administrativo)`
 - `POS`
-- `Soporte Tecnico Inventario Arens`
+- `Soporte Tecnico`
 
 No debe confundirse con `docs/INSTALADOR_WINDOWS_SQLITE_EXE.md`, que documenta el instalador Windows Laravel anterior.
 

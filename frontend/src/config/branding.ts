@@ -42,7 +42,7 @@ export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
   },
   technician: {
     mode: 'technician',
-    name: 'Soporte Técnico Inventario Arens',
+    name: 'Soporte Técnico',
     shortName: 'Soporte Técnico',
     tagline: 'Diagnóstico y sincronización local',
     description:
