@@ -84,7 +84,39 @@ Desde la consola de soporte (`/support`):
 | No abre la gaveta | Flag `open_cash_drawer` apagada o gaveta en otro pin | Activar flag; probar pin en el utilitario |
 | Agente no responde en /support | Agente detenido | Boton "Instalar agente" + "Iniciar" |
 
-## 7. Tests automatizados relacionados
+## 7. Publicar el instalador con el auto-arranque (release Electron)
+
+El agente se inicia solo en los clientes Electron desde `frontend/electron/backend-runtime.cjs`.
+Para que una PC nueva lo tenga, hay que publicar un release nuevo (electron-updater no instala una
+version igual).
+
+1. Bumpear la version en `frontend/package.json` (ej. `0.2.41` -> `0.2.42`):
+   ```powershell
+   # editar frontend/package.json -> "version": "0.2.42"
+   ```
+2. Commit y push a `main`:
+   ```powershell
+   git add frontend/package.json
+   git commit -m "chore: bump version to 0.2.42"
+   git push origin main
+   ```
+3. Publicar los clientes. Cada canal se publica por separado desde Actions:
+   ```bash
+   gh workflow run release.yml -f client=admin -f ref=main
+   gh workflow run release.yml -f client=pos -f ref=main
+   gh workflow run release.yml -f client=technician -f ref=main
+   ```
+   (Tambien se puede abrir GitHub -> Actions -> `Release Electron client` -> `Run workflow`
+   y elegir el cliente.)
+
+   Cada ejecucion crea `v0.2.42-<cliente>` con el `.exe`, `.blockmap` y `<cliente>.yml`.
+
+4. En la PC destino, abrir el cliente: el updater descarga en background y pregunta antes de
+   reiniciar (el check corre al arrancar y cada 1 minuto).
+
+Nota: si los tres clientes comparten la instalacion local, publicar los tres con la misma version.
+
+## 8. Tests automatizados relacionados
 
 - `tests/Unit/Printing/ThermalPrinterServiceTest.php` (sanitize + buildCommand).
 - `tests/Unit/Printing/ThermalPrinterNetworkTest.php` (buildEscPos: corte GS V, gaveta ESC p;
