@@ -50,9 +50,12 @@ function resolveRuntimeConfig(options = {}) {
   const printerPort = Number(
     options.printerPort ?? process.env.INVENTARIO_PRINTER_PORT ?? PRINTER_PORT,
   );
+  const appVersion =
+    options.appVersion ?? process.env.INVENTARIO_APP_VERSION ?? options.version ?? '0.0.0';
 
   return {
     appRoot,
+    appVersion,
     apiHost,
     apiBindHost,
     apiPort,
@@ -357,6 +360,41 @@ function runtimeSupervisorPidPath(config) {
   return path.join(config.dataRoot, '.runtime-supervisor.pid');
 }
 
+function backendVersionPath(config) {
+  return path.join(config.dataRoot, 'backend.version');
+}
+
+function readBackendVersion(config) {
+  const versionPath = backendVersionPath(config);
+  if (!fs.existsSync(versionPath)) return '';
+  return fs.readFileSync(versionPath, 'utf8').trim();
+}
+
+function writeBackendVersion(config, version) {
+  fs.mkdirSync(config.dataRoot, { recursive: true });
+  fs.writeFileSync(backendVersionPath(config), `${version}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
+}
+
+/**
+ * Compara la version del backend corriendo con la de la app actual.
+ * Devuelve true solo si la app actual es MAS nueva (debe tomar control).
+ * El runningVersion vacio (aun no levantado) nunca se considera "outdated".
+ */
+function isBackendOutdated(runningVersion, ownVersion) {
+  if (!runningVersion || !ownVersion) return false;
+  const parse = (v) => String(v).split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const running = parse(runningVersion);
+  const own = parse(ownVersion);
+  for (let i = 0; i < 3; i += 1) {
+    if ((own[i] ?? 0) > (running[i] ?? 0)) return true;
+    if ((own[i] ?? 0) < (running[i] ?? 0)) return false;
+  }
+  return false;
+}
+
 function runtimeSupervisorLockPath(config) {
   return path.join(config.dataRoot, '.runtime-supervisor.lock');
 }
@@ -548,6 +586,54 @@ function waitForRuntimeLeases(config, idleGraceMs = 5000, pollMs = 500) {
   });
 }
 
+/**
+ * Ejecuta el auto-reparador de tareas contra el backend compartido. Se usa
+ * cuando esta app es cliente (backend ajeno ya corriendo) para que las tareas
+ * de sync y del agente se re-registren con las rutas del backend actual.
+ */
+async function runRepairIfPossible(config, spawnProcess = spawn) {
+  const artisan = path.join(config.backendRoot, 'artisan');
+  if (!fs.existsSync(artisan)) return;
+  const environment = buildLaravelEnvironment(config, null);
+  await runCommand(
+    config,
+    ['artisan', 'local:repair-tasks', '--printer'],
+    environment,
+    spawnProcess,
+  );
+}
+
+/**
+ * Mata el proceso que escucha en el puerto de la API (takeover por version).
+ * En Windows se resuelve el PID con netstat; en Linux con lsof/fuser.
+ */
+function killProcessOnApiPort(port) {
+  return new Promise((resolve) => {
+    const isWin = process.platform === 'win32';
+    const command = isWin
+      ? `netstat -ano | findstr :${port} | findstr LISTENING`
+      : `lsof -ti tcp:${port}`;
+    require('node:child_process').exec(command, (error, stdout) => {
+      if (error || !stdout) {
+        resolve();
+        return;
+      }
+      const lines = stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const match = line.match(/(\d+)\s*$/);
+        const pid = match ? Number.parseInt(match[1], 10) : Number.parseInt(line, 10);
+        if (!pid || pid <= 0) continue;
+        try {
+          process.kill(pid, 'SIGTERM');
+        } catch {
+          // El proceso ya no existe o no hay permisos.
+        }
+      }
+      resolve();
+    });
+  });
+}
+
 function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
@@ -580,6 +666,35 @@ function createRuntimeSupervisor(options = {}) {
   return {
     config,
     async run() {
+      // El backend es COMPARTIDO entre los 3 clientes (mismo puerto/dataRoot).
+      // Si ya responde una version MAS NUEVA (o igual) que la de esta app,
+      // esta app es solo cliente y NO levanta otro backend.
+      const apiHealthy = await requestHealth(config.apiUrl);
+      const runningVersion = readBackendVersion(config);
+      const needsTakeover =
+        apiHealthy && isBackendOutdated(runningVersion, config.appVersion ?? '0.0.0');
+
+      if (apiHealthy && !needsTakeover) {
+        // Backend ajeno ya corriendo y al dia: no tomamos el lock, solo
+        // aseguramos las tareas y el agente contra ese backend compartido.
+        try {
+          await runRepairIfPossible(config, spawnProcess);
+        } catch (error) {
+          console.error('No se pudo reparar las tareas locales:', error.message);
+        }
+        ensurePrinterAgent();
+        await waitForRuntimeLeases(config);
+        return false;
+      }
+
+      // Si el backend corriendo esta desactualizado, forzamos el takeover:
+      // matamos el proceso ajeno y tomamos el lock (la app mas nueva manda).
+      if (needsTakeover) {
+        releaseRuntimeSupervisorLock(config);
+        await killProcessOnApiPort(config.apiPort);
+        await new Promise((done) => setTimeout(done, 500));
+      }
+
       if (!tryAcquireRuntimeSupervisorLock(config)) return false;
 
       writeRuntimeSupervisorPid(config);
@@ -621,11 +736,13 @@ function createRuntimeSupervisor(options = {}) {
           await waitForHealth(config.apiUrl);
         }
 
+        // Registra la version del backend que quedo a cargo (la de esta app).
+        writeBackendVersion(config, config.appVersion ?? '0.0.0');
         ensurePrinterAgent();
 
-        // Auto-reparador de tareas de Windows: tras una actualizacion las tareas
-        // de sync y del agente pueden quedar apuntando a rutas viejas. Se
-        // re-registran con las rutas actuales (idempotente, schtasks /F).
+        // Auto-reparador de tareas de Windows: se ejecuta SIEMPRE que esta app
+        // queda a cargo del backend compartido, para que tras una actualizacion
+        // las tareas no queden apuntando a rutas viejas.
         try {
           const repairEnvironment = buildLaravelEnvironment(config, null);
           await runCommand(
@@ -661,6 +778,7 @@ function spawnRuntimeSupervisor(config, options = {}) {
     INVENTARIO_API_BIND_HOST: config.apiBindHost,
     INVENTARIO_API_CLIENT_HOST: config.apiHost,
     INVENTARIO_API_PORT: String(config.apiPort),
+    INVENTARIO_APP_VERSION: config.appVersion ?? '0.0.0',
     INVENTARIO_BACKEND_ROOT: config.backendRoot,
     INVENTARIO_PHP_BIN: config.phpBinary,
     INVENTARIO_SYNC_CLOUD_URL: config.syncCloudUrl ?? '',
@@ -716,17 +834,22 @@ function createLocalRuntime(options = {}) {
 }
 
 module.exports = {
+  backendVersionPath,
   buildLaravelEnvironment,
   createRuntimeLease,
   createLocalRuntime,
   createRuntimeSupervisor,
+  isBackendOutdated,
+  killProcessOnApiPort,
   listLiveRuntimeLeases,
   printerArguments,
+  readBackendVersion,
   readSyncConfig,
   removeRuntimeLease,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
   resolveRuntimeConfig,
+  runRepairIfPossible,
   runtimeLeaseDirectory,
   runtimeSupervisorLockIsStale,
   runtimeSupervisorLockPath,
@@ -737,4 +860,5 @@ module.exports = {
   syncDaemons,
   tryAcquireRuntimeStartupLock,
   tryAcquireRuntimeSupervisorLock,
+  writeBackendVersion,
 };

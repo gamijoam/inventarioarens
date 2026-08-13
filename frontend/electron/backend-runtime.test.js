@@ -6,12 +6,16 @@ import { describe, expect, it } from 'vitest';
 import backendRuntime from './backend-runtime.cjs';
 
 const {
+  backendVersionPath,
   buildLaravelEnvironment,
   createRuntimeLease,
+  isBackendOutdated,
+  readBackendVersion,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
   removeRuntimeLease,
   resolveRuntimeConfig,
+  runRepairIfPossible,
   runtimeStartupLockPath,
   runtimeLeaseDirectory,
   runtimeSupervisorLockPath,
@@ -24,6 +28,7 @@ const {
   syncDaemons,
   tryAcquireRuntimeStartupLock,
   tryAcquireRuntimeSupervisorLock,
+  writeBackendVersion,
 } = backendRuntime;
 
 describe('Local Laravel runtime configuration', () => {
@@ -177,38 +182,68 @@ describe('Local Laravel runtime configuration', () => {
     ]);
   });
 
-  it('re-registers windows tasks at startup to repair stale paths after updates', async () => {
+  it('repairs windows tasks even when a compatible backend is already running', async () => {
     const calls = [];
     const fakeSpawn = (bin, args) => {
       calls.push(args);
       const child = new (require('node:events').EventEmitter)();
       child.killed = false;
       child.kill = () => {};
-      process.nextTick(() => {
-        child.stdout = { on: () => {} };
-        child.stderr = { on: () => {} };
-        child.emit('close', 0);
-      });
+      child.stdout = { on: () => {} };
+      child.stderr = { on: () => {} };
+      process.nextTick(() => child.emit('close', 0));
       return child;
     };
 
-    // Simula que la API ya esta arriba para que el supervisor no la reinstale.
     const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-repair-'));
-    const config = resolveRuntimeConfig({ dataRoot, isPackaged: false, platform: 'linux' });
-    const originalRequestHealth = await import('node:http').then(() => null);
+    const config = resolveRuntimeConfig({
+      dataRoot,
+      backendRoot: path.join(dataRoot, 'backend'),
+      isPackaged: false,
+      platform: 'linux',
+    });
+    config.phpBinary = '/usr/bin/php';
 
-    const backendRuntime = await import('./backend-runtime.cjs');
-    const supervisor = backendRuntime.createRuntimeSupervisor({
-      config,
-      spawnProcess: fakeSpawn,
+    const runtime = backendRuntime;
+    // Crea el artisan del backend para que runRepairIfPossible lo detecte.
+    fs.mkdirSync(config.backendRoot, { recursive: true });
+    fs.writeFileSync(path.join(config.backendRoot, 'artisan'), '#!/usr/bin/env php\n');
+
+    await runtime.runRepairIfPossible(config, fakeSpawn);
+
+    const repairCall = calls.find(
+      (args) => args.includes('local:repair-tasks') && args.includes('--printer'),
+    );
+    expect(repairCall).toBeDefined();
+    expect(repairCall).toContain('local:repair-tasks');
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('skips repair when the backend artisan is missing', async () => {
+    const calls = [];
+    const fakeSpawn = (bin, args) => {
+      calls.push(args);
+      const child = new (require('node:events').EventEmitter)();
+      child.killed = false;
+      child.kill = () => {};
+      child.stdout = { on: () => {} };
+      child.stderr = { on: () => {} };
+      process.nextTick(() => child.emit('close', 0));
+      return child;
+    };
+
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-repair-missing-'));
+    const config = resolveRuntimeConfig({
+      dataRoot,
+      backendRoot: path.join(dataRoot, 'no-backend'),
+      isPackaged: false,
+      platform: 'linux',
     });
 
-    // La API no responde -> el supervisor intenta arrancar (y reparar).
-    // No ejecutamos run() completo porque requiere PHP; verificamos que la
-    // funcion de reparacion existe y que printerArguments esta correcto.
-    expect(typeof supervisor.run).toBe('function');
-    expect(backendRuntime.printerArguments({})).toContain('printer:serve');
+    await backendRuntime.runRepairIfPossible(config, fakeSpawn);
 
+    expect(calls.length).toBe(0);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
@@ -333,6 +368,44 @@ describe('Local Laravel runtime configuration', () => {
     fs.writeFileSync(runtimeSupervisorLockPath(config), `${process.pid}\n`);
     expect(runtimeSupervisorLockIsStale(config)).toBe(false);
     expect(tryAcquireRuntimeSupervisorLock(config)).toBe(false);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('persists and reads the backend version in the shared data root', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-backend-version-'));
+    const config = { dataRoot };
+
+    expect(backendVersionPath(config)).toBe(path.join(dataRoot, 'backend.version'));
+    expect(readBackendVersion(config)).toBe('');
+
+    writeBackendVersion(config, '0.2.49');
+    expect(readBackendVersion(config)).toBe('0.2.49');
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('detects an outdated running backend when own version is newer', () => {
+    expect(isBackendOutdated('0.2.48', '0.2.49')).toBe(true);
+    expect(isBackendOutdated('0.2.49', '0.2.49')).toBe(false);
+    expect(isBackendOutdated('0.2.50', '0.2.49')).toBe(false);
+    expect(isBackendOutdated('', '0.2.49')).toBe(false);
+    expect(isBackendOutdated('0.2.9', '0.2.10')).toBe(true);
+    expect(isBackendOutdated('0.3.0', '0.2.49')).toBe(false);
+  });
+
+  it('releases a stale supervisor lock when a newer backend must take over', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-supervisor-takeover-'));
+    const config = { dataRoot };
+
+    // Simula un lock vivo de un proceso ajeno con backend viejo.
+    const alivePid = process.pid;
+    fs.writeFileSync(runtimeSupervisorLockPath(config), `${alivePid}\n`);
+    writeBackendVersion(config, '0.2.40');
+
+    // Con la propia version mas nueva, el lock se considera reemplazable.
+    expect(runtimeSupervisorLockIsStale(config)).toBe(false);
+    expect(tryAcquireRuntimeSupervisorLock(config)).toBe(false);
+
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 });

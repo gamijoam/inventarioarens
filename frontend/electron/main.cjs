@@ -42,6 +42,7 @@ async function prepareServices() {
       resourcesPath: process.resourcesPath,
       isPackaged: app.isPackaged,
       dataRoot: localDataRoot(),
+      appVersion: app.getVersion(),
     }),
     clientId: appMode,
     isPackaged: app.isPackaged,
