@@ -217,6 +217,37 @@ class LocalTechnicalConsoleApiTest extends TestCase
             ->assertJsonValidationErrors(['action']);
     }
 
+    public function test_repair_windows_tasks_uses_systemd_on_non_windows(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Este test valida el comportamiento en Linux (CI).');
+        }
+
+        $result = $service->repairWindowsTasks();
+
+        $this->assertCount(1, $result['output']);
+        $this->assertStringContainsString('systemd', $result['output'][0]);
+        $this->assertArrayNotHasKey('error', $result);
+    }
+
+    public function test_printer_task_command_uses_wscript_hidden_runner(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        $method = new \ReflectionMethod($service, 'printerTaskCommand');
+        $method->setAccessible(true);
+        $command = $method->invoke($service, 'C:\\app\\scripts\\run-sync-hidden.vbs', 'C:\\app\\storage\\app\\printer-agent\\printer-agent.cmd');
+
+        $this->assertStringContainsString('wscript.exe', $command);
+        $this->assertStringContainsString('run-sync-hidden.vbs', $command);
+        $this->assertStringContainsString('printer-agent.cmd', $command);
+        $this->assertStringNotContainsString('cmd /c', $command);
+    }
+
     public function test_printer_launcher_bundles_storage_php_and_printer_serve(): void
     {
         config()->set('services.local_support.enabled', true);
@@ -232,7 +263,8 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertStringContainsString('printer:serve --port=17777 --bind=127.0.0.1', $content);
         $this->assertStringContainsString(PHP_BINARY, $content);
         $this->assertStringContainsString(storage_path(), $content);
-        $this->assertStringContainsString('start "InventarioArensPrinter" /min cmd /c', $content);
+        $this->assertStringContainsString('start "" /b', $content);
+        $this->assertStringNotContainsString('cmd /c', $content);
         $this->assertStringContainsString('printer-agent.pid', $content);
         $this->assertStringContainsString('printer-agent.log', $content);
     }

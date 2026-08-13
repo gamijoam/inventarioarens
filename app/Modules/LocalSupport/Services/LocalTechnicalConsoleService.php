@@ -549,6 +549,76 @@ class LocalTechnicalConsoleService
         ];
     }
 
+    /**
+     * Registra solo la tarea de Windows del worker sin consultar estado (seguro
+     * para el auto-reparador: no depende de que el tenant este en la BD local).
+     */
+    public function registerWindowsWorkerTaskOnly(string $tenantSlug): string
+    {
+        $workerScript = base_path('scripts/sync-worker.cmd');
+        if (! is_file($workerScript)) {
+            throw ValidationException::withMessages([
+                'worker' => 'No se encontro el controlador de worker de esta instalacion.',
+            ]);
+        }
+
+        return $this->installWindowsWorkerTask($tenantSlug, $workerScript);
+    }
+
+    /**
+     * Re-registra las tareas de Windows de sync y del agente de impresion con
+     * las rutas actuales del backend. Idempotente: usa schtasks /F.
+     *
+     * El supervisor de Electron lo invoca al arrancar para que tras una
+     * actualizacion de la app las tareas no queden apuntando a rutas viejas.
+     *
+     * @return array{output: string[], error?: string}
+     */
+    public function repairWindowsTasks(bool $withPrinter = true): array
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return [
+                'output' => ['Windows no detectado; las tareas se gestionan con systemd.'],
+            ];
+        }
+
+        $output = [];
+        $error = null;
+
+        $settings = $this->readSettings();
+        $tenants = is_array($settings['tenants'] ?? null) ? $settings['tenants'] : [];
+
+        foreach ($tenants as $slug => $configuration) {
+            $slug = (string) $slug;
+            $configured = is_array($configuration) && ! empty($configuration['token']);
+            if (! $configured) {
+                continue;
+            }
+
+            try {
+                $output[] = $this->registerWindowsWorkerTaskOnly($slug);
+            } catch (\Throwable $exception) {
+                $error = $exception->getMessage();
+                $output[] = 'Worker '.$slug.': '.$exception->getMessage();
+            }
+        }
+
+        if ($withPrinter) {
+            try {
+                $output[] = $this->installWindowsPrinterTask();
+            } catch (\Throwable $exception) {
+                $error = $exception->getMessage();
+                $output[] = 'Agente de impresion: '.$exception->getMessage();
+            }
+        }
+
+        if ($error !== null) {
+            $output[] = 'Hubo errores al reparar; revisa las rutas del backend.';
+        }
+
+        return ['output' => $output] + ($error !== null ? ['error' => $error] : []);
+    }
+
     public function printerTest(): array
     {
         if (! $this->printerHealthy()) {
@@ -685,11 +755,15 @@ class LocalTechnicalConsoleService
         File::ensureDirectoryExists($stateDirectory);
         File::put($launcher, $content);
 
+        $hiddenRunner = base_path('scripts/run-sync-hidden.vbs');
+        if (! is_file($hiddenRunner)) {
+            throw ValidationException::withMessages([
+                'printer' => 'Falta el lanzador oculto requerido para iniciar el agente de impresion.',
+            ]);
+        }
+
         $taskName = 'InventarioArensPrinterAgent';
-        $taskCommand = sprintf(
-            'cmd.exe /c ""%s""',
-            $this->shortWindowsPath($launcher),
-        );
+        $taskCommand = $this->printerTaskCommand($hiddenRunner, $launcher);
         $process = new Process([
             $this->windowsExecutable('schtasks.exe'),
             '/Create',
@@ -703,7 +777,7 @@ class LocalTechnicalConsoleService
         $process->run();
 
         if ($process->isSuccessful()) {
-            return 'Agente de impresion instalado como tarea de Windows.';
+            return 'Agente de impresion instalado como tarea de Windows (oculta).';
         }
 
         throw ValidationException::withMessages([
@@ -731,10 +805,9 @@ class LocalTechnicalConsoleService
             $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
         }
         $lines[] = 'if not exist "'.$stateDirectory.'" mkdir "'.$stateDirectory.'"';
-        // Lanza el agente desacoplado, registra su PID y envia la salida al log.
-        // `start` exige el titulo primero ("InventarioArensPrinter"); el binario
-        // va citado y la redireccion se aplica al proceso hijo con el comando /c.
-        $lines[] = 'start "InventarioArensPrinter" /min cmd /c ""'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1 >> "'.$logFile.'" 2>&1"';
+        // Lanza el agente desacoplado y oculto (el VBS run-sync-hidden.vbs lo
+        // ejecuta sin ventana de consola). Redirige la salida al log.
+        $lines[] = 'start "" /b "'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1 >> "'.$logFile.'" 2>&1';
         $lines[] = 'for /f "tokens=2 delims=," %%A in (\'wmic process where "name=\'php.exe\' and commandline like \'%%printer:serve%%\'" get ProcessId /format:csv 2^>nul\') do if not "%%A"=="" echo %%A> "'.$pidFile.'"';
 
         return implode("\r\n", $lines)."\r\n";
@@ -911,6 +984,16 @@ class LocalTechnicalConsoleService
         throw ValidationException::withMessages([
             'worker' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar el inicio automatico.',
         ]);
+    }
+
+    protected function printerTaskCommand(string $hiddenRunner, string $launcher): string
+    {
+        return sprintf(
+            '"%s" "%s" "%s"',
+            $this->windowsExecutable('wscript.exe'),
+            $this->shortWindowsPath($hiddenRunner),
+            $this->shortWindowsPath($launcher),
+        );
     }
 
     protected function workerTaskCommand(string $hiddenRunner, string $launcher): string

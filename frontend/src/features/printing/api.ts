@@ -234,6 +234,20 @@ export function useUpdatePrintJobStatus() {
 }
 
 export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
+  let pdfBase64: string | undefined;
+
+  if (job.output !== 'thermal') {
+    try {
+      const response = await api.get<Blob>(`/printing/jobs/${job.id}/ticket.pdf`, {
+        responseType: 'blob',
+      });
+      pdfBase64 = await blobToBase64(response.data);
+    } catch {
+      // Si no se puede descargar el PDF (sin red/permisos), el agente usara
+      // su vista de texto como respaldo.
+    }
+  }
+
   const response = await fetch('http://127.0.0.1:17777/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -244,6 +258,7 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
       ticket_html_url: job.ticket_html_url,
       station: job.station,
       payload: job.payload_snapshot,
+      pdf_base64: pdfBase64,
     }),
   });
 
@@ -252,6 +267,19 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
   }
 
   return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const base64 = result.includes(',') ? result.slice(result.indexOf(',') + 1) : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 export function ticketPdfUrl(job: PrintJob): string {

@@ -622,6 +622,22 @@ function createRuntimeSupervisor(options = {}) {
         }
 
         ensurePrinterAgent();
+
+        // Auto-reparador de tareas de Windows: tras una actualizacion las tareas
+        // de sync y del agente pueden quedar apuntando a rutas viejas. Se
+        // re-registran con las rutas actuales (idempotente, schtasks /F).
+        try {
+          const repairEnvironment = buildLaravelEnvironment(config, null);
+          await runCommand(
+            config,
+            ['artisan', 'local:repair-tasks', '--printer'],
+            repairEnvironment,
+            spawnProcess,
+          );
+        } catch (error) {
+          console.error('No se pudo reparar las tareas locales:', error.message);
+        }
+
         await waitForRuntimeLeases(config);
         return ownsApi;
       } finally {
