@@ -321,26 +321,129 @@ class PrinterServer
         return $home.'/'.$requested;
     }
 
-    private function buildPlainTicket(array $ticket): string
+    public function buildPlainTicket(array $ticket): string
     {
+        $profile = $ticket['profile'] ?? [];
+        $width = (int) ($profile['paper_width_mm'] ?? 80);
+        $max = $width === 58 ? 32 : 48;
+        $money = static fn (float $value): string => '$'.number_format($value, 2, '.', '');
+
         $lines = [];
-        $lines[] = $ticket['tenant']['name'] ?? 'INVENTARIOARENS';
+
+        // Encabezado: logo / nombre del tenant.
+        $header = (string) ($profile['logo_text'] ?? '');
+        if ($header === '') {
+            $header = (string) ($ticket['tenant']['name'] ?? '');
+        }
+        if ($header !== '') {
+            $lines[] = strtoupper($header);
+        }
+        $headerText = (string) ($profile['header_text'] ?? '');
+        if ($headerText !== '') {
+            $lines[] = $headerText;
+        }
+        if (($profile['show_tenant_slug'] ?? true) && ! empty($ticket['tenant']['slug'])) {
+            $lines[] = $ticket['tenant']['slug'];
+        }
+
         $lines[] = sprintf('Ticket POS #%s', $ticket['pos_order']['id'] ?? '?');
-        $lines[] = 'Cliente: '.($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
-        $lines[] = str_repeat('-', 48);
+        if (($profile['show_sale_number'] ?? true) && ! empty($ticket['pos_order']['sale_id'])) {
+            $lines[] = 'Venta #'.$ticket['pos_order']['sale_id'];
+        }
+        if (($profile['show_paid_at'] ?? true) && ! empty($ticket['pos_order']['paid_at'])) {
+            $lines[] = 'Fecha: '.$ticket['pos_order']['paid_at'];
+        }
+        if (($profile['show_cashier'] ?? true) && ! empty($ticket['pos_order']['cashier_name'])) {
+            $lines[] = 'Cajero: '.$ticket['pos_order']['cashier_name'];
+        }
+        if (($profile['show_cash_register'] ?? true) && ! empty($ticket['pos_order']['cash_register_name'])) {
+            $lines[] = 'Caja: '.$ticket['pos_order']['cash_register_name'];
+        }
+        if (($profile['show_branch'] ?? true) && ! empty($ticket['pos_order']['branch_name'])) {
+            $lines[] = 'Sucursal: '.$ticket['pos_order']['branch_name'];
+        }
+        if (($profile['show_customer'] ?? true)) {
+            $lines[] = 'Cliente: '.($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
+        }
+
+        $lines[] = str_repeat('-', $max);
         foreach ($ticket['items'] ?? [] as $item) {
             $lines[] = $item['product_name'] ?? 'Producto';
+            if (($profile['show_item_sku'] ?? true) && ! empty($item['sku'])) {
+                $lines[] = '  '.$item['sku'];
+            }
             $unit = (float) ($item['unit_price'] ?? 0);
             $qty = (float) ($item['quantity'] ?? 0);
             $total = (float) ($item['total'] ?? 0);
-            $lines[] = sprintf('  %s x %s = %s', $qty, number_format($unit, 2, '.', ''), number_format($total, 2, '.', ''));
-            foreach ($item['serials'] ?? [] as $serial) {
-                $lines[] = '  IMEI/Serial: '.($serial['serial_number'] ?? '');
+            $lines[] = sprintf('  %s x %s = %s', $qty, $money($unit), $money($total));
+            if (($profile['show_item_discount'] ?? true) && (float) ($item['discount'] ?? 0) > 0) {
+                $lines[] = '  Desc: '.$money((float) $item['discount']);
+            }
+            if ($profile['show_item_serials'] ?? true) {
+                foreach ($item['serials'] ?? [] as $serial) {
+                    $lines[] = '  IMEI/Serial: '.($serial['serial_number'] ?? '');
+                }
+            }
+            if (($profile['show_warranty_summary'] ?? true) && ! empty($item['warranty']['name'])) {
+                $w = $item['warranty'];
+                $line = '  Garantia: '.($w['name'] ?? '');
+                if (! empty($w['duration_days'])) {
+                    $line .= ' - '.$w['duration_days'].' dias';
+                }
+                if (! empty($w['expires_at'])) {
+                    $line .= ' - vence '.$w['expires_at'];
+                }
+                $lines[] = $line;
             }
         }
-        $lines[] = str_repeat('-', 48);
-        $lines[] = 'Total USD: '.number_format((float) ($ticket['totals']['total_base_amount'] ?? 0), 2, '.', '');
-        $lines[] = 'Pagado USD: '.number_format((float) ($ticket['totals']['paid_base_amount'] ?? 0), 2, '.', '');
+
+        $lines[] = str_repeat('-', $max);
+        $lines[] = 'Total USD: '.$money((float) ($ticket['totals']['total_base_amount'] ?? 0));
+        if ($profile['show_total_local'] ?? true) {
+            $lines[] = 'Total VES: Bs '.number_format((float) ($ticket['totals']['total_local_amount'] ?? 0), 2, ',', '.');
+        }
+        $lines[] = 'Pagado USD: '.$money((float) ($ticket['totals']['paid_base_amount'] ?? 0));
+        if (($profile['show_receivable_balance'] ?? true) && (float) ($ticket['totals']['balance_base_amount'] ?? 0) > 0) {
+            $lines[] = 'Saldo CxC: '.$money((float) $ticket['totals']['balance_base_amount']);
+        }
+
+        $lines[] = str_repeat('-', $max);
+        foreach ($ticket['payments'] ?? [] as $payment) {
+            $method = (string) ($payment['method'] ?? '');
+            $currency = (string) ($payment['currency'] ?? 'USD');
+            $amount = (float) ($payment['amount'] ?? 0);
+            $lines[] = $method.' '.$currency.': '.($currency === 'VES' ? 'Bs '.number_format($amount, 2, ',', '.') : $money($amount));
+            if (($profile['show_payment_rate'] ?? true) && ! empty($payment['exchange_rate'])) {
+                $lines[] = '  '.($payment['exchange_rate_type_code'] ?? '').' @ '.number_format((float) $payment['exchange_rate'], 2, '.', '');
+            }
+            if (($profile['show_payment_reference'] ?? true) && ! empty($payment['reference'])) {
+                $lines[] = '  Ref: '.$payment['reference'];
+            }
+        }
+
+        $warrantyText = (string) ($profile['warranty_policy_text'] ?? '');
+        if ($warrantyText !== '') {
+            $lines[] = str_repeat('-', $max);
+            $lines[] = $warrantyText;
+        }
+
+        $footer = (string) ($profile['footer_text'] ?? '');
+        if ($footer !== '') {
+            $lines[] = str_repeat('-', $max);
+            $lines[] = $footer;
+        }
+        if ($profile['show_non_fiscal_text'] ?? true) {
+            $lines[] = (string) ($profile['legal_text'] ?? 'Documento no fiscal');
+        }
+
+        // Ajustar cada linea al ancho del papel (32 chars en 58mm, 48 en 80mm).
+        $lines = array_map(static function (string $line) use ($max): string {
+            if (mb_strlen($line) <= $max) {
+                return $line;
+            }
+
+            return mb_substr($line, 0, max(1, $max - 3)).'...';
+        }, $lines);
 
         return implode("\n", $lines);
     }
