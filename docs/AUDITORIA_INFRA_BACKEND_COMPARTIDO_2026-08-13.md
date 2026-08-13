@@ -192,5 +192,9 @@ las apps.
 
 - [x] Auditoria completada (2026-08-13).
 - [x] Consola negra del agente corregida (0.2.48, VBS oculto).
-- [ ] Fase 1: lock por version + repair siempre (pendiente de implementar).
+- [x] Fase 1: lock por version + repair siempre (implementada en 0.2.49).
+      - `backend.version` en dataRoot; `isBackendOutdated` compara semver.
+      - El supervisor toma control (takeover) si el backend es mas viejo.
+      - Como cliente, ejecuta `local:repair-tasks` siempre que la API este arriba.
+      - Tests: backend-runtime 20/20, tsc limpio, suite electron 54/54.
 - [ ] Fase 2: servicio Windows dedicado (pendiente de diseno detallado).
