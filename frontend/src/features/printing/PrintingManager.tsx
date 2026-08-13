@@ -29,7 +29,7 @@ import {
 } from './api';
 
 const DEFAULT_PROFILE: PrintProfilePayload = {
-  name: 'POS 80mm',
+  name: '',
   paper_width_mm: 80,
   characters_per_line: 48,
   header_text: 'Sistema de Inventario',
@@ -56,7 +56,7 @@ const DEFAULT_PROFILE: PrintProfilePayload = {
   cut_paper: true,
   open_cash_drawer: false,
   copies: 1,
-  is_default: true,
+  is_default: false,
   is_active: true,
 };
 
@@ -121,8 +121,7 @@ export function PrintingManager() {
   const selectedProfile = sortedProfiles.find((item) => item.id === selectedProfileId) ?? null;
 
   useEffect(() => {
-    if (!selectedProfile) return;
-    setProfile(profileToPayload(selectedProfile));
+    setProfile(selectedProfile ? profileToPayload(selectedProfile) : DEFAULT_PROFILE);
   }, [selectedProfile]);
 
   async function submitProfile(): Promise<void> {
@@ -132,15 +131,19 @@ export function PrintingManager() {
     }
 
     const payload = cleanProfilePayload(profile);
-    if (selectedProfile) {
-      await updateProfile.mutateAsync({ id: selectedProfile.id, payload });
-      toast.success('Perfil de impresion actualizado.');
-      return;
-    }
+    try {
+      if (selectedProfile) {
+        await updateProfile.mutateAsync({ id: selectedProfile.id, payload });
+        toast.success('Perfil de impresion actualizado.');
+        return;
+      }
 
-    const created = await createProfile.mutateAsync(payload);
-    setSelectedProfileId(created.id);
-    toast.success('Perfil de impresion creado.');
+      const created = await createProfile.mutateAsync(payload);
+      setSelectedProfileId(created.id);
+      toast.success('Perfil de impresion creado.');
+    } catch (error) {
+      toast.error(extractPrintingError(error, 'No se pudo guardar el perfil.'));
+    }
   }
 
   async function submitStation(): Promise<void> {
@@ -497,4 +500,15 @@ function cleanProfilePayload(profile: PrintProfilePayload): PrintProfilePayload 
     warranty_policy_text: profile.warranty_policy_text?.trim() || null,
     legal_text: profile.legal_text?.trim() || 'Documento no fiscal',
   };
+}
+
+function extractPrintingError(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }).response;
+    const firstError = response?.data?.errors
+      ? Object.values(response.data.errors).flat()[0]
+      : undefined;
+    return firstError ?? response?.data?.message ?? fallback;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
 }
