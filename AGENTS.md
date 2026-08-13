@@ -700,6 +700,11 @@ existente, confirmar primero con el usuario (afecta a otros productos).
 - Consola `/support` controla el agente: `POST /api/local-support/printer/{action,test}`
   (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).
 
+**Infraestructura Electron (backend compartido)**:
+- `docs/AUDITORIA_INFRA_BACKEND_COMPARTIDO_2026-08-13.md` — auditoría y plan: las 3 apps
+  compiten por `:8787` y `%APPDATA%\InventarioArens`; se planea un backend compartido
+  (Fase 1: lock por versión + repair siempre; Fase 2: servicio Windows dedicado).
+
 **Auditoría backend 2026-07-11**:
 - `docs/AUDIT_2026-07-11/00_RESUMEN_EJECUTIVO.md`
 - `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` — contrato API para futuro frontend.

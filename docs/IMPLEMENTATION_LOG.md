@@ -1,5 +1,31 @@
 # Registro de implementación
 
+## 2026-08-13 - Auditoria infraestructura Electron: backend compartido
+
+### Problema reportado
+Tras actualizar cualquiera de los 3 clientes Electron, los workers de sync quedan
+"detenidos", el boton Sincronizar del Soporte Tecnico falla y envia a una pagina de
+error, y parece que nunca se hubiera sincronizado.
+
+### Auditoria (documento: `docs/AUDITORIA_INFRA_BACKEND_COMPARTIDO_2026-08-13.md`)
+- Las 3 apps empaquetan su propio backend y compiten por el MISMO puerto `8787` y la
+  MISMA carpeta `%APPDATA%\InventarioArens`.
+- El lock del supervisor es por PID compartido: la segunda app abierta usa el backend
+  de la primera (version distinta) y NO re-registra tareas -> workers detenidos y
+  errores de sync.
+- La BD real (5 tenants, 19960 inbox, 97 outbox) y los 5 tokens de sync estan INTACTOS;
+  `sync:run oscar-cell` funciona (0 fallos). No hay perdida de datos.
+- Consola negra del agente de impresion: corregida en 0.2.48 (tarea con wscript + VBS
+  oculto, `local:repair-tasks` re-registra tareas).
+
+### Plan acordado (2 fases)
+- Fase 1 (fix rapido): lock del supervisor por version del backend + `local:repair-tasks`
+  SIEMPRE (aunque la app no sea la duena del backend) + health con version en `/up`.
+- Fase 2 (robusto, la propuesta del usuario): backend como servicio de Windows dedicado
+  (NSSM/sc create) al que las 3 apps se conectan sin empaquetar backend.
+
+Pendiente de implementar (Fase 1 primero).
+
 ## 2026-08-12 - Laboratorio de dia simulado (lab:day)
 
 ### Contexto
