@@ -198,3 +198,115 @@ las apps.
       - Como cliente, ejecuta `local:repair-tasks` siempre que la API este arriba.
       - Tests: backend-runtime 20/20, tsc limpio, suite electron 54/54.
 - [ ] Fase 2: servicio Windows dedicado (pendiente de diseno detallado).
+
+## 9. Que se implemento en la Fase 1 (commit d205932, release 0.2.49)
+
+### 9.1 `frontend/electron/backend-runtime.cjs`
+
+- **Nuevas funciones de version del backend**:
+  - `backendVersionPath(config)` -> `dataRoot/backend.version`.
+  - `readBackendVersion(config)` / `writeBackendVersion(config, version)`: persisten la
+    version del backend que quedo a cargo.
+  - `isBackendOutdated(runningVersion, ownVersion)`: compara semver (x.y.z). Devuelve
+    `true` solo si la version propia es mayor; una version vacia nunca se considera
+    outdated.
+- **`resolveRuntimeConfig`** ahora incluye `appVersion` (de `options.appVersion`,
+  `INVENTARIO_APP_VERSION` o `options.version`, default `0.0.0`).
+- **`createRuntimeSupervisor.run()`** reescrito con 2 caminos:
+  1. **Cliente** (backend ajeno ya corriendo y al dia): NO toma el lock, ejecuta
+     `runRepairIfPossible` (repair de tareas) + `ensurePrinterAgent` + espera leases.
+  2. **Owner / takeover**: si el backend esta desactualizado (`needsTakeover`), libera el
+     lock, mata el proceso del puerto (`killProcessOnApiPort`) y levanta el suyo.
+     Luego escribe `backend.version` y ejecuta `local:repair-tasks --printer`.
+- **Nuevos helpers**:
+  - `runRepairIfPossible(config, spawnProcess)`: corre `local:repair-tasks --printer`
+    si existe `backendRoot/artisan`.
+  - `killProcessOnApiPort(port)`: mata el proceso que escucha en el puerto (netstat en
+    Windows, lsof en Linux) para el takeover.
+
+### 9.2 `frontend/electron/main.cjs`
+
+- `prepareServices()` pasa `appVersion: app.getVersion()` al `resolveRuntimeConfig`.
+
+### 9.3 `frontend/electron/backend-runtime.cjs` (spawn del supervisor)
+
+- `spawnRuntimeSupervisor` propaga `INVENTARIO_APP_VERSION` para que el proceso hijo del
+  supervisor conozca la version de la app.
+
+### 9.4 Tests (`frontend/electron/backend-runtime.test.js`)
+
+- `persists and reads the backend version in the shared data root`.
+- `detects an outdated running backend when own version is newer`.
+- `releases a stale supervisor lock when a newer backend must take over`.
+- `repairs windows tasks even when a compatible backend is already running`.
+- `skips repair when the backend artisan is missing`.
+- Total backend-runtime: 20/20 verde.
+
+## 10. Plan detallado de la Fase 2 — backend como servicio Windows dedicado
+
+### 10.1 Objetivo
+
+Que el backend Laravel + agente `printer:serve` corran como **un servicio de Windows
+permanente**, independiente de las 3 apps Electron. Las apps dejan de empaquetar y
+levantar su propio backend: solo se conectan a `http://127.0.0.1:8787`.
+
+### 10.2 Paso a paso (orden sugerido)
+
+1. **Elegir el mecanismo de servicio**:
+   - Recomendado: **NSSM** (Non-Sucking Service Manager) — robusto, reinicia el proceso
+     si muere, registra logs. Requiere un binario `nssm.exe` (se empaqueta en el
+     instalador o se descarga en el primer arranque).
+   - Alternativa nativa: `sc create` + `sc start` (sin auto-reinicio) o `sc.exe` con
+     `FailureActions`.
+
+2. **Script de instalacion del servicio** (`scripts/install-backend-service.ps1`):
+   - Parar el servicio si existe (`sc stop` / `nssm stop`).
+   - Crear el servicio `InventarioArensBackend`:
+     ```txt
+     NSSM Install InventarioArensBackend
+        Application: <php.exe>  artisan serve --host=127.0.0.1 --port=8787
+        AppDirectory: <backendRoot>
+        Start: SERVICE_AUTO_START
+        AppEnvironmentExtra: LARAVEL_STORAGE_PATH, DB_DATABASE, PHP_INI_SCAN_DIR
+     NSSM Install InventarioArensPrinter
+        Application: <php.exe>  artisan printer:serve --port=17777
+     ```
+   - Requiere permisos de administrador (el instalador NSIS corre como admin).
+
+3. **Actualizar `backend-runtime.cjs`**:
+   - `createLocalRuntime` ya no levanta `artisan serve`; solo verifica que `:8787`
+     responda (`requestHealth`). Si no, intenta `sc start InventarioArensBackend` y
+     espera; si tampoco, muestra mensaje claro.
+   - `local:repair-tasks` se ejecuta igual (contra el servicio).
+   - Mantener `backend.version` + takeover por version: si el servicio corre una
+     version vieja, el instalador/actualizador debe pararlo, actualizar el backend y
+     reiniciarlo.
+
+4. **Actualizar el instalador NSIS** (`electron-builder.*.yml` + `.nsh`):
+   - En `customInstall` (y customUnInstall), invocar `scripts/install-backend-service.ps1`.
+   - Las apps dejan de incluir `resources/backend` y `runtime/php` (reducen tamano).
+
+5. **Actualizacion del backend (release)**:
+   - Al instalar una version nueva, el `.nsh` para el servicio, copia el backend nuevo
+     al directorio del servicio y lo arranca. Una sola actualizacion repara todo.
+
+6. **Migracion de instalaciones existentes**:
+   - Script que detecta apps instaladas con backend empaquetado, extrae el backend mas
+     nuevo, lo instala como servicio y elimina la dependencia por app.
+
+### 10.3 Riesgos y consideraciones Fase 2
+
+| Riesgo | Mitigacion |
+|---|---|
+| Requiere admin para crear servicios | El instalador NSIS corre como admin; `sc start`/`nssm` con elevacion. |
+| Cambio de tamano del instalador | Menos peso (sin backend/php empaquetado); validar en CI. |
+| Compatibilidad con la BD actual | NO se toca `%APPDATA%\InventarioArens`; el servicio usa la misma BD. |
+| Reinicio tras actualizar | NSSM reinicia el proceso automaticamente. |
+| Falla del servicio sin mensaje claro | Logs de NSSM + health check en el arranque de cada app. |
+
+### 10.4 Criterios de exito (Fase 2)
+
+- Al iniciar Windows, el backend y el agente estan arriba **sin abrir ninguna app**.
+- Las 3 apps se conectan a `:8787` y nunca compiten por el puerto.
+- Actualizar cualquier app actualiza el servicio una sola vez (workers nunca rotos).
+- El Soporte Tecnico sincroniza sin errores de pagina.

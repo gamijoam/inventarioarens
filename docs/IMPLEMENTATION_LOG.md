@@ -1,5 +1,37 @@
 # Registro de implementación
 
+## 2026-08-13 - Fase 1: backend compartido Electron (lock por version + repair siempre)
+
+### Contexto
+Tras la auditoria (`docs/AUDITORIA_INFRA_BACKEND_COMPARTIDO_2026-08-13.md`), se implemento la
+Fase 1 para que las 3 apps Electron dejen de pelearse por el puerto `8787` y la carpeta
+`%APPDATA%\InventarioArens`, y que los workers no queden detenidos al actualizar.
+
+### Cambios (`commit d205932`, release 0.2.49)
+- **`frontend/electron/backend-runtime.cjs`**:
+  - `backendVersionPath/readBackendVersion/writeBackendVersion`: persisten la version del
+    backend a cargo en `dataRoot/backend.version`.
+  - `isBackendOutdated(running, own)`: comparacion semver; true solo si la propia es mayor.
+  - `resolveRuntimeConfig` incluye `appVersion`.
+  - `createRuntimeSupervisor.run()` con 2 caminos:
+    - Cliente (backend ajeno al dia): no toma el lock, ejecuta `runRepairIfPossible`
+      (repair de tareas) + agente + leases.
+    - Owner/takeover: si el backend esta desactualizado, mata el proceso del puerto
+      (`killProcessOnApiPort`) y levanta el suyo; escribe version y corre repair.
+  - Nuevos helpers `runRepairIfPossible` y `killProcessOnApiPort`.
+- **`frontend/electron/main.cjs`**: `prepareServices` pasa `appVersion: app.getVersion()`.
+- **`spawnRuntimeSupervisor`**: propaga `INVENTARIO_APP_VERSION`.
+- **Tests** `backend-runtime.test.js`: persistencia de version, deteccion de outdated,
+  takeover del lock, repair siempre, skip sin artisan. Total 20/20.
+
+### Verificacion
+- backend-runtime 20/20 verde, tsc limpio, suite electron 54/54.
+- Releases 0.2.49: admin/pos/technician publicados.
+
+### Pendiente
+Fase 2: backend como servicio de Windows dedicado (NSSM/sc create). Plan detallado en
+`docs/AUDITORIA_INFRA_BACKEND_COMPARTIDO_2026-08-13.md` seccion 10.
+
 ## 2026-08-13 - Auditoria infraestructura Electron: backend compartido
 
 ### Problema reportado
