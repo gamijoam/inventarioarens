@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, FolderDown, Loader2, Plus, Printer, RotateCcw, Save } from 'lucide-react';
+import { Eye, FolderDown, Loader2, Plus, Printer, RotateCcw, Save, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Can } from '@/components/permissions/Can';
@@ -146,6 +146,15 @@ export function PrintingManager() {
     }
   }
 
+  async function setAsDefaultProfile(id: number): Promise<void> {
+    try {
+      await updateProfile.mutateAsync({ id, payload: { is_default: true } });
+      toast.success('Perfil marcado como predeterminado. El POS lo usara para imprimir.');
+    } catch (error) {
+      toast.error(extractPrintingError(error, 'No se pudo marcar como predeterminado.'));
+    }
+  }
+
   async function submitStation(): Promise<void> {
     const profileId = station.print_profile_id || selectedProfile?.id || sortedProfiles[0]?.id;
     if (!profileId) {
@@ -264,8 +273,21 @@ export function PrintingManager() {
             <Can I={PERMISSIONS.PRINTING_MANAGE} fallback={<p className="text-sm text-text-muted">No tienes permiso para gestionar impresion.</p>}>
               <Select value={String(selectedProfileId)} onChange={(event) => setSelectedProfileId(event.target.value === 'new' ? 'new' : Number(event.target.value))}>
                 <option value="new">Nuevo perfil</option>
-                {sortedProfiles.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.paper_width_mm}mm</option>)}
+                {sortedProfiles.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.paper_width_mm}mm{item.is_default ? ' (predet.)' : ''}</option>)}
               </Select>
+              {selectedProfile && !selectedProfile.is_default && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={updateProfile.isPending}
+                  onClick={() => void setAsDefaultProfile(selectedProfile.id)}
+                >
+                  <Star className="size-3.5" /> Usar como predeterminado
+                </Button>
+              )}
+              {selectedProfile?.is_default && (
+                <p className="text-primary text-xs">Este es el perfil predeterminado del POS.</p>
+              )}
               <Section title="Formato">
                 <Input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} placeholder="Nombre del perfil" />
                 <Select value={String(profile.paper_width_mm)} onChange={(event) => setProfile((current) => ({ ...current, paper_width_mm: Number(event.target.value) as 58 | 80, characters_per_line: Number(event.target.value) === 58 ? 32 : 48 }))}>
