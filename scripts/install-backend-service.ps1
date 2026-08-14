@@ -251,10 +251,22 @@ function Install-BackendServices {
     $previousPath = $env:PATH
     $env:PATH = "$targetPhp;$previousPath"
     $databasePath = Join-Path $DataRoot 'inventario.sqlite'
+    Push-Location $targetBackend
     try {
-        & $php artisan local:install-sqlite "--database=$databasePath"
-        if ($LASTEXITCODE -ne 0) { throw "No se pudo preparar la base SQLite (codigo $LASTEXITCODE)." }
+        $artisanOutput = @(& $php artisan local:install-sqlite "--database=$databasePath" 2>&1)
+        $artisanExitCode = $LASTEXITCODE
+        if ($artisanExitCode -ne 0) {
+            try {
+                $artisanOutput | ForEach-Object {
+                    Add-Content -LiteralPath $LogPath -Value ([string]$_) -Encoding UTF8
+                }
+            } catch {
+                # Preserve the original migration failure when diagnostic logging is unavailable.
+            }
+            throw "No se pudo preparar la base SQLite (codigo $artisanExitCode)."
+        }
     } finally {
+        Pop-Location
         $env:PATH = $previousPath
     }
 

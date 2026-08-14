@@ -78,6 +78,15 @@ describe('Local Laravel runtime configuration', () => {
     expect(installer).toContain('2>&1');
   });
 
+  it('runs the SQLite migration from the copied backend directory', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain('Push-Location $targetBackend');
+    expect(installer).toContain('Pop-Location');
+    expect(installer).toContain('$artisanOutput');
+  });
+
   it('does not remove shared services from an individual client uninstaller', () => {
     const nsisPath = path.join(
       repositoryRoot,
