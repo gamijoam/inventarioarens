@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 
 const API_HOST = '127.0.0.1';
 const API_PORT = 8787;
@@ -18,6 +18,33 @@ const ELECTRON_RENDERER_ORIGINS = [
 ];
 const RUNTIME_SUPERVISOR_FLAG = '--inventario-runtime-supervisor';
 const RUNTIME_LEASE_TTL_MS = 10000;
+const DEDICATED_SERVICE_CONFIG_FILE = 'backend-service.json';
+
+function dedicatedServiceConfigPath(configOrDataRoot) {
+  const dataRoot =
+    typeof configOrDataRoot === 'string' ? configOrDataRoot : configOrDataRoot?.dataRoot;
+  return path.join(dataRoot, DEDICATED_SERVICE_CONFIG_FILE);
+}
+
+function readDedicatedServiceSettings(dataRoot) {
+  const settingsPath = dedicatedServiceConfigPath(dataRoot);
+  if (!fs.existsSync(settingsPath)) return null;
+
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (!settings || typeof settings !== 'object') return null;
+
+    return {
+      enabled: settings.enabled === true,
+      backendRoot: settings.backend_root || '',
+      phpBinary: settings.php_binary || '',
+      backendServiceName: settings.backend_service || 'InventarioArensBackend',
+      printerServiceName: settings.printer_service || 'InventarioArensPrinter',
+    };
+  } catch {
+    return null;
+  }
+}
 
 function resolveRuntimeConfig(options = {}) {
   const appRoot = options.appRoot ?? path.resolve(__dirname, '..');
@@ -26,13 +53,20 @@ function resolveRuntimeConfig(options = {}) {
   const platform = options.platform ?? process.platform;
   const dataRoot =
     options.dataRoot ?? process.env.INVENTARIO_DATA_ROOT ?? path.join(resourcesPath, 'data');
+  const dedicatedService = readDedicatedServiceSettings(dataRoot);
+  const serviceMode =
+    options.serviceMode !== undefined
+      ? options.serviceMode === true
+      : process.env.INVENTARIO_SERVICE_MODE === '1' || dedicatedService?.enabled === true;
   const backendRoot =
     options.backendRoot ??
     process.env.INVENTARIO_BACKEND_ROOT ??
+    (serviceMode && dedicatedService?.backendRoot ? dedicatedService.backendRoot : undefined) ??
     (isPackaged ? path.join(resourcesPath, 'backend') : path.resolve(appRoot, '..'));
   const phpBinary =
     options.phpBinary ??
     process.env.INVENTARIO_PHP_BIN ??
+    (serviceMode && dedicatedService?.phpBinary ? dedicatedService.phpBinary : undefined) ??
     (isPackaged
       ? path.join(resourcesPath, 'runtime', 'php', platform === 'win32' ? 'php.exe' : 'php')
       : 'php');
@@ -73,6 +107,18 @@ function resolveRuntimeConfig(options = {}) {
     nodeName: options.nodeName ?? process.env.INVENTARIO_SYNC_NODE_NAME ?? 'Electron Local',
     phpBinary,
     resourcesPath,
+    serviceConfigPath: dedicatedServiceConfigPath(dataRoot),
+    serviceMode,
+    backendServiceName:
+      options.backendServiceName ??
+      process.env.INVENTARIO_BACKEND_SERVICE ??
+      dedicatedService?.backendServiceName ??
+      'InventarioArensBackend',
+    printerServiceName:
+      options.printerServiceName ??
+      process.env.INVENTARIO_PRINTER_SERVICE ??
+      dedicatedService?.printerServiceName ??
+      'InventarioArensPrinter',
     storagePath: path.join(dataRoot, 'storage'),
     syncCloudUrl:
       options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL ?? DEFAULT_SYNC_CLOUD_URL,
@@ -168,10 +214,12 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     // Base pública de la NUBE para construir cloud_url de imágenes en eventos
     // de sync. Sin esto, un nodo local emitiría http://127.0.0.1:8787/... y la
     // nube guardaría una URL rota (imágenes en blanco en el VPS).
-    SYNC_PUBLIC_BASE: config.syncCloudUrl ? String(config.syncCloudUrl).replace(/\/api\/?$/, '') : '',
+    SYNC_PUBLIC_BASE: config.syncCloudUrl
+      ? String(config.syncCloudUrl).replace(/\/api\/?$/, '')
+      : '',
   };
 
-  if (process.platform === 'win32') {
+  if ((config.platform ?? process.platform) === 'win32') {
     const phpDir = path.dirname(config.phpBinary);
     const certPath = path.join(phpDir, 'cacert.pem');
     env.SSL_CERT_FILE = certPath;
@@ -385,7 +433,10 @@ function writeBackendVersion(config, version) {
  */
 function isBackendOutdated(runningVersion, ownVersion) {
   if (!runningVersion || !ownVersion) return false;
-  const parse = (v) => String(v).split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const parse = (v) =>
+    String(v)
+      .split('.')
+      .map((part) => Number.parseInt(part, 10) || 0);
   const running = parse(runningVersion);
   const own = parse(ownVersion);
   for (let i = 0; i < 3; i += 1) {
@@ -594,13 +645,52 @@ function waitForRuntimeLeases(config, idleGraceMs = 5000, pollMs = 500) {
 async function runRepairIfPossible(config, spawnProcess = spawn) {
   const artisan = path.join(config.backendRoot, 'artisan');
   if (!fs.existsSync(artisan)) return;
-  const environment = buildLaravelEnvironment(config, null);
-  await runCommand(
-    config,
-    ['artisan', 'local:repair-tasks', '--printer'],
-    environment,
-    spawnProcess,
+  const environment = buildLaravelEnvironment(
+    {
+      ...config,
+      appKey: ensureAppKey(config),
+      bootstrapToken: ensureBootstrapToken(config),
+    },
+    null,
   );
+  const repairArguments = ['artisan', 'local:repair-tasks'];
+  if (!config.serviceMode) repairArguments.push('--printer');
+  await runCommand(config, repairArguments, environment, spawnProcess);
+}
+
+function startDedicatedService(serviceName, execFileImpl = execFile) {
+  return new Promise((resolve, reject) => {
+    if (!serviceName) {
+      resolve();
+      return;
+    }
+
+    execFileImpl(
+      'sc.exe',
+      ['start', serviceName],
+      { windowsHide: true },
+      (error, stdout = '', stderr = '') => {
+        // ERROR_SERVICE_ALREADY_RUNNING (1056) is a successful steady state.
+        if (!error || /already running|1056/i.test(`${stdout}\n${stderr}`)) {
+          resolve();
+          return;
+        }
+
+        reject(
+          new Error(
+            `No se pudo iniciar el servicio ${serviceName}: ${String(stderr || stdout || error.message).trim()}`,
+          ),
+        );
+      },
+    );
+  });
+}
+
+async function startDedicatedServices(config, execFileImpl = execFile) {
+  if (config.serviceMode !== true || (config.platform ?? process.platform) !== 'win32') return;
+
+  await startDedicatedService(config.backendServiceName, execFileImpl);
+  await startDedicatedService(config.printerServiceName, execFileImpl);
 }
 
 /**
@@ -618,7 +708,10 @@ function killProcessOnApiPort(port) {
         resolve();
         return;
       }
-      const lines = stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const lines = stdout
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
       for (const line of lines) {
         const match = line.match(/(\d+)\s*$/);
         const pid = match ? Number.parseInt(match[1], 10) : Number.parseInt(line, 10);
@@ -637,6 +730,9 @@ function killProcessOnApiPort(port) {
 function createRuntimeSupervisor(options = {}) {
   const config = options.config ?? resolveRuntimeConfig(options);
   const spawnProcess = options.spawnProcess ?? spawn;
+  const requestHealthImpl = options.requestHealth ?? requestHealth;
+  const waitForHealthImpl = options.waitForHealth ?? waitForHealth;
+  const waitForRuntimeLeasesImpl = options.waitForRuntimeLeases ?? waitForRuntimeLeases;
   let apiProcess = null;
   let printerProcess = null;
 
@@ -650,26 +746,38 @@ function createRuntimeSupervisor(options = {}) {
   function ensurePrinterAgent() {
     if (printerProcess && !printerProcess.killed) return;
 
-    printerProcess = spawnProcess(
-      config.phpBinary,
-      printerArguments(config),
-      {
-        cwd: config.backendRoot,
-        env: { ...process.env, ...buildLaravelEnvironment(config, null) },
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
+    printerProcess = spawnProcess(config.phpBinary, printerArguments(config), {
+      cwd: config.backendRoot,
+      env: { ...process.env, ...buildLaravelEnvironment(config, null) },
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     attachLogStream(printerProcess, path.join(config.logDirectory, 'printer.log'));
   }
 
   return {
     config,
     async run() {
+      if (config.serviceMode === true && (config.platform ?? process.platform) === 'win32') {
+        await startDedicatedServices(config, options.execFile ?? execFile);
+        if (!(await requestHealthImpl(config.apiUrl))) {
+          await waitForHealthImpl(config.apiUrl);
+        }
+
+        try {
+          await runRepairIfPossible(config, spawnProcess);
+        } catch (error) {
+          console.error('No se pudo reparar las tareas locales:', error.message);
+        }
+
+        await waitForRuntimeLeasesImpl(config);
+        return false;
+      }
+
       // El backend es COMPARTIDO entre los 3 clientes (mismo puerto/dataRoot).
       // Si ya responde una version MAS NUEVA (o igual) que la de esta app,
       // esta app es solo cliente y NO levanta otro backend.
-      const apiHealthy = await requestHealth(config.apiUrl);
+      const apiHealthy = await requestHealthImpl(config.apiUrl);
       const runningVersion = readBackendVersion(config);
       const needsTakeover =
         apiHealthy && isBackendOutdated(runningVersion, config.appVersion ?? '0.0.0');
@@ -683,7 +791,7 @@ function createRuntimeSupervisor(options = {}) {
           console.error('No se pudo reparar las tareas locales:', error.message);
         }
         ensurePrinterAgent();
-        await waitForRuntimeLeases(config);
+        await waitForRuntimeLeasesImpl(config);
         return false;
       }
 
@@ -701,7 +809,7 @@ function createRuntimeSupervisor(options = {}) {
       let ownsApi = false;
 
       try {
-        if (!(await requestHealth(config.apiUrl))) {
+        if (!(await requestHealthImpl(config.apiUrl))) {
           if (!fs.existsSync(path.join(config.backendRoot, 'artisan'))) {
             throw new Error(`No se encontro Laravel en ${config.backendRoot}`);
           }
@@ -733,7 +841,7 @@ function createRuntimeSupervisor(options = {}) {
           ownsApi = true;
           attachLogStream(apiProcess, path.join(config.logDirectory, 'api.log'));
 
-          await waitForHealth(config.apiUrl);
+          await waitForHealthImpl(config.apiUrl);
         }
 
         // Registra la version del backend que quedo a cargo (la de esta app).
@@ -744,18 +852,12 @@ function createRuntimeSupervisor(options = {}) {
         // queda a cargo del backend compartido, para que tras una actualizacion
         // las tareas no queden apuntando a rutas viejas.
         try {
-          const repairEnvironment = buildLaravelEnvironment(config, null);
-          await runCommand(
-            config,
-            ['artisan', 'local:repair-tasks', '--printer'],
-            repairEnvironment,
-            spawnProcess,
-          );
+          await runRepairIfPossible(config, spawnProcess);
         } catch (error) {
           console.error('No se pudo reparar las tareas locales:', error.message);
         }
 
-        await waitForRuntimeLeases(config);
+        await waitForRuntimeLeasesImpl(config);
         return ownsApi;
       } finally {
         await stopOwnedProcesses();
@@ -784,6 +886,9 @@ function spawnRuntimeSupervisor(config, options = {}) {
     INVENTARIO_SYNC_CLOUD_URL: config.syncCloudUrl ?? '',
     INVENTARIO_SYNC_TENANT: config.syncTenant ?? '',
     INVENTARIO_SYNC_TOKEN: config.syncToken ?? '',
+    INVENTARIO_SERVICE_MODE: config.serviceMode ? '1' : '0',
+    INVENTARIO_BACKEND_SERVICE: config.backendServiceName ?? 'InventarioArensBackend',
+    INVENTARIO_PRINTER_SERVICE: config.printerServiceName ?? 'InventarioArensPrinter',
   };
   delete environment.INVENTARIO_ELECTRON_SMOKE;
 
@@ -811,7 +916,9 @@ function createLocalRuntime(options = {}) {
       leaseHeartbeat ??= setInterval(() => touchRuntimeLease(leasePath), 2000).unref();
 
       try {
-        if (!(await requestHealth(config.apiUrl))) {
+        if (config.serviceMode === true && (config.platform ?? process.platform) === 'win32') {
+          await startDedicatedServices(config, options.execFile ?? execFile);
+        } else if (!(await requestHealth(config.apiUrl))) {
           spawnRuntimeSupervisor(config, options);
         }
         await waitForHealth(config.apiUrl);
@@ -839,17 +946,21 @@ module.exports = {
   createRuntimeLease,
   createLocalRuntime,
   createRuntimeSupervisor,
+  dedicatedServiceConfigPath,
   isBackendOutdated,
   killProcessOnApiPort,
   listLiveRuntimeLeases,
   printerArguments,
   readBackendVersion,
+  readDedicatedServiceSettings,
   readSyncConfig,
   removeRuntimeLease,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
   resolveRuntimeConfig,
   runRepairIfPossible,
+  startDedicatedService,
+  startDedicatedServices,
   runtimeLeaseDirectory,
   runtimeSupervisorLockIsStale,
   runtimeSupervisorLockPath,

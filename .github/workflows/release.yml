@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   publish:
-    name: Build + publish ${{ github.event.inputs.client || 'all' }}
+    name: Build + publish Electron client
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,7 +62,17 @@ jobs:
         run: |
           set -euo pipefail
           CLIENT="${{ github.event.inputs.client }}"
-          if [ -z "$CLIENT" ]; then CLIENT="technician"; fi
+          if [ -z "$CLIENT" ]; then
+            TAG_NAME="${GITHUB_REF_NAME:-}"
+            case "$TAG_NAME" in
+              v*-[a-z]*) CLIENT="${TAG_NAME##*-}" ;;
+              *) echo "No se pudo inferir el cliente desde el tag '$TAG_NAME'. Usa un tag v<version>-admin|pos|technician."; exit 1 ;;
+            esac
+          fi
+          case "$CLIENT" in
+            admin|pos|technician) ;;
+            *) echo "Cliente invalido: $CLIENT"; exit 1 ;;
+          esac
           pnpm run build:${CLIENT}
           INVENTARIO_BACKEND_STAGE=.electron-backend-stage-${CLIENT} pnpm run electron:stage-backend
           # Build without publishing; the release is created explicitly below
@@ -76,11 +86,25 @@ jobs:
         run: |
           set -euo pipefail
           CLIENT="${{ github.event.inputs.client }}"
-          if [ -z "$CLIENT" ]; then CLIENT="technician"; fi
+          if [ -z "$CLIENT" ]; then
+            TAG_NAME="${GITHUB_REF_NAME:-}"
+            case "$TAG_NAME" in
+              v*-[a-z]*) CLIENT="${TAG_NAME##*-}" ;;
+              *) echo "No se pudo inferir el cliente desde el tag '$TAG_NAME'. Usa un tag v<version>-admin|pos|technician."; exit 1 ;;
+            esac
+          fi
+          case "$CLIENT" in
+            admin|pos|technician) ;;
+            *) echo "Cliente invalido: $CLIENT"; exit 1 ;;
+          esac
           VERSION="$(node -p "require('./package.json').version")"
           TAG="v${VERSION}-${CLIENT}"
           YML="${CLIENT}.yml"
           echo "CLIENT=$CLIENT VERSION=$VERSION TAG=$TAG YML=$YML"
+
+          test -f "release/${CLIENT}/${YML}" || { echo "Falta metadata de actualizacion: release/${CLIENT}/${YML}"; exit 1; }
+          compgen -G "release/${CLIENT}/*.exe" > /dev/null || { echo "Falta instalador .exe para ${CLIENT}"; exit 1; }
+          compgen -G "release/${CLIENT}/*.blockmap" > /dev/null || { echo "Falta blockmap para ${CLIENT}"; exit 1; }
 
           # Borra cualquier release/tag previo con el mismo nombre para re-publicar limpio.
           gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
