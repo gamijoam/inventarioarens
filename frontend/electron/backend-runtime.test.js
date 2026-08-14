@@ -87,6 +87,18 @@ describe('Local Laravel runtime configuration', () => {
     expect(installer).toContain('$artisanOutput');
   });
 
+  it('uses Windows scheduled tasks instead of registering command files as services', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain('Register-ScheduledTask');
+    expect(installer).toContain('Start-ScheduledTask');
+    expect(installer).toContain('Unregister-ScheduledTask');
+    expect(installer).toContain('Stop-LocalPortProcess');
+    expect(installer).toContain('Get-NetTCPConnection');
+    expect(installer).not.toContain('New-Service');
+  });
+
   it('does not remove shared services from an individual client uninstaller', () => {
     const nsisPath = path.join(
       repositoryRoot,
@@ -132,8 +144,8 @@ describe('Local Laravel runtime configuration', () => {
     await runtime.run();
 
     expect(calls.map(({ args }) => args)).toEqual([
-      ['start', 'InventarioArensBackend'],
-      ['start', 'InventarioArensPrinter'],
+      ['/Run', '/TN', 'InventarioArensBackend'],
+      ['/Run', '/TN', 'InventarioArensPrinter'],
     ]);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -188,10 +200,28 @@ describe('Local Laravel runtime configuration', () => {
 
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatchObject({
-      file: 'sc.exe',
-      args: ['start', 'InventarioArensBackend'],
+      file: 'schtasks.exe',
+      args: ['/Run', '/TN', 'InventarioArensBackend'],
     });
-    expect(calls[1].args).toEqual(['start', 'InventarioArensPrinter']);
+    expect(calls[1].args).toEqual(['/Run', '/TN', 'InventarioArensPrinter']);
+  });
+
+  it('continues to health-check when Windows denies a non-admin task start request', async () => {
+    const fakeExecFile = (file, args, options, callback) => {
+      callback(new Error('exit code 5'), '', 'ERROR: Access is denied.');
+    };
+
+    await expect(
+      startDedicatedServices(
+        {
+          platform: 'win32',
+          serviceMode: true,
+          backendServiceName: 'InventarioArensBackend',
+          printerServiceName: 'InventarioArensPrinter',
+        },
+        fakeExecFile,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('does not spawn Laravel when the dedicated services are already healthy', async () => {
