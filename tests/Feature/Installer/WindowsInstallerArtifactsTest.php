@@ -45,6 +45,18 @@ class WindowsInstallerArtifactsTest extends TestCase
         $this->assertStringContainsString("'APP_ENV=.*' = 'APP_ENV=local'", $installer);
         $this->assertStringContainsString("'SESSION_SECURE_COOKIE=.*' = 'SESSION_SECURE_COOKIE=false'", $installer);
 
+        $serviceInstaller = file_get_contents($root.'/scripts/install-backend-service.ps1');
+        foreach ([
+            'storage\\framework\\cache',
+            'storage\\framework\\data',
+            'storage\\framework\\sessions',
+            'storage\\framework\\testing',
+            'storage\\framework\\views',
+            'storage\\logs',
+        ] as $storageDirectory) {
+            $this->assertStringContainsString($storageDirectory, $serviceInstaller);
+        }
+
         $client = file_get_contents($root.'/frontend/src/api/client.ts');
         $this->assertStringContainsString(':8787/api', $client);
 

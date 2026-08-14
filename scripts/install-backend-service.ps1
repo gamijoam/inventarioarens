@@ -253,7 +253,26 @@ function Install-BackendServices {
         return
     }
 
-    New-Item -ItemType Directory -Path $DataRoot, $ServiceRoot, (Join-Path $ServiceRoot 'backend'), (Join-Path $ServiceRoot 'runtime\php'), (Join-Path $ServiceRoot 'logs'), (Join-Path $DataRoot 'storage'), (Join-Path $DataRoot 'php-cert-scan') -Force | Out-Null
+    New-Item -ItemType Directory -Path @(
+        $DataRoot,
+        $ServiceRoot,
+        (Join-Path $ServiceRoot 'backend'),
+        (Join-Path $ServiceRoot 'runtime\php'),
+        (Join-Path $ServiceRoot 'logs'),
+        (Join-Path $DataRoot 'storage'),
+        (Join-Path $DataRoot 'storage\app'),
+        (Join-Path $DataRoot 'storage\app\imports'),
+        (Join-Path $DataRoot 'storage\app\public'),
+        (Join-Path $DataRoot 'storage\app\sync-worker'),
+        (Join-Path $DataRoot 'storage\framework'),
+        (Join-Path $DataRoot 'storage\framework\cache'),
+        (Join-Path $DataRoot 'storage\framework\data'),
+        (Join-Path $DataRoot 'storage\framework\sessions'),
+        (Join-Path $DataRoot 'storage\framework\testing'),
+        (Join-Path $DataRoot 'storage\framework\views'),
+        (Join-Path $DataRoot 'storage\logs'),
+        (Join-Path $DataRoot 'php-cert-scan')
+    ) -Force | Out-Null
     Try-StopAndDeleteService $BackendService
     Try-StopAndDeleteService $PrinterService
     Try-StopAndDeleteScheduledTask $BackendService
