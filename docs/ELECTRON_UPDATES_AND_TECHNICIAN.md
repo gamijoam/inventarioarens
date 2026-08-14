@@ -1,5 +1,12 @@
 # Electron Updates and Technician Client
 
+> Actualizacion 2026-08-14: la infraestructura local canónica es el instalador independiente
+> **Motor Local - Sistema de Inventario** descrito en
+> `docs/MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`. Administrativo, POS y Soporte Técnico son clientes
+> UI-only: no contienen PHP/Laravel y no crean, reparan ni eliminan servicios o tareas. Las secciones
+> históricas de este documento que describen backend o tareas dentro de Electron no deben aplicarse
+> a releases nuevos.
+
 ## Current Clients
 
 The repository builds three Windows/Linux Electron clients:

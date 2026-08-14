@@ -20,6 +20,10 @@ class WindowsInstallerArtifactsTest extends TestCase
             'installer/windows/router.php',
             'scripts/sync-worker.cmd',
             'scripts/build-windows-installer.ps1',
+            'scripts/install-local-motor.ps1',
+            'scripts/build-local-motor.ps1',
+            'scripts/prepare-winsw.cjs',
+            'installer/windows/MotorLocal.iss',
         ] as $file) {
             $this->assertFileExists($root.'/'.$file);
         }
@@ -60,6 +64,25 @@ class WindowsInstallerArtifactsTest extends TestCase
         $this->assertStringContainsString('SYNC_CLOUD_URL=', $serviceInstaller);
         $this->assertStringContainsString('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=', $serviceInstaller);
 
+        $motorInstaller = file_get_contents($root.'/scripts/install-local-motor.ps1');
+        $this->assertStringContainsString('SistemaInventarioBackend', $motorInstaller);
+        $this->assertStringContainsString('SistemaInventarioPrinter', $motorInstaller);
+        $this->assertStringContainsString('WinSW', $motorInstaller);
+        $this->assertStringContainsString('rollback', strtolower($motorInstaller));
+        $this->assertStringContainsString('backend-service.json', $motorInstaller);
+        $this->assertStringContainsString('INVENTARIO_APP_KEY_FILE', $motorInstaller);
+        $this->assertStringContainsString('INVENTARIO_BOOTSTRAP_TOKEN_FILE', $motorInstaller);
+        $this->assertStringContainsString('Protect-SecretFile', $motorInstaller);
+        $this->assertStringNotContainsString('APP_KEY = $appKey', $motorInstaller);
+        $this->assertStringNotContainsString('APP_BOOTSTRAP_TOKEN = $bootstrapToken', $motorInstaller);
+
+        foreach (['admin', 'pos', 'technician'] as $clientName) {
+            $electronBuilder = file_get_contents($root."/frontend/electron-builder.{$clientName}.yml");
+            $this->assertStringNotContainsString('install-backend-service.ps1', $electronBuilder);
+            $this->assertStringNotContainsString('to: backend', $electronBuilder);
+            $this->assertStringNotContainsString('to: runtime/php', $electronBuilder);
+        }
+
         $client = file_get_contents($root.'/frontend/src/api/client.ts');
         $this->assertStringContainsString(':8787/api', $client);
 
@@ -84,5 +107,7 @@ class WindowsInstallerArtifactsTest extends TestCase
         $bootstrap = file_get_contents($root.'/bootstrap/app.php');
         $this->assertStringContainsString('LARAVEL_STORAGE_PATH', $bootstrap);
         $this->assertStringContainsString("getenv('LARAVEL_STORAGE_PATH')", $bootstrap);
+        $this->assertStringContainsString("getenv('INVENTARIO_APP_KEY_FILE')", $bootstrap);
+        $this->assertStringContainsString("getenv('INVENTARIO_BOOTSTRAP_TOKEN_FILE')", $bootstrap);
     }
 }

@@ -1,29 +1,11 @@
 ; separate-install-dir.nsh
 ;
-; Forces each Electron client to install into its own machine-wide folder so the
-; bundled app.asar and resources/ never collide between the Administrativo and
-; POS builds. Without this, both installers default to
-; $PROGRAMFILES\InventarioArens\inventarioarens-frontend and the second install
-; silently overwrites the first's resources/, causing the Administrativo exe to
-; load the POS renderer.
+; Forces each Electron client to install into its own machine-wide folder.
+; The Motor Local is an independent package and is never installed, updated or
+; removed from an individual Electron client lifecycle.
 ;
-; This macro must run BEFORE InstallDir is resolved, so we hook into
-; customInstall which is invoked right before the install section reads
-; InstallDir. We also update InstallDir reg-key metadata so Add/Remove Programs
-; shows the right name.
+; This macro runs before InstallDir is resolved.
 
 !macro customInstallDir
-  StrCpy $INSTDIR "$PROGRAMFILES\InventarioArens\${PRODUCT_FILENAME}"
-!macroend
-
-!macro customInstall
-  ${If} $INSTDIR == ""
-    StrCpy $INSTDIR "$PROGRAMFILES\InventarioArens\${PRODUCT_FILENAME}"
-  ${EndIf}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\resources\service\install-backend-service.ps1" -SourceBackendRoot "$INSTDIR\resources\backend" -SourcePhpRoot "$INSTDIR\resources\runtime\php" -DataRoot "$APPDATA\InventarioArens" -LogPath "$APPDATA\InventarioArens\service-install.log"'
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "No se pudieron instalar los servicios de INVENTARIOARENS. Codigo: $0. Revisa: $APPDATA\InventarioArens\service-install.log"
-    Abort
-  ${EndIf}
+  StrCpy $INSTDIR "$PROGRAMFILES\Sistema de Inventario\${PRODUCT_FILENAME}"
 !macroend

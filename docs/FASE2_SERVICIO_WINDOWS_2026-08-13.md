@@ -1,5 +1,10 @@
 # Fase 2: servicio Windows dedicado
 
+> **Documento historico sustituido (2026-08-14).** La implementacion descrita aqui fue cambiada
+> posteriormente de servicios nativos a tareas programadas y no cumple la recuperacion prometida.
+> No usar este procedimiento como arquitectura vigente. La causa raiz y el reemplazo aprobado estan
+> en [`MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`](MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md).
+
 Fecha: 2026-08-13
 Release: 0.2.50
 

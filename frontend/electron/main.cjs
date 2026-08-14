@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
 
 const {
   getAppConfig,
@@ -35,7 +35,7 @@ function localDataRoot() {
   return localDataDirectory(app.getPath('appData'));
 }
 
-async function prepareServices() {
+async function prepareRenderer() {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   let url = rendererUrl;
 
@@ -62,9 +62,23 @@ async function prepareServices() {
     url = rendererServer.url;
   }
 
-  await localRuntime.start(new URL(url).origin);
-
   return url;
+}
+
+async function startLocalRuntime(window, url) {
+  try {
+    await localRuntime.start(new URL(url).origin);
+  } catch (error) {
+    console.error('No se pudo iniciar el Motor Local:', error);
+    await dialog.showMessageBox(window, {
+      type: 'error',
+      buttons: ['Reintentar al abrir', 'Cerrar'],
+      defaultId: 0,
+      title: 'Motor Local no disponible',
+      message: 'La aplicacion abrio, pero el Motor Local no esta respondiendo.',
+      detail: `${error.message}\n\nAbre Soporte Tecnico como administrador para diagnosticar o reparar el Motor Local.`,
+    });
+  }
 }
 
 async function runRuntimeSupervisor() {
@@ -86,7 +100,7 @@ async function stopServices() {
 }
 
 async function createWindow() {
-  const url = await prepareServices();
+  const url = await prepareRenderer();
 
   const window = new BrowserWindow({
     title: appConfig.productName,
@@ -102,6 +116,7 @@ async function createWindow() {
   });
 
   await window.loadURL(url);
+  void startLocalRuntime(window, url);
   return window;
 }
 
@@ -136,7 +151,8 @@ if (isRuntimeSupervisor) {
     app.whenReady().then(async () => {
       try {
         if (process.env.INVENTARIO_ELECTRON_SMOKE === '1') {
-          await prepareServices();
+          const url = await prepareRenderer();
+          await localRuntime.start(new URL(url).origin);
           await stopServices();
           app.exit(0);
           return;

@@ -33,10 +33,3 @@ linux:
   target:
     - AppImage
   category: Office
-extraResources:
-  - from: .electron-backend-stage-technician/backend
-    to: backend
-  - from: .electron-backend-stage-technician/runtime/php
-    to: runtime/php
-  - from: ../scripts/install-backend-service.ps1
-    to: service/install-backend-service.ps1
