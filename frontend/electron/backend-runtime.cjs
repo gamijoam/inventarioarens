@@ -666,19 +666,23 @@ function startDedicatedService(serviceName, execFileImpl = execFile) {
     }
 
     execFileImpl(
-      'sc.exe',
-      ['start', serviceName],
+      'schtasks.exe',
+      ['/Run', '/TN', serviceName],
       { windowsHide: true },
       (error, stdout = '', stderr = '') => {
-        // ERROR_SERVICE_ALREADY_RUNNING (1056) is a successful steady state.
-        if (!error || /already running|1056/i.test(`${stdout}\n${stderr}`)) {
+        if (
+          !error ||
+          /already running|running instance|already exists|access is denied|0x80070005/i.test(
+            `${stdout}\n${stderr}`,
+          )
+        ) {
           resolve();
           return;
         }
 
         reject(
           new Error(
-            `No se pudo iniciar el servicio ${serviceName}: ${String(stderr || stdout || error.message).trim()}`,
+            `No se pudo iniciar la tarea local ${serviceName}: ${String(stderr || stdout || error.message).trim()}`,
           ),
         );
       },

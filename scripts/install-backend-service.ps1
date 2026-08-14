@@ -185,10 +185,42 @@ function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$
 }
 
 function Install-Service([string]$Name, [string]$Launcher, [string]$DisplayName) {
-    $binaryPath = "$env:ComSpec /d /s /c `"`"$Launcher`"`""
-    Write-Info "Registrando $Name. Ejecutable: $Launcher"
-    New-Service -Name $Name -BinaryPathName $binaryPath -DisplayName $DisplayName -StartupType Automatic | Out-Null
-    Invoke-Sc @('failure', $Name, 'reset=', '86400', 'actions=', 'restart/5000/restart/15000/restart/60000')
+    $action = New-ScheduledTaskAction -Execute $env:ComSpec -Argument "/d /s /c `"$Launcher`""
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    Write-Info "Registrando tarea de inicio $Name. Ejecutable: $Launcher"
+    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger -User 'SYSTEM' -RunLevel Highest -Description $DisplayName -Force | Out-Null
+}
+
+function Wait-ScheduledTaskRemoved([string]$Name) {
+    $deadline = (Get-Date).AddSeconds(15)
+    do {
+        if (-not (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue)) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "La tarea $Name sigue registrada por Windows."
+}
+
+function Try-StopAndDeleteScheduledTask([string]$Name) {
+    if (-not (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    Stop-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $Name -Confirm:$false
+    Wait-ScheduledTaskRemoved $Name
+}
+
+function Stop-LocalPortProcess([int]$Port) {
+    $connections = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    foreach ($connection in $connections) {
+        if ($connection.OwningProcess -gt 0) {
+            Stop-Process -Id $connection.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 function New-SecretFile([string]$Path, [int]$Bytes) {
@@ -224,6 +256,10 @@ function Install-BackendServices {
     New-Item -ItemType Directory -Path $DataRoot, $ServiceRoot, (Join-Path $ServiceRoot 'backend'), (Join-Path $ServiceRoot 'runtime\php'), (Join-Path $ServiceRoot 'logs'), (Join-Path $DataRoot 'storage'), (Join-Path $DataRoot 'php-cert-scan') -Force | Out-Null
     Try-StopAndDeleteService $BackendService
     Try-StopAndDeleteService $PrinterService
+    Try-StopAndDeleteScheduledTask $BackendService
+    Try-StopAndDeleteScheduledTask $PrinterService
+    Stop-LocalPortProcess 8787
+    Stop-LocalPortProcess 17777
 
     $targetBackend = Join-Path $ServiceRoot 'backend'
     $targetPhp = Join-Path $ServiceRoot 'runtime\php'
@@ -284,8 +320,8 @@ function Install-BackendServices {
     Set-Content -LiteralPath (Join-Path $DataRoot 'backend-service.json') -Value $marker -Encoding UTF8
 
     if (-not $SkipStart) {
-        Invoke-Sc @('start', $BackendService)
-        Invoke-Sc @('start', $PrinterService)
+        Start-ScheduledTask -TaskName $BackendService
+        Start-ScheduledTask -TaskName $PrinterService
     }
 
     Write-Info 'Servicios instalados. La base de datos y los tokens existentes se conservaron.'
@@ -295,6 +331,8 @@ function Uninstall-BackendServices {
     Assert-Administrator
     Try-StopAndDeleteService $BackendService
     Try-StopAndDeleteService $PrinterService
+    Try-StopAndDeleteScheduledTask $BackendService
+    Try-StopAndDeleteScheduledTask $PrinterService
     $marker = Join-Path $DataRoot 'backend-service.json'
     if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force }
     Write-Info 'Servicios detenidos y marcador eliminado. La base SQLite no fue borrada.'
