@@ -39,22 +39,9 @@ jobs:
         with:
           version: 9
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: pdo_sqlite, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo
-
-      - name: Install composer deps
-        run: composer install --prefer-dist --no-interaction --no-progress --no-dev
-
       - name: Install frontend deps
         working-directory: frontend
         run: pnpm install --frozen-lockfile
-
-      - name: Prepare PHP portable runtime
-        working-directory: frontend
-        run: pnpm run electron:prepare:php:linux
 
       - name: Build client
         working-directory: frontend
@@ -74,8 +61,7 @@ jobs:
             *) echo "Cliente invalido: $CLIENT"; exit 1 ;;
           esac
           pnpm run build:${CLIENT}
-          INVENTARIO_BACKEND_STAGE=.electron-backend-stage-${CLIENT} pnpm run electron:stage-backend
-          # Build without publishing; the release is created explicitly below
+          # Build without publishing; the Motor Local has its own release workflow.
           # because electron-builder + GITHUB_TOKEN leaves drafts and can drop
           # the large installer.
           pnpm exec electron-builder --config electron-builder.${CLIENT}.yml

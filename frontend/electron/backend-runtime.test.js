@@ -19,7 +19,6 @@ const {
   releaseRuntimeSupervisorLock,
   removeRuntimeLease,
   resolveRuntimeConfig,
-  runRepairIfPossible,
   runtimeStartupLockPath,
   runtimeLeaseDirectory,
   runtimeSupervisorLockPath,
@@ -37,12 +36,15 @@ const {
 } = backendRuntime;
 
 describe('Local Laravel runtime configuration', () => {
-  it('ships the dedicated Windows service installer with both services and migration wiring', () => {
-    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+  it('ships an independent local motor installer with WinSW recovery and migration wiring', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-local-motor.ps1');
     const installer = fs.readFileSync(installerPath, 'utf8');
 
-    expect(installer).toContain("$BackendService = 'InventarioArensBackend'");
-    expect(installer).toContain("$PrinterService = 'InventarioArensPrinter'");
+    expect(installer).toContain("$BackendService = 'SistemaInventarioBackend'");
+    expect(installer).toContain("$PrinterService = 'SistemaInventarioPrinter'");
+    expect(installer).toContain('WinSW');
+    expect(installer).toContain('<onfailure action="restart"');
+    expect(installer).toContain('<delayedAutoStart>true</delayedAutoStart>');
     expect(installer).toContain('local:install-sqlite');
     expect(installer).toContain('backend-service.json');
     expect(installer).toContain('La base de datos y los tokens existentes se conservaron');
@@ -99,7 +101,7 @@ describe('Local Laravel runtime configuration', () => {
     expect(installer).not.toContain('New-Service');
   });
 
-  it('does not remove shared services from an individual client uninstaller', () => {
+  it('keeps individual client installers completely separate from the local motor', () => {
     const nsisPath = path.join(
       repositoryRoot,
       'frontend',
@@ -111,12 +113,21 @@ describe('Local Laravel runtime configuration', () => {
 
     expect(nsis).not.toContain('!macro customUnInstall');
     expect(nsis).not.toContain(' -Uninstall');
-    expect(nsis).toContain('Pop $0');
-    expect(nsis).toContain('Abort');
-    expect(nsis).toContain('service-install.log');
+    expect(nsis).not.toContain('install-backend-service.ps1');
+    expect(nsis).not.toContain('service-install.log');
+
+    for (const client of ['admin', 'pos', 'technician']) {
+      const config = fs.readFileSync(
+        path.join(repositoryRoot, 'frontend', `electron-builder.${client}.yml`),
+        'utf8',
+      );
+      expect(config).not.toContain('install-backend-service.ps1');
+      expect(config).not.toContain('to: backend');
+      expect(config).not.toContain('to: runtime/php');
+    }
   });
 
-  it('starts both dedicated services even when the backend is already healthy', async () => {
+  it('does not require service-control privileges when the Motor is already healthy', async () => {
     const calls = [];
     const fakeExecFile = (file, args, options, callback) => {
       calls.push({ file, args, options });
@@ -143,10 +154,7 @@ describe('Local Laravel runtime configuration', () => {
 
     await runtime.run();
 
-    expect(calls.map(({ args }) => args)).toEqual([
-      ['/Run', '/TN', 'InventarioArensBackend'],
-      ['/Run', '/TN', 'InventarioArensPrinter'],
-    ]);
+    expect(calls).toEqual([]);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
@@ -206,7 +214,7 @@ describe('Local Laravel runtime configuration', () => {
     expect(calls[1].args).toEqual(['/Run', '/TN', 'InventarioArensPrinter']);
   });
 
-  it('continues to health-check when Windows denies a non-admin task start request', async () => {
+  it('does not hide a denied Windows service start request', async () => {
     const fakeExecFile = (file, args, options, callback) => {
       callback(new Error('exit code 5'), '', 'ERROR: Access is denied.');
     };
@@ -221,7 +229,31 @@ describe('Local Laravel runtime configuration', () => {
         },
         fakeExecFile,
       ),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow(/Access is denied/i);
+  });
+
+  it('starts Motor Local services through the Windows service manager', async () => {
+    const calls = [];
+    const fakeExecFile = (file, args, options, callback) => {
+      calls.push({ file, args, options });
+      callback(null, '', '');
+    };
+
+    await startDedicatedServices(
+      {
+        platform: 'win32',
+        serviceMode: true,
+        serviceManager: 'scm',
+        backendServiceName: 'SistemaInventarioBackend',
+        printerServiceName: 'SistemaInventarioPrinter',
+      },
+      fakeExecFile,
+    );
+
+    expect(calls.map(({ file, args }) => ({ file, args }))).toEqual([
+      { file: 'sc.exe', args: ['start', 'SistemaInventarioBackend'] },
+      { file: 'sc.exe', args: ['start', 'SistemaInventarioPrinter'] },
+    ]);
   });
 
   it('does not spawn Laravel when the dedicated services are already healthy', async () => {
@@ -250,7 +282,7 @@ describe('Local Laravel runtime configuration', () => {
     await runtime.run();
 
     expect(calls).toHaveLength(0);
-    expect(serviceCalls).toHaveLength(2);
+    expect(serviceCalls).toHaveLength(0);
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
@@ -402,71 +434,6 @@ describe('Local Laravel runtime configuration', () => {
       '--port=17778',
       '--bind=127.0.0.1',
     ]);
-  });
-
-  it('repairs windows tasks even when a compatible backend is already running', async () => {
-    const calls = [];
-    const fakeSpawn = (bin, args) => {
-      calls.push(args);
-      const child = new (require('node:events').EventEmitter)();
-      child.killed = false;
-      child.kill = () => {};
-      child.stdout = { on: () => {} };
-      child.stderr = { on: () => {} };
-      process.nextTick(() => child.emit('close', 0));
-      return child;
-    };
-
-    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-repair-'));
-    const config = resolveRuntimeConfig({
-      dataRoot,
-      backendRoot: path.join(dataRoot, 'backend'),
-      isPackaged: false,
-      platform: 'linux',
-    });
-    config.phpBinary = '/usr/bin/php';
-
-    const runtime = backendRuntime;
-    // Crea el artisan del backend para que runRepairIfPossible lo detecte.
-    fs.mkdirSync(config.backendRoot, { recursive: true });
-    fs.writeFileSync(path.join(config.backendRoot, 'artisan'), '#!/usr/bin/env php\n');
-
-    await runtime.runRepairIfPossible(config, fakeSpawn);
-
-    const repairCall = calls.find(
-      (args) => args.includes('local:repair-tasks') && args.includes('--printer'),
-    );
-    expect(repairCall).toBeDefined();
-    expect(repairCall).toContain('local:repair-tasks');
-
-    fs.rmSync(dataRoot, { recursive: true, force: true });
-  });
-
-  it('skips repair when the backend artisan is missing', async () => {
-    const calls = [];
-    const fakeSpawn = (bin, args) => {
-      calls.push(args);
-      const child = new (require('node:events').EventEmitter)();
-      child.killed = false;
-      child.kill = () => {};
-      child.stdout = { on: () => {} };
-      child.stderr = { on: () => {} };
-      process.nextTick(() => child.emit('close', 0));
-      return child;
-    };
-
-    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-repair-missing-'));
-    const config = resolveRuntimeConfig({
-      dataRoot,
-      backendRoot: path.join(dataRoot, 'no-backend'),
-      isPackaged: false,
-      platform: 'linux',
-    });
-
-    await backendRuntime.runRepairIfPossible(config, fakeSpawn);
-
-    expect(calls.length).toBe(0);
-    fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
   it('reads per-tenant daemon arguments from the sync config file', () => {

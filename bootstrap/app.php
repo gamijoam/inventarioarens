@@ -15,6 +15,24 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 
+$secretFiles = [
+    'APP_KEY' => getenv('INVENTARIO_APP_KEY_FILE') ?: null,
+    'APP_BOOTSTRAP_TOKEN' => getenv('INVENTARIO_BOOTSTRAP_TOKEN_FILE') ?: null,
+];
+foreach ($secretFiles as $environmentName => $secretFile) {
+    if (getenv($environmentName) !== false || ! is_string($secretFile) || ! is_readable($secretFile)) {
+        continue;
+    }
+
+    $secret = trim((string) file_get_contents($secretFile));
+    if ($environmentName === 'APP_KEY' && ! str_starts_with($secret, 'base64:')) {
+        $secret = 'base64:'.$secret;
+    }
+    if ($secret !== '') {
+        putenv($environmentName.'='.$secret);
+    }
+}
+
 $storagePath = getenv('LARAVEL_STORAGE_PATH') ?: null;
 $environmentFile = dirname(__DIR__).'/.env';
 if ($storagePath === null && is_readable($environmentFile)) {

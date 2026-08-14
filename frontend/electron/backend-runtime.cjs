@@ -40,6 +40,7 @@ function readDedicatedServiceSettings(dataRoot) {
       phpBinary: settings.php_binary || '',
       backendServiceName: settings.backend_service || 'InventarioArensBackend',
       printerServiceName: settings.printer_service || 'InventarioArensPrinter',
+      serviceManager: settings.service_manager || 'scheduled_task',
     };
   } catch {
     return null;
@@ -119,6 +120,11 @@ function resolveRuntimeConfig(options = {}) {
       process.env.INVENTARIO_PRINTER_SERVICE ??
       dedicatedService?.printerServiceName ??
       'InventarioArensPrinter',
+    serviceManager:
+      options.serviceManager ??
+      process.env.INVENTARIO_SERVICE_MANAGER ??
+      dedicatedService?.serviceManager ??
+      'scheduled_task',
     storagePath: path.join(dataRoot, 'storage'),
     syncCloudUrl:
       options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL ?? DEFAULT_SYNC_CLOUD_URL,
@@ -637,44 +643,23 @@ function waitForRuntimeLeases(config, idleGraceMs = 5000, pollMs = 500) {
   });
 }
 
-/**
- * Ejecuta el auto-reparador de tareas contra el backend compartido. Se usa
- * cuando esta app es cliente (backend ajeno ya corriendo) para que las tareas
- * de sync y del agente se re-registren con las rutas del backend actual.
- */
-async function runRepairIfPossible(config, spawnProcess = spawn) {
-  const artisan = path.join(config.backendRoot, 'artisan');
-  if (!fs.existsSync(artisan)) return;
-  const environment = buildLaravelEnvironment(
-    {
-      ...config,
-      appKey: ensureAppKey(config),
-      bootstrapToken: ensureBootstrapToken(config),
-    },
-    null,
-  );
-  const repairArguments = ['artisan', 'local:repair-tasks'];
-  if (!config.serviceMode) repairArguments.push('--printer');
-  await runCommand(config, repairArguments, environment, spawnProcess);
-}
-
-function startDedicatedService(serviceName, execFileImpl = execFile) {
+function startDedicatedService(serviceName, serviceManager = 'scheduled_task', execFileImpl = execFile) {
   return new Promise((resolve, reject) => {
     if (!serviceName) {
       resolve();
       return;
     }
 
+    const executable = serviceManager === 'scm' ? 'sc.exe' : 'schtasks.exe';
+    const args = serviceManager === 'scm' ? ['start', serviceName] : ['/Run', '/TN', serviceName];
     execFileImpl(
-      'schtasks.exe',
-      ['/Run', '/TN', serviceName],
+      executable,
+      args,
       { windowsHide: true },
       (error, stdout = '', stderr = '') => {
         if (
           !error ||
-          /already running|running instance|already exists|access is denied|0x80070005/i.test(
-            `${stdout}\n${stderr}`,
-          )
+          /already running|running instance|already exists|1056/i.test(`${stdout}\n${stderr}`)
         ) {
           resolve();
           return;
@@ -693,8 +678,8 @@ function startDedicatedService(serviceName, execFileImpl = execFile) {
 async function startDedicatedServices(config, execFileImpl = execFile) {
   if (config.serviceMode !== true || (config.platform ?? process.platform) !== 'win32') return;
 
-  await startDedicatedService(config.backendServiceName, execFileImpl);
-  await startDedicatedService(config.printerServiceName, execFileImpl);
+  await startDedicatedService(config.backendServiceName, config.serviceManager, execFileImpl);
+  await startDedicatedService(config.printerServiceName, config.serviceManager, execFileImpl);
 }
 
 /**
@@ -763,15 +748,9 @@ function createRuntimeSupervisor(options = {}) {
     config,
     async run() {
       if (config.serviceMode === true && (config.platform ?? process.platform) === 'win32') {
-        await startDedicatedServices(config, options.execFile ?? execFile);
         if (!(await requestHealthImpl(config.apiUrl))) {
+          await startDedicatedServices(config, options.execFile ?? execFile);
           await waitForHealthImpl(config.apiUrl);
-        }
-
-        try {
-          await runRepairIfPossible(config, spawnProcess);
-        } catch (error) {
-          console.error('No se pudo reparar las tareas locales:', error.message);
         }
 
         await waitForRuntimeLeasesImpl(config);
@@ -787,13 +766,7 @@ function createRuntimeSupervisor(options = {}) {
         apiHealthy && isBackendOutdated(runningVersion, config.appVersion ?? '0.0.0');
 
       if (apiHealthy && !needsTakeover) {
-        // Backend ajeno ya corriendo y al dia: no tomamos el lock, solo
-        // aseguramos las tareas y el agente contra ese backend compartido.
-        try {
-          await runRepairIfPossible(config, spawnProcess);
-        } catch (error) {
-          console.error('No se pudo reparar las tareas locales:', error.message);
-        }
+        // Backend ajeno ya corriendo y al dia: no tomamos el lock.
         ensurePrinterAgent();
         await waitForRuntimeLeasesImpl(config);
         return false;
@@ -852,15 +825,6 @@ function createRuntimeSupervisor(options = {}) {
         writeBackendVersion(config, config.appVersion ?? '0.0.0');
         ensurePrinterAgent();
 
-        // Auto-reparador de tareas de Windows: se ejecuta SIEMPRE que esta app
-        // queda a cargo del backend compartido, para que tras una actualizacion
-        // las tareas no queden apuntando a rutas viejas.
-        try {
-          await runRepairIfPossible(config, spawnProcess);
-        } catch (error) {
-          console.error('No se pudo reparar las tareas locales:', error.message);
-        }
-
         await waitForRuntimeLeasesImpl(config);
         return ownsApi;
       } finally {
@@ -893,6 +857,7 @@ function spawnRuntimeSupervisor(config, options = {}) {
     INVENTARIO_SERVICE_MODE: config.serviceMode ? '1' : '0',
     INVENTARIO_BACKEND_SERVICE: config.backendServiceName ?? 'InventarioArensBackend',
     INVENTARIO_PRINTER_SERVICE: config.printerServiceName ?? 'InventarioArensPrinter',
+    INVENTARIO_SERVICE_MANAGER: config.serviceManager ?? 'scheduled_task',
   };
   delete environment.INVENTARIO_ELECTRON_SMOKE;
 
@@ -921,7 +886,9 @@ function createLocalRuntime(options = {}) {
 
       try {
         if (config.serviceMode === true && (config.platform ?? process.platform) === 'win32') {
-          await startDedicatedServices(config, options.execFile ?? execFile);
+          if (!(await requestHealth(config.apiUrl))) {
+            await startDedicatedServices(config, options.execFile ?? execFile);
+          }
         } else if (!(await requestHealth(config.apiUrl))) {
           spawnRuntimeSupervisor(config, options);
         }
@@ -962,7 +929,6 @@ module.exports = {
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
   resolveRuntimeConfig,
-  runRepairIfPossible,
   startDedicatedService,
   startDedicatedServices,
   runtimeLeaseDirectory,

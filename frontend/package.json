@@ -38,9 +38,9 @@
     "electron:smoke:linux:admin": "node ../scripts/smoke-linux-appimage.cjs admin",
     "electron:smoke:linux:pos": "node ../scripts/smoke-linux-appimage.cjs pos",
     "electron:smoke:linux:technician": "node ../scripts/smoke-linux-appimage.cjs technician",
-    "electron:build:admin": "pnpm run build:admin && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-admin pnpm run electron:stage-backend && electron-builder --config electron-builder.admin.yml",
-    "electron:build:pos": "pnpm run build:pos && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-pos pnpm run electron:stage-backend && electron-builder --config electron-builder.pos.yml",
-    "electron:build:technician": "pnpm run build:technician && pnpm run electron:prepare:php:linux && cross-env INVENTARIO_BACKEND_STAGE=.electron-backend-stage-technician pnpm run electron:stage-backend && electron-builder --config electron-builder.technician.yml",
+    "electron:build:admin": "pnpm run build:admin && electron-builder --config electron-builder.admin.yml",
+    "electron:build:pos": "pnpm run build:pos && electron-builder --config electron-builder.pos.yml",
+    "electron:build:technician": "pnpm run build:technician && electron-builder --config electron-builder.technician.yml",
     "prepare": "husky"
   },
   "dependencies": {

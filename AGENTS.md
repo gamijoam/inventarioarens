@@ -222,8 +222,11 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
 - **Foto inicial**: cuando un nodo local nuevo se registra con su catálogo vacío, la nube genera
   automáticamente un snapshot inicial (`product.created`, `price_list.created`, etc.) marcado `sync_snapshot`.
 
-**Worker en Windows**: Scheduled Task `SistemaInventarioSync-{tenant-slug}` cada 5 min, ejecuta
-`scripts/run-sync-hidden.vbs` → `scripts/sync-worker.cmd start {tenant}`. Sobrevive reinicios.
+**Worker en Windows**: el Motor Local ejecuta un único servicio real
+`SistemaInventarioSync` → `php artisan sync:daemon-all`. El supervisor relee
+`storage/app/sync-worker/sync-config.json` y procesa de forma aislada cada empresa configurada.
+Las tareas `SistemaInventarioSync-{tenant-slug}` son legado y el instalador del Motor las elimina
+solo después de validar el nuevo servicio.
 
 El procedimiento Windows para vincular un grupo completo, verificar sus cinco tenants y diagnosticar
 tokens/mapeos sin exponer secretos está en `docs/WINDOWS_ELECTRON_VALIDATION.md` §6.7.1.
@@ -633,7 +636,7 @@ existente, confirmar primero con el usuario (afecta a otros productos).
 | Síntoma | Causa probable | Fix |
 |---|---|---|
 | 401 en API tras deploy | Sesión cacheada con token viejo | `php artisan optimize:clear` |
-| Worker abre ventana negra | Scheduled Task apunta al .cmd directo, no al VBS | Re-registrar con `scripts/sync-worker-task.ps1 install -TenantSlug <slug>` |
+| Sync local detenido | Servicio `SistemaInventarioSync` detenido o Motor ausente | Revisar el servicio y `storage/logs/services/sync`; no recrear tareas programadas |
 | Cambios locales no llegan a la nube | Worker no corriendo o token vencido | `php artisan sync:status {tenant}` + reinstalar task |
 | Evento `ignored` en sync_inbox | Falta tipo conocido por el applier | `php artisan sync:apply-inbox <tenant> --limit=200` |
 | Tests "duplicate table" local | Concurrencia en DB testing | Correr archivo por archivo o `--process-isolation` |
@@ -701,9 +704,18 @@ existente, confirmar primero con el usuario (afecta a otros productos).
   (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).
 
 **Infraestructura Electron (backend compartido)**:
-- `docs/AUDITORIA_INFRA_BACKEND_COMPARTIDO_2026-08-13.md` — auditoría y plan: las 3 apps
-  compiten por `:8787` y `%APPDATA%\InventarioArens`; se planea un backend compartido
-  (Fase 1: lock por versión + repair siempre; Fase 2: servicio Windows dedicado).
+- Desde 2026-08-14 el backend local y el agente de impresión pertenecen al instalador independiente
+  **Motor Local - Sistema de Inventario**. Los clientes Administrativo, POS y Soporte Técnico son
+  solamente interfaces y no pueden instalar, actualizar ni desinstalar PHP, Laravel o los servicios.
+- Servicios Windows reales: `SistemaInventarioBackend` (`127.0.0.1:8787`),
+  `SistemaInventarioPrinter` (`127.0.0.1:17777`) y `SistemaInventarioSync`, administrados por WinSW
+  y configurados con inicio automático, reinicio ante fallo y logs rotativos.
+- El Motor se instala por versiones en
+  `%ProgramFiles%\Sistema de Inventario\Motor\versions\<version>`; conserva datos, tokens y SQLite en
+  `%ProgramData%\InventarioArens` durante la primera fase de migración. Nunca reemplazar esa carpeta
+  de datos al actualizar el Motor.
+- Fuente canónica: `docs/MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`. Las auditorías anteriores sobre
+  tareas programadas son históricas y no deben usarse para implementar releases nuevos.
 
 **Auditoría backend 2026-07-11**:
 - `docs/AUDIT_2026-07-11/00_RESUMEN_EJECUTIVO.md`
@@ -964,9 +976,9 @@ recomendado para produccion.
 La limitacion de token por tenant se mantiene por seguridad: una instalacion
 local multiempresa usa un token y un worker independiente por cada empresa.
 `local:configure-sync-tenants` escribe `storage/app/sync-worker/sync-config.json`
-y `scripts/sync-worker-all.ps1` administra las tareas Windows de todas las
-empresas configuradas. No usar un token de plataforma para sustituir este
-aislamiento.
+y el servicio `SistemaInventarioSync` supervisa todas las empresas con
+`php artisan sync:daemon-all`. Cada empresa conserva token, nodo y ciclo independientes aunque
+compartan el proceso supervisor. No usar un token de plataforma para sustituir este aislamiento.
 
 ## graphify
 
@@ -981,7 +993,7 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
-## Electron updates and technician client (2026-08-07, actualizado 2026-08-08)
+## Electron updates, technician client y Motor Local (actualizado 2026-08-14)
 
 The Electron desktop clients use `electron-updater` with GitHub Releases as the initial provider.
 Each client has an independent update channel and artifact configuration:
@@ -993,6 +1005,10 @@ Each client has an independent update channel and artifact configuration:
 Cada cliente se instala en su propia carpeta (`oneClick: false` + `executableName`), para que no
 colisionen en `inventarioarens-frontend` ni se pisen el `app.asar`.
 
+Los tres clientes son UI-only. No agregar `backend/`, PHP portable ni scripts de servicios a sus
+`extraResources`. El runtime compartido se publica por separado mediante
+`.github/workflows/release-motor.yml` y `installer/windows/MotorLocal.iss`.
+
 ### Releases automáticos
 
 `.github/workflows/release.yml` construye y publica un cliente con `gh workflow run release.yml -f
@@ -1000,6 +1016,10 @@ client=pos` (o admin/technician). Construye en `windows-latest`, y publica con
 `gh release create v<version>-<client>` (no-draft) subiendo el `.exe`, `.blockmap` y `<channel>.yml`
 (`pos.yml`, `admin.yml`, `technician.yml`). El tag es `v<version>-<client>` para que los tres
 clientes compartan el mismo `package.json` sin colisionar.
+
+`.github/workflows/release-motor.yml` construye el instalador independiente del Motor. Una versión
+de cliente no obliga a publicar otra versión del Motor; si cambia Laravel, PHP, impresión, sync o
+la infraestructura local, se publica primero y se valida el Motor correspondiente.
 
 **Regla de build**: siempre regenerar el bundle antes de empaquetar
 (`pnpm run build:<client>` y luego `electron-builder`). Empaquetar sin regenerar `dist` publica un
@@ -1010,9 +1030,9 @@ bundle viejo y la UI nueva no llega.
 - El updater descarga en background y pregunta antes de reiniciar. El check corre al arrancar y cada
   **1 minuto** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`) — corto para
   verificar cambios rápido durante desarrollo.
-- La sincronización de escritorio corre por **tareas programadas de Windows** (una por empresa, cada
-  1 minuto) que ejecutan `sync-worker.cmd run` → `php artisan sync:run`, **independientes de la app
-  abierta**. El supervisor de Electron ya no lanza daemons de sync.
+- La sincronización de escritorio corre en el servicio Windows **`SistemaInventarioSync`** del Motor
+  Local, independiente de las aplicaciones abiertas. Un solo supervisor procesa todas las empresas;
+  Electron no crea tareas ni lanza daemons.
 - La propagación del catálogo del grupo a las hijas emite eventos `sync_outbox` por cada spinoff;
   el applier local matchea productos por `sku`/`catalog_product_id`.
 - El technician reutiliza la consola `/support` para vincular empresas, ver estado de sync y

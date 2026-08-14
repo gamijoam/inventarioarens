@@ -1,5 +1,11 @@
 # Auditoria y plan: backend compartido para los 3 clientes Electron
 
+> **Actualizacion del 2026-08-14:** las secciones de Fase 2 reflejan una implementacion historica que
+> termino usando tareas programadas bajo `SYSTEM`. La incidencia real demostro que no se recupera
+> cuando el backend termina y que los tres instaladores compiten por el mismo runtime. El plan
+> canonico que sustituye esa fase es
+> [`MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`](MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md).
+
 Fecha: 2026-08-13 · Estado: PLAN APROBADO — pendiente de implementacion
 
 ## 1. Resumen del problema (sintomas reportados)
