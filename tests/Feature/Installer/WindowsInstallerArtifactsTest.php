@@ -76,6 +76,13 @@ class WindowsInstallerArtifactsTest extends TestCase
         $this->assertStringNotContainsString('APP_KEY = $appKey', $motorInstaller);
         $this->assertStringNotContainsString('APP_BOOTSTRAP_TOKEN = $bootstrapToken', $motorInstaller);
 
+        $motorWorkflow = file_get_contents($root.'/.github/workflows/release-motor.yml');
+        $this->assertStringContainsString('runs-on: windows-latest', $motorWorkflow);
+        $this->assertStringContainsString('build-local-motor.ps1', $motorWorkflow);
+        $this->assertStringContainsString('motor-v${VERSION}', $motorWorkflow);
+        $this->assertStringContainsString('--prerelease', $motorWorkflow);
+        $this->assertStringContainsString('.sha256', $motorWorkflow);
+
         foreach (['admin', 'pos', 'technician'] as $clientName) {
             $electronBuilder = file_get_contents($root."/frontend/electron-builder.{$clientName}.yml");
             $this->assertStringNotContainsString('install-backend-service.ps1', $electronBuilder);

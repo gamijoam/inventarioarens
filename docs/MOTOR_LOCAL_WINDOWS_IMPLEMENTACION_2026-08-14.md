@@ -36,11 +36,18 @@ riesgosa; no aparece como nombre del producto instalado ni de los servicios nuev
 
 `php artisan sync:daemon-all` relee `storage/app/sync-worker/sync-config.json` en cada ciclo. Cada
 empresa conserva su token, nodo e instalacion independientes. Un error de una empresa se registra y
-no impide procesar las demas.
+no impide procesar las demas. El campo `interval` de cada empresa se respeta de forma independiente
+entre `5` y `300` segundos; `--interval` solo funciona como fallback si una configuracion no lo
+define. El supervisor duerme hasta el siguiente tenant pendiente, por lo que una empresa rapida no
+queda bloqueada por otra con un intervalo mayor.
 
 Al migrar, el instalador detiene las tareas `SistemaInventarioSync-*`, inicia y valida
 `SistemaInventarioSync`, y solo entonces elimina las tareas antiguas. Los clientes Electron ya no
 ejecutan `local:repair-tasks`.
+
+Cuando `INVENTARIO_SERVICE_MODE=1`, Soporte Tecnico reporta el servicio central y rechaza las
+acciones de instalar, iniciar, detener o reiniciar un worker por empresa. Las tareas antiguas solo
+se conservan como ruta de migracion para instalaciones que aun no usan el Motor Local.
 
 ## Evidencia del piloto 0.1.2
 
@@ -81,3 +88,21 @@ ejecutan `local:repair-tasks`.
 
 Los clientes deben abrir su ventana aunque el Motor este caido y mostrar un diagnostico visible. No
 deben cerrarse silenciosamente ni solicitar privilegios cuando el backend ya esta sano.
+
+## Build y release reproducible
+
+El build oficial se ejecuta en `windows-latest` mediante `.github/workflows/release-motor.yml`; Linux
+no necesita instalar PHP portable ni Inno Setup para generar el artefacto. Para una prueba de VM:
+
+```bash
+gh workflow run release-motor.yml -f version=0.1.3-test -f prerelease=true
+gh release download motor-v0.1.3-test --pattern '*.exe' --pattern '*.sha256'
+```
+
+El workflow prepara PHP portable, WinSW y el payload, construye
+`Motor-Local-Sistema-Inventario-<version>.exe`, publica su SHA-256 y lo marca como prerelease cuando
+se solicita. Para construir localmente en Windows se puede usar:
+
+```powershell
+.\scripts\build-local-motor.ps1 -Version 0.1.3-test
+```

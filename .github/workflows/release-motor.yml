@@ -7,6 +7,11 @@ on:
         description: 'Version independiente del Motor Local'
         required: true
         default: '0.1.0'
+      prerelease:
+        description: 'Publicar como release de prueba'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -44,9 +49,11 @@ jobs:
       - name: Validate artifact
         shell: powershell
         run: |
-          $artifact = Get-ChildItem -LiteralPath build\local-motor\release -Filter '*.exe'
+          $artifact = @(Get-ChildItem -LiteralPath build\local-motor\release -Filter '*.exe')
           if ($artifact.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($artifact.Count)." }
-          Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256
+          $hash = (Get-FileHash -LiteralPath $artifact[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash *$($artifact[0].Name)" | Set-Content -LiteralPath (Join-Path $artifact[0].DirectoryName "$($artifact[0].Name).sha256") -Encoding ASCII
+          Get-Content -LiteralPath (Join-Path $artifact[0].DirectoryName "$($artifact[0].Name).sha256")
 
       - name: Publish Motor Local
         shell: bash
@@ -54,9 +61,12 @@ jobs:
           set -euo pipefail
           VERSION='${{ inputs.version }}'
           TAG="motor-v${VERSION}"
+          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Motor Local ${VERSION}" --generate-notes)
+          if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
+            RELEASE_FLAGS+=(--prerelease)
+          fi
           gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
-            --repo gamijoam/inventarioarens \
-            --title "Motor Local ${VERSION}" \
-            --generate-notes \
-            build/local-motor/release/*.exe
+            "${RELEASE_FLAGS[@]}" \
+            build/local-motor/release/*.exe \
+            build/local-motor/release/*.sha256

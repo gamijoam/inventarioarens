@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Sync;
 
+use App\Modules\Sync\Services\SyncDaemonSchedule;
 use App\Modules\Sync\Services\SyncWorkerService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -86,6 +87,35 @@ class SyncAllDaemonCommandTest extends TestCase
             ->expectsOutputToContain('primera: ERROR - nube temporalmente fuera de linea')
             ->expectsOutputToContain('segunda: OK')
             ->assertExitCode(1);
+    }
+
+    public function test_supervisor_passes_each_tenant_interval_to_the_schedule(): void
+    {
+        $first = Tenant::create(['name' => 'Primera', 'slug' => 'primera']);
+        $second = Tenant::create(['name' => 'Segunda', 'slug' => 'segunda']);
+        $firstConfiguration = $this->configuration('secret-one', 'NODE-01');
+        $firstConfiguration['interval'] = 5;
+        $secondConfiguration = $this->configuration('secret-two', 'NODE-02');
+        $secondConfiguration['interval'] = 30;
+        $this->writeSettings([
+            'primera' => $firstConfiguration,
+            'segunda' => $secondConfiguration,
+        ]);
+
+        $this->mock(SyncDaemonSchedule::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('claim')->once()->withArgs(
+                fn (string $slug, float $now, int $interval): bool => $slug === 'primera' && $interval === 5,
+            )->andReturnTrue();
+            $mock->shouldReceive('claim')->once()->withArgs(
+                fn (string $slug, float $now, int $interval): bool => $slug === 'segunda' && $interval === 30,
+            )->andReturnTrue();
+        });
+        $this->mock(SyncWorkerService::class, function (MockInterface $mock) use ($first, $second): void {
+            $mock->shouldReceive('run')->once()->withArgs(fn (Tenant $tenant): bool => $tenant->is($first))->andReturn($this->summary());
+            $mock->shouldReceive('run')->once()->withArgs(fn (Tenant $tenant): bool => $tenant->is($second))->andReturn($this->summary());
+        });
+
+        $this->artisan('sync:daemon-all', ['--once' => true])->assertSuccessful();
     }
 
     private function writeSettings(array $tenants): void

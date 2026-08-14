@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sync\Commands;
 
+use App\Modules\Sync\Services\SyncDaemonSchedule;
 use App\Modules\Sync\Services\SyncWorkerService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Console\Command;
@@ -10,13 +11,13 @@ use Throwable;
 class RunAllSyncDaemonsCommand extends Command
 {
     protected $signature = 'sync:daemon-all
-        {--interval=15 : Segundos entre ciclos globales}
+        {--interval=15 : Intervalo de respaldo en segundos cuando una empresa no define el suyo}
         {--cycles=0 : Cantidad maxima de ciclos; 0 significa continuo}
         {--once : Ejecuta un solo ciclo y termina}';
 
     protected $description = 'Supervisa en un solo proceso la sincronizacion de todas las empresas locales configuradas.';
 
-    public function handle(SyncWorkerService $worker): int
+    public function handle(SyncWorkerService $worker, SyncDaemonSchedule $schedule): int
     {
         $maximumCycles = $this->option('once') ? 1 : max(0, (int) $this->option('cycles'));
         $interval = max(5, (int) $this->option('interval'));
@@ -27,8 +28,14 @@ class RunAllSyncDaemonsCommand extends Command
 
         while (true) {
             $cycle++;
+            $now = microtime(true);
 
             foreach ($this->configuredTenants() as $slug => $configuration) {
+                $tenantInterval = (int) ($configuration['interval'] ?? $interval);
+                if (! $schedule->claim($slug, $now, $tenantInterval)) {
+                    continue;
+                }
+
                 $tenant = Tenant::query()->where('slug', $slug)->first();
                 if (! $tenant) {
                     $this->warn($slug.': omitida porque no existe en la base local.');
@@ -68,7 +75,7 @@ class RunAllSyncDaemonsCommand extends Command
                 return $hadFailures ? self::FAILURE : self::SUCCESS;
             }
 
-            sleep($interval);
+            sleep($schedule->secondsUntilNext(microtime(true), $interval));
         }
     }
 

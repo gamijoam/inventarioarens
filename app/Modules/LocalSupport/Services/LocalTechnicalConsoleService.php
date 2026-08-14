@@ -159,12 +159,19 @@ class LocalTechnicalConsoleService
                 $this->runArtisan('sync:prepare-local', $parameters);
             });
 
-            $worker = PHP_OS_FAMILY === 'Windows'
-                ? $this->installWindowsWorkerTaskQuiet($slug)
-                : [
+            if ($this->usesLocalMotorService()) {
+                $worker = [
+                    'output' => 'La sincronizacion se ejecuta mediante el servicio central SistemaInventarioSync.',
+                    'status' => $this->workerStatus($slug),
+                ];
+            } elseif (PHP_OS_FAMILY === 'Windows') {
+                $worker = $this->installWindowsWorkerTaskQuiet($slug);
+            } else {
+                $worker = [
                     'output' => 'En Linux el worker se controla mediante systemd.',
                     'status' => $this->workerStatus($slug),
                 ];
+            }
 
             $prepared[] = [
                 'tenant' => $tenant,
@@ -253,6 +260,12 @@ class LocalTechnicalConsoleService
     public function workerAction(string $tenantSlug, string $action): array
     {
         $this->ensureConfiguredTenant($tenantSlug);
+
+        if ($this->usesLocalMotorService()) {
+            throw ValidationException::withMessages([
+                'worker' => 'La sincronizacion se controla mediante el servicio central SistemaInventarioSync.',
+            ]);
+        }
 
         if (PHP_OS_FAMILY !== 'Windows') {
             throw ValidationException::withMessages([
@@ -790,6 +803,9 @@ class LocalTechnicalConsoleService
     protected function printerLauncherContent(): string
     {
         $phpBinary = PHP_BINARY;
+        $launcherPhpBinary = PHP_OS_FAMILY === 'Windows'
+            ? str_replace('/', '\\', $phpBinary)
+            : $phpBinary;
         $storageRoot = rtrim((string) storage_path(), '\\/');
         $databasePath = (string) config('database.connections.sqlite.database');
         $scanDirectory = dirname(storage_path()).'/php-cert-scan';
@@ -809,7 +825,7 @@ class LocalTechnicalConsoleService
         $lines[] = 'if not exist "'.$stateDirectory.'" mkdir "'.$stateDirectory.'"';
         // Lanza el agente desacoplado y oculto (el VBS run-sync-hidden.vbs lo
         // ejecuta sin ventana de consola). Redirige la salida al log.
-        $lines[] = 'start "" /b "'.str_replace('/', '\\', $phpBinary).'" artisan printer:serve --port=17777 --bind=127.0.0.1 >> "'.$logFile.'" 2>&1';
+        $lines[] = 'start "" /b "'.$launcherPhpBinary.'" artisan printer:serve --port=17777 --bind=127.0.0.1 >> "'.$logFile.'" 2>&1';
         $lines[] = 'for /f "tokens=2 delims=," %%A in (\'wmic process where "name=\'php.exe\' and commandline like \'%%printer:serve%%\'" get ProcessId /format:csv 2^>nul\') do if not "%%A"=="" echo %%A> "'.$pidFile.'"';
 
         return implode("\r\n", $lines)."\r\n";
@@ -895,6 +911,10 @@ class LocalTechnicalConsoleService
 
     private function workerStatus(string $tenantSlug): array
     {
+        if ($this->usesLocalMotorService()) {
+            return $this->centralSyncServiceStatus();
+        }
+
         if (PHP_OS_FAMILY !== 'Windows') {
             return ['available' => false, 'active' => false, 'message' => 'Controlado por systemd en Linux.'];
         }
@@ -913,6 +933,47 @@ class LocalTechnicalConsoleService
             'pid' => ($active || $recentPid) ? $pid : null,
             'message' => $active ? 'Worker activo.' : (($recentPid || $recentCycle) ? 'Worker activo: ciclo reciente confirmado.' : 'Worker detenido.'),
         ];
+    }
+
+    private function centralSyncServiceStatus(): array
+    {
+        $service = 'SistemaInventarioSync';
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return [
+                'available' => false,
+                'active' => false,
+                'pid' => null,
+                'service' => $service,
+                'service_manager' => 'scm',
+                'message' => 'La sincronizacion la controla el servicio central del Motor Local.',
+            ];
+        }
+
+        $process = new Process([
+            $this->windowsExecutable('sc.exe'),
+            'query',
+            $service,
+        ]);
+        $process->setTimeout(5);
+        $process->run();
+        $output = strtoupper($this->processOutput($process));
+        $active = $process->isSuccessful() && str_contains($output, 'RUNNING');
+
+        return [
+            'available' => true,
+            'active' => $active,
+            'pid' => null,
+            'service' => $service,
+            'service_manager' => 'scm',
+            'message' => $active
+                ? 'Servicio central activo.'
+                : 'Servicio central detenido o no disponible.',
+        ];
+    }
+
+    private function usesLocalMotorService(): bool
+    {
+        return (bool) config('services.local_support.service_mode', false);
     }
 
     private function hasRecentWorkerCycle(string $tenantSlug): bool
@@ -1034,6 +1095,9 @@ class LocalTechnicalConsoleService
         $storageRoot = rtrim((string) storage_path(), '\\/');
         $databasePath = (string) config('database.connections.sqlite.database');
         $phpBinary = PHP_BINARY;
+        $launcherPhpBinary = PHP_OS_FAMILY === 'Windows'
+            ? str_replace('/', '\\', $phpBinary)
+            : $phpBinary;
         $scanDirectory = dirname(storage_path()).'/php-cert-scan';
 
         $lines = [
@@ -1045,7 +1109,7 @@ class LocalTechnicalConsoleService
         if (is_dir($scanDirectory)) {
             $lines[] = 'set "PHP_INI_SCAN_DIR='.str_replace('/', '\\', $scanDirectory).'"';
         }
-        $lines[] = 'call "'.$workerScript.'" run -TenantSlug "'.$tenantSlug.'" -PhpPath "'.str_replace('/', '\\', $phpBinary).'"';
+        $lines[] = 'call "'.$workerScript.'" run -TenantSlug "'.$tenantSlug.'" -PhpPath "'.$launcherPhpBinary.'"';
 
         return implode("\r\n", $lines)."\r\n";
     }

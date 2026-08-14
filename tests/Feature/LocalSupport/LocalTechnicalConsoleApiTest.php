@@ -131,6 +131,67 @@ class LocalTechnicalConsoleApiTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === 'https://cloud.test/api/sync/pairing-codes/redeem');
     }
 
+    public function test_connect_uses_the_central_sync_service_when_running_under_the_local_motor(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
+        config()->set('services.local_support.service_mode', true);
+        Http::fake([
+            'https://cloud.test/api/sync/pairing-codes/redeem' => Http::response([
+                'data' => [
+                    'tenant' => ['name' => 'Empresa Motor', 'slug' => 'empresa-motor'],
+                    'token' => 'sync-token',
+                ],
+            ], 201),
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('M', 40),
+                'node_name' => 'Equipo Motor',
+                'node_code' => 'MOTOR-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@motor.test',
+                'local_password' => 'password123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.worker.status.service', 'SistemaInventarioSync')
+            ->assertJsonPath('data.worker.status.service_manager', 'scm')
+            ->assertJsonPath('data.worker.output', 'La sincronizacion se ejecuta mediante el servicio central SistemaInventarioSync.');
+    }
+
+    public function test_per_tenant_worker_actions_are_rejected_when_the_local_motor_owns_sync(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.service_mode', true);
+        $path = storage_path('app/sync-worker/sync-config.json');
+        $previous = File::exists($path) ? File::get($path) : null;
+        File::ensureDirectoryExists(dirname($path));
+
+        try {
+            File::put($path, json_encode([
+                'tenants' => [
+                    'empresa-motor' => [
+                        'tenant_name' => 'Empresa Motor',
+                        'node_name' => 'Equipo Motor',
+                        'node_code' => 'MOTOR-01',
+                        'interval' => 15,
+                        'token' => 'sync-token',
+                        'cloud_url' => 'https://cloud.test/api',
+                    ],
+                ],
+            ]));
+            Tenant::create(['name' => 'Empresa Motor', 'slug' => 'empresa-motor']);
+
+            $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+                ->postJson('/api/local-support/tenants/empresa-motor/worker', ['action' => 'restart'])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.worker.0', 'La sincronizacion se controla mediante el servicio central SistemaInventarioSync.');
+        } finally {
+            $previous === null ? File::delete($path) : File::put($path, $previous);
+        }
+    }
+
     public function test_connect_prepares_every_tenant_returned_by_a_group_bundle(): void
     {
         config()->set('services.local_support.enabled', true);

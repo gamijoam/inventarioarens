@@ -7,6 +7,8 @@ export interface LocalWorkerStatus {
   active: boolean;
   pid: number | null;
   message: string;
+  service?: string;
+  service_manager?: string;
 }
 
 export interface LocalSyncMetrics {
@@ -75,6 +77,14 @@ export interface ConnectLocalTenantResult {
 }
 
 const localSupportKey = ['local-support'] as const;
+
+export function localWorkerLabel(worker: LocalWorkerStatus): string {
+  if (worker.service === 'SistemaInventarioSync') {
+    return worker.active ? 'Motor Local activo' : 'Motor Local detenido';
+  }
+
+  return worker.active ? 'Worker activo' : 'Worker detenido';
+}
 
 export function useLocalSupportStatus() {
   return useQuery({

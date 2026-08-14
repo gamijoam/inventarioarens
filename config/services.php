@@ -63,6 +63,7 @@ return [
         // rutas tambien exigen que el request llegue desde loopback.
         'enabled' => (bool) env('LOCAL_TECHNICAL_CONSOLE_ENABLED', false),
         'cloud_url' => env('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL', env('SYNC_CLOUD_URL')),
+        'service_mode' => (bool) env('INVENTARIO_SERVICE_MODE', false),
     ],
 
 ];

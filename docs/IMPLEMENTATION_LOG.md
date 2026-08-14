@@ -1,5 +1,25 @@
 # Registro de implementación
 
+## 2026-08-14 - Soporte Tecnico respeta el Motor Local
+
+- `LocalTechnicalConsoleService` detecta `INVENTARIO_SERVICE_MODE=1` y deja de crear tareas
+  `SistemaInventarioSync-{tenant}` al vincular empresas.
+- Las acciones de worker por empresa se rechazan en modo Motor Local; la sincronizacion queda bajo
+  el servicio central `SistemaInventarioSync` (`sync:daemon-all`).
+- El estado de Soporte Tecnico consulta el servicio central en Windows y la UI lo muestra como
+  `Motor Local activo/detenido`.
+- Se agregaron contratos backend/frontend para este comportamiento y se corrigio la generacion de
+  launchers para conservar rutas POSIX en Linux.
+- Verificacion: LocalSupport backend `22/22`, frontend afectado `2/2`, TypeScript y ESLint limpios.
+
+## 2026-08-14 - Intervalos independientes del supervisor de sincronizacion
+
+- `sync:daemon-all` mantiene el siguiente ciclo por tenant, respetando `interval` entre `5` y `300`
+  segundos y usando `--interval` solamente como fallback.
+- Se agrego `SyncDaemonSchedule` para evitar que una empresa lenta retrase innecesariamente a las
+  demas.
+- Verificacion: scheduler unitario `3/3` y comando multiempresa `3/3`.
+
 ## 2026-08-13 - Fase 1: backend compartido Electron (lock por version + repair siempre)
 
 ### Contexto

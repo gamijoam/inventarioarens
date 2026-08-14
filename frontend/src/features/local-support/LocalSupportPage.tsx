@@ -22,6 +22,7 @@ import { AppVersionBadge } from '@/components/layout/AppVersionBadge';
 import { formatDateTime } from '@/lib/format';
 
 import {
+  localWorkerLabel,
   type LocalTenantStatus,
   useConnectLocalTenant,
   useLocalPrinterAction,
@@ -106,7 +107,8 @@ export function LocalSupportPage() {
                 <div>
                   <h2 className="text-lg font-semibold">Empresas de esta computadora</h2>
                   <p className="text-text-muted text-sm">
-                    Cada empresa tiene su propio token, nodo y worker. No se mezclan entre si.
+                    Cada empresa conserva su token y nodo propios. La sincronizacion corre en un
+                    supervisor central aislado por empresa.
                   </p>
                 </div>
                 <Badge variant="info">{status.data?.tenants.length ?? 0} configuradas</Badge>
@@ -421,11 +423,7 @@ function TenantCard({ tenant }: { tenant: LocalTenantStatus }) {
           <CardDescription className="mt-1 font-mono">{tenant.slug}</CardDescription>
         </div>
         <Badge variant={!tenant.ready ? 'info' : tenant.worker.active ? 'success' : 'warning'}>
-          {!tenant.ready
-            ? 'Preparando empresa'
-            : tenant.worker.active
-              ? 'Worker activo'
-              : 'Worker detenido'}
+          {!tenant.ready ? 'Preparando empresa' : localWorkerLabel(tenant.worker)}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
