@@ -57,6 +57,27 @@ describe('Local Laravel runtime configuration', () => {
     expect(installer).toContain('$appKey = Read-AppKey');
   });
 
+  it('self-elevates the service installer and persists actionable failure diagnostics', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain('Start-Process');
+    expect(installer).toContain('-Verb RunAs');
+    expect(installer).toContain('$PSBoundParameters');
+    expect(installer).toContain('service-install.log');
+    expect(installer).toContain('catch');
+    expect(installer).toContain('exit 1');
+  });
+
+  it('waits for Windows to finish deleting a previous service before recreating it', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain('function Wait-ServiceRemoved');
+    expect(installer).toContain('Wait-ServiceRemoved $Name');
+    expect(installer).toContain('2>&1');
+  });
+
   it('does not remove shared services from an individual client uninstaller', () => {
     const nsisPath = path.join(
       repositoryRoot,
@@ -71,6 +92,7 @@ describe('Local Laravel runtime configuration', () => {
     expect(nsis).not.toContain(' -Uninstall');
     expect(nsis).toContain('Pop $0');
     expect(nsis).toContain('Abort');
+    expect(nsis).toContain('service-install.log');
   });
 
   it('starts both dedicated services even when the backend is already healthy', async () => {

@@ -20,10 +20,10 @@
   ${If} $INSTDIR == ""
     StrCpy $INSTDIR "$PROGRAMFILES\InventarioArens\${PRODUCT_FILENAME}"
   ${EndIf}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\resources\service\install-backend-service.ps1" -SourceBackendRoot "$INSTDIR\resources\backend" -SourcePhpRoot "$INSTDIR\resources\runtime\php" -DataRoot "$APPDATA\InventarioArens"'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\resources\service\install-backend-service.ps1" -SourceBackendRoot "$INSTDIR\resources\backend" -SourcePhpRoot "$INSTDIR\resources\runtime\php" -DataRoot "$APPDATA\InventarioArens" -LogPath "$APPDATA\InventarioArens\service-install.log"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP "No se pudieron instalar los servicios de INVENTARIOARENS. Codigo: $0"
+    MessageBox MB_ICONSTOP "No se pudieron instalar los servicios de INVENTARIOARENS. Codigo: $0. Revisa: $APPDATA\InventarioArens\service-install.log"
     Abort
   ${EndIf}
 !macroend
