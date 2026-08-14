@@ -7,6 +7,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
@@ -20,7 +21,10 @@ use Illuminate\Validation\ValidationException;
 
 class AccountsReceivableService
 {
-    public function __construct(private readonly SyncOutboxService $syncOutbox) {}
+    public function __construct(
+        private readonly SyncOutboxService $syncOutbox,
+        private readonly CommissionLedgerService $commissions,
+    ) {}
 
     public function createForSale(Sale $sale): AccountsReceivable
     {
@@ -138,6 +142,7 @@ class AccountsReceivableService
             }
 
             $this->recordPaymentSyncEvent($account->refresh(), $payment);
+            $this->commissions->recordReceivablePayment($account->refresh(), $payment);
 
             return $payment->refresh()->load('account');
         });

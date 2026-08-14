@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Customers\Services\CustomerCreditService;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
@@ -86,6 +87,7 @@ class SalesReturnService
             }
 
             $salesReturn = $this->loadReturn($salesReturn);
+            app(CommissionLedgerService::class)->reverseSalesReturn($salesReturn);
             $this->recordReturnSyncEvent($salesReturn);
 
             return $salesReturn;

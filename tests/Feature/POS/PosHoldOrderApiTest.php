@@ -8,6 +8,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Commissions\Models\CommissionPlan;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
@@ -22,6 +23,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -227,6 +229,80 @@ class PosHoldOrderApiTest extends TestCase
             'aggregate_type' => 'pos_order',
             'aggregate_id' => $orderId,
         ]);
+    }
+
+    public function test_paid_order_creates_separate_historical_commissions_for_seller_and_cashier(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera', ['pos.checkout', 'pos.view']);
+        $cashierSession = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id);
+        $sellerPlan = CommissionPlan::create([
+            'name' => 'Vendedores 3%',
+            'beneficiary_role' => CommissionPlan::ROLE_SELLER,
+            'percentage' => 3,
+            'conversion_policy' => CommissionPlan::CONVERSION_SALE_SNAPSHOT,
+            'credit_policy' => CommissionPlan::CREDIT_SALE_CONFIRMATION,
+        ]);
+        $sellerPlan->assignments()->create(['user_id' => $seller->id, 'is_active' => true]);
+        $cashierPlan = CommissionPlan::create([
+            'name' => 'Cajeros 1%',
+            'beneficiary_role' => CommissionPlan::ROLE_CASHIER,
+            'percentage' => 1,
+            'conversion_policy' => CommissionPlan::CONVERSION_SALE_SNAPSHOT,
+            'credit_policy' => CommissionPlan::CREDIT_PROPORTIONAL_COLLECTIONS,
+        ]);
+        $cashierPlan->assignments()->create(['user_id' => $cashier->id, 'is_active' => true]);
+        $orderId = $this->armedOrderId($tenant, $seller, $warehouse, $product, 2);
+
+        $response = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/payments", [
+                'cash_register_session_id' => $cashierSession->id,
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 200,
+                ]],
+            ])
+            ->assertOk();
+
+        $saleItemId = SaleItem::query()->where('sale_id', $response->json('data.sale_id'))->value('id');
+        $this->assertDatabaseHas('commission_entries', [
+            'tenant_id' => $tenant->id,
+            'sale_item_id' => $saleItemId,
+            'beneficiary_user_id' => $seller->id,
+            'beneficiary_role' => CommissionPlan::ROLE_SELLER,
+            'entry_type' => 'earning',
+            'eligible_base_amount' => '200.0000',
+            'percentage_snapshot' => '3.0000',
+            'commission_base_amount' => '6.0000',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('commission_entries', [
+            'tenant_id' => $tenant->id,
+            'sale_item_id' => $saleItemId,
+            'beneficiary_user_id' => $cashier->id,
+            'beneficiary_role' => CommissionPlan::ROLE_CASHIER,
+            'entry_type' => 'earning',
+            'eligible_base_amount' => '200.0000',
+            'percentage_snapshot' => '1.0000',
+            'commission_base_amount' => '2.0000',
+            'status' => 'pending',
+        ]);
+        $this->assertSame(2, DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'commission_entry.created')
+            ->count());
     }
 
     public function test_cashier_cannot_charge_sellers_order_with_foreign_cash_session(): void

@@ -43,6 +43,9 @@ Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Promotions/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Commissions/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/PaymentMethods/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])

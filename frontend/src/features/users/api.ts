@@ -51,7 +51,7 @@ function toQueryString(filters: UserListFilters): string {
  * El backend ya filtra por tenant via middleware; el parametro `role_id`
  * es opcional y filtra usuarios que tengan ese rol asignado.
  */
-export function useUsers(filters: UserListFilters) {
+export function useUsers(filters: UserListFilters, enabled = true) {
   return useQuery({
     queryKey: userKeys.list(filters),
     queryFn: async () => {
@@ -64,6 +64,7 @@ export function useUsers(filters: UserListFilters) {
       return parsed.data;
     },
     placeholderData: (prev) => prev,
+    enabled,
   });
 }
 

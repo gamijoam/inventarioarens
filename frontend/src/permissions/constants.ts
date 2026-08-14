@@ -56,6 +56,14 @@ export const PERMISSIONS = {
   PROMOTIONS_UPDATE: 'promotions.update',
   PROMOTIONS_DELETE: 'promotions.delete',
 
+  // Commissions
+  COMMISSIONS_VIEW_OWN: 'commissions.view_own',
+  COMMISSIONS_VIEW_ALL: 'commissions.view_all',
+  COMMISSIONS_MANAGE: 'commissions.manage',
+  COMMISSIONS_APPROVE: 'commissions.approve',
+  COMMISSIONS_SETTLE: 'commissions.settle',
+  COMMISSIONS_ADJUST: 'commissions.adjust',
+
   // Printing
   PRINTING_VIEW: 'printing.view',
   PRINTING_MANAGE: 'printing.manage',

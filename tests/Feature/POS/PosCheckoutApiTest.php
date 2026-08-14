@@ -8,6 +8,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Commissions\Models\CommissionPlan;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
@@ -260,6 +261,14 @@ class PosCheckoutApiTest extends TestCase
         $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.view']);
         $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
         $customer = $this->customer($tenant, 'Cliente Credito', Customer::DOCUMENT_V, '777');
+        $plan = CommissionPlan::create([
+            'name' => 'Cajero credito 4%',
+            'beneficiary_role' => CommissionPlan::ROLE_CASHIER,
+            'percentage' => 4,
+            'conversion_policy' => CommissionPlan::CONVERSION_SALE_SNAPSHOT,
+            'credit_policy' => CommissionPlan::CREDIT_PROPORTIONAL_COLLECTIONS,
+        ]);
+        $plan->assignments()->create(['user_id' => $user->id, 'is_active' => true]);
 
         $response = $this
             ->actingAs($user)
@@ -305,6 +314,14 @@ class PosCheckoutApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity_available' => '3.0000',
+        ]);
+        $this->assertDatabaseHas('commission_entries', [
+            'tenant_id' => $tenant->id,
+            'beneficiary_user_id' => $user->id,
+            'beneficiary_role' => CommissionPlan::ROLE_CASHIER,
+            'eligible_base_amount' => '50.0000',
+            'percentage_snapshot' => '4.0000',
+            'commission_base_amount' => '2.0000',
         ]);
     }
 

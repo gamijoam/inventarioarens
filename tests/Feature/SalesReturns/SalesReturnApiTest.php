@@ -8,6 +8,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Commissions\Models\CommissionEntry;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
@@ -24,6 +25,7 @@ use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -42,6 +44,23 @@ class SalesReturnApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Vendedor', ['sales.create', 'sales.view', 'sales_returns.create', 'sales_returns.view', 'sales_returns.review', 'sales_returns.process']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 2);
+        $earning = CommissionEntry::create([
+            'entry_uuid' => (string) Str::uuid(),
+            'sale_id' => $sale->id,
+            'sale_item_id' => $sale->items->first()->id,
+            'beneficiary_user_id' => $user->id,
+            'beneficiary_role' => 'seller',
+            'entry_type' => CommissionEntry::TYPE_EARNING,
+            'plan_name_snapshot' => 'Plan historico 2%',
+            'percentage_snapshot' => 2,
+            'sale_currency' => 'USD',
+            'source_amount' => 200,
+            'eligible_base_amount' => 200,
+            'commission_base_amount' => 4,
+            'status' => CommissionEntry::STATUS_AVAILABLE,
+            'earned_at' => now(),
+            'available_at' => now(),
+        ]);
 
         $response = $this
             ->actingAs($user)
@@ -126,6 +145,15 @@ class SalesReturnApiTest extends TestCase
             'source_type' => SalesReturn::class,
             'source_id' => $returnId,
             'amount_base' => '100.0000',
+        ]);
+        $this->assertDatabaseHas('commission_entries', [
+            'tenant_id' => $tenant->id,
+            'original_entry_id' => $earning->id,
+            'sales_return_id' => $returnId,
+            'entry_type' => CommissionEntry::TYPE_REVERSAL,
+            'eligible_base_amount' => '-100.0000',
+            'commission_base_amount' => '-2.0000',
+            'status' => CommissionEntry::STATUS_AVAILABLE,
         ]);
 
         $this

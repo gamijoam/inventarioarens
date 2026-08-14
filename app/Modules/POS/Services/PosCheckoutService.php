@@ -8,6 +8,7 @@ use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
@@ -44,6 +45,7 @@ class PosCheckoutService
         private readonly TenantReferenceCache $referenceCache,
         private readonly CustomerCreditService $customerCredits,
         private readonly PromotionService $promotions,
+        private readonly CommissionLedgerService $commissions,
     ) {}
 
     public function checkout(
@@ -193,6 +195,7 @@ class PosCheckoutService
                         'paid_at' => now(),
                         'closed_at' => now(),
                     ]);
+                    $this->commissions->recordPaidOrder($order->refresh());
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
                 } else {
                     PerformanceProbe::measure(
@@ -382,6 +385,10 @@ class PosCheckoutService
                         600,
                         ['order_id' => $order->id, 'sale_id' => $order->sale_id]
                     );
+                    $order->update([
+                        'cashier_id' => $cashier->id,
+                        'cash_register_session_id' => $cashRegisterSession->id,
+                    ]);
                     PerformanceProbe::measure(
                         'POS pendiente sincronizar cuentas por cobrar',
                         fn () => $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier),
@@ -390,12 +397,11 @@ class PosCheckoutService
                     );
                     $order->update([
                         'status' => PosOrder::STATUS_PAID,
-                        'cashier_id' => $cashier->id,
-                        'cash_register_session_id' => $cashRegisterSession->id,
                         'paid_at' => now(),
                         'closed_at' => now(),
                     ]);
                     $order->setRelation('sale', $sale);
+                    $this->commissions->recordPaidOrder($order->refresh());
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
                 } else {
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.payment_added');

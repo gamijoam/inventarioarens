@@ -78,6 +78,7 @@ describe('<Sidebar>', () => {
       'POS',
       'Promociones',
       'Ventas',
+      'Comisiones',
       'Devoluciones',
       'Clientes',
       'Cajas',

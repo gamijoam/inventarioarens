@@ -45,6 +45,11 @@ class SyncEventApplier
         'price_list.created',
         'promotion.updated',
         'promotion.created',
+        'commission_plan.updated',
+        'commission_plan.created',
+        'commission_entry.created',
+        'commission_entries.approved',
+        'commission_settlement.created',
         'product_price.updated',
         'product_price.created',
         'price.updated',
@@ -100,6 +105,11 @@ class SyncEventApplier
         'promotion.updated',
         'promotion.created',
         'promotion.deleted',
+        'commission_plan.updated',
+        'commission_plan.created',
+        'commission_entry.created',
+        'commission_entries.approved',
+        'commission_settlement.created',
         'product_price.updated',
         'product_price.created',
         'price.updated',
@@ -274,6 +284,10 @@ class SyncEventApplier
                 'product_unit.updated', 'product_unit.created' => $this->applyProductUnit($tenant, $payload),
                 'price_list.updated', 'price_list.created' => $this->applyPriceList($tenant, $payload),
                 'promotion.updated', 'promotion.created', 'promotion.deleted' => $this->applyPromotion($tenant, $payload),
+                'commission_plan.updated', 'commission_plan.created' => $this->applyCommissionPlan($tenant, $payload),
+                'commission_entry.created' => $this->applyCommissionEntry($tenant, $payload, $event),
+                'commission_entries.approved' => $this->applyCommissionApproval($tenant, $payload),
+                'commission_settlement.created' => $this->applyCommissionSettlement($tenant, $payload),
                 'product_price.updated', 'product_price.created', 'price.updated' => $this->applyProductPrice($tenant, $payload),
                 'warranty_policy.updated', 'warranty_policy.created' => $this->applyWarrantyPolicy($tenant, $payload),
                 'supplier.updated', 'supplier.created' => $this->applySupplier($tenant, $payload),
@@ -2051,6 +2065,255 @@ class SyncEventApplier
         }
 
         return 'applied';
+    }
+
+    private function applyCommissionPlan(Tenant $tenant, array $payload): string
+    {
+        $name = $this->requiredString($payload, 'name');
+        $assignments = $payload['assignments'] ?? [];
+        if (! is_array($assignments) || $assignments === []) {
+            throw new RuntimeException('El plan de comisiones sincronizado no tiene personas asignadas.');
+        }
+
+        $resolvedAssignments = [];
+        foreach ($assignments as $assignment) {
+            $email = mb_strtolower($this->requiredString($assignment, 'user_email'));
+            $userId = DB::table('users')
+                ->join('tenant_user', 'tenant_user.user_id', '=', 'users.id')
+                ->where('tenant_user.tenant_id', $tenant->id)
+                ->where('tenant_user.status', 'active')
+                ->whereRaw('LOWER(users.email) = ?', [$email])
+                ->value('users.id');
+
+            if (! $userId) {
+                throw new RuntimeException("No existe un usuario local activo para la comision: {$email}.");
+            }
+            $resolvedAssignments[] = [(int) $userId, $assignment];
+        }
+
+        $now = now();
+        $planId = $this->upsertAndGetId(
+            'commission_plans',
+            ['tenant_id' => $tenant->id, 'name' => $name],
+            [
+                'beneficiary_role' => $this->requiredString($payload, 'beneficiary_role'),
+                'percentage' => $payload['percentage'],
+                'conversion_policy' => $payload['conversion_policy'] ?? 'sale_snapshot',
+                'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['exchange_rate_type_code'] ?? null, null),
+                'credit_policy' => $payload['credit_policy'] ?? 'proportional_collections',
+                'maturation_days' => (int) ($payload['maturation_days'] ?? 0),
+                'allow_self_stacking' => (bool) ($payload['allow_self_stacking'] ?? false),
+                'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+                'starts_at' => $payload['starts_at'] ?? null,
+                'ends_at' => $payload['ends_at'] ?? null,
+                'created_at' => $payload['created_at'] ?? $now,
+                'updated_at' => $payload['updated_at'] ?? $now,
+            ]
+        );
+
+        DB::table('commission_plan_assignments')
+            ->where('tenant_id', $tenant->id)
+            ->where('commission_plan_id', $planId)
+            ->delete();
+
+        foreach ($resolvedAssignments as [$userId, $assignment]) {
+            DB::table('commission_plan_assignments')->insert([
+                'tenant_id' => $tenant->id,
+                'commission_plan_id' => $planId,
+                'user_id' => $userId,
+                'is_active' => array_key_exists('is_active', $assignment) ? (bool) $assignment['is_active'] : true,
+                'starts_at' => $assignment['starts_at'] ?? null,
+                'ends_at' => $assignment['ends_at'] ?? null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        return 'applied';
+    }
+
+    private function applyCommissionEntry(Tenant $tenant, array $payload, array $event): string
+    {
+        $entryUuid = $this->requiredString($payload, 'entry_uuid');
+        $entryType = $payload['entry_type'] ?? 'earning';
+        $saleId = null;
+        $saleItemId = null;
+        if ($entryType !== 'adjustment') {
+            $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+            $saleSourceId = (int) ($payload['sale_id'] ?? 0);
+            $itemSourceId = (int) ($payload['sale_item_id'] ?? 0);
+            $saleId = DB::table('sales')
+                ->where('tenant_id', $tenant->id)
+                ->where('sync_source_node_code', $sourceNodeCode)
+                ->where('sync_source_id', $saleSourceId)
+                ->value('id');
+            $saleItemId = DB::table('sale_items')
+                ->where('tenant_id', $tenant->id)
+                ->where('sync_source_node_code', $sourceNodeCode)
+                ->where('sync_source_id', $itemSourceId)
+                ->value('id');
+            if (! $saleId || ! $saleItemId) {
+                throw new RuntimeException('La venta de la comision aun no existe en este nodo.');
+            }
+        }
+
+        $email = $this->requiredString($payload, 'beneficiary_email');
+        $userId = $this->activeTenantUserIdByEmail($tenant, $email);
+        if (! $userId) {
+            throw new RuntimeException("No existe el beneficiario local de la comision: {$email}.");
+        }
+
+        $planName = $this->requiredString($payload, 'plan_name_snapshot');
+        $planId = $entryType === 'adjustment' ? null : DB::table('commission_plans')
+            ->where('tenant_id', $tenant->id)
+            ->where('name', $planName)
+            ->value('id');
+        $originalEntryId = null;
+        if (! empty($payload['original_entry_uuid'])) {
+            $originalEntryId = DB::table('commission_entries')
+                ->where('tenant_id', $tenant->id)
+                ->where('entry_uuid', $payload['original_entry_uuid'])
+                ->value('id');
+            if (! $originalEntryId) {
+                throw new RuntimeException('La comision original del reverso aun no existe en este nodo.');
+            }
+        }
+
+        $now = now();
+        $this->upsertByKeys(
+            'commission_entries',
+            ['tenant_id' => $tenant->id, 'entry_uuid' => $entryUuid],
+            [
+                'commission_plan_id' => $planId,
+                'sale_id' => $saleId,
+                'pos_order_id' => null,
+                'sale_item_id' => $saleItemId,
+                'accounts_receivable_payment_id' => null,
+                'sales_return_id' => null,
+                'beneficiary_user_id' => $userId,
+                'beneficiary_role' => $this->requiredString($payload, 'beneficiary_role'),
+                'entry_type' => $entryType,
+                'original_entry_id' => $originalEntryId,
+                'plan_name_snapshot' => $planName,
+                'percentage_snapshot' => $payload['percentage_snapshot'],
+                'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
+                'source_amount' => $payload['source_amount'],
+                'eligible_base_amount' => $payload['eligible_base_amount'],
+                'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['exchange_rate_type_code'] ?? null, null),
+                'exchange_rate_type_code' => $payload['exchange_rate_type_code'] ?? null,
+                'exchange_rate' => $payload['exchange_rate'] ?? null,
+                'commission_base_amount' => $payload['commission_base_amount'],
+                'status' => $payload['status'] ?? 'pending',
+                'adjustment_reason' => $payload['adjustment_reason'] ?? null,
+                'approved_at' => $payload['approved_at'] ?? null,
+                'earned_at' => $payload['earned_at'] ?? $now,
+                'available_at' => $payload['available_at'] ?? null,
+                'created_at' => $payload['created_at'] ?? $now,
+                'updated_at' => $payload['updated_at'] ?? $now,
+            ]
+        );
+
+        return 'applied';
+    }
+
+    private function applyCommissionApproval(Tenant $tenant, array $payload): string
+    {
+        $entryUuids = array_values(array_filter($payload['entry_uuids'] ?? [], 'is_string'));
+        if ($entryUuids === []) {
+            throw new RuntimeException('La aprobacion no contiene comisiones.');
+        }
+        $approverId = $this->activeTenantUserIdByEmail($tenant, $this->requiredString($payload, 'approved_by_email'));
+        if (! $approverId) {
+            throw new RuntimeException('El aprobador de comisiones aun no existe en este nodo.');
+        }
+        $entries = DB::table('commission_entries')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('entry_uuid', $entryUuids)
+            ->get(['id', 'status']);
+        if ($entries->count() !== count($entryUuids)) {
+            throw new RuntimeException('No todas las comisiones aprobadas existen aun en este nodo.');
+        }
+        DB::table('commission_entries')
+            ->whereIn('id', $entries->where('status', '!=', 'paid')->pluck('id'))
+            ->update([
+                'status' => 'approved',
+                'approved_by' => $approverId,
+                'approved_at' => $payload['approved_at'] ?? now(),
+                'updated_at' => $payload['updated_at'] ?? now(),
+            ]);
+
+        return 'applied';
+    }
+
+    private function applyCommissionSettlement(Tenant $tenant, array $payload): string
+    {
+        $settlementUuid = $this->requiredString($payload, 'settlement_uuid');
+        $beneficiaryId = $this->activeTenantUserIdByEmail($tenant, $this->requiredString($payload, 'beneficiary_email'));
+        $payerId = $this->activeTenantUserIdByEmail($tenant, $this->requiredString($payload, 'paid_by_email'));
+        if (! $beneficiaryId || ! $payerId) {
+            throw new RuntimeException('Los usuarios del pago de comisiones aun no existen en este nodo.');
+        }
+        $entryUuids = array_values(array_filter($payload['entry_uuids'] ?? [], 'is_string'));
+        $entries = DB::table('commission_entries')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('entry_uuid', $entryUuids)
+            ->get();
+        if ($entryUuids === [] || $entries->count() !== count($entryUuids)) {
+            throw new RuntimeException('Las comisiones del pago aun no existen en este nodo.');
+        }
+
+        $now = now();
+        $settlementId = $this->upsertAndGetId(
+            'commission_settlements',
+            ['tenant_id' => $tenant->id, 'settlement_uuid' => $settlementUuid],
+            [
+                'beneficiary_user_id' => $beneficiaryId,
+                'status' => $payload['status'] ?? 'paid',
+                'payment_currency' => strtoupper($payload['payment_currency'] ?? 'USD'),
+                'total_base_amount' => $payload['total_base_amount'],
+                'total_local_amount' => $payload['total_local_amount'],
+                'payment_amount' => $payload['payment_amount'],
+                'exchange_rate_type_id' => $this->exchangeRateTypeId($tenant, $payload['exchange_rate_type_code'] ?? null, null),
+                'exchange_rate_type_code' => $payload['exchange_rate_type_code'] ?? null,
+                'exchange_rate' => $payload['exchange_rate'] ?? null,
+                'reference' => $payload['reference'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+                'paid_by' => $payerId,
+                'paid_at' => $payload['paid_at'] ?? $now,
+                'created_at' => $payload['created_at'] ?? $now,
+                'updated_at' => $payload['updated_at'] ?? $now,
+            ]
+        );
+        foreach ($entries as $entry) {
+            $this->upsertByKeys(
+                'commission_settlement_items',
+                ['tenant_id' => $tenant->id, 'commission_entry_id' => $entry->id],
+                [
+                    'commission_settlement_id' => $settlementId,
+                    'commission_base_amount' => $entry->commission_base_amount,
+                    'created_at' => $payload['created_at'] ?? $now,
+                    'updated_at' => $payload['updated_at'] ?? $now,
+                ]
+            );
+            DB::table('commission_entries')->where('id', $entry->id)->update([
+                'status' => 'paid',
+                'updated_at' => $payload['updated_at'] ?? $now,
+            ]);
+        }
+
+        return 'applied';
+    }
+
+    private function activeTenantUserIdByEmail(Tenant $tenant, string $email): ?int
+    {
+        $id = DB::table('users')
+            ->join('tenant_user', 'tenant_user.user_id', '=', 'users.id')
+            ->where('tenant_user.tenant_id', $tenant->id)
+            ->where('tenant_user.status', 'active')
+            ->whereRaw('LOWER(users.email) = ?', [mb_strtolower($email)])
+            ->value('users.id');
+
+        return $id ? (int) $id : null;
     }
 
     private function applyProductPrice(Tenant $tenant, array $payload): string

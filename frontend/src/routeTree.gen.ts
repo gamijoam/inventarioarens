@@ -33,6 +33,7 @@ import { Route as AuthedPayablesRouteImport } from './routes/_authed/payables'
 import { Route as AuthedInventoryTransferRequestsRouteImport } from './routes/_authed/inventory-transfer-requests'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedCustomersRouteImport } from './routes/_authed/customers'
+import { Route as AuthedCommissionsRouteImport } from './routes/_authed/commissions'
 import { Route as AuthedCashRegisterRouteImport } from './routes/_authed/cash-register'
 import { Route as AuthedInventoryIndexRouteImport } from './routes/_authed/inventory/index'
 import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/index'
@@ -172,6 +173,11 @@ const AuthedCustomersRoute = AuthedCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedCommissionsRoute = AuthedCommissionsRouteImport.update({
+  id: '/commissions',
+  path: '/commissions',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedCashRegisterRoute = AuthedCashRegisterRouteImport.update({
   id: '/cash-register',
   path: '/cash-register',
@@ -275,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/cash-register': typeof AuthedCashRegisterRoute
+  '/commissions': typeof AuthedCommissionsRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/cash-register': typeof AuthedCashRegisterRoute
+  '/commissions': typeof AuthedCommissionsRoute
   '/customers': typeof AuthedCustomersRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/_authed/cash-register': typeof AuthedCashRegisterRoute
+  '/_authed/commissions': typeof AuthedCommissionsRoute
   '/_authed/customers': typeof AuthedCustomersRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/inventory-transfer-requests': typeof AuthedInventoryTransferRequestsRouteWithChildren
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/support'
     | '/cash-register'
+    | '/commissions'
     | '/customers'
     | '/dashboard'
     | '/inventory-transfer-requests'
@@ -451,6 +461,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/support'
     | '/cash-register'
+    | '/commissions'
     | '/customers'
     | '/dashboard'
     | '/inventory-transfer-requests'
@@ -495,6 +506,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/support'
     | '/_authed/cash-register'
+    | '/_authed/commissions'
     | '/_authed/customers'
     | '/_authed/dashboard'
     | '/_authed/inventory-transfer-requests'
@@ -711,6 +723,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCustomersRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/commissions': {
+      id: '/_authed/commissions'
+      path: '/commissions'
+      fullPath: '/commissions'
+      preLoaderRoute: typeof AuthedCommissionsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/cash-register': {
       id: '/_authed/cash-register'
       path: '/cash-register'
@@ -892,6 +911,7 @@ const AuthedAccessRolesRouteWithChildren =
 
 interface AuthedRouteChildren {
   AuthedCashRegisterRoute: typeof AuthedCashRegisterRoute
+  AuthedCommissionsRoute: typeof AuthedCommissionsRoute
   AuthedCustomersRoute: typeof AuthedCustomersRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedInventoryTransferRequestsRoute: typeof AuthedInventoryTransferRequestsRouteWithChildren
@@ -926,6 +946,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCashRegisterRoute: AuthedCashRegisterRoute,
+  AuthedCommissionsRoute: AuthedCommissionsRoute,
   AuthedCustomersRoute: AuthedCustomersRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedInventoryTransferRequestsRoute:

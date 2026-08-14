@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Settings2,
   Send,
+  BadgeDollarSign,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -70,6 +71,12 @@ const NAV_ITEMS: NavItem[] = [
     permission: PERMISSIONS.PROMOTIONS_VIEW,
   },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
+  {
+    to: '/commissions',
+    label: 'Comisiones',
+    icon: BadgeDollarSign,
+    permissionAny: [PERMISSIONS.COMMISSIONS_VIEW_OWN, PERMISSIONS.COMMISSIONS_VIEW_ALL],
+  },
   {
     to: '/sales-returns',
     label: 'Devoluciones',

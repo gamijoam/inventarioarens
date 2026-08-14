@@ -281,13 +281,14 @@ export function useWarrantyPolicies() {
   });
 }
 
-export function useExchangeRateTypes() {
+export function useExchangeRateTypes(enabled = true) {
   return useQuery({
     queryKey: catalogKeys.exchangeRateTypes(),
     queryFn: async () => {
       const data = await getMany<unknown>('/currency/rate-types');
       return z.array(ExchangeRateTypeSchema).parse(data);
     },
+    enabled,
   });
 }
 
