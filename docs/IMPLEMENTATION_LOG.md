@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-14 - Procedimiento de prueba del Motor Local
+
+- Documentado el flujo de VM Windows para `motor-v0.1.3-test`: verificacion SHA-256, instalacion
+  elevada, comprobacion de servicios `SistemaInventarioBackend`, `SistemaInventarioPrinter` y
+  `SistemaInventarioSync`, health checks, reinicio y vinculacion desde Soporte Tecnico.
+- Documentado el orden obligatorio: Motor primero; luego Administrativo, POS y Soporte Tecnico.
+- Aclarado que los clientes no incluyen PHP, Laravel, Composer, Node.js ni PostgreSQL y que el
+  prerelease no debe instalarse en clientes finales.
+
 ## 2026-08-14 - Soporte Tecnico respeta el Motor Local
 
 - `LocalTechnicalConsoleService` detecta `INVENTARIO_SERVICE_MODE=1` y deja de crear tareas

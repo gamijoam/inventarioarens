@@ -106,3 +106,56 @@ se solicita. Para construir localmente en Windows se puede usar:
 ```powershell
 .\scripts\build-local-motor.ps1 -Version 0.1.3-test
 ```
+
+## Procedimiento de prueba en Windows
+
+El prerelease de prueba actualmente disponible es:
+
+- Release: `https://github.com/gamijoam/inventarioarens/releases/tag/motor-v0.1.3-test`
+- Instalador: `Motor-Local-Sistema-Inventario-0.1.3-test.exe`
+- SHA-256: `00b7d2b89a6bc11bb33e167464c135fe57b56e2daa4efca38a71d2bce2743cb`
+
+En una VM Windows limpia, descargar el instalador y comprobarlo antes de ejecutarlo:
+
+```powershell
+Get-FileHash .\Motor-Local-Sistema-Inventario-0.1.3-test.exe -Algorithm SHA256
+```
+
+La salida debe coincidir con el SHA-256 publicado. Instalar el Motor como administrador y comprobar
+que los tres servicios queden registrados:
+
+```powershell
+Get-Service SistemaInventarioBackend,
+    SistemaInventarioPrinter,
+    SistemaInventarioSync
+```
+
+Comprobar los endpoints locales sin abrir Electron:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8787/up
+Invoke-WebRequest http://127.0.0.1:17777/health
+Test-NetConnection 127.0.0.1 -Port 8787
+Test-NetConnection 127.0.0.1 -Port 17777
+```
+
+Reiniciar Windows y repetir las comprobaciones. Despues instalar los clientes Electron `v0.2.57`
+de Administrativo, POS y Soporte Tecnico. El Motor debe instalarse primero: los clientes son solo
+interfaces y no incluyen PHP, Laravel, Composer, Node.js ni PostgreSQL.
+
+El orden de la prueba completa es:
+
+1. Crear un snapshot de la VM antes de instalar el Motor.
+2. Instalar y verificar el Motor sin abrir Electron.
+3. Reiniciar Windows y verificar la recuperacion automatica de los servicios.
+4. Instalar Administrativo, POS y Soporte Tecnico.
+5. Vincular una empresa o grupo desde Soporte Tecnico.
+6. Confirmar que la configuracion quede en
+   `C:\ProgramData\InventarioArens\storage\app\sync-worker\sync-config.json`.
+7. Confirmar que solo exista el servicio central `SistemaInventarioSync`, no tareas
+   `SistemaInventarioSync-{tenant}`.
+8. Verificar sincronizacion, impresion y persistencia despues de cerrar los clientes.
+
+`motor-v0.1.3-test` es un prerelease para validacion en VM y no debe usarse aun en instalaciones de
+clientes finales. Cuando el smoke test sea satisfactorio se publicara `motor-v0.1.3` como release
+estable.
