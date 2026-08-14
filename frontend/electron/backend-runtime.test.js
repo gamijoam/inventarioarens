@@ -5,12 +5,16 @@ import { describe, expect, it } from 'vitest';
 
 import backendRuntime from './backend-runtime.cjs';
 
+const repositoryRoot = path.resolve(import.meta.dirname, '..', '..');
+
 const {
   backendVersionPath,
   buildLaravelEnvironment,
   createRuntimeLease,
   isBackendOutdated,
   readBackendVersion,
+  dedicatedServiceConfigPath,
+  readDedicatedServiceSettings,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
   removeRuntimeLease,
@@ -21,6 +25,7 @@ const {
   runtimeSupervisorLockPath,
   runtimeSupervisorLockIsStale,
   runtimeSupervisorPidPath,
+  startDedicatedServices,
   listLiveRuntimeLeases,
   printerArguments,
   readSyncConfig,
@@ -32,6 +37,162 @@ const {
 } = backendRuntime;
 
 describe('Local Laravel runtime configuration', () => {
+  it('ships the dedicated Windows service installer with both services and migration wiring', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain("$BackendService = 'InventarioArensBackend'");
+    expect(installer).toContain("$PrinterService = 'InventarioArensPrinter'");
+    expect(installer).toContain('local:install-sqlite');
+    expect(installer).toContain('backend-service.json');
+    expect(installer).toContain('La base de datos y los tokens existentes se conservaron');
+  });
+
+  it('preserves an existing Laravel app key prefix during service migration', () => {
+    const installerPath = path.join(repositoryRoot, 'scripts', 'install-backend-service.ps1');
+    const installer = fs.readFileSync(installerPath, 'utf8');
+
+    expect(installer).toContain('function Read-AppKey');
+    expect(installer).toContain("if ($value.StartsWith('base64:'))");
+    expect(installer).toContain('$appKey = Read-AppKey');
+  });
+
+  it('does not remove shared services from an individual client uninstaller', () => {
+    const nsisPath = path.join(
+      repositoryRoot,
+      'frontend',
+      'build',
+      'nsis',
+      'separate-install-dir.nsh',
+    );
+    const nsis = fs.readFileSync(nsisPath, 'utf8');
+
+    expect(nsis).not.toContain('!macro customUnInstall');
+    expect(nsis).not.toContain(' -Uninstall');
+    expect(nsis).toContain('Pop $0');
+    expect(nsis).toContain('Abort');
+  });
+
+  it('starts both dedicated services even when the backend is already healthy', async () => {
+    const calls = [];
+    const fakeExecFile = (file, args, options, callback) => {
+      calls.push({ file, args, options });
+      callback(null, 'SERVICE_RUNNING', '');
+    };
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-service-healthy-'));
+    const runtime = backendRuntime.createRuntimeSupervisor({
+      config: {
+        apiUrl: 'http://127.0.0.1:8787',
+        backendRoot: 'C:/ProgramData/InventarioArens/service/backend',
+        dataRoot,
+        platform: 'win32',
+        serviceMode: true,
+        backendServiceName: 'InventarioArensBackend',
+        printerServiceName: 'InventarioArensPrinter',
+      },
+      execFile: fakeExecFile,
+      requestHealth: async () => true,
+      waitForRuntimeLeases: async () => {},
+      spawnProcess: () => {
+        throw new Error('No debe levantar PHP desde Electron en modo servicio');
+      },
+    });
+
+    await runtime.run();
+
+    expect(calls.map(({ args }) => args)).toEqual([
+      ['start', 'InventarioArensBackend'],
+      ['start', 'InventarioArensPrinter'],
+    ]);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('detects a dedicated Windows service from the shared data root', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-service-config-'));
+    const servicePath = dedicatedServiceConfigPath({ dataRoot });
+    fs.writeFileSync(
+      servicePath,
+      JSON.stringify({
+        enabled: true,
+        backend_root: 'C:/ProgramData/InventarioArens/service/backend',
+        php_binary: 'C:/ProgramData/InventarioArens/service/runtime/php/php.exe',
+        backend_service: 'InventarioArensBackend',
+        printer_service: 'InventarioArensPrinter',
+      }),
+    );
+
+    const settings = readDedicatedServiceSettings(dataRoot);
+    const config = resolveRuntimeConfig({ dataRoot, platform: 'win32', isPackaged: true });
+
+    expect(settings).toMatchObject({ enabled: true });
+    expect(config.serviceMode).toBe(true);
+    expect(config.backendRoot.replace(/\\/g, '/')).toBe(
+      'C:/ProgramData/InventarioArens/service/backend',
+    );
+    expect(config.phpBinary.replace(/\\/g, '/')).toBe(
+      'C:/ProgramData/InventarioArens/service/runtime/php/php.exe',
+    );
+    expect(config.backendServiceName).toBe('InventarioArensBackend');
+    expect(config.printerServiceName).toBe('InventarioArensPrinter');
+
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  it('starts both dedicated services without spawning Laravel', async () => {
+    const calls = [];
+    const fakeExecFile = (file, args, options, callback) => {
+      calls.push({ file, args, options });
+      callback(null, 'START_PENDING', '');
+    };
+
+    await startDedicatedServices(
+      {
+        platform: 'win32',
+        serviceMode: true,
+        backendServiceName: 'InventarioArensBackend',
+        printerServiceName: 'InventarioArensPrinter',
+      },
+      fakeExecFile,
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      file: 'sc.exe',
+      args: ['start', 'InventarioArensBackend'],
+    });
+    expect(calls[1].args).toEqual(['start', 'InventarioArensPrinter']);
+  });
+
+  it('does not spawn Laravel when the dedicated services are already healthy', async () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-service-runtime-'));
+    const calls = [];
+    const serviceCalls = [];
+    const runtime = backendRuntime.createRuntimeSupervisor({
+      config: {
+        apiUrl: 'http://127.0.0.1:8787',
+        backendRoot: path.join(dataRoot, 'backend'),
+        dataRoot,
+        platform: 'win32',
+        serviceMode: true,
+        backendServiceName: 'InventarioArensBackend',
+        printerServiceName: 'InventarioArensPrinter',
+      },
+      spawnProcess: (...args) => calls.push(args),
+      execFile: (file, args, options, callback) => {
+        serviceCalls.push({ file, args, options });
+        callback(null, 'SERVICE_RUNNING', '');
+      },
+      requestHealth: async () => true,
+      waitForRuntimeLeases: async () => {},
+    });
+
+    await runtime.run();
+
+    expect(calls).toHaveLength(0);
+    expect(serviceCalls).toHaveLength(2);
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
   it('uses a shared writable data root for both desktop clients', () => {
     const config = resolveRuntimeConfig({
       appRoot: '/app',
@@ -95,36 +256,36 @@ describe('Local Laravel runtime configuration', () => {
   it.skipIf(process.platform !== 'win32')(
     'points the Windows PHP runtime at the bundled CA bundle via PHP_INI_SCAN_DIR',
     () => {
-    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-certs-'));
-    const phpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-dir-'));
-    const certPath = path.join(phpDir, 'cacert.pem');
-    fs.writeFileSync(certPath, 'fake-ca\n');
+      const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-certs-'));
+      const phpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inventario-php-dir-'));
+      const certPath = path.join(phpDir, 'cacert.pem');
+      fs.writeFileSync(certPath, 'fake-ca\n');
 
-    const config = {
-      dataRoot,
-      phpBinary: path.join(phpDir, 'php.exe'),
-      appKey: 'base64:test-key',
-      bootstrapToken: 'bootstrap-token',
-      databasePath: path.join(dataRoot, 'inventario.sqlite'),
-      storagePath: path.join(dataRoot, 'storage'),
-      apiUrl: 'http://127.0.0.1:8787',
-      syncCloudUrl: '',
-    };
-    const environment = buildLaravelEnvironment(config, 'http://127.0.0.1:5173');
+      const config = {
+        dataRoot,
+        phpBinary: path.join(phpDir, 'php.exe'),
+        appKey: 'base64:test-key',
+        bootstrapToken: 'bootstrap-token',
+        databasePath: path.join(dataRoot, 'inventario.sqlite'),
+        storagePath: path.join(dataRoot, 'storage'),
+        apiUrl: 'http://127.0.0.1:8787',
+        syncCloudUrl: '',
+      };
+      const environment = buildLaravelEnvironment(config, 'http://127.0.0.1:5173');
 
-    const escaped = certPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    expect(environment.SSL_CERT_FILE).toBe(certPath);
-    expect(environment.CURL_CA_BUNDLE).toBe(certPath);
-    expect(environment.PHP_INI_SCAN_DIR).toBe(path.join(dataRoot, 'php-cert-scan'));
+      const escaped = certPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      expect(environment.SSL_CERT_FILE).toBe(certPath);
+      expect(environment.CURL_CA_BUNDLE).toBe(certPath);
+      expect(environment.PHP_INI_SCAN_DIR).toBe(path.join(dataRoot, 'php-cert-scan'));
 
-    const iniPath = path.join(environment.PHP_INI_SCAN_DIR, 'zz-cacert.ini');
-    expect(fs.existsSync(iniPath)).toBe(true);
-    const iniContent = fs.readFileSync(iniPath, 'utf8');
-    expect(iniContent).toContain(`curl.cainfo = "${escaped}"`);
-    expect(iniContent).toContain(`openssl.cafile = "${escaped}"`);
+      const iniPath = path.join(environment.PHP_INI_SCAN_DIR, 'zz-cacert.ini');
+      expect(fs.existsSync(iniPath)).toBe(true);
+      const iniContent = fs.readFileSync(iniPath, 'utf8');
+      expect(iniContent).toContain(`curl.cainfo = "${escaped}"`);
+      expect(iniContent).toContain(`openssl.cafile = "${escaped}"`);
 
-    fs.rmSync(dataRoot, { recursive: true, force: true });
-    fs.rmSync(phpDir, { recursive: true, force: true });
+      fs.rmSync(dataRoot, { recursive: true, force: true });
+      fs.rmSync(phpDir, { recursive: true, force: true });
     },
   );
 

@@ -29,11 +29,17 @@ The updater:
 
 - is disabled in development and in the detached runtime supervisor;
 - checks after startup in packaged builds and then every **1 minute** (constant
-  `UPDATE_CHECK_INTERVAL_MS` in `frontend/electron/auto-updater.cjs`) — set short for faster change
-  verification during development;
+  `UPDATE_CHECK_INTERVAL_MS` in `frontend/electron/auto-updater.cjs`), without overlapping a
+  previous check;
 - downloads a new version in the background;
+- shows a notice when a newer version is detected and a second prompt when the download finishes;
 - asks whether to restart immediately after the download;
 - installs automatically on the next application exit if the user chooses to continue working.
+
+Updater diagnostics are persisted in the per-client Electron data directory:
+`%APPDATA%\InventarioArens-Administrativo\updater.log`,
+`%APPDATA%\InventarioArens-POS\updater.log` or
+`%APPDATA%\InventarioArens-Soporte\updater.log`.
 
 The update does not stop the VPS and does not modify the VPS backend. It replaces only the desktop
 application and its bundled local runtime. The local runtime runs migrations when it starts.
@@ -55,7 +61,9 @@ The workflow:
 3. publishes explicitly with `gh release create v<version>-<client>` (non-draft) and uploads the
    `.exe`, `.blockmap` and `<channel>.yml`.
 
-Note the tag is `v<version>-<client>` (e.g. `v0.2.3-pos`) so the three clients can have the same
+Note the tag must be `v<version>-<client>` (e.g. `v0.2.3-pos`). When the workflow runs from a tag,
+it derives the client from this suffix; a tag without `-admin`, `-pos` or `-technician` is rejected.
+The three clients can have the same
 `package.json` version without colliding on the tag.
 
 ### Important build rules
@@ -204,6 +212,7 @@ reiniciar. Si el usuario elige seguir trabajando, instala al cerrar la app.
 | --- | --- | --- |
 | El release publica la UI vieja / el fix "no llego" | `electron-builder` empaqueto sin regenerar `dist/<client>` | El workflow SIEMPRE corre `pnpm run build:<client>` antes de empaquetar. Si publicaste desde tu PC manualmente, corre `pnpm run build:<client>` antes de `electron-builder`. |
 | Release queda en Draft o sin `.exe` | electron-builder + GITHUB_TOKEN deja drafts y puede soltar el instalador grande | El workflow publica explícito con `gh release create` (no-draft). Si hiciste publish manual y quedo draft, repite el fallback manual con `gh release create`. |
+| La app no muestra ningún aviso | Falló la comprobación o la descarga y solo se revisó la pantalla | Revisa el `updater.log` del cliente; ahora registra el canal, la versión, el progreso y el error exacto. |
 | La maquina no descarga la nueva version | Version no bumpiada o canal equivocado | El updater solo aplica versiones MAYORES. Verifica que subiste `package.json` y que el tag es `v<version>-<client>`. |
 | Los tres clientes quedan en la misma carpeta y se pisan el `app.asar` | Installers antiguos compartiendo `%LOCALAPPDATA%\Programs\inventarioarens-frontend\` | Reinstalar con los builds nuevos (`oneClick: false` + `executableName` por cliente). Ver workaround en AGENTS.md §14. |
 | Sync no refleja un fix de datos | El worker es una tarea programada (cada 1 min), no depende de la app | No requiere actualizar la app; espera el ciclo del worker o corre `php artisan sync:run <slug>` local. |
