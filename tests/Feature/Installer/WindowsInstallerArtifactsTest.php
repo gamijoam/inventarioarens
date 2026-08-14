@@ -56,6 +56,9 @@ class WindowsInstallerArtifactsTest extends TestCase
         ] as $storageDirectory) {
             $this->assertStringContainsString($storageDirectory, $serviceInstaller);
         }
+        $this->assertStringContainsString("https://app.miinventariofacil.com/api", $serviceInstaller);
+        $this->assertStringContainsString('SYNC_CLOUD_URL=', $serviceInstaller);
+        $this->assertStringContainsString('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=', $serviceInstaller);
 
         $client = file_get_contents($root.'/frontend/src/api/client.ts');
         $this->assertStringContainsString(':8787/api', $client);

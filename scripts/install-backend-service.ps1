@@ -4,6 +4,7 @@ param(
     [string]$DataRoot = (Join-Path $env:APPDATA 'InventarioArens'),
     [string]$ServiceRoot = (Join-Path $env:ProgramData 'InventarioArens\service'),
     [string]$LogPath = (Join-Path $env:APPDATA 'InventarioArens\service-install.log'),
+    [string]$CloudUrl = 'https://app.miinventariofacil.com/api',
     [switch]$Uninstall,
     [switch]$SkipStart,
     [switch]$ValidateOnly
@@ -148,7 +149,7 @@ function Ensure-SafeServiceRoot([string]$Path) {
     }
 }
 
-function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$Command, [string]$LogPath, [string]$AppKey, [string]$BootstrapToken) {
+function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$Command, [string]$LogPath, [string]$AppKey, [string]$BootstrapToken, [string]$CloudUrl) {
     $lines = @(
         '@echo off',
         'setlocal',
@@ -158,6 +159,9 @@ function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$
         "set APP_KEY=$AppKey",
         "set APP_BOOTSTRAP_TOKEN=$BootstrapToken",
         "set APP_URL=http://127.0.0.1:8787",
+        "set SYNC_CLOUD_URL=$CloudUrl",
+        "set LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=$CloudUrl",
+        "set SYNC_PUBLIC_BASE=$($CloudUrl -replace '/api/?$','')",
         "set APP_ALLOWED_ORIGINS_FOR_CSRF=http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://localhost:8788,http://localhost:8789,http://localhost:8790",
         "set CORS_ALLOWED_ORIGINS_LOCAL=http://127.0.0.1:8788",
         "set DB_CONNECTION=sqlite",
@@ -300,8 +304,8 @@ function Install-BackendServices {
 
     $backendLog = Join-Path $ServiceRoot 'logs\backend.log'
     $printerLog = Join-Path $ServiceRoot 'logs\printer.log'
-    Write-Launcher (Join-Path $ServiceRoot 'backend.cmd') $php $targetBackend 'serve --host=127.0.0.1 --port=8787' $backendLog $appKey $bootstrapToken
-    Write-Launcher (Join-Path $ServiceRoot 'printer.cmd') $php $targetBackend 'printer:serve --port=17777 --bind=127.0.0.1' $printerLog $appKey $bootstrapToken
+    Write-Launcher (Join-Path $ServiceRoot 'backend.cmd') $php $targetBackend 'serve --host=127.0.0.1 --port=8787' $backendLog $appKey $bootstrapToken $CloudUrl
+    Write-Launcher (Join-Path $ServiceRoot 'printer.cmd') $php $targetBackend 'printer:serve --port=17777 --bind=127.0.0.1' $printerLog $appKey $bootstrapToken $CloudUrl
 
     $previousPath = $env:PATH
     $env:PATH = "$targetPhp;$previousPath"
