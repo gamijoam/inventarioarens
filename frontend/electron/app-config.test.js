@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import appConfig from './app-config.cjs';
 
-const { getAppConfig, normalizeAppMode, rendererDirectory, userDataDirectory } = appConfig;
+const {
+  getAppConfig,
+  localDataDirectory,
+  normalizeAppMode,
+  rendererDirectory,
+  userDataDirectory,
+} = appConfig;
 
 describe('Electron app configuration', () => {
   it('normalizes unknown modes to the administrative app', () => {
@@ -42,5 +48,42 @@ describe('Electron app configuration', () => {
     expect(userDataDirectory('/home/user/.config', 'technician').replace(/\\/g, '/')).toBe(
       '/home/user/.config/InventarioArens-Soporte',
     );
+  });
+
+  it('uses the shared ProgramData root when the dedicated backend marker exists', () => {
+    const exists = (candidate) =>
+      candidate.replace(/\\/g, '/') ===
+      'C:/ProgramData/InventarioArens/backend-service.json';
+
+    expect(
+      localDataDirectory('C:/Users/test/AppData/Roaming', {
+        environment: { ProgramData: 'C:/ProgramData' },
+        fileExists: exists,
+        platform: 'win32',
+      }).replace(/\\/g, '/'),
+    ).toBe('C:/ProgramData/InventarioArens');
+  });
+
+  it('keeps an explicit data root above the shared ProgramData marker', () => {
+    expect(
+      localDataDirectory('C:/Users/test/AppData/Roaming', {
+        environment: {
+          INVENTARIO_DATA_ROOT: 'D:/InventarioData',
+          ProgramData: 'C:/ProgramData',
+        },
+        fileExists: () => true,
+        platform: 'win32',
+      }).replace(/\\/g, '/'),
+    ).toBe('D:/InventarioData');
+  });
+
+  it('falls back to the current user data root without a dedicated marker', () => {
+    expect(
+      localDataDirectory('C:/Users/test/AppData/Roaming', {
+        environment: { ProgramData: 'C:/ProgramData' },
+        fileExists: () => false,
+        platform: 'win32',
+      }).replace(/\\/g, '/'),
+    ).toBe('C:/Users/test/AppData/Roaming/InventarioArens');
   });
 });

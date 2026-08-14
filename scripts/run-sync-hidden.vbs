@@ -16,15 +16,14 @@
 '     window style only for the very first console. Long-running
 '     daemons that have already detached (e.g. the sync worker after
 '     it calls Start-Process -WindowStyle Hidden) keep running fine.
-'   - The exit code is intentionally NOT propagated (bWaitOnReturn=False)
-'     because the launcher exits almost immediately and the worker
-'     is a fire-and-forget daemon. Logs go to the launcher's own log
-'     file as configured in sync-worker.ps1.
+'   - The launcher is awaited so Task Scheduler records its real exit code.
+'     Detached services still return immediately after starting their child.
 Option Explicit
 
 Dim shell
 Dim commandLine
 Dim i
+Dim exitCode
 
 Set shell = CreateObject("Wscript.Shell")
 
@@ -38,5 +37,6 @@ For i = 1 To WScript.Arguments.Count - 1
     commandLine = commandLine & " """ & Replace(WScript.Arguments(i), """", """""") & """"
 Next
 
-shell.Run commandLine, 0, False
+exitCode = shell.Run(commandLine, 0, True)
 Set shell = Nothing
+WScript.Quit exitCode

@@ -4,7 +4,9 @@ namespace App\Modules\Sync\Services;
 
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -258,23 +260,20 @@ class SyncWorkerService
         $acknowledged = 0;
         $failed = 0;
 
-        $concurrent = $this->http->pool(function ($pool) use ($events, $tenant, $nodeCode, $cloudUrl, $token): void {
-            foreach ($events as $event) {
-                $pool->as($event->event_uuid)->acceptJson()->withToken($token)
-                    ->withHeader('X-Tenant', $tenant->slug)
-                    ->timeout(60)
+        foreach ($events as $event) {
+            try {
+                $response = $this->client($tenant, $token)
                     ->post($this->url($cloudUrl, "sync/events/{$event->event_uuid}/ack"), [
                         'node_code' => $nodeCode,
                         'status' => 'applied',
                     ]);
-            }
-        });
 
-        foreach ($events as $event) {
-            $response = $concurrent[$event->event_uuid] ?? null;
-            if ($response && $response->successful()) {
-                $acknowledged++;
-            } else {
+                if ($this->isSuccessfulAcknowledgement($response)) {
+                    $acknowledged++;
+                } else {
+                    $failed++;
+                }
+            } catch (ConnectionException) {
                 $failed++;
             }
         }
@@ -284,6 +283,11 @@ class SyncWorkerService
         }
 
         return ['acknowledged' => $acknowledged, 'failed' => max(0, $failed)];
+    }
+
+    private function isSuccessfulAcknowledgement(mixed $response): bool
+    {
+        return $response instanceof Response && $response->successful();
     }
 
     private function storeInboxEvent(Tenant $tenant, int $nodeId, array $event): bool

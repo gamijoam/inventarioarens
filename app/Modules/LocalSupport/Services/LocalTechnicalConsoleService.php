@@ -95,7 +95,7 @@ class LocalTechnicalConsoleService
 
     public function connect(array $data): array
     {
-        set_time_limit(180);
+        $this->extendExecutionTime();
         $response = $this->redeemPairingCode($data);
         $bundleTenants = isset($response['tenants']) && is_array($response['tenants'])
             ? $response['tenants']
@@ -200,7 +200,7 @@ class LocalTechnicalConsoleService
     public function syncNow(string $tenantSlug, int $cycles = 1): array
     {
         $this->ensureConfiguredTenant($tenantSlug);
-        set_time_limit(180);
+        $this->extendExecutionTime();
 
         $output = [];
         $cycles = max(1, min(5, $cycles));
@@ -301,7 +301,9 @@ class LocalTechnicalConsoleService
                 'status' => $this->workerStatus($tenantSlug),
             ];
         } catch (ValidationException $exception) {
-            $message = $exception->errors()['worker'][0] ?? 'No se pudo instalar la tarea de sincronizacion.';
+            $message = $this->normalizeExternalText(
+                (string) ($exception->errors()['worker'][0] ?? 'No se pudo instalar la tarea de sincronizacion.'),
+            );
 
             return [
                 'output' => $message,
@@ -732,7 +734,7 @@ class LocalTechnicalConsoleService
         $process = new Process(['systemctl', '--user', $systemAction, $unit]);
         $process->setTimeout(15);
         $process->run();
-        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+        $output = $this->processOutput($process);
 
         if (! $process->isSuccessful()) {
             throw ValidationException::withMessages([
@@ -781,7 +783,7 @@ class LocalTechnicalConsoleService
         }
 
         throw ValidationException::withMessages([
-            'printer' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar la tarea del agente de impresion.',
+            'printer' => $this->processOutput($process) ?: 'No se pudo registrar la tarea del agente de impresion.',
         ]);
     }
 
@@ -823,7 +825,7 @@ class LocalTechnicalConsoleService
         ]);
         $process->setTimeout(15);
         $process->run();
-        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+        $output = $this->processOutput($process);
 
         if (! $process->isSuccessful()) {
             throw ValidationException::withMessages([
@@ -869,7 +871,7 @@ class LocalTechnicalConsoleService
     private function runArtisan(string $command, array $parameters = [], bool $throwOnFailure = true): string
     {
         $exitCode = Artisan::call($command, $parameters);
-        $output = trim(Artisan::output());
+        $output = $this->normalizeExternalText(Artisan::output());
 
         if ($throwOnFailure && $exitCode !== 0) {
             throw ValidationException::withMessages([
@@ -967,12 +969,7 @@ class LocalTechnicalConsoleService
         $taskCommand = $this->workerTaskCommand($hiddenRunner, $launcher);
         $process = new Process([
             $this->windowsExecutable('schtasks.exe'),
-            '/Create',
-            '/TN', $taskName,
-            '/TR', $taskCommand,
-            '/SC', 'MINUTE',
-            '/MO', '1',
-            '/F',
+            ...$this->workerTaskCreateArguments($taskName, $taskCommand),
         ]);
         $process->setTimeout(15);
         $process->run();
@@ -982,7 +979,7 @@ class LocalTechnicalConsoleService
         }
 
         throw ValidationException::withMessages([
-            'worker' => trim($process->getOutput().' '.$process->getErrorOutput()) ?: 'No se pudo registrar el inicio automatico.',
+            'worker' => $this->processOutput($process) ?: 'No se pudo registrar el inicio automatico.',
         ]);
     }
 
@@ -1004,6 +1001,20 @@ class LocalTechnicalConsoleService
             $this->shortWindowsPath($hiddenRunner),
             $this->shortWindowsPath($launcher),
         );
+    }
+
+    protected function workerTaskCreateArguments(string $taskName, string $taskCommand): array
+    {
+        return [
+            '/Create',
+            '/TN', $taskName,
+            '/TR', $taskCommand,
+            '/SC', 'MINUTE',
+            '/MO', '1',
+            '/RU', 'SYSTEM',
+            '/RL', 'HIGHEST',
+            '/F',
+        ];
     }
 
     protected function shortWindowsPath(string $path): string
@@ -1048,7 +1059,7 @@ class LocalTechnicalConsoleService
         ]);
         $process->setTimeout(15);
         $process->run();
-        $output = trim($process->getOutput().' '.$process->getErrorOutput());
+        $output = $this->processOutput($process);
 
         if (! $process->isSuccessful()) {
             throw ValidationException::withMessages([
@@ -1083,5 +1094,45 @@ class LocalTechnicalConsoleService
         $path = rtrim($windowsRoot, '\\/').'/System32/'.$name;
 
         return is_file($path) ? $path : $name;
+    }
+
+    private function processOutput(Process $process): string
+    {
+        return $this->normalizeExternalText($process->getOutput().' '.$process->getErrorOutput());
+    }
+
+    private function normalizeExternalText(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || mb_check_encoding($value, 'UTF-8')) {
+            return $value;
+        }
+
+        $encodings = [];
+        if (PHP_OS_FAMILY === 'Windows' && function_exists('sapi_windows_cp_get')) {
+            $codePage = sapi_windows_cp_get('oem');
+            if ($codePage > 0 && $codePage !== 65001) {
+                $encodings[] = 'CP'.$codePage;
+            }
+        }
+
+        foreach (array_unique([...$encodings, 'CP850', 'Windows-1252', 'CP437', 'ISO-8859-1']) as $encoding) {
+            try {
+                $converted = mb_convert_encoding($value, 'UTF-8', $encoding);
+                if (mb_check_encoding($converted, 'UTF-8')) {
+                    return trim($converted);
+                }
+            } catch (\ValueError) {
+            }
+        }
+
+        return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+    }
+
+    private function extendExecutionTime(): void
+    {
+        if (PHP_SAPI !== 'cli') {
+            set_time_limit(180);
+        }
     }
 }

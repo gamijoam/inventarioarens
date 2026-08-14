@@ -56,7 +56,7 @@ class WindowsInstallerArtifactsTest extends TestCase
         ] as $storageDirectory) {
             $this->assertStringContainsString($storageDirectory, $serviceInstaller);
         }
-        $this->assertStringContainsString("https://app.miinventariofacil.com/api", $serviceInstaller);
+        $this->assertStringContainsString('https://app.miinventariofacil.com/api', $serviceInstaller);
         $this->assertStringContainsString('SYNC_CLOUD_URL=', $serviceInstaller);
         $this->assertStringContainsString('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL=', $serviceInstaller);
 
@@ -69,6 +69,10 @@ class WindowsInstallerArtifactsTest extends TestCase
 
         $workerLauncher = file_get_contents($root.'/scripts/sync-worker.cmd');
         $this->assertStringContainsString('%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', $workerLauncher);
+
+        $hiddenRunner = file_get_contents($root.'/scripts/run-sync-hidden.vbs');
+        $this->assertStringContainsString('exitCode = shell.Run(commandLine, 0, True)', $hiddenRunner);
+        $this->assertStringContainsString('WScript.Quit exitCode', $hiddenRunner);
 
         $repair = file_get_contents($root.'/installer/windows/repair-existing-installation.ps1');
         $this->assertStringContainsString('Ejecuta esta reparacion como administrador', $repair);

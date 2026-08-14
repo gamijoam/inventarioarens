@@ -1,8 +1,11 @@
-const path = require('node:path');
-
 const { app, BrowserWindow } = require('electron');
 
-const { getAppConfig, rendererDirectory, userDataDirectory } = require('./app-config.cjs');
+const {
+  getAppConfig,
+  localDataDirectory,
+  rendererDirectory,
+  userDataDirectory,
+} = require('./app-config.cjs');
 const { detectAppMode } = require('./app-mode.cjs');
 const {
   createLocalRuntime,
@@ -29,7 +32,7 @@ function rendererRoot() {
 }
 
 function localDataRoot() {
-  return process.env.INVENTARIO_DATA_ROOT ?? path.join(app.getPath('appData'), 'InventarioArens');
+  return localDataDirectory(app.getPath('appData'));
 }
 
 async function prepareServices() {

@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 
 const APP_CONFIGS = Object.freeze({
@@ -44,9 +45,30 @@ function userDataDirectory(appDataPath, mode) {
   return path.join(appDataPath, suffix);
 }
 
+function localDataDirectory(appDataPath, options = {}) {
+  const environment = options.environment ?? process.env;
+  const explicitRoot = environment.INVENTARIO_DATA_ROOT;
+  if (explicitRoot) return explicitRoot;
+
+  const platform = options.platform ?? process.platform;
+  const programDataPath =
+    options.programDataPath ?? environment.ProgramData ?? environment.PROGRAMDATA;
+  const fileExists = options.fileExists ?? fs.existsSync;
+
+  if (platform === 'win32' && programDataPath) {
+    const sharedRoot = path.join(programDataPath, 'InventarioArens');
+    if (fileExists(path.join(sharedRoot, 'backend-service.json'))) {
+      return sharedRoot;
+    }
+  }
+
+  return path.join(appDataPath, 'InventarioArens');
+}
+
 module.exports = {
   APP_CONFIGS,
   getAppConfig,
+  localDataDirectory,
   normalizeAppMode,
   rendererDirectory,
   userDataDirectory,

@@ -177,6 +177,10 @@ class LocalTechnicalConsoleApiTest extends TestCase
 
     public function test_printer_test_reports_agent_unreachable_until_installed(): void
     {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Este escenario usa systemd y no debe iniciar tareas reales de Windows durante el test.');
+        }
+
         config()->set('services.local_support.enabled', true);
         Http::fake([
             'http://127.0.0.1:17777/*' => function () {
@@ -297,14 +301,39 @@ class LocalTechnicalConsoleApiTest extends TestCase
 
         $method = new \ReflectionMethod($service, 'workerTaskCommand');
         $method->setAccessible(true);
-        $longVbs = 'C:\\Users\\gafit\\AppData\\Local\\Programs\\Soporte-Tecnico-Inventario-Arens\\resources\\backend\\scripts\\run-sync-hidden.vbs';
-        $longLauncher = 'C:\\Users\\gafit\\AppData\\Roaming\\InventarioArens\\storage\\app\\sync-worker\\sync-task-oscarcell-tucacas-grande.cmd';
+        $longVbs = 'C:\\Program Files\\Soporte-Tecnico-Inventario\\resources\\backend\\scripts\\run-sync-hidden.vbs';
+        $longLauncher = 'C:\\ProgramData\\InventarioArens\\storage\\app\\sync-worker\\sync-task-oscarcell-tucacas-grande.cmd';
         $command = $method->invoke($service, $longVbs, $longLauncher);
 
         $this->assertLessThanOrEqual(261, strlen($command));
         $this->assertStringContainsString('wscript.exe', $command);
-        $this->assertMatchesRegularExpression('/~1\\.VBS/', $command);
-        $this->assertMatchesRegularExpression('/~[0-9]+\\.CMD/', $command);
+        $this->assertMatchesRegularExpression('/\.VBS"/i', $command);
+        $this->assertMatchesRegularExpression('/\.CMD"$/i', $command);
+    }
+
+    public function test_worker_task_creation_uses_the_same_system_identity_as_the_backend(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $service = app(LocalTechnicalConsoleService::class);
+
+        $method = new \ReflectionMethod($service, 'workerTaskCreateArguments');
+        $method->setAccessible(true);
+        $arguments = $method->invoke($service, 'SistemaInventarioSync-oscar-cell', 'worker-command');
+
+        $this->assertSame('SYSTEM', $arguments[array_search('/RU', $arguments, true) + 1]);
+        $this->assertSame('HIGHEST', $arguments[array_search('/RL', $arguments, true) + 1]);
+    }
+
+    public function test_local_support_does_not_reduce_the_cli_execution_time_limit(): void
+    {
+        set_time_limit(0);
+        $service = app(LocalTechnicalConsoleService::class);
+        $method = new \ReflectionMethod($service, 'extendExecutionTime');
+        $method->setAccessible(true);
+
+        $method->invoke($service);
+
+        $this->assertSame('0', ini_get('max_execution_time'));
     }
 
     public function test_connect_reports_dns_failure_with_helpful_message(): void
@@ -361,5 +390,42 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertStringContainsString('cloud.test', $message);
         $this->assertStringContainsString('Traefik', $message);
         $this->assertStringContainsString('puerto 8080', $message);
+    }
+
+    public function test_windows_console_output_is_normalized_before_returning_json(): void
+    {
+        $service = app(LocalTechnicalConsoleService::class);
+        $method = new \ReflectionMethod($service, 'normalizeExternalText');
+        $method->setAccessible(true);
+        $cp850 = mb_convert_encoding('Operación completada: sincronización técnica.', 'CP850', 'UTF-8');
+
+        $normalized = $method->invoke($service, $cp850);
+
+        $this->assertSame('Operación completada: sincronización técnica.', $normalized);
+        $this->assertTrue(mb_check_encoding($normalized, 'UTF-8'));
+        $this->assertNotFalse(json_encode(['output' => $normalized], JSON_THROW_ON_ERROR));
+    }
+
+    public function test_connect_response_substitutes_an_unexpected_invalid_utf8_byte(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        $console = \Mockery::mock(LocalTechnicalConsoleService::class);
+        $console->shouldReceive('assertAvailable')->once();
+        $console->shouldReceive('connect')->once()->andReturn([
+            'worker' => ['output' => "Salida de Windows \x82"],
+        ]);
+        $this->app->instance(LocalTechnicalConsoleService::class, $console);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('C', 40),
+                'node_name' => 'Equipo Test',
+                'node_code' => 'TEST-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@test.test',
+                'local_password' => 'password123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.worker.output', 'Salida de Windows �');
     }
 }

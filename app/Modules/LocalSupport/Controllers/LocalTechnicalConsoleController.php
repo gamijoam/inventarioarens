@@ -10,13 +10,15 @@ use Illuminate\Support\Str;
 
 class LocalTechnicalConsoleController extends Controller
 {
+    private const JSON_OPTIONS = JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE;
+
     public function __construct(private readonly LocalTechnicalConsoleService $console) {}
 
     public function status(Request $request): JsonResponse
     {
         $this->console->assertAvailable((string) $request->ip());
 
-        return response()->json(['data' => $this->console->status()]);
+        return response()->json(['data' => $this->console->status()], 200, [], self::JSON_OPTIONS);
     }
 
     public function serverMode(Request $request): JsonResponse
@@ -24,7 +26,7 @@ class LocalTechnicalConsoleController extends Controller
         $this->console->assertAvailable((string) $request->ip());
         $data = $request->validate(['enabled' => ['required', 'boolean']]);
 
-        return response()->json(['data' => $this->console->setLocalServerMode((bool) $data['enabled'])]);
+        return response()->json(['data' => $this->console->setLocalServerMode((bool) $data['enabled'])], 200, [], self::JSON_OPTIONS);
     }
 
     public function connect(Request $request): JsonResponse
@@ -40,7 +42,7 @@ class LocalTechnicalConsoleController extends Controller
             'local_password' => ['required', 'string', 'min:8', 'max:255'],
         ]);
 
-        return response()->json(['data' => $this->console->connect($data)], 201);
+        return response()->json(['data' => $this->console->connect($data)], 201, [], self::JSON_OPTIONS);
     }
 
     public function sync(Request $request, string $tenant): JsonResponse
@@ -50,7 +52,7 @@ class LocalTechnicalConsoleController extends Controller
 
         return response()->json([
             'data' => $this->console->syncNow(Str::slug($tenant), (int) ($data['cycles'] ?? 1)),
-        ]);
+        ], 200, [], self::JSON_OPTIONS);
     }
 
     public function worker(Request $request, string $tenant): JsonResponse
@@ -60,7 +62,7 @@ class LocalTechnicalConsoleController extends Controller
 
         return response()->json([
             'data' => $this->console->workerAction(Str::slug($tenant), $data['action']),
-        ]);
+        ], 200, [], self::JSON_OPTIONS);
     }
 
     public function retry(Request $request, string $tenant): JsonResponse
@@ -69,7 +71,7 @@ class LocalTechnicalConsoleController extends Controller
 
         return response()->json([
             'data' => $this->console->retryFailed(Str::slug($tenant)),
-        ]);
+        ], 200, [], self::JSON_OPTIONS);
     }
 
     public function printerAction(Request $request): JsonResponse
@@ -79,7 +81,7 @@ class LocalTechnicalConsoleController extends Controller
 
         return response()->json([
             'data' => $this->console->printerAction($data['action']),
-        ]);
+        ], 200, [], self::JSON_OPTIONS);
     }
 
     public function printerTest(Request $request): JsonResponse
@@ -88,6 +90,6 @@ class LocalTechnicalConsoleController extends Controller
 
         return response()->json([
             'data' => $this->console->printerTest(),
-        ]);
+        ], 200, [], self::JSON_OPTIONS);
     }
 }

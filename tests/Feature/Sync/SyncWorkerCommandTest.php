@@ -3,8 +3,10 @@
 namespace Tests\Feature\Sync;
 
 use App\Models\User;
+use App\Modules\Sync\Services\SyncWorkerService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -445,6 +447,66 @@ class SyncWorkerCommandTest extends TestCase
         ]);
 
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), "/sync/events/{$cloudEventUuid}/ack"));
+    }
+
+    public function test_sync_worker_reports_an_ack_connection_failure_without_crashing(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync ACK Sin Red',
+            'slug' => 'empresa-sync-ack-sin-red',
+        ]);
+        $cloudEventUuid = (string) Str::uuid();
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response(['data' => ['code' => 'LOCAL-ACK-FAIL']], 201),
+            'https://cloud.test/api/sync/events/pull*' => Http::response([
+                'data' => [[
+                    'id' => 501,
+                    'event_uuid' => $cloudEventUuid,
+                    'event_type' => 'customer.created',
+                    'aggregate_type' => 'customer',
+                    'aggregate_id' => 501,
+                    'payload' => [
+                        'name' => 'Cliente ACK Pendiente',
+                        'document_type' => 'V',
+                        'document_number' => '501501501',
+                        'is_generic' => false,
+                        'is_active' => true,
+                    ],
+                ]],
+            ], 200),
+            "https://cloud.test/api/sync/events/{$cloudEventUuid}/ack" => function (): never {
+                throw new ConnectionException('Connection timed out');
+            },
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-ACK-FAIL',
+            '--name' => 'Local ACK Fallo',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--pull-only' => true,
+            '--installation' => 'LOCAL-ACK-FAIL-01',
+        ])
+            ->expectsOutput('Sincronizacion ejecutada.')
+            ->expectsOutput('Fallos: 1')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $cloudEventUuid,
+            'status' => 'applied',
+        ]);
+    }
+
+    public function test_ack_response_guard_rejects_a_returned_connection_exception(): void
+    {
+        $worker = app(SyncWorkerService::class);
+        $method = new \ReflectionMethod($worker, 'isSuccessfulAcknowledgement');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke($worker, new ConnectionException('Connection timed out')));
     }
 
     public function test_sync_worker_does_not_run_for_unknown_tenant(): void
