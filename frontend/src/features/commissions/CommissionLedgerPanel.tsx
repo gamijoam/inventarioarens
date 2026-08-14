@@ -77,7 +77,12 @@ export function CommissionLedgerPanel({ ownOnly }: { ownOnly: boolean }) {
       )}
 
       {entries.length === 0 ? (
-        <EmptyState title="Sin comisiones todavía" description="Aquí aparecerán cuando se registren ventas que cumplan un plan activo." />
+        <EmptyState
+          title="Sin comisiones todavía"
+          description={ownOnly
+            ? 'Aquí aparecerán cuando tus ventas cumplan un plan activo.'
+            : 'Las ventas directas de caja corresponden al cajero. Para comisión de vendedor, la orden debe ser armada por ese vendedor antes del cobro.'}
+        />
       ) : (
         <div className="border-border bg-surface overflow-x-auto rounded-xl border">
           <table className="table-dense w-full">

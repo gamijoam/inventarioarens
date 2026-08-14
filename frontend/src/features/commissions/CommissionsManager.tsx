@@ -47,13 +47,25 @@ export function CommissionsManager() {
   const [form, setForm] = useState<CommissionPlanInput>(initialForm);
   const [simulationAmount, setSimulationAmount] = useState('6000');
   const [simulationCurrency, setSimulationCurrency] = useState<'USD' | 'VES'>('VES');
+  const [simulationPercentage, setSimulationPercentage] = useState<string | null>(null);
+  const [simulationRateTypeId, setSimulationRateTypeId] = useState<number | null>(null);
   const users = usersPage?.data ?? [];
   const activePlans = plans.filter((plan) => plan.is_active);
+  const primaryActivePlan = activePlans[0];
   const assignedPeople = new Set(activePlans.flatMap((plan) => plan.assignments.map((item) => item.user_id))).size;
+  const effectiveSimulationPercentage = simulationPercentage ?? String(primaryActivePlan?.percentage ?? form.percentage);
+  const effectiveSimulationRateTypeId = simulationRateTypeId
+    ?? primaryActivePlan?.exchange_rate_type_id
+    ?? rateTypes.find((item) => item.is_active !== false)?.id
+    ?? null;
 
   const selectedRate = useMemo(
     () => rateTypes.find((rateType) => rateType.id === form.exchange_rate_type_id),
     [form.exchange_rate_type_id, rateTypes],
+  );
+  const selectedSimulationRate = useMemo(
+    () => rateTypes.find((rateType) => rateType.id === effectiveSimulationRateTypeId),
+    [effectiveSimulationRateTypeId, rateTypes],
   );
 
   if (isLoading) return <Skeleton className="h-72 w-full" />;
@@ -63,8 +75,8 @@ export function CommissionsManager() {
       await simulation.mutateAsync({
         amount: Number(simulationAmount),
         currency: simulationCurrency,
-        percentage: Number(form.percentage),
-        exchange_rate_type_id: simulationCurrency === 'VES' ? form.exchange_rate_type_id ?? undefined : undefined,
+        percentage: Number(effectiveSimulationPercentage),
+        exchange_rate_type_id: simulationCurrency === 'VES' ? effectiveSimulationRateTypeId ?? undefined : undefined,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo calcular la comisión.');
@@ -76,7 +88,11 @@ export function CommissionsManager() {
       <section className="grid gap-3 md:grid-cols-3" aria-label="Resumen de comisiones">
         <MetricCard label="Planes activos" value={String(activePlans.length)} detail="Reglas vigentes" />
         <MetricCard label="Personas asignadas" value={String(assignedPeople)} detail="Vendedores y cajeros" />
-        <MetricCard label="Regla de crédito" value="Al cobrar" detail="Proporcional a lo recibido" />
+        <MetricCard
+          label="Regla de crédito"
+          value={primaryActivePlan?.credit_policy === 'sale_confirmation' ? 'Al confirmar' : 'Al cobrar'}
+          detail={primaryActivePlan?.credit_policy === 'sale_confirmation' ? 'Al completar la venta' : 'Proporcional a lo recibido'}
+        />
       </section>
 
       <section className="border-border bg-surface grid overflow-hidden rounded-xl border lg:grid-cols-[1fr_360px]">
@@ -156,6 +172,28 @@ export function CommissionsManager() {
               <option value="USD">Dólares</option>
             </Select>
           </div>
+          <div className="mt-2 grid grid-cols-[110px_1fr] gap-2">
+            <Input
+              aria-label="Porcentaje del simulador"
+              type="number"
+              min="0.0001"
+              max="100"
+              step="0.01"
+              value={effectiveSimulationPercentage}
+              onChange={(event) => setSimulationPercentage(event.target.value)}
+            />
+            <Select
+              aria-label="Tipo de tasa del simulador"
+              disabled={simulationCurrency === 'USD'}
+              value={effectiveSimulationRateTypeId ?? ''}
+              onChange={(event) => setSimulationRateTypeId(event.target.value ? Number(event.target.value) : null)}
+            >
+              <option value="">Seleccionar tasa</option>
+              {rateTypes.filter((item) => item.is_active !== false).map((item) => (
+                <option key={item.id} value={item.id}>{item.code} — {item.name}</option>
+              ))}
+            </Select>
+          </div>
           <div className="border-border mt-4 rounded-lg border border-dashed p-4">
             <p className="text-text-muted text-xs uppercase tracking-wider">Comisión estimada</p>
             <p className="mt-1 text-3xl font-semibold tabular-nums">
@@ -164,7 +202,9 @@ export function CommissionsManager() {
             <p className="text-text-muted mt-1 text-xs">
               {simulation.data?.exchange_rate
                 ? `${simulation.data.exchange_rate_type_code} · Bs ${Number(simulation.data.exchange_rate).toFixed(2)}/USD`
-                : 'Selecciona una tasa en el nuevo plan.'}
+                : selectedSimulationRate
+                  ? `${selectedSimulationRate.code} seleccionada · ${effectiveSimulationPercentage}%`
+                  : 'Selecciona una tasa para el escenario.'}
             </p>
           </div>
           <Button className="mt-4 w-full" variant="secondary" onClick={runSimulation} loading={simulation.isPending}>
