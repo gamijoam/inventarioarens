@@ -3,6 +3,7 @@ param(
     [string]$SourcePhpRoot,
     [string]$DataRoot = (Join-Path $env:APPDATA 'InventarioArens'),
     [string]$ServiceRoot = (Join-Path $env:ProgramData 'InventarioArens\service'),
+    [string]$LogPath = (Join-Path $env:APPDATA 'InventarioArens\service-install.log'),
     [switch]$Uninstall,
     [switch]$SkipStart,
     [switch]$ValidateOnly
@@ -10,6 +11,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:InstallerParameters = @{} + $PSBoundParameters
 
 $BackendService = 'InventarioArensBackend'
 $PrinterService = 'InventarioArensPrinter'
@@ -17,6 +19,14 @@ $Sc = Join-Path $env:SystemRoot 'System32\sc.exe'
 $PhpExeName = 'php.exe'
 
 function Write-Info([string]$Message) {
+    $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ssK')] $Message"
+    try {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null
+        Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8
+    } catch {
+        # El log no debe impedir la instalacion ni ocultar el error original.
+    }
+
     Write-Host "[InventarioArens] $Message"
 }
 
@@ -32,6 +42,50 @@ function Assert-Administrator {
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'Se requieren permisos de administrador para crear los servicios de Windows.'
     }
+}
+
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Quote-ProcessArgument([string]$Value) {
+    return '"' + $Value.Replace('"', '\"') + '"'
+}
+
+function Get-SelfElevationArguments {
+    $arguments = @(
+        (Quote-ProcessArgument '-NoProfile'),
+        (Quote-ProcessArgument '-ExecutionPolicy'),
+        (Quote-ProcessArgument 'Bypass'),
+        (Quote-ProcessArgument '-File'),
+        (Quote-ProcessArgument $PSCommandPath)
+    )
+    foreach ($entry in $script:InstallerParameters.GetEnumerator()) {
+        if ($entry.Value -is [System.Management.Automation.SwitchParameter]) {
+            if ($entry.Value.IsPresent) {
+                $arguments += (Quote-ProcessArgument "-$($entry.Key)")
+            }
+            continue
+        }
+
+        $arguments += (Quote-ProcessArgument "-$($entry.Key)")
+        $arguments += (Quote-ProcessArgument ([string]$entry.Value))
+    }
+
+    return ($arguments -join ' ')
+}
+
+function Ensure-Elevated {
+    if (Test-IsAdministrator) {
+        return
+    }
+
+    Write-Info 'Solicitando permisos de administrador para registrar los servicios de Windows.'
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $child = Start-Process -FilePath $powershell -Verb RunAs -ArgumentList (Get-SelfElevationArguments) -Wait -PassThru
+    exit $child.ExitCode
 }
 
 function Assert-File([string]$Path, [string]$Description) {
@@ -51,16 +105,39 @@ function Invoke-Sc([string[]]$Arguments) {
         throw "No se encontro sc.exe: $Sc"
     }
 
-    & $Sc @Arguments | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "sc.exe fallo con codigo ${LASTEXITCODE}: $($Arguments -join ' ')"
+    $output = @(& $Sc @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "sc.exe fallo con codigo ${exitCode}: $($Arguments -join ' '). Salida: $($output -join ' ')"
     }
 }
 
+function Wait-ServiceRemoved([string]$Name) {
+    $deadline = (Get-Date).AddSeconds(15)
+    do {
+        if (-not (Get-Service -Name $Name -ErrorAction SilentlyContinue)) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "El servicio $Name sigue marcado para eliminacion por Windows."
+}
+
 function Try-StopAndDeleteService([string]$Name) {
-    & $Sc stop $Name | Out-Null
-    & $Sc delete $Name | Out-Null
-    Start-Sleep -Milliseconds 400
+    if (-not (Get-Service -Name $Name -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    & $Sc stop $Name 2>&1 | Out-Null
+    $deleteOutput = @(& $Sc delete $Name 2>&1)
+    $deleteExitCode = $LASTEXITCODE
+    if ($deleteExitCode -ne 0 -and $deleteExitCode -ne 1060 -and $deleteExitCode -ne 1072) {
+        throw "No se pudo eliminar el servicio $Name (codigo $deleteExitCode): $($deleteOutput -join ' ')"
+    }
+
+    Wait-ServiceRemoved $Name
 }
 
 function Ensure-SafeServiceRoot([string]$Path) {
@@ -109,6 +186,7 @@ function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$
 
 function Install-Service([string]$Name, [string]$Launcher, [string]$DisplayName) {
     $binaryPath = "$env:ComSpec /d /s /c `"`"$Launcher`"`""
+    Write-Info "Registrando $Name. Ejecutable: $Launcher"
     New-Service -Name $Name -BinaryPathName $binaryPath -DisplayName $DisplayName -StartupType Automatic | Out-Null
     Invoke-Sc @('failure', $Name, 'reset=', '86400', 'actions=', 'restart/5000/restart/15000/restart/60000')
 }
@@ -210,12 +288,27 @@ function Uninstall-BackendServices {
     Write-Info 'Servicios detenidos y marcador eliminado. La base SQLite no fue borrada.'
 }
 
-Assert-Windows
-if ($Uninstall) {
-    Uninstall-BackendServices
-} else {
-    if ([string]::IsNullOrWhiteSpace($SourceBackendRoot) -or [string]::IsNullOrWhiteSpace($SourcePhpRoot)) {
-        throw 'Debe indicar -SourceBackendRoot y -SourcePhpRoot.'
+try {
+    Assert-Windows
+    Ensure-Elevated
+
+    if ($Uninstall) {
+        Uninstall-BackendServices
+    } else {
+        if ([string]::IsNullOrWhiteSpace($SourceBackendRoot) -or [string]::IsNullOrWhiteSpace($SourcePhpRoot)) {
+            throw 'Debe indicar -SourceBackendRoot y -SourcePhpRoot.'
+        }
+
+        Install-BackendServices
     }
-    Install-BackendServices
+} catch {
+    $message = "ERROR: $($_.Exception.Message)"
+    Write-Info $message
+    try {
+        Add-Content -LiteralPath $LogPath -Value (($_ | Out-String).Trim()) -Encoding UTF8
+    } catch {
+        # Si el log no se puede escribir, el instalador aun devuelve un codigo de error.
+    }
+    [Console]::Error.WriteLine($message)
+    exit 1
 }
