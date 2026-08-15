@@ -26,6 +26,7 @@ import {
   useCreateCustomerForPos,
   useCustomers,
   useHoldOrder,
+  usePriceListsForPos,
   usePosProductsDebounced,
   useWarehousesForPos,
   quoteProductForPos,
@@ -95,6 +96,8 @@ export function ArmOrderScreen() {
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
   const refs = useBootstrapRefsForPos();
   const fallbackWarehouses = useWarehousesForPos();
+  const fallbackPriceLists = usePriceListsForPos();
+  const [priceError, setPriceError] = useState<string | null>(null);
   const warehouses = useMemo(() => {
     const bootstrapItems = refs.refs?.warehouses ?? [];
     const source = bootstrapItems.length > 0 ? bootstrapItems : (fallbackWarehouses.data ?? []);
@@ -111,10 +114,14 @@ export function ArmOrderScreen() {
         status: item.status ?? 'active',
       }));
   }, [fallbackWarehouses.data, refs.refs?.warehouses]);
-  const priceLists = useMemo(
-    () => (refs.data?.price_lists ?? []).filter((item) => item.is_active !== false),
-    [refs.data?.price_lists],
-  );
+  const priceLists = useMemo(() => {
+    const source =
+      refs.data?.price_lists && refs.data.price_lists.length > 0
+        ? refs.data.price_lists
+        : (fallbackPriceLists.data ?? []);
+
+    return source.filter((item) => item.is_active !== false);
+  }, [fallbackPriceLists.data, refs.data?.price_lists]);
   const selectedPriceList = priceLists.find((item) => item.id === selectedPriceListId) ?? null;
   const warehouse =
     warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
@@ -159,16 +166,21 @@ export function ArmOrderScreen() {
     if (!selectedPriceList) return null;
 
     try {
+      setPriceError(null);
       return await quoteProductForPos(product.id, selectedPriceList.id);
     } catch {
-      toast.error(`${product.name} no tiene precio activo en ${selectedPriceList.name}.`);
+      const message = `${product.name} no tiene precio activo en ${selectedPriceList.name}.`;
+      setPriceError(message);
+      toast.error(message);
       return null;
     }
   }
 
   async function addProduct(product: Product): Promise<void> {
     if (priceLists.length > 0 && !selectedPriceList) {
-      toast.error('Selecciona una lista de precio antes de agregar productos.');
+      const message = 'Selecciona una lista de precio antes de agregar productos.';
+      setPriceError(message);
+      toast.error(message);
       return;
     }
 
@@ -335,7 +347,9 @@ export function ArmOrderScreen() {
       return;
     }
     if (priceLists.length > 0 && !selectedPriceList) {
-      toast.error('Selecciona una lista de precio antes de enviar la orden.');
+      const message = 'Selecciona una lista de precio antes de enviar la orden.';
+      setPriceError(message);
+      toast.error(message);
       return;
     }
 
@@ -544,6 +558,7 @@ export function ArmOrderScreen() {
                       setCart([]);
                       toast.info('El ticket se limpio porque cambiaste la lista de precio.');
                     }
+                    setPriceError(null);
                     setSelectedPriceListId(nextId);
                   }}
                   disabled={priceLists.length === 0}
@@ -562,6 +577,11 @@ export function ArmOrderScreen() {
               {selectedPriceList && (
                 <p className="text-primary mt-2 text-xs">
                   Los precios se cotizan con {selectedPriceList.name}.
+                </p>
+              )}
+              {priceError && (
+                <p className="text-danger mt-2 text-xs" role="alert">
+                  {priceError}
                 </p>
               )}
             </div>

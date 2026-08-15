@@ -110,6 +110,7 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonPath('cash_registers.0.code', 'CR-POS')
             ->assertJsonCount(2, 'price_lists')
             ->assertJsonPath('price_lists.0.is_default', true)
+            ->assertJsonPath('price_lists.0.is_active', true)
             ->assertJsonPath('price_lists.0.payment_method_ids.0', $paymentMethod->id)
             ->assertJsonPath('price_lists.0.payment_exchange_rate_type_id', $rateType->id)
             ->assertJsonCount(1, 'exchange_rate_types')

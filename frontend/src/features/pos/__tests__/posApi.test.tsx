@@ -121,7 +121,16 @@ describe('pos api', () => {
         branches: [],
         cash_registers: [],
         payment_methods: [],
-        price_lists: [],
+        price_lists: [
+          {
+            id: 3,
+            code: 'MAYOR',
+            name: 'Precio Mayor',
+            is_active: true,
+            is_default: false,
+            payment_method_ids: [11],
+          },
+        ],
         exchange_rate_types: [],
         exchange_rates: [],
         open_session: null,
@@ -136,6 +145,7 @@ describe('pos api', () => {
     expect(mockGetOne).not.toHaveBeenCalled();
     expect(result.current.data?.warehouses).toHaveLength(1);
     expect(result.current.data?.warehouses[0]?.code).toBe('CCN-01');
+    expect(result.current.data?.price_lists[0]?.code).toBe('MAYOR');
   });
 
   it('fusiona listas y tasas del bootstrap con el fallback cuando faltan campos', () => {

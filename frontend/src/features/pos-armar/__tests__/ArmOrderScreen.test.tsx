@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     status?: string;
     is_active?: boolean;
   }[],
+  fallbackPriceLists: [] as Record<string, unknown>[],
   bootstrapPriceLists: [] as Record<string, unknown>[],
   productQuery: vi.fn(),
   productResult: {
@@ -65,6 +66,7 @@ vi.mock('@/features/pos/api', () => ({
     isLoading: false,
     isError: false,
   }),
+  usePriceListsForPos: () => ({ data: mocks.fallbackPriceLists }),
   useHoldOrder: () => ({ isPending: false, mutateAsync: mocks.holdMutate }),
   quoteProductForPos: (productId: number, priceListId: number) =>
     mocks.quoteProductForPos(productId, priceListId),
@@ -150,6 +152,7 @@ describe('<ArmOrderScreen>', () => {
       { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
     );
     mocks.fallbackWarehouses.splice(0);
+    mocks.fallbackPriceLists.splice(0);
     mocks.bootstrapPriceLists.splice(0);
     mocks.quoteProductForPos.mockReset();
     mocks.productResult.data.data = [
@@ -321,6 +324,28 @@ describe('<ArmOrderScreen>', () => {
         }),
       ),
     );
+  });
+
+  it('muestra un mensaje cuando el producto no tiene precio en la lista elegida', async () => {
+    mocks.bootstrapPriceLists.push({
+      id: 1,
+      code: 'MAYOR',
+      name: 'PRECIO MAYOR',
+      is_active: true,
+      is_default: false,
+      payment_method_ids: [11],
+    });
+    mocks.quoteProductForPos.mockRejectedValue(new Error('missing price'));
+
+    render(<ArmOrderScreen />);
+
+    fireEvent.change(screen.getByLabelText('Lista de precio'), { target: { value: '1' } });
+    fireEvent.click(screen.getByTestId('product-41'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Adaptador USB-C no tiene precio activo en PRECIO MAYOR.',
+    );
+    expect(mocks.holdMutate).not.toHaveBeenCalled();
   });
 
   it('busca un cliente por cedula, lo asigna y lo envia con la orden', async () => {

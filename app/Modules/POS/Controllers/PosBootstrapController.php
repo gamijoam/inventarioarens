@@ -90,6 +90,7 @@ class PosBootstrapController extends Controller
                     'code' => $list->code,
                     'name' => $list->name,
                     'is_default' => (bool) $list->is_default,
+                    'is_active' => (bool) $list->is_active,
                     'payment_exchange_rate_type_id' => $list->payment_exchange_rate_type_id,
                     'payment_method_ids' => $list->paymentMethods->pluck('id')->values(),
                 ])
