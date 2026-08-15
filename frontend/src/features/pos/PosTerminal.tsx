@@ -1225,7 +1225,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
                     event.target.value === 'base' ? null : Number(event.target.value),
                   )
                 }
-                disabled={repricing}
+                disabled={repricing || selectedPending !== null}
                 data-testid="pos-price-list"
               >
                 <option value="base">{BASE_PRICE_LIST_LABEL}</option>
@@ -1827,6 +1827,10 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
   }
 
   async function changePriceList(nextId: number | null): Promise<void> {
+    if (selectedPending) {
+      toast.info('La orden pendiente conserva la lista de precio seleccionada por el vendedor.');
+      return;
+    }
     if (nextId === selectedPriceListId) return;
     const nextList = nextId ? priceLists.find((list) => list.id === nextId) : null;
     if (nextId && !nextList) return;

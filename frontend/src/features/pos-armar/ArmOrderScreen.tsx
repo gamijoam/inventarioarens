@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { Product } from '@/features/inventory-center/schemas';
+import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import {
   type CreateCustomerPayload,
   type Customer,
@@ -27,10 +28,10 @@ import {
   useHoldOrder,
   usePosProductsDebounced,
   useWarehousesForPos,
+  quoteProductForPos,
 } from '@/features/pos/api';
 import { TapButton } from '@/features/pos/TapButton';
 import { VariantPicker, type VariantPickerValue } from '@/features/pos/VariantPicker';
-import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
@@ -45,6 +46,9 @@ interface CartLine {
   quantity: number;
   available_stock: number;
   unit_price: number;
+  price_list_id: number | null;
+  price_list_name: string | null;
+  price_source: 'base' | 'price_list';
 }
 
 const EMPTY_CUSTOMER: CreateCustomerPayload = {
@@ -79,6 +83,7 @@ export function ArmOrderScreen() {
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
+  const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -106,6 +111,11 @@ export function ArmOrderScreen() {
         status: item.status ?? 'active',
       }));
   }, [fallbackWarehouses.data, refs.refs?.warehouses]);
+  const priceLists = useMemo(
+    () => (refs.data?.price_lists ?? []).filter((item) => item.is_active !== false),
+    [refs.data?.price_lists],
+  );
+  const selectedPriceList = priceLists.find((item) => item.id === selectedPriceListId) ?? null;
   const warehouse =
     warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
   const warehouseId = warehouse?.id ?? null;
@@ -116,6 +126,18 @@ export function ArmOrderScreen() {
       setSelectedWarehouseId(warehouses[0]?.id ?? null);
     }
   }, [selectedWarehouseId, warehouses]);
+
+  useEffect(() => {
+    if (
+      selectedPriceListId !== null &&
+      priceLists.some((item) => item.id === selectedPriceListId)
+    ) {
+      return;
+    }
+
+    const defaultPriceList = priceLists.find((item) => item.is_default);
+    setSelectedPriceListId(defaultPriceList?.id ?? null);
+  }, [priceLists, selectedPriceListId]);
 
   const {
     data: productPage,
@@ -133,7 +155,23 @@ export function ArmOrderScreen() {
     setQuery((current) => applyKey(current, action));
   }
 
-  function addProduct(product: Product): void {
+  async function quoteSelectedPrice(product: Product) {
+    if (!selectedPriceList) return null;
+
+    try {
+      return await quoteProductForPos(product.id, selectedPriceList.id);
+    } catch {
+      toast.error(`${product.name} no tiene precio activo en ${selectedPriceList.name}.`);
+      return null;
+    }
+  }
+
+  async function addProduct(product: Product): Promise<void> {
+    if (priceLists.length > 0 && !selectedPriceList) {
+      toast.error('Selecciona una lista de precio antes de agregar productos.');
+      return;
+    }
+
     if (Number(product.variants_count ?? 0) > 1) {
       setVariantPickerProduct(product);
       setQuery('');
@@ -147,6 +185,9 @@ export function ArmOrderScreen() {
       );
       return;
     }
+
+    const quote = await quoteSelectedPrice(product);
+    if (selectedPriceList && !quote) return;
 
     setCart((current) => {
       const existing = current.find(
@@ -170,14 +211,17 @@ export function ArmOrderScreen() {
           product_variant_name: null,
           quantity: 1,
           available_stock: stock,
-          unit_price: Number(product.base_price ?? 0),
+          unit_price: quote?.sale_price ?? Number(product.base_price ?? 0),
+          price_list_id: quote?.price_list_id ?? null,
+          price_list_name: quote?.price_list_name ?? null,
+          price_source: quote ? 'price_list' : 'base',
         },
       ];
     });
     setQuery('');
   }
 
-  function addVariantToCart({ variant, quantity }: VariantPickerValue): void {
+  async function addVariantToCart({ variant, quantity }: VariantPickerValue): Promise<void> {
     const product = variantPickerProduct;
     if (!product) return;
 
@@ -187,7 +231,11 @@ export function ArmOrderScreen() {
       return;
     }
 
-    const unitPrice = Number(variant.price_override ?? product.base_price ?? 0);
+    const quote = await quoteSelectedPrice(product);
+    if (selectedPriceList && !quote) return;
+
+    const unitPrice =
+      quote?.sale_price ?? Number(variant.price_override ?? product.base_price ?? 0);
     setCart((current) => {
       const existing = current.find(
         (line) => line.product.id === product.id && line.product_variant_id === variant.id,
@@ -212,6 +260,9 @@ export function ArmOrderScreen() {
           quantity,
           available_stock: availableStock,
           unit_price: unitPrice,
+          price_list_id: quote?.price_list_id ?? null,
+          price_list_name: quote?.price_list_name ?? null,
+          price_source: quote ? 'price_list' : 'base',
         },
       ];
     });
@@ -283,6 +334,10 @@ export function ArmOrderScreen() {
       toast.error('No hay almacen disponible.');
       return;
     }
+    if (priceLists.length > 0 && !selectedPriceList) {
+      toast.error('Selecciona una lista de precio antes de enviar la orden.');
+      return;
+    }
 
     const payload: HoldPayload = {
       customer_id: selectedCustomer?.id ?? null,
@@ -291,8 +346,8 @@ export function ArmOrderScreen() {
         warehouse_id: warehouseId,
         product_id: line.product.id,
         product_variant_id: line.product_variant_id,
-        price_list_id: null,
-        price_source: 'base',
+        price_list_id: line.price_list_id,
+        price_source: line.price_source,
         quantity: line.quantity,
         product_unit_ids: [],
       })),
@@ -351,7 +406,10 @@ export function ArmOrderScreen() {
                 ))}
               </Select>
             </label>
-            <Badge variant="info">{cart.length} productos</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="info">{selectedPriceList?.code ?? 'SIN LISTA'}</Badge>
+              <Badge variant="info">{cart.length} productos</Badge>
+            </div>
           </div>
         </header>
 
@@ -473,6 +531,39 @@ export function ArmOrderScreen() {
                   </p>
                 )}
               </button>
+              <label className="mt-3 block space-y-1 text-left">
+                <span className="text-text-muted text-[11px] font-semibold uppercase">
+                  Lista de precio
+                </span>
+                <Select
+                  aria-label="Lista de precio"
+                  value={selectedPriceListId ?? ''}
+                  onChange={(event) => {
+                    const nextId = event.target.value ? Number(event.target.value) : null;
+                    if (cart.length > 0) {
+                      setCart([]);
+                      toast.info('El ticket se limpio porque cambiaste la lista de precio.');
+                    }
+                    setSelectedPriceListId(nextId);
+                  }}
+                  disabled={priceLists.length === 0}
+                  className="h-11 w-full"
+                >
+                  <option value="">
+                    {priceLists.length > 0 ? 'Selecciona una lista' : 'Precio base'}
+                  </option>
+                  {priceLists.map((priceList) => (
+                    <option key={priceList.id} value={priceList.id}>
+                      {priceList.code} - {priceList.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              {selectedPriceList && (
+                <p className="text-primary mt-2 text-xs">
+                  Los precios se cotizan con {selectedPriceList.name}.
+                </p>
+              )}
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
               {cart.length === 0 ? (
@@ -489,6 +580,9 @@ export function ArmOrderScreen() {
                         {line.product_variant_name && `${line.product_variant_name} · `}
                         {line.quantity} x {money(line.unit_price)}
                       </p>
+                      {line.price_list_name && (
+                        <p className="text-primary text-[11px]">{line.price_list_name}</p>
+                      )}
                     </div>
                     <TapButton
                       onPress={() => changeQuantity(index, -1)}

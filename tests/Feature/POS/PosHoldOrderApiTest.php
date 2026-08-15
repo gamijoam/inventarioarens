@@ -13,9 +13,12 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Tenancy\Models\Tenant;
@@ -102,6 +105,89 @@ class PosHoldOrderApiTest extends TestCase
             'event_type' => 'pos.order.pending',
             'aggregate_type' => 'pos_order',
             'aggregate_id' => $response->json('data.id'),
+        ]);
+    }
+
+    public function test_held_order_keeps_price_list_and_cashier_can_only_use_its_payment_methods(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $priceList = PriceList::create([
+            'name' => 'Precio Mayor',
+            'code' => 'MAYOR',
+            'is_active' => true,
+        ]);
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceList->id,
+            'price' => 150,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $allowedCash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-USD',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $forbiddenCard = PaymentMethod::create([
+            'name' => 'Tarjeta USD',
+            'code' => 'CARD-USD',
+            'method' => PosPayment::METHOD_CARD,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $priceList->paymentMethods()->sync([$allowedCash->id => ['tenant_id' => $tenant->id]]);
+
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+
+        $held = $this
+            ->actingAs($seller)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'price_source' => 'price_list',
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.items.0.price_list_id', $priceList->id)
+            ->assertJsonPath('data.sale.items.0.price_list_name', 'Precio Mayor')
+            ->assertJsonPath('data.sale.items.0.unit_price', 150);
+
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id);
+        $orderId = $held->json('data.id');
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/payments", [
+                'cash_register_session_id' => $session->id,
+                'payments' => [[
+                    'payment_method_id' => $forbiddenCard->id,
+                    'method' => PosPayment::METHOD_CARD,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 150,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments.0.payment_method_id']);
+
+        $this->assertDatabaseHas('pos_orders', [
+            'id' => $orderId,
+            'status' => PosOrder::STATUS_OPEN,
         ]);
     }
 

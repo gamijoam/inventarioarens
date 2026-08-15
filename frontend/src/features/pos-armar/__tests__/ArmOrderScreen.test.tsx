@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   createCustomer: vi.fn(),
   getProductVariants: vi.fn(),
+  quoteProductForPos: vi.fn<(productId: number, priceListId: number) => Promise<unknown>>(),
   bootstrapWarehouses: [
     { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
     { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     status?: string;
     is_active?: boolean;
   }[],
+  bootstrapPriceLists: [] as Record<string, unknown>[],
   productQuery: vi.fn(),
   productResult: {
     isLoading: false,
@@ -54,6 +56,9 @@ vi.mock('@/features/pos/api', () => ({
     refs: {
       warehouses: mocks.bootstrapWarehouses,
     },
+    data: {
+      price_lists: mocks.bootstrapPriceLists,
+    },
   }),
   useWarehousesForPos: () => ({
     data: mocks.fallbackWarehouses,
@@ -61,6 +66,8 @@ vi.mock('@/features/pos/api', () => ({
     isError: false,
   }),
   useHoldOrder: () => ({ isPending: false, mutateAsync: mocks.holdMutate }),
+  quoteProductForPos: (productId: number, priceListId: number) =>
+    mocks.quoteProductForPos(productId, priceListId),
   useCustomers: (search: string) => ({
     isLoading: false,
     data:
@@ -143,6 +150,8 @@ describe('<ArmOrderScreen>', () => {
       { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
     );
     mocks.fallbackWarehouses.splice(0);
+    mocks.bootstrapPriceLists.splice(0);
+    mocks.quoteProductForPos.mockReset();
     mocks.productResult.data.data = [
       {
         id: 41,
@@ -212,7 +221,7 @@ describe('<ArmOrderScreen>', () => {
     );
   });
 
-  it('agrega el producto con el primer toque tactil en tablet', () => {
+  it('agrega el producto con el primer toque tactil en tablet', async () => {
     render(<ArmOrderScreen />);
 
     const touchStart = new Event('pointerdown', { bubbles: true });
@@ -220,11 +229,11 @@ describe('<ArmOrderScreen>', () => {
     fireEvent(screen.getByTestId('product-41'), touchStart);
 
     const ticket = screen.getByRole('complementary');
-    expect(within(ticket).getByText('1 x $12.50')).toBeInTheDocument();
+    expect(await within(ticket).findByText('1 x $12.50')).toBeInTheDocument();
     expect(within(ticket).getByText('$12.50')).toBeInTheDocument();
   });
 
-  it('muestra stock real y bloquea productos agotados o cantidades mayores a existencias', () => {
+  it('muestra stock real y bloquea productos agotados o cantidades mayores a existencias', async () => {
     render(<ArmOrderScreen />);
 
     expect(screen.getByText('Stock 2')).toBeInTheDocument();
@@ -235,7 +244,9 @@ describe('<ArmOrderScreen>', () => {
     fireEvent.click(screen.getByTestId('product-41'));
     fireEvent.click(screen.getByTestId('product-41'));
 
-    expect(within(screen.getByRole('complementary')).getByText('2 x $12.50')).toBeInTheDocument();
+    expect(
+      await within(screen.getByRole('complementary')).findByText('2 x $12.50'),
+    ).toBeInTheDocument();
   });
 
   it('permite elegir una variante con stock aunque el producto padre tenga stock cero', async () => {
@@ -245,7 +256,7 @@ describe('<ArmOrderScreen>', () => {
     expect(await screen.findByTestId('variant-picker')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar variante' }));
 
-    expect(within(screen.getByRole('complementary')).getByText(/Rojo/)).toBeInTheDocument();
+    expect(await within(screen.getByRole('complementary')).findByText(/Rojo/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
 
     await waitFor(() =>
@@ -253,6 +264,59 @@ describe('<ArmOrderScreen>', () => {
         expect.objectContaining({
           items: [
             expect.objectContaining({ product_id: 43, product_variant_id: 501, quantity: 1 }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it('cotiza y conserva la lista seleccionada al enviar la orden a caja', async () => {
+    mocks.bootstrapPriceLists.push({
+      id: 1,
+      code: 'MAYOR',
+      name: 'PRECIO MAYOR',
+      is_active: true,
+      is_default: false,
+      payment_method_ids: [11],
+    });
+    mocks.quoteProductForPos.mockResolvedValue({
+      product_id: 41,
+      price_list_id: 1,
+      price_list_name: 'PRECIO MAYOR',
+      price_source: 'price_list',
+      markup_percentage: null,
+      base_price_usd: 15,
+      sale_currency: 'USD',
+      sale_price: 15,
+      price_usd: 15,
+      price_ves: null,
+      exchange_rate_type_id: null,
+      exchange_rate_type_code: null,
+      exchange_rate_type_name: null,
+      exchange_rate_id: null,
+      exchange_rate: null,
+      exchange_rate_effective_at: null,
+    });
+
+    render(<ArmOrderScreen />);
+
+    fireEvent.change(screen.getByLabelText('Lista de precio'), { target: { value: '1' } });
+    fireEvent.click(screen.getByTestId('product-41'));
+
+    expect(await screen.findByText('1 x $15.00')).toBeInTheDocument();
+    expect(mocks.quoteProductForPos).toHaveBeenCalledWith(41, 1);
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
+
+    await waitFor(() =>
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              product_id: 41,
+              price_list_id: 1,
+              price_source: 'price_list',
+            }),
           ],
         }),
       ),
@@ -269,6 +333,7 @@ describe('<ArmOrderScreen>', () => {
     fireEvent.click(screen.getByRole('button', { name: /gabriel perez/i }));
     expect(screen.getByText('Gabriel Perez')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('product-41'));
+    await screen.findByText('1 x $12.50');
     fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
 
     await waitFor(() =>
